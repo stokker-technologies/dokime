@@ -44,6 +44,7 @@ use dokime_runtime::{RuntimeHandle, domains::exports::evidence::Error};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
@@ -60,6 +61,7 @@ struct ExportFrames(EvidenceExportFrame);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Download {
     type Declaration = DownloadEvidence;
     type Resources = Resources;
@@ -115,6 +117,7 @@ impl Frames for ExportFrames {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",

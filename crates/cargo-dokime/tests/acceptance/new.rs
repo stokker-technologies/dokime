@@ -20,6 +20,7 @@ use std::{
     process::{Command, Output},
 };
 // Third Party Imports
+use sha2::{Digest, Sha256};
 
 // Local Imports
 
@@ -76,6 +77,31 @@ fn standalone_scaffold_offline() {
     // Declared ids come from the owner namespace rather than the crate name, so
     // a package whose name carries an underscore still declares addressable ids.
     assert!(fs::read_to_string(root.path().join("my-plugin/src/suites/soak/hold.rs")).unwrap().contains("id = \"my-plugin.soak.hold\""));
+
+    // The Shipped Starter Includes Its Own Native Workflow And Locked Tooling
+    let plugin = root.path().join("my-plugin");
+    for file in [
+        "mise.toml",
+        "stkr.toml",
+        ".github/workflows/ci.yml",
+        ".gitlab-ci.yml",
+        "tools/python/pyproject.toml",
+        "tools/python/uv.lock",
+        "tools/python/src/project_tools/test/run.py",
+        "tools/python/src/project_tools/test/archive.py",
+    ] {
+        assert!(plugin.join(file).is_file(), "{file} is generated");
+    }
+    for file in ["mise.toml", "tools/python/src/project_tools/test/run.py"] {
+        let contents = fs::read_to_string(plugin.join(file)).unwrap();
+        let (marker, body) = contents.split_once('\n').unwrap();
+        assert!(marker.starts_with("# Rendered by stkr project update from "));
+        let (_, recorded) = marker.rsplit_once("; sha256:").unwrap();
+        let digest = Sha256::digest(body.as_bytes());
+        let encoded = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(recorded, encoded);
+        assert!(!contents.contains("{{package}}"), "{file} has no unresolved package placeholder");
+    }
 }
 
 #[test]

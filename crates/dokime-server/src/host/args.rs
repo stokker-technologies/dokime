@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{net::IpAddr, path::PathBuf};
+
 // Third Party Imports
 
 // Local Imports
@@ -25,18 +27,23 @@ use std::{net::IpAddr, path::PathBuf};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 #[command(about = "Listener flags shared by the standalone runtime and the Cargo wrapper.")]
 #[group(id = "listener")]
 pub struct NetworkArgs {
     #[arg(long, default_value = "127.0.0.1")]
     pub host: IpAddr,
+
     #[arg(long, default_value_t = 8765, help = "Listen on this exact port; use zero to allocate an available port.")]
     pub port: u16,
+
     #[arg(long, default_value_t = 2)]
     pub message_limit_mib: usize,
+
     #[arg(long, help = "Also serve gRPC-Web over HTTP/1.1 for browser clients. The desktop never needs it.")]
     pub grpc_web: bool,
+
     #[arg(
         long = "allowed-origin",
         requires = "grpc_web",
@@ -51,8 +58,10 @@ pub struct NetworkArgs {
 pub struct Args {
     #[arg(long, help = "Shut down when the controlling process closes standard input.")]
     pub shutdown_stdin: bool,
+
     #[arg(long, hide = true, requires = "shutdown_stdin", help = "Private development supervisor protocol.")]
     pub dev_control: bool,
+
     #[command(flatten)]
     pub network: NetworkArgs,
 

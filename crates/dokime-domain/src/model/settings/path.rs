@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::SettingsError;
 use crate::model::values::Value;
@@ -28,12 +30,14 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Path {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
     pub default: String,
+
     #[serde(default)]
     pub required: bool,
 }
@@ -43,6 +47,7 @@ pub struct Path {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Path {
     pub fn validate(&self) -> crate::Result<()> {
         self.validate_value(&self.default_value())

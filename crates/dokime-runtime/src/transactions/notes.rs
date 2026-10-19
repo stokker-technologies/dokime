@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
@@ -41,6 +44,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.evidence.note.add", version = 2, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddOperatorNote {
@@ -67,6 +71,7 @@ pub struct EditOperatorNote {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for AddOperatorNote {
     type Error = String;
 
@@ -204,6 +209,7 @@ impl EditOperatorNote {
 }
 
 /* === Public Functions === */
+
 pub fn admission_fits(state: &RuntimeState, next: &NoteAdmission) -> bool {
     state.note_admissions.len() < NOTE_RECEIPT_LIMIT
         && state.note_admissions.values().fold(receipt_bytes(next), |bytes, item| bytes.saturating_add(receipt_bytes(item)))
@@ -211,6 +217,7 @@ pub fn admission_fits(state: &RuntimeState, next: &NoteAdmission) -> bool {
 }
 
 /* === Private Functions === */
+
 fn same_creation(first: &NoteAdmission, next: &NoteAdmission) -> bool {
     first.mutation_id == next.mutation_id
         && first.owner == next.owner

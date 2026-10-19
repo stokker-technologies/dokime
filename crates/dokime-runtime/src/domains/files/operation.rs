@@ -34,6 +34,7 @@ use dokime_domain::model::files::wire::WatchedArtifact;
 use dokime_domain::operations::files::WatchFile;
 
 /* === Constants === */
+
 // The owner the step built-ins are registered under.
 const OWNER: &str = "dokime";
 
@@ -42,6 +43,7 @@ const OWNER: &str = "dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Registered before any plugin attaches, bound to the runtime once it exists.
 pub struct Resources {
     runtime: OnceLock<RuntimeHandle>,
@@ -57,6 +59,7 @@ struct Watching {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Watching {
     type Declaration = WatchFile;
     type Resources = Resources;
@@ -136,6 +139,7 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 // Registers the step built-ins, the Harmos instance controls and `WatchFile`,
 // before any plugin that requires them attaches.
 pub fn register(operations: &OperationManager) -> harmos::Result<Arc<Resources>> {
@@ -146,6 +150,7 @@ pub fn register(operations: &OperationManager) -> harmos::Result<Arc<Resources>>
 }
 
 /* === Private Functions === */
+
 fn collect_gaps(events: &mut Vec<WatchEvent>, gaps: &mut Vec<FileWatchGap>) {
     for event in events.drain(..) {
         if let WatchEvent::Gap { path, offset, reason } = event {

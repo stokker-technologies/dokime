@@ -41,6 +41,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.control", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -55,6 +56,7 @@ pub struct ControlExecution {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ControlExecution {
     pub(crate) fn owning_request<'a>(state: &'a RuntimeState, id: &TestExecutionId) -> Option<&'a RunRequest> {
         state.executions.get(id)?;

@@ -12,16 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
     net::SocketAddr,
     sync::{Arc, RwLock},
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use tonic::{Request, Status};
+
 // Local Imports
 use super::Error;
 
@@ -32,6 +35,7 @@ use super::Error;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Principal {
     subject: &'static str,
@@ -44,6 +48,7 @@ pub(super) struct Listeners {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug)]
 pub(crate) enum Policy {
     TrustedLocal,
@@ -54,6 +59,7 @@ pub(crate) enum Policy {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Principal {
     pub(crate) fn is_local(&self) -> bool {
         self.local
@@ -144,6 +150,7 @@ impl harmos::grpc::authentication::Authenticator for Listeners {
 }
 
 /* === Public Functions === */
+
 pub(super) fn verifier(key: &str) -> Result<[u8; 32], Error> {
     if !valid_key(key) {
         return Err(Error::Configuration("access keys require 32–4096 visible ASCII bytes"));
@@ -152,6 +159,7 @@ pub(super) fn verifier(key: &str) -> Result<[u8; 32], Error> {
 }
 
 /* === Private Functions === */
+
 fn valid_key(key: &str) -> bool {
     (32..=4096).contains(&key.len()) && key.bytes().all(|byte| byte.is_ascii_graphic())
 }

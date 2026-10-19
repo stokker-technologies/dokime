@@ -8,15 +8,19 @@
  */
 
 /* === Modules === */
+
 mod selection;
 mod wire;
 
 /* === Re-Exports === */
+
 pub(in crate::grpc) use wire::{health, note};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::domain::Portable;
 use harmos::{
@@ -24,6 +28,7 @@ use harmos::{
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
+
 // Local Imports
 use super::access::Principal;
 use dokime_domain::model::identity::CommandId;
@@ -41,24 +46,30 @@ use dokime_runtime::domains::evidence::notes::NoteError;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct ListNotes {
     resources: Arc<Resources>,
 }
+
 struct ListHealth {
     resources: Arc<Resources>,
 }
+
 struct CreateNote {
     resources: Arc<Resources>,
 }
+
 struct EditNote {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     ListNotes(ListNotes),
@@ -70,6 +81,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for ListNotes {
     type Declaration = contract::ListNotes;
     type Resources = Resources;
@@ -236,6 +248,7 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(512 * 1024) });
     runtime.operations().register_wire_operation::<ListNotes>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -246,6 +259,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn status(error: NoteError) -> Status {
     match error {
         NoteError::Invalid(message) => Status::invalid_argument(message),

@@ -12,20 +12,26 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 #[cfg(feature = "diagnostics")]
 use std::backtrace::Backtrace;
 use std::fmt;
+
 #[cfg(feature = "diagnostics")]
 use std::panic::Location;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 #[cfg(feature = "diagnostics")]
 use tracing_error::SpanTrace;
+
 // Local Imports
 
 /* === Constants === */
+
 #[cfg(feature = "diagnostics")]
 const HOME: &str = "~";
 
@@ -44,19 +50,23 @@ built without debug info, or on Windows its .pdb was not found beside the \
 executable";
 
 /* === Macros === */
-/* === Statics === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub message: String,
+
     #[serde(default)]
     pub chain: Vec<String>,
+
     pub location: String,
+
     #[serde(default)]
     pub span_trace: Vec<String>,
+
     #[serde(default)]
     pub backtrace: String,
 }
@@ -74,6 +84,7 @@ struct Redaction {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for Diagnostic {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -217,6 +228,7 @@ impl fmt::Display for Diagnostic {
 impl std::error::Error for Diagnostic {}
 
 /* === Public Functions === */
+
 #[cfg(feature = "diagnostics")]
 #[must_use]
 pub fn redacted(text: &str) -> String {
@@ -236,6 +248,7 @@ where
 }
 
 /* === Private Functions === */
+
 #[cfg(feature = "diagnostics")]
 fn located(location: &Location<'_>) -> String {
     format!("{}:{}", location.file(), location.line())

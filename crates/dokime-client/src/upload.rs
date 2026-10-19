@@ -32,12 +32,15 @@ use super::Client;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
     Client(#[from] super::Error),
+
     #[error("upload filesystem: {0}")]
     Io(#[from] std::io::Error),
+
     #[error("invalid upload: {0}")]
     Invalid(&'static str),
 }
@@ -45,6 +48,7 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub async fn upload_artifact_file(
         &self, source: &Path, mut header: dokime_domain::model::content::wire::UploadArtifactHeader,
@@ -81,6 +85,7 @@ impl Client {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn feed<F: Future<Output = super::Result<()>>>(
     mut source: impl AsyncRead + Unpin, header: dokime_domain::model::content::wire::UploadArtifactHeader, chunk_bytes: usize,
     mut send: impl FnMut(dokime_domain::model::content::wire::UploadArtifactFrame) -> F,

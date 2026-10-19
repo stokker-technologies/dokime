@@ -12,17 +12,20 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::Status;
+
 // Local Imports
 use dokime_domain::model::identity::IdentifierPattern;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
+
 pub(super) const MAX_ALTERNATIVES: usize = 64;
 pub(super) const MAX_SEVERITIES: usize = 4;
 
@@ -31,6 +34,7 @@ pub(super) const MAX_SEVERITIES: usize = 4;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Selection {
     value: dokime_domain::model::evidence::wire::CapturedRecordSelection,
     record_types: Vec<IdentifierPattern>,
@@ -42,6 +46,7 @@ pub(super) struct Selection {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Selection {
     pub(super) fn new(value: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>) -> Result<Self, Status> {
         let mut value = value.unwrap_or_default();

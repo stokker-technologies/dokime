@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +37,7 @@ use dokime_runtime::domains::{ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn appearance(
     frame: RuntimeAppearanceFrame, logo: Option<dokime_domain::model::appearance::wire::AppearanceLogo>,
 ) -> harmos::Result<dokime_domain::model::appearance::wire::AppearanceSnapshot> {
@@ -96,6 +98,7 @@ pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> har
 }
 
 /* === Private Functions === */
+
 fn theme(value: RuntimeThemeFamily) -> harmos::Result<dokime_domain::model::appearance::wire::ThemeFamily> {
     let mut variables = Vec::new();
     variables.try_reserve_exact(value.variables.len()).map_err(|_| exhausted())?;

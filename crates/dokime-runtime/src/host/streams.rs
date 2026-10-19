@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -25,6 +27,7 @@ use dokime_domain::model::values::Value;
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! host_rows {
     (
         $(
@@ -126,7 +129,7 @@ macro_rules! host_rows {
     };
 }
 
-/* === Expansions === */
+// Expansions
 
 dokime_domain::host_streams!(host_rows);
 
@@ -145,6 +148,7 @@ dokime_domain::host_streams!(host_rows);
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

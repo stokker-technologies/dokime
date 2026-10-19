@@ -16,13 +16,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 
 // Local Imports
 use super::files;
+use crate::grpc::transcode::Transcode;
 use dokime_runtime::ExecutionFileContent;
 
 /* === Constants === */
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -36,6 +37,7 @@ use dokime_runtime::ExecutionFileContent;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn project(
     content: &ExecutionFileContent, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileWindow> {
@@ -73,6 +75,7 @@ pub(in crate::grpc) fn owned(
 }
 
 /* === Private Functions === */
+
 fn text(source: &str) -> harmos::Result<String> {
     let mut target = String::new();
     target.try_reserve_exact(source.len()).map_err(|_| exhausted())?;

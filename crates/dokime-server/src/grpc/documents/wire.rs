@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::VecDeque;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use dokime_domain::model::documents::wire::DocumentFrameFrame as Frame;
 use tonic::Status;
+
 // Local Imports
 use super::super::value::{self, canonical};
+use crate::grpc::transcode::Transcode;
+use dokime_domain::model::documents::wire::DocumentFrameFrame as Frame;
 use dokime_runtime::{CurrentDocumentCapture, document as native};
 
 /* === Constants === */
@@ -29,6 +32,7 @@ use dokime_runtime::{CurrentDocumentCapture, document as native};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Frames {
     frames: VecDeque<dokime_domain::model::documents::wire::DocumentFrame>,
     bytes: usize,
@@ -40,6 +44,7 @@ struct Frames {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Frames {
     fn push(&mut self, frame: Frame) -> Result<(), Status> {
         let frame = dokime_domain::model::documents::wire::DocumentFrame { frame: Some(frame) };
@@ -54,6 +59,7 @@ impl Frames {
 }
 
 /* === Public Functions === */
+
 pub(super) fn frames(
     captured: CurrentDocumentCapture, limit: usize,
 ) -> Result<VecDeque<dokime_domain::model::documents::wire::DocumentFrame>, Status> {
@@ -287,6 +293,7 @@ pub(super) fn frames(
 }
 
 /* === Private Functions === */
+
 fn single_stream(plot: &native::PlotDefinition) -> Option<&str> {
     use dokime_runtime::expressions::{DataSource, DataTransform};
     let mut streams = std::collections::BTreeSet::new();
@@ -306,6 +313,7 @@ fn single_stream(plot: &native::PlotDefinition) -> Option<&str> {
         _ => None,
     }
 }
+
 fn layout_nodes(output: &mut Frames, nodes: Vec<native::DocumentNode>, parent: Option<u64>, ordinal: &mut u64) -> Result<(), Status> {
     for node in nodes {
         let current = *ordinal;

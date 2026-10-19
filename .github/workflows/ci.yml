@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:d7da358aa0be8eea9f09535a37633ed4167629e790f8d58ec48331b1288dcfdb
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:73926cf3289b0029f4f940f20f60591b84af5663cf034175c9d770746a492107
 name: CI
 "on":
   push:
@@ -33,6 +33,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -84,6 +93,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -97,12 +113,21 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     - run: sccache --show-stats
       if: always()
+    - id: release_kind
+      name: Identify Stable Release
+      shell: bash
+      run: |-
+        stable=false
+        if [[ "$GITHUB_REF" =~ ^refs/tags/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ && "$GITHUB_REF_PROTECTED" == true ]]; then stable=true; fi
+        printf 'stable_release=%s\n' "$stable" >> "$GITHUB_OUTPUT"
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc,git-cliff
+    outputs:
+      stable_release: ${{ steps.release_kind.outputs.stable_release }}
   check_python:
     name: Check / Python
     runs-on:
@@ -112,6 +137,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -164,6 +198,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -192,6 +233,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -244,6 +294,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -273,6 +330,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -343,6 +409,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -377,6 +450,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -429,8 +511,9 @@ jobs:
       shell: bash
       run: |-
         mkdir -p target/ci
+        candidates=("target/build/dev/any/python/" "target/generated/python/")
         outputs=()
-        for path in "target/build/dev/any/python/" "target/generated/python/"; do
+        for path in "${candidates[@]}"; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
@@ -442,6 +525,13 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -474,6 +564,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -526,8 +625,9 @@ jobs:
       shell: bash
       run: |-
         mkdir -p target/ci
+        candidates=("target/build/release/any/python/" "target/generated/python/")
         outputs=()
-        for path in "target/build/release/any/python/" "target/generated/python/"; do
+        for path in "${candidates[@]}"; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
@@ -539,6 +639,13 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -574,6 +681,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -646,11 +762,12 @@ jobs:
       if: matrix.os != 'windows'
       shell: bash
       run: |-
-        native="$(uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)"
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)"
         native="${native##*/}"
         mkdir -p target/ci
+        candidates=("target/build/dev/${native}/" "target/build/dev/any/" "target/generated/")
         outputs=()
-        for path in "target/build/dev/${native}/" "target/build/dev/any/" "target/generated/"; do
+        for path in "${candidates[@]}"; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
@@ -659,10 +776,10 @@ jobs:
       if: matrix.os == 'windows'
       shell: pwsh
       run: |-
-        $native = Split-Path -Leaf (& uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)
+        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         New-Item -ItemType Directory -Force target/ci | Out-Null
-        $outputs = @("target/build/dev/${native}/", "target/build/dev/any/", "target/generated/") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+        [string[]]$outputs = @("target/build/dev/${native}/", "target/build/dev/any/", "target/generated/") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
         if (!$outputs) { throw 'No build outputs found' }
         & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-product-dev-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' --exclude='target/build/dev/any/python' --exclude='target/generated/python' -- @outputs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -681,6 +798,13 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -723,6 +847,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -809,11 +942,12 @@ jobs:
       if: matrix.os != 'windows'
       shell: bash
       run: |-
-        native="$(uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)"
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)"
         native="${native##*/}"
         mkdir -p target/ci
+        candidates=("target/build/dev/${native}/tests")
         outputs=()
-        for path in "target/build/dev/${native}/tests" "target/build/dev/${native}/fixtures"; do
+        for path in "${candidates[@]}"; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
@@ -822,10 +956,10 @@ jobs:
       if: matrix.os == 'windows'
       shell: pwsh
       run: |-
-        $native = Split-Path -Leaf (& uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)
+        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         New-Item -ItemType Directory -Force target/ci | Out-Null
-        $outputs = @("target/build/dev/${native}/tests", "target/build/dev/${native}/fixtures") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+        [string[]]$outputs = @("target/build/dev/${native}/tests") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
         if (!$outputs) { throw 'No build outputs found' }
         & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-tests-dev-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -833,6 +967,40 @@ jobs:
       with:
         name: build-tests-dev-${{ matrix.os }}
         path: target/ci/build-tests-dev-${{ matrix.os }}.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - name: Archive Fixtures
+      if: matrix.os != 'windows'
+      shell: bash
+      run: |-
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)"
+        native="${native##*/}"
+        mkdir -p "target/build/dev/${native}/fixtures"
+        mkdir -p target/ci
+        candidates=("target/build/dev/${native}/fixtures")
+        outputs=()
+        for path in "${candidates[@]}"; do
+          if [ -e "$path" ]; then outputs+=("$path"); fi
+        done
+        [ ${#outputs[@]} -gt 0 ]
+        tar --zstd -cf "target/ci/build-fixtures-dev-${{ matrix.os }}.tar.zst"  -- "${outputs[@]}"
+    - name: Archive Fixtures
+      if: matrix.os == 'windows'
+      shell: pwsh
+      run: |-
+        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile dev)
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        New-Item -ItemType Directory -Force "target/build/dev/${native}/fixtures" | Out-Null
+        New-Item -ItemType Directory -Force target/ci | Out-Null
+        [string[]]$outputs = @("target/build/dev/${native}/fixtures") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
+        if (!$outputs) { throw 'No build outputs found' }
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-fixtures-dev-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-fixtures-dev-${{ matrix.os }}
+        path: target/ci/build-fixtures-dev-${{ matrix.os }}.tar.zst
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
@@ -844,6 +1012,13 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -885,6 +1060,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -957,11 +1141,12 @@ jobs:
       if: matrix.os != 'windows'
       shell: bash
       run: |-
-        native="$(uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)"
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)"
         native="${native##*/}"
         mkdir -p target/ci
+        candidates=("target/build/release/${native}/" "target/build/release/any/" "target/generated/")
         outputs=()
-        for path in "target/build/release/${native}/" "target/build/release/any/" "target/generated/"; do
+        for path in "${candidates[@]}"; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
@@ -970,10 +1155,10 @@ jobs:
       if: matrix.os == 'windows'
       shell: pwsh
       run: |-
-        $native = Split-Path -Leaf (& uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)
+        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         New-Item -ItemType Directory -Force target/ci | Out-Null
-        $outputs = @("target/build/release/${native}/", "target/build/release/any/", "target/generated/") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+        [string[]]$outputs = @("target/build/release/${native}/", "target/build/release/any/", "target/generated/") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
         if (!$outputs) { throw 'No build outputs found' }
         & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-product-release-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' --exclude='target/build/release/any/python' --exclude='target/generated/python' -- @outputs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -992,6 +1177,13 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -1034,6 +1226,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -1120,11 +1321,12 @@ jobs:
       if: matrix.os != 'windows'
       shell: bash
       run: |-
-        native="$(uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)"
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)"
         native="${native##*/}"
         mkdir -p target/ci
+        candidates=("target/build/release/${native}/tests")
         outputs=()
-        for path in "target/build/release/${native}/tests" "target/build/release/${native}/fixtures"; do
+        for path in "${candidates[@]}"; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
@@ -1133,10 +1335,10 @@ jobs:
       if: matrix.os == 'windows'
       shell: pwsh
       run: |-
-        $native = Split-Path -Leaf (& uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)
+        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         New-Item -ItemType Directory -Force target/ci | Out-Null
-        $outputs = @("target/build/release/${native}/tests", "target/build/release/${native}/fixtures") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+        [string[]]$outputs = @("target/build/release/${native}/tests") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
         if (!$outputs) { throw 'No build outputs found' }
         & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-tests-release-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -1144,6 +1346,40 @@ jobs:
       with:
         name: build-tests-release-${{ matrix.os }}
         path: target/ci/build-tests-release-${{ matrix.os }}.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - name: Archive Fixtures
+      if: matrix.os != 'windows'
+      shell: bash
+      run: |-
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)"
+        native="${native##*/}"
+        mkdir -p "target/build/release/${native}/fixtures"
+        mkdir -p target/ci
+        candidates=("target/build/release/${native}/fixtures")
+        outputs=()
+        for path in "${candidates[@]}"; do
+          if [ -e "$path" ]; then outputs+=("$path"); fi
+        done
+        [ ${#outputs[@]} -gt 0 ]
+        tar --zstd -cf "target/ci/build-fixtures-release-${{ matrix.os }}.tar.zst"  -- "${outputs[@]}"
+    - name: Archive Fixtures
+      if: matrix.os == 'windows'
+      shell: pwsh
+      run: |-
+        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile release)
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        New-Item -ItemType Directory -Force "target/build/release/${native}/fixtures" | Out-Null
+        New-Item -ItemType Directory -Force target/ci | Out-Null
+        [string[]]$outputs = @("target/build/release/${native}/fixtures") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
+        if (!$outputs) { throw 'No build outputs found' }
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-fixtures-release-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-fixtures-release-${{ matrix.os }}
+        path: target/ci/build-fixtures-release-${{ matrix.os }}.tar.zst
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
@@ -1155,6 +1391,13 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -1198,6 +1441,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -1287,6 +1539,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -1302,8 +1561,135 @@ jobs:
       if: always()
     if: >-
       always() && ((startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_release.result == 'success') || (!startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_dev.result == 'success'))
+      needs.build_product_release.result == 'success' && needs.build_python_any_release.result == 'success') ||
+      (!startsWith(github.ref, 'refs/tags/v') && needs.build_product_dev.result ==
+      'success' && needs.build_python_any_dev.result == 'success'))
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
+      MISE_ENABLE_TOOLS: >-
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+  validate_test_unit_python:
+    name: Validate / Unit / Python
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 10
+    needs:
+    - build_python_any_dev
+    - build_python_any_release
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+    - name: Cache / Uv
+      id: uv
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/uv/
+        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+    - name: Resolve Mise Directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |-
+        $directory = Join-Path ([System.IO.Path]::GetTempPath()) 'stkr-mise'
+        "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Resolve Mise Directory
+      if: runner.os != 'Windows'
+      shell: bash
+      run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ env.MISE_DATA_DIR }}
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-product-python-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+          'dev' }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-product-python-${{ startsWith(github.ref, 'refs/tags/v')
+        && 'release' || 'dev' }}-any.tar.zst"
+    - run: >-
+        mise run test:unit:python --profile ${{ startsWith(github.ref, 'refs/tags/v')
+        && 'release' || 'dev' }}
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: >-
+          junit-test_unit_python-${{ startsWith(github.ref, 'refs/tags/v') && 'release'
+          || 'dev' }}-linux
+        path: >-
+          target/tests/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}/*/unit-python/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.uv.outputs.cache-hit != 'true'
+      with:
+        path: .cache/uv/
+        key: ${{ steps.uv.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
+    if: >-
+      always() && ((startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_python_any_release.result == 'success') || (!startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_python_any_dev.result == 'success'))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -1317,16 +1703,21 @@ jobs:
       fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
-    - build_product_dev
-    - build_product_release
-    - build_python_any_dev
-    - build_python_any_release
     - build_tests_dev
     - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -1382,33 +1773,6 @@ jobs:
     - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
       with:
         version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
-          }}-${{ matrix.os }}
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
-      if: matrix.os != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: matrix.os == 'windows'
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-product-python-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-          'dev' }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-product-python-${{ startsWith(github.ref, 'refs/tags/v')
-        && 'release' || 'dev' }}-any.tar.zst"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
@@ -1444,6 +1808,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -1459,9 +1830,8 @@ jobs:
       if: always()
     if: >-
       always() && ((startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_release.result == 'success' && needs.build_tests_release.result == 'success') ||
-      (!startsWith(github.ref, 'refs/tags/v') && needs.build_product_dev.result ==
-      'success' && needs.build_tests_dev.result == 'success'))
+      needs.build_tests_release.result == 'success') || (!startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_tests_dev.result == 'success'))
     strategy:
       fail-fast: false
       matrix:
@@ -1474,22 +1844,27 @@ jobs:
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
-  validate_test_integration_python:
-    name: Validate / Integration / Python
+  validate_test_unit_typescript:
+    name: Validate / Unit / TypeScript
     runs-on:
     - ubuntu-latest
     timeout-minutes: 10
     needs:
     - build_product_dev
     - build_product_release
-    - build_python_any_dev
-    - build_python_any_release
-    - build_tests_dev
-    - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -1547,6 +1922,122 @@ jobs:
       run: >-
         tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}-linux.tar.zst"
+    - run: >-
+        mise run test:unit:typescript --profile ${{ startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: >-
+          junit-test_unit_typescript-${{ startsWith(github.ref, 'refs/tags/v') &&
+          'release' || 'dev' }}-linux
+        path: >-
+          target/tests/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}/*/unit-typescript/
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.uv.outputs.cache-hit != 'true'
+      with:
+        path: .cache/uv/
+        key: ${{ steps.uv.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
+    if: >-
+      always() && ((startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_product_release.result == 'success') || (!startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_product_dev.result == 'success'))
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
+      MISE_ENABLE_TOOLS: >-
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+  validate_test_integration_python:
+    name: Validate / Integration / Python
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 10
+    needs:
+    - build_python_any_dev
+    - build_python_any_release
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+    - name: Cache / Uv
+      id: uv
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/uv/
+        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+    - name: Resolve Mise Directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |-
+        $directory = Join-Path ([System.IO.Path]::GetTempPath()) 'stkr-mise'
+        "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Resolve Mise Directory
+      if: runner.os != 'Windows'
+      shell: bash
+      run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ env.MISE_DATA_DIR }}
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
@@ -1557,16 +2048,6 @@ jobs:
       run: >-
         tar --zstd -xf "build-product-python-${{ startsWith(github.ref, 'refs/tags/v')
         && 'release' || 'dev' }}-any.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
-          }}-linux
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}-linux.tar.zst"
     - run: >-
         mise run test:integration:python --profile ${{ startsWith(github.ref,
         'refs/tags/v') && 'release' || 'dev' }}
@@ -1585,6 +2066,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -1600,9 +2088,8 @@ jobs:
       if: always()
     if: >-
       always() && ((startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_release.result == 'success' && needs.build_tests_release.result == 'success') ||
-      (!startsWith(github.ref, 'refs/tags/v') && needs.build_product_dev.result ==
-      'success' && needs.build_tests_dev.result == 'success'))
+      needs.build_python_any_release.result == 'success') || (!startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_python_any_dev.result == 'success'))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -1616,16 +2103,21 @@ jobs:
       fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
-    - build_product_dev
-    - build_product_release
-    - build_python_any_dev
-    - build_python_any_release
     - build_tests_dev
     - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -1684,33 +2176,6 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
-          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
-          }}-${{ matrix.os }}
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
-      if: matrix.os != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: matrix.os == 'windows'
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-product-python-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-          'dev' }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-product-python-${{ startsWith(github.ref, 'refs/tags/v')
-        && 'release' || 'dev' }}-any.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
           build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
           }}-${{ matrix.os }}
     - name: Extract Build
@@ -1723,6 +2188,23 @@ jobs:
       shell: pwsh
       run: |-
         & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -1743,6 +2225,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -1758,9 +2247,8 @@ jobs:
       if: always()
     if: >-
       always() && ((startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_release.result == 'success' && needs.build_tests_release.result == 'success') ||
-      (!startsWith(github.ref, 'refs/tags/v') && needs.build_product_dev.result ==
-      'success' && needs.build_tests_dev.result == 'success'))
+      needs.build_tests_release.result == 'success') || (!startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_tests_dev.result == 'success'))
     strategy:
       fail-fast: false
       matrix:
@@ -1781,14 +2269,19 @@ jobs:
     needs:
     - build_product_dev
     - build_product_release
-    - build_python_any_dev
-    - build_python_any_release
-    - build_tests_dev
-    - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -1846,26 +2339,6 @@ jobs:
       run: >-
         tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}-linux.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-product-python-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-          'dev' }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-product-python-${{ startsWith(github.ref, 'refs/tags/v')
-        && 'release' || 'dev' }}-any.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
-          }}-linux
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}-linux.tar.zst"
     - run: >-
         mise run test:integration:typescript --profile ${{ startsWith(github.ref,
         'refs/tags/v') && 'release' || 'dev' }}
@@ -1884,6 +2357,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -1899,9 +2379,8 @@ jobs:
       if: always()
     if: >-
       always() && ((startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_release.result == 'success' && needs.build_tests_release.result == 'success') ||
-      (!startsWith(github.ref, 'refs/tags/v') && needs.build_product_dev.result ==
-      'success' && needs.build_tests_dev.result == 'success'))
+      needs.build_product_release.result == 'success') || (!startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_product_dev.result == 'success'))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -1924,6 +2403,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -1994,12 +2482,12 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
-          build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
           }}-linux
     - name: Extract Build
       shell: bash
       run: >-
-        tar --zstd -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') &&
+        tar --zstd -xf "build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}-linux.tar.zst"
     - run: >-
         mise run test:acceptance:python --profile ${{ startsWith(github.ref,
@@ -2019,6 +2507,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -2034,9 +2529,10 @@ jobs:
       if: always()
     if: >-
       always() && ((startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_release.result == 'success' && needs.build_tests_release.result == 'success') ||
-      (!startsWith(github.ref, 'refs/tags/v') && needs.build_product_dev.result ==
-      'success' && needs.build_tests_dev.result == 'success'))
+      needs.build_product_release.result == 'success' && needs.build_python_any_release.result == 'success' &&
+      needs.build_tests_release.result == 'success') || (!startsWith(github.ref,
+      'refs/tags/v') && needs.build_product_dev.result == 'success' &&
+      needs.build_python_any_dev.result == 'success' && needs.build_tests_dev.result == 'success'))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -2050,16 +2546,21 @@ jobs:
       fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
     timeout-minutes: 21
     needs:
-    - build_product_dev
-    - build_product_release
-    - build_python_any_dev
-    - build_python_any_release
     - build_tests_dev
     - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -2118,33 +2619,6 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
-          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
-          }}-${{ matrix.os }}
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
-      if: matrix.os != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: matrix.os == 'windows'
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-product-python-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-          'dev' }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-product-python-${{ startsWith(github.ref, 'refs/tags/v')
-        && 'release' || 'dev' }}-any.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
           build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
           }}-${{ matrix.os }}
     - name: Extract Build
@@ -2157,6 +2631,23 @@ jobs:
       shell: pwsh
       run: |-
         & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -2177,6 +2668,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -2192,9 +2690,8 @@ jobs:
       if: always()
     if: >-
       always() && ((startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_release.result == 'success' && needs.build_tests_release.result == 'success') ||
-      (!startsWith(github.ref, 'refs/tags/v') && needs.build_product_dev.result ==
-      'success' && needs.build_tests_dev.result == 'success'))
+      needs.build_tests_release.result == 'success') || (!startsWith(github.ref, 'refs/tags/v') &&
+      needs.build_tests_dev.result == 'success'))
     strategy:
       fail-fast: false
       matrix:
@@ -2224,6 +2721,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -2323,6 +2829,23 @@ jobs:
         & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
     - run: >-
         mise run test:system:rust --profile ${{ startsWith(github.ref, 'refs/tags/v')
         && 'release' || 'dev' }}
@@ -2341,6 +2864,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -2356,9 +2886,10 @@ jobs:
       if: always()
     if: >-
       always() && ((startsWith(github.ref, 'refs/tags/v') &&
-      needs.build_product_release.result == 'success' && needs.build_tests_release.result == 'success') ||
-      (!startsWith(github.ref, 'refs/tags/v') && needs.build_product_dev.result ==
-      'success' && needs.build_tests_dev.result == 'success'))
+      needs.build_product_release.result == 'success' && needs.build_python_any_release.result == 'success' &&
+      needs.build_tests_release.result == 'success') || (!startsWith(github.ref,
+      'refs/tags/v') && needs.build_product_dev.result == 'success' &&
+      needs.build_python_any_dev.result == 'success' && needs.build_tests_dev.result == 'success'))
     strategy:
       fail-fast: false
       matrix:
@@ -2379,14 +2910,21 @@ jobs:
     needs:
     - build_product_dev
     - build_product_release
-    - build_python_any_dev
-    - build_python_any_release
     - build_tests_dev
     - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -2447,22 +2985,12 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
-          build-product-python-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-          'dev' }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-product-python-${{ startsWith(github.ref, 'refs/tags/v')
-        && 'release' || 'dev' }}-any.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
           }}-linux
     - name: Extract Build
       shell: bash
       run: >-
-        tar --zstd -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') &&
+        tar --zstd -xf "build-fixtures-${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}-linux.tar.zst"
     - run: >-
         mise run test:system:typescript --profile ${{ startsWith(github.ref,
@@ -2479,6 +3007,13 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -2518,7 +3053,9 @@ jobs:
     - check_typescript
     - check_rust
     - validate_generated
+    - validate_test_unit_python
     - validate_test_unit_rust
+    - validate_test_unit_typescript
     - validate_test_integration_python
     - validate_test_integration_rust
     - validate_test_integration_typescript
@@ -2534,6 +3071,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -2612,7 +3158,7 @@ jobs:
     - name: Archive Package
       shell: bash
       run: |-
-        native="$(uv run --locked --project tools/python python -m dokime_tools.build.paths package --profile ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }})"
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths package --profile ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }})"
         native="${native##*/}"
         mkdir -p target/ci
         tar -cf "target/ci/package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-rust-${{ matrix.os }}.tar" -- "target/package/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}/${native}/rust"
@@ -2620,7 +3166,7 @@ jobs:
     - name: Archive Package
       shell: pwsh
       run: |-
-        $native = Split-Path -Leaf (& uv run --locked --project tools/python python -m dokime_tools.build.paths package --profile ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }})
+        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths package --profile ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }})
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         New-Item -ItemType Directory -Force target/ci | Out-Null
         & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-rust-${{ matrix.os }}.tar" --force-local -- "target/package/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}/${native}/rust"
@@ -2637,6 +3183,13 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -2658,13 +3211,17 @@ jobs:
       'cancelled') && (github.event_name == 'pull_request' || startsWith(github.ref,
       'refs/tags/v') || ((github.event_name == 'push' || github.event_name ==
       'workflow_dispatch') && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
-      'refs/heads/release/v'))))
+      'refs/heads/release/v')))) && (!startsWith(github.ref, 'refs/tags/') ||
+      needs.source.outputs.stable_release == 'true')
     strategy:
       fail-fast: false
       matrix:
         os:
         - linux
         - windows
+        exclude: >-
+          ${{ fromJSON(needs.source.outputs.stable_release == 'true' &&
+          '[{"os":"windows"}]' || '[]') }}
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -2682,7 +3239,9 @@ jobs:
     - check_typescript
     - check_rust
     - validate_generated
+    - validate_test_unit_python
     - validate_test_unit_rust
+    - validate_test_unit_typescript
     - validate_test_integration_python
     - validate_test_integration_rust
     - validate_test_integration_typescript
@@ -2698,6 +3257,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -2778,6 +3346,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -2812,6 +3387,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -2863,6 +3447,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -2884,7 +3475,7 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
   publish_release:
     name: Publish / Release
     runs-on:
@@ -2893,10 +3484,21 @@ jobs:
     needs:
     - package_rust
     - package_python
+    - source
+    - package_signing_windows_rust
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -2954,10 +3556,20 @@ jobs:
       run: for archive in target/ci/*.tar; do tar -xf "$archive"; done
     - id: crates
       uses: rust-lang/crates-io-auth-action@v1
+      if: env.CARGO_REGISTRY_TOKEN == ''
     - run: mise run release:publish
       env:
         GH_TOKEN: ${{ github.token }}
-        CARGO_REGISTRY_TOKEN: ${{ steps.crates.outputs.token }}
+        CARGO_REGISTRY_TOKEN: >-
+          ${{ env.CARGO_REGISTRY_TOKEN != '' && env.CARGO_REGISTRY_TOKEN ||
+          steps.crates.outputs.token }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -2974,17 +3586,20 @@ jobs:
         key: ${{ steps.tools.outputs.cache-primary-key }}
     - run: sccache --show-stats
       if: always()
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.source.outputs.stable_release == 'true'
     environment: release
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: linux
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
     permissions:
       contents: write
       actions: read
       id-token: write
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab
   publish_verify_install:
     name: Publish / Verify Install
     runs-on: >-
@@ -2997,6 +3612,15 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -3058,6 +3682,13 @@ jobs:
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
@@ -3086,7 +3717,7 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
   build_bench:
     name: Build / Bench
     runs-on:
@@ -3131,11 +3762,12 @@ jobs:
     - name: Archive Build
       shell: bash
       run: |-
-        native="$(uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile bench)"
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile bench)"
         native="${native##*/}"
         mkdir -p target/ci
+        candidates=("target/build/bench/${native}/")
         outputs=()
-        for path in "target/build/bench/${native}/"; do
+        for path in "${candidates[@]}"; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
@@ -3161,7 +3793,9 @@ jobs:
     - check_typescript
     - check_rust
     - validate_generated
+    - validate_test_unit_python
     - validate_test_unit_rust
+    - validate_test_unit_typescript
     - validate_test_integration_python
     - validate_test_integration_rust
     - validate_test_integration_typescript
@@ -3238,7 +3872,9 @@ jobs:
     - check_typescript
     - check_rust
     - validate_generated
+    - validate_test_unit_python
     - validate_test_unit_rust
+    - validate_test_unit_typescript
     - validate_test_integration_python
     - validate_test_integration_rust
     - validate_test_integration_typescript
@@ -3315,7 +3951,9 @@ jobs:
     - check_typescript
     - check_rust
     - validate_generated
+    - validate_test_unit_python
     - validate_test_unit_rust
+    - validate_test_unit_typescript
     - validate_test_integration_python
     - validate_test_integration_rust
     - validate_test_integration_typescript
@@ -3380,3 +4018,188 @@ jobs:
         retention-days: 7
         include-hidden-files: true
     if: github.event_name == 'schedule'
+  package_signing_windows_rust:
+    name: Package / Rust / Signing
+    runs-on: >-
+      ${{
+      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
+    timeout-minutes: 30
+    needs:
+    - source
+    - check_python
+    - check_typescript
+    - check_rust
+    - validate_generated
+    - validate_test_unit_python
+    - validate_test_unit_rust
+    - validate_test_unit_typescript
+    - validate_test_integration_python
+    - validate_test_integration_rust
+    - validate_test_integration_typescript
+    - validate_test_acceptance_python
+    - validate_test_acceptance_rust
+    - validate_test_system_rust
+    - validate_test_system_typescript
+    - build_product_dev
+    - build_product_release
+    - build_python_any_dev
+    - build_python_any_release
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+    - name: Cache / Uv
+      id: uv
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/uv/
+        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+    - name: Resolve Mise Directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |-
+        $directory = Join-Path ([System.IO.Path]::GetTempPath()) 'stkr-mise'
+        "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Resolve Mise Directory
+      if: runner.os != 'Windows'
+      shell: bash
+      run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+      if: matrix.os == 'linux'
+      shell: bash
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+      if: matrix.os == 'linux'
+      shell: bash
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ env.MISE_DATA_DIR }}
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: "false"
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - run: |-
+        if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) { throw 'Missing Required Package Signing Secret: TAURI_SIGNING_PRIVATE_KEY' }
+        if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) { throw 'Missing Required Package Signing Secret: TAURI_SIGNING_PRIVATE_KEY_PASSWORD' }
+        mise run package:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}
+      shell: pwsh
+      env:
+        TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    - name: Archive Package
+      shell: bash
+      run: |-
+        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths package --profile ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }})"
+        native="${native##*/}"
+        mkdir -p target/ci
+        tar -cf "target/ci/package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-rust-${{ matrix.os }}.tar" -- "target/package/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}/${native}/rust"
+      if: matrix.os != 'windows'
+    - name: Archive Package
+      shell: pwsh
+      run: |-
+        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths package --profile ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }})
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        New-Item -ItemType Directory -Force target/ci | Out-Null
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-rust-${{ matrix.os }}.tar" --force-local -- "target/package/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}/${native}/rust"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: >-
+          package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-rust-${{ matrix.os }}
+        path: >-
+          target/ci/package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+          'dev' }}-rust-${{ matrix.os }}.tar
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.uv.outputs.cache-hit != 'true'
+      with:
+        path: .cache/uv/
+        key: ${{ steps.uv.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.source.outputs.stable_release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - windows
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: >-
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff,minisign
+    environment: release

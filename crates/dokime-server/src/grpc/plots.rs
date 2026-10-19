@@ -8,16 +8,20 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod analysis;
 mod cursor;
 mod wire;
 
 /* === Re-Exports === */
+
 pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filter_wire};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{sync::Arc, time::Duration};
+
 // Third Party Imports
 use futures_util::{StreamExt, stream};
 use harmos::domain::Portable;
@@ -27,6 +31,7 @@ use harmos::{
 };
 use tokio::time::Instant;
 use tonic::Status;
+
 // Local Imports
 use cursor::{decode_plot_requests, selection_for_plot};
 use dokime_domain::operations::plots as contract;
@@ -40,6 +45,7 @@ use dokime_runtime::{
 use wire::{ensure_message_budget, envelope, stream_frame};
 
 /* === Constants === */
+
 const PLOT_STREAM_THROTTLE: Duration = Duration::from_millis(100);
 const PLOT_RETRY_FIRST: Duration = Duration::from_millis(250);
 const PLOT_RETRY_MAX: Duration = Duration::from_secs(5);
@@ -49,16 +55,20 @@ const PLOT_RETRY_MAX: Duration = Duration::from_secs(5);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Analyses {
     resources: Arc<Resources>,
 }
+
 struct Snapshots {
     resources: Arc<Resources>,
 }
+
 struct Watch {
     resources: Arc<Resources>,
 }
@@ -68,6 +78,7 @@ struct Watch {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Resources {
     fn produce<T: MemorySize + Portable + Send + Sync + 'static>(
         &self, build: impl FnOnce() -> Result<T, Status>,
@@ -77,6 +88,7 @@ impl Resources {
         Ok(output.into())
     }
 }
+
 impl Resources {
     fn frame(
         &self, requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
@@ -100,6 +112,7 @@ impl Resources {
         }
     }
 }
+
 impl Resources {
     async fn snapshot(
         &self, output: &mut StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>,
@@ -125,6 +138,7 @@ impl Resources {
         Ok(true)
     }
 }
+
 impl Operation for Analyses {
     type Declaration = contract::ListAnalyses;
     type Resources = Resources;
@@ -154,6 +168,7 @@ impl Operation for Analyses {
         })
     }
 }
+
 impl Operation for Snapshots {
     type Declaration = contract::QuerySnapshots;
     type Resources = Resources;
@@ -188,6 +203,7 @@ impl Operation for Snapshots {
         })
     }
 }
+
 impl Operation for Watch {
     type Declaration = contract::Watch;
     type Resources = Resources;
@@ -296,6 +312,7 @@ impl Operation for Watch {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
     runtime.operations().register_wire_operation::<Analyses>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -305,6 +322,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
 fn plot_error_frame(
     request: &dokime_runtime::runtime::query::PlotPayloadRequest, message: String,
 ) -> dokime_domain::model::plots::wire::PlotStreamFrame {

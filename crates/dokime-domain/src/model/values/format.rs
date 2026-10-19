@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
 /* === Constants === */
+
 pub const TIME_PATTERN_TOKENS: &[&str] = &["%Y", "%m", "%d", "%H", "%M", "%S", "%L", "%%"];
 
 /* === Macros === */
@@ -29,6 +32,7 @@ pub const TIME_PATTERN_TOKENS: &[&str] = &["%Y", "%m", "%d", "%H", "%M", "%S", "
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ValueFormat {
@@ -76,6 +80,7 @@ pub(crate) enum ValueFormatKind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for ValueFormat {
     fn memory_size(&self) -> usize {
         let heap = match self {
@@ -98,6 +103,7 @@ impl ValueFormat {
 }
 
 /* === Public Functions === */
+
 pub fn validate_value_format(format: &ValueFormat) -> Result<(), String> {
     match format {
         ValueFormat::Normal { max_fraction_digits } => {
@@ -130,6 +136,7 @@ pub fn validate_value_format(format: &ValueFormat) -> Result<(), String> {
 }
 
 /* === Private Functions === */
+
 fn validate_time_pattern(pattern: &str) -> Result<(), String> {
     let mut characters = pattern.chars();
     while let Some(character) = characters.next() {

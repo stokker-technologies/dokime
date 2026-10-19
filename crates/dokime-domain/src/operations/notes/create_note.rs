@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = NoteReceipt, id = "dokime.notes.create_note", version = 1,
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
@@ -36,8 +39,10 @@ pub struct CreateNote {
     // Explicit process epoch from discovery. Retry identities expire at restart.
     #[row(description = "Explicit process epoch from discovery. Retry identities expire at restart.")]
     pub epoch: String,
+
     pub mutation_id: String,
     pub owner: Option<AnnotationOwner>,
+
     // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
     #[row(description = "nonblank, at most 16 KiB UTF-8. Actor comes from authentication.")]
     pub message: String,

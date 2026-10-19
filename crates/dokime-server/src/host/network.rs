@@ -12,9 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::net::SocketAddr;
+
 // Third Party Imports
+
 // Local Imports
 use super::NetworkArgs;
 use crate::grpc::Config;
@@ -26,9 +29,13 @@ use crate::grpc::Config;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl NetworkArgs {
     pub fn config(&self) -> crate::host::Result<Config> {
         let bytes = self
@@ -62,6 +69,7 @@ impl NetworkArgs {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn input(message: impl Into<String>) -> crate::host::Error {
     crate::host::Error::Input(message.into())
 }

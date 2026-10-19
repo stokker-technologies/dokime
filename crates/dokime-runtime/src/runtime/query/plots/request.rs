@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 
 // Local Imports
@@ -29,6 +31,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PlotTelemetryReadGroup {
     pub(super) scope: ScopeSelection,
@@ -43,6 +46,7 @@ pub(super) struct PlotTelemetryReadGroup {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_streams: &[Identifier]) -> PlotPayloadRequest {
     if !telemetry_streams.iter().any(|stream| stream.as_str() == request.stream)
         && telemetry_streams.len() == 1

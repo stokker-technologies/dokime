@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::Status;
+
 // Local Imports
 use super::super::enums::canonical as enums;
 use super::super::value::{self, Budget, canonical};
@@ -39,6 +41,7 @@ use dokime_runtime::runtime::query::PlotPayloadRequest;
 use dokime_runtime::runtime::query::PlotWindow;
 
 /* === Constants === */
+
 const MAX_PLOT_REQUESTS: usize = 32;
 pub(super) const MAX_PLOT_POINTS: u64 = 100_000;
 const MAX_PLOT_TRANSFORMS: usize = 32;
@@ -56,6 +59,7 @@ const MAX_PLOT_TRANSFORMS: usize = 32;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn bounded_text(value: String) -> Result<String, Status> {
     value::text(&value)?;
     Ok(value)
@@ -94,6 +98,7 @@ pub(crate) fn record_scope(scope: dokime_domain::model::identity::wire::Evidence
 }
 
 /* === Private Functions === */
+
 fn plot_cursor(cursor: dokime_domain::model::plots::wire::PlotCursor) -> PlotPayloadCursor {
     PlotPayloadCursor {
         telemetry_streams: cursor.telemetry_streams.into_iter().map(|entry| (entry.key, entry.value)).collect(),

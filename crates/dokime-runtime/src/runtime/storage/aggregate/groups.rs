@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{cmp::Ordering, collections::BTreeMap};
 
@@ -31,6 +32,7 @@ use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const MAX_COLUMNS: usize = 32;
 const MAX_FILTERS: usize = 64;
 const MAX_FILTER_VALUES: usize = 1024;
@@ -41,10 +43,12 @@ const MAX_NAME_BYTES: usize = 256;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Groups {
     entries: BTreeMap<Key, Vec<Accumulator>>,
     omitted: bool,
 }
+
 struct Key(Vec<Value>);
 
 /* === Enums === */
@@ -52,6 +56,7 @@ struct Key(Vec<Value>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Groups {
     pub(super) fn fold(query: &AggregateQuery, rows: &[Row<'_>]) -> Result<Self> {
         validate(query)?;
@@ -113,12 +118,15 @@ impl PartialEq for Key {
         self.cmp(other) == Ordering::Equal
     }
 }
+
 impl Eq for Key {}
+
 impl PartialOrd for Key {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
+
 impl Ord for Key {
     fn cmp(&self, other: &Self) -> Ordering {
         compare_arrays(&self.0, &other.0)
@@ -126,6 +134,7 @@ impl Ord for Key {
 }
 
 /* === Public Functions === */
+
 pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
     if query.group_by.len() > MAX_COLUMNS
         || query.aggregates.is_empty()
@@ -186,6 +195,7 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 fn reductions(query: &AggregateQuery) -> Vec<Accumulator> {
     query.aggregates.iter().map(|column| Accumulator::new(Agg::Of(column.aggregate))).collect()
 }
@@ -272,6 +282,7 @@ fn matches(row: &Row<'_>, query: &AggregateQuery) -> Result<bool> {
     }
     Ok(true)
 }
+
 fn scalar_compare(left: &Value, right: &Value) -> Result<Ordering> {
     let compatible = match (left, right) {
         (Value::Bool(_), Value::Bool(_)) | (Value::Text(_), Value::Text(_)) | (Value::Datetime(_), Value::Datetime(_)) => true,
@@ -282,6 +293,7 @@ fn scalar_compare(left: &Value, right: &Value) -> Result<Ordering> {
     }
     Ok(compare(left, right))
 }
+
 fn compare(left: &Value, right: &Value) -> Ordering {
     use Value::*;
     match (left, right) {
@@ -310,6 +322,7 @@ fn compare(left: &Value, right: &Value) -> Ordering {
         _ => rank(left).cmp(&rank(right)),
     }
 }
+
 fn compare_arrays(left: &[Value], right: &[Value]) -> Ordering {
     for (left, right) in left.iter().zip(right) {
         let order = compare(left, right);
@@ -319,6 +332,7 @@ fn compare_arrays(left: &[Value], right: &[Value]) -> Ordering {
     }
     left.len().cmp(&right.len())
 }
+
 fn rank(value: &Value) -> u8 {
     match value {
         Value::Bool(_) => 0,
@@ -330,6 +344,7 @@ fn rank(value: &Value) -> u8 {
         Value::Null => 6,
     }
 }
+
 fn compare_float_integer(value: f64, integer: i128) -> Ordering {
     if value < i64::MIN as f64 {
         return Ordering::Less;
@@ -340,9 +355,11 @@ fn compare_float_integer(value: f64, integer: i128) -> Ordering {
     let whole = value.trunc() as i128;
     whole.cmp(&integer).then_with(|| value.partial_cmp(&(whole as f64)).expect("finite native number"))
 }
+
 fn numeric(value: &Value) -> bool {
     matches!(value, Value::Integer(_) | Value::Unsigned(_) | Value::Number(_))
 }
+
 fn column(query: &AggregateQuery, name: &str) -> Result<()> {
     if name.len() > MAX_NAME_BYTES {
         return Err(invalid("aggregate column name exceeds its byte bound"));
@@ -357,6 +374,7 @@ fn column(query: &AggregateQuery, name: &str) -> Result<()> {
     }
     Ok(())
 }
+
 fn invalid(message: &'static str) -> Error {
     Error::validation("aggregate_query_invalid", message, Vec::new())
 }

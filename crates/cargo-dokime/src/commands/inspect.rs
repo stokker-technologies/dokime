@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::PathBuf;
+
 // Third Party Imports
 use harmos::plugin::inventory::CarrierSection;
 use harmos_packaging::bundle::{Bundle, Limits};
+
 // Local Imports
 use crate::error::Error;
 
@@ -27,6 +30,7 @@ use crate::error::Error;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(clap::Args)]
 #[command(about = "Verify a plugin bundle and print its manifest and derived declarations as JSON")]
 pub struct Args {
@@ -40,6 +44,7 @@ pub struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn run(args: Args) -> Result<(), Error> {
     let limits = Limits::default();
     let bundle = Bundle::inspect(&dokime_packaging::bundle::read(&args.bundle)?, limits)?;

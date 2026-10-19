@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod command;
 mod embedded;
 pub mod error;
@@ -23,6 +24,7 @@ pub mod state;
 pub(crate) mod storage;
 
 /* === Re-Exports === */
+
 pub use crate::execution::context::ExecutionCycleContext;
 pub use embedded::EmbeddedProvider;
 pub use error::{Error, Result};
@@ -33,17 +35,17 @@ pub use storage::artifacts::{ArtifactReader, ArtifactUpload};
 pub use storage::report_open::{OpenedReport, ReportOrigin};
 
 // Reachable only from this crate's test targets. Kept at the root so those
+
 // targets name one path, not a private module tree.
-
 pub use handle::RecordSubscription;
-
 pub use storage::{context_records::ContextRecord, execution::ExecutionView, records::RecordReader, telemetry::TelemetryReader};
 
-// Named by this crate's own domain modules, by nobody outside it.
-
 /* === Imports === */
+
 // Standard Library Imports
+// Named by this crate's own domain modules, by nobody outside it.
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 
 // Local Imports
@@ -58,6 +60,7 @@ use query::RuntimeOverviewSnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Runtime {
     handle: RuntimeHandle,
     harmos: HarmosRuntime,
@@ -89,6 +92,7 @@ struct Shutdown {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for BackgroundTask {
     fn drop(&mut self) {
         self.0.abort();
@@ -108,13 +112,7 @@ impl Runtime {
 
         let mut runtime = Self::from_parts(RuntimeHandle::boot(config, BTreeMap::new(), true).await?);
         runtime.embedded = providers;
-        let plugins_started = std::time::Instant::now();
-        let outcome = runtime.install_plugins().await;
-        tracing::info!(phase = "plugins", elapsed_ms = plugins_started.elapsed().as_millis() as u64, "plugin installation complete");
-        if let Err(error) = outcome {
-            return Err(runtime.rollback(error).await);
-        }
-        Ok(runtime)
+        runtime.finish_start().await
     }
 
     pub async fn with_execution_fixture(
@@ -135,18 +133,33 @@ impl Runtime {
         Self::with_execution_fixtures_inner(config, fixtures, false).await
     }
 
+    #[cfg(feature = "fault-injection")]
+    pub async fn with_fixture_backends(
+        config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>,
+        decorate: impl FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send + 'static,
+    ) -> Result<Self> {
+        let fixtures = fixtures.into_iter().collect();
+        let parts = RuntimeHandle::boot_with_backends(config, fixtures, true, Box::new(decorate)).await?;
+        let runtime = Self::from_parts(parts);
+        runtime.finish_start().await
+    }
+
     async fn with_execution_fixtures_inner(
         config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>, install_builtins: bool,
     ) -> Result<Self> {
         let fixtures = fixtures.into_iter().collect();
-        let mut runtime = Self::from_parts(RuntimeHandle::boot(config, fixtures, install_builtins).await?);
+        let runtime = Self::from_parts(RuntimeHandle::boot(config, fixtures, install_builtins).await?);
+        runtime.finish_start().await
+    }
+
+    async fn finish_start(mut self) -> Result<Self> {
         let plugins_started = std::time::Instant::now();
-        let outcome = runtime.install_plugins().await;
+        let outcome = self.install_plugins().await;
         tracing::info!(phase = "plugins", elapsed_ms = plugins_started.elapsed().as_millis() as u64, "plugin installation complete");
         if let Err(error) = outcome {
-            return Err(runtime.rollback(error).await);
+            return Err(self.rollback(error).await);
         }
-        Ok(runtime)
+        Ok(self)
     }
 
     async fn rollback(mut self, source: crate::runtime::Error) -> crate::runtime::Error {

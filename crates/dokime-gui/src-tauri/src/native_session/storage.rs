@@ -12,23 +12,29 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     fs::{File, OpenOptions, TryLockError},
     io::{Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
+
 // Third Party Imports
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
+
 // Local Imports
 use super::{DesktopSessionError as Error, StorageResetReason as Reason};
 use dokime_runtime::paths::ApplicationPaths;
 
 /* === Constants === */
+
 // The same override the backend reads; the owned backend inherits it.
 const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
+
 // The lease every backend holds on its store while it runs.
 const LEASE: &str = "local.lock";
+
 // How many archive bytes pass between two progress reports.
 const PROGRESS_STEP: u64 = 1 << 20;
 
@@ -37,6 +43,7 @@ const PROGRESS_STEP: u64 = 1 << 20;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StorageRoot {
     data: PathBuf,
@@ -56,6 +63,7 @@ struct Counted<W, F> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl StorageRoot {
     pub fn new(data: PathBuf, application: PathBuf) -> Self {
         Self { data, application }
@@ -263,6 +271,7 @@ impl<W: Seek, F> Seek for Counted<W, F> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn configured_data_root(settings: &Path) -> Result<Option<PathBuf>, String> {
     let bytes = match std::fs::read(settings) {
         Ok(bytes) => bytes,

@@ -10,6 +10,7 @@
 // Preview And Register Canonical Selection Plans
 
 /* === Modules === */
+
 pub(crate) mod input;
 mod materialize;
 mod preview;
@@ -34,10 +35,12 @@ mod register;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(about = "Preview Cases Without Registering Them.")]
     Preview(preview::Args),
+
     #[command(about = "Register Cases Using A Caller-Retained Idempotency Key.")]
     Register(register::Args),
 
@@ -50,6 +53,7 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::Preview(args) => preview::run(args).await,

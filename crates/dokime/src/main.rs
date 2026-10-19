@@ -12,13 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::process::ExitCode;
+
 // Third Party Imports
 use clap::Parser;
+
 // Local Imports
 
 /* === Constants === */
+
 const STACK_BYTES: usize = 32 * 1024 * 1024;
 
 /* === Macros === */
@@ -36,6 +40,7 @@ const STACK_BYTES: usize = 32 * 1024 * 1024;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> ExitCode {
     let cli = dokime::Cli::parse();
     let terminal = dokime::terminal::Terminal::new(cli.color);

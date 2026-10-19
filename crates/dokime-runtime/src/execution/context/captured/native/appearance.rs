@@ -31,6 +31,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Appearance {
@@ -45,6 +46,7 @@ pub(crate) struct Appearance {
     mode_locked: bool,
     source_plugin_id: Option<String>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Organization {
@@ -52,6 +54,7 @@ struct Organization {
     unit: Option<String>,
     website: Option<String>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Logo {
@@ -60,6 +63,7 @@ struct Logo {
     url: String,
     alt: Option<String>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Theme {
@@ -73,18 +77,21 @@ struct Theme {
     light: Option<Variant>,
     dark: Option<Variant>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Property {
     key: String,
     value: String,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Variant {
     variables: Vec<Property>,
     plot_palette: Vec<String>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Radii {
@@ -103,6 +110,7 @@ struct Radii {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Appearance {}
 
 impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
@@ -201,6 +209,7 @@ impl TryFrom<&RuntimeThemeFamily> for Theme {
         })
     }
 }
+
 impl TryFrom<Theme> for RuntimeThemeFamily {
     type Error = Error;
     fn try_from(theme: Theme) -> Result<Self> {
@@ -217,6 +226,7 @@ impl TryFrom<Theme> for RuntimeThemeFamily {
         })
     }
 }
+
 impl TryFrom<&ThemeVariant> for Variant {
     type Error = Error;
     fn try_from(variant: &ThemeVariant) -> Result<Self> {
@@ -225,6 +235,7 @@ impl TryFrom<&ThemeVariant> for Variant {
         Ok(Self { variables: properties(&variant.variables)?, plot_palette: palette })
     }
 }
+
 impl TryFrom<Variant> for ThemeVariant {
     type Error = Error;
     fn try_from(variant: Variant) -> Result<Self> {
@@ -233,6 +244,7 @@ impl TryFrom<Variant> for ThemeVariant {
 }
 
 impl Radii {}
+
 impl From<&ThemeCornerRadii> for Radii {
     fn from(value: &ThemeCornerRadii) -> Self {
         Self {
@@ -247,6 +259,7 @@ impl From<&ThemeCornerRadii> for Radii {
         }
     }
 }
+
 impl From<Radii> for ThemeCornerRadii {
     fn from(value: Radii) -> Self {
         Self {
@@ -265,6 +278,7 @@ impl From<Radii> for ThemeCornerRadii {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| invalid("appearance slot allocation failed"))?;
@@ -273,6 +287,7 @@ fn slots<T>(count: usize) -> Result<Vec<T>> {
     }
     Ok(values)
 }
+
 fn property_projection(values: &[Property]) -> Result<usize> {
     if values.windows(2).any(|pair| pair[0].key >= pair[1].key) {
         return Err(invalid("theme properties are not canonical"));
@@ -285,11 +300,13 @@ fn property_projection(values: &[Property]) -> Result<usize> {
         bytes.saturating_add(property.key.capacity()).saturating_add(property.value.capacity())
     }))
 }
+
 fn properties(values: &BTreeMap<String, String>) -> Result<Vec<Property>> {
     let mut result = slots(values.len())?;
     result.extend(values.iter().map(|(key, value)| Property { key: key.clone(), value: value.clone() }));
     Ok(result)
 }
+
 fn property_map(values: Vec<Property>) -> Result<BTreeMap<String, String>> {
     if property_projection(&values)? == usize::MAX {
         return Err(invalid("theme property projection overflows"));
@@ -300,6 +317,7 @@ fn property_map(values: Vec<Property>) -> Result<BTreeMap<String, String>> {
     }
     Ok(result)
 }
+
 fn mode(value: u32) -> Result<ThemeModePolicy> {
     match value {
         1 => Ok(ThemeModePolicy::UserOrSystem),
@@ -309,6 +327,7 @@ fn mode(value: u32) -> Result<ThemeModePolicy> {
         _ => Err(invalid("appearance mode policy is unknown")),
     }
 }
+
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }

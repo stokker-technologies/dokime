@@ -8,12 +8,15 @@
  */
 
 /* === Modules === */
+
 mod query;
 
 /* === Re-Exports === */
+
 pub use query::PluginPage;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeSet,
@@ -22,9 +25,11 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
+
 // Local Imports
 use super::model::{Installation, PluginSettings};
 use super::{PluginEntry, PluginLastBoot, PluginMetadata, PluginState, inspect};
@@ -32,6 +37,7 @@ use crate::config::Settings;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const BUNDLE_EXTENSION: &str = "dokime";
 const STAGE_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
@@ -40,6 +46,7 @@ const STAGE_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct PluginStore {
     settings: Settings,
@@ -47,24 +54,33 @@ pub struct PluginStore {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum PluginError {
     #[error("plugin query budget exceeded")]
     Limit,
+
     #[error("plugin listing cursor changed or is invalid")]
     Cursor,
+
     #[error("invalid plugin: {0}")]
     Invalid(String),
+
     #[error("plugin install `{0}` was not found")]
     Unknown(Uuid),
+
     #[error("plugin install `{0}` is not staged")]
     NotStaged(Uuid),
+
     #[error("plugin install `{0}` is not installed")]
     NotInstalled(Uuid),
+
     #[error("plugin install `{0}` no longer matches its authorized digest")]
     Changed(Uuid),
+
     #[error("plugin owner `{0}` is already reserved")]
     Collision(String),
+
     #[error("plugin storage failed: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -72,6 +88,7 @@ pub enum PluginError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PluginStore {
     pub fn new(settings: Settings) -> Self {
         let root = settings.paths().plugins();
@@ -318,6 +335,7 @@ impl PluginStore {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn read_bounded(path: &Path, limit: usize) -> Result<Vec<u8>, PluginError> {
     if !fs::symlink_metadata(path)?.file_type().is_file() {
         return Err(PluginError::Invalid("bundle must be a regular file".into()));
@@ -336,6 +354,7 @@ pub(crate) fn digest(bytes: &[u8]) -> String {
 }
 
 /* === Private Functions === */
+
 fn entry(installation: Installation, metadata: Option<PluginMetadata>, error: Option<String>) -> PluginEntry {
     PluginEntry {
         restart_required: installation.state == PluginState::Installed,

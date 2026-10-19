@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
+
 // Third Party Imports
 
 // Local Imports
@@ -32,6 +34,7 @@ use crate::connection::{ConnectRequest, ConnectionCredentials, ConnectionSession
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct DesktopSession(Arc<Inner>);
 
@@ -63,6 +66,7 @@ struct Resources {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DesktopSession {
     pub fn attached(connection: ConnectionSession) -> Self {
         Self(Arc::new(Inner {

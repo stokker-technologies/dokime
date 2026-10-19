@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::MemorySize;
 use tonic::Status;
+
 // Local Imports
 use super::super::value::canonical;
 use super::{Budget, unit, unit_memory, value};
@@ -44,6 +46,7 @@ use dokime_runtime::telemetry::TelemetryRole;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn record(contract: &RecordContract) -> Result<dokime_domain::model::definition::wire::RecordSchema, Status> {
     record_memory(contract)?;
     value::text(contract.record_type.as_str())?;
@@ -211,6 +214,7 @@ pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Stat
 }
 
 /* === Private Functions === */
+
 fn failure(error: harmos::Error) -> Status {
     match error {
         harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("canonical schema construction exceeds its bound"),

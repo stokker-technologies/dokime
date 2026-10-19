@@ -877,12 +877,17 @@ platforms consume that same wheel. Packages are separated by language: raw
 carriers live under the native `rust/` subtree; Python distributions and the
 declared tutorial ZIP live under `any/python/`. Raw executable names include
 the package version and ABI-accurate Rust target triple.
+Stable Windows release packages require the protected updater signing key;
+their signatures are verified against the configured public key and exact
+installer bytes. Development packages remain unsigned. Python publication
+selects the client wheel and source distribution; the examples ZIP is a
+separate downloadable bundle.
 Generated TypeScript messages live under `target/generated/typescript/`.
 `test` runs the layers in order, each with its own task:
 
 | Task | Layer |
 | --- | --- |
-| `mise run test:unit` | Curated invariants inside the crates. |
+| `mise run test:unit` | Curated Rust, Python and TypeScript invariants. |
 | `mise run test:integration` | In-process stories per crate, plus Python and TypeScript client stories. |
 | `mise run test:generated` | The generated Python and TypeScript clients: types, lint and an import smoke. |
 | `mise run test:acceptance` | Whole stories over one process and a client: the server, the CLI, the Python client. |

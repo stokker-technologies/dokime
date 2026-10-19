@@ -18,6 +18,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
@@ -40,6 +41,7 @@ use dokime_domain::operations::files::WatchFile;
 use dokime_domain::operations::process::RunProcess;
 
 /* === Constants === */
+
 // The JSON-RPC server error code of a refusal raised on the step side.
 const STEP_REFUSAL: i64 = -32_000;
 
@@ -52,11 +54,12 @@ const LOCAL_IDS: u64 = u64::MAX;
 /* === Macros === */
 
 /* === Type Aliases === */
-type HostInstance<O> = <Supervisor as Host>::Instance<O>;
 
+type HostInstance<O> = <Supervisor as Host>::Instance<O>;
 type Sweeping<'a> = Pin<Box<dyn Future<Output = Option<StepHandleCancelled>> + Send + 'a>>;
 
 /* === Structs === */
+
 // The running execution as a child process and a warning name it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExecutionIdentity {
@@ -107,17 +110,20 @@ pub(crate) struct LocalRun {
 }
 
 /* === Enums === */
+
 enum Running<O: OperationDeclaration> {
     Host(HostInstance<O>),
     Local(LocalRun),
 }
 
 /* === Traits === */
+
 trait Sweep: Send + Sync {
     fn sweep(&self, step: String) -> Sweeping<'_>;
 }
 
 /* === Implementations === */
+
 impl Handles {
     pub(crate) fn begin(&self, step: StepIdentity) {
         self.locked().step = Some(step);
@@ -334,6 +340,7 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn refused(message: impl Into<String>) -> CallError {
     CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) }
 }
@@ -343,6 +350,7 @@ pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
 }
 
 /* === Private Functions === */
+
 fn swept() -> Status {
     Status { phase: Phase::Settled, outcome: Some(Outcome::Cancelled), cancellation_requested: true, attempt: 1 }
 }

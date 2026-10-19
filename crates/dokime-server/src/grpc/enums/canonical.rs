@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -27,6 +28,7 @@ use dokime_runtime::{
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! encode {
     ($name:ident: $native:ident -> $wire:ty { $($variant:ident),+ $(,)? }) => {
         pub(in crate::grpc) fn $name(value: &$native) -> $wire {
@@ -99,14 +101,6 @@ encode!(frequency_level_unit: FrequencyLevelUnit -> dokime_domain::model::plots:
 
 encode!(reference_axis: ReferenceAxis -> dokime_domain::model::documents::wire::ReferenceAxis { X, Y });
 
-pub(in crate::grpc) fn plot_axis(value: Option<&PlotAxisKind>) -> (dokime_domain::model::documents::wire::PlotAxisKind, Option<String>) {
-    match value {
-        None => (dokime_domain::model::documents::wire::PlotAxisKind::Unspecified, None),
-        Some(PlotAxisKind::WallTime) => (dokime_domain::model::documents::wire::PlotAxisKind::WallTime, None),
-        Some(PlotAxisKind::Elapsed { unit }) => (dokime_domain::model::documents::wire::PlotAxisKind::Elapsed, Some(unit.clone())),
-    }
-}
-
 encode!(execution_file_kind: ExecutionFileContentKind -> dokime_domain::model::content::wire::ExecutionFileKind {
     Text,
     Binary,
@@ -132,6 +126,14 @@ encode!(execution_file_state: ExecutionFileStreamState -> dokime_domain::model::
 
 /* === Public Functions === */
 
+pub(in crate::grpc) fn plot_axis(value: Option<&PlotAxisKind>) -> (dokime_domain::model::documents::wire::PlotAxisKind, Option<String>) {
+    match value {
+        None => (dokime_domain::model::documents::wire::PlotAxisKind::Unspecified, None),
+        Some(PlotAxisKind::WallTime) => (dokime_domain::model::documents::wire::PlotAxisKind::WallTime, None),
+        Some(PlotAxisKind::Elapsed { unit }) => (dokime_domain::model::documents::wire::PlotAxisKind::Elapsed, Some(unit.clone())),
+    }
+}
+
 pub(in crate::grpc) fn plot_type_from_wire(value: dokime_domain::model::plots::wire::PlotType) -> Result<Option<PlotType>, tonic::Status> {
     Ok(match value {
         dokime_domain::model::plots::wire::PlotType::Unspecified => None,
@@ -155,6 +157,7 @@ pub(in crate::grpc) fn plot_type_from_wire(value: dokime_domain::model::plots::w
         dokime_domain::model::plots::wire::PlotType::AggregateTable => Some(PlotType::AggregateTable),
     })
 }
+
 pub(in crate::grpc) fn axis_scale_from_wire(
     value: dokime_domain::model::plots::wire::AxisScale,
 ) -> Result<Option<AxisScale>, tonic::Status> {
@@ -164,6 +167,7 @@ pub(in crate::grpc) fn axis_scale_from_wire(
         dokime_domain::model::plots::wire::AxisScale::Log => Some(AxisScale::Log),
     })
 }
+
 pub(in crate::grpc) fn filter_operator_from_wire(
     value: dokime_domain::model::plots::wire::FilterOperator,
 ) -> Result<Option<FilterOperator>, tonic::Status> {
@@ -179,6 +183,7 @@ pub(in crate::grpc) fn filter_operator_from_wire(
         dokime_domain::model::plots::wire::FilterOperator::Exists => Some(FilterOperator::Exists),
     })
 }
+
 pub(in crate::grpc) fn downsample_technique_from_wire(
     value: plots::DownsampleTechnique,
 ) -> Result<Option<DownsampleTechnique>, tonic::Status> {
@@ -190,6 +195,7 @@ pub(in crate::grpc) fn downsample_technique_from_wire(
         plots::DownsampleTechnique::Lttb => Some(DownsampleTechnique::Lttb),
     })
 }
+
 /* === Private Functions === */
 
 /* === Tests === */

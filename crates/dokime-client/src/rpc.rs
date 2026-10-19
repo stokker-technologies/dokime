@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,6 +34,7 @@ use dokime_domain::operations::Endpoint;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub async fn content_follow_execution_file(
         &self, message: contracts::content::FollowExecutionFile,

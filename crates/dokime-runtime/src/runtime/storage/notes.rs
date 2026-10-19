@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::storage::ObjectVersion;
 
@@ -35,6 +37,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct AnnotationAdmission {
     _guards: Vec<tokio::sync::OwnedMutexGuard<()>>,
     _owners: Vec<Arc<tokio::sync::Mutex<Acquisition>>>,
@@ -45,6 +48,7 @@ pub(crate) struct AnnotationAdmission {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionStorage {
     pub(crate) async fn admit_annotations(&self, scope: &RecordScope) -> Result<AnnotationAdmission> {
         // Snapshot Handles In Key Order; Release The Registry Before Awaiting Owners
@@ -120,6 +124,7 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn annotation_limit(reason: &'static str) -> Error {
     Error::Operation(reason.into())
 }

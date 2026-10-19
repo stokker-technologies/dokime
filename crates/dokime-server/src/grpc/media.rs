@@ -19,12 +19,12 @@
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
 use super::content::{artifact_scope, content_failure, metadata, metadata_memory};
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::content::wire::ArtifactMetadata;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
@@ -39,6 +39,7 @@ use dokime_runtime::domains::media::UNAVAILABLE;
 use dokime_runtime::runtime::Error;
 
 /* === Constants === */
+
 const PROGRESS_INTERVAL: Duration = Duration::from_secs(1);
 
 // Video capture is declared but refused until an encoder is chosen: no ffmpeg,
@@ -51,6 +52,7 @@ const NO_VIDEO_ENCODER: &str = "no video encoder available in this build";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
@@ -74,6 +76,7 @@ struct ScreenRecording;
 struct CameraRecording;
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Screenshot(Screenshot),
@@ -86,6 +89,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Screenshot {
     type Declaration = contract::Screenshot;
     type Resources = Resources;
@@ -245,6 +249,7 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let operations = runtime.operations();
@@ -258,6 +263,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn capture_scope(scope: Option<&dokime_domain::model::content::wire::ArtifactScope>) -> Result<RecordScope, Status> {
     let scope = artifact_scope(scope)?;
     if scope.test_cycle_id.is_none() || scope.test_execution_id.is_none() {

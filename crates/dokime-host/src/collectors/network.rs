@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use sysinfo::Networks;
+
 // Local Imports
 use crate::{
     DEFAULT_NETWORK_LINK_INTERVAL, HostStreamSample, HostTelemetryStream, Result,
@@ -28,6 +31,7 @@ use dokime_domain::model::time::DurationMillis;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const BYTES_PER_MEGABYTE: f64 = 1_000_000.0;
 
 /* === Macros === */
@@ -35,6 +39,7 @@ const BYTES_PER_MEGABYTE: f64 = 1_000_000.0;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct NetworkCollector {
     sample_index: u64,
     networks: Networks,
@@ -64,6 +69,7 @@ struct PrimaryNetwork {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for NetworkCollector {
     fn default() -> Self {
         Self::new(DEFAULT_NETWORK_LINK_INTERVAL)
@@ -141,6 +147,7 @@ impl NetworkCollector {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn primary_network(networks: &Networks) -> Option<PrimaryNetwork> {
     networks
         .iter()

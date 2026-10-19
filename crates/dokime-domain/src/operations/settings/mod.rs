@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod get_plugin_settings;
 mod get_settings;
 mod list_storage_sources;
@@ -23,6 +24,7 @@ mod update_report_defaults;
 mod update_storage_policy;
 
 /* === Re-Exports === */
+
 pub use get_plugin_settings::GetPluginSettings;
 pub use get_settings::GetSettings;
 pub use list_storage_sources::ListStorageSources;
@@ -46,9 +48,8 @@ pub use update_storage_policy::UpdateStoragePolicy;
 // Local Imports
 use super::Endpoint;
 use super::ORDINARY;
-use crate::model::values::wire::Value;
-
 use crate::model::settings::wire::*;
+use crate::model::values::wire::Value;
 
 /* === Constants === */
 
@@ -58,9 +59,9 @@ use crate::model::settings::wire::*;
 
 /* === Structs === */
 
-// An absent data root restores the default beneath the application root.
-
 /* === Enums === */
+
+// An absent data root restores the default beneath the application root.
 
 #[harmos_domain::catalog]
 pub enum Operations {
@@ -82,6 +83,7 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for ReadStoragePolicy {
     const PATH: &'static str = "/dokime.v1.Settings/ReadStoragePolicy";
 }

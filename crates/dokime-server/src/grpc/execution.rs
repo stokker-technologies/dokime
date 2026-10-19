@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod commands;
 mod control;
 mod detail;
@@ -16,11 +17,13 @@ mod requests;
 mod steps;
 
 /* === Re-Exports === */
+
 pub(super) use control::command_context;
 pub(super) use detail::Bounds;
 pub(crate) use detail::result as result_summary;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -28,6 +31,7 @@ use std::sync::Arc;
 use harmos::operations::{Context, Operation};
 use prost::Message;
 use tonic::{Code, Status};
+
 // Local Imports
 use super::value;
 use super::value::canonical;
@@ -54,6 +58,7 @@ use dokime_runtime::{RuntimeHandle, runtime::Error};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
@@ -62,12 +67,15 @@ pub(super) struct Resources {
 struct GetCycle {
     resources: Arc<Resources>,
 }
+
 struct ListCycles {
     resources: Arc<Resources>,
 }
+
 struct ListCases {
     resources: Arc<Resources>,
 }
+
 struct ListExecutions {
     resources: Arc<Resources>,
 }
@@ -75,23 +83,29 @@ struct ListExecutions {
 struct GetCase {
     resources: Arc<Resources>,
 }
+
 struct GetExecution {
     resources: Arc<Resources>,
 }
+
 struct ListCaseParameters {
     resources: Arc<Resources>,
 }
+
 struct ListExecutionParameters {
     resources: Arc<Resources>,
 }
+
 struct ListExecutionSteps {
     resources: Arc<Resources>,
 }
+
 struct ListStepCriteria {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     GetCase(GetCase),
@@ -110,6 +124,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for GetCase {
     type Declaration = wire::GetCase;
     type Resources = Resources;
@@ -341,6 +356,7 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     control::register(runtime)?;
     requests::register(runtime)?;
@@ -458,7 +474,46 @@ pub(super) fn historical_case_summary(
     case_summary(case, ordinal, historical_case_projection(cycle, &case.test_case_id), bounds)
 }
 
+pub(super) fn execution_status(status: &ExecutionStatus) -> dokime_domain::model::execution::wire::ExecutionStatus {
+    match status {
+        ExecutionStatus::Invalidated => dokime_domain::model::execution::wire::ExecutionStatus::Invalidated,
+        ExecutionStatus::Skipped => dokime_domain::model::execution::wire::ExecutionStatus::Skipped,
+        ExecutionStatus::Pending => dokime_domain::model::execution::wire::ExecutionStatus::Pending,
+        ExecutionStatus::Running => dokime_domain::model::execution::wire::ExecutionStatus::Running,
+        ExecutionStatus::Passed => dokime_domain::model::execution::wire::ExecutionStatus::Passed,
+        ExecutionStatus::Failed => dokime_domain::model::execution::wire::ExecutionStatus::Failed,
+        ExecutionStatus::Blocked => dokime_domain::model::execution::wire::ExecutionStatus::Blocked,
+        ExecutionStatus::Cancelled => dokime_domain::model::execution::wire::ExecutionStatus::Cancelled,
+        ExecutionStatus::Interrupted => dokime_domain::model::execution::wire::ExecutionStatus::Interrupted,
+    }
+}
+
+pub(super) fn archive_scope(
+    scope: Option<dokime_domain::model::execution::wire::ArchiveScope>,
+) -> dokime_runtime::runtime::query::executions::ArchiveScope {
+    use dokime_runtime::runtime::query::executions::ArchiveScope;
+    match scope {
+        None | Some(dokime_domain::model::execution::wire::ArchiveScope::Unarchived) => ArchiveScope::Unarchived,
+        Some(dokime_domain::model::execution::wire::ArchiveScope::Archived) => ArchiveScope::Archived,
+        Some(dokime_domain::model::execution::wire::ArchiveScope::All) => ArchiveScope::All,
+    }
+}
+
+pub(super) fn execution_summary(
+    state: &RuntimeState, execution: &dokime_domain::model::execution::result::TestExecution, ordinal: usize,
+) -> dokime_domain::model::execution::wire::ExecutionSummary {
+    dokime_domain::model::execution::wire::ExecutionSummary {
+        archived: state.archived_executions.contains(&execution.test_execution_id),
+        execution_id: execution.test_execution_id.to_string(),
+        case_id: execution.test_case_id.to_string(),
+        status: execution_status(&execution.status),
+        ordinal: ordinal as u64,
+        sealed: execution.saved.is_some(),
+    }
+}
+
 /* === Private Functions === */
+
 fn inspection_reply<T: harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.encoded_len() > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));
@@ -478,20 +533,6 @@ fn case_status(status: CaseStatus) -> dokime_domain::model::execution::wire::Cas
         CaseStatus::Blocked => dokime_domain::model::execution::wire::CaseStatus::Blocked,
         CaseStatus::Cancelled => dokime_domain::model::execution::wire::CaseStatus::Cancelled,
         CaseStatus::Interrupted => dokime_domain::model::execution::wire::CaseStatus::Interrupted,
-    }
-}
-
-pub(super) fn execution_status(status: &ExecutionStatus) -> dokime_domain::model::execution::wire::ExecutionStatus {
-    match status {
-        ExecutionStatus::Invalidated => dokime_domain::model::execution::wire::ExecutionStatus::Invalidated,
-        ExecutionStatus::Skipped => dokime_domain::model::execution::wire::ExecutionStatus::Skipped,
-        ExecutionStatus::Pending => dokime_domain::model::execution::wire::ExecutionStatus::Pending,
-        ExecutionStatus::Running => dokime_domain::model::execution::wire::ExecutionStatus::Running,
-        ExecutionStatus::Passed => dokime_domain::model::execution::wire::ExecutionStatus::Passed,
-        ExecutionStatus::Failed => dokime_domain::model::execution::wire::ExecutionStatus::Failed,
-        ExecutionStatus::Blocked => dokime_domain::model::execution::wire::ExecutionStatus::Blocked,
-        ExecutionStatus::Cancelled => dokime_domain::model::execution::wire::ExecutionStatus::Cancelled,
-        ExecutionStatus::Interrupted => dokime_domain::model::execution::wire::ExecutionStatus::Interrupted,
     }
 }
 
@@ -521,17 +562,6 @@ fn cycle_order(order: Option<&dokime_domain::model::execution::wire::CycleOrder>
         dokime_domain::model::execution::wire::CycleOrderKey::Label => CycleOrderKey::Label,
     };
     CycleOrder { key, descending: order.descending }
-}
-
-pub(super) fn archive_scope(
-    scope: Option<dokime_domain::model::execution::wire::ArchiveScope>,
-) -> dokime_runtime::runtime::query::executions::ArchiveScope {
-    use dokime_runtime::runtime::query::executions::ArchiveScope;
-    match scope {
-        None | Some(dokime_domain::model::execution::wire::ArchiveScope::Unarchived) => ArchiveScope::Unarchived,
-        Some(dokime_domain::model::execution::wire::ArchiveScope::Archived) => ArchiveScope::Archived,
-        Some(dokime_domain::model::execution::wire::ArchiveScope::All) => ArchiveScope::All,
-    }
 }
 
 fn cycle_status(status: dokime_domain::model::execution::wire::CycleStatus) -> Result<CycleStatus, Status> {
@@ -620,19 +650,6 @@ fn execution_page<'a>(
         None
     };
     Ok(dokime_domain::model::execution::wire::ListExecutionsReply { executions, next_after_execution_id, cursor: Some(cursor) })
-}
-
-pub(super) fn execution_summary(
-    state: &RuntimeState, execution: &dokime_domain::model::execution::result::TestExecution, ordinal: usize,
-) -> dokime_domain::model::execution::wire::ExecutionSummary {
-    dokime_domain::model::execution::wire::ExecutionSummary {
-        archived: state.archived_executions.contains(&execution.test_execution_id),
-        execution_id: execution.test_execution_id.to_string(),
-        case_id: execution.test_case_id.to_string(),
-        status: execution_status(&execution.status),
-        ordinal: ordinal as u64,
-        sealed: execution.saved.is_some(),
-    }
 }
 
 /* === Tests === */

@@ -10,6 +10,7 @@
 // Operator media captured on the backend host and stored as execution artifacts.
 
 /* === Modules === */
+
 mod audio_recording;
 mod camera_recording;
 mod photo;
@@ -17,6 +18,7 @@ mod screen_recording;
 mod screenshot;
 
 /* === Re-Exports === */
+
 pub use audio_recording::AudioRecording;
 pub use camera_recording::CameraRecording;
 pub use photo::Photo;
@@ -35,7 +37,6 @@ use super::FOLLOW;
 use super::TRANSFER;
 use crate::model::content::wire::ArtifactMetadata;
 use crate::model::content::wire::ArtifactScope;
-
 use crate::model::media::wire::*;
 
 /* === Constants === */
@@ -45,9 +46,10 @@ use crate::model::media::wire::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-// Every capture needs a cycle and execution scope; storage keeps artifacts per execution.
 
 /* === Enums === */
+
+// Every capture needs a cycle and execution scope; storage keeps artifacts per execution.
 
 #[harmos_domain::catalog]
 pub enum Operations {
@@ -61,6 +63,7 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for Screenshot {
     const PATH: &'static str = "/dokime.v1.Media/Screenshot";
     // The host's screen, camera and microphone are never exposed to a remote listener.

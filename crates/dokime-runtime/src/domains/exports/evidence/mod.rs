@@ -10,12 +10,14 @@
 // Build And Read Complete Saved Evidence Archives
 
 /* === Modules === */
+
 mod archive;
 mod database;
 mod error;
 mod snapshot;
 
 /* === Re-Exports === */
+
 pub use error::{Error, Result};
 
 /* === Imports === */
@@ -50,6 +52,7 @@ use dokime_domain::model::{
 };
 
 /* === Constants === */
+
 const MAX_INVENTORY_ENTRIES: usize = 65_536;
 const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
 const MAX_CHUNK_BYTES: usize = 64 * 1024;
@@ -59,6 +62,7 @@ const MAX_CHUNK_BYTES: usize = 64 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct Manager {
     root: PathBuf,
@@ -112,6 +116,7 @@ struct InventoryBudget {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl InventoryBudget {
     fn reserve(&mut self, value: &impl Serialize) -> Result<()> {
         serde_json::to_writer(self, value)?;
@@ -196,6 +201,7 @@ impl Bundle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn build(
     root: PathBuf, storage: crate::storage::Manager, subject: EvidenceSubject, cancellation: CancellationToken,
     permit: OwnedSemaphorePermit, work: TaskTrackerToken,

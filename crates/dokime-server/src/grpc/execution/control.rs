@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -40,6 +41,7 @@ use dokime_runtime::{RuntimeHandle, transactions::CycleDefinition};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Create {
     runtime: Arc<RuntimeHandle>,
 }
@@ -101,6 +103,7 @@ struct StopExecution {
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Create(Create),
@@ -123,6 +126,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Create {
     type Declaration = wire::CreateCycle;
     type Resources = RuntimeHandle;
@@ -492,6 +496,7 @@ impl Operation for StopExecution {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operations::<Operations, RuntimeHandle>(
         "dokime",
@@ -515,6 +520,7 @@ pub(in crate::grpc) fn command_context(
 }
 
 /* === Private Functions === */
+
 // A Label Longer Than Any Wire Text Is A Bad Argument, Not A Budget Overrun
 fn label_bound(label: &str) -> Result<(), Status> {
     if label.len() > value::MAX_TEXT_BYTES {

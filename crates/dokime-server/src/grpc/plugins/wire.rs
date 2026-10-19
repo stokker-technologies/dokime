@@ -12,17 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
+use tonic::Status;
 
 // Local Imports
 use super::super::value::canonical;
 use super::value;
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::plugins::wire as plugins_model;
 use dokime_runtime::plugins::{PluginEntry, PluginLastBoot, PluginState};
-use tonic::Status;
 
 /* === Constants === */
 
@@ -39,6 +40,7 @@ use tonic::Status;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_model::PluginInstallation, Status> {
     normalize(&mut entry, limit)?;
     let installation = entry.installation;
@@ -112,6 +114,7 @@ pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Sta
         .map_err(|_| Status::resource_exhausted("plugin installation state exceeds response budget"))?;
     Ok(())
 }
+
 pub(super) fn memory(entry: &PluginEntry) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<plugins_model::PluginInstallation>() + 36;
     let mut add = |text: &str| -> Result<(), Status> {

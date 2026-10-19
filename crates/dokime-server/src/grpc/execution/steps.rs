@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -32,6 +33,7 @@ use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Page {
     start: usize,
     end: usize,
@@ -46,6 +48,7 @@ struct Page {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> Result<execution_model::ListExecutionStepsReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
@@ -138,6 +141,7 @@ pub(super) fn criteria(service: &Resources, request: &wire::ListStepCriteria) ->
 }
 
 /* === Private Functions === */
+
 fn page(
     snapshot: &RuntimeStateSnapshot, execution_id: &str, step_id: &str, kind: execution_model::StepPageKind, limit: u32,
     given: Option<&execution_model::StepPageCursor>, len: usize,

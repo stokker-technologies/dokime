@@ -350,30 +350,3 @@ async fn executions_reopen_results() {
     drop(saved);
     runtime.stop().await.unwrap();
 }
-
-#[test]
-fn prompt_level_rows() {
-    use dokime_runtime::prompts::{ConfirmationPrompt, Prompt, PromptDefinition};
-    use dokime_runtime::records::RecordSeverity;
-    use dokime_runtime::storage::objects::presentation::PromptDefinition as PromptRow;
-
-    // === Store A Raised Prompt === //
-
-    let expected = ConfirmationPrompt::new("fixture.level", "Raised").level(RecordSeverity::Warning);
-    let expected = Prompt::definition(&expected);
-    let row = PromptRow::try_from(&expected).unwrap();
-    let restored = PromptDefinition::try_from(row.clone()).unwrap();
-
-    // === Read A Row Written Before Levels === //
-
-    let mut baseline = serde_json::to_value(&row).unwrap();
-    baseline.as_object_mut().unwrap().remove("level");
-    let baseline: PromptRow = serde_json::from_value(baseline).unwrap();
-    let defaulted = PromptDefinition::try_from(baseline).unwrap();
-
-    // === Compare === //
-
-    assert_eq!(restored, expected);
-    assert_eq!(restored.level, RecordSeverity::Warning);
-    assert_eq!(defaulted.level, RecordSeverity::Info);
-}

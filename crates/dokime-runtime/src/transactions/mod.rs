@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod archive;
 pub mod cycle;
 pub mod documents;
@@ -25,12 +26,12 @@ mod plugins;
 pub mod prompts;
 pub mod provider;
 pub mod provider_finish;
-
 pub(crate) mod records;
 mod suite_sets;
 pub mod traceability;
 
 /* === Re-Exports === */
+
 pub use archive::{ArchiveSubject, SetArchived};
 pub use cycle::{ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy};
 pub use documents::{AddExecutionDocumentParts, UpdatePlotSettings};
@@ -57,10 +58,12 @@ pub use suite_sets::{RemoveSuiteSet, SetSuiteSet};
 pub use traceability::{BeginStepAttempt, RecordExecutionTraceability, RecordStepAttempt, SetCapturePhase, UpdateExecutionPhase};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 
 /* === Constants === */
@@ -72,6 +75,7 @@ use serde::{Deserialize, Serialize};
 /* === Structs === */
 
 /* === Enums === */
+
 #[harmos::transactions(state = crate::state::RuntimeState, error = String)]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Transactions {
@@ -79,14 +83,19 @@ pub enum Transactions {
     RequestReportFinalization(RequestReportFinalization),
     CaptureReportLifecycle(CaptureReportLifecycle),
     InvalidateExecutions(InvalidateExecutions),
+
     #[serde(alias = "InstallArtifact")]
     InstallPlugin(InstallPlugin),
+
     #[serde(alias = "InstallHostArtifact")]
     InstallHostPlugin(InstallHostPlugin),
+
     ReconcileProviders(ReconcileProviders),
     ReloadProviderCatalog(ReloadProviderCatalog),
+
     #[serde(alias = "RemoveArtifact")]
     RemovePlugin(RemovePlugin),
+
     UpdateExecutionPhase(UpdateExecutionPhase),
     RecordStepAttempt(RecordStepAttempt),
     BeginStepAttempt(BeginStepAttempt),

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use std::{fs, os::unix::fs::PermissionsExt};
+
 // Third Party Imports
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use rand::random;
@@ -24,6 +26,7 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
+
 // Local Imports
 // ***
 
@@ -42,6 +45,7 @@ use crate::app::content::{self, DeliveryError, DeliveryStage};
 use crate::connection::ConnectionSession;
 
 /* === Constants === */
+
 const MAX_REPORT_BYTES: usize = 32 * 1024 * 1024;
 const MAX_REPORT_BASE64_CHARS: usize = MAX_REPORT_BYTES.div_ceil(3) * 4;
 const MAX_REPORT_FILENAME_CHARS: usize = 128;
@@ -55,6 +59,7 @@ const MAX_JSON_DOCUMENT_BASE64_CHARS: usize = MAX_JSON_DOCUMENT_BYTES.div_ceil(3
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopSaveDocument {
@@ -73,6 +78,7 @@ pub struct ArtifactDeliveryRequest {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum DesktopSaveKind {
@@ -118,6 +124,7 @@ impl std::fmt::Debug for DesktopSaveDocument {
 }
 
 /* === Public Functions === */
+
 pub async fn desktop_open_path(app: AppHandle, path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))
         .await
@@ -293,6 +300,7 @@ pub(super) fn set_private_file(path: &Path) -> Result<(), String> {
 }
 
 /* === Private Functions === */
+
 fn protect(
     path: &Path, directory: bool, create: impl FnOnce(&Path) -> Result<(), String>, restrict: impl FnOnce(&Path, u32) -> Result<(), String>,
 ) -> Result<(), String> {
@@ -534,6 +542,7 @@ async fn move_verified_file(source: PathBuf, destination: PathBuf, overwrite: bo
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

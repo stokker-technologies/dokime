@@ -8,18 +8,22 @@
  */
 
 /* === Modules === */
+
 mod inventory;
 mod wire;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+
 // Third Party Imports
+use contract as v1;
 use harmos::domain::Portable;
 use harmos::{
     MemorySize,
@@ -29,9 +33,9 @@ use sha2::{Digest, Sha256};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tonic::Status;
 use uuid::Uuid;
+
 // Local Imports
 use super::value;
-use contract as v1;
 use dokime_domain::model::plugins::wire as plugins_model;
 use dokime_domain::operations::plugins as contract;
 use dokime_runtime::{
@@ -46,10 +50,39 @@ use dokime_runtime::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub runtime: RuntimeHandle,
     pub admission: Arc<Semaphore>,
     pub max_message_bytes: usize,
+}
+
+struct ListInstallations {
+    resources: Arc<Resources>,
+}
+
+struct GetInstallation {
+    resources: Arc<Resources>,
+}
+
+struct Stage {
+    resources: Arc<Resources>,
+}
+
+struct Consent {
+    resources: Arc<Resources>,
+}
+
+struct SetEnabled {
+    resources: Arc<Resources>,
+}
+
+struct Remove {
+    resources: Arc<Resources>,
+}
+
+struct ListAdmittedPlugins {
+    resources: Arc<Resources>,
 }
 
 /* === Enums === */
@@ -57,6 +90,7 @@ struct Resources {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Resources {
     fn permit(&self) -> Result<OwnedSemaphorePermit, Status> {
         let permit = self.admission.clone().try_acquire_owned().map_err(|_| Status::resource_exhausted("plugin management is busy"))?;
@@ -93,9 +127,7 @@ impl Resources {
         self.produce(|| wire::entry(entry, self.max_message_bytes))
     }
 }
-struct ListInstallations {
-    resources: Arc<Resources>,
-}
+
 impl Operation for ListInstallations {
     type Declaration = v1::ListInstallations;
     type Resources = Resources;
@@ -137,9 +169,7 @@ impl Operation for ListInstallations {
         })
     }
 }
-struct GetInstallation {
-    resources: Arc<Resources>,
-}
+
 impl Operation for GetInstallation {
     type Declaration = v1::GetInstallation;
     type Resources = Resources;
@@ -157,9 +187,7 @@ impl Operation for GetInstallation {
         self.resources.entry(entry)
     }
 }
-struct Stage {
-    resources: Arc<Resources>,
-}
+
 impl Operation for Stage {
     type Declaration = v1::Stage;
     type Resources = Resources;
@@ -181,6 +209,7 @@ impl Operation for Stage {
         staged
     }
 }
+
 impl Stage {
     async fn stage(
         &mut self, input: &mut StreamInput<plugins_model::StagePluginFrame>, operation: &dokime_runtime::runtime::progress::Operation,
@@ -242,9 +271,7 @@ impl Stage {
         self.resources.entry(entry)
     }
 }
-struct Consent {
-    resources: Arc<Resources>,
-}
+
 impl Operation for Consent {
     type Declaration = v1::Consent;
     type Resources = Resources;
@@ -280,9 +307,7 @@ impl Operation for Consent {
         self.resources.entry(entry)
     }
 }
-struct SetEnabled {
-    resources: Arc<Resources>,
-}
+
 impl Operation for SetEnabled {
     type Declaration = v1::SetEnabled;
     type Resources = Resources;
@@ -307,9 +332,7 @@ impl Operation for SetEnabled {
         self.resources.entry(entry)
     }
 }
-struct Remove {
-    resources: Arc<Resources>,
-}
+
 impl Operation for Remove {
     type Declaration = v1::Remove;
     type Resources = Resources;
@@ -346,9 +369,7 @@ impl Operation for Remove {
         })
     }
 }
-struct ListAdmittedPlugins {
-    resources: Arc<Resources>,
-}
+
 impl Operation for ListAdmittedPlugins {
     type Declaration = v1::ListAdmittedPlugins;
     type Resources = Resources;
@@ -367,6 +388,7 @@ impl Operation for ListAdmittedPlugins {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), admission: Arc::new(Semaphore::new(1)), max_message_bytes: maximum });
     runtime.operations().register_wire_operation::<ListInstallations>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -380,6 +402,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
 async fn message(
     input: &mut StreamInput<plugins_model::StagePluginFrame>,
 ) -> Result<Option<StreamItem<plugins_model::StagePluginFrame>>, Status> {
@@ -387,6 +410,7 @@ async fn message(
         .await
         .map_err(|_| reject(Status::deadline_exceeded("plugin upload idle deadline exceeded")))
 }
+
 fn reject(status: Status) -> Status {
     tracing::warn!(code = ?status.code(), message = %status.message(), "plugin stage rejected");
     status

@@ -10,13 +10,17 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::execution::result::TestCaseStatus as CaseStatus;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::state::RuntimeState;
 use crate::transactions::cycle::ensure_case_deletable;
@@ -28,6 +32,7 @@ use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const HISTORICAL: &str = "historical checkpoints cannot be modified";
 
 /* === Macros === */
@@ -35,6 +40,7 @@ const HISTORICAL: &str = "historical checkpoints cannot be modified";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CaseProjection {
     pub status: Option<CaseStatus>,
@@ -61,6 +67,7 @@ pub struct CaseActions {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl CaseProjection {
     pub fn historical_memory(cycle: &CycleView, test_case_id: &CaseId) -> usize {
         let (latest, _) = historical_attempts(cycle, test_case_id);
@@ -72,6 +79,7 @@ impl CaseProjection {
 }
 
 /* === Public Functions === */
+
 pub fn case_projection(_state: &RuntimeState, cycle: &CycleView, test_case_id: &CaseId) -> CaseProjection {
     let attempts = attempts(cycle, test_case_id);
     let latest = attempts.last().copied();
@@ -116,6 +124,7 @@ pub fn historical_case_projection(cycle: &CycleView, test_case_id: &CaseId) -> C
 }
 
 /* === Private Functions === */
+
 fn historical_attempts<'a>(cycle: &'a CycleView, test_case_id: &CaseId) -> (Option<&'a TestExecution>, u32) {
     cycle
         .test_executions

@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(super) mod artifacts;
 pub(super) mod evidence;
 mod execution;
@@ -19,12 +20,16 @@ mod upload;
 pub(super) mod window;
 
 /* === Re-Exports === */
+
 pub(super) use upload::{artifact_scope, content_failure};
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use dokime_runtime::{
     RuntimeHandle,
@@ -32,6 +37,7 @@ use dokime_runtime::{
 };
 
 /* === Constants === */
+
 pub(super) const MAX_CONTENT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_TRANSFER_CHUNK_BYTES: usize = 64 * 1024;
 
@@ -40,11 +46,15 @@ const MAX_TRANSFER_CHUNK_BYTES: usize = 64 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     evidence::register(runtime, maximum)?;
     artifacts::register(runtime, maximum)
@@ -137,6 +147,7 @@ pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime_domain::model::
 }
 
 /* === Private Functions === */
+
 fn transfer_frame_memory<T: harmos::domain::Portable>(frame: T) -> usize {
     let retained = std::mem::size_of::<T>().saturating_add(std::mem::size_of::<harmos::operations::StreamItem<T>>());
     let decoded = T::decoding_memory(&frame.encode_to_vec())

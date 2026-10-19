@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod checks;
 pub mod common;
 pub mod protection;
@@ -18,6 +19,7 @@ pub mod steady;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,6 +35,7 @@ pub mod steady;
 /* === Structs === */
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum Suites {
     ObcChecks(checks::ObcChecks),

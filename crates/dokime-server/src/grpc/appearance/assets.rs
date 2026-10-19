@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,6 +20,7 @@ use harmos::operations::StreamOutput;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncReadExt;
 use tonic::Status;
+
 // Local Imports
 use super::super::chunked;
 use super::{failure, source_budget};
@@ -26,6 +28,7 @@ use dokime_domain::operations::content;
 use dokime_runtime::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
 
 /* === Constants === */
+
 const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
 
 /* === Macros === */
@@ -33,6 +36,7 @@ const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Asset {
     pub metadata: dokime_domain::model::appearance::wire::AppearanceAssetMetadata,
     bytes: Vec<u8>,
@@ -45,6 +49,7 @@ struct AssetFrames(dokime_domain::model::appearance::wire::AppearanceAssetMetada
 /* === Traits === */
 
 /* === Implementations === */
+
 impl chunked::Frames for AssetFrames {
     type Frame = dokime_domain::model::content::wire::AppearanceAssetFrame;
 
@@ -72,6 +77,7 @@ impl chunked::Frames for AssetFrames {
 }
 
 /* === Public Functions === */
+
 pub(super) async fn capture(source: RuntimeInstalledPluginAsset, plugin_id: String, asset_id: String) -> Result<Asset, Status> {
     if source.mime_type.len() > 128 || !source.mime_type.starts_with("image/") {
         return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetUnavailable));
@@ -159,6 +165,7 @@ pub(crate) async fn download(
 }
 
 /* === Private Functions === */
+
 fn io_failure(error: std::io::Error) -> Status {
     failure(if error.kind() == std::io::ErrorKind::NotFound {
         dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing

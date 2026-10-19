@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod backend;
 mod contract;
 mod diagnostics;
@@ -16,10 +17,12 @@ mod owner;
 pub mod storage;
 
 /* === Re-Exports === */
+
 pub use contract::*;
 pub use owner::DesktopSession;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,6 +36,7 @@ pub use owner::DesktopSession;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct DesktopSessionControl(DesktopSession);
 
 /* === Enums === */
@@ -40,6 +44,7 @@ pub struct DesktopSessionControl(DesktopSession);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DesktopSessionControl {
     pub fn active(owner: DesktopSession) -> Self {
         Self(owner)
@@ -54,6 +59,7 @@ impl DesktopSessionControl {
 }
 
 /* === Public Functions === */
+
 pub async fn desktop_session_select(
     state: tauri::State<'_, DesktopSessionControl>, selection: BackendSelection,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
@@ -165,6 +171,7 @@ pub fn desktop_profiles_list() -> Result<dokime_client::profiles::Document, Stri
 }
 
 /* === Private Functions === */
+
 fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageRoot, DesktopSessionError> {
     use tauri::Manager;
 

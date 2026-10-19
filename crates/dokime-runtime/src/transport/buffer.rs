@@ -12,39 +12,40 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use harmos::sidecar::{Frame, Refusal};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
+
 // Local Imports
 use crate::prompts::PromptResponse;
 use crate::transport::{ArtifactChunk, EvidenceBatch, RunExecution, SidecarExecutionOutcome};
 use dokime_domain::model::identity::PromptId;
 
 /* === Constants === */
+
 pub(crate) const MAX_BUFFERED_FRAMES: usize = 1024;
-
 const MAX_LOCAL_SAMPLES: usize = 1024;
-
 pub(crate) const MAX_BUFFERED_ARTIFACT_BYTES: u64 = 16 * 1024 * 1024;
-
 pub(crate) const PROMPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
-
 const MAX_DELIVERED_RECORDS: usize = 256;
 
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(crate) type Executions = Arc<Mutex<BTreeMap<String, ExecutionState>>>;
 
+pub(crate) type Executions = Arc<Mutex<BTreeMap<String, ExecutionState>>>;
 pub(crate) type Tasks = Arc<Mutex<Vec<JoinHandle<()>>>>;
 
 /* === Structs === */
+
 pub(crate) struct ExecutionState {
     pub(crate) local_inputs: bool,
     local_scope: dokime_domain::model::execution::RecordScope,
@@ -108,6 +109,7 @@ struct PromptExchange {
 }
 
 /* === Enums === */
+
 pub(crate) enum PromptOutcome {
     Answered(Box<PromptResponse>),
     Cancelled,
@@ -123,6 +125,7 @@ pub(crate) enum LeaseOutcome {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionState {
     /// Whether samples arrived since a wait last reported them; reporting
     /// them once keeps a waiter that does not consume them from spinning.
@@ -799,6 +802,7 @@ impl BufferedFrame {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn lock(executions: &Executions) -> MutexGuard<'_, BTreeMap<String, ExecutionState>> {
     executions.lock().unwrap_or_else(PoisonError::into_inner)
 }

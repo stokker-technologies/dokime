@@ -30,6 +30,7 @@ use dokime_domain::model::values::{Value, wire};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Execution UUID Owning The Prompt.")]
@@ -61,6 +62,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let execution = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let prompt = PromptId::from_uuid(&args.prompt_id).map_err(|error| crate::Error::Input(error.to_string()))?;
@@ -87,6 +89,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 /* === Private Functions === */
+
 fn answer_values(input: &str) -> crate::Result<wire::Value> {
     if input.len() > 1024 * 1024 {
         return Err(crate::Error::Input("prompt values exceed 1 MiB".into()));

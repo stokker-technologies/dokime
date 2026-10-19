@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod args;
 mod error;
 mod hub_log;
@@ -19,20 +20,24 @@ pub mod version;
 mod profiles;
 
 /* === Re-Exports === */
+
 pub use args::{Args, NetworkArgs};
 pub use error::{Error, Result};
+
 // The subscriber install is part of the shell's surface, not just `run`'s
 // internals: it is a process-global side effect, so anything hosting this
 // backend installs it exactly once and holds the guards for the process.
 pub use logging::{LoggingGuards, init as install_logging};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     io::Write,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
+
 // Third Party Imports
 
 // Local Imports
@@ -47,6 +52,7 @@ use dokime_runtime::config::ApplicationOptions;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct ExpectedPlugin {
     package: String,
     digest: String,
@@ -60,6 +66,7 @@ struct ExpectedPlugin {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub async fn run(args: Args, server_config: crate::grpc::Config, terminal: dokime::terminal::Terminal) -> Result<()> {
     let mut config = ApplicationOptions {
         application_root: args.application_root.clone(),
@@ -129,6 +136,7 @@ pub async fn run(args: Args, server_config: crate::grpc::Config, terminal: dokim
 }
 
 /* === Private Functions === */
+
 async fn development_control(runtime: &mut dokime_runtime::Runtime, paths: &[PathBuf], expected: &[ExpectedPlugin]) {
     use std::io::{BufRead, Write};
     let allowed: Vec<_> = paths.iter().map(|path| path.canonicalize().ok()).collect();
@@ -359,8 +367,6 @@ async fn force_quit(signal: impl std::future::Future<Output = std::io::Result<()
     exit(130);
 }
 
-/* === Tests === */
-
 #[cfg(test)]
 #[tokio::test]
 async fn force_quit_error() {
@@ -378,6 +384,8 @@ async fn force_quit_error() {
     force_quit(interrupt, record_exit).await;
     assert_eq!(exit.get(), Some(130), "a second interrupt must still force exit");
 }
+
+/* === Tests === */
 
 #[cfg(all(test, unix))]
 #[test]

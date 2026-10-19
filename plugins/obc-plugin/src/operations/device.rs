@@ -38,6 +38,7 @@ use obc_runtime::device::{Device, Fault, Power};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct DeviceReader {
     resources: Arc<Resources>,
 }
@@ -51,6 +52,7 @@ pub struct PowerControl {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::operation]
 impl DeviceReader {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
@@ -79,6 +81,7 @@ impl PowerControl {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn observed(device: &Device) -> DeviceState {
     let enabled = device.power == Power::Running;
     let fault = device.fault.map(|fault| match fault {

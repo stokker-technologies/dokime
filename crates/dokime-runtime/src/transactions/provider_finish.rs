@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::TestCase;
 use crate::domains::{ExecutionProviderTarget, InstalledPluginErrorRecord, InstalledPluginPhase};
@@ -63,6 +66,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.provider.finish", version = 6, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinishProvider {
@@ -96,6 +100,7 @@ struct FinishPlan {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for FinishProvider {
     type Error = String;
 
@@ -224,6 +229,7 @@ impl FinishPlan {
 }
 
 /* === Public Functions === */
+
 pub(super) fn apply_finish_provider(state: &mut RuntimeState, finish: &FinishProvider) -> ProviderFinishEffects {
     prepare_finish_provider(state, finish).apply(state, finish)
 }
@@ -262,7 +268,18 @@ pub(super) fn summarize<'a>(executions: impl IntoIterator<Item = &'a TestExecuti
     summary
 }
 
+pub(super) fn lifecycle_for(summary: Option<&ResultSummary>) -> CycleStatus {
+    match summary.map(|summary| &summary.status) {
+        Some(ResultStatus::Passed) => CycleStatus::Completed,
+        Some(ResultStatus::Failed) => CycleStatus::Failed,
+        Some(ResultStatus::Blocked) => CycleStatus::Blocked,
+        Some(ResultStatus::Cancelled) => CycleStatus::Stopped,
+        _ => CycleStatus::Ready,
+    }
+}
+
 /* === Private Functions === */
+
 fn prepare_finish_provider(state: &RuntimeState, finish: &FinishProvider) -> FinishPlan {
     let mut plan = match &finish.outcome {
         Ok(outcome) => prepare_provider_outcome(state, finish, outcome),
@@ -922,16 +939,6 @@ fn upsert_execution(executions: &mut Vec<TestExecution>, execution: TestExecutio
         *existing = execution;
     } else {
         executions.push(execution);
-    }
-}
-
-pub(super) fn lifecycle_for(summary: Option<&ResultSummary>) -> CycleStatus {
-    match summary.map(|summary| &summary.status) {
-        Some(ResultStatus::Passed) => CycleStatus::Completed,
-        Some(ResultStatus::Failed) => CycleStatus::Failed,
-        Some(ResultStatus::Blocked) => CycleStatus::Blocked,
-        Some(ResultStatus::Cancelled) => CycleStatus::Stopped,
-        _ => CycleStatus::Ready,
     }
 }
 

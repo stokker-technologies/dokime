@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::Status;
+
 // Local Imports
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::notes::NoteOwner;
@@ -30,6 +32,7 @@ use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Page {
     pub owner: Option<NoteOwner>,
     pub context: bool,
@@ -45,6 +48,7 @@ pub(super) struct Page {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Page {
     pub fn new(
         selection: Option<dokime_domain::model::notes::wire::AnnotationSelection>, limit: u32, after_id: String,

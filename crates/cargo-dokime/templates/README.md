@@ -84,7 +84,17 @@ The SDK tracks Dokime’s `dev` branch during development. Generation is offline
 the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`
 to retain the resolved revisions.
 
-Run `mise install` once and commit the `mise.lock` it writes: CI installs
-exactly the locked tools. `mise run check` formats, lints and type-checks; `mise run test:unit` and
-`mise run test:integration:rust` run the tests; `mise run build` writes
-`dist/{{package}}.dokime`. The CI workflows run the same tasks, one per job.
+Run `cargo generate-lockfile` and `mise install` once, then commit both lockfiles:
+CI installs the locked dependencies and tools. `mise run check` formats, lints
+and type-checks. `mise run build` compiles the plugin and freezes its catalog
+under `target/build/<profile>/<target>/plugins/{{package}}.dokime`.
+`mise run build:tests` prepares the shared test archive; `mise run test:unit`
+and `mise run test:integration:rust` consume it.
+
+`mise run package` copies and inspects that exact built bundle under
+`target/package/<profile>/<target>/rust/plugins/`, without compiling. Profiles
+default to `dev`; use `--profile release` for release outputs. The CI workflows
+run these same tasks. Before publishing, configure this plugin repository's
+native `[release]` and `[version]` policy in `stkr.toml`, including its provider,
+targets and bundle assets, and enable the required protected checks. Publication
+uses that policy and refuses an unconfigured release.

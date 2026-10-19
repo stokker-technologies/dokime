@@ -75,6 +75,32 @@ step_timeout_seconds = 900
 
 # === Conventions === #
 
+[[conventions.testing.lanes]]
+category = "acceptance"
+language = "python"
+hosts = ["target/build/{profile}/{target}/bin/dokime-server{exe}", "target/build/{profile}/{target}/plugins/obc-plugin.dokime"]
+
+[[conventions.testing.lanes]]
+category = "system"
+language = "rust"
+products = ["python"]
+hosts = [
+  "target/build/{profile}/{target}/bin/dokime-server{exe}",
+  "target/build/{profile}/{target}/bin/dokime{exe}",
+  "target/build/{profile}/{target}/plugins/obc-plugin.dokime",
+  "target/build/{profile}/any/python/dokime_client-0.1.0-py3-none-any.whl",
+]
+
+[[conventions.testing.lanes]]
+category = "system"
+language = "typescript"
+hosts = [
+  "target/build/{profile}/{target}/bin/dokime-gui{exe}",
+  "target/build/{profile}/{target}/bin/dokime-server{exe}",
+  "target/build/{profile}/{target}/bin/dokime{exe}",
+  "target/build/{profile}/{target}/plugins/obc-plugin.dokime",
+]
+
 [conventions.testing.limits]
 unit = 512
 integration = 256
@@ -118,12 +144,29 @@ selection = "{{selection}}"
 # === Release === #
 
 [release]
+crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
+signing = "minisign"
 tag = "v0.1.0"
 provider = "github"
 repository = "stokker-technologies/dokime"
 product = "dokime"
 package = "dokime"
 notes = "CHANGELOG.md"
+signature_checks = [
+  [
+    "uv",
+    "run",
+    "--locked",
+    "--project",
+    "tools/python",
+    "python",
+    "-m",
+    "dokime_tools.package.installer",
+    "verify",
+    "--release-assets",
+    "--require-signed",
+  ],
+]
 targets = ["linux-x86_64", "windows-x86_64"]
 tests = ["unit-rust", "integration-rust", "acceptance-rust", "system-rust"]
 assets = [
@@ -137,6 +180,11 @@ assets = [
   { target = "linux-x86_64", path = "target/package/{profile}/any/python/dokime_client-0.1.0-py3-none-any.whl" },
   { target = "linux-x86_64", path = "target/package/{profile}/any/python/dokime_client-0.1.0.tar.gz" },
 ]
+
+[[release.package_signing]]
+language = "rust"
+platform = "windows"
+secrets = ["TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]
 
 [version]
 value = "0.1.0"

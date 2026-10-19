@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
 // Local Imports
 use super::PluginMetadata;
 use crate::settings::SettingValues;
@@ -29,16 +32,21 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginEntry {
     #[serde(flatten)]
     pub installation: Installation,
+
     pub metadata: Option<PluginMetadata>,
     pub error: Option<String>,
+
     #[serde(default)]
     pub active: bool,
+
     #[serde(default)]
     pub restart_required: bool,
+
     #[serde(default)]
     pub boot_error: Option<String>,
 }
@@ -60,12 +68,16 @@ pub struct PluginSettings {
     pub state: PluginState,
     pub digest: String,
     pub staged_at: Timestamp,
+
     #[serde(default)]
     pub expires_at: Option<Timestamp>,
+
     #[serde(default)]
     pub consented_at: Option<Timestamp>,
+
     #[serde(default)]
     pub last_boot: Option<PluginLastBoot>,
+
     #[serde(default)]
     pub programs: BTreeMap<String, ProgramValues>,
 }
@@ -78,6 +90,7 @@ pub struct ProgramValues {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginState {
@@ -97,6 +110,7 @@ pub enum PluginLastBoot {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PluginSettings {
     pub(crate) fn validate(&self) -> Result<(), String> {
         if self.digest.len() != 64 || !self.digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {

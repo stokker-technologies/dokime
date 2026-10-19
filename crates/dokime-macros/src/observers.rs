@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,6 +20,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Parser;
 use syn::{Error, Meta, Token, punctuated::Punctuated};
+
 // Local Imports
 
 /* === Constants === */
@@ -36,6 +38,7 @@ use syn::{Error, Meta, Token, punctuated::Punctuated};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn stream(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -52,6 +55,7 @@ pub(crate) fn observer(attribute: TokenStream, item: TokenStream) -> TokenStream
 }
 
 /* === Private Functions === */
+
 fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let mut declared: syn::DeriveInput = syn::parse2(item.clone())?;

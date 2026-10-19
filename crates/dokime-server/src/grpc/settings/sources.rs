@@ -8,35 +8,51 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::preferences::Resources;
 use dokime_domain::operations::settings as wire;
 use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
+
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 struct ListStorageSources {
     resources: Arc<Resources>,
 }
+
 struct ReorderStorageSources {
     resources: Arc<Resources>,
 }
+
 struct SetStorageSourceEnabled {
     resources: Arc<Resources>,
 }
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl Operation for ListStorageSources {
     type Declaration = wire::ListStorageSources;
     type Resources = Resources;
@@ -52,6 +68,7 @@ impl Operation for ListStorageSources {
         sources(&self.resources).await
     }
 }
+
 impl Operation for ReorderStorageSources {
     type Declaration = wire::ReorderStorageSources;
     type Resources = Resources;
@@ -72,6 +89,7 @@ impl Operation for ReorderStorageSources {
         sources(&self.resources).await
     }
 }
+
 impl Operation for SetStorageSourceEnabled {
     type Declaration = wire::SetStorageSourceEnabled;
     type Resources = Resources;
@@ -92,7 +110,9 @@ impl Operation for SetStorageSourceEnabled {
         sources(&self.resources).await
     }
 }
+
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(MAX_RESPONSE_BYTES) });
     runtime.operations().register_wire_operation::<ListStorageSources>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -104,7 +124,9 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     )?;
     Ok(())
 }
+
 /* === Private Functions === */
+
 async fn sources(resources: &Resources) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
     let sources = resources.runtime.storage_sources().await.map_err(super::super::execution::status)?;
     resources.produce(|| {
@@ -120,4 +142,5 @@ async fn sources(resources: &Resources) -> Result<Response<dokime_domain::model:
         dokime_domain::model::settings::wire::StorageSources { sources: output }
     })
 }
+
 /* === Tests === */

@@ -89,6 +89,35 @@ url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.0/ca
 url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/650343802"
 provenance = "github-attestations"
 
+[[tools."aqua:jedisct1/minisign"]]
+version = "0.12"
+backend = "aqua:jedisct1/minisign"
+specifiers = ["0.12"]
+
+[tools."aqua:jedisct1/minisign"."platforms.linux-x64"]
+checksum = "sha256:9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886623"
+provenance = "minisign"
+
+[tools."aqua:jedisct1/minisign"."platforms.linux-x64-musl"]
+checksum = "sha256:9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886623"
+provenance = "minisign"
+
+[tools."aqua:jedisct1/minisign"."platforms.macos-arm64"]
+checksum = "sha256:89000b19535765f9cffc65a65d64a820f433ef6db8020667f7570e06bf6aac63"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-macos.zip"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220895743"
+provenance = "minisign"
+
+[tools."aqua:jedisct1/minisign"."platforms.windows-x64"]
+checksum = "sha256:37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886631"
+provenance = "minisign"
+
 [[tools."aqua:nextest-rs/nextest/cargo-nextest"]]
 version = "0.9.148"
 backend = "aqua:nextest-rs/nextest/cargo-nextest"
@@ -349,6 +378,35 @@ url_api = "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/
 checksum = "sha256:a3dfe29f617f7d2100ae2aef73cc8ad82fbfee8392ffd99e190a4ba6b6d69d5e"
 url = "https://gitlab.com/gitlab-org/cli/-/releases/v1.123.0/downloads/glab_1.123.0_windows_amd64.zip"
 url_api = "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/1%2E123%2E0/glab_1%2E123%2E0_windows_amd64%2Ezip"
+
+[[tools.minisign]]
+version = "0.12"
+backend = "aqua:jedisct1/minisign"
+specifiers = ["0.12"]
+
+[tools.minisign."platforms.linux-x64"]
+checksum = "sha256:9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886623"
+provenance = "minisign"
+
+[tools.minisign."platforms.linux-x64-musl"]
+checksum = "sha256:9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886623"
+provenance = "minisign"
+
+[tools.minisign."platforms.macos-arm64"]
+checksum = "sha256:89000b19535765f9cffc65a65d64a820f433ef6db8020667f7570e06bf6aac63"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-macos.zip"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220895743"
+provenance = "minisign"
+
+[tools.minisign."platforms.windows-x64"]
+checksum = "sha256:37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886631"
+provenance = "minisign"
 
 [[tools.node]]
 version = "26.11.1"

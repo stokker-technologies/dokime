@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::{self, Write};
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::BuiltinRecordType;
 use crate::state::RuntimeState;
@@ -30,6 +33,7 @@ use dokime_domain::model::time::Timestamp;
 use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Constants === */
+
 const CONTAINER_OVERHEAD: usize = 64;
 
 /* === Macros === */
@@ -37,6 +41,7 @@ const CONTAINER_OVERHEAD: usize = 64;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.cycle.copy", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CopyCycle {
@@ -60,6 +65,7 @@ struct Budget {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for CopyCycle {
     type Error = String;
 
@@ -196,4 +202,5 @@ impl CopyCycle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 /* === Tests === */

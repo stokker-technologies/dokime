@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
@@ -45,6 +48,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.cycle.policy", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateCyclePolicy {
@@ -77,6 +81,7 @@ struct CycleControlPlan {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleControlAction {
@@ -94,6 +99,7 @@ pub enum CycleResetAction {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for UpdateCyclePolicy {
     type Error = String;
 
@@ -157,6 +163,7 @@ impl Transaction<RuntimeState> for ResetCycle {
 }
 
 /* === Public Functions === */
+
 pub fn apply_cycle_reset(state: &mut RuntimeState, reset: &ResetCycle) -> Result<Vec<TestExecutionId>, Error> {
     let mut cycle = state.cycle_view(&reset.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
     let CycleResetAction::Delete { test_case_id } = &reset.action;
@@ -165,7 +172,25 @@ pub fn apply_cycle_reset(state: &mut RuntimeState, reset: &ResetCycle) -> Result
     Ok(removed)
 }
 
+pub(crate) fn ensure_case_deletable(cycle: &CycleView, test_case_id: &CaseId) -> Result<(), String> {
+    ensure_cycle_mutable(cycle)?;
+    if cycle
+        .test_executions
+        .iter()
+        .filter(|execution| &execution.test_case_id == test_case_id)
+        .any(|execution| execution.status != ExecutionStatus::Skipped || execution.started_at.is_some() || execution.finished_at.is_some())
+    {
+        return Err("test cases with started or finished executions cannot be deleted".to_owned());
+    }
+    Ok(())
+}
+
+pub(crate) fn ensure_cycle_mutable(cycle: &CycleView) -> Result<(), String> {
+    cycle.ensure_active().map_err(str::to_owned)
+}
+
 /* === Private Functions === */
+
 fn apply_cycle_control(state: &mut RuntimeState, control: &ControlCycle) -> Result<(), Error> {
     let CycleControlPlan { cycle, records, settled } = prepare_cycle_control(state, control)?;
     for request in state
@@ -331,23 +356,6 @@ fn delete_cycle_case(cycle: &mut CycleView, test_case_id: &CaseId, at: Timestamp
     cycle.test_executions.retain(|execution| &execution.test_case_id != test_case_id);
     cycle.touch_at(at);
     Ok(removed)
-}
-
-pub(crate) fn ensure_case_deletable(cycle: &CycleView, test_case_id: &CaseId) -> Result<(), String> {
-    ensure_cycle_mutable(cycle)?;
-    if cycle
-        .test_executions
-        .iter()
-        .filter(|execution| &execution.test_case_id == test_case_id)
-        .any(|execution| execution.status != ExecutionStatus::Skipped || execution.started_at.is_some() || execution.finished_at.is_some())
-    {
-        return Err("test cases with started or finished executions cannot be deleted".to_owned());
-    }
-    Ok(())
-}
-
-pub(crate) fn ensure_cycle_mutable(cycle: &CycleView) -> Result<(), String> {
-    cycle.ensure_active().map_err(str::to_owned)
 }
 
 fn record_execution_lifecycle(records: &mut Drafts, cycle: &CycleView, record_type: BuiltinRecordType, message: &str, at: Timestamp) {

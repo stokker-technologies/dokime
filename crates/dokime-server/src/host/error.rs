@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{path::PathBuf, process::ExitCode};
+
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
+
 // Process Exit Codes
 // 0 Clean stop.
 // 2 Invalid input: arguments, environment file, plugin bundles, development commands.
@@ -31,17 +34,21 @@ const EXIT_INCOMPATIBLE_STORAGE: u8 = 4;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
     Input(String),
+
     #[error("{0}")]
     Setup(String),
+
     #[error(
         "Dokime cannot open the data root {}.\n\
          The stored data is not usable by this build: {reason}.\n\
@@ -49,14 +56,19 @@ pub enum Error {
         .root.display()
     )]
     IncompatibleStorage { root: PathBuf, reason: String },
+
     #[error("I/O failed: {0}")]
     Io(#[source] std::io::Error),
+
     #[error("JSON output failed: {0}")]
     Json(#[from] serde_json::Error),
+
     #[error(transparent)]
     Runtime(#[from] dokime_runtime::runtime::Error),
+
     #[error("server failed: {0}")]
     Server(#[from] crate::grpc::Error),
+
     #[error("server failed: {server}; runtime shutdown also failed: {runtime}")]
     Cleanup { server: Box<crate::grpc::Error>, runtime: Box<dokime_runtime::runtime::Error> },
 }
@@ -64,6 +76,7 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         if error.kind() == std::io::ErrorKind::InvalidInput { Self::Input(error.to_string()) } else { Self::Io(error) }
@@ -107,6 +120,7 @@ impl Error {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn storage_refusal(error: &dokime_runtime::runtime::Error) -> Option<&dokime_runtime::storage::sqlite::Error> {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(cause) = source {

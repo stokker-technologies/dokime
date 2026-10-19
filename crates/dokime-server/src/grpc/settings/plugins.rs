@@ -8,13 +8,18 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::{preferences::Resources, wire as projection};
 use crate::grpc::value::{self, Budget, canonical};
@@ -23,25 +28,37 @@ use dokime_runtime::{
     RuntimeHandle,
     domains::installed_plugins::{PluginCredentialSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings},
 };
+
 /* === Constants === */
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 struct GetSettings {
     resources: Arc<Resources>,
 }
+
 struct GetPluginSettings {
     resources: Arc<Resources>,
 }
+
 struct UpdatePluginSettings {
     resources: Arc<Resources>,
 }
+
 struct UpdatePluginCredential {
     resources: Arc<Resources>,
 }
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl Operation for GetSettings {
     type Declaration = wire::GetSettings;
     type Resources = Resources;
@@ -58,6 +75,7 @@ impl Operation for GetSettings {
         self.resources.produce_result(|| projection::encode_frame(frame, self.resources.maximum))
     }
 }
+
 impl Operation for GetPluginSettings {
     type Declaration = wire::GetPluginSettings;
     type Resources = Resources;
@@ -75,6 +93,7 @@ impl Operation for GetPluginSettings {
         plugin_response(&self.resources, settings)
     }
 }
+
 impl Operation for UpdatePluginSettings {
     type Declaration = wire::UpdatePluginSettings;
     type Resources = Resources;
@@ -102,6 +121,7 @@ impl Operation for UpdatePluginSettings {
         plugin_response(&self.resources, settings)
     }
 }
+
 impl Operation for UpdatePluginCredential {
     type Declaration = wire::UpdatePluginCredential;
     type Resources = Resources;
@@ -126,7 +146,9 @@ impl Operation for UpdatePluginCredential {
         plugin_response(&self.resources, settings)
     }
 }
+
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
     runtime.operations().register_wire_operation::<GetSettings>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -139,14 +161,18 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     )?;
     Ok(())
 }
+
 /* === Private Functions === */
+
 fn plugin_id(id: &str) -> Result<dokime_domain::model::identity::Identifier, Status> {
     value::text(id)?;
     projection::identifier(id.to_owned(), "plugin_id")
 }
+
 fn plugin_response(
     resources: &Resources, settings: RuntimePluginSettings,
 ) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
     resources.produce_result(|| projection::encode_plugin_settings(settings, resources.maximum))
 }
+
 /* === Tests === */

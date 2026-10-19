@@ -12,18 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::MemorySize;
 use harmos::domain::Portable;
 use serde_json::Value as JsonValue;
 use tonic::Status;
+
 // Local Imports
 use super::super::enums::canonical as enums;
 use super::super::value::{self, Budget, canonical};
 use super::cursor::{bounded_text, expression_stream};
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 use dokime_runtime::document::DocumentFilter;
@@ -44,6 +47,7 @@ use dokime_runtime::runtime::query::PlotPayloadStreamKind;
 use dokime_runtime::runtime::query::plot_payload_request_for_descriptor;
 
 /* === Constants === */
+
 const MESSAGE_HEADROOM_BYTES: usize = 64;
 const DECODED_HEADROOM_BYTES: usize = 1024;
 const GENERATED_AT_BYTES: usize = "0000-00-00T00:00:00.000000000Z".len();
@@ -61,6 +65,7 @@ const GENERATED_AT_BYTES: usize = "0000-00-00T00:00:00.000000000Z".len();
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn document_plot_definition(
     descriptor: &PlotDescriptor,
 ) -> Result<dokime_domain::model::documents::wire::DocumentPlotDefinition, Status> {
@@ -101,11 +106,6 @@ pub(super) fn stream_frame(
 pub(crate) fn values(values: &BTreeMap<String, Value>) -> Result<dokime_domain::model::values::wire::Value, Status> {
     canonical::object(values, &mut Budget::new())
 }
-fn optional_format(
-    value: Option<&dokime_domain::model::values::ValueFormat>,
-) -> Option<dokime_domain::model::definition::wire::ValueFormat> {
-    value.map(canonical::format)
-}
 
 pub(super) fn ensure_message_budget<M: Portable>(value: &M, limit: usize, label: &str) -> Result<(), Status> {
     if value.encoded_len() > limit {
@@ -114,7 +114,59 @@ pub(super) fn ensure_message_budget<M: Portable>(value: &M, limit: usize, label:
     Ok(())
 }
 
+pub(crate) fn plot_filter_wire(filter: &DocumentFilter) -> Result<dokime_domain::model::plots::wire::PlotFilter, Status> {
+    Ok(dokime_domain::model::plots::wire::PlotFilter {
+        expression: Some(data_expression_wire(&filter.expression)?),
+        operator: enums::filter_operator(&filter.operator),
+        value: filter.value.as_ref().map(|value| canonical::encode(value, &mut Budget::new(), 0)).transpose()?,
+    })
+}
+
+pub(crate) fn data_expression_wire(expression: &DataExpression) -> Result<dokime_domain::model::plots::wire::DataExpression, Status> {
+    value::collection(expression.transforms.len())?;
+    let source = Some(match &expression.source {
+        DataSource::Telemetry { stream, field } => {
+            dokime_domain::model::plots::wire::DataExpressionSource::Telemetry(dokime_domain::model::plots::wire::TelemetryDataSource {
+                stream: expression_stream(stream.clone())?,
+                field: bounded_text(field.clone())?,
+            })
+        }
+        DataSource::Parameter { name } => {
+            dokime_domain::model::plots::wire::DataExpressionSource::Parameter(dokime_domain::model::plots::wire::ParameterDataSource {
+                name: bounded_text(name.clone())?,
+            })
+        }
+        DataSource::Dimension { name } => {
+            dokime_domain::model::plots::wire::DataExpressionSource::Dimension(dokime_domain::model::plots::wire::DimensionDataSource {
+                name: bounded_text(name.clone())?,
+            })
+        }
+        DataSource::Record { record_type } => {
+            dokime_domain::model::plots::wire::DataExpressionSource::Record(dokime_domain::model::plots::wire::RecordDataSource {
+                record_type: bounded_text(record_type.clone())?,
+            })
+        }
+        DataSource::Artifact { artifact } => {
+            dokime_domain::model::plots::wire::DataExpressionSource::Artifact(dokime_domain::model::plots::wire::ArtifactDataSource {
+                artifact: bounded_text(artifact.clone())?,
+            })
+        }
+    });
+    Ok(dokime_domain::model::plots::wire::DataExpression {
+        label: expression.label.as_ref().map(|label| bounded_text(label.clone())).transpose()?,
+        source,
+        transforms: expression.transforms.iter().map(data_transform_wire).collect::<Result<_, _>>()?,
+    })
+}
+
 /* === Private Functions === */
+
+fn optional_format(
+    value: Option<&dokime_domain::model::values::ValueFormat>,
+) -> Option<dokime_domain::model::definition::wire::ValueFormat> {
+    value.map(canonical::format)
+}
+
 fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit: usize) -> Result<(), Status> {
     let encoded_budget = limit.saturating_sub(MESSAGE_HEADROOM_BYTES);
     let decoded_budget = super::super::config::output_stream_bytes(limit).saturating_sub(DECODED_HEADROOM_BYTES);
@@ -201,51 +253,6 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime_domain::mode
         summary_window: request
             .summary_window
             .map(|window| dokime_domain::model::plots::wire::PlotWindow { from: window.from, to: window.to }),
-    })
-}
-
-pub(crate) fn plot_filter_wire(filter: &DocumentFilter) -> Result<dokime_domain::model::plots::wire::PlotFilter, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotFilter {
-        expression: Some(data_expression_wire(&filter.expression)?),
-        operator: enums::filter_operator(&filter.operator),
-        value: filter.value.as_ref().map(|value| canonical::encode(value, &mut Budget::new(), 0)).transpose()?,
-    })
-}
-
-pub(crate) fn data_expression_wire(expression: &DataExpression) -> Result<dokime_domain::model::plots::wire::DataExpression, Status> {
-    value::collection(expression.transforms.len())?;
-    let source = Some(match &expression.source {
-        DataSource::Telemetry { stream, field } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Telemetry(dokime_domain::model::plots::wire::TelemetryDataSource {
-                stream: expression_stream(stream.clone())?,
-                field: bounded_text(field.clone())?,
-            })
-        }
-        DataSource::Parameter { name } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Parameter(dokime_domain::model::plots::wire::ParameterDataSource {
-                name: bounded_text(name.clone())?,
-            })
-        }
-        DataSource::Dimension { name } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Dimension(dokime_domain::model::plots::wire::DimensionDataSource {
-                name: bounded_text(name.clone())?,
-            })
-        }
-        DataSource::Record { record_type } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Record(dokime_domain::model::plots::wire::RecordDataSource {
-                record_type: bounded_text(record_type.clone())?,
-            })
-        }
-        DataSource::Artifact { artifact } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Artifact(dokime_domain::model::plots::wire::ArtifactDataSource {
-                artifact: bounded_text(artifact.clone())?,
-            })
-        }
-    });
-    Ok(dokime_domain::model::plots::wire::DataExpression {
-        label: expression.label.as_ref().map(|label| bounded_text(label.clone())).transpose()?,
-        source,
-        transforms: expression.transforms.iter().map(data_transform_wire).collect::<Result<_, _>>()?,
     })
 }
 

@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Read And Answer Identity-Bound Operator Prompts"""
 
 # === Imports === #
@@ -28,15 +27,15 @@ from .models import Backend, Prompt, Value
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
 
 # === Types === #
 
-
 # === Classes === #
+
+
 class Scope:
     """One Prompt Selection Over The Existing Native Prompt Protocol."""
 
@@ -131,8 +130,9 @@ class Scope:
 
 # === Public Functions === #
 
-
 # === Private Functions === #
+
+
 def _validate_listed(identity: Message, item: Message) -> None:
     same_definition = identity.HasField("definition") and (
         item.definition.prompt_type,

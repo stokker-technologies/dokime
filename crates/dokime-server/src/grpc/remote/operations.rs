@@ -41,12 +41,15 @@ use dokime_runtime::RuntimeHandle;
 struct ReadListener {
     controller: Arc<Controller>,
 }
+
 struct UpdateListener {
     controller: Arc<Controller>,
 }
+
 struct GenerateKey {
     controller: Arc<Controller>,
 }
+
 struct RegenerateCertificate {
     controller: Arc<Controller>,
 }

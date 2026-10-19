@@ -38,6 +38,7 @@ use dokime_domain::model::{
 };
 
 /* === Constants === */
+
 const PARTITION_COLUMNS: usize = 512;
 const SCHEMA: &str = r#"
 CREATE TABLE cycles(cycle_id TEXT PRIMARY KEY, phase TEXT NOT NULL, body_json TEXT NOT NULL) STRICT;
@@ -542,6 +543,7 @@ fn cell(value: &Value) -> Result<SqlValue> {
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
 // Local Imports
 use crate::settings::{SettingValues, Settings};
 use dokime_domain::model::credentials::RedactedCredentialBinding;
@@ -29,12 +31,15 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimePluginSettings {
     pub settings: Settings,
     pub values: SettingValues,
+
     #[serde(default)]
     pub discovered: SettingValues,
+
     pub credential_bindings: PluginRuntimeCredentialBindings,
 }
 
@@ -53,11 +58,13 @@ pub struct PluginCredentialSecretUpdate {
 pub struct PluginRuntimeCredentialBindings {
     #[serde(default)]
     pub bindings: std::collections::BTreeMap<String, RedactedCredentialBinding>,
+
     #[serde(default)]
     pub missing_required: Vec<String>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, Error, PartialEq)]
 pub enum RuntimePluginManagementError {
     #[error("installed plugin {0} was not found")]
@@ -73,6 +80,7 @@ pub enum RuntimePluginManagementError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<std::io::Error> for RuntimePluginManagementError {
     fn from(error: std::io::Error) -> Self {
         Self::Store(error.to_string())

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
 
@@ -44,6 +45,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Cycle {
@@ -108,6 +110,7 @@ struct Input<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> From<&'a TestCycle> for Input<'a> {
     fn from(source: &'a TestCycle) -> Self {
         Self {
@@ -128,6 +131,7 @@ impl<'a> From<&'a TestCycle> for Input<'a> {
         }
     }
 }
+
 impl<'a> Input<'a> {
     fn view(source: &'a CycleView, ids: &'a [TestExecutionId]) -> Result<Self> {
         if !source.test_executions.is_empty() {
@@ -171,6 +175,7 @@ impl Identified for Cycle {
         (DefinitionId::new("dokime.object.cycle"), 1)
     }
 }
+
 impl StoredObject for Cycle {
     type Key = str;
     const RETENTION: ObjectRetention = ObjectRetention::UntilReleased;
@@ -178,6 +183,7 @@ impl StoredObject for Cycle {
         &self.cycle_id
     }
 }
+
 impl Cycle {
     pub(crate) fn check_report_source<'a>(
         &self, owner: &str, finalized_at: Option<&str>, mut members: impl Iterator<Item = Result<&'a str>>,
@@ -308,6 +314,7 @@ impl Cycle {
         })
     }
 }
+
 impl TryFrom<Cycle> for TestCycle {
     type Error = Error;
 
@@ -386,16 +393,6 @@ impl From<&ResultSummary> for Summary {
             blocked: value.blocked,
             skipped: value.skipped,
         }
-    }
-}
-
-fn result_status_text(value: &ResultStatus) -> &'static str {
-    match value {
-        ResultStatus::Pending => "pending",
-        ResultStatus::Passed => "passed",
-        ResultStatus::Failed => "failed",
-        ResultStatus::Blocked => "blocked",
-        ResultStatus::Cancelled => "cancelled",
     }
 }
 
@@ -537,6 +534,7 @@ impl Cycle {
 }
 
 /* === Public Functions === */
+
 pub async fn read(storage: &Manager, id: &TestCycleId, version: ObjectVersion) -> Result<Option<ObjectRevision<TestCycle>>> {
     let Some(stored) = storage.read_object::<Cycle>(id.as_str(), version).await? else {
         return Ok(None);
@@ -545,6 +543,17 @@ pub async fn read(storage: &Manager, id: &TestCycleId, version: ObjectVersion) -
 }
 
 /* === Private Functions === */
+
+fn result_status_text(value: &ResultStatus) -> &'static str {
+    match value {
+        ResultStatus::Pending => "pending",
+        ResultStatus::Passed => "passed",
+        ResultStatus::Failed => "failed",
+        ResultStatus::Blocked => "blocked",
+        ResultStatus::Cancelled => "cancelled",
+    }
+}
+
 fn lifecycle_text(value: &CycleStatus) -> &'static str {
     match value {
         CycleStatus::Ready => "ready",

@@ -28,6 +28,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
@@ -44,6 +45,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     super::super::evidence::run(args.input, dokime_domain::model::exports::EvidenceSubject::Execution, Some(args.recovery)).await
 }

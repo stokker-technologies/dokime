@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod authoring;
 mod handle;
 pub(crate) mod lifecycle;
@@ -21,9 +22,11 @@ pub mod requests;
 pub(crate) mod run;
 
 /* === Re-Exports === */
+
 pub use registry::SuiteSnapshot;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -44,6 +47,7 @@ use crate::{RuntimeHandle, RuntimeState, runtime::Error, transactions::Transacti
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub(crate) async fn commit_with_key<T>(&self, idempotency_key: Option<String>, transaction: T) -> Result<harmos::state::Receipt, Error>
     where

@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 mod frames;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -34,10 +36,12 @@ use dokime_runtime::{RuntimeHandle, runtime::Error};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Download {
     resources: Arc<Resources>,
 }
@@ -47,6 +51,7 @@ struct Download {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Download {
     type Declaration = wire::DownloadExecutionFile;
     type Resources = Resources;
@@ -103,6 +108,7 @@ impl Operation for Download {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
@@ -113,6 +119,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn stream_failure(error: Error) -> Status {
     let status = match &error {
         Error::Harmos(harmos::Error::ResourceExhausted { resource }) => {

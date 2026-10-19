@@ -23,10 +23,10 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::io::Seek;
 use std::{collections::BTreeMap, io::Read, time::Duration};
 
 // Third Party Imports
-use std::io::Seek;
 use tempfile::TempPath;
 use tokio::{io::AsyncSeekExt, sync::oneshot};
 
@@ -48,6 +48,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 
 /* === Constants === */
+
 // Consecutive failed passes after which an unreachable source ends the watch.
 const FAILED_PASSES: u32 = 10;
 
@@ -59,6 +60,7 @@ const SOURCE: &str = "dokime.files";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct FileWatch {
     // Taken by `Drop` to seal an abandoned watch in the background.
     state: Option<State>,
@@ -113,6 +115,7 @@ struct Tracked {
 }
 
 /* === Enums === */
+
 #[derive(Debug)]
 pub enum WatchEvent {
     Progress { path: String, offset: u64, phase: Phase },
@@ -123,6 +126,7 @@ pub enum WatchEvent {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl FileWatch {
     pub(super) async fn open(runtime: RuntimeHandle, settings: Settings, source: Source) -> Result<Self> {
         let execution = settings.scope.test_execution_id.clone().ok_or_else(|| invalid("a file watch requires an execution"))?;
@@ -591,6 +595,7 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn over_bytes(maximum: u64, path: &str) -> Error {
     capped(format!("the watch captures at most {maximum} bytes; {path:?} would exceed it"))
 }

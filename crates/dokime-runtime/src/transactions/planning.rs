@@ -8,19 +8,24 @@
  */
 
 /* === Modules === */
+
 mod append;
 mod copy;
 
 /* === Re-Exports === */
+
 pub use append::AppendExecutions;
 pub use copy::CopyCycle;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::TestCase;
 use crate::records::BuiltinRecordType;
@@ -44,6 +49,7 @@ use dokime_domain::state::records::set::TestRecordSet;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CycleDefinition {
     pub metadata: Metadata,
@@ -73,6 +79,7 @@ pub struct CreateCycle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for RegisterCases {
     type Error = String;
 
@@ -128,6 +135,7 @@ impl Transaction<RuntimeState> for CreateCycle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn apply_create_cycle(state: &mut RuntimeState, create: &CreateCycle) -> Result<TestCycleId, Error> {
     let (cycle, records) = prepare_create_cycle(state, create)?;
     let cycle_id = cycle.test_cycle_id.clone();

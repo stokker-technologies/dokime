@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod native;
 pub(crate) mod read;
 pub(crate) mod source;
@@ -17,7 +18,6 @@ pub(crate) mod source;
 /* === Imports === */
 
 // Standard Library Imports
-
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
@@ -42,6 +42,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::traceability::TraceabilitySnapshot;
 
 /* === Constants === */
+
 const MAX_LOGO_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
@@ -179,8 +180,6 @@ pub(crate) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> b
         || owns_projection(scope, execution)
 }
 
-/* === Private Functions === */
-
 pub(crate) fn validate_appearance(appearance: &RuntimeAppearanceFrame) -> Result<()> {
     for theme in &appearance.themes {
         for value in css_values(theme) {
@@ -235,6 +234,8 @@ pub(crate) fn appearance_validation_memory<'a>(values: impl Iterator<Item = &'a 
     let error = max_label_bytes.saturating_add(256).saturating_mul(3);
     text.saturating_add(tokens).saturating_add(parsers).saturating_add(error)
 }
+
+/* === Private Functions === */
 
 fn validate_css(css: &str) -> std::result::Result<(), &'static str> {
     let mut input = Parser::new(css);

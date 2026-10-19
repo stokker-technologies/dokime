@@ -12,17 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::MemorySize;
 use harmos::domain::Portable;
 use harmos::operations::StreamOutput;
 use sha2::{Digest as _, Sha256};
-use std::num::NonZeroUsize;
 use tonic::Status;
+
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use dokime_runtime::runtime::ArtifactReader;
 
 /* === Constants === */
@@ -32,6 +34,7 @@ use dokime_runtime::runtime::ArtifactReader;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<dokime_domain::model::content::wire::ArtifactFrame>);
 
 pub(super) struct Download<F> {
@@ -46,6 +49,7 @@ pub(super) struct Download<F> {
 }
 
 /* === Enums === */
+
 pub(super) enum Source {
     Bytes { data: Vec<u8>, read: usize },
     Artifact(Box<ArtifactReader>),
@@ -53,6 +57,7 @@ pub(super) enum Source {
 }
 
 /* === Traits === */
+
 pub(super) trait Frames: Send + 'static {
     type Frame: Portable + MemorySize + Send + Sync + 'static;
 
@@ -65,6 +70,7 @@ pub(super) trait Frames: Send + 'static {
 }
 
 /* === Implementations === */
+
 impl Frames for ArtifactFrames {
     type Frame = dokime_domain::model::content::wire::ArtifactFrame;
 
@@ -202,12 +208,14 @@ impl<F: Frames> Download<F> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn checked_offset(offset: u64, count: usize, size: u64, noun: &str) -> Result<u64, Status> {
     offset
         .checked_add(count as u64)
         .filter(|delivered| *delivered <= size)
         .ok_or_else(|| Status::data_loss(format!("{noun} exceeds its declared length")))
 }
+
 fn file_failure(source: dokime_runtime::runtime::Error, message: &'static str) -> Status {
     let status = match &source {
         dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => Status::resource_exhausted(message),
@@ -216,6 +224,7 @@ fn file_failure(source: dokime_runtime::runtime::Error, message: &'static str) -
     };
     super::error::detailed(status, &source)
 }
+
 fn stream_failure(error: harmos::Error) -> Status {
     match error {
         harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),

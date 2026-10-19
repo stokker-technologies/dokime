@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 
@@ -36,6 +37,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Constants === */
 
 /* === Macros === */
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -45,6 +47,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn update_plot_settings(
         &self, cycle_id: &TestCycleId, execution_id: &TestExecutionId, document_id: &dokime_domain::model::identity::DocumentId,
@@ -208,6 +211,5 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/* === Functions === */
 
 /* === Tests === */

@@ -29,6 +29,7 @@ use crate::domain::model::device::DeviceState;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::message]
 #[dokime_runtime::operation(
     id = "obc.device.read",

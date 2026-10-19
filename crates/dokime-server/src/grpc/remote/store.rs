@@ -29,6 +29,7 @@ use zeroize::{Zeroize, Zeroizing};
 use dokime_domain::model::remote::RemoteListenerSettings;
 
 /* === Constants === */
+
 const MAXIMUM_BYTES: usize = 256 * 1024;
 
 /* === Macros === */

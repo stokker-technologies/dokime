@@ -43,6 +43,7 @@ use dokime_domain::model::exports::EVIDENCE_EXPORT_MAX_BYTES;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Writer {
     zip: ZipWriter<BoundedFile>,
     entries: Vec<Entry>,
@@ -69,6 +70,7 @@ struct LimitedBytes(Vec<u8>);
 struct Document<'a, T> {
     #[serde(flatten)]
     manifest: &'a T,
+
     payloads: &'a [Entry],
 }
 
@@ -77,6 +79,7 @@ struct Document<'a, T> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Writer {
     pub fn open(path: &Path, cancellation: &CancellationToken) -> Result<Self> {
         let file = File::create_new(path)?;
@@ -203,6 +206,7 @@ impl Seek for BoundedFile {
 }
 
 /* === Public Functions === */
+
 pub(super) fn output_path(execution: &str, index: usize, relative: &str) -> String {
     let safe = super::super::storage::paths::safe_artifact_path(relative);
     let filename = Path::new(safe.rsplit('/').next().unwrap_or("file"));
@@ -213,7 +217,12 @@ pub(super) fn output_path(execution: &str, index: usize, relative: &str) -> Stri
     format!("files/{execution}/{index:06}-{stem}{suffix}")
 }
 
+pub(super) fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 /* === Private Functions === */
+
 fn copy(input: &mut impl Read, output: &mut impl Write, cancellation: &CancellationToken) -> Result<(u64, String)> {
     let mut buffer = [0_u8; 64 * 1024];
     let mut length = 0_u64;
@@ -233,11 +242,8 @@ fn copy(input: &mut impl Read, output: &mut impl Write, cancellation: &Cancellat
     Ok((length, hex(&hash.finalize())))
 }
 
-pub(super) fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

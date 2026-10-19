@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::{
     operations::Context,
@@ -23,6 +25,7 @@ use harmos::{
         sort::{Sort, SortKey},
     },
 };
+
 // Local Imports
 use super::{invalid, statistics, telemetry};
 use crate::document::PlotType;
@@ -54,6 +57,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(in crate::report) async fn materialize(
     ctx: &Context<'_>, settings: &crate::config::StorageSettings, source: &CapturedSource, execution: &TestExecution,
     records: &[RecordEntry], request: PlotPayloadRequest,
@@ -95,6 +99,7 @@ pub(in crate::report) async fn materialize(
 }
 
 /* === Private Functions === */
+
 fn direct<'a>(
     request: &PlotPayloadRequest, contracts: &'a BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>,
 ) -> Option<(PlotPayloadRequest, &'a TelemetryContract)> {

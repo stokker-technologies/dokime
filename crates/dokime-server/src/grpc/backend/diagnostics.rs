@@ -8,14 +8,19 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::operations::{Context, Operation, Response};
 use sysinfo::{Pid, System};
 use tonic::Status;
+
 // Local Imports
 use crate::diagnostics_assembly::{self, DiagnosticCheckStatus, DiagnosticsSnapshot, StartupDoctorCheck, StartupDoctorCheckKey};
 use crate::grpc::value::{self, canonical};
@@ -24,21 +29,32 @@ use dokime_runtime::{
     RuntimeHandle,
     domains::exports::storage::{DiagnosticFileFormat, DiagnosticPathConvention, DiagnosticPathKey},
 };
+
 /* === Constants === */
+
 const MAX_RESPONSE_BYTES: usize = 512 * 1024;
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Read {
     resources: Arc<Resources>,
 }
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl Operation for Read {
     type Declaration = wire::GetDiagnostics;
     type Resources = Resources;
@@ -67,7 +83,9 @@ impl Operation for Read {
         })
     }
 }
+
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Read>(
         "dokime",
@@ -76,6 +94,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     )?;
     Ok(())
 }
+
 pub(super) fn process_diagnostics() -> dokime_domain::model::backend::wire::ProcessDiagnostics {
     let pid = std::process::id();
     let mut system = System::new_all();
@@ -90,6 +109,7 @@ pub(super) fn process_diagnostics() -> dokime_domain::model::backend::wire::Proc
 }
 
 /* === Private Functions === */
+
 fn runtime_diagnostics(diagnostics: &DiagnosticsSnapshot) -> Result<dokime_domain::model::backend::wire::RuntimeDiagnostics, Status> {
     value::text(&diagnostics.storage_root)?;
     value::collection(diagnostics.path_conventions.len())?;

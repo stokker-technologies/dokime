@@ -8,16 +8,20 @@
  */
 
 /* === Modules === */
+
 pub mod theme;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::Path;
+
 // Third Party Imports
 use serde::Deserialize;
 use thiserror::Error;
+
 // Local Imports
 use crate::domains::{
     AppCustomizationContribution, AppLogoAsset, AppThemeContribution, OrganizationIdentity, ThemeActivationPolicy, ThemeCornerRadii,
@@ -28,12 +32,10 @@ use dokime_domain::model::identity::Metadata;
 use theme::{Bundled, Directory, Error as ThemeCssError, Source, load_from as load_authored_theme_css};
 
 /* === Constants === */
+
 pub(crate) const BRAND_ARTIFACT_ID: &str = "brand";
-
 const BRAND_MANIFEST_FILE: &str = "brand.toml";
-
 const BRAND_LOGOS_DIR: &str = "logos";
-
 const BRAND_THEME_ID: &str = "brand.theme";
 const BRAND_CUSTOMIZATION_ID: &str = "brand.customization";
 const BRAND_LOGO_ASSET_ID: &str = "brand.logo";
@@ -43,6 +45,7 @@ const BRAND_LOGO_ASSET_ID: &str = "brand.logo";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct ResolvedBrand {
     pub identity: BrandIdentity,
@@ -68,11 +71,12 @@ pub struct BrandIdentity {
     pub title_template: String,
 }
 
-/* === Manifest (serde) === */
+// Manifest Serialization
 
 #[derive(Debug, Deserialize)]
 struct BrandManifest {
     app: AppSection,
+
     #[serde(default)]
     theme: Option<ThemeSection>,
 }
@@ -82,12 +86,16 @@ struct AppSection {
     label: String,
     slug: String,
     identifier: String,
+
     #[serde(default)]
     deep_link_scheme: Option<String>,
+
     #[serde(default = "default_title_template")]
     title_template: String,
+
     #[serde(default)]
     organization: Option<OrganizationSection>,
+
     #[serde(default)]
     logo: Option<LogoSection>,
 }
@@ -95,8 +103,10 @@ struct AppSection {
 #[derive(Debug, Deserialize)]
 struct OrganizationSection {
     name: String,
+
     #[serde(default)]
     unit: Option<String>,
+
     #[serde(default)]
     website: Option<String>,
 }
@@ -105,6 +115,7 @@ struct OrganizationSection {
 struct LogoSection {
     file: String,
     mime_type: String,
+
     #[serde(default)]
     alt: Option<String>,
 }
@@ -113,24 +124,32 @@ struct LogoSection {
 struct ThemeSection {
     #[serde(default)]
     policy: BrandThemePolicy,
+
     #[serde(default)]
     default_mode: ThemeModePolicy,
+
     label: String,
+
     #[serde(default)]
     description: Option<String>,
+
     #[serde(default)]
     corner_radii: ThemeCornerRadii,
 }
 
 /* === Enums === */
+
 #[derive(Debug, Error)]
 pub enum BrandLoadError {
     #[error("could not read {path}: {source}")]
     Read { path: std::path::PathBuf, source: std::io::Error },
+
     #[error("could not parse brand.toml: {0}")]
     Parse(Box<toml::de::Error>),
+
     #[error("brand identifier is invalid: {0}")]
     Identifier(#[from] dokime_domain::Error),
+
     #[error("invalid authored brand CSS: {0}")]
     ThemeCss(#[from] ThemeCssError),
 }
@@ -139,14 +158,17 @@ pub enum BrandLoadError {
 #[serde(rename_all = "snake_case")]
 enum BrandThemePolicy {
     RegisterOnly,
+
     #[default]
     Default,
+
     Required,
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ResolvedBrand {
     pub fn materialize_logo(&mut self, directory: &Path) -> std::io::Result<()> {
         let Some(logo) = self.logo.take() else {
@@ -217,6 +239,7 @@ impl BrandManifest {
 }
 
 /* === Public Functions === */
+
 pub fn compiled_brand() -> Option<ResolvedBrand> {
     let resolved = parse(Bundled::manifest(), &Bundled).and_then(|(mut brand, logo)| {
         brand.logo = logo
@@ -265,6 +288,7 @@ pub fn load_brand(dir: &Path) -> Result<ResolvedBrand, BrandLoadError> {
 }
 
 /* === Private Functions === */
+
 fn parse(text: &str, source: &impl Source) -> Result<(ResolvedBrand, Option<LogoSection>), BrandLoadError> {
     let mut manifest: BrandManifest = toml::from_str(text).map_err(|error| BrandLoadError::Parse(Box::new(error)))?;
     let logo = manifest.app.logo.take();

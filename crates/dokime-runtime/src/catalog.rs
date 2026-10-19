@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use harmos::catalog::{Catalog, Contains, InertCatalog, Member, Node, Visitor};
 
 /* === Imports === */
+
 // Standard Library Imports
 #[cfg(feature = "native")]
 use std::marker::PhantomData;
@@ -22,6 +24,7 @@ use std::marker::PhantomData;
 // Local Imports
 #[cfg(feature = "native")]
 use crate::definition::DeclaredTemplate;
+
 #[cfg(feature = "native")]
 use crate::execution::SidecarTemplate;
 use crate::records::{DeclaredRecord, RecordContract};
@@ -29,9 +32,20 @@ use crate::telemetry::{TelemetryContract, TelemetryStream};
 
 /* === Constants === */
 
+#[cfg(feature = "native")]
+const UNSET: Publication = Publication {
+    id: "",
+    metadata_json: "",
+    row_metadata_json: "[]",
+    schema: 0,
+    window: 0,
+    row: harmos::schema::declaration::Definition::of::<()>(),
+};
+
 /* === Macros === */
 
 /* === Type Aliases === */
+
 #[cfg(feature = "native")]
 pub type Publication = harmos::sidecar::inventory::publications::Entry;
 
@@ -53,6 +67,7 @@ pub type Bind = fn(
 ) -> Result<(), harmos::sidecar::operations::ServingError>;
 
 /* === Structs === */
+
 #[cfg(feature = "native")]
 pub struct Streams;
 
@@ -126,6 +141,7 @@ pub struct ListenerEntry {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[cfg(feature = "native")]
 impl Visitor for Streams {
     type Entry = Node<Publication>;
@@ -324,6 +340,7 @@ impl<T: crate::plugin::Listener> Member<T> for Listeners {
 }
 
 /* === Public Functions === */
+
 pub fn entries<C, V>() -> Vec<V::Entry>
 where
     C: Catalog<V>,
@@ -431,6 +448,7 @@ pub const fn deduplicated<const N: usize>(declared: &[Publication]) -> [Publicat
 }
 
 /* === Private Functions === */
+
 const fn granted_id(granted: &[Node<harmos::catalog::RequirementEntry>], id: &str) -> bool {
     let mut index = 0;
     while index < granted.len() {
@@ -462,16 +480,6 @@ const fn provided_privately(provided: &[Node<harmos::operations::WireDeclaration
     }
     false
 }
-
-#[cfg(feature = "native")]
-const UNSET: Publication = Publication {
-    id: "",
-    metadata_json: "",
-    row_metadata_json: "[]",
-    schema: 0,
-    window: 0,
-    row: harmos::schema::declaration::Definition::of::<()>(),
-};
 
 #[cfg(feature = "native")]
 const fn observed_count(observers: &[Node<Observer>]) -> usize {

@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{net::SocketAddr, num::NonZeroUsize, time::Duration};
+
 // Third Party Imports
 use zeroize::Zeroizing;
+
 // Local Imports
 use super::{
     Error,
@@ -23,6 +26,7 @@ use super::{
 };
 
 /* === Constants === */
+
 const OUTPUT_DECODED_FACTOR: usize = 4;
 
 /* === Macros === */
@@ -30,6 +34,7 @@ const OUTPUT_DECODED_FACTOR: usize = 4;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct TlsIdentity {
     certificate: Vec<u8>,
@@ -51,6 +56,7 @@ pub struct Config {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl std::fmt::Debug for TlsIdentity {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.debug_struct("TlsIdentity").finish_non_exhaustive()
@@ -181,6 +187,7 @@ impl Default for Config {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn output_stream_bytes(max_message_bytes: usize) -> usize {
     max_message_bytes.saturating_mul(OUTPUT_DECODED_FACTOR)
 }

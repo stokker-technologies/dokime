@@ -28,9 +28,8 @@ import grpc
 from google.protobuf.json_format import ParseDict
 from google.protobuf.message import DecodeError, Message
 
-from ..dynamic import from_contract
-
 # Local Imports
+from ..dynamic import from_contract
 from ..operation import Operation
 from . import _contracts, _wire
 from .errors import BackendChanged, ClientClosed, ProtocolError, RpcError
@@ -41,6 +40,7 @@ from .models import Backend
 # === Public Exports === #
 
 # === Constants === #
+
 _MAX_MESSAGE_BYTES = 16 * 1024 * 1024
 _DISCOVERY_BYTES = 1024 * 1024
 
@@ -678,9 +678,6 @@ def _target(endpoint: str) -> tuple[str, bool]:
         raise ValueError("use an HTTP(S) origin without user information, path, query or fragment") from error
 
 
-# === Entry Point === #
-
-
 def _object(items: list[tuple[str, Any]]) -> dict[str, Any]:
     result = {}
     for key, value in items:
@@ -688,3 +685,6 @@ def _object(items: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError("duplicate catalog field")
         result[key] = value
     return result
+
+
+# === Entry Point === #

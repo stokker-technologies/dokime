@@ -8,16 +8,20 @@
  */
 
 /* === Modules === */
+
 mod catalog;
 mod executions;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 // Local Imports
 use super::{
     DokimeIdentity, EvidenceRecords, InstalledPluginErrorRecord, MaterializedParameter, PluginOwner, PromptDefinition, PromptId,
@@ -36,6 +40,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // The managed snapshot's state encoding. Catalogs and execution plans are
 // stored once and referenced by position (see `catalog` and `executions`), so
 // the snapshot's byte cap bounds distinct content rather than its copies. The
@@ -57,8 +62,10 @@ struct Encoded<'a> {
     record_history: BTreeMap<&'a Identifier, BTreeMap<u32, u32>>,
     telemetry_definitions: BTreeMap<&'a Identifier, u32>,
     cycles: &'a BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
+
     #[serde(serialize_with = "executions::serialize")]
     executions: &'a BTreeMap<TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
+
     retired_executions: &'a BTreeSet<TestExecutionId>,
     run_requests: &'a BTreeMap<CommandId, crate::transactions::provider::request::RunRequest>,
     run_queue: &'a std::collections::VecDeque<CommandId>,
@@ -93,11 +100,15 @@ struct Decoded {
     record_history: BTreeMap<Identifier, BTreeMap<u32, u32>>,
     telemetry_definitions: BTreeMap<Identifier, u32>,
     cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
+
     #[serde(deserialize_with = "executions::deserialize")]
     executions: BTreeMap<TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
+
     retired_executions: BTreeSet<TestExecutionId>,
+
     #[serde(default)]
     run_requests: BTreeMap<CommandId, crate::transactions::provider::request::RunRequest>,
+
     run_queue: std::collections::VecDeque<CommandId>,
     cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     report_finalizations: BTreeMap<TestExecutionId, crate::transactions::ReportFinalization>,
@@ -119,6 +130,7 @@ struct Decoded {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Serialize for RuntimeState {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let RuntimeState {
@@ -280,6 +292,7 @@ impl Decoded {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // Returns The Position Of A Shared Value, Storing It On First Sight
 fn intern<'a, T: PartialEq + ?Sized>(values: &mut Vec<&'a T>, value: &'a T) -> u32 {
     let index = match values.iter().position(|candidate| *candidate == value) {

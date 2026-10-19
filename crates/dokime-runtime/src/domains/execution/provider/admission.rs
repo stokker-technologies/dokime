@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::RunProvider;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +38,7 @@ use crate::runtime_state::RuntimeState;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn transition(state: &mut RuntimeState, transaction: &RunProvider) -> CommandResult<super::ProviderCycleAdmission> {
     let target = crate::transactions::provider::apply_run_provider(state, transaction).map_err(|rejection| {
         Box::new(rejected_receipt(transaction.command_id.clone(), &transaction.context, transaction.accepted_at.clone(), rejection))

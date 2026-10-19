@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
+
 // Third Party Imports
 use harmos::{
     Message,
@@ -22,6 +24,7 @@ use harmos::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use super::{CycleReportInput, html::HtmlReport};
 use crate::records::RecordContract;
@@ -55,6 +58,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapturedExecutionReportInput {
@@ -92,9 +96,11 @@ struct ReportFileData {
 }
 
 /* === Enums === */
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     // Benchmarks And Callers Read The Immutable Published Bytes Of Sealed Subjects.
     pub async fn render_saved_execution_report(&self, execution: &dokime_domain::model::identity::TestExecutionId) -> Result<Vec<u8>> {
@@ -402,6 +408,7 @@ impl ReportFile {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn report_file_id(execution: &str, suffix: &str) -> Result<Identifier> {
     Identifier::new(format!("{execution}{suffix}")).map_err(|error| Error::InvalidReportInputs(error.to_string()))
 }

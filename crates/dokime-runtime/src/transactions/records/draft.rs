@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
@@ -34,6 +35,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct BuiltinDraft {
     pub record_type: BuiltinRecordType,
     pub source: String,
@@ -54,6 +56,7 @@ pub(crate) struct Drafts {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drafts {
     pub(crate) fn new(state: &RuntimeState) -> Self {
         Self { session: state.record_namespace.clone(), first: state.record_count, records: Vec::new() }

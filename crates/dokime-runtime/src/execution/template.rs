@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
+
 // Third Party Imports
 
 // Local Imports
@@ -41,16 +43,13 @@ pub type SamplePublisher = for<'a> fn(
     &'a dokime_domain::model::identity::Identifier,
     &'a [StampedRow],
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
-
 pub type StepFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Diagnostic>> + Send + 'a>>;
-
 pub type InitializationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Diagnostic>> + Send + 'a>>;
-
 pub type TraceabilityFuture<'a> = Pin<Box<dyn Future<Output = Result<Vec<TraceabilitySection>, Diagnostic>> + Send + 'a>>;
-
 pub type EvaluationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<Option<T>, Diagnostic>> + Send + 'a>>;
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct TemplateDefinition {
     pub template: TestCaseTemplate,
@@ -79,6 +78,7 @@ pub struct DeclaredObserver {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait SidecarTemplate: Send + Sized + 'static {
     const RUN: &'static str;
 
@@ -136,6 +136,7 @@ pub trait SidecarTemplate: Send + Sized + 'static {
 }
 
 /* === Implementations === */
+
 impl DeclaredObserver {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>, interval_ms: u64) -> Self {
         Self {

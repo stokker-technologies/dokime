@@ -29,6 +29,7 @@ use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const UUID_BYTES: usize = 36;
 
 /* === Macros === */
@@ -44,6 +45,7 @@ const UUID_BYTES: usize = 36;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn count(storage: &ExecutionStorage) -> Result<usize> {
     inspect(storage, |_, _| Ok(())).await
 }
@@ -95,6 +97,7 @@ pub(super) async fn records(storage: &ExecutionStorage) -> Result<Vec<ArtifactRe
 }
 
 /* === Private Functions === */
+
 fn observe(seen: &mut BTreeMap<ArtifactId, TestExecutionId>, owner: &TestExecutionId, record: &ArtifactRecord) -> harmos::Result<bool> {
     if record.status == ArtifactStatus::Staged
         || record.scope.test_execution_id.as_ref() != Some(owner)

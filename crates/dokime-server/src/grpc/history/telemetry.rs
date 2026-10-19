@@ -17,7 +17,6 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use tonic::{Code, Status};
 
@@ -27,6 +26,7 @@ use super::super::{
     value::{self, projection},
 };
 use super::wire;
+use crate::grpc::transcode::Transcode;
 use dokime_domain::operations::history as contract;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::checkpoint_telemetry::ExecutionTelemetryPage;
@@ -38,10 +38,12 @@ use dokime_runtime::runtime::query::checkpoint_telemetry::ExecutionTelemetryPage
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct List {
     resources: Arc<Resources>,
 }
@@ -83,6 +85,18 @@ impl Operation for List {
 }
 
 /* === Public Functions === */
+
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    runtime.operations().register_wire_operation::<List>(
+        "dokime",
+        dokime_runtime::app::Lanes::Open,
+        Arc::new(Resources { runtime: runtime.clone(), maximum }),
+    )?;
+    Ok(())
+}
+
+/* === Private Functions === */
+
 fn project(page: &ExecutionTelemetryPage, maximum: usize) -> harmos::Result<dokime_domain::model::history::wire::CheckpointTelemetryPage> {
     let mut records = projection::slots(page.rows.len())?;
     for row in &page.rows {
@@ -114,23 +128,15 @@ fn project(page: &ExecutionTelemetryPage, maximum: usize) -> harmos::Result<doki
     Ok(wire)
 }
 
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    runtime.operations().register_wire_operation::<List>(
-        "dokime",
-        dokime_runtime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), maximum }),
-    )?;
-    Ok(())
-}
-
-/* === Private Functions === */
 fn original_error(source: Status) -> harmos::Error {
     if source.code() == Code::ResourceExhausted {
         return exhausted();
     }
     harmos::Error::backend("encode original saved telemetry", harmos::BackendFailure::Corrupt, source)
 }
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "canonical saved telemetry page" }
 }
+
 /* === Tests === */

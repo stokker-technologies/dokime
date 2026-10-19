@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::document::canonical::wire as document_wire;
 use super::wire;
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{
     appearance, execution, notes, prompts,
     value::{self, canonical},
@@ -39,10 +42,12 @@ use dokime_runtime::runtime::query::execution_history::ExecutionCheckpointContex
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Get {
     resources: Arc<Resources>,
 }
@@ -52,6 +57,7 @@ struct Get {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Get {
     type Declaration = history::GetCheckpointContext;
     type Resources = Resources;
@@ -76,6 +82,7 @@ impl Operation for Get {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
@@ -85,7 +92,6 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     Ok(())
 }
 
-/* === Private Functions === */
 pub(super) fn checkpoint_context(
     value: ExecutionCheckpointContext, maximum: usize,
 ) -> Result<dokime_domain::model::history::wire::CheckpointContext, Status> {
@@ -111,6 +117,8 @@ pub(super) fn checkpoint_context(
         appearance: Some(appearance::historical(value.appearance)?),
     })
 }
+
+/* === Private Functions === */
 
 fn cycle_context(
     value: dokime_runtime::runtime::ExecutionCycleContext, maximum: usize,
@@ -157,6 +165,7 @@ fn cycle_status(value: CycleStatus) -> dokime_domain::model::execution::wire::Cy
 fn canonical_metadata(value: &dokime_domain::model::identity::Metadata) -> Result<common::Metadata, Status> {
     canonical::metadata(value)
 }
+
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
     let mut values = value::projection::slots(source.len()).map_err(|source| wire::checkpoint_failure(source.into()))?;
     for item in source {
@@ -164,12 +173,14 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     }
     Ok(values)
 }
+
 fn original_error(source: Status) -> harmos::Error {
     if source.code() == tonic::Code::ResourceExhausted {
         return exhausted();
     }
     harmos::Error::backend("project original checkpoint context", harmos::BackendFailure::Corrupt, source)
 }
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "canonical checkpoint context" }
 }

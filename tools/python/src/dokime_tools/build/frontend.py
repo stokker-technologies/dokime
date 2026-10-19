@@ -6,13 +6,11 @@
 #
 # ***
 
-
 """Prepare Frontend And Report Assets"""
 
 # === Imports === #
 
 # Standard Library Imports
-
 import argparse
 import hashlib
 import subprocess
@@ -26,7 +24,6 @@ from dokime_tools.package.staging import clear_output, sync_output
 from . import paths
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -48,11 +45,9 @@ INPUT_ROOTS = [
     WEB_ROOT / "pnpm-lock.yaml",
 ]
 
-
 # === Types === #
 
 # === Classes === #
-
 
 # === Public Functions === #
 

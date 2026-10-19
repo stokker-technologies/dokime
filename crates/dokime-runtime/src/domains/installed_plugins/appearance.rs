@@ -10,12 +10,16 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::domains::{RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeThemeFamily};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, path::PathBuf};
+
 // Third Party Imports
+
 // Local Imports
 use crate::RuntimeHandle;
 use crate::domains::{AppCustomizationContribution, AppLogoAsset, AppThemeContribution, ThemeActivationPolicy, ThemeModePolicy};
@@ -23,6 +27,7 @@ use crate::installed_plugins::brand::{BRAND_ARTIFACT_ID, ResolvedBrand};
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
+
 const DEFAULT_APP_NAME: &str = "Dokime";
 
 /* === Macros === */
@@ -30,6 +35,7 @@ const DEFAULT_APP_NAME: &str = "Dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeInstalledPluginAsset {
     pub path: PathBuf,
@@ -50,6 +56,7 @@ pub struct AppearanceLimitExceeded;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub fn set_brand(&self, brand: Option<ResolvedBrand>) {
         *self.brand.write().expect("brand lock is healthy") = brand;
@@ -75,6 +82,7 @@ impl RuntimeHandle {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn construction_memory(state: &crate::RuntimeState, brand: Option<&ResolvedBrand>) -> usize {
     let mut bytes = std::mem::size_of::<CapturedAppearance>();
     let mut count = 0usize;
@@ -147,7 +155,6 @@ pub(crate) fn captured_logo_asset(
     Some(RuntimeInstalledPluginAsset { path: PathBuf::from(&asset.path), mime_type: asset.mime_type.clone() })
 }
 
-/* === Private Functions === */
 pub(crate) fn capture_appearance_state(
     state: &crate::RuntimeState, brand: Option<&ResolvedBrand>, max_bytes: usize,
 ) -> Result<CapturedAppearance, AppearanceLimitExceeded> {
@@ -156,6 +163,8 @@ pub(crate) fn capture_appearance_state(
     let logo = frame.logo.as_ref().and_then(|logo| captured_logo_asset(state, brand, logo));
     Ok(CapturedAppearance { frame, logo })
 }
+
+/* === Private Functions === */
 
 fn appearance_asset(
     state: &crate::RuntimeState, brand: Option<&ResolvedBrand>, plugin_id: &Identifier, asset_id: &Identifier,

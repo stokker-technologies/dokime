@@ -8,18 +8,22 @@
  */
 
 /* === Modules === */
+
 mod power;
 mod stop;
 
 /* === Re-Exports === */
+
 pub use power::SetPower;
 pub use stop::Stop;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{Error, Testbench};
 
@@ -32,6 +36,7 @@ use crate::{Error, Testbench};
 /* === Structs === */
 
 /* === Enums === */
+
 #[harmos::transactions(state = Testbench, error = Error)]
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum Transactions {

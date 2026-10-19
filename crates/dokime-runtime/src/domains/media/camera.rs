@@ -23,6 +23,7 @@
 use crate::runtime::Result;
 
 /* === Constants === */
+
 // Frames discarded while the sensor settles its exposure and white balance.
 #[cfg(feature = "media-native")]
 const WARMUP_FRAMES: usize = 10;
@@ -43,6 +44,7 @@ const JPEG_QUALITY: u8 = 90;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // Captures one settled frame of the indexed camera as JPEG bytes.
 #[cfg(feature = "media-native")]
 pub(super) fn capture_jpeg(camera: Option<u32>) -> Result<Vec<u8>> {

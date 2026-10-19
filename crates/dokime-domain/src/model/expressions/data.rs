@@ -12,23 +12,27 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos_domain::Aggregate;
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::expressions::Expression;
 use crate::model::expressions::ExpressionKind;
 use crate::model::values::Value;
 
 /* === Constants === */
+
 const FN_DATA_TELEMETRY: &str = "data.telemetry";
 const FN_DATA_PARAMETER: &str = "data.parameter";
 const FN_DATA_DIMENSION: &str = "data.dimension";
 const FN_DATA_RECORD: &str = "data.record";
 const FN_DATA_ARTIFACT: &str = "data.artifact";
+
 // An aggregate transform is `data.transform.<name>`, the name being the
 // Harmos vocabulary's own wire name (`mean`, `p95`).
 const FN_TRANSFORM_PREFIX: &str = "data.transform.";
@@ -38,6 +42,7 @@ const FN_TRANSFORM_DETAIL: &str = "data.transform.detail";
 const FN_TRANSFORM_PER_CASE: &str = "data.transform.per_case";
 
 /* === Macros === */
+
 product_error!(DataExpressionError, formatter {
     Self::UnsupportedExpression => formatter.write_str("expression cannot be represented as a data expression"),
 });
@@ -45,17 +50,21 @@ product_error!(DataExpressionError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DataExpression {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+
     pub source: DataSource,
+
     #[serde(default)]
     pub transforms: Vec<DataTransform>,
 }
 
 /* === Enums === */
-/* === Errors === */
+
+// Errors
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DataExpressionError {
@@ -88,6 +97,7 @@ pub enum DataTransform {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for DataSource {
     fn memory_size(&self) -> usize {
         let heap = match self {
@@ -247,6 +257,7 @@ impl TryFrom<Expression> for DataExpression {
 }
 
 /* === Public Functions === */
+
 pub fn telemetry(stream: impl Into<String>, field: impl Into<String>) -> DataExpression {
     DataExpression { label: None, source: DataSource::Telemetry { stream: stream.into(), field: field.into() }, transforms: Vec::new() }
 }
@@ -272,6 +283,7 @@ pub fn per_case(expression: impl Into<DataExpression>) -> DataExpression {
 }
 
 /* === Private Functions === */
+
 fn data_source_expression(source: DataSource) -> Expression {
     match source {
         DataSource::Telemetry { stream, field } => {

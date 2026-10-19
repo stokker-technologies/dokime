@@ -26,6 +26,7 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const PAGE_SIZE: u32 = 100;
 
 /* === Macros === */
@@ -39,6 +40,7 @@ const PAGE_SIZE: u32 = 100;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestCycleHandle {
     pub async fn prompt(&self, id: &PromptId) -> Result<dokime_domain::model::prompts::wire::PromptView> {
         self.client.verify(true).await?;
@@ -126,6 +128,7 @@ impl TestCycleHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_view(epoch: &str, id: &PromptId, view: &dokime_domain::model::prompts::wire::PromptView) -> Result<()> {
     validate_observed_cursor(epoch, view.observed_cursor.as_ref())?;
     let prompt = view.prompt.as_ref().ok_or_else(|| invalid("prompt view has no admitted prompt"))?;

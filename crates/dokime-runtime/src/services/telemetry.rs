@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use harmos::{services::Fault, services::Resident, services::Service};
 use tokio::sync::{Mutex, RwLock};
+
 // Local Imports
 use crate::app::Dokime;
 use crate::runtime::error::{Error, Result};
@@ -33,6 +36,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const DEFAULT_INTERVAL: Duration = Duration::from_secs(1);
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
 const IDLE_GRACE: Duration = Duration::from_secs(2);
@@ -40,9 +44,11 @@ const IDLE_GRACE: Duration = Duration::from_secs(2);
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type SettlementError = Box<dyn std::error::Error + Send + Sync>;
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct Sampling {
     state: Arc<Mutex<SamplingState>>,
@@ -127,34 +133,45 @@ struct SamplingBorrow<'a> {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum ProduceError {
     #[error("sampling source `{producer_key}` failed to open: {message}")]
     SourceOpen { producer_key: String, message: String },
+
     #[error("sampling source `{producer_key}` failed to read: {message}")]
     SourceRead { producer_key: String, message: String },
+
     #[error("sampling source `{producer_key}` failed to settle: {source}")]
     SourceSettle {
         producer_key: String,
+
         #[source]
         source: SettlementError,
     },
+
     #[error("sampling destination for lease `{lease_id}` rejected a batch: {message}")]
     Destination { lease_id: String, message: String },
+
     #[error("sampling destination for lease `{lease_id}` refused before row commit: {source}")]
     DestinationRefused {
         lease_id: String,
+
         #[source]
         source: Box<crate::runtime::Error>,
     },
+
     #[error("sampling destination for lease `{lease_id}` could not join: {source}")]
     DestinationJoin {
         lease_id: String,
+
         #[source]
         source: Arc<tokio::task::JoinError>,
     },
+
     #[error("sampling collection for `{stream}` has no original capture debt")]
     UnownedCollection { stream: String },
+
     #[error("sampling capture admission failed: {source}")]
     CaptureAdmission {
         #[source]
@@ -163,6 +180,7 @@ enum ProduceError {
 }
 
 /* === Traits === */
+
 pub trait Sampler: Send + Sync + 'static {
     fn open(&self) -> std::result::Result<Box<dyn SamplerSession>, String>;
 }
@@ -176,6 +194,7 @@ pub trait SamplerSession: Send {
 }
 
 /* === Implementations === */
+
 impl CapturedSamples {
     fn new(scope: &RecordScope, mut batch: TelemetryBatch) -> Self {
         for sample in &mut batch.samples {
@@ -827,6 +846,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn settle_session(session: &mut dyn SamplerSession, key: &str) -> std::result::Result<Vec<TelemetryBatch>, ProduceError> {
     session.settle().await.map_err(|source| ProduceError::SourceSettle { producer_key: key.to_owned(), source })?;
     collect_samples(key, session)
@@ -938,6 +958,7 @@ async fn record_destination_failure(runtime: &RuntimeHandle, lease_id: &str, sco
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod destination_tests {
     use super::*;

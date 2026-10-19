@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,10 +22,12 @@ use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Error, ImplItem, ImplItemFn, ItemImpl, Meta, Token};
+
 // Local Imports
 use crate::arguments::{self, Arguments};
 
 /* === Constants === */
+
 const ARGUMENTS: &[&str] = &["id", "label", "description", "tags", "templates", "records"];
 
 /* === Macros === */
@@ -40,6 +43,7 @@ const ARGUMENTS: &[&str] = &["id", "label", "description", "tags", "templates", 
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn suite(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -52,6 +56,7 @@ pub(crate) fn suite(attribute: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /* === Private Functions === */
+
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     refuse_product(&attribute)?;

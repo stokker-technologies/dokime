@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+
 // Third Party Imports
 
 // Local Imports
@@ -48,6 +50,7 @@ pub trait CallbackTask: Send + Sync {
 }
 
 /* === Implementations === */
+
 impl Callbacks {
     pub fn register(&self, task: Arc<dyn CallbackTask>) {
         let mut tasks = self.tasks.lock().unwrap_or_else(|error| error.into_inner());

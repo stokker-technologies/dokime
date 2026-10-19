@@ -35,6 +35,7 @@ use super::super::{Error, State};
 use super::{entry, files, position, saved, sequence};
 
 /* === Constants === */
+
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_productions (
     id TEXT PRIMARY KEY, generation TEXT NOT NULL CHECK(length(generation)=16),
@@ -58,6 +59,7 @@ const CHUNK_BYTES: usize = 64 * 1024;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl State {
     pub(super) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
         self.call(move |connection| Ok(files::create_file(connection, &root, metadata, true))).await?
@@ -258,6 +260,7 @@ impl State {
 }
 
 /* === Public Functions === */
+
 pub(super) fn check_available(connection: &Connection, id: &str) -> Result<(), Error> {
     if deleted(connection, id)? {
         return Err(Error::Conflict("file identity has been deleted"));
@@ -275,14 +278,9 @@ pub(super) fn check_writable(connection: &Connection, id: &str) -> Result<(), Er
     Ok(())
 }
 
-/* === Private Functions === */
 pub(super) fn checkpoint(connection: &Connection, file: &StagedFile) -> Result<Option<(u64, FilePhase, FileCheckpoint)>, Error> {
     check_available(connection, file.id.as_str())?;
     stored_checkpoint(connection, file)
-}
-
-fn deleted(connection: &Connection, id: &str) -> Result<bool, Error> {
-    Ok(connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_deleted_files WHERE id=?1)", [id], |row| row.get(0))?)
 }
 
 pub(super) fn stored_checkpoint(connection: &Connection, file: &StagedFile) -> Result<Option<(u64, FilePhase, FileCheckpoint)>, Error> {
@@ -311,6 +309,12 @@ pub(super) fn stored_checkpoint(connection: &Connection, file: &StagedFile) -> R
         _ => return Err(Error::Corrupt("invalid production phase")),
     };
     Ok(Some((generation, phase, value)))
+}
+
+/* === Private Functions === */
+
+fn deleted(connection: &Connection, id: &str) -> Result<bool, Error> {
+    Ok(connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_deleted_files WHERE id=?1)", [id], |row| row.get(0))?)
 }
 
 fn progress(connection: &Connection, root: &Path, file: &StagedFile) -> Result<FileProgress, Error> {

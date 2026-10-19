@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
 };
+
 // Third Party Imports
 use harmos::operations::{Context, Operation, OperationManager, streams};
+
 // Local Imports
 use crate::{InstalledSidecar, RuntimeHandle};
 
@@ -27,9 +30,11 @@ use crate::{InstalledSidecar, RuntimeHandle};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type NativePublication = harmos::sidecar::Publish<crate::Dokime, harmos::sidecar::Executable, crate::SidecarNoticeHandler>;
 
 /* === Structs === */
+
 #[derive(Default)]
 pub(crate) struct Publications {
     residents: RwLock<BTreeMap<String, InstalledSidecar>>,
@@ -54,6 +59,7 @@ struct Invocation {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Publications {
     pub(crate) fn register(operations: &OperationManager) -> harmos::Result<Arc<Self>> {
         let owner = Arc::new(Self::default());

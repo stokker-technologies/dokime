@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
@@ -39,6 +41,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.runtime.started", version = 4, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MarkRuntimeStarted {
@@ -131,6 +134,7 @@ pub struct StageQueuedStop {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for BeginCycleSeal {
     type Error = String;
 
@@ -480,6 +484,7 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
 }
 
 /* === Public Functions === */
+
 // A step attempt that ended without a completion receipt keeps this redacted detail.
 #[track_caller]
 pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Diagnostic {
@@ -487,6 +492,7 @@ pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Di
 }
 
 /* === Private Functions === */
+
 fn interrupt_execution(execution: &mut TestExecution, at: &Timestamp) -> bool {
     if !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
         && !(execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none())

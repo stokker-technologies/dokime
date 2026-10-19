@@ -8,10 +8,12 @@
  */
 
 /* === Modules === */
+
 mod capture_current_document;
 mod update_plot_settings;
 
 /* === Re-Exports === */
+
 pub use capture_current_document::CaptureCurrentDocument;
 pub use update_plot_settings::UpdatePlotSettings;
 
@@ -25,14 +27,16 @@ pub use update_plot_settings::UpdatePlotSettings;
 use super::Endpoint;
 use super::ORDINARY;
 use super::TRANSFER;
+
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-#[allow(unused_imports)]
-use crate::model::plots::wire::*;
 
 use crate::model::documents::wire::*;
+#[allow(unused_imports)]
+use crate::model::plots::wire::*;
 
 /* === Constants === */
 
@@ -53,6 +57,7 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for CaptureCurrentDocument {
     const PATH: &'static str = "/dokime.v1.Documents/CaptureCurrentDocument";
 }

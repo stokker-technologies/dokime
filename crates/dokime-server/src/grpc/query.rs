@@ -8,17 +8,20 @@
  */
 
 /* === Modules === */
+
 mod codec;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::error::detailed;
 use super::value::{self, Budget, canonical};
@@ -34,6 +37,7 @@ use dokime_runtime::runtime::query::aggregate::{AggregateColumn, AggregateFilter
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
@@ -48,6 +52,7 @@ struct Aggregate {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Aggregate {
     type Declaration = wire::Aggregate;
     type Resources = Resources;
@@ -68,6 +73,7 @@ impl Operation for Aggregate {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<Aggregate>(
         "dokime",
@@ -78,6 +84,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
 fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
     let mut budget = Budget::new();
     value::collection(request.filters.len())?;

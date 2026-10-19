@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -19,12 +20,14 @@ use std::{
     process::Stdio,
     time::{Duration, Instant, SystemTime},
 };
+
 // Third Party Imports
 use semver::Version;
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
 };
+
 // Local Imports
 use super::build;
 use crate::error::Error;
@@ -35,43 +38,57 @@ use dokime::terminal::{ColorMode, Terminal};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Snapshot = BTreeMap<PathBuf, (SystemTime, u64)>;
 
 /* === Structs === */
+
 #[derive(clap::Args)]
 #[group(id = "development")]
 #[command(about = "Watch a plugin, build its bundle, and run it in an isolated Dokime host")]
 pub struct Args {
     #[command(flatten)]
     build: build::Args,
+
     #[arg(long, default_value = "dokime", help = "The Dokime CLI that launches the installed server and GUI.")]
     dokime: PathBuf,
+
     #[arg(long, help = "Explicit GUI executable, forwarded to `dokime gui`. The default is the installed one.")]
     gui: Option<PathBuf>,
+
     #[arg(long, help = "Keep the terminal-only development session without launching a GUI.")]
     headless: bool,
+
     #[arg(long, help = "Keep development runtime data here. Overrides the temporary DOKIME_DEV_ROOT location.")]
     state_dir: Option<PathBuf>,
+
     #[arg(
         long,
         help = "Load environment variables for the development host from exactly this file, instead of letting it search upward from its working directory for `.env`. Refused outright when the file does not exist — never a silent skip. A variable already exported in this shell always wins over one from either source, and the host reads its environment once at spawn: changing the file requires restarting `dev`."
     )]
     env_file: Option<PathBuf>,
+
     #[arg(
         long,
         help = "Working directory for the development host; defaults to the directory `cargo dokime dev` was invoked from. Only the host process moves — this crate's own manifest, build and watch paths are unaffected. Without `--env-file`, this is also where the host's `.env` walk-up starts."
     )]
     cwd: Option<PathBuf>,
+
     #[arg(long, default_value_t = 8765)]
     port: u16,
+
     #[arg(long, help = "Re-run the most recently executed case from this plugin after each successful reload.")]
     rerun: bool,
+
     #[arg(long, help = "Additional source directory or file to watch; repeat for multiple paths.")]
     watch: Vec<PathBuf>,
+
     #[arg(long, help = "Include host runtime diagnostics alongside plugin output.")]
     verbose: bool,
+
     #[arg(long, help = "Paths to exclude from source watching; repeat as needed.")]
     ignore: Vec<PathBuf>,
+
     #[arg(long, hide = true, help = "Stop when the stdin control pipe closes (used by supervised development).")]
     shutdown_stdin: bool,
 }
@@ -95,6 +112,7 @@ struct Gui {
 }
 
 /* === Enums === */
+
 enum ProcessExit {
     Backend(std::process::ExitStatus),
     Gui(std::process::ExitStatus),
@@ -112,6 +130,7 @@ enum ReadinessLine {
 }
 
 /* === Traits === */
+
 trait ShutdownOwner {
     async fn drain(&mut self, terminal: &Terminal) -> Result<(), Error>;
     fn terminate(&mut self) -> Result<(), Error>;
@@ -119,6 +138,7 @@ trait ShutdownOwner {
 }
 
 /* === Implementations === */
+
 impl ShutdownOwner for Host {
     async fn drain(&mut self, terminal: &Terminal) -> Result<(), Error> {
         drain(self, terminal).await
@@ -151,6 +171,7 @@ impl ShutdownOwner for Host {
 }
 
 /* === Public Functions === */
+
 pub async fn run(mut args: Args) -> Result<(), Error> {
     let terminal = Terminal::new(ColorMode::Auto);
     if args.build.output.is_some() {
@@ -310,6 +331,7 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
 }
 
 /* === Private Functions === */
+
 async fn wait_for_exit(running: &mut Option<Host>) -> Result<ProcessExit, Error> {
     loop {
         if let Some(host) = running.as_mut() {

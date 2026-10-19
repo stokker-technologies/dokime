@@ -10,17 +10,20 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::storage::telemetry::TelemetryEntry as ExecutionTelemetryRow;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use crate::{RuntimeHandle, runtime::Result};
-use dokime_domain::model::identity::Identifier;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::execution_history::{ExecutionBrowseIssue, ExecutionCheckpoint};
+use crate::{RuntimeHandle, runtime::Result};
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -29,6 +32,7 @@ use super::execution_history::{ExecutionBrowseIssue, ExecutionCheckpoint};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionTelemetryQuery {

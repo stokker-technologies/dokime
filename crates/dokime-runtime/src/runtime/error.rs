@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use thiserror::Error as ThisError;
+
 // Local Imports
 use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
@@ -25,11 +27,13 @@ use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, ThisError)]
 pub enum Error {
     #[error(transparent)]
@@ -84,6 +88,7 @@ pub enum Error {
     StartupCleanup {
         #[source]
         source: Box<Error>,
+
         cleanup: Box<Error>,
         rollback: crate::runtime::rollback::Receipt,
     },
@@ -97,6 +102,7 @@ pub enum Error {
     #[error("provider request `{request_id}` terminal publication failed: {source}")]
     ProviderCompletion {
         request_id: dokime_domain::model::identity::CommandId,
+
         #[source]
         source: std::sync::Arc<Error>,
     },
@@ -126,6 +132,7 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<harmos::filesystem::Error> for Error {
     fn from(error: harmos::filesystem::Error) -> Self {
         std::io::Error::from(error).into()
@@ -186,6 +193,7 @@ impl From<std::io::Error> for Error {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn harmos_message(error: &harmos::Error) -> String {
     use std::fmt::Write as _;
 

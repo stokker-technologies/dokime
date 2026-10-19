@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -20,9 +21,11 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::SystemTime,
 };
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
 // Local Imports
 use super::{ApplicationPaths, StoragePolicy};
 use crate::plugins::PluginSettings;
@@ -30,6 +33,7 @@ use dokime_domain::model::identity::DokimeNodeIdentity;
 use dokime_domain::model::identity::NodeId;
 
 /* === Constants === */
+
 const MAX_BYTES: u64 = 16 * 1024 * 1024;
 
 /* === Macros === */
@@ -37,6 +41,7 @@ const MAX_BYTES: u64 = 16 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct Settings {
     inner: Arc<Inner>,
@@ -58,14 +63,19 @@ struct Current {
 #[serde(deny_unknown_fields)]
 pub struct SettingsDocument {
     pub identity: DokimeNodeIdentity,
+
     #[serde(default)]
     pub data_root: Option<PathBuf>,
+
     #[serde(default)]
     pub storage: Option<StoragePolicy>,
+
     #[serde(default)]
     pub appearance: Appearance,
+
     #[serde(default)]
     pub report: ReportDefaults,
+
     #[serde(default)]
     pub plugins: BTreeMap<Uuid, PluginSettings>,
 }
@@ -86,11 +96,13 @@ pub struct ReportDefaults {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemeMode {
     #[default]
     System,
+
     Light,
     Dark,
 }
@@ -100,6 +112,7 @@ pub enum ThemeMode {
 pub enum Density {
     #[default]
     Comfortable,
+
     Compact,
     Touch,
 }
@@ -107,6 +120,7 @@ pub enum Density {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for ReportDefaults {
     fn default() -> Self {
         Self { plot_points: crate::document::DEFAULT_PLOT_MAX_POINTS as u32, plot_downsample: crate::document::DownsampleTechnique::Auto }
@@ -222,6 +236,7 @@ impl SettingsDocument {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn read(path: &Path) -> std::io::Result<Option<SettingsDocument>> {
     let file = match std::fs::File::open(path) {
         Ok(file) => file,

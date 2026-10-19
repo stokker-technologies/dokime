@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
 use dokime_runtime::telemetry::TelemetrySample;
@@ -35,6 +37,7 @@ use dokime_runtime::telemetry::TelemetrySample;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>();
     for text in [sample.sample_id.as_str(), sample.stream.as_str(), &sample.source] {

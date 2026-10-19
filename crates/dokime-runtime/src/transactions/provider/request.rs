@@ -8,16 +8,20 @@
  */
 
 /* === Modules === */
+
 mod completion;
 
 /* === Re-Exports === */
+
 pub use completion::{CompleteRun, SettleRun, Unsealed};
 pub use dokime_domain::model::execution::request::RunPhase;
 pub use dokime_domain::model::execution::request::RunSummary;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::VecDeque;
+
 // Third Party Imports
 
 // Local Imports
@@ -34,6 +38,7 @@ use dokime_domain::model::execution::result::CycleStatus;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RunRequest {
     pub summary: RunSummary,
@@ -41,12 +46,16 @@ pub struct RunRequest {
     pub test_execution_id: Option<TestExecutionId>,
     pub selected_execution_ids: Vec<TestExecutionId>,
     pub pending: VecDeque<TestExecutionId>,
+
     #[serde(default)]
     pub settled_execution_ids: Vec<TestExecutionId>,
+
     pub conclusion: Option<CycleStatus>,
     pub failure: Option<String>,
+
     #[serde(default)]
     pub publication_failure: Option<String>,
+
     pub completion_at: Option<Timestamp>,
 }
 
@@ -66,9 +75,11 @@ pub struct DispatchProvider {
 }
 
 /* === Enums === */
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::MemorySize for RunRequest {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -88,14 +99,6 @@ impl harmos::MemorySize for RunRequest {
             |bytes, (owned, inline)| bytes.saturating_add(owned.saturating_sub(inline)),
         )
     }
-}
-
-fn deque_memory<T: harmos::MemorySize>(values: &VecDeque<T>) -> usize {
-    values
-        .iter()
-        .fold(std::mem::size_of_val(values).saturating_add(values.capacity().saturating_mul(std::mem::size_of::<T>())), |bytes, value| {
-            bytes.saturating_add(value.memory_size().saturating_sub(std::mem::size_of::<T>()))
-        })
 }
 
 impl RunRequest {
@@ -230,6 +233,7 @@ impl DispatchProvider {
 }
 
 /* === Public Functions === */
+
 pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<ExecutionProviderTarget, Error> {
     if let Some(request) = state.run_requests.get(&run.command_id) {
         if request.summary.cycle_id != run.test_cycle_id
@@ -321,6 +325,15 @@ pub(super) fn queue_records(state: &RuntimeState, run: &RunProvider) -> crate::t
 }
 
 /* === Private Functions === */
+
+fn deque_memory<T: harmos::MemorySize>(values: &VecDeque<T>) -> usize {
+    values
+        .iter()
+        .fold(std::mem::size_of_val(values).saturating_add(values.capacity().saturating_mul(std::mem::size_of::<T>())), |bytes, value| {
+            bytes.saturating_add(value.memory_size().saturating_sub(std::mem::size_of::<T>()))
+        })
+}
+
 fn active(state: &RuntimeState, request: &RunRequest) -> Result<(), String> {
     if state.run_queue.front() != Some(&request.summary.request_id) {
         return Err("an earlier accepted request owns the execution lane".into());

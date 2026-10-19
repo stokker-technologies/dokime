@@ -29,6 +29,7 @@ use super::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct IdentifierPattern(String);
@@ -38,6 +39,7 @@ pub struct IdentifierPattern(String);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl IdentifierPattern {
     pub fn new(value: impl Into<String>) -> crate::Result<Self> {
         let value = value.into();
@@ -101,6 +103,7 @@ impl From<IdentifierPattern> for String {
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::IdentifierPattern;
@@ -128,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn pattern_roundtrip_and_refusals() {
+    fn pattern_roundtrip_refusals() {
         let pattern = IdentifierPattern::new("obc.*.?").unwrap();
         let json = serde_json::to_string(&pattern).unwrap();
         assert_eq!(serde_json::from_str::<IdentifierPattern>(&json).unwrap(), pattern);

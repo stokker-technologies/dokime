@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
 use dokime_domain::model::identity::wire::Severity;
@@ -37,6 +39,7 @@ use dokime_runtime::records::RecordSeverity;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
     let record = &entry.record;
     let mut bytes = std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedRecord>()
@@ -137,7 +140,6 @@ pub(crate) fn record(entry: &RecordEntry) -> Result<dokime_domain::model::eviden
     })
 }
 
-/* === Private Functions === */
 pub(crate) fn severity(value: RecordSeverity) -> Severity {
     match value {
         RecordSeverity::Debug => Severity::Debug,
@@ -146,5 +148,7 @@ pub(crate) fn severity(value: RecordSeverity) -> Severity {
         RecordSeverity::Error => Severity::Error,
     }
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

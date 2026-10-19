@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(in crate::grpc) fn text(source: &str) -> harmos::Result<String> {
     let mut target = String::new();
     target.try_reserve_exact(source.len()).map_err(|_| exhausted())?;
@@ -55,6 +57,7 @@ pub(in crate::grpc) fn slots<T>(length: usize) -> harmos::Result<Vec<T>> {
 }
 
 /* === Private Functions === */
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "canonical projection allocation" }
 }

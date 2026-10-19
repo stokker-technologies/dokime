@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Lossless live record replay and raw telemetry cursor polling."""
 
 # === Imports === #
@@ -28,7 +27,6 @@ from ..errors import ProtocolError
 from ..models import Backend
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -171,15 +169,15 @@ async def read_samples(
             await asyncio.sleep(interval)
 
 
-# === Private Functions === #
-
-
 def validate_patterns(patterns: Sequence[str]) -> None:
     if isinstance(patterns, str) or len(patterns) > 64:
         raise ValueError("listener filters require a sequence of at most 64 identifier globs")
     for pattern in patterns:
         if not isinstance(pattern, str) or len(pattern) > 4096 or re.fullmatch(r"[A-Za-z0-9_*?][A-Za-z0-9_.*?-]*", pattern) is None:
             raise ValueError("listener filters accept identifier globs using only '*' and '?' wildcards")
+
+
+# === Private Functions === #
 
 
 def _scope(expected: Message, actual: Message) -> bool:

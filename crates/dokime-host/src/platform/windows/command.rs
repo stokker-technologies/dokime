@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     process::{Command, Output},
     time::Duration,
 };
+
 // Third Party Imports
 
 // Local Imports
@@ -37,12 +39,14 @@ use crate::{Error, Result};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn run_bounded(command: Command, timeout: Duration) -> Result<String> {
     let output = crate::collectors::run_command_bounded(command, timeout).map_err(|error| Error::Command(error.to_string()))?;
     text_output(output)
 }
 
 /* === Private Functions === */
+
 fn text_output(output: Output) -> Result<String> {
     if output.status.success() {
         return Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned());

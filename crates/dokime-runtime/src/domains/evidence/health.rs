@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::RecordHealth;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -34,6 +36,7 @@ use dokime_domain::model::execution::health::HealthItem;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn record_health_item(&self, mut health: HealthItem) -> RuntimeResult<()> {
         let runtime = self.clone();

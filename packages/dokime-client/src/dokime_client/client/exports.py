@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Download Complete Saved Evidence With Explicit Overwrite"""
 
 # === Imports === #
@@ -30,18 +29,19 @@ from .models import Backend
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
+
 _MAXIMUM_BYTES = 8 * 1024**3
 
 # === Types === #
 
 # === Classes === #
 
-
 # === Public Functions === #
+
+
 async def export_evidence(
     transport: Transport,
     backend: Backend,
@@ -81,6 +81,8 @@ async def export_evidence(
 
 
 # === Private Functions === #
+
+
 def _destination(path: Path, overwrite: bool) -> None:
     if not path.name or not path.parent.is_dir():
         raise ValueError("evidence destination requires a filename and an existing parent directory")

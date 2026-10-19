@@ -12,24 +12,26 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Duration;
+
 // Third Party Imports
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{Notify, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
+
 // Local Imports
 use super::*;
 
 /* === Constants === */
+
 const MAX_ACTIVE_UPLOADS: usize = 2;
 const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
-
 const FINISH_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-
 pub const MAX_UPLOAD_SLICE_BYTES: usize = 1024 * 1024;
 
-// === Recording sink ===
+// Recording Sink
 
 //
 
@@ -59,6 +61,7 @@ const RECORDING_IDLE_TIMEOUT: Duration = Duration::from_secs(60 * 30);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Default)]
 pub(super) struct ArtifactUploads(Arc<Mutex<Registry>>);
 
@@ -115,6 +118,7 @@ pub(super) struct RecordingSinks(Arc<Mutex<HashMap<String, Arc<Recording>>>>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Outcome {
     fn complete(&self, result: Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError>) {
         let mut guard = self.result.lock().expect("artifact upload outcome poisoned");
@@ -486,6 +490,7 @@ impl RecordingSinks {
 }
 
 /* === Public Functions === */
+
 #[tauri::command]
 pub async fn artifact_upload_open<R: tauri::Runtime>(
     session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -570,6 +575,7 @@ pub async fn recording_cancel<R: tauri::Runtime>(
 }
 
 /* === Private Functions === */
+
 async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
     let outcome = upload.outcome.wait();
     tokio::pin!(outcome);

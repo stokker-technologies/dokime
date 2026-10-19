@@ -31,6 +31,7 @@ use dokime_client::{
 };
 
 /* === Constants === */
+
 const ENVIRONMENT_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
@@ -38,24 +39,32 @@ const ENVIRONMENT_BYTES: usize = 64 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 #[group(id = "connection")]
 pub(crate) struct Args {
     #[arg(long, help = "Backend HTTP(S) Origin; Plain HTTP Is Restricted To Loopback.")]
     #[arg(conflicts_with = "backend")]
     endpoint: Option<String>,
+
     #[arg(long, help = "Use This Saved Backend Profile.")]
     backend: Option<String>,
+
     #[arg(long, help = "Use This Backend Profile Configuration File.")]
     profiles_file: Option<PathBuf>,
+
     #[arg(long, help = "Read The Remote Key From This UTF-8 File; Overrides DOKIME_KEY.")]
     key_file: Option<PathBuf>,
+
     #[arg(long, help = "Read This Explicit Dotenv File Without Overriding Process Variables Or Searching Parent Directories.")]
     env_file: Option<PathBuf>,
+
     #[arg(long, requires = "endpoint", conflicts_with = "backend", help = "Read An Additional PEM CA Certificate From This Local File.")]
     ca: Option<PathBuf>,
+
     #[arg(long, requires = "endpoint", conflicts_with = "backend", help = "Require This Backend Identity During Connection.")]
     expected_backend: Option<String>,
+
     #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..=86400), help = "Connection And Call Deadline In Seconds.")]
     timeout_seconds: u64,
 }
@@ -71,6 +80,7 @@ pub(crate) struct Resolved {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Args {
     pub(crate) fn resolve(&self) -> crate::Result<Resolved> {
         let environment = read_environment(self.env_file.as_deref())?;
@@ -137,6 +147,7 @@ impl Args {
 }
 
 /* === Public Functions === */
+
 // OS Stores Can Block. Detached Workers Keep The Invocation Deadline Bounded.
 // Dropping The Receiver Does Not Cancel An OS Operation Already In Progress.
 pub(crate) async fn credentials<T, E>(budget: Duration, operation: impl FnOnce() -> Result<T, E> + Send + 'static) -> crate::Result<T>

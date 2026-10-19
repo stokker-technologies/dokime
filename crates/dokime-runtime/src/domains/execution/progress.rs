@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Mutex};
+
 // Third Party Imports
 
 // Local Imports
@@ -28,6 +30,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct LiveExecutionProgress {
     pub test_execution_id: TestExecutionId,
@@ -55,6 +58,7 @@ pub struct ProgressWatch {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ProgressSnapshot {
     pub fn revision(&self) -> u64 {
         self.revision

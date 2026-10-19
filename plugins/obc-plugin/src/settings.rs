@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::PathBuf;
+
 // Third Party Imports
 
 // Local Imports
@@ -26,6 +28,7 @@ use crate::domain::operations::GetStatus;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::settings]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BenchSettings {
@@ -44,6 +47,7 @@ pub struct Evidence {
 }
 
 /* === Enums === */
+
 /* === Traits === */
 
 /* === Implementations === */

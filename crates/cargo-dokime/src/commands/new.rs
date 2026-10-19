@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
 
@@ -25,20 +27,23 @@ use sha2::{Digest, Sha256};
 use crate::error::Error;
 
 /* === Constants === */
+
 const REPOSITORY: &str = "https://github.com/stokker-technologies/dokime";
 
-include!(concat!(env!("OUT_DIR"), "/template-assets.rs"));
-
 /* === Macros === */
+
+include!(concat!(env!("OUT_DIR"), "/template-assets.rs"));
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(clap::Args)]
 #[command(about = "Create a native Dokime plugin (offline; no compilation)")]
 pub struct Args {
     #[arg(help = "New directory to create. Its parent must already exist.")]
     pub path: PathBuf,
+
     #[arg(long, help = "Cargo package name (defaults to the directory name).")]
     pub name: Option<String>,
 }
@@ -61,6 +66,7 @@ struct Workspace {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn run(args: Args) -> Result<(), Error> {
     let name = args
         .name

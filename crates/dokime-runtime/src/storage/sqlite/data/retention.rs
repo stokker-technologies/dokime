@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 use std::result::Result;
+
 // Third Party Imports
 use harmos::{catalog::Projection, storage::*};
 use rusqlite::params;
+
 // Local Imports
 use super::super::{Error, State};
 use super::{position, saved};
@@ -35,6 +38,7 @@ use super::{position, saved};
 /* === Traits === */
 
 /* === Implementations === */
+
 impl State {
     pub(crate) async fn data_release_object_history(
         &self, schema: SchemaKey, item: ObjectKey, through: StorageCursor,

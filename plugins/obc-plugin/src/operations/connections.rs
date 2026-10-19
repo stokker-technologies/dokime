@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -30,6 +31,7 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ConnectionListing {
     resources: Arc<Resources>,
 }
@@ -39,6 +41,7 @@ pub struct ConnectionListing {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::operation]
 impl ConnectionListing {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {

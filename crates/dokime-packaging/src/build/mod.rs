@@ -8,14 +8,17 @@
  */
 
 /* === Modules === */
+
 mod options;
 mod project;
 
 /* === Re-Exports === */
+
 pub use options::Options;
 pub use project::Project;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -23,11 +26,13 @@ use std::{
     process::Command,
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use cargo_metadata::{Message, MetadataCommand, Package};
 use harmos::plugin::inventory::Declaration;
 use harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source};
+
 // Local Imports
 use crate::{Error, bundle::files, process};
 
@@ -36,9 +41,11 @@ use crate::{Error, bundle::files, process};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Executables = BTreeMap<String, Vec<(PathBuf, Option<PathBuf>)>>;
 
 /* === Structs === */
+
 // One plugin's executables as an earlier Cargo build produced them, ready to bundle without compiling again.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Collected {
@@ -61,6 +68,7 @@ struct DebugInfo {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DebugInfo {
     fn of(package: &Package) -> Self {
         let disabled =
@@ -109,6 +117,7 @@ impl DebugInfo {
 }
 
 /* === Public Functions === */
+
 #[tracing::instrument(level = "debug", skip_all)]
 pub async fn run(args: Options) -> Result<PathBuf, Error> {
     let metadata = metadata(&args, false).await?;
@@ -166,6 +175,7 @@ pub async fn package(collected: Collected, output: &Path) -> Result<PathBuf, Err
 }
 
 /* === Private Functions === */
+
 async fn metadata(args: &Options, dependencies: bool) -> Result<cargo_metadata::Metadata, Error> {
     let cargo_timeout = args.cargo_timeout;
     let cargo_options = args.cargo_options();
@@ -503,6 +513,7 @@ fn package_identity(package: &Package) -> Identity {
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

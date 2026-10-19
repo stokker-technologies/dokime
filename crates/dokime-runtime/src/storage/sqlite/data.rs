@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod backend;
 mod entry;
 mod files;
@@ -16,21 +17,26 @@ mod production;
 mod retention;
 
 /* === Re-Exports === */
+
 pub use backend::Backend;
 pub(crate) use entry::Entry;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::result::Result;
+
 // Third Party Imports
 use harmos::storage::*;
 use rusqlite::{Connection, params, types::Value};
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use super::{Error, State};
 use entry::{Encoded, key, timestamp_key};
 
 /* === Constants === */
+
 pub(super) const FORMAT: &str = "dokime.sqlite.storage.v1";
 pub(super) const HISTORY_BYTES: usize = 4096;
 const SCHEMA: &str = "
@@ -84,6 +90,7 @@ CREATE INDEX IF NOT EXISTS storage_data_scope ON storage_data_entries(kind, scop
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct SavedData {
     pub history: StoreHistory,
@@ -106,6 +113,7 @@ pub(super) struct Scan {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl State {
     pub(crate) async fn data_open(&self, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
         self.call(move |connection| Ok(open(connection, expected))).await?
@@ -151,7 +159,6 @@ impl Scan {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
     let exists: bool =
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
@@ -172,6 +179,50 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
     }
     Ok(())
 }
+
+pub(super) fn saved(connection: &Connection) -> Result<SavedData, Error> {
+    let mut statement = connection.prepare("SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1")?;
+    let mut rows = statement.query([])?;
+    let row = rows.next()?.ok_or(Error::Corrupt("missing saved data head"))?;
+    if row.get::<_, String>(0)? != FORMAT {
+        return Err(Error::Data("unsupported SQLite data format"));
+    }
+    let history = blob(row, 1)?;
+    if history.len() > HISTORY_BYTES {
+        return Err(Error::Corrupt("stored history exceeds its bound"));
+    }
+    Ok(SavedData {
+        history: serde_json::from_slice(history)?,
+        sequence: sequence(&row.get::<_, String>(2)?)?,
+        retention_generation: sequence(&row.get::<_, String>(3)?)?,
+    })
+}
+
+pub(super) fn blob<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> Result<&'a [u8], Error> {
+    row.get_ref(column)?
+        .as_blob()
+        .map_err(|source| Error::Sqlite(rusqlite::Error::FromSqlConversionFailure(column, rusqlite::types::Type::Blob, Box::new(source))))
+}
+
+pub(super) fn check_digest(body: &[u8], digest: &[u8]) -> Result<(), Error> {
+    if Sha256::digest(body).as_slice() != digest {
+        return Err(Error::Corrupt("stored entry digest differs"));
+    }
+    Ok(())
+}
+
+pub(super) fn position(sequence: u64) -> String {
+    format!("{sequence:016x}")
+}
+
+pub(super) fn sequence(value: &str) -> Result<u64, Error> {
+    if value.len() != 16 || !value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+        return Err(Error::Corrupt("invalid saved sequence"));
+    }
+    u64::from_str_radix(value, 16).map_err(|_| Error::Corrupt("invalid saved sequence"))
+}
+
+/* === Private Functions === */
 
 fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
     let transaction = connection.transaction()?;
@@ -200,24 +251,6 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     }
     transaction.commit()?;
     Ok(head)
-}
-
-pub(super) fn saved(connection: &Connection) -> Result<SavedData, Error> {
-    let mut statement = connection.prepare("SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1")?;
-    let mut rows = statement.query([])?;
-    let row = rows.next()?.ok_or(Error::Corrupt("missing saved data head"))?;
-    if row.get::<_, String>(0)? != FORMAT {
-        return Err(Error::Data("unsupported SQLite data format"));
-    }
-    let history = blob(row, 1)?;
-    if history.len() > HISTORY_BYTES {
-        return Err(Error::Corrupt("stored history exceeds its bound"));
-    }
-    Ok(SavedData {
-        history: serde_json::from_slice(history)?,
-        sequence: sequence(&row.get::<_, String>(2)?)?,
-        retention_generation: sequence(&row.get::<_, String>(3)?)?,
-    })
 }
 
 fn write(connection: &mut Connection, root: &std::path::Path, history: &StoreHistory, entries: &[Encoded]) -> Result<SavedData, Error> {
@@ -389,30 +422,6 @@ fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> 
         entries.push(entry);
     }
     Ok(entries)
-}
-
-pub(super) fn blob<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> Result<&'a [u8], Error> {
-    row.get_ref(column)?
-        .as_blob()
-        .map_err(|source| Error::Sqlite(rusqlite::Error::FromSqlConversionFailure(column, rusqlite::types::Type::Blob, Box::new(source))))
-}
-
-pub(super) fn check_digest(body: &[u8], digest: &[u8]) -> Result<(), Error> {
-    if Sha256::digest(body).as_slice() != digest {
-        return Err(Error::Corrupt("stored entry digest differs"));
-    }
-    Ok(())
-}
-
-pub(super) fn position(sequence: u64) -> String {
-    format!("{sequence:016x}")
-}
-
-pub(super) fn sequence(value: &str) -> Result<u64, Error> {
-    if value.len() != 16 || !value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
-        return Err(Error::Corrupt("invalid saved sequence"));
-    }
-    u64::from_str_radix(value, 16).map_err(|_| Error::Corrupt("invalid saved sequence"))
 }
 
 /* === Tests === */

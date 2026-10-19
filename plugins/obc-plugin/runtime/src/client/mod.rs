@@ -8,12 +8,11 @@
  */
 
 /* === Modules === */
-#[cfg(test)]
-mod tests;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,6 +27,7 @@ use crate::{Error, app::Handle, device::Device, transactions::SetPower};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Client {
     handle: Handle,
@@ -38,6 +38,7 @@ pub struct Client {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub fn new(handle: Handle) -> Self {
         Self { handle }
@@ -70,3 +71,6 @@ impl Client {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests;

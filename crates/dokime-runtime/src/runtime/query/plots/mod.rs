@@ -8,12 +8,14 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod analysis;
 mod context;
 mod request;
 mod stream;
 
 /* === Re-Exports === */
+
 pub use crate::plot::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
@@ -29,12 +31,13 @@ pub use stream::{
 };
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use futures_util::future::join_all;
-// Local Imports
 
+// Local Imports
 use crate::plot::{
     PlotPayloadContext, build_plot_payload, complete_window, plot_payload_diagnostics, project_plot_payload, reads_window, resolved_format,
 };
@@ -55,6 +58,7 @@ use stream::{cursor_revision, response_cursor, stream_requests_by_mode};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type WindowedTelemetry = (Vec<Vec<TelemetrySample>>, Vec<Option<Vec<TelemetrySample>>>);
 
 /* === Structs === */
@@ -64,6 +68,7 @@ type WindowedTelemetry = (Vec<Vec<TelemetrySample>>, Vec<Option<Vec<TelemetrySam
 /* === Traits === */
 
 /* === Implementations === */
+
 /* === Public Functions === */
 
 pub async fn query_plot_payloads(
@@ -101,6 +106,7 @@ pub async fn query_plot_stream_batches(
 }
 
 /* === Private Functions === */
+
 fn plot_payload_context(
     request: &PlotPayloadRequest, contract: Option<&TelemetryContract>, run_started_at: Option<&Timestamp>,
     cycle_started_at: Option<&Timestamp>,

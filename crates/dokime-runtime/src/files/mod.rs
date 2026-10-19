@@ -11,14 +11,17 @@
 // watch tracks, and the rows and records its captured lines become.
 
 /* === Modules === */
+
 mod lines;
 mod rules;
 
 /* === Re-Exports === */
+
 pub use lines::{InvalidLineMatcher, LineBuffer, LineMatch, LineMatchers};
 pub use rules::{FileMatcher, InvalidRule};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

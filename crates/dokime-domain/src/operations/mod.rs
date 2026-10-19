@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod appearance;
 pub mod backend;
 pub mod catalog;
@@ -52,6 +53,7 @@ use harmos_domain::schema::Described;
 // Local Imports
 
 /* === Constants === */
+
 pub const PACKAGE: &str = "dokime.v1";
 
 // Bounds One Ordinary Request From Admission To Its Response.
@@ -73,6 +75,7 @@ pub const FOLLOW: OperationPolicy = policy(Duration::from_secs(86_400));
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Endpoints;
 
 pub struct Declaration {
@@ -83,56 +86,79 @@ pub struct Declaration {
 }
 
 /* === Enums === */
+
 #[harmos_domain::catalog]
 pub enum Operations {
     Host(harmos_domain::operations::host::Catalog),
     Health(runtime::GetHealth),
     Identity(runtime::GetIdentity),
+
     #[nested]
     Appearance(appearance::Operations),
+
     #[nested]
     Backend(backend::Operations),
+
     #[nested]
     Catalog(catalog::Operations),
+
     #[nested]
     Content(content::Operations),
+
     #[nested]
     Documents(documents::Operations),
+
     #[nested]
     Evidence(evidence::Operations),
+
     #[nested]
     Execution(execution::Operations),
+
     #[nested]
     Files(files::Operations),
+
     #[nested]
     History(history::Operations),
+
     #[nested]
     Media(media::Operations),
+
     #[nested]
     Notes(notes::Operations),
+
     #[nested]
     Observation(observation::Operations),
+
     #[nested]
     Planning(planning::Operations),
+
     #[nested]
     Plots(plots::Operations),
+
     #[nested]
     Plugins(plugins::Operations),
+
     #[nested]
     Prompts(prompts::Operations),
+
     #[nested]
     Query(query::Operations),
+
     #[nested]
     Reports(reports::Operations),
+
     #[nested]
     Remote(remote::Operations),
+
     #[nested]
     Settings(settings::Operations),
+
     #[nested]
     Telemetry(telemetry::Operations),
 }
 
 /* === Traits === */
+
 // Public Transport Binding And Its Native-Only Boundary.
 pub trait Endpoint: OperationDeclaration {
     const PATH: &'static str;
@@ -141,6 +167,7 @@ pub trait Endpoint: OperationDeclaration {
 }
 
 /* === Implementations === */
+
 impl Endpoint for harmos_domain::operations::host::Catalog {
     const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
 }
@@ -159,7 +186,9 @@ where
 }
 
 /* === Public Functions === */
+
 /* === Private Functions === */
+
 const fn policy(timeout: Duration) -> OperationPolicy {
     OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
 }

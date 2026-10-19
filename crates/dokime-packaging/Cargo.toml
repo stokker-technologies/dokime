@@ -5,7 +5,6 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Cargo-driven native Dokime plugin packaging"
-publish = false
 version = { workspace = true }
 
 [dependencies]

@@ -1968,7 +1968,7 @@ async function historyJourney(session) {
 }
 
 /** Remote Access Uses Mounted Controls And Real TLS CLI Calls. */
-async function remoteAccessJourney() {
+async function remoteAccessJourney(cycleId) {
   const input = (label) =>
     until(label, () => session.find("xpath", `//input[@id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`));
   const toggle = async (label, checked) => {
@@ -2078,8 +2078,17 @@ async function remoteAccessJourney() {
   assert.ok(![...secrets].some((secret) => browserStorage.includes(secret)), "browser storage contains no access key");
   await connect(address, original.key, original.certificate, true);
 
-  // Rotate Credentials Without Sealing An Active Cycle.
-  const activeCycle = await createEmptyContainer(session, "Remote Rotation Evidence");
+  // Keep An Admitted Execution Waiting For Its Operator Throughout Rotation.
+  assert.ok(cycleId, "remote rotation requires the materialized native cycle");
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
+  await openMenu(session, "Cycle Actions");
+  await session.clickNamed("menuitem", "Copy Cycle");
+  const activeCycle = await until("remote rotation cycle", async () => {
+    const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
+    return match && match[1] !== cycleId ? match[1] : null;
+  });
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "the native GUI admits the rotation execution");
+  await until("operator prompt before rotation", async () => hasText(await session.text(), STARTUP_PROMPT), 60000);
   await session.goto("/settings/remote");
   await confirm("Rotate Access Key…", "Save Your Access Key");
   const replacement = await saveKey();
@@ -2098,6 +2107,17 @@ async function remoteAccessJourney() {
   await connect(address, replacement.key, certificate, true);
   await session.goto(`/cycles/${activeCycle}?view=cycle`);
   await cyclePhase(session, "Active");
+  assert.ok(hasText(await session.text(), STARTUP_PROMPT), "the admitted operator prompt survives key and certificate rotation");
+  const running = await caseRowText(session, STARTUP_TEMPLATE);
+  assert.match(running, /\b(Running|Waiting)\b/, "rotation leaves the admitted execution running");
+  await session.execute(
+    `const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => candidate.innerText.includes(arguments[0]));
+     row.querySelector('button[data-tree-select]').click();`,
+    [STARTUP_TEMPLATE],
+  );
+  await session.clickNamed("button", "Stop Execution");
+  await until("rotation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
 
   // Authentication And Encryption Are Independent Explicit Lab Choices.
   await session.goto("/settings/remote");
@@ -2755,7 +2775,7 @@ async function main() {
   }
 
   await journey("settings", () => settingsJourney(session, notes));
-  await journey("remote-access", remoteAccessJourney);
+  await journey("remote-access", () => remoteAccessJourney(cycleId));
 
   /* The ownership contract the redesign did not change: a shell attached to a
      backend it does not own must leave that backend running. */

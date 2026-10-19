@@ -8,16 +8,20 @@
  */
 
 /* === Modules === */
+
 pub mod request;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::{TestCase, TestCaseTemplate};
 use crate::document::DocumentDefinition;
@@ -45,6 +49,7 @@ use dokime_domain::model::values::Value;
 use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Constants === */
+
 pub(crate) const EXECUTION_NOT_PLANNED: &str = "case has no unstarted execution; schedule a rerun first";
 pub(crate) const PROVIDER_UNAVAILABLE: &str = "every selected case requires a provider execution binding";
 
@@ -53,6 +58,7 @@ pub(crate) const PROVIDER_UNAVAILABLE: &str = "every selected case requires a pr
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.provider.run", version = 4, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunProvider {
@@ -74,6 +80,7 @@ pub(super) struct RunPlan {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for RunProvider {
     type Error = String;
 
@@ -103,6 +110,7 @@ impl Transaction<RuntimeState> for RunProvider {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn execution_available(state: &RuntimeState, execution: &TestExecution) -> bool {
     execution.status == ExecutionStatus::Skipped
         && execution.started_at.is_none()
@@ -188,6 +196,7 @@ pub(crate) fn scheduled_execution_record(
 }
 
 /* === Private Functions === */
+
 fn prepare_run_provider(state: &RuntimeState, run: &RunProvider) -> Result<RunPlan, Error> {
     let id = run
         .test_execution_id

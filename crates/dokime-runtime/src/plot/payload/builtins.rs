@@ -31,16 +31,23 @@ use crate::catalog::Catalog;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Mean;
+
 struct Lttb;
+
 struct Extrema;
+
 #[cfg(feature = "fft")]
 struct Fft;
+
 struct Scalar {
     value: f64,
     unit: String,
 }
+
 struct Curve(Values);
+
 #[cfg(feature = "fft")]
 struct Spectrum(Values);
 
@@ -55,19 +62,23 @@ struct Reduction {
 struct Fourier {
     #[parameter(label = "Hann Window", default = true)]
     hann: bool,
+
     #[parameter(label = "Remove Mean", default = true)]
     detrend: bool,
+
     #[parameter(label = "Include DC", default = false)]
     include_dc: bool,
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Mean(Handler<Mean>),
     Lttb(Handler<Lttb>),
     Extrema(Handler<Extrema>),
 }
+
 #[cfg(feature = "fft")]
 #[harmos::catalog]
 enum FourierOperations {
@@ -77,6 +88,7 @@ enum FourierOperations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ResultData for Scalar {
     fn outputs() -> Vec<Output> {
         vec![Output { key: "value".into(), label: "Value".into(), unit: None, axis: None }]
@@ -85,6 +97,7 @@ impl ResultData for Scalar {
         Response { outputs: vec![Values { key: "value".into(), unit: self.unit, values: vec![self.value], ..Default::default() }] }
     }
 }
+
 impl ResultData for Curve {
     fn outputs() -> Vec<Output> {
         vec![Output { key: "signal".into(), label: "Signal".into(), unit: None, axis: Some(Axis { key: "source".into(), unit: None }) }]
@@ -93,6 +106,7 @@ impl ResultData for Curve {
         Response { outputs: vec![self.0] }
     }
 }
+
 #[cfg(feature = "fft")]
 impl ResultData for Spectrum {
     fn outputs() -> Vec<Output> {
@@ -125,6 +139,7 @@ impl Analysis for Mean {
         Ok(Scalar { value, unit: samples.unit.clone() })
     }
 }
+
 impl Analysis for Lttb {
     type Parameters = Reduction;
     type Output = Curve;
@@ -140,6 +155,7 @@ impl Analysis for Lttb {
         Ok(selected(samples, indexes))
     }
 }
+
 impl Analysis for Extrema {
     type Parameters = Reduction;
     type Output = Curve;
@@ -159,6 +175,7 @@ impl Analysis for Extrema {
         Ok(selected(samples, indexes))
     }
 }
+
 #[cfg(feature = "fft")]
 impl Analysis for Fft {
     type Parameters = Fourier;
@@ -206,6 +223,7 @@ impl Analysis for Fft {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn definitions() -> Result<Vec<Definition>, Error> {
     let entries = <Operations as Catalog<Definitions>>::ENTRIES;
     #[cfg(feature = "fft")]
@@ -223,6 +241,7 @@ pub(crate) fn register(operations: &harmos::operations::OperationManager) -> har
 }
 
 /* === Private Functions === */
+
 fn selected(samples: &Samples, indexes: Vec<usize>) -> Curve {
     Curve(Values {
         key: "signal".into(),

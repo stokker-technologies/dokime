@@ -29,10 +29,12 @@ use dokime_client::credentials::{KeyringStore, SecretStore};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit The Result As JSON Without Secret Values.")]
     json: bool,
 }
@@ -44,6 +46,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn run(args: Args) -> crate::Result<()> {
     let resolved = args.connection.resolve()?;
     let token = resolved.token.clone().ok_or_else(|| crate::Error::Input("Login requires --key-file or DOKIME_KEY.".into()))?;

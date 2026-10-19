@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use futures_util::FutureExt;
 use harmos::operations::{Context, Operation, OperationPolicy, RestartPolicy, RetryPolicy};
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::app::Lanes;
 use crate::domains::ExecutionProviderTarget;
@@ -31,6 +34,7 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const PROVIDER_POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(86_400),
     attempt_timeout: std::time::Duration::from_secs(86_400),
@@ -41,9 +45,11 @@ const PROVIDER_POLICY: OperationPolicy = OperationPolicy {
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type ProviderOutcome = std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure>;
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct ProviderCycleRequest {
     pub(crate) request_id: String,
@@ -101,6 +107,7 @@ struct ProviderWork {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ProviderWork {
     fn new() -> Self {
         let (cancellation, cancelled) = tokio::sync::watch::channel(false);
@@ -336,11 +343,13 @@ impl ProviderCycleRequest {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn register(operations: &harmos::operations::OperationManager) -> harmos::Result<()> {
     operations.register_operation::<ProviderState>("dokime.execution", Lanes::Execution, Arc::new(()))
 }
 
 /* === Private Functions === */
+
 async fn finish_interrupted_provider_job(runtime: &RuntimeHandle, job: &ProviderCycleRequest, outcome: harmos::Error) {
     let stage = interruption_stage(&outcome, runtime.is_shutting_down());
     let error = ProviderExecutionFailure::new(stage, format!("provider cycle run did not complete: {outcome}"));

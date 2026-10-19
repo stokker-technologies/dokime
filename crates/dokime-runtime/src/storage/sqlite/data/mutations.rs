@@ -26,6 +26,7 @@ use super::super::{Error, State};
 use super::{entry, saved};
 
 /* === Constants === */
+
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_mutations (
     window TEXT NOT NULL, key TEXT NOT NULL, expires TEXT NOT NULL,
@@ -46,6 +47,7 @@ const RECEIPT_BYTES: usize = 32 * 1024;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl State {
     pub(super) async fn mutations_save(&self, receipts: Vec<MutationReceipt>) -> Result<(), Error> {
         self.call(move |connection| {
@@ -175,6 +177,7 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn expiry(at: SystemTime) -> Result<String, Error> {
     let value = at.duration_since(UNIX_EPOCH).map_err(|_| Error::Data("receipt expiry precedes epoch"))?.as_nanos();
     Ok(format!("{value:032x}"))

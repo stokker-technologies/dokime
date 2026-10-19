@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use clap::Parser;
+
 // Local Imports
 use crate::commands::Command;
 
@@ -26,11 +28,13 @@ use crate::commands::Command;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, Parser)]
 #[command(name = "dokime", about = "Connect To Dokime Backends", version)]
 pub struct Cli {
     #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(crate::terminal::ColorMode), help = "Color output: auto, always, or never.")]
     pub color: crate::terminal::ColorMode,
+
     #[command(subcommand)]
     pub(crate) command: Command,
 }
@@ -40,6 +44,7 @@ pub struct Cli {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Cli {
     pub async fn run(self) -> crate::Result<()> {
         crate::terminal::set_color_mode(self.color);

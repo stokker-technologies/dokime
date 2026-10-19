@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::SettingsError;
 use crate::model::values::Value;
@@ -28,17 +30,20 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SecretSetting {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
     pub default: Option<SecretReference>,
+
     #[serde(default)]
     pub required: bool,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SecretReference {
@@ -49,6 +54,7 @@ pub enum SecretReference {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SecretReference {
     pub fn validate(&self) -> crate::Result<()> {
         let valid = match self {

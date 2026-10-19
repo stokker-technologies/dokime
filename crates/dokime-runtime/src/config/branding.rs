@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::domains::installed_plugins::ResolvedBrand;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -34,6 +36,7 @@ pub use crate::domains::installed_plugins::ResolvedBrand;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn brand() -> Option<ResolvedBrand> {
     crate::domains::installed_plugins::compiled_brand()
 }

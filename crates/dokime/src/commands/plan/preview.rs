@@ -29,12 +29,15 @@ use dokime_domain::operations::planning::PreviewSelection;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     input: super::input::Args,
+
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit The Canonical Reply As Compact JSON.")]
     json: bool,
 }
@@ -46,6 +49,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     // === Read Request === //
 

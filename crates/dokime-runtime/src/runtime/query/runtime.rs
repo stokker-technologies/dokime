@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::RuntimeHandle;
 use crate::definition::{MaterializedParameter, ParameterSource, TestCase};
@@ -45,6 +48,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeOverviewSnapshot {
     pub revision: u64,
@@ -54,10 +58,13 @@ pub struct RuntimeOverviewSnapshot {
     pub hub_metadata: Metadata,
     pub test_suite_count: usize,
     pub cycle_summaries: Vec<RuntimeCycleSummary>,
+
     #[serde(skip)]
     pub cycles: Vec<CycleView>,
+
     pub evidence_counts: EvidenceCounts,
     pub installed_plugin_errors: Vec<InstalledPluginErrorRecord>,
+
     #[serde(skip)]
     pub retention: RuntimeRetentionDiagnostics,
 }
@@ -118,6 +125,7 @@ pub struct RuntimeExecutionSummary {
 }
 
 /* === Enums === */
+
 pub enum RuntimeChange {
     State(RuntimeStateSnapshot),
     Operations(OperationSnapshot),
@@ -126,6 +134,7 @@ pub enum RuntimeChange {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeStateSnapshot {
     pub(crate) fn new(state: Arc<RuntimeState>, revision: u64) -> Self {
         Self { state, revision }
@@ -231,6 +240,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn public_parameters(parameters: &BTreeMap<String, MaterializedParameter>) -> BTreeMap<String, MaterializedParameter> {
     parameters
         .iter()

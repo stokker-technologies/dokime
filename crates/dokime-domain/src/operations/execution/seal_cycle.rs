@@ -31,6 +31,7 @@ use crate::operations::TRANSFER;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = ControlReply, id = "dokime.execution.seal_cycle", version = 1,
     policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,

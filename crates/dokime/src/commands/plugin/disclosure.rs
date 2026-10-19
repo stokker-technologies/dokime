@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use harmos::plugin::inventory::CarrierSection;
 use harmos_packaging::bundle::Bundle;
 use serde::Deserialize;
+
 // Local Imports
 use crate::{Error, Result};
 
@@ -28,6 +31,7 @@ use crate::{Error, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 pub(crate) struct EnvironmentReference {
     pub(crate) owner: String,
@@ -48,6 +52,7 @@ struct SettingsCatalog {
 }
 
 /* === Enums === */
+
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum SettingContribution {
@@ -55,6 +60,7 @@ enum SettingContribution {
         id: String,
         default: Option<SecretDefault>,
     },
+
     #[serde(other)]
     Other,
 }
@@ -65,6 +71,7 @@ enum SecretDefault {
     Environment {
         variable: String,
     },
+
     #[serde(other)]
     Other,
 }
@@ -74,6 +81,7 @@ enum SecretDefault {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn environment_references(bundle: &Bundle) -> Result<BTreeSet<EnvironmentReference>> {
     let mut references = BTreeSet::new();
     for file in &bundle.manifest().files {

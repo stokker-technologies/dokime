@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, RwLock},
 };
+
 // Third Party Imports
 use harmos::operations::Context;
+
 // Local Imports
 use crate::domains::ActionDispatcher;
 use crate::telemetry::TelemetryContract;
@@ -39,6 +42,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct Resources {
     pub(crate) dispatchers: Arc<RwLock<BTreeMap<Identifier, Arc<dyn ActionDispatcher>>>>,
@@ -50,6 +54,7 @@ pub(crate) struct Resources {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Resources {
     pub(crate) fn new() -> Self {
         Self { dispatchers: Arc::new(RwLock::new(BTreeMap::new())), unavailable: Arc::new(RwLock::new(BTreeSet::new())) }
@@ -82,6 +87,7 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 pub(crate) async fn materialize(
     ctx: &Context<'_>, request: &PlotPayloadRequest, telemetry: &[TelemetrySample], payload: PlotPayload,
     contract: Option<&TelemetryContract>,

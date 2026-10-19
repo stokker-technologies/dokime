@@ -10,6 +10,7 @@
 // Browse Registered Suite Catalogs
 
 /* === Modules === */
+
 mod list;
 mod show;
 
@@ -32,10 +33,12 @@ mod show;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(about = "List Registered Suites In Catalog Order.")]
     List(list::Args),
+
     #[command(about = "Show A Registered Suite And Its Template Contracts.")]
     Show(show::Args),
 }
@@ -45,6 +48,7 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::List(args) => list::run(args).await,
@@ -53,6 +57,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
 }
 
 /* === Private Functions === */
+
 // The CLI names a template by its readable ID, `<suite id>.<segment>`, in the
 // `template_id` it prints and accepts; the registered UUID stays on the wire.
 fn readable(suite: &dokime_domain::model::catalog::wire::SuiteDefinition) -> crate::Result<serde_json::Value> {

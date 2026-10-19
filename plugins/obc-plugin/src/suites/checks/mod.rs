@@ -8,12 +8,15 @@
  */
 
 /* === Modules === */
+
 pub mod pulse;
 
 /* === Re-Exports === */
+
 pub use pulse::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,8 +24,8 @@ pub use pulse::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, Pulse, PulseRow, SAMPLE
 // Local Imports
 
 /* === Constants === */
-// Third-Party Imports
 
+// Third-Party Imports
 pub const ID: &str = "obc.checks";
 
 /* === Macros === */
@@ -30,9 +33,11 @@ pub const ID: &str = "obc.checks";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ObcChecks;
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum Templates {
     Pulse(pulse::Pulse),
@@ -41,6 +46,7 @@ pub enum Templates {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::suite(
     id = ID,
     label = "Bench Signal Check",

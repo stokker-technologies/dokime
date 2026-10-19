@@ -8,10 +8,12 @@
  */
 
 /* === Modules === */
+
 #[path = "history.rs"]
 mod history;
 
 /* === Re-Exports === */
+
 pub use history::CapturedRecord;
 
 /* === Imports === */
@@ -42,6 +44,7 @@ use crate::storage::records;
 use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
+
 const FRAME_BYTES: usize = 1024 * 1024;
 const MAX_GROUP_ROWS: usize = 256;
 
@@ -50,6 +53,7 @@ const MAX_GROUP_ROWS: usize = 256;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct Source {
     storage: crate::storage::Manager,
     schema: SchemaKey,
@@ -81,6 +85,7 @@ pub(crate) struct Process {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Source {
     pub(crate) fn new(epoch: &dokime_domain::model::identity::SessionId, storage: crate::storage::Manager) -> Result<Self> {
         Ok(Self {
@@ -268,7 +273,12 @@ impl Process {
 
 /* === Public Functions === */
 
+pub(crate) fn group_limits() -> ReadLimits {
+    ReadLimits { rows: NonZeroUsize::new(MAX_GROUP_ROWS).unwrap(), bytes: NonZeroUsize::new(4 * FRAME_BYTES).unwrap() }
+}
+
 /* === Private Functions === */
+
 fn projection_error(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> harmos::Error {
     harmos::Error::Backend { operation: "project Dokime record", kind: harmos::BackendFailure::Permanent, source: source.into() }
 }
@@ -306,10 +316,6 @@ fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Re
     }
     let item = Identifier::new(record.record_id.as_str()).map_err(projection_error)?;
     Ok(Some((item, payload)))
-}
-
-pub(crate) fn group_limits() -> ReadLimits {
-    ReadLimits { rows: NonZeroUsize::new(MAX_GROUP_ROWS).unwrap(), bytes: NonZeroUsize::new(4 * FRAME_BYTES).unwrap() }
 }
 
 /* === Tests === */

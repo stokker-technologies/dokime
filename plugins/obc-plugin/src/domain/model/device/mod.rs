@@ -28,6 +28,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 pub struct DeviceState {

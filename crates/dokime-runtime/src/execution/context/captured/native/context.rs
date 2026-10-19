@@ -40,6 +40,7 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Context {
@@ -54,12 +55,14 @@ pub(crate) struct Context {
     traceability: Vec<Traceability>,
     appearance: Option<Appearance>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Document {
     key: String,
     definition: Option<native::DocumentDefinition>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Traceability {
@@ -69,6 +72,7 @@ pub(super) struct Traceability {
     metadata: Option<native::Metadata>,
     entries: Vec<Entry>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Entry {
@@ -153,7 +157,9 @@ impl TryFrom<Context> for ExecutionContext {
 }
 
 impl Traceability {}
+
 impl Entry {}
+
 impl TryFrom<&TraceabilitySnapshot> for Traceability {
     type Error = Error;
     fn try_from(value: &TraceabilitySnapshot) -> Result<Self> {
@@ -166,6 +172,7 @@ impl TryFrom<&TraceabilitySnapshot> for Traceability {
         })
     }
 }
+
 impl TryFrom<Traceability> for TraceabilitySnapshot {
     type Error = Error;
     fn try_from(value: Traceability) -> Result<Self> {
@@ -178,6 +185,7 @@ impl TryFrom<Traceability> for TraceabilitySnapshot {
         })
     }
 }
+
 impl TryFrom<&TraceabilityEntry> for Entry {
     type Error = Error;
     fn try_from(value: &TraceabilityEntry) -> Result<Self> {
@@ -189,6 +197,7 @@ impl TryFrom<&TraceabilityEntry> for Entry {
         })
     }
 }
+
 impl TryFrom<Entry> for TraceabilityEntry {
     type Error = Error;
     fn try_from(value: Entry) -> Result<Self> {
@@ -204,9 +213,11 @@ impl TryFrom<Entry> for TraceabilityEntry {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
+
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| invalid("context collection allocation failed"))?;
@@ -215,6 +226,7 @@ fn slots<T>(count: usize) -> Result<Vec<T>> {
     }
     Ok(values)
 }
+
 fn convert<T, U, I: IntoIterator<Item = T>>(items: I, mut map: impl FnMut(T) -> Result<U>) -> Result<Vec<U>>
 where
     I::IntoIter: ExactSizeIterator,

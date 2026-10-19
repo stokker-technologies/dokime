@@ -8,12 +8,14 @@
  */
 
 /* === Modules === */
+
 mod catalog;
 pub mod credentials;
 mod cycle;
 mod discovery;
 mod download;
 pub mod dynamic;
+mod error;
 mod execution;
 mod follow;
 pub mod operations;
@@ -26,11 +28,13 @@ mod transport;
 mod upload;
 
 /* === Re-Exports === */
+
 pub use catalog::template_suite;
 pub use cycle::TestCycleHandle;
 pub use dokime_domain::operations as contracts;
 pub use download::validate_destination as validate_download_destination;
 pub use download::{Download, Error as DownloadError};
+pub use error::Error;
 pub use execution::{RunCallbacks, RunOptions, TestExecutionHandle};
 pub use follow::FileResume;
 pub use raw::RawStreaming;
@@ -61,14 +65,17 @@ use zeroize::Zeroizing;
 // Local Imports
 
 /* === Constants === */
+
 const MAX_MESSAGE_BYTES: u64 = 16 * 1024 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Client {
     inner: Arc<Inner>,
@@ -108,34 +115,6 @@ pub struct Limits {
 }
 
 /* === Enums === */
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("invalid client target: {message}")]
-    InvalidTarget { message: &'static str },
-    #[error("a valid bearer token is required")]
-    AuthenticationRequired,
-    #[error("backend transport failed")]
-    Transport(#[source] tonic::transport::Error),
-    #[error("backend RPC failed")]
-    Rpc(#[source] tonic::Status),
-    #[error("backend API is incompatible")]
-    IncompatibleApi,
-    #[error("backend identity changed")]
-    IdentityChanged,
-    #[error("backend is not ready")]
-    BackendUnavailable,
-    #[error("client worker failed")]
-    Task(#[source] tokio::task::JoinError),
-    #[error("execution admission was rejected: {rejection:?}")]
-    ExecutionRejected { rejection: dokime_domain::model::execution::wire::Rejection },
-    #[error("request wait deadline elapsed")]
-    WaitTimedOut {
-        #[source]
-        source: tokio::time::error::Elapsed,
-    },
-    #[error("client is closed")]
-    Closed,
-}
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -153,6 +132,7 @@ pub enum ConnectionFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Error {
     pub fn connection_failure(&self) -> ConnectionFailure {
         use ConnectionFailure as Failure;
@@ -294,6 +274,7 @@ impl Drop for Inner {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_observed_cursor(epoch: &str, cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>) -> Result<()> {
     validate_observed_epoch(epoch, cursor.map(|cursor| cursor.epoch.as_str()))
 }

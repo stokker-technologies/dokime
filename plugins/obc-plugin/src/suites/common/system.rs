@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,6 +30,7 @@ use dokime_runtime::prelude::*;
 /* === Structs === */
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum SystemInputs {
     System(host::System),
@@ -44,6 +46,7 @@ pub enum SystemInputs {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn section(owner: &str) -> Section {
     let mut section = Section::new("System Information");
 
@@ -88,6 +91,7 @@ pub fn section(owner: &str) -> Section {
 }
 
 /* === Private Functions === */
+
 fn series<R: TelemetryStream>(
     owner: &str, metric: &str, label: &str, unit: &str, decimals: u8, columns: impl IntoIterator<Item = Column<R>>,
 ) -> PlotDefinition {

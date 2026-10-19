@@ -8,17 +8,21 @@
  */
 
 /* === Modules === */
+
 mod bounds;
 mod payload;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 use harmos::operations::{Context, Operation};
 use tonic::Status;
+
 // Local Imports
 use super::{
     execution,
@@ -40,6 +44,7 @@ use dokime_runtime::{RuntimeHandle, runtime::Error};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Register {
     runtime: Arc<RuntimeHandle>,
 }
@@ -59,6 +64,7 @@ pub(super) struct ResolvedPlan {
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Materialize(Materialize),
@@ -69,6 +75,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Materialize {
     type Declaration = wire::MaterializeTemplate;
     type Resources = RuntimeHandle;
@@ -157,6 +164,7 @@ impl Operation for Preview {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), super::Error> {
     runtime.operations().register_wire_operations::<Operations, RuntimeHandle>(
         "dokime",
@@ -313,6 +321,7 @@ pub(super) fn resolve(
 }
 
 /* === Private Functions === */
+
 fn entries<T>(entries: impl Iterator<Item = (String, Option<T>)>) -> Result<BTreeMap<String, T>, Status> {
     let mut values = BTreeMap::new();
     for (key, value) in entries {

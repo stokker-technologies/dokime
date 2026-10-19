@@ -13,12 +13,14 @@
 // `WatchFile` is served here too over a local file.
 
 /* === Modules === */
+
 mod process;
 mod watch;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
@@ -42,11 +44,12 @@ use dokime_domain::operations::process::RunProcess;
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(crate) type Served = Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + Send>>;
 
+pub(crate) type Served = Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + Send>>;
 pub(crate) type Serve = fn(Binding, Vec<u8>, signal::Receiver<bool>) -> Served;
 
 /* === Structs === */
+
 // What a served operation reaches of the stage that called it, owned so the
 // instance may outlive the call's borrow.
 #[derive(Clone)]
@@ -65,6 +68,7 @@ pub(crate) struct Binding {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // The served operation an id names, if this process serves it; `hosted` says
 // whether a host is there to serve the rest.
 pub(crate) fn served(operation: &str, hosted: bool) -> Option<Serve> {
@@ -78,6 +82,7 @@ pub(crate) fn served(operation: &str, hosted: bool) -> Option<Serve> {
 }
 
 /* === Private Functions === */
+
 async fn typed<Q, A, F>(request: Vec<u8>, serve: impl FnOnce(Q) -> F) -> Result<Vec<u8>, String>
 where
     Q: Message,

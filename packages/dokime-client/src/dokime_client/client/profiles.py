@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Explicit Named Backend Profile Loading Without Network Or Secret Store IO"""
 
 # === Imports === #
@@ -27,13 +26,12 @@ from ._transport import _target
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
+
 _MAX_BYTES = 1024 * 1024
 _NAME = re.compile(r"[A-Za-z0-9_.-]{1,64}\Z")
-
 
 # === Types === #
 

@@ -30,22 +30,30 @@ use dokime_domain::operations::execution::CreateCycle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(long, conflicts_with_all = ["identifier", "label", "description", "continue_automatically", "continue_on_failure"], help = "Read The Canonical CreateCycle JSON Without Flag Overrides.")]
     input_file: Option<PathBuf>,
+
     #[arg(long, required_unless_present = "input_file", help = "Cycle Title.")]
     label: Option<String>,
+
     #[arg(long, help = "Cycle Identifier; Omitted Lets The Backend Derive One.")]
     identifier: Option<String>,
+
     #[arg(long)]
     description: Option<String>,
+
     #[arg(long)]
     continue_on_failure: bool,
+
     #[arg(long, help = "Let The Server Continue With The Next Unstarted Member After A Durable Seal.")]
     continue_automatically: bool,
+
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit The Created Cycle Identity As JSON.")]
     json: bool,
 
@@ -60,6 +68,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let request = match args.input_file {
         Some(path) => {
@@ -104,6 +113,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 /* === Private Functions === */
+
 fn created(output: &mut impl Write, cycle: &str, json: bool) -> crate::Result<()> {
     if json {
         writeln!(output, "{}", serde_json::json!({"cycle_id": cycle}))?;

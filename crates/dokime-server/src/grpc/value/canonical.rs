@@ -46,6 +46,7 @@ use dokime_domain::model::values::ValueFormat;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(in crate::grpc) fn decode(
     value: dokime_domain::model::values::wire::Value, budget: &mut Budget, depth: usize,
 ) -> Result<Value, Status> {
@@ -398,6 +399,8 @@ pub(in crate::grpc) fn format(value: &ValueFormat) -> schema::ValueFormat {
     }
 }
 
+/* === Private Functions === */
+
 fn elapsed_unit(value: &ElapsedUnit) -> schema::ElapsedUnit {
     match value {
         ElapsedUnit::Seconds => schema::ElapsedUnit::Seconds,
@@ -406,7 +409,6 @@ fn elapsed_unit(value: &ElapsedUnit) -> schema::ElapsedUnit {
     }
 }
 
-/* === Private Functions === */
 fn scope_id<T>(
     value: Option<&str>, label: &str, build: impl FnOnce(&str) -> Result<T, dokime_runtime::ApiError>,
 ) -> Result<Option<T>, Status> {

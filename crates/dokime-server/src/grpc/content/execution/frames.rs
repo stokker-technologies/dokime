@@ -12,14 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::super::files;
+use crate::grpc::transcode::Transcode;
 use crate::grpc::value::projection;
 use dokime_runtime::ExecutionFileContent;
 
@@ -38,6 +39,7 @@ use dokime_runtime::ExecutionFileContent;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn metadata(
     content: &ExecutionFileContent, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
@@ -54,6 +56,7 @@ pub(super) fn metadata(
     };
     checked(frame, maximum)
 }
+
 pub(super) fn chunk(
     content: &ExecutionFileContent, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
@@ -68,6 +71,7 @@ pub(super) fn chunk(
         maximum,
     )
 }
+
 pub(super) fn complete(
     size: u64, digest: &Sha256, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
@@ -90,6 +94,7 @@ pub(super) fn complete(
 }
 
 /* === Private Functions === */
+
 fn checked(
     frame: dokime_domain::model::content::wire::ExecutionFileDownloadFrame, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
@@ -98,6 +103,7 @@ fn checked(
     }
     Ok(frame)
 }
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "canonical execution download frame" }
 }

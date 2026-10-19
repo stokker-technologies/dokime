@@ -10,10 +10,12 @@
 // Pure Record Collections And Their State Transitions.
 
 /* === Modules === */
+
 pub mod resources;
 pub mod set;
 
 /* === Re-Exports === */
+
 pub use resources::ResourceRegistry;
 
 /* === Imports === */
@@ -21,8 +23,8 @@ pub use resources::ResourceRegistry;
 // Standard Library Imports
 
 // Third Party Imports
-
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::RecordId;
@@ -35,6 +37,7 @@ use crate::model::records::Record;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceRecords {
     pub record_visibility: Vec<RecordVisibility>,
@@ -48,6 +51,7 @@ pub struct RecordVisibility {
 }
 
 /* === Enums === */
+
 #[harmos_domain::records]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Records {

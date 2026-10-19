@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::FinishProvider as Finish;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,6 +27,7 @@ use crate::{
 };
 
 /* === Constants === */
+
 const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
 
 /* === Macros === */
@@ -38,6 +41,7 @@ const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub(crate) async fn finish_provider_cycle(&self, finish: Finish) -> Result<()> {
         let runtime = self.clone();
@@ -272,6 +276,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn retry_after(error: &Error) -> Option<std::time::Duration> {
     transient_persistence(error).then_some(RETRY_INTERVAL)
 }

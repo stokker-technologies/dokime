@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use harmos::sidecar::Refusal;
+
 // Local Imports
 use crate::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, TestCaseTemplate, materialize_template_cases, parameter_name,
@@ -43,20 +46,20 @@ use dokime_domain::model::traceability::TraceabilitySection;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
-
 const HOST_SOURCE: &str = "dokime.harness";
-
 const RESPONDER: &str = "dokime.harness";
-
 const CANCEL: &str = "cancel";
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type ParameterValues = BTreeMap<String, Value>;
 
 /* === Structs === */
+
 pub struct Harness {
     template: String,
     parameters: BTreeMap<String, Value>,
@@ -131,6 +134,7 @@ struct Transfer {
 }
 
 /* === Enums === */
+
 #[derive(Debug)]
 pub enum HarnessError {
     UnknownTemplate(String),
@@ -145,6 +149,7 @@ pub enum HarnessError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Harness {
     pub fn template(identifier: impl Into<String>) -> Self {
         Self {
@@ -756,6 +761,9 @@ impl std::error::Error for HarnessError {
 }
 
 /* === Public Functions === */
+
+/* === Private Functions === */
+
 fn deliveries(
     measured: &BTreeMap<String, Vec<BTreeMap<String, Value>>>, published: &[Record], execution_id: &str,
     scope: &dokime_domain::model::execution::RecordScope,
@@ -803,7 +811,5 @@ fn deliveries(
     }
     signals
 }
-
-/* === Private Functions === */
 
 /* === Tests === */

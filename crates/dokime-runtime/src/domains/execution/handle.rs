@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -37,6 +38,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub(crate) async fn finalize_execution_aggregate_outputs(&self, test_execution_id: &TestExecutionId) {
         let scope = self.state_read().executions.get(test_execution_id).map(|execution| execution.scope.clone());
@@ -101,6 +103,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn cycle_is_stopped(lifecycle: Option<CycleStatus>) -> bool {
     matches!(
         lifecycle,

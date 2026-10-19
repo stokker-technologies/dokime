@@ -12,16 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
 use super::wire;
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::wire_checkpoint as checkpoint;
@@ -37,18 +38,22 @@ use dokime_runtime::runtime::query::execution_history::ExecutionCheckpoint;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     max_message_bytes: usize,
 }
+
 struct Inspect {
     resources: Arc<Resources>,
 }
+
 struct Delete {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Inspect(Inspect),
@@ -58,6 +63,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Inspect {
     type Declaration = history::GetExecutionCheckpoint;
     type Resources = Resources;
@@ -105,6 +111,7 @@ impl Operation for Delete {
 }
 
 /* === Public Functions === */
+
 pub(in crate::grpc) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
     super::browse::register(runtime, max_message_bytes)?;
     super::read::register(runtime, max_message_bytes)?;
@@ -122,7 +129,6 @@ pub(in crate::grpc) fn register(runtime: &RuntimeHandle, max_message_bytes: usiz
     Ok(())
 }
 
-/* === Private Functions === */
 pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> harmos::Result<checkpoint::ExecutionCheckpoint> {
     let value = wire::checkpoint_wire_ref(source).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
@@ -135,6 +141,9 @@ pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> harmos::R
     }
     Ok(value)
 }
+
+/* === Private Functions === */
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "historical checkpoint response" }
 }

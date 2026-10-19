@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::Path;
+
 // Third Party Imports
 
 // Local Imports
@@ -33,12 +35,14 @@ use std::path::Path;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // Sanitizes each folder and file segment of a validated relative artifact name.
 pub(crate) fn safe_artifact_path(name: &str) -> String {
     name.split('/').map(safe_artifact_filename).collect::<Vec<_>>().join("/")
 }
 
 /* === Private Functions === */
+
 fn safe_artifact_filename(filename: &str) -> String {
     let name = Path::new(filename).file_name().and_then(|name| name.to_str()).unwrap_or("artifact").trim();
     let path = Path::new(name);

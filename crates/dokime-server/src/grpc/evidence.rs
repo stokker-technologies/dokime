@@ -8,27 +8,32 @@
  */
 
 /* === Modules === */
+
 pub(super) mod canonical;
 mod selection;
 
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
+
 // Local Imports
 use super::error::detailed;
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::definition::wire::RecordSchema;
 use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::evidence as v1;
 use dokime_runtime::{RuntimeHandle, runtime::CapturedRecords};
-
 use selection::Selection;
 
 /* === Constants === */
+
 const SCAN_LIMIT: usize = 1000;
 const RECORD_LIMIT: usize = 100;
 const PAGE_BYTES: usize = 512 * 1024;
@@ -36,9 +41,11 @@ const PAGE_BYTES: usize = 512 * 1024;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Page = dokime_domain::model::evidence::wire::RecordPage;
 
 /* === Structs === */
+
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
@@ -52,11 +59,24 @@ struct Reader {
     bytes: usize,
 }
 
+struct List {
+    resources: Arc<Resources>,
+}
+
+struct Watch {
+    resources: Arc<Resources>,
+}
+
+struct Schema {
+    resources: Arc<Resources>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Reader {
     fn new(
         runtime: &RuntimeHandle, selection: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>, after: Option<Cursor>,
@@ -129,15 +149,6 @@ impl Reader {
     }
 }
 
-struct List {
-    resources: Arc<Resources>,
-}
-struct Watch {
-    resources: Arc<Resources>,
-}
-struct Schema {
-    resources: Arc<Resources>,
-}
 impl Operation for List {
     type Declaration = v1::ListRecords;
     type Resources = Resources;
@@ -163,6 +174,7 @@ impl Operation for List {
         Ok(reader.page().await?.into())
     }
 }
+
 impl Operation for Watch {
     type Declaration = v1::WatchRecords;
     type Resources = Resources;
@@ -190,6 +202,7 @@ impl Operation for Watch {
         }
     }
 }
+
 impl Operation for Schema {
     type Declaration = v1::GetCapturedRecordSchema;
     type Resources = Resources;
@@ -222,6 +235,7 @@ impl Operation for Schema {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum });
     runtime.operations().register_wire_operation::<List>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -231,6 +245,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
 fn memory_error(error: harmos::Error) -> Status {
     let error = dokime_runtime::runtime::Error::from(error);
     detailed(Status::resource_exhausted(format!("captured record output unavailable: {error}")), &error)

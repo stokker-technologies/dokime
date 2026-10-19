@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Serialize;
+
 // Local Imports
 use super::ReportValues;
 use dokime_domain::model::identity::Metadata;
@@ -28,6 +31,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Serialize)]
 pub(super) struct Cycle<'a> {
     pub(super) test_cycle_id: &'a str,
@@ -97,6 +101,7 @@ pub(super) struct Template<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */

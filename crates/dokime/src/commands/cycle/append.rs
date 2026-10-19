@@ -30,6 +30,7 @@ use dokime_domain::operations::execution::{AppendExecutions, ExecutionBinding};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(
@@ -38,6 +39,7 @@ pub(crate) struct Args {
         help = "Existing Cycle UUID. This Command Never Creates A Cycle."
     )]
     cycle_id: Option<String>,
+
     #[arg(
         long,
         conflicts_with = "case_ids",
@@ -51,11 +53,13 @@ pub(crate) struct Args {
         help = "Materialized Case UUID; Repeat To Allocate Ordered Unstarted Execution UUIDs."
     )]
     case_ids: Vec<String>,
+
     #[command(flatten)]
     connection: crate::connection::Args,
 
     #[command(flatten)]
     recovery: crate::commands::execution::recovery::Args,
+
     #[arg(long, help = "Emit The Append Reply As JSON.")]
     json: bool,
 
@@ -70,6 +74,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let request = match args.input_file {
         Some(path) => {

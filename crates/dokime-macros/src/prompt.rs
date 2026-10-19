@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -20,12 +21,13 @@ use quote::{ToTokens, quote, quote_spanned};
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Type};
+
 // Local Imports
 use crate::arguments::Arguments;
 
 /* === Constants === */
-const ARGUMENTS: &[&str] = &["id", "label", "description", "submit", "cancel", "level"];
 
+const ARGUMENTS: &[&str] = &["id", "label", "description", "submit", "cancel", "level"];
 const FIELD_ARGUMENTS: &[&str] =
     &["label", "description", "default", "min", "max", "min_length", "max_length", "pattern", "min_items", "max_items"];
 
@@ -34,6 +36,7 @@ const FIELD_ARGUMENTS: &[&str] =
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct FieldDeclaration {
     name: Ident,
     identifier: LitStr,
@@ -60,6 +63,7 @@ struct FieldArguments {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq)]
 enum Shape {
     Required,
@@ -72,6 +76,7 @@ enum Shape {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn prompt(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -84,6 +89,7 @@ pub(crate) fn prompt(attribute: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /* === Private Functions === */
+
 fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let input: DeriveInput = syn::parse2(item.clone())?;

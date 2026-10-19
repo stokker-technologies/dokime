@@ -10,11 +10,14 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(super) use super::value::canonical::metadata;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -28,6 +31,7 @@ use dokime_domain::model::values::Value;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource};
 
 /* === Constants === */
+
 const MAX_DIAGNOSTIC_TEXT: usize = 4096;
 const DIAGNOSTIC_TRUNCATED: &str = "\n… truncated";
 
@@ -36,6 +40,7 @@ const DIAGNOSTIC_TRUNCATED: &str = "\n… truncated";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(in crate::grpc) struct Bounds {
     remaining: usize,
     nodes: value::Budget,
@@ -46,6 +51,7 @@ pub(in crate::grpc) struct Bounds {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Bounds {
     pub(in crate::grpc) fn new(limit: usize) -> Self {
         Self { remaining: limit.min(4 * 1024 * 1024), nodes: value::Budget::new() }
@@ -66,6 +72,7 @@ impl Bounds {
 }
 
 /* === Public Functions === */
+
 pub(super) fn execution<'a>(
     state: &'a dokime_runtime::state::RuntimeState, id: &str,
 ) -> Result<(&'a dokime_domain::model::execution::result::TestCycle, usize, &'a TestExecution), Status> {
@@ -273,6 +280,7 @@ pub(super) fn list_case_parameters(
 }
 
 /* === Private Functions === */
+
 fn reply<T: harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.encoded_len() > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));

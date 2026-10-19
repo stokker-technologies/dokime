@@ -8,10 +8,14 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::{fmt::Write, sync::Arc};
+
 // Third Party Imports
 use harmos::domain::Portable;
 use harmos::{
@@ -19,6 +23,7 @@ use harmos::{
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
+
 // Local Imports
 use dokime_domain::operations::settings as wire;
 use dokime_runtime::{
@@ -27,35 +32,48 @@ use dokime_runtime::{
 };
 
 /* === Constants === */
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 pub(super) struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) maximum: usize,
 }
+
 struct ReadStoragePolicy {
     resources: Arc<Resources>,
 }
+
 struct UpdateStoragePolicy {
     resources: Arc<Resources>,
 }
+
 struct ReadApplicationSettings {
     resources: Arc<Resources>,
 }
+
 struct UpdateAppearance {
     resources: Arc<Resources>,
 }
+
 struct UpdateDataRoot {
     resources: Arc<Resources>,
 }
+
 struct UpdateReportDefaults {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl Operation for ReadStoragePolicy {
     type Declaration = wire::ReadStoragePolicy;
     type Resources = Resources;
@@ -72,6 +90,7 @@ impl Operation for ReadStoragePolicy {
         self.resources.policy(view)
     }
 }
+
 impl Operation for UpdateStoragePolicy {
     type Declaration = wire::UpdateStoragePolicy;
     type Resources = Resources;
@@ -100,6 +119,7 @@ impl Operation for UpdateStoragePolicy {
         self.resources.policy(view)
     }
 }
+
 impl Operation for ReadApplicationSettings {
     type Declaration = wire::ReadApplicationSettings;
     type Resources = Resources;
@@ -115,6 +135,7 @@ impl Operation for ReadApplicationSettings {
         self.resources.application(self.resources.runtime.application_settings())
     }
 }
+
 impl Operation for UpdateAppearance {
     type Declaration = wire::UpdateAppearance;
     type Resources = Resources;
@@ -151,6 +172,7 @@ impl Operation for UpdateAppearance {
         self.resources.application(view)
     }
 }
+
 impl Operation for UpdateDataRoot {
     type Declaration = wire::UpdateDataRoot;
     type Resources = Resources;
@@ -171,6 +193,7 @@ impl Operation for UpdateDataRoot {
         self.resources.application(view)
     }
 }
+
 impl Operation for UpdateReportDefaults {
     type Declaration = wire::UpdateReportDefaults;
     type Resources = Resources;
@@ -196,6 +219,7 @@ impl Operation for UpdateReportDefaults {
         self.resources.application(view)
     }
 }
+
 impl Resources {
     pub(super) fn produce<T: MemorySize + Portable + Send + Sync + 'static>(
         &self, build: impl FnOnce() -> T,
@@ -276,7 +300,9 @@ impl Resources {
         })
     }
 }
+
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
     runtime.operations().register_wire_operation::<ReadStoragePolicy>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -291,7 +317,9 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<UpdateReportDefaults>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
     Ok(())
 }
+
 /* === Private Functions === */
+
 fn path_bytes(path: &std::path::Path) -> usize {
     struct Counter(usize);
     impl std::fmt::Write for Counter {
@@ -304,4 +332,5 @@ fn path_bytes(path: &std::path::Path) -> usize {
     let _ = write!(&mut counter, "{}", path.display());
     counter.0
 }
+
 /* === Tests === */

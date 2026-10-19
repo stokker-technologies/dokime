@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod append;
 mod create;
 mod seal;
@@ -31,10 +32,12 @@ mod seal;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(about = "Create An Empty Active Cycle.")]
     Create(create::Args),
+
     #[command(about = "Register Explicit Executions In An Existing Cycle.")]
     Append(append::Args),
 
@@ -50,6 +53,7 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::Create(args) => create::run(args).await,

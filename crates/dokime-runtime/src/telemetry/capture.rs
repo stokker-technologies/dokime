@@ -12,19 +12,22 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
+
 // Third Party Imports
 use arrow_array::{
     ArrayRef, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, StringArray, StructArray, UInt32Array, UInt64Array,
 };
 use arrow_schema::Field;
-// Local Imports
-use dokime_domain::model::values::Value;
 use harmos::schema::{
     Cardinality,
     graph::{Kind, Schema},
 };
+
+// Local Imports
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -41,6 +44,7 @@ use harmos::schema::{
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn capture_payload(schema: &Schema, values: &BTreeMap<String, Value>) -> Result<Vec<u8>, String> {
     schema.preparation(&harmos::config::SchemaSettings::default()).map_err(|error| error.to_string())?;
     let fields = schema.definitions.get(schema.root).ok_or("matcher schema root is absent")?;
@@ -116,6 +120,7 @@ pub fn capture_payload(schema: &Schema, values: &BTreeMap<String, Value>) -> Res
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::mem::{size_of, size_of_val};
 
@@ -42,6 +43,7 @@ use dokime_domain::model::records::evidence::RecordMarker;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn record_markers_for_selection(records: &[RecordEntry], selection: &DocumentSelection) -> crate::Result<Vec<RecordMarker>> {
     selected_markers(Records::Native(records), selection)
 }

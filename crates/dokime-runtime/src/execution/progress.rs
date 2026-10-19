@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::iter::FusedIterator;
 use std::sync::Arc;
 use std::time::Instant;
+
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
+
 const ETA_WARMUP_ITEMS: u64 = 3;
 
 /* === Macros === */
@@ -28,17 +31,22 @@ const ETA_WARMUP_ITEMS: u64 = 3;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct ExecutionProgress {
     #[row(description = "Author-facing description of the bounded operation.")]
     pub phase: String,
+
     #[row(description = "Work units whose loop bodies completed.")]
     pub completed: u64,
+
     #[row(description = "Work units the iterator contained when progress tracking began.")]
     pub total: u64,
+
     #[row(description = "Monotonic time since this operation began.")]
     pub elapsed_ms: u64,
+
     #[row(description = "Estimated monotonic time left, absent during estimator warm-up.")]
     pub remaining_ms: Option<u64>,
 }
@@ -63,6 +71,7 @@ pub trait ProgressSink: Send + Sync {
 }
 
 /* === Implementations === */
+
 impl<I: ExactSizeIterator> Progress<I> {
     pub fn new(phase: impl Into<String>, iterator: I, sink: Arc<dyn ProgressSink>) -> Self {
         let phase = phase.into();
@@ -140,6 +149,7 @@ impl<I: ExactSizeIterator> FusedIterator for Progress<I> {}
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn saturating_u64(value: u128) -> u64 {
     u64::try_from(value).unwrap_or(u64::MAX)
 }

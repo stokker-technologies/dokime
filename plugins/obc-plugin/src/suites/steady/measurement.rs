@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{
     Mutex,
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
+
 // Third Party Imports
 
 // Local Imports
@@ -35,15 +37,18 @@ use dokime_runtime::prelude::*;
 use obc_runtime::device::Device;
 
 /* === Constants === */
-const STEADY_SAMPLE_POLL: Duration = Duration::from_millis(1);
 
+const STEADY_SAMPLE_POLL: Duration = Duration::from_millis(1);
 const STEADY_STREAM: &str = "obc.charger.steady.samples";
 
 /* === Macros === */
 
+bench!(Parameters);
+
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct SteadyResources {
     device: Mutex<Device>,
     interval_s: f64,
@@ -81,13 +86,15 @@ pub struct Samples;
 pub struct BenchEvent {
     #[row(role = state)]
     pub event: String,
+
     #[row(unit = "s")]
     pub elapsed_s: f64,
+
     #[row(unit = "V")]
     pub voltage_rms_v: f64,
 }
 
-/* === Records === */
+// Records
 
 #[dokime_runtime::record(
     id = "obc.charger.steady.initialized",
@@ -114,6 +121,7 @@ pub struct Started {}
 pub struct Completed {
     #[record(description = "How many rows the steady-state measurement produced.")]
     pub sample_count: u64,
+
     #[record(description = "Whether the measurement behaved the way this procedure required.")]
     pub accepted: bool,
 }
@@ -127,6 +135,7 @@ pub struct Parameters {
         default = ParameterDefault::space([207.0, 230.0, 253.0]),
     )]
     pub ac_voltage_v: f64,
+
     #[parameter(
         label = "Load Impedance Magnitude",
         unit = "ohm",
@@ -134,14 +143,19 @@ pub struct Parameters {
         default = ParameterDefault::linspace(80.0, 120.0, 3),
     )]
     pub load_ohm: f64,
+
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
     pub frequency_hz: f64,
+
     #[parameter(label = "Current Phase Lag", unit = "deg", default = 15.0)]
     pub phase_deg: f64,
+
     #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
     pub current_limit_a: f64,
+
     #[parameter(label = "Observation Duration", unit = "s", default = 0.05, min = SHORTEST_S)]
     pub duration_s: f64,
+
     #[parameter(
         label = "Simulation Sample Interval",
         unit = "s",
@@ -153,6 +167,7 @@ pub struct Parameters {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum Required {
     AskReadiness(crate::domain::operations::AskReadiness),
@@ -183,7 +198,6 @@ pub enum ObserverStreams {
 /* === Traits === */
 
 /* === Implementations === */
-bench!(Parameters);
 
 #[dokime_runtime::template(
     id = STEADY_TEMPLATE, label = "Charging Input Measurement",
@@ -322,6 +336,7 @@ impl Steady {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn reading(resources: &SteadyResources) -> Result<InputMeasurement, Error> {
     let index = resources.produced.fetch_add(1, Ordering::AcqRel);
     let elapsed_s = 0.1 + index as f64 * resources.interval_s;

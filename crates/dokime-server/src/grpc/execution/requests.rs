@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -38,6 +39,7 @@ struct Execution {
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Execution(Execution),
@@ -46,6 +48,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Execution {
     type Declaration = wire::StartExecution;
     type Resources = RuntimeHandle;
@@ -74,6 +77,7 @@ impl Operation for Execution {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operations::<Operations, RuntimeHandle>(
         "dokime",
@@ -84,6 +88,7 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error
 }
 
 /* === Private Functions === */
+
 fn receipt(receipt: CommandReceipt, epoch: String) -> Result<dokime_domain::model::execution::wire::RunReply, Status> {
     let outcome = match receipt.status {
         CommandStatus::Rejected => {

@@ -12,17 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
 use super::metadata;
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::operations::content as wire;
@@ -35,10 +36,12 @@ use dokime_runtime::{RuntimeHandle, artifacts::ArtifactRecord};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct List {
     resources: Arc<Resources>,
 }
@@ -48,6 +51,7 @@ struct List {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for List {
     type Declaration = wire::ListArtifacts;
     type Resources = Resources;
@@ -83,6 +87,7 @@ impl Operation for List {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
@@ -93,6 +98,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn inventory_failure(error: dokime_runtime::runtime::Error) -> Status {
     let status = match &error {
         dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {

@@ -31,6 +31,7 @@ use crate::{Error, Testbench};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "obc.device.set_power", version = 1, irreversible)]
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SetPower {
@@ -42,6 +43,7 @@ pub struct SetPower {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<Testbench> for SetPower {
     type Error = Error;
 

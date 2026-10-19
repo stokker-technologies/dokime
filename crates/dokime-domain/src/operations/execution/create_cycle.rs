@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = CreateCycleReply, id = "dokime.execution.create_cycle", version = 1,
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
@@ -40,6 +43,7 @@ pub struct CreateCycle {
         description = "The label is required and nonblank; an empty identifier is derived by the backend. Description, tags and attributes are optional."
     )]
     pub metadata: Option<Metadata>,
+
     pub continue_automatically: bool,
     pub continue_on_failure: bool,
     pub context: Option<MutationContext>,

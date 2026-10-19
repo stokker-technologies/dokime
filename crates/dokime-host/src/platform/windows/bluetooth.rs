@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{process::Command, time::Duration};
+
 // Third Party Imports
 use serde::Deserialize;
+
 // Local Imports
 use crate::{Error, HostOptions, Result};
 
@@ -26,6 +29,7 @@ use crate::{Error, HostOptions, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct BluetoothSnapshot {
     pub adapter_name: Option<String>,
@@ -40,10 +44,13 @@ pub struct BluetoothSnapshot {
 struct BluetoothPnPEntity {
     #[serde(alias = "Name", alias = "FriendlyName")]
     name: Option<String>,
+
     #[serde(rename = "Status")]
     status: Option<String>,
+
     #[serde(rename = "Present")]
     present: Option<bool>,
+
     #[serde(rename = "ConfigManagerErrorCode")]
     config_manager_error_code: Option<u32>,
 }
@@ -55,6 +62,7 @@ struct BluetoothPnPEntity {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn snapshot(options: &HostOptions) -> Result<BluetoothSnapshot> {
     let output = bluetooth_pnp_json()?;
     let devices = bluetooth_devices_from_json(&output)?;
@@ -84,6 +92,7 @@ pub fn snapshot(options: &HostOptions) -> Result<BluetoothSnapshot> {
 }
 
 /* === Private Functions === */
+
 fn bluetooth_pnp_json() -> Result<String> {
     let script =
         "Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName,Status,Present,ConfigManagerErrorCode | ConvertTo-Json -Compress";

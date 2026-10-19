@@ -28,10 +28,12 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit The Result As JSON Without Secret Values.")]
     json: bool,
 }
@@ -43,6 +45,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn run(args: Args) -> crate::Result<()> {
     super::super::status::check(args.connection, args.json).await
 }

@@ -28,10 +28,12 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     config: super::Config,
+
     #[arg(help = "Saved Backend Profile Name.")]
     name: String,
 }
@@ -43,6 +45,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn run(args: Args) -> crate::Result<()> {
     args.config.store()?.update(|document| {
         document.get(&args.name)?;

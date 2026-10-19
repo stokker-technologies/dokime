@@ -33,11 +33,13 @@ use dokime_domain::model::planning::wire::SelectionPlan;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 #[group(id = "plan_input")]
 pub(crate) struct Args {
     #[arg(long, conflicts_with_all = ["template", "case_ids", "selections", "max_cases", "parameters_json"], help = "Read The Canonical Request JSON Without Flag Overrides.")]
     pub(crate) input_file: Option<PathBuf>,
+
     #[arg(long, conflicts_with = "case_ids", help = "Template ID As `<Suite ID>.<Segment>`; Omitted Parameters Use Backend Defaults.")]
     template: Option<String>,
 
@@ -48,10 +50,13 @@ pub(crate) struct Args {
         help = "Single Parameter Values For --template As A Plain JSON Object."
     )]
     parameters_json: Option<String>,
+
     #[arg(long = "case-id", conflicts_with = "selections", help = "Registered Case ID; Repeat To Preserve Order And Repeated Attempts.")]
     case_ids: Vec<String>,
+
     #[arg(long = "selection-json", help = "RegisteredSelection JSON Naming Its Template ID; Repeat For Ordered Selections.")]
     selections: Vec<String>,
+
     #[arg(long, default_value_t = 0, help = "Case Limit; Zero Uses The Backend Limit.")]
     max_cases: u32,
 }
@@ -67,6 +72,7 @@ pub(crate) struct Planned {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Args {
     pub(crate) fn plan(self) -> crate::Result<Planned> {
         let mut selections = self
@@ -145,6 +151,7 @@ impl Planned {
 }
 
 /* === Public Functions === */
+
 // Planned cases name their template by its readable ID; the registered UUID
 // the backend answers with never reaches the operator.
 pub(super) async fn print(client: &dokime_client::Client, reply: &PreviewSelectionReply, json: bool) -> crate::Result<()> {
@@ -184,6 +191,7 @@ pub(super) async fn print(client: &dokime_client::Client, reply: &PreviewSelecti
 }
 
 /* === Private Functions === */
+
 fn parameters(input: Option<&str>) -> crate::Result<Vec<dokime_domain::model::planning::wire::RegisteredSelectionParametersEntry>> {
     use dokime_domain::model::planning::wire::{RegisteredSelectionParametersEntry, SelectionValues};
     use dokime_domain::model::values::{Value, wire};

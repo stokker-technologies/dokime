@@ -12,33 +12,32 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::{
     MemorySize,
     operations::{Response, StreamOutput},
 };
 use serde_json::Value;
 use tonic::Status;
+
 // Local Imports
 use super::redaction;
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::identity::wire::Timestamp;
 
 /* === Constants === */
+
 pub(super) const DEFAULT_REPLAY_LINES: u32 = 500;
-
 pub(super) const MAX_REPLAY_LINES: u32 = 5_000;
-
 const READ_WINDOW_BYTES: u64 = 256 * 1024;
-
 const MAX_PENDING_FRAMES: usize = 8_192;
-
 const POLL_INTERVAL: Duration = Duration::from_millis(250);
-
 const MAX_LINE_BYTES: usize = 256 * 1024;
 
 /* === Macros === */
@@ -46,6 +45,7 @@ const MAX_LINE_BYTES: usize = 256 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Watch {
     pub(super) path: PathBuf,
     pub(super) min_level: dokime_domain::model::backend::wire::LogLevel,
@@ -72,6 +72,7 @@ struct Follow {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Watch {
     pub(super) async fn run(self, output: &mut StreamOutput<dokime_domain::model::backend::wire::LogFrame>) -> Result<(), Status> {
         let replay_lines = if self.replay_lines == 0 { DEFAULT_REPLAY_LINES } else { self.replay_lines.min(MAX_REPLAY_LINES) };
@@ -265,6 +266,7 @@ impl Follow {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn level(name: &str) -> Option<dokime_domain::model::backend::wire::LogLevel> {
     match name.trim().to_ascii_uppercase().as_str() {
         "TRACE" => Some(dokime_domain::model::backend::wire::LogLevel::Trace),
@@ -299,4 +301,5 @@ fn memory_failure(source: harmos::Error) -> Status {
     };
     crate::grpc::error::detailed(status, &source.into())
 }
+
 /* === Tests === */

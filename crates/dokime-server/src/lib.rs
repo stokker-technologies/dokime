@@ -8,9 +8,11 @@
  */
 
 // Native Manager Graphs Need This Depth To Prove Generated RPC Futures Are Send.
+
 #![recursion_limit = "256"]
 
 /* === Modules === */
+
 pub mod diagnostics_assembly;
 mod error;
 pub mod grpc;
@@ -18,9 +20,11 @@ pub mod host;
 pub mod trace;
 
 /* === Re-Exports === */
+
 pub use error::{Error, Result};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

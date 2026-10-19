@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod collect_diagnostics;
 mod get_availability;
 mod get_diagnostics;
@@ -17,6 +18,7 @@ mod watch_logs;
 mod watch_trace;
 
 /* === Re-Exports === */
+
 pub use collect_diagnostics::CollectDiagnostics;
 pub use get_availability::GetAvailability;
 pub use get_diagnostics::GetDiagnostics;
@@ -36,10 +38,10 @@ use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
 use super::TRANSFER;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
 
 use crate::model::backend::wire::*;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
 
 /* === Constants === */
 
@@ -65,9 +67,11 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for GetIdentity {
     const PATH: &'static str = "/dokime.v1.Backend/GetIdentity";
 }
+
 impl Endpoint for GetHealth {
     const PATH: &'static str = "/dokime.v1.Backend/GetHealth";
 }

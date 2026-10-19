@@ -8,18 +8,21 @@
  */
 
 /* === Modules === */
+
 pub mod connections;
 pub mod device;
 pub mod readiness;
 pub mod status;
 
 /* === Re-Exports === */
+
 pub use connections::ListConnections;
 pub use device::{ReadDevice, SetPower};
 pub use readiness::AskReadiness;
 pub use status::GetStatus;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Duration;
 
@@ -29,6 +32,7 @@ use std::time::Duration;
 use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 
 /* === Constants === */
+
 // The policy every bench operation declares.
 pub const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_millis(2_000),
@@ -44,6 +48,7 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 /* === Structs === */
 
 /* === Enums === */
+
 // The bench operations this plugin declares; each request is its operation.
 #[dokime_runtime::catalog]
 pub enum Operations {

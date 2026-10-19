@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod analyses;
 pub mod domain;
 pub mod error;
@@ -19,11 +20,13 @@ pub mod settings;
 pub mod suites;
 
 /* === Re-Exports === */
+
 pub use error::Error;
 pub use settings::BenchSettings;
 pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, SAMPLE_INTERVAL_MS, pulse_value};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
@@ -39,8 +42,8 @@ use obc_runtime::app;
 use obc_runtime::{Stop, Testbench};
 
 /* === Constants === */
-pub const SOURCE: &str = <ObcPlugin as Declared>::ID;
 
+pub const SOURCE: &str = <ObcPlugin as Declared>::ID;
 const LIFECYCLE: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
@@ -51,9 +54,11 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Observing = ObserverAttachment<Resources, Publisher<ObcPlugin>>;
 
 /* === Structs === */
+
 pub struct Resources {
     app: OnceLock<obc_runtime::Client>,
     connections: Mutex<Vec<String>>,
@@ -67,12 +72,14 @@ pub struct ObcPlugin {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum Records {}
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Resources {
     pub fn app(&self) -> &obc_runtime::Client {
         self.app.get().expect("the bench runtime launches before any operation is bound")

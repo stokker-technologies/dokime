@@ -8,12 +8,15 @@
  */
 
 /* === Modules === */
+
 mod analyses;
 pub(crate) mod builtins;
 mod cartesian;
 mod types;
 
 /* === Re-Exports === */
+
+pub(crate) use crate::document::DEFAULT_PLOT_MAX_POINTS;
 pub use analyses::{
     BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
     WifiChannelCount, WifiScan,
@@ -25,11 +28,16 @@ pub use types::{
 };
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
+use harmos::Aggregate;
+use harmos::signal::{Aggregates, Series};
 use serde_json::Value as JsonValue;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+
 // Local Imports
 use crate::definition::MaterializedParameter;
 use crate::document::{DocumentFilter, FilterOperator, PlotDescriptor, PlotType};
@@ -46,11 +54,9 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
 use dokime_domain::model::values::datetime_seconds;
-use harmos::Aggregate;
-use harmos::signal::{Aggregates, Series};
 
 /* === Constants === */
-pub(crate) use crate::document::DEFAULT_PLOT_MAX_POINTS;
+
 const WIFI_CONTEXT_STREAM: &str = "host.wifi";
 const MARKER_COLORS: [&str; 8] = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899"];
 
@@ -59,6 +65,7 @@ const MARKER_COLORS: [&str; 8] = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct PlotPayloadContext {
     pub x_format: Option<ValueFormat>,
@@ -85,6 +92,7 @@ struct ZSample {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug)]
 enum ZIndex {
     None,
@@ -96,6 +104,7 @@ enum ZIndex {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ZIndex {
     fn resolve(&self, sample: &TelemetrySample) -> Option<f64> {
         match self {
@@ -118,6 +127,7 @@ impl ZIndex {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn build_plot_payload(
     telemetry: &[TelemetrySample], records: &[RecordEntry], request: PlotPayloadRequest, generated_at: &str,
     format_context: &PlotPayloadContext,
@@ -554,7 +564,12 @@ pub(crate) fn sample_matches_scope(sample_scope: Option<&RecordScope>, filter: O
     filter.is_none_or(|filter| scope_visible_in(sample_scope, filter))
 }
 
+pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[DocumentFilter]) -> bool {
+    filters.iter().all(|filter| sample_matches_filter(sample, filter))
+}
+
 /* === Private Functions === */
+
 fn dimension_context_for_scope(cycle: &CycleView, scope: &RecordScope) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
     let execution = if let Some(id) = &scope.test_execution_id {
@@ -952,10 +967,6 @@ fn traceable_context_value(value: &Value) -> bool {
         Value::Text(value) => !value.trim().is_empty(),
         _ => true,
     }
-}
-
-pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[DocumentFilter]) -> bool {
-    filters.iter().all(|filter| sample_matches_filter(sample, filter))
 }
 
 fn sample_matches_filter(sample: &TelemetrySample, filter: &DocumentFilter) -> bool {

@@ -35,15 +35,18 @@ use crate::storage::{
 use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
+
 // Rows Each Typed Head Reads Per Query Before The Merge Consumes Them.
 const PAGE_ROWS: usize = 65_536;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(super) type PositionedTelemetry = super::paging::Positioned<TelemetryEntry>;
 
 /* === Structs === */
+
 pub(crate) struct PreparedTelemetry {
     schema: SchemaKey,
     stream: Identifier,
@@ -85,6 +88,7 @@ pub(crate) struct CommittedTelemetry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PreparedTelemetry {
     pub(crate) fn write(&self) -> StreamWrite<'_> {
         StreamWrite {
@@ -316,6 +320,7 @@ impl super::executions::ExecutionStorage {
 }
 
 /* === Public Functions === */
+
 pub(crate) async fn register_schemas(storage: &Manager, contracts: &[crate::telemetry::TelemetryContract]) -> Result<()> {
     let mut last = None;
     for contract in contracts.iter().filter(|contract| !contract.foreign) {
@@ -353,12 +358,14 @@ pub(crate) fn prepare(entry: &TelemetryEntry, codec: &telemetry::TypedCodec) -> 
 }
 
 /* === Private Functions === */
+
 async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: &str) {
     match closure {
         Some(sampling) => sampling.wait_measurement_closed(scope).await,
         None => std::future::pending().await,
     }
 }
+
 // One Bounded Query Per Head, Resuming After The Last Row The Head Read;
 // Holding Readers For Every Schema Can Exhaust Admission.
 async fn read_head(storage: &Manager, source: &mut TypedRead, page_rows: usize) -> Result<Option<Vec<PositionedTelemetry>>> {

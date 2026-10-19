@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{num::NonZeroUsize, sync::Arc, time::Instant};
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
+
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
 use dokime_domain::operations::content as wire;
 use dokime_runtime::{RuntimeHandle, runtime::Error};
@@ -30,10 +33,12 @@ use dokime_runtime::{RuntimeHandle, runtime::Error};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Follow {
     resources: Arc<Resources>,
 }
@@ -43,6 +48,7 @@ struct Follow {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Follow {
     type Declaration = wire::FollowExecutionFile;
     type Resources = Resources;
@@ -101,6 +107,7 @@ impl Operation for Follow {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Follow>(
         "dokime",
@@ -111,6 +118,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 async fn send(
     output: &mut StreamOutput<dokime_domain::model::content::wire::ExecutionFileFollowFrame>,
     frame: dokime_domain::model::content::wire::ExecutionFileFollowFrame, maximum: usize,
@@ -120,6 +128,7 @@ async fn send(
     }
     output.send_owned(frame.into()).await.map_err(|error| failure(error.into()))
 }
+
 fn failure(error: Error) -> Status {
     let status = match &error {
         Error::Harmos(harmos::Error::InvalidInput { reason, .. }) => Status::failed_precondition(*reason),

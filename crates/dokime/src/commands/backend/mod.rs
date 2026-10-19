@@ -10,6 +10,7 @@
 // Saved Backend Profile Mod
 
 /* === Modules === */
+
 mod add;
 mod list;
 mod remove;
@@ -19,8 +20,10 @@ mod r#use;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::PathBuf;
+
 // Third Party Imports
 
 // Local Imports
@@ -33,6 +36,7 @@ use dokime_client::profiles::Store;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(super) struct Config {
     #[arg(long, help = "Use This Backend Profile Configuration File.")]
@@ -40,16 +44,21 @@ pub(super) struct Config {
 }
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(about = "Add A Backend Profile Without Connecting.")]
     Add(add::Args),
+
     #[command(about = "List Saved Profiles Without Connecting.")]
     List(list::Args),
+
     #[command(about = "Inspect A Saved Profile Without Connecting.")]
     Show(show::Args),
+
     #[command(about = "Choose The Default For Future Connections.")]
     Use(r#use::Args),
+
     #[command(about = "Remove A Saved Profile And Clear Its Default Selection.")]
     Remove(remove::Args),
 }
@@ -57,6 +66,7 @@ pub(crate) enum Command {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Config {
     pub(super) fn store(&self) -> crate::Result<Store> {
         Ok(Store::discover(self.profiles_file.as_deref())?)
@@ -64,6 +74,7 @@ impl Config {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::Add(args) => add::run(args),

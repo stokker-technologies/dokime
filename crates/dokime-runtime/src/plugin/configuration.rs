@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -30,6 +31,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Secret(String);
 
@@ -37,8 +39,10 @@ pub struct Secret(String);
 pub struct Configuration {
     #[serde(default)]
     pub settings: BTreeMap<String, Value>,
+
     #[serde(default)]
     pub secrets: BTreeMap<String, Option<String>>,
+
     #[serde(default)]
     pub saved: BTreeSet<String>,
 }
@@ -48,6 +52,7 @@ pub struct Configuration {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Secret {
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())

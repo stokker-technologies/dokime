@@ -35,16 +35,19 @@ use tokio::sync::oneshot;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 // Bounds sealing one capture: stopping the device and storing its file.
 const SEAL_DEADLINE: Duration = Duration::from_secs(60);
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 // Asks a capture to seal now; it answers once its artifact is stored.
 pub(crate) type SealRequest = oneshot::Sender<oneshot::Sender<()>>;
 
 /* === Structs === */
+
 #[derive(Default)]
 pub(crate) struct Captures {
     open: Mutex<BTreeMap<TestExecutionId, Vec<(u64, SealRequest)>>>,
@@ -56,6 +59,7 @@ pub(crate) struct Captures {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Captures {
     pub(crate) fn register(&self, execution: &TestExecutionId, seal: SealRequest) -> u64 {
         let id = self.next.fetch_add(1, Ordering::Relaxed);

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -31,6 +32,7 @@ use syn::{Error, GenericArgument, ItemImpl, Meta, Path, PathArguments, Token, Ty
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Contributed {
     suites: Option<Type>,
@@ -39,13 +41,32 @@ struct Contributed {
     records: bool,
 }
 
+struct RequiredEntry {
+    path: Path,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl syn::parse::Parse for RequiredEntry {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+        let path: Path = input.parse()?;
+        if input.peek(Token![:]) {
+            let _: Token![:] = input.parse()?;
+            // The grants are forwarded untouched; only the operation is read.
+            while !input.is_empty() && !input.peek(Token![,]) {
+                let _: proc_macro2::TokenTree = input.parse()?;
+            }
+        }
+        Ok(Self { path })
+    }
+}
+
 /* === Public Functions === */
+
 pub(crate) fn plugin(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(expanded) => crate::facade::contracted(expanded),
@@ -57,6 +78,7 @@ pub(crate) fn plugin(attribute: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /* === Private Functions === */
+
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let block: ItemImpl = syn::parse2(item.clone())?;
@@ -278,24 +300,6 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
 
 fn last_ident(path: &Path) -> String {
     path.segments.last().map(|segment| segment.ident.to_string()).unwrap_or_default()
-}
-
-struct RequiredEntry {
-    path: Path,
-}
-
-impl syn::parse::Parse for RequiredEntry {
-    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
-        let path: Path = input.parse()?;
-        if input.peek(Token![:]) {
-            let _: Token![:] = input.parse()?;
-            // The grants are forwarded untouched; only the operation is read.
-            while !input.is_empty() && !input.peek(Token![,]) {
-                let _: proc_macro2::TokenTree = input.parse()?;
-            }
-        }
-        Ok(Self { path })
-    }
 }
 
 /* === Tests === */

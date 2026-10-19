@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::content::wire::{ArtifactChunk, ArtifactCompletion};
 
 /* === Constants === */
+
 pub const EVIDENCE_EXPORT_SCHEMA_VERSION: u32 = 1;
 pub const EVIDENCE_EXPORT_MAX_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 

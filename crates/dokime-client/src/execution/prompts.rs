@@ -39,6 +39,7 @@ use dokime_domain::model::values::wire::Value;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestExecutionHandle {
     pub async fn pending_prompts(&self) -> Result<ResponseStream<PromptInstance>> {
         self.prompt_cycle().await?.pending_for_execution(Some(self.id.clone()))

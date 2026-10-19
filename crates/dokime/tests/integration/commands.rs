@@ -44,7 +44,7 @@ use dokime_client::profiles::Store;
 /* === Tests === */
 
 #[test]
-fn execution_only_lifecycle_parser() {
+fn execution_lifecycle_parser() {
     for command in ["run", "stop", "request", "rerun"] {
         assert!(Cli::try_parse_from(["dokime", "cycle", command]).is_err());
     }
@@ -59,7 +59,7 @@ fn execution_only_lifecycle_parser() {
 }
 
 #[tokio::test]
-async fn interrupt_recovery_input_boundaries() {
+async fn interrupt_recovery_boundaries() {
     let execution = "00000000-0000-0000-0000-000000000001";
     let cycle = "00000000-0000-0000-0000-000000000002";
     let directory = tempfile::tempdir().unwrap();

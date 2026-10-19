@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
@@ -33,6 +34,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! native_map {
     ($name:ident, $entry:ident, $value:ty) => {
         #[harmos::message]
@@ -67,12 +69,15 @@ macro_rules! native_map {
         }
     };
 }
+
 native_map!(Parameters, ParameterEntry, Parameter);
+
 native_map!(Documents, DocumentEntry, templates::documents::Document);
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct PublicationCheck<'a> {
     pub source: &'a Revision,
     pub input: &'a FileReference,
@@ -291,6 +296,7 @@ struct TraceabilityRow {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Execution {
     pub fn is_sealed(&self) -> bool {
         self.saved.is_some()
@@ -1898,6 +1904,7 @@ impl Identified for Execution {
         (DefinitionId::new("dokime.object.execution"), 1)
     }
 }
+
 impl StoredObject for Execution {
     type Key = str;
     const RETENTION: ObjectRetention = ObjectRetention::UntilReleased;
@@ -1917,6 +1924,7 @@ impl Execution {
 }
 
 /* === Public Functions === */
+
 pub async fn read(storage: &Manager, id: &TestExecutionId, version: ObjectVersion) -> Result<Option<ObjectRevision<TestExecution>>> {
     let Some(stored) = storage.read_object::<Execution>(id.as_str(), version).await? else {
         return Ok(None);
@@ -1935,6 +1943,7 @@ pub async fn flush_seal(storage: &Manager, execution: &TestExecution, receipt: &
 }
 
 /* === Private Functions === */
+
 fn parameter_source(value: &crate::definition::ParameterSource) -> &'static str {
     match value {
         ParameterSource::Definition => "definition",
@@ -2133,4 +2142,5 @@ fn validate_attempts(source: &TestExecution) -> Result<()> {
     }
     Ok(())
 }
+
 /* === Tests === */

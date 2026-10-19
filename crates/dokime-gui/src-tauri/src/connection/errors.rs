@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -32,6 +33,7 @@ use super::{AdmissionIssue, ConnectionError};
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<dokime_client::Error> for ConnectionError {
     fn from(error: dokime_client::Error) -> Self {
         match error {
@@ -59,6 +61,7 @@ impl From<dokime_client::Error> for ConnectionError {
 }
 
 /* === Public Functions === */
+
 pub(super) fn invalid_target(message: &str) -> ConnectionError {
     ConnectionError::InvalidTarget { message: message.into() }
 }

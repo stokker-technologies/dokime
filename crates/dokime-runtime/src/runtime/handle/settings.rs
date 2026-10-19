@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, time::Duration};
+
 // Third Party Imports
 
 // Local Imports
@@ -27,6 +29,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const CREDENTIAL_READ_TIMEOUT: Duration = Duration::from_secs(5);
 
 /* === Macros === */
@@ -40,6 +43,7 @@ const CREDENTIAL_READ_TIMEOUT: Duration = Duration::from_secs(5);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub(crate) fn settings_snapshot(&self, plugin: &InstalledPlugin) -> Result<SettingValues> {
         self.resolved_settings(plugin).map(|resolved| resolved.0)
@@ -70,6 +74,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn resolved_secrets(
     catalog: &Settings, values: &SettingValues, credentials: &CredentialStore,
 ) -> Result<BTreeMap<String, Option<String>>> {

@@ -28,12 +28,15 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     config: super::Config,
+
     #[arg(help = "Saved Backend Profile Name.")]
     name: String,
+
     #[arg(long, help = "Emit The Saved Profile Configuration As JSON.")]
     json: bool,
 }
@@ -45,6 +48,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn run(args: Args) -> crate::Result<()> {
     let document = args.config.store()?.load()?;
     let profile = document.get(&args.name)?;

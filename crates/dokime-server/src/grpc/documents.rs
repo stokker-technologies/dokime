@@ -8,17 +8,21 @@
  */
 
 /* === Modules === */
+
 mod wire;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
+
 // Local Imports
 use super::value;
 use dokime_domain::model::identity::DocumentId;
@@ -35,21 +39,26 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Capture {
     resources: Arc<Resources>,
 }
+
 struct UpdatePlotSettings {
     resources: Arc<Resources>,
 }
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Capture {
     type Declaration = contract::CaptureCurrentDocument;
     type Resources = Resources;
@@ -129,6 +138,7 @@ impl Operation for UpdatePlotSettings {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
     runtime.operations().register_wire_operation::<Capture>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -137,6 +147,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
 fn owner(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
     let cycle = TestCycleId::from_uuid(scope.cycle_id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
@@ -153,6 +164,7 @@ fn scope(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) ->
     let execution = TestExecutionId::from_uuid(scope.execution_id).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     Ok((cycle, execution))
 }
+
 fn failure(error: harmos::Error) -> Status {
     let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
         Status::resource_exhausted("document admission failed")

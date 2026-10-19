@@ -8,24 +8,29 @@
  */
 
 /* === Modules === */
+
 mod artifacts;
 mod commands;
 pub(crate) mod host;
 mod session;
 
 /* === Re-Exports === */
+
 pub(crate) use host::Sessions;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
     sync::Arc,
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use harmos::Message;
 use harmos::operations::OperationManager;
+
 // Local Imports
 use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 use crate::definition::{CriterionDefinition, TestCase};
@@ -51,6 +56,7 @@ use dokime_domain::model::values::Value;
 use session::Session;
 
 /* === Constants === */
+
 const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 const STOP_SETTLEMENT: Duration = Duration::from_secs(30);
 const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
@@ -60,6 +66,7 @@ const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct TemplateRunExecutor;
 
@@ -133,6 +140,7 @@ struct ProgressCleanup {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug)]
 enum DropReason {
     Abandoned,
@@ -142,6 +150,7 @@ enum DropReason {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFixture for TemplateRunExecutor {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, target: &'a ExecutionProviderTarget,
@@ -565,7 +574,19 @@ impl DropReason {
 
 /* === Public Functions === */
 
+pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in: Option<&str>) -> Vec<ProviderPhaseOutcome> {
+    let Some(stage) = failed_in else {
+        return phases;
+    };
+    if phases.iter().any(|phase| phase.identifier == stage) {
+        return phases;
+    }
+    phases.push(ProviderPhaseOutcome { identifier: stage.to_owned(), label: phase_label(stage), status: "failed".to_owned() });
+    phases
+}
+
 /* === Private Functions === */
+
 #[allow(clippy::too_many_arguments)]
 async fn execute_case(
     context: &ExecutionFixtureContext, cycle: &CycleView, case: &TestCase, execution: &TestExecution, workflow: &str, source: &str,
@@ -862,17 +883,6 @@ async fn run_sidecar_cycle(
         executions,
         failures,
     })
-}
-
-pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in: Option<&str>) -> Vec<ProviderPhaseOutcome> {
-    let Some(stage) = failed_in else {
-        return phases;
-    };
-    if phases.iter().any(|phase| phase.identifier == stage) {
-        return phases;
-    }
-    phases.push(ProviderPhaseOutcome { identifier: stage.to_owned(), label: phase_label(stage), status: "failed".to_owned() });
-    phases
 }
 
 fn admit_prompt(declared: &[crate::prompts::PromptDefinition], prompt: &PromptRequest) -> Result<(), ProviderExecutionFailure> {

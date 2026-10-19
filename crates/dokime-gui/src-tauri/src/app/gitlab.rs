@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 // ***
 
@@ -29,6 +30,7 @@
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
 // Third Party Imports
 use anyhow::{Context, Result, anyhow};
 use base64::Engine;
@@ -50,9 +52,11 @@ use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::oneshot;
 use tokio::time::timeout;
 use url::Url;
+
 // Local Imports
 
 /* === Constants === */
+
 const CALLBACK_SCHEME: &str = "dokime-test-hub";
 const CALLBACK_HOST: &str = "auth";
 const CALLBACK_PATH: &str = "/gitlab/callback";
@@ -71,6 +75,7 @@ const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(180);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct GitlabDesktopState {
     inner: Arc<GitlabDesktopStateInner>,
@@ -85,8 +90,10 @@ struct GitlabDesktopStateInner {
 struct GitlabConfig {
     client_id: String,
     gitlab_host: String,
+
     #[cfg(feature = "updater")]
     project_id: String,
+
     redirect_uri: String,
 }
 
@@ -159,6 +166,7 @@ struct GitlabReleaseLink {
 }
 
 /* === Enums === */
+
 #[cfg_attr(not(feature = "updater"), allow(dead_code))]
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -172,6 +180,7 @@ pub enum GitlabUpdateStatus {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl GitlabDesktopState {
     fn from_app(app: &App) -> Self {
         Self { inner: Arc::new(GitlabDesktopStateInner { config: GitlabConfig::from_app(app), pending_auth: Mutex::new(None) }) }
@@ -487,6 +496,7 @@ impl GitlabConfig {
 }
 
 /* === Public Functions === */
+
 pub fn setup(app: &mut App) -> Result<(), Box<dyn Error>> {
     let state = GitlabDesktopState::from_app(app);
     app.manage(state.clone());
@@ -553,6 +563,7 @@ pub async fn gitlab_install_update(app: AppHandle, state: State<'_, GitlabDeskto
 }
 
 /* === Private Functions === */
+
 #[cfg(not(feature = "updater"))]
 fn distribution_managed_update<T>() -> Result<T, String> {
     Err("Desktop updates are managed by the cargo-dokime distribution; reinstall that distribution to update this payload.".into())

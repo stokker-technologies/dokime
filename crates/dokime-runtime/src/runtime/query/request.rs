@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::DocumentId;
@@ -30,6 +32,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RuntimeCursor(pub u64);
@@ -38,14 +41,17 @@ pub struct RuntimeCursor(pub u64);
 pub struct RuntimeViewQuery {
     #[serde(default)]
     pub scope: Option<RecordScope>,
+
     pub topic: RuntimeViewTopic,
     pub window: RuntimeWindow,
     pub resolution: RuntimeResolution,
+
     #[serde(default)]
     pub cursor: Option<RuntimeCursor>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RuntimeWindow {

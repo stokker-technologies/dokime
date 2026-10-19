@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote, quote_spanned};
@@ -21,16 +23,15 @@ use syn::ext::IdentExt;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Error, Expr, Ident, LitStr, Meta, Token, Type};
+
 // Local Imports
 use crate::arguments::Shape;
 
 /* === Constants === */
+
 const SECTION_ARGUMENTS: &[&str] = &["label", "description", "status"];
-
 const FIELD_ARGUMENTS: &[&str] = &["label", "description", "default", "min", "max", "step", "from_environment", "options", "discovered"];
-
 const FIELD_FLAGS: &[&str] = &["secret"];
-
 const NUMBERS: &[&str] = &["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "f32", "f64"];
 
 /* === Macros === */
@@ -38,6 +39,7 @@ const NUMBERS: &[&str] = &["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct SettingDeclaration {
     described: TokenStream,
     name: Ident,
@@ -65,6 +67,7 @@ struct FieldArguments {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Boolean,
@@ -78,6 +81,7 @@ enum Kind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Kind {
     fn named(self) -> &'static str {
         match self {
@@ -92,6 +96,7 @@ impl Kind {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn section(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -115,6 +120,7 @@ pub(crate) fn settings(attribute: TokenStream, item: TokenStream) -> TokenStream
 }
 
 /* === Private Functions === */
+
 fn aggregate(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     crate::arguments::Arguments::read(attribute, "a settings aggregate", &[])?;

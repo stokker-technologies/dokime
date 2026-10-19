@@ -26,7 +26,6 @@ from ..operation import Operation
 from .errors import ProtocolError
 
 # Type Checking Imports
-
 if TYPE_CHECKING:
     from google._upb._message import Descriptor as UpbDescriptor
 

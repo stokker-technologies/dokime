@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use clap::Parser;
+
 // Local Imports
 
 /* === Constants === */
@@ -25,11 +27,13 @@ use clap::Parser;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Parser)]
 #[command(name = "cargo dokime", version, about = "Build, develop and inspect Dokime plugins")]
 pub struct Cli {
     #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime::terminal::ColorMode), help = "Color output: auto, always, or never.")]
     pub color: dokime::terminal::ColorMode,
+
     #[command(subcommand)]
     pub command: crate::commands::Command,
 }

@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::cmp::Ordering;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::state::RuntimeState;
 use dokime_domain::model::execution::result::CycleStatus;
@@ -29,6 +32,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CycleFilter {
     pub text: String,
@@ -45,11 +49,13 @@ pub struct CycleOrder {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleOrderKey {
     #[default]
     UpdatedAt,
+
     CreatedAt,
     Label,
 }
@@ -62,6 +68,7 @@ pub enum CyclePageError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl std::fmt::Display for CyclePageError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -73,6 +80,7 @@ impl std::fmt::Display for CyclePageError {
 }
 
 /* === Public Functions === */
+
 pub fn select_cycles<'a>(state: &'a RuntimeState, filter: &CycleFilter, order: CycleOrder) -> Vec<&'a TestCycle> {
     let mut selected: Vec<&TestCycle> = state.cycles.values().filter(|cycle| matches_filter(state, cycle, filter)).collect();
     selected.sort_by(|left, right| compare(left, right, order));
@@ -92,6 +100,7 @@ pub fn cycle_page<'a>(
 }
 
 /* === Private Functions === */
+
 fn matches_filter(state: &RuntimeState, cycle: &TestCycle, filter: &CycleFilter) -> bool {
     if !filter.archive.admits(state.archived_cycles.contains(&cycle.test_cycle_id)) {
         return false;

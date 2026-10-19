@@ -16,10 +16,10 @@
 // Standard Library Imports
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 
 // Local Imports
 use super::super::value::{Budget, canonical};
+use crate::grpc::transcode::Transcode;
 use dokime_runtime::runtime::query::aggregate::AggregateOutcome;
 
 /* === Constants === */
@@ -37,6 +37,7 @@ use dokime_runtime::runtime::query::aggregate::AggregateOutcome;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Result<dokime_domain::model::query::wire::AggregateReply> {
     for column in &outcome.columns {
         super::super::value::text(column).map_err(failure)?;
@@ -62,9 +63,11 @@ pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Res
 }
 
 /* === Private Functions === */
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "canonical aggregate response" }
 }
+
 fn failure(error: tonic::Status) -> harmos::Error {
     if error.code() == tonic::Code::ResourceExhausted {
         return exhausted();

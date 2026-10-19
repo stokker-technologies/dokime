@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use crate::grpc::history::document::canonical::wire as document_wire;
 use crate::grpc::{
@@ -28,6 +31,7 @@ use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource, TestCase};
+
 /* === Constants === */
 
 /* === Macros === */
@@ -43,6 +47,7 @@ use dokime_runtime::definition::{MaterializedParameter, ParameterSource, TestCas
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn execution_document(
     value: dokime_runtime::execution::storage::ExecutionDocument,
 ) -> Result<dokime_domain::model::history::wire::HistoricalExecutionDocument, Status> {
@@ -54,6 +59,8 @@ pub(super) fn execution_document(
         execution: Some(test_execution(value.execution)?),
     })
 }
+
+/* === Private Functions === */
 
 fn test_execution(value: TestExecution) -> Result<dokime_domain::model::history::wire::HistoricalTestExecution, Status> {
     let snapshot = execution_snapshot(value.snapshot, &value.scope)?;
@@ -296,7 +303,6 @@ fn execution_status(value: ExecutionStatus) -> dokime_domain::model::execution::
     }
 }
 
-/* === Private Functions === */
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
     let mut target = value::projection::slots(source.len()).map_err(construction_failure)?;
     for item in source {
@@ -304,14 +310,17 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     }
     Ok(target)
 }
+
 fn canonical_metadata(source: &dokime_domain::model::identity::Metadata) -> Result<dokime_domain::model::identity::wire::Metadata, Status> {
     canonical::metadata(source)
 }
+
 fn projected_value(
     source: &dokime_domain::model::values::Value, budget: &mut value::Budget, depth: usize,
 ) -> Result<dokime_domain::model::values::wire::Value, Status> {
     canonical::encode(source, budget, depth)
 }
+
 fn construction_failure(source: harmos::Error) -> Status {
     super::super::wire::checkpoint_failure(source.into())
 }

@@ -12,16 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{self, projection};
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::content as wire;
@@ -29,6 +30,7 @@ use dokime_runtime::ExecutionFileEntry;
 use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
+
 const INVENTORY_LIMIT: usize = 512;
 
 /* === Macros === */
@@ -36,13 +38,16 @@ const INVENTORY_LIMIT: usize = 512;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct List {
     resources: Arc<Resources>,
 }
+
 struct Count {
     after: usize,
     returned: usize,
@@ -54,6 +59,7 @@ struct Count {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for List {
     type Declaration = wire::ListExecutionFiles;
     type Resources = Resources;
@@ -87,6 +93,7 @@ impl Operation for List {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
@@ -97,6 +104,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn project(
     entries: &[ExecutionFileEntry], id: &TestExecutionId, epoch: &str, request: &wire::ListExecutionFiles, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::content::wire::ListExecutionFilesReply> {
@@ -137,6 +145,7 @@ fn project(
     }
     Ok(page)
 }
+
 fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> harmos::Result<Count> {
     if entries.len() > INVENTORY_LIMIT {
         return Err(exhausted());
@@ -164,6 +173,7 @@ fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> 
     }
     Ok(Count { after, returned, more })
 }
+
 fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileMetadata> {
     Ok(dokime_domain::model::content::wire::ExecutionFileMetadata {
         relative_path: projection::text(&entry.relative_path)?,
@@ -174,6 +184,7 @@ fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<dokime_domain::model::
         created_at: Some(timestamp(entry)?),
     })
 }
+
 fn timestamp(entry: &ExecutionFileEntry) -> harmos::Result<dokime_domain::model::identity::wire::Timestamp> {
     let at = time::OffsetDateTime::parse(entry.updated_at.as_str(), &time::format_description::well_known::Rfc3339)
         .map_err(|source| harmos::Error::backend("parse original output creation time", harmos::BackendFailure::Corrupt, source))?;

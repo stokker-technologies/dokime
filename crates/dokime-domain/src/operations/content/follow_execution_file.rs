@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = (), output = ExecutionFileFollowFrame, id = "dokime.content.follow_execution_file", version = 1,
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
@@ -37,6 +40,7 @@ pub struct FollowExecutionFile {
     pub relative_path: String,
     pub identity: Option<ExecutionFileIdentity>,
     pub offset: u64,
+
     // Defaults to 64 KiB; must not exceed 64 KiB.
     #[row(description = "Defaults to 64 KiB; must not exceed 64 KiB.")]
     pub max_bytes: u32,

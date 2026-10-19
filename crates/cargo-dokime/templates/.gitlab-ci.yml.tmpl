@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:263bb127c793ce58e5f02c24ff4cdb3fe414d88280f589b9d82cf6083dd6e37e
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:559e20a6b17eff258a2d118bc8a5ef05062220a3508e88ecd7c9f6a7eaee081a
 stages:
 - Check
 - Build
@@ -189,9 +189,12 @@ Build / Product / Dev (linux):
     project_tools.test.prune start
   - mise run build --profile dev
   - |-
+    native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile dev)"
+    native="${native##*/}"
     mkdir -p target/ci
+    candidates=("target/build/dev/${native}/" "target/build/dev/any/" "target/generated/")
     outputs=()
-    for path in target/build/dev/ target/generated/; do
+    for path in "${candidates[@]}"; do
       if [ -e "$path" ]; then outputs+=("$path"); fi
     done
     [ ${#outputs[@]} -gt 0 ]
@@ -273,13 +276,28 @@ Build / Tests / Dev (linux):
   - tar --zstd -xf "target/ci/build-product-dev-linux.tar.zst"
   - mise run build:tests --profile dev
   - |-
+    native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile dev)"
+    native="${native##*/}"
     mkdir -p target/ci
+    candidates=("target/build/dev/${native}/tests")
     outputs=()
-    for path in target/build/dev/*/tests target/build/dev/*/fixtures; do
+    for path in "${candidates[@]}"; do
       if [ -e "$path" ]; then outputs+=("$path"); fi
     done
     [ ${#outputs[@]} -gt 0 ]
     tar --zstd -cf "target/ci/build-tests-dev-linux.tar.zst"  -- "${outputs[@]}"
+  - |-
+    native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile dev)"
+    native="${native##*/}"
+    mkdir -p "target/build/dev/${native}/fixtures"
+    mkdir -p target/ci
+    candidates=("target/build/dev/${native}/fixtures")
+    outputs=()
+    for path in "${candidates[@]}"; do
+      if [ -e "$path" ]; then outputs+=("$path"); fi
+    done
+    [ ${#outputs[@]} -gt 0 ]
+    tar --zstd -cf "target/ci/build-fixtures-dev-linux.tar.zst"  -- "${outputs[@]}"
   rules:
   - if: >-
       ($CI_PIPELINE_SOURCE == "merge_request_event") && ($CI_COMMIT_BRANCH == "dev"
@@ -334,6 +352,7 @@ Build / Tests / Dev (linux):
     expire_in: 7 days
     paths:
     - target/ci/build-tests-dev-linux.tar.zst
+    - target/ci/build-fixtures-dev-linux.tar.zst
   after_script:
   - >-
     mise exec -- uv run --locked --project tools/python python -m
@@ -354,9 +373,12 @@ Build / Product / Release (linux):
     project_tools.test.prune start
   - mise run build --profile release
   - |-
+    native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile release)"
+    native="${native##*/}"
     mkdir -p target/ci
+    candidates=("target/build/release/${native}/" "target/build/release/any/" "target/generated/")
     outputs=()
-    for path in target/build/release/ target/generated/; do
+    for path in "${candidates[@]}"; do
       if [ -e "$path" ]; then outputs+=("$path"); fi
     done
     [ ${#outputs[@]} -gt 0 ]
@@ -424,13 +446,28 @@ Build / Tests / Release (linux):
   - tar --zstd -xf "target/ci/build-product-release-linux.tar.zst"
   - mise run build:tests --profile release
   - |-
+    native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile release)"
+    native="${native##*/}"
     mkdir -p target/ci
+    candidates=("target/build/release/${native}/tests")
     outputs=()
-    for path in target/build/release/*/tests target/build/release/*/fixtures; do
+    for path in "${candidates[@]}"; do
       if [ -e "$path" ]; then outputs+=("$path"); fi
     done
     [ ${#outputs[@]} -gt 0 ]
     tar --zstd -cf "target/ci/build-tests-release-linux.tar.zst"  -- "${outputs[@]}"
+  - |-
+    native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile release)"
+    native="${native##*/}"
+    mkdir -p "target/build/release/${native}/fixtures"
+    mkdir -p target/ci
+    candidates=("target/build/release/${native}/fixtures")
+    outputs=()
+    for path in "${candidates[@]}"; do
+      if [ -e "$path" ]; then outputs+=("$path"); fi
+    done
+    [ ${#outputs[@]} -gt 0 ]
+    tar --zstd -cf "target/ci/build-fixtures-release-linux.tar.zst"  -- "${outputs[@]}"
   rules:
   - if: >-
       ($CI_COMMIT_TAG =~ /^v[0-9]/) && ($CI_COMMIT_BRANCH == "dev" ||
@@ -471,6 +508,7 @@ Build / Tests / Release (linux):
     expire_in: 7 days
     paths:
     - target/ci/build-tests-release-linux.tar.zst
+    - target/ci/build-fixtures-release-linux.tar.zst
   after_script:
   - >-
     mise exec -- uv run --locked --project tools/python python -m
@@ -486,14 +524,11 @@ Validate / Unit / Rust (linux):
   timeout: 30 minutes
   needs: []
   script:
-  - tar --zstd -xf "target/ci/build-product-$PROFILE-linux.tar.zst"
   - tar --zstd -xf "target/ci/build-tests-$PROFILE-linux.tar.zst"
   - mise run test:unit:rust --profile $PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
     - job: Build / Tests / Dev (linux)
       artifacts: true
     variables:
@@ -502,35 +537,30 @@ Validate / Unit / Rust (linux):
       $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~
       /^(dev|main|release\/v.*)$/
     needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
     - job: Build / Tests / Dev (linux)
       artifacts: true
     variables:
       PROFILE: dev
   - if: $CI_PIPELINE_SOURCE == "schedule"
     needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
     - job: Build / Tests / Dev (linux)
       artifacts: true
     variables:
       PROFILE: dev
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/
     needs:
-    - job: Build / Product / Release (linux)
-      artifacts: true
     - job: Build / Tests / Release (linux)
       artifacts: true
     variables:
       PROFILE: release
   artifacts:
+    name: reports-$PROFILE-linux-unit-rust
     when: always
     expire_in: 7 days
     paths:
-    - target/tests/$PROFILE/
+    - target/tests/$PROFILE/linux-*/unit-rust/
     reports:
-      junit: target/tests/$PROFILE/**/junit.xml
+      junit: target/tests/$PROFILE/linux-*/unit-rust/junit.xml
   cache:
   - key:
       prefix: linux-tools
@@ -557,14 +587,12 @@ Validate / Integration / Rust (linux):
   timeout: 30 minutes
   needs: []
   script:
-  - tar --zstd -xf "target/ci/build-product-$PROFILE-linux.tar.zst"
+  - tar --zstd -xf "target/ci/build-fixtures-$PROFILE-linux.tar.zst"
   - tar --zstd -xf "target/ci/build-tests-$PROFILE-linux.tar.zst"
   - mise run test:integration:rust --profile $PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
     - job: Build / Tests / Dev (linux)
       artifacts: true
     variables:
@@ -573,106 +601,30 @@ Validate / Integration / Rust (linux):
       $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~
       /^(dev|main|release\/v.*)$/
     needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
     - job: Build / Tests / Dev (linux)
       artifacts: true
     variables:
       PROFILE: dev
   - if: $CI_PIPELINE_SOURCE == "schedule"
     needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
     - job: Build / Tests / Dev (linux)
       artifacts: true
     variables:
       PROFILE: dev
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/
     needs:
-    - job: Build / Product / Release (linux)
-      artifacts: true
     - job: Build / Tests / Release (linux)
       artifacts: true
     variables:
       PROFILE: release
   artifacts:
+    name: reports-$PROFILE-linux-integration-rust
     when: always
     expire_in: 7 days
     paths:
-    - target/tests/$PROFILE/
+    - target/tests/$PROFILE/linux-*/integration-rust/
     reports:
-      junit: target/tests/$PROFILE/**/junit.xml
-  cache:
-  - key:
-      prefix: linux-tools
-      files:
-      - mise.lock
-    paths:
-    - .cache/mise/
-    policy: pull-push
-  - key:
-      prefix: linux-cargo
-      files:
-      - Cargo.lock
-    paths:
-    - .cache/cargo/registry/
-    - .cache/cargo/git/
-    policy: pull
-  variables:
-    MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
-Validate / Acceptance / Rust (linux):
-  stage: Validate
-  tags:
-  - saas-linux-medium-amd64
-  timeout: 30 minutes
-  needs: []
-  script:
-  - tar --zstd -xf "target/ci/build-product-$PROFILE-linux.tar.zst"
-  - tar --zstd -xf "target/ci/build-tests-$PROFILE-linux.tar.zst"
-  - mise run test:acceptance:rust --profile $PROFILE
-  rules:
-  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
-    - job: Build / Tests / Dev (linux)
-      artifacts: true
-    variables:
-      PROFILE: dev
-  - if: >-
-      $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~
-      /^(dev|main|release\/v.*)$/
-    needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
-    - job: Build / Tests / Dev (linux)
-      artifacts: true
-    variables:
-      PROFILE: dev
-  - if: $CI_PIPELINE_SOURCE == "schedule"
-    needs:
-    - job: Build / Product / Dev (linux)
-      artifacts: true
-    - job: Build / Tests / Dev (linux)
-      artifacts: true
-    variables:
-      PROFILE: dev
-  - if: $CI_COMMIT_TAG =~ /^v[0-9]/
-    needs:
-    - job: Build / Product / Release (linux)
-      artifacts: true
-    - job: Build / Tests / Release (linux)
-      artifacts: true
-    variables:
-      PROFILE: release
-  artifacts:
-    when: always
-    expire_in: 7 days
-    paths:
-    - target/tests/$PROFILE/
-    reports:
-      junit: target/tests/$PROFILE/**/junit.xml
+      junit: target/tests/$PROFILE/linux-*/integration-rust/junit.xml
   cache:
   - key:
       prefix: linux-tools
@@ -712,8 +664,6 @@ Package / Rust (linux):
       artifacts: false
     - job: Validate / Integration / Rust (linux)
       artifacts: false
-    - job: Validate / Acceptance / Rust (linux)
-      artifacts: false
     - job: Build / Product / Dev (linux)
       artifacts: true
     variables:
@@ -727,8 +677,6 @@ Package / Rust (linux):
     - job: Validate / Unit / Rust (linux)
       artifacts: false
     - job: Validate / Integration / Rust (linux)
-      artifacts: false
-    - job: Validate / Acceptance / Rust (linux)
       artifacts: false
     - job: Build / Product / Dev (linux)
       artifacts: true
@@ -744,17 +692,15 @@ Package / Rust (linux):
       artifacts: false
     - job: Validate / Integration / Rust (linux)
       artifacts: false
-    - job: Validate / Acceptance / Rust (linux)
-      artifacts: false
     - job: Build / Product / Release (linux)
       artifacts: true
     variables:
       PROFILE: release
   artifacts:
+    name: package-$PROFILE-rust-linux-*
     expire_in: 7 days
     paths:
-    - target/package/$PROFILE/
-    - target/release-assets/
+    - target/package/$PROFILE/linux-*/rust/
   cache:
   - key:
       prefix: linux-tools
@@ -868,8 +814,10 @@ Build / Product / Dev (windows):
     project_tools.test.prune start
   - mise run build --profile dev
   - |-
+    $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile dev)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     New-Item -ItemType Directory -Force target/ci | Out-Null
-    $outputs = @('target/build/dev/', 'target/generated/') | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+    [string[]]$outputs = @("target/build/dev/${native}/", "target/build/dev/any/", "target/generated/") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
     if (!$outputs) { throw 'No build outputs found' }
     & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-product-dev-windows.tar.zst" --force-local --use-compress-program "zstd -T0" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- @outputs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -955,10 +903,21 @@ Build / Tests / Dev (windows):
   - tar --zstd -xf "target/ci/build-product-dev-windows.tar.zst"
   - mise run build:tests --profile dev
   - |-
+    $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile dev)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     New-Item -ItemType Directory -Force target/ci | Out-Null
-    $outputs = @('target/build/dev/*/tests', 'target/build/dev/*/fixtures') | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+    [string[]]$outputs = @("target/build/dev/${native}/tests") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
     if (!$outputs) { throw 'No build outputs found' }
     & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-tests-dev-windows.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  - |-
+    $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile dev)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    New-Item -ItemType Directory -Force "target/build/dev/${native}/fixtures" | Out-Null
+    New-Item -ItemType Directory -Force target/ci | Out-Null
+    [string[]]$outputs = @("target/build/dev/${native}/fixtures") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
+    if (!$outputs) { throw 'No build outputs found' }
+    & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-fixtures-dev-windows.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   rules:
   - if: >-
@@ -1014,6 +973,7 @@ Build / Tests / Dev (windows):
     expire_in: 7 days
     paths:
     - target/ci/build-tests-dev-windows.tar.zst
+    - target/ci/build-fixtures-dev-windows.tar.zst
   inherit:
     default: false
   before_script:
@@ -1039,8 +999,10 @@ Build / Product / Release (windows):
     project_tools.test.prune start
   - mise run build --profile release
   - |-
+    $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile release)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     New-Item -ItemType Directory -Force target/ci | Out-Null
-    $outputs = @('target/build/release/', 'target/generated/') | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+    [string[]]$outputs = @("target/build/release/${native}/", "target/build/release/any/", "target/generated/") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
     if (!$outputs) { throw 'No build outputs found' }
     & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-product-release-windows.tar.zst" --force-local --use-compress-program "zstd -T0" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- @outputs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -1112,10 +1074,21 @@ Build / Tests / Release (windows):
   - tar --zstd -xf "target/ci/build-product-release-windows.tar.zst"
   - mise run build:tests --profile release
   - |-
+    $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile release)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     New-Item -ItemType Directory -Force target/ci | Out-Null
-    $outputs = @('target/build/release/*/tests', 'target/build/release/*/fixtures') | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+    [string[]]$outputs = @("target/build/release/${native}/tests") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
     if (!$outputs) { throw 'No build outputs found' }
     & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-tests-release-windows.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  - |-
+    $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile release)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    New-Item -ItemType Directory -Force "target/build/release/${native}/fixtures" | Out-Null
+    New-Item -ItemType Directory -Force target/ci | Out-Null
+    [string[]]$outputs = @("target/build/release/${native}/fixtures") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
+    if (!$outputs) { throw 'No build outputs found' }
+    & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-fixtures-release-windows.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   rules:
   - if: >-
@@ -1157,6 +1130,7 @@ Build / Tests / Release (windows):
     expire_in: 7 days
     paths:
     - target/ci/build-tests-release-windows.tar.zst
+    - target/ci/build-fixtures-release-windows.tar.zst
   inherit:
     default: false
   before_script:
@@ -1177,14 +1151,11 @@ Validate / Unit / Rust (windows):
   timeout: 30 minutes
   needs: []
   script:
-  - tar --zstd -xf "target/ci/build-product-$env:PROFILE-windows.tar.zst"
   - tar --zstd -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst"
   - mise run test:unit:rust --profile $env:PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
     - job: Build / Tests / Dev (windows)
       artifacts: true
     variables:
@@ -1193,35 +1164,30 @@ Validate / Unit / Rust (windows):
       $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~
       /^(dev|main|release\/v.*)$/
     needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
     - job: Build / Tests / Dev (windows)
       artifacts: true
     variables:
       PROFILE: dev
   - if: $CI_PIPELINE_SOURCE == "schedule"
     needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
     - job: Build / Tests / Dev (windows)
       artifacts: true
     variables:
       PROFILE: dev
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/
     needs:
-    - job: Build / Product / Release (windows)
-      artifacts: true
     - job: Build / Tests / Release (windows)
       artifacts: true
     variables:
       PROFILE: release
   artifacts:
+    name: reports-$PROFILE-windows-unit-rust
     when: always
     expire_in: 7 days
     paths:
-    - target/tests/$PROFILE/
+    - target/tests/$PROFILE/windows-*/unit-rust/
     reports:
-      junit: target/tests/$PROFILE/**/junit.xml
+      junit: target/tests/$PROFILE/windows-*/unit-rust/junit.xml
   inherit:
     default: false
   before_script:
@@ -1253,14 +1219,12 @@ Validate / Integration / Rust (windows):
   timeout: 30 minutes
   needs: []
   script:
-  - tar --zstd -xf "target/ci/build-product-$env:PROFILE-windows.tar.zst"
+  - tar --zstd -xf "target/ci/build-fixtures-$env:PROFILE-windows.tar.zst"
   - tar --zstd -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst"
   - mise run test:integration:rust --profile $env:PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
     - job: Build / Tests / Dev (windows)
       artifacts: true
     variables:
@@ -1269,111 +1233,30 @@ Validate / Integration / Rust (windows):
       $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~
       /^(dev|main|release\/v.*)$/
     needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
     - job: Build / Tests / Dev (windows)
       artifacts: true
     variables:
       PROFILE: dev
   - if: $CI_PIPELINE_SOURCE == "schedule"
     needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
     - job: Build / Tests / Dev (windows)
       artifacts: true
     variables:
       PROFILE: dev
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/
     needs:
-    - job: Build / Product / Release (windows)
-      artifacts: true
     - job: Build / Tests / Release (windows)
       artifacts: true
     variables:
       PROFILE: release
   artifacts:
+    name: reports-$PROFILE-windows-integration-rust
     when: always
     expire_in: 7 days
     paths:
-    - target/tests/$PROFILE/
+    - target/tests/$PROFILE/windows-*/integration-rust/
     reports:
-      junit: target/tests/$PROFILE/**/junit.xml
-  inherit:
-    default: false
-  before_script:
-  - mise trust --yes
-  - mise install --yes
-  cache:
-  - key:
-      prefix: windows-tools
-      files:
-      - mise.lock
-    paths:
-    - .cache/mise/
-    policy: pull-push
-  - key:
-      prefix: windows-cargo
-      files:
-      - Cargo.lock
-    paths:
-    - .cache/cargo/registry/
-    - .cache/cargo/git/
-    policy: pull
-  variables:
-    MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
-Validate / Acceptance / Rust (windows):
-  stage: Validate
-  tags:
-  - saas-windows-medium-amd64
-  timeout: 30 minutes
-  needs: []
-  script:
-  - tar --zstd -xf "target/ci/build-product-$env:PROFILE-windows.tar.zst"
-  - tar --zstd -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst"
-  - mise run test:acceptance:rust --profile $env:PROFILE
-  rules:
-  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
-    - job: Build / Tests / Dev (windows)
-      artifacts: true
-    variables:
-      PROFILE: dev
-  - if: >-
-      $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~
-      /^(dev|main|release\/v.*)$/
-    needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
-    - job: Build / Tests / Dev (windows)
-      artifacts: true
-    variables:
-      PROFILE: dev
-  - if: $CI_PIPELINE_SOURCE == "schedule"
-    needs:
-    - job: Build / Product / Dev (windows)
-      artifacts: true
-    - job: Build / Tests / Dev (windows)
-      artifacts: true
-    variables:
-      PROFILE: dev
-  - if: $CI_COMMIT_TAG =~ /^v[0-9]/
-    needs:
-    - job: Build / Product / Release (windows)
-      artifacts: true
-    - job: Build / Tests / Release (windows)
-      artifacts: true
-    variables:
-      PROFILE: release
-  artifacts:
-    when: always
-    expire_in: 7 days
-    paths:
-    - target/tests/$PROFILE/
-    reports:
-      junit: target/tests/$PROFILE/**/junit.xml
+      junit: target/tests/$PROFILE/windows-*/integration-rust/junit.xml
   inherit:
     default: false
   before_script:
@@ -1418,8 +1301,6 @@ Package / Rust (windows):
       artifacts: false
     - job: Validate / Integration / Rust (windows)
       artifacts: false
-    - job: Validate / Acceptance / Rust (windows)
-      artifacts: false
     - job: Build / Product / Dev (windows)
       artifacts: true
     variables:
@@ -1433,8 +1314,6 @@ Package / Rust (windows):
     - job: Validate / Unit / Rust (windows)
       artifacts: false
     - job: Validate / Integration / Rust (windows)
-      artifacts: false
-    - job: Validate / Acceptance / Rust (windows)
       artifacts: false
     - job: Build / Product / Dev (windows)
       artifacts: true
@@ -1450,17 +1329,15 @@ Package / Rust (windows):
       artifacts: false
     - job: Validate / Integration / Rust (windows)
       artifacts: false
-    - job: Validate / Acceptance / Rust (windows)
-      artifacts: false
     - job: Build / Product / Release (windows)
       artifacts: true
     variables:
       PROFILE: release
   artifacts:
+    name: package-$PROFILE-rust-windows-*
     expire_in: 7 days
     paths:
-    - target/package/$PROFILE/
-    - target/release-assets/
+    - target/package/$PROFILE/windows-*/rust/
   inherit:
     default: false
   before_script:
@@ -1529,6 +1406,9 @@ Publish / Release:
       aud: pypi
     CRATES_IO_ID_TOKEN:
       aud: crates.io
+  dependencies:
+  - Package / Rust (linux)
+  - Package / Rust (windows)
   cache:
   - key:
       prefix: linux-tools
@@ -1559,7 +1439,13 @@ Validate / Coverage:
   script:
   - tar --zstd -xf "target/ci/build-product-dev-linux.tar.zst"
   - tar --zstd -xf "target/ci/build-tests-dev-linux.tar.zst"
+  - tar --zstd -xf "target/ci/build-fixtures-dev-linux.tar.zst"
   - mise run test:coverage --profile dev
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+    - target/tests/dev/linux-*/coverage/
   rules:
   - if: $CI_PIPELINE_SOURCE == "schedule"
   cache:

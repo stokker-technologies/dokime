@@ -24,8 +24,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use time::OffsetDateTime;
 use tracing::field::{Field, Visit};
@@ -33,23 +35,19 @@ use tracing::span::{Attributes, Id, Record};
 use tracing::{Event as TracingEvent, Subscriber};
 use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
+
 // Local Imports
 use super::journal::{Event, Journal};
 use crate::grpc::redaction;
 
 /* === Constants === */
+
 pub const WATCH_SPAN: &str = "dokime.trace.watch";
-
 const MAX_MESSAGE_BYTES: usize = 8 * 1024;
-
 const MAX_VALUE_BYTES: usize = 1024;
-
 const MAX_NAME_BYTES: usize = 64;
-
 const MAX_FIELDS: usize = 32;
-
 const TRUNCATED: &str = "…";
-
 const BEARER: &str = "bearer ";
 
 /* === Macros === */
@@ -57,6 +55,7 @@ const BEARER: &str = "bearer ";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Capture {
     journal: Arc<Journal>,
 }
@@ -79,6 +78,22 @@ struct Fields {
 
 struct BoundedText(String);
 
+/* === Enums === */
+
+enum Role {
+    Message,
+    Line,
+    Timestamp,
+    Plugin,
+    Cycle,
+    Execution,
+    Other,
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
 impl std::fmt::Write for BoundedText {
     fn write_str(&mut self, text: &str) -> std::fmt::Result {
         let remaining = MAX_MESSAGE_BYTES.saturating_sub(self.0.len());
@@ -93,20 +108,6 @@ impl std::fmt::Write for BoundedText {
     }
 }
 
-/* === Enums === */
-enum Role {
-    Message,
-    Line,
-    Timestamp,
-    Plugin,
-    Cycle,
-    Execution,
-    Other,
-}
-
-/* === Traits === */
-
-/* === Implementations === */
 impl Capture {
     pub fn new(journal: Arc<Journal>) -> Self {
         journal.mark_installed();
@@ -268,6 +269,7 @@ impl Role {
 }
 
 /* === Public Functions === */
+
 pub fn scrubbed(text: &str) -> String {
     let folded = text.to_ascii_lowercase();
     let mut result = String::with_capacity(text.len());
@@ -290,6 +292,7 @@ pub fn scrubbed(text: &str) -> String {
 }
 
 /* === Private Functions === */
+
 fn secret_assignments(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     let mut copied = 0;

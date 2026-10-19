@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
+
 // Third Party Imports
 
 // Local Imports
@@ -25,17 +27,13 @@ use dokime_runtime::document::{Document, Plot, PlotStyle, Section};
 use dokime_runtime::execution::{CriterionContext, ObserverContext, StepContext};
 
 /* === Constants === */
+
 pub const ACCEPTANCE: &str = "obc.checks.pulse.acceptance";
 const LABEL: &str = "Pulse";
-
 pub const DEFAULT_SAMPLE_COUNT: i64 = 8;
-
 pub const SAMPLE_INTERVAL_MS: u64 = 100;
-
 pub const DEFAULT_TOLERANCE: f64 = 1e-9;
-
 const MAX_SAMPLE_COUNT: u64 = 64;
-
 const PROGRESS_POLL: Duration = Duration::from_millis(5);
 
 /* === Macros === */
@@ -43,7 +41,8 @@ const PROGRESS_POLL: Duration = Duration::from_millis(5);
 /* === Type Aliases === */
 
 /* === Structs === */
-/* === Records === */
+
+// Records
 
 #[dokime_runtime::record(
     id = "obc.run.started",
@@ -86,6 +85,7 @@ pub struct PulseResources {
 pub struct PulseRow {
     #[row(role = counter)]
     pub sample_index: i64,
+
     pub value: f64,
 }
 
@@ -98,6 +98,7 @@ pub struct PulseParameters {
         max = MAX_SAMPLE_COUNT,
     )]
     pub sample_count: u64,
+
     #[parameter(
         label = "Value Tolerance",
         unit = "a.u.",
@@ -105,6 +106,7 @@ pub struct PulseParameters {
         min = DEFAULT_TOLERANCE,
     )]
     pub tolerance: f64,
+
     #[parameter(
         label = "Capture System During Pulse",
         default = false,
@@ -128,6 +130,7 @@ pub struct PulseParameters {
 pub struct ConfirmPulse;
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum Records {
     RunStarted(RunStarted),
@@ -147,6 +150,7 @@ pub enum ObserverStreams {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::template(
     id = "obc.checks.pulse",
     label = LABEL,
@@ -263,6 +267,7 @@ impl Pulse {
 }
 
 /* === Public Functions === */
+
 pub fn pulse_value(index: u64) -> f64 {
     (index as f64 * 0.5).sin() + index as f64 * 0.05
 }

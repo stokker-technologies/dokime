@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-// Standard Library Imports
 
-// Third Party Imports
+// Standard Library Imports
 use std::sync::Arc;
 
+// Third Party Imports
 use harmos::operations::{Context, Operation};
 use tonic::Status;
+
 // Local Imports
 use super::loan;
 use super::value;
@@ -38,14 +39,17 @@ use dokime_runtime::{RuntimeHandle, runtime::Error};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Submit {
     resources: Arc<super::Resources>,
 }
+
 struct Lookup {
     resources: Arc<super::Resources>,
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Submit(Submit),
@@ -55,6 +59,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Submit {
     type Declaration = wire::SubmitExecutionCommand;
     type Resources = super::Resources;
@@ -88,6 +93,7 @@ impl Operation for Lookup {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operations::<Operations, super::Resources>(
         "dokime",
@@ -96,6 +102,8 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
     )?;
     Ok(())
 }
+
+/* === Private Functions === */
 
 async fn submit(
     resources: &super::Resources, request: &wire::SubmitExecutionCommand,
@@ -127,7 +135,6 @@ async fn get(
     charged_project(resources, &request_id, command)
 }
 
-/* === Private Functions === */
 async fn receipt(runtime: &RuntimeHandle, request_id: &CommandId) -> Result<std::sync::Arc<RunReceipt>, Status> {
     let receipt = runtime
         .run_request(request_id)

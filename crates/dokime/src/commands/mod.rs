@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod auth;
 mod backend;
 mod catalog;
@@ -25,6 +26,7 @@ pub mod version;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -40,26 +42,36 @@ pub mod version;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(subcommand, about = "Validate And Manage Local Backend Credentials.")]
     Auth(auth::Command),
+
     #[command(about = "Check Backend Identity, Authentication And Readiness With A Deadline.")]
     Status(status::Args),
+
     #[command(subcommand, about = "Manage Saved Backend Profiles Without Connecting.")]
     Backend(backend::Command),
+
     #[command(subcommand, about = "Submit Cycles And Recover Durable Request Progress.")]
     Cycle(cycle::Command),
+
     #[command(subcommand, about = "Control One Execution Of A Cycle.")]
     Execution(execution::Command),
+
     #[command(subcommand, about = "Browse Registered Suites And Their Templates.")]
     Catalog(catalog::Command),
+
     #[command(subcommand, about = "Discover And Invoke Remote Operations.")]
     Operation(operation::Command),
+
     #[command(subcommand, about = "Preview And Register Canonical Selection Plans.")]
     Plan(plan::Command),
+
     #[command(subcommand, about = "Install Plugin Bundles On A Backend.")]
     Plugin(plugin::Command),
+
     Serve(serve::Args),
     Gui(gui::Args),
     Version(version::Args),
@@ -70,6 +82,7 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::Auth(command) => auth::run(command).await,

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -22,6 +23,7 @@ use crate::model::definition::ParameterExpr;
 use crate::model::values::Value;
 
 /* === Constants === */
+
 const MAX_SPACE: usize = 1000;
 
 /* === Macros === */
@@ -29,6 +31,7 @@ const MAX_SPACE: usize = 1000;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Budget {
     nodes: usize,
 }
@@ -38,6 +41,7 @@ pub struct Budget {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for Budget {
     fn default() -> Self {
         Self::new()
@@ -92,6 +96,7 @@ impl Budget {
 }
 
 /* === Public Functions === */
+
 pub fn expression(expr: &ParameterExpr, budget: &mut Budget, depth: usize) -> crate::Result<()> {
     walk(expr, budget, depth, true)
 }
@@ -136,6 +141,7 @@ pub fn definition(definition: &crate::model::definition::ParameterDefinition, bu
 }
 
 /* === Private Functions === */
+
 fn walk(expr: &ParameterExpr, budget: &mut Budget, depth: usize, expansion: bool) -> crate::Result<()> {
     budget.node(depth)?;
     match expr {

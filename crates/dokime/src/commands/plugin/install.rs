@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
 use std::io::{IsTerminal, Write};
@@ -32,9 +33,9 @@ use dokime_client::contracts::plugins;
 use dokime_domain::model::plugins::wire;
 
 /* === Constants === */
+
 // Staging streams the bundle in frames of this size.
 const CHUNK_BYTES: usize = 256 * 1024;
-
 const CONSENT_DEADLINE: Duration = Duration::from_secs(10);
 
 /* === Macros === */
@@ -42,12 +43,15 @@ const CONSENT_DEADLINE: Duration = Duration::from_secs(10);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 #[command(about = "Stage A Plugin Bundle On A Backend, Review It, And Authorize Next-Boot Activation.")]
 pub(crate) struct Args {
     bundle: PathBuf,
+
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Authorize The Verified Plugin Without An Interactive Confirmation.")]
     yes: bool,
 }
@@ -66,6 +70,7 @@ struct Review {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> Result<()> {
     if !args.yes && !std::io::stdin().is_terminal() {
         return Err(Error::Input("interactive consent requires a terminal; use --yes for automation".into()));
@@ -107,6 +112,7 @@ pub(crate) async fn run(args: Args) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 fn review(bytes: &[u8], limits: Limits) -> Result<Review> {
     let bundle = Bundle::inspect(bytes, limits).map_err(|error| Error::Input(format!("invalid plugin bundle: {error}")))?;
     let digest = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();

@@ -27,6 +27,7 @@ use thiserror::Error;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */

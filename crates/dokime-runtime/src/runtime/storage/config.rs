@@ -38,6 +38,7 @@ use harmos::storage::{StorageBudget, StorageRequestSettings, StorageResponseSett
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn storage_defaults() -> StorageSettings {
     let memory = effective_memory();
     let read = nonzero(memory / 4);
@@ -60,6 +61,7 @@ pub fn storage_defaults() -> StorageSettings {
 }
 
 /* === Private Functions === */
+
 fn nonzero(value: usize) -> NonZeroUsize {
     NonZeroUsize::new(value.max(1)).unwrap()
 }

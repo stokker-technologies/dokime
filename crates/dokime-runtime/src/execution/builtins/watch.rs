@@ -19,6 +19,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -44,10 +45,9 @@ use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::operations::files::WatchFile;
 
 /* === Constants === */
+
 const DEFAULT_POLL: Duration = Duration::from_millis(1000);
-
 const READ_BYTES: usize = 64 * 1024;
-
 const CANCELLED: &str = "the file watch was cancelled; it sealed what it captured";
 
 /* === Macros === */
@@ -55,6 +55,7 @@ const CANCELLED: &str = "the file watch was cancelled; it sealed what it capture
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Tail {
     path: PathBuf,
     artifact: String,
@@ -71,6 +72,7 @@ struct Tail {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Tail {
     // Captures what the file gained since the last pass.
     async fn pass(&mut self, binding: &Binding) -> Result<(), String> {
@@ -104,6 +106,7 @@ impl Tail {
 }
 
 /* === Public Functions === */
+
 pub(super) async fn run(binding: Binding, request: WatchFile, mut cancel: watch::Receiver<bool>) -> Result<WatchFileOutcome, String> {
     // Resolve The File, Its Artifact And Its Matchers
     let path = match request.source.and_then(|source| source.payload) {
@@ -160,6 +163,7 @@ pub(super) async fn run(binding: Binding, request: WatchFile, mut cancel: watch:
 }
 
 /* === Private Functions === */
+
 fn artifact_name(path: &Path, output: &str, artifact: Option<&str>) -> Result<String, String> {
     if let Some(artifact) = artifact {
         return Ok(artifact.to_owned());

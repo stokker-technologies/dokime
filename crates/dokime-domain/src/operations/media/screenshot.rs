@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = ArtifactMetadata, id = "dokime.media.screenshot", version = 1,
         policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
@@ -34,6 +37,7 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Screenshot {
     pub scope: Option<ArtifactScope>,
+
     // Zero-based display index; absent selects the primary display.
     #[row(description = "Zero-based display index; absent selects the primary display.")]
     pub display: Option<u32>,

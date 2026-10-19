@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use super::value::canonical::timestamp;
 use super::value::{self, Budget, canonical, projection};
@@ -43,6 +46,7 @@ use dokime_runtime::telemetry::TelemetryConditionOperator;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn identity(value: &prompts::PromptDefinition) -> dokime_domain::model::prompts::wire::PromptDefinitionIdentity {
     dokime_domain::model::prompts::wire::PromptDefinitionIdentity {
         prompt_type: value.prompt_type.as_str().to_owned(),
@@ -98,6 +102,7 @@ pub(crate) fn instance_memory(source: &prompts::PromptInstance) -> Result<usize,
 }
 
 /* === Private Functions === */
+
 fn definition_with_budget(
     value: &prompts::PromptDefinition, budget: &mut Budget,
 ) -> Result<dokime_domain::model::prompts::wire::PromptDefinition, Status> {
@@ -202,6 +207,7 @@ fn predicate(
     push_predicate(expression, budget, depth, &mut nodes)?;
     Ok(dokime_domain::model::prompts::wire::AnswerPredicate { nodes })
 }
+
 fn push_predicate(
     expression: &Expression, budget: &mut Budget, depth: usize, nodes: &mut Vec<dokime_domain::model::prompts::wire::AnswerPredicateNode>,
 ) -> Result<u32, Status> {
@@ -240,6 +246,7 @@ fn push_predicate(
     nodes[index as usize].kind = Some(kind);
     Ok(index)
 }
+
 fn condition_wire(
     condition: &RuntimeCondition, budget: &mut Budget, depth: usize,
 ) -> Result<dokime_domain::model::prompts::wire::EvidenceCondition, Status> {
@@ -247,6 +254,7 @@ fn condition_wire(
     push_condition(condition, budget, depth, &mut nodes)?;
     Ok(dokime_domain::model::prompts::wire::EvidenceCondition { nodes })
 }
+
 fn push_condition(
     condition: &RuntimeCondition, budget: &mut Budget, depth: usize,
     nodes: &mut Vec<dokime_domain::model::prompts::wire::EvidenceConditionNode>,

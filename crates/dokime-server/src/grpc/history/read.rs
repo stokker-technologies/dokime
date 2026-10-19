@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -33,10 +34,12 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Download {
     resources: Arc<Resources>,
 }
@@ -46,6 +49,7 @@ struct Download {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Download {
     type Declaration = history::DownloadCheckpointArtifact;
     type Resources = Resources;
@@ -70,6 +74,7 @@ impl Operation for Download {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
@@ -80,4 +85,5 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 /* === Tests === */

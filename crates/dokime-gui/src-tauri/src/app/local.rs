@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tauri::AppHandle;
+
 // Local Imports
 use crate::native_session::backend::{self, Backend};
 use dokime_runtime::paths::ApplicationPaths;
@@ -35,6 +37,7 @@ use dokime_runtime::paths::ApplicationPaths;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
     let backend = Backend::new(backend::locate()?, arguments());
     // A desktop launch has no console for the backend's stderr; its log lives

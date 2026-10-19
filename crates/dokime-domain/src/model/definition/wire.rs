@@ -21,6 +21,7 @@ use serde::Serialize;
 
 // Local Imports
 use crate::model::identity::wire::Metadata;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
@@ -32,6 +33,7 @@ use crate::model::values::wire::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeasurementUnit {
@@ -51,9 +53,11 @@ pub struct RecordField {
     pub nullable: bool,
     pub unit: Option<MeasurementUnit>,
     pub choices: Vec<Value>,
+
     // Absent means no default; a present Value may explicitly be null.
     #[row(description = "Absent means no default; a present Value may explicitly be null.")]
     pub default_value: Option<Value>,
+
     pub format: Option<ValueFormat>,
 }
 
@@ -108,6 +112,7 @@ pub struct TelemetrySchema {
     pub allow_extra_fields: bool,
     pub scalar: bool,
     pub validation_mode: Option<ValidationMode>,
+
     // A declaration that reads a stream another plugin owns. The host checks
     // the declared columns are a subset of the owner's contract at admission.
     #[row(
@@ -170,6 +175,7 @@ pub struct ElapsedFormat {
 }
 
 /* === Enums === */
+
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValueType {

@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use harmos::{
@@ -23,6 +25,7 @@ use harmos::{
         downsample::{Algorithm, Downsample},
     },
 };
+
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
 use crate::storage::Manager;
@@ -37,6 +40,7 @@ use dokime_domain::model::execution::saved::ExecutionOutputContent;
 use dokime_domain::model::identity::DocumentId;
 
 /* === Constants === */
+
 const ACTIVE_PLOT_PLANS: usize = 4;
 
 /* === Macros === */
@@ -52,6 +56,7 @@ const ACTIVE_PLOT_PLANS: usize = 4;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn sealed_member(
     ctx: &Context<'_>, storage: &Manager, settings: &crate::config::StorageSettings,
     seal: &dokime_domain::model::execution::saved::ExecutionSeal, operation: &Operation,
@@ -117,6 +122,7 @@ pub(crate) async fn execution(
 }
 
 /* === Private Functions === */
+
 async fn context_records(inspection: &ExecutionView) -> Result<Vec<dokime_domain::model::records::evidence::RecordEntry>> {
     let mut records = Vec::new();
     let mut reader = inspection.context_records().await?;
@@ -263,7 +269,6 @@ fn assemble(
     })
 }
 
-/* === Private Functions === */
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }

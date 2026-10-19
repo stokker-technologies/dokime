@@ -147,7 +147,7 @@ def test_run_drains_callbacks() -> None:
 
 
 @pytest.mark.parametrize("pattern", ["", "fixture.[ab]", "fixture.{start,stop}", "^fixture.*$", "fixture/.*", "fixture.é"])
-def test_invalid_listener_prevents_start(pattern: str) -> None:
+def test_listener_start_refusal(pattern: str) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)

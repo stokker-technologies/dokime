@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::cmp::Ordering;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::execution::storage::ExecutionMetadata;
 use crate::state::RuntimeState;
@@ -32,6 +35,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExecutionControls {
     pub request_id: Option<CommandId>,
@@ -61,11 +65,13 @@ pub struct ExecutionOrder {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArchiveScope {
     #[default]
     Unarchived,
+
     Archived,
     All,
 }
@@ -75,6 +81,7 @@ pub enum ArchiveScope {
 pub enum ExecutionOrderKey {
     #[default]
     StartedAt,
+
     FinishedAt,
     Title,
 }
@@ -82,6 +89,7 @@ pub enum ExecutionOrderKey {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ArchiveScope {
     pub fn admits(self, archived: bool) -> bool {
         match self {
@@ -99,6 +107,7 @@ impl ExecutionFilter {
 }
 
 /* === Public Functions === */
+
 pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<ExecutionControls> {
     let execution = state.executions.get(id)?;
     if execution.saved.is_some() {

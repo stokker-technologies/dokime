@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = (), output = ReportHtmlFrame, id = "dokime.reports.download_cycle_report", version = 1,
         policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
@@ -36,6 +39,7 @@ pub struct DownloadCycleReport {
     // Canonical UUID of a saved cycle.
     #[row(description = "Canonical UUID of a saved cycle.")]
     pub cycle_id: String,
+
     pub identifier: String,
 }
 

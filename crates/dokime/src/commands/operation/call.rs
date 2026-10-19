@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     io::Write,
@@ -33,14 +34,18 @@ use dokime_client::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Operation Identifier From `operation list`.")]
     operation: String,
+
     #[arg(long, help = "Select The Discovered Provider Owner When More Than One Provider Exists.")]
     owner: Option<String>,
+
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, conflicts_with = "json", help = "Read Request JSON From This File; Defaults To An Empty Object.")]
     input: Option<PathBuf>,
 
@@ -64,6 +69,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let input = read_request(args.input.as_deref(), args.json.as_deref())?;
     let items = read_items(args.input_stream_file.as_deref(), MAX_INPUT_BYTES - input.len())?;
@@ -97,6 +103,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 /* === Private Functions === */
+
 fn read_request(path: Option<&Path>, inline: Option<&str>) -> crate::Result<Vec<u8>> {
     let input = match path {
         Some(path) => harmos::filesystem::input::read(path, MAX_INPUT_BYTES)?,
@@ -219,6 +226,7 @@ fn dispatch_error(error: dokime_client::operations::Error) -> crate::Error {
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

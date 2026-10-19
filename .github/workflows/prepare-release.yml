@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:0538077732d4c5f402d8e15c085ab415b9fa5d463166d06a04c78fdb5ad6095b
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:c11483fdcd600f0d2faf6a58efaa24d9f0818b2f1b972c3a8e63575365b7ee6f
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -65,4 +65,4 @@ jobs:
     env:
       RELEASE_VERSION: ${{ inputs.version }}
       GH_TOKEN: ${{ github.token }}
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab
+      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Bounded inspection of one existing saved seal; never flushes or publishes. NOT_FOUND means no saved seal is available, including an unsealed row.
 #[harmos_domain::message]
 #[harmos_domain::operation(response = ExecutionCheckpoint, id = "dokime.history.get_execution_checkpoint", version = 1,

@@ -8,10 +8,12 @@
  */
 
 /* === Modules === */
+
 mod artifact_upload;
 mod calls;
 
 /* === Re-Exports === */
+
 pub use crate::Error as RpcError;
 pub use artifact_upload::RecordingHandle;
 pub use calls::{
@@ -20,12 +22,14 @@ pub use calls::{
 };
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::HashMap,
     future::Future,
     sync::{Arc, Mutex},
 };
+
 // Third Party Imports
 use harmos::MemorySize;
 use harmos::domain::Portable;
@@ -34,12 +38,14 @@ use harmos_sdk::grpc::DecodeInput;
 use sha2::{Digest, Sha256};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
+
 // Local Imports
 use crate::connection::{ConnectionError, ConnectionSession, SessionLease};
 use artifact_upload::{ArtifactUploads, RecordingSinks};
 use calls::Streams;
 
 /* === Constants === */
+
 pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
 pub const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 pub const COMMANDS: &[&str] = &[
@@ -57,6 +63,7 @@ pub const COMMANDS: &[&str] = &[
     "recording_write",
     "recording_cancel",
 ];
+
 // Every call shares the session's single HTTP/2 connection, and a backend
 // listener admits 32 concurrent calls on it. Long-lived calls, streams and
 // uploads alike, own most of that budget and are refused beyond it rather than
@@ -71,6 +78,7 @@ const REQUEST_HEADER: usize = 40;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Bridge {
     owners: Arc<Mutex<HashMap<String, CancellationToken>>>,
@@ -93,6 +101,7 @@ struct Context {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for Bridge {
     fn default() -> Self {
         Self {
@@ -215,6 +224,7 @@ impl Bridge {
 }
 
 /* === Public Functions === */
+
 pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         calls::rpc,
@@ -234,6 +244,7 @@ pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + 
 }
 
 /* === Private Functions === */
+
 fn rpc_error(status: tonic::Status) -> RpcError {
     if status.message().len() + status.details().len() > MAX_FRAME_BYTES {
         return RpcError::LimitExceeded;

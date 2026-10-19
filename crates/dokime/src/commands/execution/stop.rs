@@ -28,12 +28,15 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Execution UUID To Stop; Other Executions Of Its Cycle Keep Running.")]
     execution_id: String,
+
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit The Stop Reply As JSON; This Does Not Wait For Sealing.")]
     json: bool,
 }
@@ -45,6 +48,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let id = dokime_domain::model::identity::TestExecutionId::from_uuid(&args.execution_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;

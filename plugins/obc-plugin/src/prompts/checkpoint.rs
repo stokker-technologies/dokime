@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,6 +26,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Asked before the startup sequence goes on. The charger is energized while
 // the operator looks, so the question is raised to Warning.
 #[dokime_runtime::prompt(
@@ -37,6 +39,7 @@
 pub struct StartupCheck {
     #[prompt(label = "Operator Note", default = "")]
     pub operator_note: String,
+
     #[prompt(label = "Charger Inspection Passed", default = false)]
     pub accepted: bool,
 }
@@ -53,6 +56,7 @@ pub struct StartupCheck {
 pub struct SteadyCheck {
     #[prompt(label = "Operator Note", default = "")]
     pub operator_note: String,
+
     #[prompt(label = "Charger Inspection Passed", default = false)]
     pub accepted: bool,
 }

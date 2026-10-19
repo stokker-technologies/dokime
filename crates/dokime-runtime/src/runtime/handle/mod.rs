@@ -8,18 +8,22 @@
  */
 
 /* === Modules === */
+
 mod records;
 mod settings;
 
 /* === Re-Exports === */
+
 pub use records::{CapturedRecord, CapturedRecords, RecordSubscription};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex, RwLock},
 };
+
 // Third Party Imports
 
 // Local Imports
@@ -45,12 +49,13 @@ use dokime_domain::model::identity::SessionId;
 /* === Macros === */
 
 /* === Type Aliases === */
-#[cfg(test)]
-type BackendDecorator = Box<dyn FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send>;
 
+#[cfg(feature = "fault-injection")]
+type BackendDecorator = Box<dyn FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send>;
 pub(crate) type InstalledPlugins = BTreeMap<String, InstalledPlugin>;
 
 /* === Structs === */
+
 // The Opened Owners A Boot Hands To Handle Assembly.
 struct BootParts {
     config: RuntimeConfig,
@@ -68,6 +73,7 @@ struct BootParts {
     providers: ProviderExecutorRegistry,
     boot_started: std::time::Instant,
 }
+
 struct BootRuntime(Option<HarmosRuntime>);
 
 pub(crate) struct HostTraceabilityIndex {
@@ -129,6 +135,7 @@ pub struct RuntimeHandle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for BootRuntime {
     fn drop(&mut self) {
         if let Some(runtime) = self.0.take() {
@@ -195,17 +202,17 @@ impl RuntimeHandle {
     pub(crate) async fn boot(
         config: RuntimeConfig, providers: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool,
     ) -> Result<(HarmosRuntime, Self)> {
-        #[cfg(test)]
+        #[cfg(feature = "fault-injection")]
         {
             Self::boot_inner(config, providers, install_builtins, None).await
         }
-        #[cfg(not(test))]
+        #[cfg(not(feature = "fault-injection"))]
         {
             Self::boot_inner(config, providers, install_builtins).await
         }
     }
 
-    #[cfg(test)]
+    #[cfg(feature = "fault-injection")]
     pub(crate) async fn boot_with_backends(
         config: RuntimeConfig, providers: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool, decorate: BackendDecorator,
     ) -> Result<(HarmosRuntime, Self)> {
@@ -214,7 +221,7 @@ impl RuntimeHandle {
 
     async fn boot_inner(
         config: RuntimeConfig, providers: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool,
-        #[cfg(test)] decorate: Option<BackendDecorator>,
+        #[cfg(feature = "fault-injection")] decorate: Option<BackendDecorator>,
     ) -> Result<(HarmosRuntime, Self)> {
         let boot_started = std::time::Instant::now();
         let installed_plugins = check_boot_config(&config, boot_started)?;
@@ -248,7 +255,7 @@ impl RuntimeHandle {
         ));
         tracing::info!(read_pool_bytes = settings.budget.read_memory_bytes.get(), "storage read pool sized");
         let backends = harmos::storage::StorageBackends { primary: backend.clone(), state: recovery };
-        #[cfg(test)]
+        #[cfg(feature = "fault-injection")]
         let backends = match decorate {
             Some(decorate) => decorate(backends),
             None => backends,
@@ -544,6 +551,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn check_boot_config(config: &RuntimeConfig, boot_started: std::time::Instant) -> Result<InstalledPlugins> {
     if config.compaction_interval.is_zero() || boot_started.checked_add(config.compaction_interval).is_none() {
         return Err(Error::Operation("compaction interval must be positive and representable".into()));

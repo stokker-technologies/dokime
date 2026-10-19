@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,10 +20,12 @@ use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{Error, Expr, FnArg, GenericArgument, ImplItem, ImplItemFn, ItemImpl, Meta, Path, PathArguments, ReturnType, Type};
+
 // Local Imports
 use crate::arguments::{self, Arguments};
 
 /* === Constants === */
+
 const ARGUMENTS: &[&str] = &[
     "id",
     "label",
@@ -38,16 +41,11 @@ const ARGUMENTS: &[&str] = &[
     "streams",
     "records",
 ];
-
 const DOCUMENT: &str = "document";
 const CRITERIA: &str = "criteria";
-
 const LIFECYCLE: &[&str] = &["initialize", "traceability", "cleanup"];
-
 const RUNNABLE_CONTEXT: &str = "StepContext";
-
 const CONTEXTS: &[&str] = &["InitializationContext", "TraceabilityContext", "StepContext", "ObserverContext", "CleanupContext"];
-
 const CRITERION_CONTEXT: &str = "CriterionContext";
 
 /* === Macros === */
@@ -55,6 +53,7 @@ const CRITERION_CONTEXT: &str = "CriterionContext";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Stages<'a> {
     steps: &'a [DeclaredStep],
     criteria: &'a [DeclaredCriterion],
@@ -91,6 +90,7 @@ struct DeclaredObserver {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 pub(crate) enum Part {
     Ok,
@@ -102,6 +102,7 @@ pub(crate) enum Part {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn template(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -141,6 +142,33 @@ pub(crate) fn list(marker: &Meta, kind: &str, known: &[&str]) -> Result<Argument
 
     Arguments::read(list.tokens.clone(), kind, known)
 }
+
+pub(crate) fn answer(reply: &Type, part: Part) -> Type {
+    let sdk = crate::facade::root();
+    match part {
+        Part::Ok => syn::parse_quote!(<#reply as #sdk::__answer::Answer>::Ok),
+        Part::Err => syn::parse_quote!(<#reply as #sdk::__answer::Answer>::Err),
+    }
+}
+
+pub(crate) fn declared<'a>(block: &'a ItemImpl, name: &str) -> Option<&'a ImplItemFn> {
+    block.items.iter().find_map(|item| match item {
+        ImplItem::Fn(function) if function.sig.ident == name => Some(function),
+        _ => None,
+    })
+}
+
+pub(crate) fn marks(path: &Path, name: &str) -> bool {
+    let segments = path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>();
+
+    match segments.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
+        [marker] => *marker == name,
+        [root, marker] => (*root == "dokime_runtime" || *root == crate::facade::name()) && *marker == name,
+        _ => false,
+    }
+}
+
+/* === Private Functions === */
 
 fn observed(signature: &syn::Signature) -> Result<(), Error> {
     const SHAPE: &str = "a template observer must be \
@@ -183,32 +211,6 @@ fn observed(signature: &syn::Signature) -> Result<(), Error> {
     Ok(())
 }
 
-pub(crate) fn answer(reply: &Type, part: Part) -> Type {
-    let sdk = crate::facade::root();
-    match part {
-        Part::Ok => syn::parse_quote!(<#reply as #sdk::__answer::Answer>::Ok),
-        Part::Err => syn::parse_quote!(<#reply as #sdk::__answer::Answer>::Err),
-    }
-}
-
-pub(crate) fn declared<'a>(block: &'a ItemImpl, name: &str) -> Option<&'a ImplItemFn> {
-    block.items.iter().find_map(|item| match item {
-        ImplItem::Fn(function) if function.sig.ident == name => Some(function),
-        _ => None,
-    })
-}
-
-pub(crate) fn marks(path: &Path, name: &str) -> bool {
-    let segments = path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>();
-
-    match segments.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
-        [marker] => *marker == name,
-        [root, marker] => (*root == "dokime_runtime" || *root == crate::facade::name()) && *marker == name,
-        _ => false,
-    }
-}
-
-/* === Private Functions === */
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a template", ARGUMENTS)?;

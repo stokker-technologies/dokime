@@ -43,6 +43,7 @@ use dokime_runtime::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
 }
@@ -53,6 +54,7 @@ struct FileWatch {
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     FileWatch(FileWatch),
@@ -61,6 +63,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for FileWatch {
     type Declaration = contract::FileWatch;
     type Resources = Resources;
@@ -139,6 +142,7 @@ impl Operation for FileWatch {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone() });
     runtime.operations().register_wire_operation::<FileWatch>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
@@ -146,6 +150,7 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error
 }
 
 /* === Private Functions === */
+
 async fn send_events(
     output: &mut StreamOutput<dokime_domain::model::files::wire::FileWatchFrame>, events: &mut Vec<WatchEvent>,
 ) -> Result<(), Status> {

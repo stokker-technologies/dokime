@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{path::PathBuf, time::Duration};
+
 // Third Party Imports
 
 // Local Imports
@@ -36,15 +38,18 @@ use dokime_runtime::prelude::*;
 use obc_runtime::device::{Device, Power};
 
 /* === Constants === */
-const CONNECTION_BUDGET_S: f64 = 30.0;
 
+const CONNECTION_BUDGET_S: f64 = 30.0;
 const STARTUP_STREAM: &str = "obc.charger.startup.samples";
 
 /* === Macros === */
 
+bench!(Parameters);
+
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // A type of its own rather than a home on [`InputMeasurement`]: four suites measure
 // the same physical thing and each owns the stream its evidence travels, so
 // the shape declares no home and every stream declares itself.
@@ -67,6 +72,7 @@ pub struct Samples;
 pub struct ChargerLog {
     #[row(unit = "s")]
     pub elapsed_s: f64,
+
     #[row(unit = "W")]
     pub input_power_w: f64,
 }
@@ -80,7 +86,7 @@ pub struct Startup {
     operator_note: String,
 }
 
-/* === Records === */
+// Records
 
 #[dokime_runtime::record(
     id = "obc.charger.startup.initialized",
@@ -103,6 +109,7 @@ pub struct Started {}
 pub struct Checkpoint {
     #[record(description = "How far the measurement had got when the operator was asked.")]
     pub sample_index: u64,
+
     #[record(description = "The question the operator was asked.")]
     pub prompt_type: String,
 }
@@ -116,10 +123,13 @@ pub struct Checkpoint {
 pub struct Completed {
     #[record(description = "How many rows the startup measurement produced.")]
     pub sample_count: u64,
+
     #[record(description = "What the operator chose.")]
     pub prompt_action: String,
+
     #[record(description = "What the operator wrote.")]
     pub operator_note: String,
+
     #[record(description = "Whether the startup behaved the way this procedure required.")]
     pub accepted: bool,
 }
@@ -128,16 +138,22 @@ pub struct Completed {
 pub struct Parameters {
     #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
+
     #[parameter(label = "Load Impedance Magnitude", unit = "ohm", default = 100.0)]
     pub load_ohm: f64,
+
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
     pub frequency_hz: f64,
+
     #[parameter(label = "Current Phase Lag", unit = "deg", default = 15.0)]
     pub phase_deg: f64,
+
     #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
     pub current_limit_a: f64,
+
     #[parameter(label = "Observation Duration", unit = "s", default = 0.2, min = SHORTEST_S)]
     pub duration_s: f64,
+
     #[parameter(
         label = "Simulation Sample Interval",
         unit = "s",
@@ -146,20 +162,26 @@ pub struct Parameters {
         max = COARSEST_STEP_S,
     )]
     pub sample_interval_s: f64,
+
     #[parameter(label = "Attach measurement summary", default = true)]
     pub emit_artifact: bool,
+
     #[parameter(label = "Attach reference.png from image directory", default = false)]
     pub attach_reference: bool,
+
     #[parameter(label = "Pace samples in real time", default = true)]
     pub realtime: bool,
+
     #[parameter(
         label = "Observe until stopped",
         default = false,
         description = "Whether a host stop is the expected end of this run, named once more on the template's own `graceful_stop`."
     )]
     pub continuous: bool,
+
     #[parameter(label = "Wait for the unit to report itself connected", default = false)]
     pub await_connection: bool,
+
     #[parameter(
         label = "Connection wait budget",
         unit = "s",
@@ -170,6 +192,7 @@ pub struct Parameters {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum Prompts {
     StartupCheck(checkpoint::StartupCheck),
@@ -211,7 +234,6 @@ pub enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
-bench!(Parameters);
 
 #[dokime_runtime::template(
     id = STARTUP_TEMPLATE, label = "Power Up the Charger",
@@ -438,6 +460,7 @@ impl Startup {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn publish_runtime_sample<T, O, I>(
     ctx: &mut StepContext<'_, T, O, I>, interval_s: f64, device: &mut Device, index: u64, total: u64, checkpoint: u64,
 ) -> Result<(), Error> {

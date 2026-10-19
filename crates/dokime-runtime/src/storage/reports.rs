@@ -14,9 +14,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use harmos::schema::Described;
 
 // Third Party Imports
+use harmos::schema::Described;
 use harmos::{
     Identifier, Message,
     storage::{FileReference, SchemaKey, StorageCursor, StoredRecord},
@@ -42,6 +42,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Publication {
@@ -81,6 +82,7 @@ pub struct Prepared {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 pub enum Owner<'a> {
     Cycle(&'a TestCycleId),
@@ -90,6 +92,7 @@ pub enum Owner<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Prepared {
     pub fn new(manager: &Manager, input: &Input<'_>) -> Result<Self> {
         if !manager.cursor_saved().covers(input.dependencies_saved)? {
@@ -271,6 +274,7 @@ impl Publication {
 }
 
 /* === Public Functions === */
+
 pub fn schema() -> SchemaKey {
     SchemaKey {
         payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
@@ -290,6 +294,7 @@ pub fn selection(owner: Owner<'_>, report: Option<Identifier>) -> harmos::storag
 }
 
 /* === Private Functions === */
+
 fn validate(input: &Input<'_>) -> Result<()> {
     input.generated_at.to_datetime()?;
     let owner = match input.owner {

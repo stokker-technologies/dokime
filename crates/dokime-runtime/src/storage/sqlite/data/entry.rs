@@ -8,22 +8,27 @@
  */
 
 /* === Modules === */
+
 mod object;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::result::Result;
 use std::{io::Write, time::UNIX_EPOCH};
+
 // Third Party Imports
 use harmos::storage::*;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use super::super::Error;
 
 /* === Constants === */
+
 const MAX_KEY_BYTES: usize = 1024;
 
 /* === Macros === */
@@ -31,6 +36,7 @@ const MAX_KEY_BYTES: usize = 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Encoded {
     pub position: u64,
     pub kind: &'static str,
@@ -57,6 +63,7 @@ struct Buffer {
 }
 
 /* === Enums === */
+
 pub(crate) enum Entry {
     Schema(StorageSchema),
     Object(ObjectEntry),
@@ -78,6 +85,7 @@ enum Borrowed<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> From<StorageEntry<'a>> for Borrowed<'a> {
     fn from(value: StorageEntry<'a>) -> Self {
         match value {
@@ -252,7 +260,6 @@ impl Encoded {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(super) fn check_size<T: Serialize>(value: &T, maximum: usize) -> Result<usize, Error> {
     let mut counter = Counter { length: 0, maximum };
     serde_json::to_writer(&mut counter, value)?;
@@ -262,17 +269,6 @@ pub(super) fn check_size<T: Serialize>(value: &T, maximum: usize) -> Result<usiz
 pub(super) fn encode<T: Serialize>(value: &T, maximum: usize) -> Result<Vec<u8>, Error> {
     let length = check_size(value, maximum)?;
     encode_counted(value, length)
-}
-
-fn encode_counted<T: Serialize>(value: &T, length: usize) -> Result<Vec<u8>, Error> {
-    let mut bytes = Vec::new();
-    bytes.try_reserve_exact(length).map_err(std::io::Error::other)?;
-    let mut buffer = Buffer { bytes, length };
-    serde_json::to_writer(&mut buffer, value)?;
-    if buffer.bytes.len() != length {
-        return Err(Error::Data("SQLite entry differs from its counted size"));
-    }
-    Ok(buffer.bytes)
 }
 
 pub(super) fn timestamp_key(value: std::time::SystemTime) -> [u8; 16] {
@@ -288,6 +284,19 @@ pub(super) fn key(value: &str) -> Result<String, Error> {
         return Err(Error::Data("storage index identity exceeds 1024 bytes"));
     }
     Ok(value.to_owned())
+}
+
+/* === Private Functions === */
+
+fn encode_counted<T: Serialize>(value: &T, length: usize) -> Result<Vec<u8>, Error> {
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(length).map_err(std::io::Error::other)?;
+    let mut buffer = Buffer { bytes, length };
+    serde_json::to_writer(&mut buffer, value)?;
+    if buffer.bytes.len() != length {
+        return Err(Error::Data("SQLite entry differs from its counted size"));
+    }
+    Ok(buffer.bytes)
 }
 
 /* === Tests === */

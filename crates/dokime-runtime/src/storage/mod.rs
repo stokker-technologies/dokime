@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod error;
 pub mod objects;
 pub mod records;
@@ -18,6 +19,7 @@ pub mod telemetry;
 mod values;
 
 /* === Re-Exports === */
+
 // `plugins/store.rs` belongs to the parallel settings consolidation and still
 // names the SQLite owner by its former module path.
 pub use sqlite as local;
@@ -31,9 +33,12 @@ pub use sqlite as local;
 // Local Imports
 
 /* === Constants === */
+
 const STATE_SNAPSHOT_BYTES: usize = 1024 * 1024;
+
 // Integrity envelope, positions and histories around one encoded state record.
 const STATE_ENVELOPE_BYTES: usize = 64 * 1024;
+
 // One recovery entry may take at most this share of a checkpoint: what it
 // changes must still fit the snapshot beside the rest of state.
 const STATE_ENTRY_SHARE: usize = 2;
@@ -41,36 +46,47 @@ const STATE_ENTRY_SHARE: usize = 2;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Manager = harmos::storage::StorageManager<objects::Objects>;
 pub type Backend = sqlite::Backend<objects::Objects>;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
     Runtime(#[from] harmos::Error),
+
     #[error(transparent)]
     HarmosStorage(#[from] harmos::storage::Error),
+
     #[error(transparent)]
     HarmosDomain(#[from] harmos::domain::Error),
+
     #[error(transparent)]
     Saved(#[from] dokime_domain::model::execution::saved::SavedEvidenceError),
+
     #[error("invalid persisted evidence: {0}")]
     Invalid(&'static str),
+
     #[error(transparent)]
     Decode(#[from] harmos::MessageError),
+
     #[error(transparent)]
     Serialization(#[from] serde_json::Error),
+
     #[error(transparent)]
     Timestamp(#[from] time::error::Parse),
+
     #[error(transparent)]
     DatetimeFormat(#[from] time::error::Format),
+
     #[error(transparent)]
     Identifier(#[from] harmos::IdentifierError),
+
     #[error(transparent)]
     Contract(#[from] dokime_domain::Error),
 }
@@ -80,6 +96,7 @@ pub enum Error {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn snapshot_policy() -> harmos::state::SnapshotPolicy {
     harmos::state::SnapshotPolicy {
         schema: harmos::storage::SchemaKey {

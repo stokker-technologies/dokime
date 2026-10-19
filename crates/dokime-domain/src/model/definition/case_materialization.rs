@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::definition::FileDefinition;
 use crate::model::definition::ParameterDefinition;
@@ -34,9 +37,11 @@ use crate::model::values::Value;
 use crate::model::values::ValueType;
 
 /* === Constants === */
+
 pub const DEFAULT_MATERIALIZED_CASE_CAP: usize = 1_000;
 
 /* === Macros === */
+
 product_error!(CaseMaterializationError, formatter {
     Self::UnknownFilterParameters(parameters) => write!(formatter, "unknown case filter parameters: {parameters}"),
     Self::UnknownOverrideParameters(parameters) => write!(formatter, "unknown case override parameters: {parameters}"),
@@ -52,12 +57,15 @@ product_error!(CaseMaterializationError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct CaseMaterializationSelection {
     #[serde(default)]
     pub case_filter: BTreeMap<String, Vec<Value>>,
+
     #[serde(default)]
     pub case_overrides: BTreeMap<String, Vec<Value>>,
+
     #[serde(default)]
     pub file_overrides: BTreeMap<String, Option<String>>,
 }
@@ -106,6 +114,7 @@ pub enum CaseMaterializationError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Materialization<'_> {
     fn push_cases(
         &self, index: usize, current: &mut BTreeMap<String, Value>, cases: &mut Vec<TestCase>,
@@ -157,6 +166,7 @@ impl Materialization<'_> {
 }
 
 /* === Public Functions === */
+
 pub fn materialize_template_cases(
     suite_id: &str, template: &TestCaseTemplate, selection: CaseMaterializationSelection, options: CaseMaterializationOptions,
 ) -> crate::Result<CaseMaterializationOutput> {
@@ -164,6 +174,7 @@ pub fn materialize_template_cases(
 }
 
 /* === Private Functions === */
+
 fn materialize_template_cases_detail(
     suite_id: &str, template: &TestCaseTemplate, selection: CaseMaterializationSelection, options: CaseMaterializationOptions,
 ) -> Result<CaseMaterializationOutput, CaseMaterializationError> {

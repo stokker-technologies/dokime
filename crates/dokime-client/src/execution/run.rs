@@ -29,11 +29,13 @@ use dokime_domain::model::{evidence::wire::RecordPage, execution::ExecutionMode,
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Callback<'a, T> = &'a mut (dyn FnMut(&T) -> Result<()> + Send);
 pub type RecordCallback<'a> = Callback<'a, RecordPage>;
 pub type SampleCallback<'a> = Callback<'a, TelemetrySamplesReply>;
 
 /* === Structs === */
+
 // Listener Selection Affects Observation Only, Never Captured Evidence.
 #[derive(Clone, Debug)]
 pub struct RunOptions {
@@ -61,6 +63,7 @@ pub struct RunCallbacks<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for RunOptions {
     fn default() -> Self {
         Self { mode: ExecutionMode::Automatic, record_types: None, streams: None, timeout: None, interval: None, page_size: 1000 }
@@ -124,6 +127,7 @@ impl TestExecutionHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn drain<T: Send + 'static>(reader: Option<&ResponseStream<T>>, mut callback: Option<Callback<'_, T>>) -> Result<()> {
     let Some(reader) = reader else { return Ok(()) };
     while let Some(page) = reader.message().await? {
@@ -134,12 +138,13 @@ async fn drain<T: Send + 'static>(reader: Option<&ResponseStream<T>>, mut callba
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn invalid_observation_options_are_refused_before_start() {
+    fn observation_options_refused() {
         for options in [
             RunOptions { record_types: Some(vec!["bad[regex]".into()]), ..Default::default() },
             RunOptions { streams: Some(vec!["obc.*".into(); 65]), ..Default::default() },

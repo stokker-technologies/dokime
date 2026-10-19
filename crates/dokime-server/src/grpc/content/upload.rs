@@ -12,17 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response, StreamInput, StreamItem};
 use tonic::Status;
 
 // Local Imports
 use super::{MAX_CONTENT_BYTES, metadata, transfer_chunk_bytes};
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
@@ -35,6 +36,7 @@ use dokime_runtime::domains::evidence::ArtifactUploadInput;
 use dokime_runtime::runtime::ArtifactUpload;
 
 /* === Constants === */
+
 const IDLE_TRANSFER_TIMEOUT: Duration = Duration::from_secs(30);
 
 /* === Macros === */
@@ -42,10 +44,12 @@ const IDLE_TRANSFER_TIMEOUT: Duration = Duration::from_secs(30);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Upload {
     resources: Arc<Resources>,
     upload: Option<ArtifactUpload>,
@@ -56,6 +60,7 @@ struct Upload {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Upload {
     type Declaration = wire::UploadArtifact;
     type Resources = Resources;
@@ -127,6 +132,7 @@ impl Operation for Upload {
         self.abandon().await
     }
 }
+
 impl Upload {
     async fn abandon(&mut self) -> Result<(), Status> {
         if let Some(upload) = &self.upload {
@@ -138,6 +144,7 @@ impl Upload {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Upload>(
         "dokime",
@@ -145,34 +152,6 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
-}
-
-/* === Private Functions === */
-async fn receive_upload_frame(
-    input: &mut StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>,
-) -> Result<Option<StreamItem<dokime_domain::model::content::wire::UploadArtifactFrame>>, Status> {
-    tokio::time::timeout(IDLE_TRANSFER_TIMEOUT, input.recv())
-        .await
-        .map_err(|_| Status::deadline_exceeded("artifact upload idle deadline exceeded"))
-}
-fn upload_header(
-    header: &dokime_domain::model::content::wire::UploadArtifactHeader,
-) -> Result<(RecordScope, String, Option<String>, Option<String>), Status> {
-    let scope = artifact_scope(header.scope.as_ref())?;
-    let filename = header.filename.trim();
-    dokime_runtime::artifacts::name::validate(filename).map_err(|source| Status::invalid_argument(source.to_string()))?;
-    let content_type = header.content_type.as_deref().filter(|value| !value.is_empty());
-    if content_type.as_ref().is_some_and(|value| value.len() > 255) {
-        return Err(Status::invalid_argument("artifact content type must not exceed 255 bytes"));
-    }
-    if header.size_bytes > MAX_CONTENT_BYTES {
-        return Err(Status::resource_exhausted("artifact exceeds native content limit"));
-    }
-    let sha256 = header.sha256.as_deref();
-    if sha256.as_ref().is_some_and(|digest| !valid_digest(digest)) {
-        return Err(Status::invalid_argument("artifact sha256 must contain 64 lowercase hexadecimal characters"));
-    }
-    Ok((scope, filename.to_owned(), content_type.map(str::to_owned), sha256.map(str::to_owned)))
 }
 
 pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime_domain::model::content::wire::ArtifactScope>) -> Result<RecordScope, Status> {
@@ -202,6 +181,59 @@ pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime_domain::model::conte
         })
         .transpose()?;
     Ok(RecordScope { test_cycle_id: cycle_id, test_case_id: case_id, test_execution_id: execution_id, ..RecordScope::default() })
+}
+
+pub(in crate::grpc) fn content_failure(error: dokime_runtime::runtime::Error) -> Status {
+    use dokime_runtime::runtime::Error;
+    let status = match &error {
+        Error::ExportStorage { source: dokime_runtime::domains::exports::storage::StorageError::ArchiveTooLarge { .. } } => {
+            Status::resource_exhausted("cycle bundle exceeds native content limit")
+        }
+        Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("artifact upload owner not found"),
+        Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
+        Error::Admission(AdmissionFailure::Forbidden { .. }) => Status::permission_denied("artifact upload failed"),
+        Error::Harmos(harmos::Error::ResourceExhausted { .. }) | Error::Admission(AdmissionFailure::Overload { .. }) => {
+            Status::resource_exhausted("artifact upload failed")
+        }
+        Error::Admission(AdmissionFailure::Timeout { .. }) => Status::deadline_exceeded("artifact upload interrupted"),
+        Error::Admission(AdmissionFailure::Unavailable { .. }) | Error::ShuttingDown | Error::Interrupted => {
+            Status::unavailable("artifact upload interrupted")
+        }
+        Error::Operation(message) => operation_status(message),
+        _ => Status::internal("artifact upload failed"),
+    };
+
+    detailed(status, &error)
+}
+
+/* === Private Functions === */
+
+async fn receive_upload_frame(
+    input: &mut StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>,
+) -> Result<Option<StreamItem<dokime_domain::model::content::wire::UploadArtifactFrame>>, Status> {
+    tokio::time::timeout(IDLE_TRANSFER_TIMEOUT, input.recv())
+        .await
+        .map_err(|_| Status::deadline_exceeded("artifact upload idle deadline exceeded"))
+}
+
+fn upload_header(
+    header: &dokime_domain::model::content::wire::UploadArtifactHeader,
+) -> Result<(RecordScope, String, Option<String>, Option<String>), Status> {
+    let scope = artifact_scope(header.scope.as_ref())?;
+    let filename = header.filename.trim();
+    dokime_runtime::artifacts::name::validate(filename).map_err(|source| Status::invalid_argument(source.to_string()))?;
+    let content_type = header.content_type.as_deref().filter(|value| !value.is_empty());
+    if content_type.as_ref().is_some_and(|value| value.len() > 255) {
+        return Err(Status::invalid_argument("artifact content type must not exceed 255 bytes"));
+    }
+    if header.size_bytes > MAX_CONTENT_BYTES {
+        return Err(Status::resource_exhausted("artifact exceeds native content limit"));
+    }
+    let sha256 = header.sha256.as_deref();
+    if sha256.as_ref().is_some_and(|digest| !valid_digest(digest)) {
+        return Err(Status::invalid_argument("artifact sha256 must contain 64 lowercase hexadecimal characters"));
+    }
+    Ok((scope, filename.to_owned(), content_type.map(str::to_owned), sha256.map(str::to_owned)))
 }
 
 fn valid_digest(value: &str) -> bool {
@@ -245,29 +277,6 @@ async fn receive_artifact(
         }
     }
     Ok(None)
-}
-
-pub(in crate::grpc) fn content_failure(error: dokime_runtime::runtime::Error) -> Status {
-    use dokime_runtime::runtime::Error;
-    let status = match &error {
-        Error::ExportStorage { source: dokime_runtime::domains::exports::storage::StorageError::ArchiveTooLarge { .. } } => {
-            Status::resource_exhausted("cycle bundle exceeds native content limit")
-        }
-        Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("artifact upload owner not found"),
-        Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
-        Error::Admission(AdmissionFailure::Forbidden { .. }) => Status::permission_denied("artifact upload failed"),
-        Error::Harmos(harmos::Error::ResourceExhausted { .. }) | Error::Admission(AdmissionFailure::Overload { .. }) => {
-            Status::resource_exhausted("artifact upload failed")
-        }
-        Error::Admission(AdmissionFailure::Timeout { .. }) => Status::deadline_exceeded("artifact upload interrupted"),
-        Error::Admission(AdmissionFailure::Unavailable { .. }) | Error::ShuttingDown | Error::Interrupted => {
-            Status::unavailable("artifact upload interrupted")
-        }
-        Error::Operation(message) => operation_status(message),
-        _ => Status::internal("artifact upload failed"),
-    };
-
-    detailed(status, &error)
 }
 
 fn operation_status(message: &str) -> Status {

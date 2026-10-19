@@ -8,16 +8,19 @@
  */
 
 /* === Modules === */
+
 mod catalog;
 pub(crate) mod data;
 
 /* === Re-Exports === */
+
 pub use crate::storage::error::Error;
 pub use catalog::Source;
 pub use data::Backend;
 pub use rusqlite;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     fs::{File, OpenOptions},
@@ -28,17 +31,22 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use rusqlite::{Connection, InterruptHandle};
 use tokio::sync::Mutex;
+
 // Local Imports
 
 /* === Constants === */
+
 pub const SCHEMA_VERSION: i64 = 1;
+
 // A runtime being replaced releases the root as it exits; a successor waits
 // this long for that before calling the root owned.
 const LEASE_WAIT: Duration = Duration::from_secs(5);
 const LEASE_POLL: Duration = Duration::from_millis(50);
+
 // Tables Of Earlier Layouts; Their Presence Means The Root Predates This Build.
 const RETIRED_TABLES: &str = "'storage_operations','storage_deletions','storage_recovery_head',
     'storage_bootstrap','storage_bootstrap_entries','storage_object_scalars',
@@ -49,6 +57,7 @@ const RETIRED_TABLES: &str = "'storage_operations','storage_deletions','storage_
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct State(Arc<Owner>);
 
@@ -77,6 +86,7 @@ struct Interruption {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for Interruption {
     fn drop(&mut self) {
         let running = self.owner.running.lock().unwrap();
@@ -173,6 +183,7 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // Takes the root's exclusive lease, waiting a bounded time for a departing
 // owner to let go. A lease still held after that belongs to a live runtime.
 fn acquire_lease(lease: &File) -> Result<(), Error> {

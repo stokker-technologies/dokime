@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -34,6 +35,7 @@ use dokime_domain::model::values::ValueFormat;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(super) struct RuntimePlotEnvelopeContext {
     pub(super) generated_at: String,
@@ -47,6 +49,7 @@ pub(super) struct RuntimePlotEnvelopeContext {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimePlotEnvelopeContext {
     pub(super) async fn load(runtime: &RuntimeHandle, requests: &[PlotPayloadRequest]) -> crate::runtime::Result<Self> {
         Ok(Self::at(runtime, requests, runtime.capture_state().await?).await)
@@ -101,6 +104,7 @@ impl RuntimePlotEnvelopeContext {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn request_needs_elapsed_origin(request: &PlotPayloadRequest) -> bool {
     fn is_elapsed(format: Option<&ValueFormat>) -> bool {
         matches!(format, Some(ValueFormat::ElapsedSinceRun { .. } | ValueFormat::ElapsedSinceCycle { .. }))

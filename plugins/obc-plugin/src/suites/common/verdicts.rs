@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,6 +34,7 @@
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn decided<R: dokime_runtime::records::DeclaredRecord>(
     records: dokime_runtime::Result<Vec<R>>, accepted: impl Fn(&R) -> bool,
 ) -> Result<bool, crate::error::Error> {

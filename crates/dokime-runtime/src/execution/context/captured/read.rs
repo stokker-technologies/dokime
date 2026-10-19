@@ -42,6 +42,7 @@ use dokime_domain::model::execution::result::TestExecution;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn read_execution(storage: &Manager, execution: &ObjectRevision<TestExecution>) -> Result<CapturedSource> {
     let seal = execution.value.saved.as_ref().ok_or_else(|| invalid("execution has no captured source dependencies"))?;
     if !execution.position.covers(&seal.dependencies_saved)? || execution.position.sequence == seal.dependencies_saved.sequence {
@@ -75,7 +76,6 @@ pub(crate) async fn read_file(storage: &Manager, file: &FileReference) -> Result
     read_native::<Source>(storage, file, super::native::source::MEDIA_TYPE).await?.into_source()
 }
 
-/* === Private Functions === */
 pub(super) async fn read_native<T: Message>(storage: &Manager, file: &FileReference, media_type: &str) -> Result<T> {
     if file.metadata.media_type != media_type {
         return Err(invalid("sealed capture has a different native media type"));
@@ -90,6 +90,8 @@ pub(super) async fn read_native<T: Message>(storage: &Manager, file: &FileRefere
         .into()
     })
 }
+
+/* === Private Functions === */
 
 fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())

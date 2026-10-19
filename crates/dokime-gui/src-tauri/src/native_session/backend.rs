@@ -12,21 +12,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     path::{Path, PathBuf},
     process::{ExitStatus, Stdio},
     time::Duration,
 };
+
 // Third Party Imports
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
 };
+
 // Local Imports
 use super::diagnostics::Capture;
 use super::{BackendDiagnostics, DesktopSessionError as Error};
 use crate::PRODUCT;
+
 // The development-stream contracts a backend must report to be trusted. The
 // desktop and its backend ship from one installer, so this is the same gate
 // cargo-dokime applies to a separately installed host.
@@ -34,8 +38,8 @@ use dokime_domain::DEV_PROTOCOL;
 use dokime_domain::READINESS_PROTOCOL;
 
 /* === Constants === */
-const READINESS_LIMIT: u64 = 16 * 1024;
 
+const READINESS_LIMIT: u64 = 16 * 1024;
 const READY_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[cfg(any(windows, target_os = "macos"))]
@@ -53,6 +57,7 @@ const MISSING: &str = concat!(
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct Backend {
     executable: PathBuf,
@@ -85,6 +90,7 @@ struct Identity {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Backend {
     pub fn new(executable: PathBuf, arguments: Vec<String>) -> Self {
         Self { executable, arguments, logs: None }
@@ -170,6 +176,7 @@ impl Process {
 }
 
 /* === Public Functions === */
+
 pub fn locate() -> Result<PathBuf, String> {
     Search::from_environment().find().ok_or_else(|| MISSING.to_owned())
 }
@@ -231,6 +238,7 @@ pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> 
 }
 
 /* === Private Functions === */
+
 #[cfg(windows)]
 fn installed_directories() -> Vec<PathBuf> {
     ["LOCALAPPDATA", "ProgramFiles"].into_iter().filter_map(std::env::var_os).map(|root| PathBuf::from(root).join(BUNDLE)).collect()

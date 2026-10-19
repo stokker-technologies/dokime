@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,11 +29,13 @@ use crate::transactions::records::draft::BuiltinDraft;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.request.complete", version = 3, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompleteRun {
     pub request_id: CommandId,
     pub at: Timestamp,
+
     #[serde(default)]
     pub unsealed: Option<Unsealed>,
 }
@@ -55,6 +58,7 @@ pub struct SettleRun {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for CompleteRun {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
@@ -251,6 +255,7 @@ impl Transaction<RuntimeState> for SettleRun {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn record_publication_failure(request: &mut RunRequest, cause: &str) {
     request.publication_failure = Some(cause.to_owned());
 }
@@ -288,6 +293,7 @@ fn outcomes_settled(state: &RuntimeState, request_id: &CommandId) -> Result<(), 
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

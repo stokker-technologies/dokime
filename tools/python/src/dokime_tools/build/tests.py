@@ -17,7 +17,8 @@ import sys
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import dependencies, frontend, paths, product
+from dokime_tools import temporary
+from dokime_tools.build import dependencies, frontend, paths, product, starter
 from dokime_tools.package.staging import sync_output
 from dokime_tools.test import archive, policy
 
@@ -41,7 +42,6 @@ def build(profile: str) -> None:
     if profile not in product.PROFILES:
         raise ValueError("test archives require dev or release")
     output = paths.output(ROOT, "build", profile)
-    fixtures = output / "fixtures"
     staged = product.files(profile)
     sync_output(output / "web", frontend.WEB_ROOT / "dist")
     features = "tauri/custom-protocol,dokime-runtime/fault-injection"
@@ -53,9 +53,11 @@ def build(profile: str) -> None:
         command = ["cargo", "metadata", "--locked", "--format-version", "1", "--features", features]
         subprocess.run(command, cwd=ROOT, stdout=written, check=True)
     staged.append(metadata)
-    directory = fixtures / "dependencies"
-    staged += dependencies.cargo(ROOT, directory)
-    staged += dependencies.wheelhouse(ROOT, directory)
+    # Compile The Starter Here; Ordinary Stories Consume Already Built Inputs.
+    with temporary.directory() as directory:
+        dependencies.cargo(ROOT, directory)
+        dependencies.wheelhouse(ROOT, directory)
+        starter.check(ROOT, profile, directory)
 
     root = ROOT.resolve()
     resolved = [path.resolve() for path in staged]
@@ -78,7 +80,6 @@ def main(arguments: list[str] | None = None) -> int:
 
 
 # === Private Functions === #
-
 
 # === Entry Point === #
 

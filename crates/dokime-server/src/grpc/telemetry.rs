@@ -8,19 +8,23 @@
  */
 
 /* === Modules === */
+
 pub(super) mod projection;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::value::{self, canonical};
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::identity::IdentifierPattern;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::time::Timestamp;
@@ -30,6 +34,7 @@ use dokime_runtime::domains::evidence::ScopeSelection;
 use dokime_runtime::domains::evidence::TelemetrySelection;
 
 /* === Constants === */
+
 const DEFAULT_LIMIT: usize = 500;
 const MAX_LIMIT: usize = 5_000;
 
@@ -38,6 +43,7 @@ const MAX_LIMIT: usize = 5_000;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
@@ -52,6 +58,7 @@ struct List {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for List {
     type Declaration = wire::ListSamples;
     type Resources = Resources;
@@ -112,6 +119,7 @@ impl Operation for List {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
@@ -122,6 +130,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
 fn bounded_limit(value: u32) -> Result<usize, Status> {
     let value = if value == 0 {
         DEFAULT_LIMIT

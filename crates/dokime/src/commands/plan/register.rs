@@ -29,10 +29,12 @@ use dokime_domain::operations::planning::RegisterSelection;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     input: super::input::Args,
+
     #[arg(
         long,
         required_unless_present = "input_file",
@@ -40,8 +42,10 @@ pub(crate) struct Args {
         help = "Caller-Retained Registration Key For Recoverable Retries."
     )]
     request_key: Option<String>,
+
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit The Canonical Reply As Compact JSON.")]
     json: bool,
 }
@@ -53,6 +57,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     // === Read Request === //
 

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::document::{DocumentAddition, DocumentCardBody, DownsampleTechnique};
 use crate::{runtime::Error, state::RuntimeState};
@@ -34,6 +36,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.documents.execution.add", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddExecutionDocumentParts {
@@ -59,6 +62,7 @@ pub struct UpdatePlotSettings {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for AddExecutionDocumentParts {
     type Error = String;
 
@@ -155,6 +159,7 @@ impl UpdatePlotSettings {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn add_execution_document_parts(state: &mut RuntimeState, update: AddExecutionDocumentParts) -> Result<(), Error> {
     let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("document addition scope missing cycle"))?;
     let test_execution_id = update.scope.test_execution_id.clone().ok_or_else(|| not_found("document addition scope missing execution"))?;

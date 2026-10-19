@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+
 mod get_appearance;
 
 /* === Re-Exports === */
+
 pub use get_appearance::GetAppearance;
 
 /* === Imports === */
@@ -22,7 +24,6 @@ pub use get_appearance::GetAppearance;
 // Local Imports
 use super::Endpoint;
 use super::ORDINARY;
-
 use crate::model::appearance::wire::*;
 
 /* === Constants === */
@@ -43,6 +44,7 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for GetAppearance {
     const PATH: &'static str = "/dokime.v1.Appearance/GetAppearance";
 }

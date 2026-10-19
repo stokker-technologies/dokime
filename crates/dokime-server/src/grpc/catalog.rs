@@ -8,19 +8,23 @@
  */
 
 /* === Modules === */
+
 mod parameters;
 pub(super) mod schemas;
 
 /* === Re-Exports === */
+
 pub(super) use parameters::{memory as parameters_memory, unit, unit_memory, wire as parameters};
 
 /* === Imports === */
+
 // Standard Library Imports
+use std::{collections::BTreeSet, sync::Arc};
 
 // Third Party Imports
 use harmos::operations::{Context, Operation};
-use std::{collections::BTreeSet, sync::Arc};
 use tonic::Status;
+
 // Local Imports
 use super::value::{self, Budget, canonical};
 use dokime_domain::model::definition::wire as schema;
@@ -35,30 +39,38 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     max_message_bytes: usize,
 }
+
 struct ListSuites {
     resources: Arc<Resources>,
 }
+
 struct GetSuite {
     resources: Arc<Resources>,
 }
+
 struct ListRecordSchemas {
     resources: Arc<Resources>,
 }
+
 struct GetRecordSchema {
     resources: Arc<Resources>,
 }
+
 struct ListTelemetrySchemas {
     resources: Arc<Resources>,
 }
+
 struct GetTelemetrySchema {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     ListSuites(ListSuites),
@@ -72,6 +84,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for ListSuites {
     type Declaration = wire::ListSuites;
     type Resources = Resources;
@@ -167,7 +180,9 @@ impl Operation for GetTelemetrySchema {
         get_telemetry_schema(&self.resources, request).await.map(Into::into)
     }
 }
+
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
@@ -178,6 +193,7 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 }
 
 /* === Private Functions === */
+
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
     let mut target = canonical::slots(source.len())?;
     for value in source {

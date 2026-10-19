@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod cli;
 mod commands;
 mod connection;
@@ -16,12 +17,13 @@ mod installation;
 pub mod terminal;
 
 /* === Re-Exports === */
+
 pub use cli::Cli;
+pub use commands::version;
 pub use error::{Error, Result};
 
-pub use commands::version;
-
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

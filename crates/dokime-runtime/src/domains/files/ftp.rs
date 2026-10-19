@@ -40,12 +40,12 @@ use crate::files::FileMatcher;
 use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
+
 // Bounds one FTP command, including a data transfer's setup.
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 
 // Bounds one ranged retrieval's data transfer.
 const TRANSFER_TIMEOUT: Duration = Duration::from_secs(300);
-
 const DEFAULT_PORT: u16 = 21;
 
 /* === Macros === */
@@ -53,6 +53,7 @@ const DEFAULT_PORT: u16 = 21;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(in crate::domains::files) struct FtpSource {
     endpoint: Endpoint,
     connection: Option<AsyncRustlsFtpStream>,
@@ -71,6 +72,7 @@ struct Endpoint {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ListingCommand {
     Mlsd,
@@ -80,6 +82,7 @@ enum ListingCommand {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl FtpSource {
     pub(super) async fn open(url: &str, password: Option<String>, trusted: bool) -> Result<Self> {
         let endpoint = Endpoint::parse(url, password)?;
@@ -262,6 +265,7 @@ impl Endpoint {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn split_host_port(value: &str) -> Result<(String, u16)> {
     // A Bracketed IPv6 Literal Keeps Its Colons
     let (host, port) = if let Some(rest) = value.strip_prefix('[') {

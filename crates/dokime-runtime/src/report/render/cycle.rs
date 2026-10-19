@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, io::Write};
+
 // Third Party Imports
 use serde::{
     Serialize, Serializer,
     ser::{SerializeMap, SerializeSeq},
 };
+
 // Local Imports
 use super::*;
 use crate::report::cycle::{AnnotationKind, Index};
@@ -28,25 +31,36 @@ use crate::report::cycle::{AnnotationKind, Index};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type ReadMember<'a> = dyn Fn(usize) -> Result<crate::report::html::Member> + 'a;
 
 /* === Structs === */
+
 pub(in crate::report) struct Report<'a> {
     pub header: Header<'a>,
     pub index: &'a Index,
     pub appearance: &'a crate::installed_plugins::RuntimeAppearanceFrame,
     pub read: &'a ReadMember<'a>,
 }
+
 struct Rows<'a, 'r>(&'a Report<'r>, Section);
+
 struct DocumentWarningText<'a>(&'a str, &'a str);
+
 struct SnapshotRows<'a, 'r>(&'a Report<'r>);
+
 struct PlanRows<'a, 'r>(&'a Report<'r>);
+
 struct Telemetry<'a, 'r>(&'a Report<'r>);
+
 struct Samples<'a, 'r>(&'a Report<'r>, &'a [crate::report::cycle::Sample]);
+
 struct Steps<'a, 'r>(&'a Report<'r>, &'a crate::report::cycle::Member);
+
 struct Annotations<'a, 'r>(&'a Report<'r>, AnnotationKind);
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 enum Section {
     Artifacts,
@@ -62,21 +76,25 @@ enum Section {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Report<'_> {
     pub(crate) fn write(&self, writer: &mut dyn Write) -> Result<()> {
         output::write_html(writer, self, REPORT_APP_TEMPLATE).map_err(|source| Error::InvalidReportInputs(source.to_string()))
     }
 }
+
 impl fmt::Display for DocumentWarningText<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{}: {}", self.0, self.1)
     }
 }
+
 impl Serialize for DocumentWarningText<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         serializer.collect_str(self)
     }
 }
+
 impl Serialize for Report<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(Some(11))?;
@@ -94,6 +112,7 @@ impl Serialize for Report<'_> {
         fields.end()
     }
 }
+
 impl Serialize for Rows<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let report = self.0;
@@ -214,6 +233,7 @@ impl Serialize for Rows<'_, '_> {
         rows.end()
     }
 }
+
 impl Serialize for SnapshotRows<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let input = self.0.header;
@@ -235,6 +255,7 @@ impl Serialize for SnapshotRows<'_, '_> {
         fields.end()
     }
 }
+
 impl Serialize for PlanRows<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let report = self.0;
@@ -266,6 +287,7 @@ impl Serialize for PlanRows<'_, '_> {
         fields.end()
     }
 }
+
 impl Serialize for Telemetry<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(None)?;
@@ -305,6 +327,7 @@ impl Serialize for Telemetry<'_, '_> {
         fields.end()
     }
 }
+
 impl Serialize for Steps<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let Self(report, member) = *self;
@@ -325,6 +348,7 @@ impl Serialize for Steps<'_, '_> {
         rows.end()
     }
 }
+
 impl Serialize for Annotations<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let Self(report, kind) = *self;
@@ -366,6 +390,7 @@ impl Serialize for Annotations<'_, '_> {
         rows.end()
     }
 }
+
 impl Serialize for Samples<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let returned = selection(self.1.len()).len();
@@ -386,11 +411,6 @@ impl Serialize for Samples<'_, '_> {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-fn selected_samples(samples: &[crate::report::cycle::Sample]) -> impl ExactSizeIterator<Item = &crate::report::cycle::Sample> {
-    selection(samples.len()).into_iter().map(move |index| &samples[index])
-}
-
 pub(crate) fn selection(length: usize) -> Vec<usize> {
     let mut indices = if length <= crate::document::DEFAULT_PLOT_MAX_POINTS {
         (0..length).collect::<Vec<_>>()
@@ -403,6 +423,12 @@ pub(crate) fn selection(length: usize) -> Vec<usize> {
         indices.push(last);
     }
     indices
+}
+
+/* === Private Functions === */
+
+fn selected_samples(samples: &[crate::report::cycle::Sample]) -> impl ExactSizeIterator<Item = &crate::report::cycle::Sample> {
+    selection(samples.len()).into_iter().map(move |index| &samples[index])
 }
 
 /* === Tests === */

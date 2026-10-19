@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod payload;
 mod record_samples;
 mod record_telemetry;
@@ -33,6 +34,7 @@ pub(crate) use payload::{
 pub(crate) use record_timing::RECORD_CONTEXT_STREAM;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

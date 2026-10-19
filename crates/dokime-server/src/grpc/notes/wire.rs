@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use super::super::value::{self, canonical};
 use dokime_domain::model::execution::health::HealthItem;
@@ -43,6 +45,7 @@ use dokime_runtime::domains::evidence::notes::{NoteCreation, NotePublication};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn owner(value: Option<dokime_domain::model::notes::wire::AnnotationOwner>) -> Result<NoteOwner, Status> {
     use dokime_domain::model::notes::wire::AnnotationOwnerOwner as Owner;
     match value.and_then(|value| value.owner).ok_or_else(|| Status::invalid_argument("explicit annotation owner required"))? {

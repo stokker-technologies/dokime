@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, quote};
+
 // Local Imports
 
 /* === Constants === */
+
 pub(crate) const MACRO_CONTRACT: u32 = 26;
 
 /* === Macros === */
@@ -27,6 +30,7 @@ pub(crate) const MACRO_CONTRACT: u32 = 26;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct SdkRoot;
 
 /* === Enums === */
@@ -34,6 +38,7 @@ pub(crate) struct SdkRoot;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ToTokens for SdkRoot {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let name = name();
@@ -43,6 +48,7 @@ impl ToTokens for SdkRoot {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn root() -> SdkRoot {
     SdkRoot
 }

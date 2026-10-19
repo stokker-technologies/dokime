@@ -30,6 +30,7 @@ use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::DocumentId;
 
 /* === Constants === */
+
 pub(super) const RESULT_SECTIONS: [Section; 2] = [
     Section {
         id: "execution.result",
@@ -78,12 +79,14 @@ pub(super) const CYCLE_SECTIONS: [Section; 3] = [
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy)]
 pub(super) struct Section {
     id: &'static str,
     label: &'static str,
     cards: &'static [Card],
 }
+
 struct Card {
     id: &'static str,
     label: &'static str,
@@ -98,6 +101,7 @@ struct Card {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn construction_memory(suites: &SuiteRegistry, execution: &TestExecution, document_id: &DocumentId) -> Option<usize> {
     let authored = execution.documents.values().find(|definition| &definition.document_id == document_id);
     let is_default = document_id.as_str() == DEFAULT_DOCUMENT_ID;
@@ -186,6 +190,7 @@ pub(super) fn sections(descriptors: &[Section]) -> Vec<DocumentSection> {
 }
 
 /* === Private Functions === */
+
 fn section_memory(section: &Section) -> usize {
     // Original section/card values, cloned definitions and converted placements
     // coexist while insert_section_node composes the document.

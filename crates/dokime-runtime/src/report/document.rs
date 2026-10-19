@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -34,6 +35,7 @@ use crate::report::input::CycleReportInput;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn document_warnings(input: &CycleReportInput) -> impl Iterator<Item = (&str, &str)> {
     input
         .documents

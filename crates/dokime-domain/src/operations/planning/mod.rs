@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 mod materialize_template;
 mod preview_selection;
 mod register_selection;
 
 /* === Re-Exports === */
+
 pub use materialize_template::MaterializeTemplate;
 pub use preview_selection::PreviewSelection;
 pub use register_selection::RegisterSelection;
@@ -26,9 +28,9 @@ pub use register_selection::RegisterSelection;
 // Local Imports
 use super::Endpoint;
 use super::ORDINARY;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-
 use crate::model::planning::wire::*;
 
 /* === Constants === */
@@ -39,10 +41,11 @@ use crate::model::planning::wire::*;
 
 /* === Structs === */
 
-// Registration owns case identity independently of cycles. A nonempty key makes
-// retries reproduce the same case IDs; conflicting content is rejected.
-
 /* === Enums === */
+
+// Registration owns case identity independently of cycles. A nonempty key makes
+
+// retries reproduce the same case IDs; conflicting content is rejected.
 
 #[harmos_domain::catalog]
 pub enum Operations {
@@ -54,6 +57,7 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for MaterializeTemplate {
     const PATH: &'static str = "/dokime.v1.Planning/MaterializeTemplate";
 }

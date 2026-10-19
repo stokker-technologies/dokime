@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/run.py; sha256:ae554bf03f13d502df620f74d2f00232f6e753f961bcb561db1c92678eeed9d5
+# Rendered by stkr project update from templates/python/test/run.py; sha256:81a23360bda95ae01b926242d6a559b008a3029344e99a0fc45c6dcc8383c4c5
 # ***
 #
 # Dokime
@@ -6,7 +6,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-
 """Run Archived Test Lanes And Keep Native JUnit Reports Under Target."""
 
 # === Imports === #
@@ -313,9 +312,17 @@ def _preflight(
     profile: str,
 ) -> None:
     """Refuse a stale fixture stamp or absent host artifacts before any test runs."""
-    hosts = rules.hosts if category in (None, "acceptance", "system") else ()
-    if language == "rust" or hosts:
-        archive.fixtures(directory, profile, hosts)
+    hosts = rules.hosts_for(category, language)
+    if profile == "bench":
+        hosts = rules.hosts if category in (None, "system") else ()
+    if (language == "rust" and (category != "unit" or profile == "bench")) or hosts:
+        output = paths.output(directory, "build", profile).relative_to(directory)
+        roots = [(output / part).as_posix() for part in ("tests", "fixtures")] if language == "rust" else []
+        archive.fixtures(directory, profile, hosts, roots=roots)
+    if profile != "bench" and "python" in rules.products_for(category, language):
+        wheels = [paths.output(directory, "build", profile, target) / "python" for target in (paths.target(), "any")]
+        if not any(list(root.glob("*.whl")) for root in wheels):
+            raise policy.TestError("missing declared Python Product wheels")
 
 
 @contextmanager

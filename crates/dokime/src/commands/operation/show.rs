@@ -28,14 +28,18 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Operation Identifier From `operation list`.")]
     operation: String,
+
     #[arg(long, help = "Select The Discovered Provider Owner.")]
     owner: Option<String>,
+
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit Compact Provider Contracts As JSON.")]
     json: bool,
 }
@@ -47,6 +51,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let client = args.connection.connect().await?;
     let result = client.operations().await;

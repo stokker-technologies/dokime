@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -27,6 +28,7 @@ use dokime_domain::operations::backend;
 use dokime_domain::operations::runtime;
 
 /* === Constants === */
+
 const DISCOVERY_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
@@ -42,6 +44,7 @@ const DISCOVERY_BYTES: usize = 1024 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn discover(channel: Channel, authorization: Option<&MetadataValue<Ascii>>, expected_id: Option<&str>) -> Result<Backend> {
     let identity = transport::unary::<dokime_domain::model::backend::wire::BackendIdentity, _>(
         channel.clone(),

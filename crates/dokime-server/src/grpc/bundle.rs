@@ -12,23 +12,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::{Cursor, Write};
 use std::path::PathBuf;
+
 // Third Party Imports
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use tonic::Status;
 use zip::{ZipWriter, write::SimpleFileOptions};
+
 // Local Imports
 use super::redaction;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 pub(super) const MAX_BUNDLE_BYTES: usize = 16 * 1024 * 1024;
-
 pub(super) const MAX_LOG_TAIL_BYTES: u64 = 2 * 1024 * 1024;
-
 const MANIFEST_PATH: &str = "manifest.json";
 
 /* === Macros === */
@@ -36,6 +38,7 @@ const MANIFEST_PATH: &str = "manifest.json";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Bundle {
     pub(super) filename: String,
     pub(super) generated_at: Timestamp,
@@ -53,6 +56,7 @@ pub(super) struct Entry {
 }
 
 /* === Enums === */
+
 pub(super) enum Part {
     Json { path: String, value: Value },
     Tail { path: String, source: PathBuf, max_bytes: u64 },
@@ -62,6 +66,7 @@ pub(super) enum Part {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Part {
     pub(super) fn json(path: impl Into<String>, value: Value) -> Self {
         Self::Json { path: path.into(), value }
@@ -104,6 +109,7 @@ impl Part {
 }
 
 /* === Public Functions === */
+
 pub(super) fn log_tail_ceiling(requested: Option<u64>) -> u64 {
     requested.unwrap_or(MAX_LOG_TAIL_BYTES).min(MAX_LOG_TAIL_BYTES)
 }
@@ -119,6 +125,8 @@ pub(super) fn build(parts: Vec<Part>, context: Value, generated_at: Timestamp) -
         .collect();
     assemble(parts, context, generated_at)
 }
+
+/* === Private Functions === */
 
 fn assemble(parts: Vec<(String, Option<Vec<u8>>, Option<String>)>, context: Value, generated_at: Timestamp) -> Result<Bundle, Status> {
     let filename = archive_filename(&generated_at);
@@ -167,7 +175,6 @@ fn assemble(parts: Vec<(String, Option<Vec<u8>>, Option<String>)>, context: Valu
     })
 }
 
-/* === Private Functions === */
 fn write_archive(output: &mut Vec<u8>, members: impl Iterator<Item = (String, Vec<u8>)>) -> std::io::Result<()> {
     let mut writer = ZipWriter::new(Cursor::new(output));
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored).large_file(false);

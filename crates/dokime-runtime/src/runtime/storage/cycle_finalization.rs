@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::storage::{FileReference, ObjectVersion, StorageCursor};
 use tokio::sync::Mutex;
+
 // Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
 use crate::RuntimeHandle;
@@ -39,6 +42,7 @@ use dokime_domain::model::identity::TestCycleId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct PendingCycle {
     snapshot: CycleSnapshot,
     executions: Arc<Vec<ExecutionSeal>>,
@@ -61,6 +65,7 @@ pub(crate) struct CompletedCycle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl super::executions::ExecutionStorage {
     pub(crate) async fn cycle_finalization_intent(&self, id: &TestCycleId) -> Result<Option<crate::transactions::CycleReportFinalization>> {
         Ok(self.state_manager.state().read(|state| state.cycle_report_finalizations.get(id).cloned()).await?.value)
@@ -387,22 +392,6 @@ impl super::executions::ExecutionStorage {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
-    left.test_cycle_id == right.test_cycle_id
-        && left.session_id == right.session_id
-        && left.metadata == right.metadata
-        && left.lifecycle == right.lifecycle
-        && left.created_at == right.created_at
-        && left.started_at == right.started_at
-        && left.updated_at == right.updated_at
-        && left.execution_ids == right.execution_ids
-        && left.records == right.records
-        && left.continue_automatically == right.continue_automatically
-        && left.continue_on_failure == right.continue_on_failure
-        && left.result == right.result
-}
-
 pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
     TestCycle {
         saved,
@@ -421,7 +410,26 @@ pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
         result: cycle.result.clone(),
     }
 }
+
+/* === Private Functions === */
+
+fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
+    left.test_cycle_id == right.test_cycle_id
+        && left.session_id == right.session_id
+        && left.metadata == right.metadata
+        && left.lifecycle == right.lifecycle
+        && left.created_at == right.created_at
+        && left.started_at == right.started_at
+        && left.updated_at == right.updated_at
+        && left.execution_ids == right.execution_ids
+        && left.records == right.records
+        && left.continue_automatically == right.continue_automatically
+        && left.continue_on_failure == right.continue_on_failure
+        && left.result == right.result
+}
+
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
+
 /* === Tests === */

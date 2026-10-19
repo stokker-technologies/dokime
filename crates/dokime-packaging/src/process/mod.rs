@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::process::Command;
 use std::process::{Output, Stdio};
 use std::time::Duration;
+
 // Third Party Imports
 use tokio::io::{AsyncRead, AsyncReadExt};
+
 // Local Imports
 use crate::error::Error;
 
@@ -36,6 +39,7 @@ use crate::error::Error;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub async fn run(command: Command, name: &str, timeout: Option<Duration>, stdout: usize, stderr: usize) -> Result<Output, Error> {
     let mut command = tokio::process::Command::from(command);
     let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true).spawn()?;
@@ -121,6 +125,7 @@ pub(crate) async fn cargo(command: Command, name: &str, timeout: Option<Duration
 }
 
 /* === Private Functions === */
+
 async fn read(reader: impl AsyncRead + Unpin, limit: usize, label: String) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::new();
     reader.take(limit as u64 + 1).read_to_end(&mut bytes).await?;

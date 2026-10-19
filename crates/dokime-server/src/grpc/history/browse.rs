@@ -12,15 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{self, canonical};
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::TestExecutionId;
@@ -36,10 +37,12 @@ use dokime_runtime::runtime::query::{ExecutionFilter, ExecutionOrder, ExecutionO
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Browse {
     resources: Arc<Resources>,
 }
@@ -49,6 +52,7 @@ struct Browse {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Browse {
     type Declaration = wire::BrowseExecutions;
     type Resources = Resources;
@@ -82,6 +86,7 @@ impl Operation for Browse {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Browse>(
         "dokime",
@@ -92,6 +97,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn project(page: &ExecutionBrowsePage, maximum: usize) -> harmos::Result<dokime_domain::model::history::wire::ExecutionBrowsePage> {
     let projected = super::wire::browse_page(page).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
@@ -104,6 +110,7 @@ fn project(page: &ExecutionBrowsePage, maximum: usize) -> harmos::Result<dokime_
     }
     Ok(projected)
 }
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "historical response" }
 }

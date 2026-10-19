@@ -30,6 +30,7 @@ use super::{Error, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Target {
     endpoint: String,
@@ -42,6 +43,7 @@ pub struct Target {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Target {
     pub fn new(endpoint: impl Into<String>, ca_certificate_pem: Option<String>) -> Result<Self> {
         Self::parse(endpoint.into(), None, ca_certificate_pem)
@@ -133,11 +135,13 @@ impl Target {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid_target(message: &'static str) -> Error {
     Error::InvalidTarget { message }
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -23,6 +24,7 @@ use syn::{Error, ImplItem, ItemImpl};
 use crate::arguments::Arguments;
 
 /* === Constants === */
+
 const ARGUMENTS: &[&str] = &["id", "record", "description"];
 
 /* === Macros === */
@@ -38,6 +40,7 @@ const ARGUMENTS: &[&str] = &["id", "record", "description"];
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn listener(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(expanded) => crate::facade::contracted(expanded),
@@ -49,6 +52,7 @@ pub(crate) fn listener(attribute: TokenStream, item: TokenStream) -> TokenStream
 }
 
 /* === Private Functions === */
+
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a listener", ARGUMENTS)?;

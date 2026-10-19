@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:510c9979eaeee5ead655ceb441233a993eeae942aae9d2228e64128d3031c49d
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:37bf414bf6eccc46a4595a37c67cab32a306338904527a6ac2becbee4dc78a6d
 # === Settings === #
 
 [settings]
@@ -101,10 +101,10 @@ run = [
 # === Build === #
 
 [tasks.build]
-description = "Build Packageable Products"
-env.CARGO_INCREMENTAL = "0"
+description = "Build The Plugin And Its Frozen Catalog"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "uv run --locked --project tools/python python -m project_tools.build.run rust --profile {{usage.profile}}"
+tools = { "cargo:cargo-dokime" = "0.1.0" }
+run = "uv run --locked --project tools/python python -m project_tools.build.plugin --profile {{usage.profile}}"
 
 [tasks."build:tests"]
 description = "Build Test Binaries And Fixtures"
@@ -163,10 +163,6 @@ env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.test.run test --profile {{usage.profile}} --category integration --language rust"
 
-[tasks."test:acceptance:rust"]
-description = "Test Acceptance Rust"
-run = "cargo dokime inspect dist/{{package}}.dokime"
-
 # === Bench === #
 
 # === Docs === #
@@ -181,7 +177,8 @@ depends = ["package:rust --profile {{usage.profile}}"]
 [tasks."package:rust"]
 description = "Package Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "cargo dokime build --profile {{usage.profile}} --output dist/{{package}}.dokime"
+tools = { "cargo:cargo-dokime" = "0.1.0" }
+run = "uv run --locked --project tools/python python -m project_tools.package.plugin --profile {{usage.profile}}"
 
 # === CI === #
 
@@ -222,14 +219,12 @@ description = "Prepare The Release Branch"
 run = "uv run --locked --project tools/python python -m project_tools.release.run prepare"
 
 [tasks."release:publish"]
-description = "Attach The Release Bundle To The Tagged Release"
-run = '''
-if [ -n "$GITHUB_ACTIONS" ]; then
-  gh release create "$GITHUB_REF_NAME" dist/{{package}}.dokime --verify-tag
-else
-  glab release create "$CI_COMMIT_TAG" dist/{{package}}.dokime
-fi
-'''
+description = "Publish Through The Configured Native Release Policy"
+run = [
+  "uv run --locked --project tools/python python -m project_tools.release.run stage",
+  "uv run --locked --project tools/python python -m project_tools.release.run publish",
+  "uv run --locked --project tools/python python -m project_tools.release.run finalize",
+]
 
 [tasks."release:publish:dry"]
 description = "Dry-Run Every Publication"

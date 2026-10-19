@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Instant;
+
 // Third Party Imports
 use harmos::{Error as HarmosError, state::Position, state::RequestKey};
+
 // Local Imports
 use crate::{
     CommandContext, CommandId, CommandReceipt, JobRunId, RuntimeHandle, commands::accepted_receipt,
@@ -38,6 +41,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     fn provider_availability_rejection(
         &self, test_cycle_id: &TestCycleId, test_execution_id: Option<&TestExecutionId>, context: &CommandContext,
@@ -333,6 +337,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn harmos_commit_rejection(error: HarmosError<String>) -> Error {
     match error {
         HarmosError::Rejected(message) => Error::conflict("runtime_conflict", message),

@@ -48,6 +48,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct TypedCodec {
     schema: SchemaKey,
@@ -78,6 +79,7 @@ struct Metadata {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TypedCodec {
     pub fn new(stream: &Identifier, version: u32, payload: &Schema, settings: &harmos::config::SchemaSettings) -> Result<Self> {
         let version = std::num::NonZeroU32::new(version).ok_or(Error::Invalid("typed telemetry schema version must be positive"))?;
@@ -242,6 +244,7 @@ impl TypedCodec {
 }
 
 /* === Public Functions === */
+
 pub fn codec(contract: &TelemetryContract) -> Result<TypedCodec> {
     let schema = contract.storage_schema.as_ref().ok_or(Error::Invalid("captured telemetry has no typed storage schema"))?;
     TypedCodec::new(&contract.stream, contract.schema_version, schema, &harmos::config::SchemaSettings::default())
@@ -288,6 +291,7 @@ pub fn decode_values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<Str
 }
 
 /* === Private Functions === */
+
 // A row may carry its timestamp as RFC 3339 text that values hold as a datetime.
 fn same_timestamp(payload: &Value, stored: &Value) -> bool {
     match (payload, stored) {
@@ -305,6 +309,7 @@ fn envelope_text<'a>(storage: &'a StructArray, field: &str, row: usize) -> Resul
         .ok_or(Error::Invalid("telemetry storage envelope string field is missing"))?;
     Ok((!array.is_null(row)).then(|| array.value(row)))
 }
+
 fn check_envelope(codec: &TypedCodec, storage: &StructArray, row: usize, entry: &TelemetryEntry) -> Result<()> {
     if storage.is_null(row) {
         return Err(Error::Invalid("telemetry storage envelope is null"));
@@ -367,6 +372,7 @@ fn projection_memory(validator: &Validator, bytes: &[u8]) -> Result<usize> {
         .map_err(|_| Error::Invalid("telemetry payload is invalid or exceeds projection memory"))?;
     Ok(memory)
 }
+
 fn projected_values(validator: &Validator, bytes: &[u8]) -> std::result::Result<BTreeMap<String, Value>, String> {
     let mut containers = Vec::new();
     let mut root = None;

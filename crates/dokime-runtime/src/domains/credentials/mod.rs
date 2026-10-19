@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -19,15 +20,18 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
+
 // Third Party Imports
 use keyring::{Entry, Error as KeyringError};
 use thiserror::Error;
+
 // Local Imports
 use crate::config::RuntimeCredentialConfig;
 use dokime_domain::model::credentials::CredentialBackendKind;
 use dokime_domain::model::credentials::RedactedCredentialBinding;
 
 /* === Constants === */
+
 const KEYRING_SERVICE: &str = "dokime";
 
 /* === Macros === */
@@ -35,6 +39,7 @@ const KEYRING_SERVICE: &str = "dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct CredentialStore {
     backend: Arc<dyn CredentialBackend>,
@@ -58,6 +63,7 @@ struct LocalFileCredentialBackend {
 struct OsKeyringCredentialBackend;
 
 /* === Enums === */
+
 #[derive(Debug, Error)]
 pub(crate) enum CredentialStoreError {
     #[error("credential id must not be empty")]
@@ -71,12 +77,14 @@ pub(crate) enum CredentialStoreError {
 }
 
 /* === Traits === */
+
 trait CredentialBackend: Send + Sync {
     fn set(&self, credential_id: &str, secret: &str) -> Result<(), CredentialStoreError>;
     fn get(&self, credential_id: &str) -> Result<Option<CredentialSecret>, CredentialStoreError>;
 }
 
 /* === Implementations === */
+
 impl CredentialStore {
     pub(crate) fn from_config(config: &RuntimeCredentialConfig) -> Result<Self, CredentialStoreError> {
         match config.backend {
@@ -181,6 +189,7 @@ impl CredentialBackend for OsKeyringCredentialBackend {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_credential_id(credential_id: &str) -> Result<(), CredentialStoreError> {
     if credential_id.trim().is_empty() {
         return Err(CredentialStoreError::EmptyId);

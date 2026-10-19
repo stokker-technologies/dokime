@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
+
 // Third Party Imports
 
 // Local Imports
@@ -40,6 +42,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, Default)]
 pub struct RecordingTransport {
     answers: VecDeque<PromptResponse>,
@@ -83,6 +86,7 @@ struct RecordingProgressSink {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordingTransport {
     pub fn new() -> Self {
         Self::default()

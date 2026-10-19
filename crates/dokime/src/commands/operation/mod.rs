@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod call;
 mod list;
 mod show;
@@ -31,12 +32,15 @@ mod show;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(about = "List Available Operations And Their Request Contracts.")]
     List(list::Args),
+
     #[command(about = "Show Live Provider Contracts For An Operation.")]
     Show(show::Args),
+
     #[command(about = "Call A Discovered Provider And Read Its Items And Completion.")]
     Call(call::Args),
 }
@@ -46,6 +50,7 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::List(args) => list::run(args).await,

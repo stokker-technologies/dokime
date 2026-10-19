@@ -28,6 +28,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Cycle UUID To Seal; Running Work Stops And Unrun Executions Are Cancelled.")]
@@ -47,6 +48,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let id =
         dokime_domain::model::identity::TestCycleId::from_uuid(&args.cycle_id).map_err(|error| crate::Error::Input(error.to_string()))?;

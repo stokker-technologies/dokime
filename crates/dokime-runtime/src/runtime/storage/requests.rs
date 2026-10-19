@@ -8,18 +8,23 @@
  */
 
 /* === Modules === */
+
 mod native;
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::execution::request::AttemptClaim;
 pub use dokime_domain::model::execution::request::RunReceipt;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 use harmos::storage::StorageCursor;
 use tokio::sync::Mutex;
+
 // Local Imports
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::request::RunPhase;
@@ -30,6 +35,7 @@ use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const RECOVERY_INTERRUPTION: &str =
     "Previous runtime ended before request completion. Device actions are not replayed; claimed acquisition may be interrupted.";
 const INITIAL_INTERRUPTION: &str = "Initial receipt publication was interrupted; no provider work was submitted.";
@@ -40,6 +46,7 @@ const TERMINAL_INTERRUPTION: &str = "Run settled before command completion was r
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Active {
     receipt: Arc<RunReceipt>,
     pending: Option<Pending<Arc<RunReceipt>>>,
@@ -64,6 +71,7 @@ pub(crate) struct RequestStorage {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<R: Clone + std::ops::Deref<Target = RunReceipt>> Pending<R> {
     fn new(receipt: R) -> Self {
         Self { receipt, previous: None, position: None }
@@ -260,6 +268,7 @@ impl RequestStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn revise(receipt: &Arc<RunReceipt>, change: impl FnOnce(&mut RunReceipt) -> Result<()>) -> Result<Arc<RunReceipt>> {
     let mut revised = (**receipt).clone();
     change(&mut revised)?;

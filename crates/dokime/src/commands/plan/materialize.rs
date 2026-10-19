@@ -29,12 +29,15 @@ use dokime_domain::operations::planning::MaterializeTemplate;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     input: super::input::Args,
+
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit The Canonical Reply As Compact JSON.")]
     json: bool,
 
@@ -43,6 +46,7 @@ pub(crate) struct Args {
 }
 
 /* === Enums === */
+
 enum Input {
     Canonical(MaterializeTemplate),
     Template(super::input::Planned),
@@ -53,6 +57,7 @@ enum Input {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     // === Read Request === //
 

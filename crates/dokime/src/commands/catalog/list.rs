@@ -28,10 +28,12 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     connection: crate::connection::Args,
+
     #[arg(long, help = "Emit One Complete Suite Definition Per JSON Line.")]
     json: bool,
 }
@@ -43,6 +45,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let client = args.connection.connect().await?;
     let result = async {

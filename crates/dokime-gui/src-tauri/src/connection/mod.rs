@@ -8,22 +8,27 @@
  */
 
 /* === Modules === */
+
 mod contract;
 mod errors;
 mod transport;
 
 /* === Re-Exports === */
+
 pub use contract::*;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     future::Future,
     sync::{Arc, Mutex},
 };
+
 // Third Party Imports
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
+
 // Local Imports
 use dokime_client::credentials::{KeyringStore, SecretStore};
 
@@ -34,6 +39,7 @@ use dokime_client::credentials::{KeyringStore, SecretStore};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct ConnectionSession {
     inner: Arc<Mutex<SessionState>>,
@@ -60,6 +66,7 @@ pub struct SessionLease {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for ConnectionSession {
     fn default() -> Self {
         Self::with_credentials(Arc::new(KeyringStore))

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,6 +26,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub struct Args {
     #[arg(long, help = "Emit CLI version metadata as JSON.")]
@@ -38,6 +40,7 @@ pub struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn run(args: Args) {
     if args.json {
         println!(

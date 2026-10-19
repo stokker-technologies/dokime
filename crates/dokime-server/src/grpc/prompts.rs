@@ -8,13 +8,16 @@
  */
 
 /* === Modules === */
+
 pub(in crate::grpc) mod canonical;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::domain::Portable;
 use harmos::{
@@ -22,6 +25,7 @@ use harmos::{
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
+
 // Local Imports
 use super::{
     execution,
@@ -38,6 +42,7 @@ use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
+
 const STREAM: &str = "runtime.state";
 
 /* === Macros === */
@@ -45,22 +50,28 @@ const STREAM: &str = "runtime.state";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct ListDefinitions {
     resources: Arc<Resources>,
 }
+
 struct GetDefinition {
     resources: Arc<Resources>,
 }
+
 struct ListPending {
     resources: Arc<Resources>,
 }
+
 struct GetPrompt {
     resources: Arc<Resources>,
 }
+
 struct Respond {
     resources: Arc<Resources>,
 }
@@ -70,6 +81,7 @@ struct Respond {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for ListDefinitions {
     type Declaration = wire::ListDefinitions;
     type Resources = Resources;
@@ -101,6 +113,7 @@ impl Operation for ListDefinitions {
         })
     }
 }
+
 impl Operation for GetDefinition {
     type Declaration = wire::GetDefinition;
     type Resources = Resources;
@@ -124,6 +137,7 @@ impl Operation for GetDefinition {
         self.resources.produce(|| canonical::definition(definition))
     }
 }
+
 impl Operation for ListPending {
     type Declaration = wire::ListPending;
     type Resources = Resources;
@@ -188,6 +202,7 @@ impl Operation for ListPending {
         })
     }
 }
+
 impl Operation for GetPrompt {
     type Declaration = wire::GetPrompt;
     type Resources = Resources;
@@ -214,6 +229,7 @@ impl Operation for GetPrompt {
         })
     }
 }
+
 impl Operation for Respond {
     type Declaration = wire::Respond;
     type Resources = Resources;
@@ -269,6 +285,7 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
     runtime.operations().register_wire_operation::<ListDefinitions>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
@@ -280,6 +297,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
 fn page(limit: u32, after: &str, given: Option<&Cursor>, snapshot: &RuntimeStateSnapshot) -> Result<usize, Status> {
     let current =
         NativeCursor { epoch: snapshot.state().process_epoch().to_string(), stream: STREAM.into(), position: snapshot.revision() };
@@ -295,6 +313,7 @@ fn page(limit: u32, after: &str, given: Option<&Cursor>, snapshot: &RuntimeState
         Status::new(code, error.to_string())
     })
 }
+
 fn prompt_id(id: &str) -> Result<PromptId, Status> {
     PromptId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid prompt UUID"))
 }

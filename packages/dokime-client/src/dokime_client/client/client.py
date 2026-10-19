@@ -19,9 +19,8 @@ from typing import Any, Self
 # Third Party Imports
 from google.protobuf.message import Message
 
-from ..operation import Operation, ResponseStream
-
 # Local Imports
+from ..operation import Operation, ResponseStream
 from . import _wire
 from ._transport import DiscoveredOperation, Transport, _cursor
 from .credentials import load_key
@@ -286,7 +285,6 @@ class DokimeClient:
 
 
 # === Public Functions === #
-
 
 # === Private Functions === #
 

@@ -8,19 +8,23 @@
  */
 
 /* === Modules === */
+
 pub(super) mod lifecycle;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::PathBuf,
     sync::Arc,
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use super::{Runtime, progress::Operation};
 use crate::domains::installed_plugins::contributions::decode_registrations;
@@ -36,9 +40,10 @@ use crate::{
 };
 
 /* === Constants === */
+
 const PLUGIN_LOG_VARIABLE: &str = "DOKIME_PLUGIN_LOG";
 
-/* === Extraction Cache === */
+// Extraction Cache
 const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
 
 /* === Macros === */
@@ -46,6 +51,7 @@ const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Package {
     input: PluginBundle,
     catalog: BundleCatalog,
@@ -97,6 +103,7 @@ struct ExtractionMarker {
 }
 
 /* === Enums === */
+
 enum Extraction {
     Ephemeral(tempfile::TempDir),
     Cached(std::path::PathBuf),
@@ -106,6 +113,7 @@ enum Extraction {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Extraction {
     fn path(&self) -> &std::path::Path {
         match self {
@@ -137,26 +145,6 @@ impl Extraction {
         }
         result
     }
-}
-
-async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
-    #[cfg(windows)]
-    let delays = [0, 10, 25, 50, 100, 200, 400, 800];
-    #[cfg(not(windows))]
-    let delays = [0];
-
-    for (attempt, delay) in delays.into_iter().enumerate() {
-        if delay != 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-        }
-        match tokio::fs::remove_dir_all(path).await {
-            Ok(()) => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && attempt + 1 < delays.len() => {}
-            Err(error) => return Err(error),
-        }
-    }
-    unreachable!("the final removal attempt returns its result")
 }
 
 impl StagedPackages {
@@ -697,6 +685,27 @@ impl Runtime {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let delays = [0, 10, 25, 50, 100, 200, 400, 800];
+    #[cfg(not(windows))]
+    let delays = [0];
+
+    for (attempt, delay) in delays.into_iter().enumerate() {
+        if delay != 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+        }
+        match tokio::fs::remove_dir_all(path).await {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && attempt + 1 < delays.len() => {}
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("the final removal attempt returns its result")
+}
+
 fn start_failure(error: &harmos::Error) -> Option<(&str, &harmos::Error, &[harmos::plugin::PluginCleanupFailure])> {
     match error {
         harmos::Error::PluginLifecycle { source } => match source.as_ref() {

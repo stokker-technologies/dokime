@@ -30,6 +30,7 @@ use dokime_domain::operations::runtime::GetHealth;
 use dokime_domain::operations::runtime::GetIdentity;
 
 /* === Constants === */
+
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
 const MAX_CATALOG_ROWS: usize = 4096;
@@ -39,26 +40,34 @@ const CATALOG_PATH: &str = "/harmos.host.v1.Host/Catalog";
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 pub type Description = DiscoveredOperation;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("unknown operation: {0}")]
     Unknown(String),
+
     #[error("operation {0} has multiple providers; select an owner")]
     Ambiguous(String),
+
     #[error("operation {0} has no input stream")]
     InputStream(String),
+
     #[error("operation input exceeds its byte or frame limit")]
     InputTooLarge,
+
     #[error("operation catalog exceeds its client limit")]
     CatalogTooLarge,
+
     #[error("operation catalog is invalid")]
     Catalog,
+
     #[error(transparent)]
     Client(#[from] ClientError),
 }
@@ -66,6 +75,7 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub async fn operations(&self) -> Result<Vec<Description>> {
         let deadline = self.timeout.map(|timeout| tokio::time::Instant::now() + timeout);
@@ -160,4 +170,5 @@ impl Client {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 /* === Tests === */

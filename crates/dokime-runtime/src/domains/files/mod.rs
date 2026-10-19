@@ -14,6 +14,7 @@
 // line matchers.
 
 /* === Modules === */
+
 mod ftp;
 mod local;
 mod operation;
@@ -21,6 +22,7 @@ mod source;
 mod watch;
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::files::wire::FileWatchGapReason as GapReason;
 pub use dokime_domain::model::files::wire::FileWatchPhase as Phase;
 pub use dokime_domain::model::files::wire::FileWatchPolicy as Policy;
@@ -49,6 +51,7 @@ use dokime_domain::operations::files::WatchFile;
 use source::Source;
 
 /* === Constants === */
+
 // Error code of a request the watch refuses before it starts.
 pub const INVALID: &str = "file_watch_request";
 
@@ -63,19 +66,16 @@ pub const UNTRUSTED: &str = "file_watch_untrusted";
 
 // Error code of a source scheme this build does not support yet.
 pub const UNSUPPORTED: &str = "file_watch_unsupported";
-
 pub const DEFAULT_POLL: Duration = Duration::from_millis(1000);
 pub const MINIMUM_POLL: Duration = Duration::from_millis(50);
 pub const MAXIMUM_POLL: Duration = Duration::from_millis(60_000);
 
 // The longest bound one watch may ask for, matching the follow stream policy.
 pub const MAXIMUM_SECONDS: u32 = 86_400;
-
 pub const DEFAULT_FILES: usize = 64;
 
 // An execution holds at most 256 outputs; one watch may claim all of them.
 pub const MAXIMUM_FILES: usize = 256;
-
 pub const DEFAULT_BYTES: u64 = 256 * 1024 * 1024;
 pub const MAXIMUM_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
@@ -87,6 +87,7 @@ const SCAN_ENTRIES: usize = 100_000;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // A validated watch request, before its source is opened.
 struct Settings {
     scope: RecordScope,
@@ -106,6 +107,7 @@ struct Settings {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     // Opens a watch over the request's source, scoped to its explicit execution
     // or to the calling step's execution; the two must agree when both exist.
@@ -257,6 +259,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: impl Into<String>) -> Error {
     Error::validation(INVALID, message, Vec::new())
 }

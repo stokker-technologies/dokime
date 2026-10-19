@@ -6,13 +6,11 @@
 #
 # ***
 
-
 """Supervise Owned Desktop Development Processes"""
 
 # === Imports === #
 
 # Standard Library Imports
-
 import json
 import os
 import signal
@@ -27,16 +25,13 @@ from dokime_tools.build.frontend import ROOT, WEB_ROOT, ensure_report
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
 
-
 # === Types === #
 
 # === Classes === #
-
 
 # === Public Functions === #
 
@@ -196,7 +191,6 @@ def main() -> int:
 
 
 # === Private Functions === #
-
 
 # === Entry Point === #
 

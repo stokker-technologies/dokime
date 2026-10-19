@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -30,9 +31,12 @@ use obc_runtime::device::{Device, Fault, Power, Reading};
 
 /* === Macros === */
 
+bench!(Parameters);
+
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::stream(id = "obc.charger.recovery.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
 pub struct Samples;
 
@@ -43,7 +47,7 @@ pub struct PowerLoss {
     published: u64,
 }
 
-/* === Records === */
+// Records
 
 #[dokime_runtime::record(
     id = "obc.charger.recovery.initialized",
@@ -89,6 +93,7 @@ pub struct Cleared {}
 pub struct Stopped {
     #[record(description = "Whether the recovery behaved the way this procedure required.")]
     pub accepted: bool,
+
     #[record(description = "How many outage/limit pairs this case replayed.")]
     pub cycles: u64,
 }
@@ -97,8 +102,10 @@ pub struct Stopped {
 pub struct Parameters {
     #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
+
     #[parameter(label = "Load Impedance Magnitude", unit = "ohm", default = 100.0)]
     pub load_ohm: f64,
+
     #[parameter(
         label = "Outage Durations",
         unit = "s",
@@ -112,6 +119,7 @@ pub struct Parameters {
             dokime_domain::model::values::Value::Number(0.2),
         ])), description = "How long the Charger stays without power on each cycle, in model seconds.")]
     pub outage_durations_s: Vec<f64>,
+
     #[parameter(
         label = "Recovery Limits",
         unit = "s",
@@ -125,14 +133,19 @@ pub struct Parameters {
             dokime_domain::model::values::Value::Number(0.1),
         ])), description = "How long the restart after each outage is allowed to take, in model seconds, read in step with [`Parameters::outage_durations_s`].")]
     pub recovery_limits_s: Vec<f64>,
+
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
     pub frequency_hz: f64,
+
     #[parameter(label = "Current Phase Lag", unit = "deg", default = 15.0)]
     pub phase_deg: f64,
+
     #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
     pub current_limit_a: f64,
+
     #[parameter(label = "Observation Duration", unit = "s", default = 0.2, min = SHORTEST_S)]
     pub duration_s: f64,
+
     #[parameter(
         label = "Simulation Sample Interval",
         unit = "s",
@@ -144,6 +157,7 @@ pub struct Parameters {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum Required {
     AskReadiness(crate::domain::operations::AskReadiness),
@@ -166,7 +180,6 @@ pub enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
-bench!(Parameters);
 
 #[dokime_runtime::template(id = TEMPLATE, label = "Power-Loss Recovery", tags = ["device", "recovery"],
     requires = Required,
@@ -264,6 +277,7 @@ impl PowerLoss {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn publish<T, O, I>(ctx: &mut StepContext<'_, T, O, I>, published: &mut u64, reading: Reading, phase: &str) {
     measurement::publish::<Samples, _, _, _>(ctx, *published, reading, phase).await;
     *published += 1;

@@ -14,8 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use super::executions::{CaptureInputs, ExecutionStorage};
-use crate::execution::context::captured::source::CapturedSource;
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
@@ -23,7 +21,9 @@ use harmos::storage::ObjectVersion;
 
 // Local Imports
 use super::execution::ExecutionView;
+use super::executions::{CaptureInputs, ExecutionStorage};
 use crate::RuntimeHandle;
+use crate::execution::context::captured::source::CapturedSource;
 use crate::runtime::Error;
 use crate::runtime::Result;
 use dokime_domain::model::execution::result::CycleView;
@@ -39,9 +39,11 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Structs === */
 
 /* === Enums === */
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn execution_snapshot(&self, execution: &dokime_domain::model::identity::TestExecutionId) -> Result<ExecutionView> {
         let identity = execution.clone();
@@ -238,6 +240,7 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }

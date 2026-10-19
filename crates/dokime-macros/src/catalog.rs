@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +37,7 @@ use syn::Error;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn argument(arguments: &crate::arguments::Arguments, name: &str) -> Result<TokenStream, Error> {
     match arguments.catalog(name)? {
         Some(value) => {

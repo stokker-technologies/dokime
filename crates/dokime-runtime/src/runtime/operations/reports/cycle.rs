@@ -49,6 +49,7 @@ use dokime_domain::model::reports::wire::MaterializedReport;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn materialize(
     ctx: &Context<'_>, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation,
 ) -> Result<MaterializedReport> {
@@ -62,6 +63,7 @@ pub(super) async fn materialize(
 }
 
 /* === Private Functions === */
+
 // A Finalizing Cycle Renders From Its Frozen Snapshot; A Published Report Is Reused.
 async fn sealed(
     ctx: &Context<'_>, resources: &Resources, id: &TestCycleId, at: &StorageCursor, finalization: cycle_finalization::Materialization,

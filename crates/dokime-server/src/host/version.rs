@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -26,6 +27,7 @@ use dokime_domain::DEV_PROTOCOL;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub struct Args {
     #[arg(long, help = "Emit stable host identity for development tools.")]
@@ -39,6 +41,7 @@ pub struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn run(args: Args) {
     if args.json {
         println!(

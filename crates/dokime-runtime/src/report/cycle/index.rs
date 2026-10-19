@@ -12,6 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
+// Standard Library Imports
+use std::collections::{BTreeMap, BTreeSet};
+
+// Third Party Imports
+use harmos::MemorySize;
+
+// Local Imports
 use crate::{report::saved::CapturedExecutionReportInput, runtime::Error, runtime::Result};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::ExecutionStatus;
@@ -25,14 +33,6 @@ use dokime_domain::model::identity::TemplateId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use harmos::MemorySize;
-use std::collections::{BTreeMap, BTreeSet};
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 
 /* === Constants === */
 
@@ -41,6 +41,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct Case {
     pub count: usize,
@@ -52,6 +53,7 @@ pub(crate) struct Case {
     pub latest_id: TestExecutionId,
     pub status: ExecutionStatus,
 }
+
 #[derive(Clone)]
 pub(crate) struct Member {
     pub id: TestExecutionId,
@@ -66,6 +68,7 @@ pub(crate) struct Member {
     pub steps: Vec<StepRecord>,
     pub generated_at: Timestamp,
 }
+
 #[derive(Clone)]
 pub(crate) struct Sample {
     pub member: usize,
@@ -75,6 +78,7 @@ pub(crate) struct Sample {
     received_at: Timestamp,
     id: String,
 }
+
 #[derive(Clone)]
 pub(crate) struct Annotation {
     pub kind: AnnotationKind,
@@ -83,6 +87,7 @@ pub(crate) struct Annotation {
     id: String,
     at: Timestamp,
 }
+
 #[derive(Clone)]
 pub(crate) struct Index {
     pub members: usize,
@@ -94,7 +99,9 @@ pub(crate) struct Index {
     seen: BTreeMap<CaseId, usize>,
     templates: BTreeSet<TemplateId>,
 }
+
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum AnnotationKind {
     Note,
@@ -104,6 +111,7 @@ pub(crate) enum AnnotationKind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl MemorySize for Member {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -122,7 +130,9 @@ impl MemorySize for Member {
         })
     }
 }
+
 impl Annotation {}
+
 impl Member {
     fn new(execution: &TestExecution, generated_at: &Timestamp) -> Self {
         let input = execution.snapshot.parameters();
@@ -148,6 +158,7 @@ impl Member {
         }
     }
 }
+
 impl MemorySize for Sample {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -157,6 +168,7 @@ impl MemorySize for Sample {
             .saturating_add(self.id.capacity())
     }
 }
+
 impl MemorySize for Annotation {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -164,6 +176,7 @@ impl MemorySize for Annotation {
             .saturating_add(self.at.memory_size().saturating_sub(std::mem::size_of::<Timestamp>()))
     }
 }
+
 impl MemorySize for Index {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -220,6 +233,7 @@ impl MemorySize for Index {
             )
     }
 }
+
 impl Index {
     pub(crate) fn new() -> Self {
         Self {

@@ -12,16 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
+
 // Local Imports
 use super::chunked;
 use super::value::canonical;
 use super::{error::detailed, value};
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestCycleId;
@@ -32,6 +35,7 @@ use dokime_runtime::ReportOrigin;
 use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
+
 const HTML_CHUNK_BYTES: usize = 64 * 1024;
 const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
 
@@ -40,20 +44,24 @@ const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
 }
 
 struct HtmlFrames(Response<dokime_domain::model::reports::wire::ReportHtmlFrame>);
+
 struct Download {
     resources: Arc<Resources>,
 }
+
 struct Execution {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Download(Download),
@@ -63,6 +71,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Download {
     type Declaration = wire::DownloadCycleReport;
     type Resources = Resources;
@@ -134,6 +143,7 @@ impl chunked::Frames for HtmlFrames {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
@@ -144,6 +154,7 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 }
 
 /* === Private Functions === */
+
 async fn deliver(
     resources: &Resources, report: OpenedReport, identifier: &Identifier,
     output: &mut StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>,

@@ -8,25 +8,31 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
 use tonic::Status;
 use tracing::Instrument;
+
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use crate::trace::{Event, Journal, Scope, WATCH_SPAN};
 use dokime_domain::model::identity::wire::Timestamp;
 use dokime_domain::operations::backend as wire;
 use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
+
 const DEFAULT_EVENTS: usize = 256;
 const MAX_EVENTS: usize = 1024;
 const DEFAULT_BYTES: usize = 256 * 1024;
@@ -34,20 +40,27 @@ const MIN_BYTES: usize = 32 * 1024;
 const BATCH_OVERHEAD: usize = 256;
 
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
     journal: Arc<Journal>,
 }
+
 struct Watch {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl Operation for Watch {
     type Declaration = wire::WatchTrace;
     type Resources = Resources;
@@ -136,6 +149,7 @@ impl Watch {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<Watch>(
         "dokime",
@@ -146,6 +160,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
 fn scope(scope: Option<&dokime_domain::model::backend::wire::TraceScope>) -> Result<Scope, Status> {
     match scope {
         None | Some(dokime_domain::model::backend::wire::TraceScope::Instance) => Ok(Scope::Instance),

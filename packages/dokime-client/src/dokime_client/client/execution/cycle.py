@@ -17,9 +17,8 @@ from contextlib import aclosing
 from pathlib import Path
 from typing import Any
 
-from google.protobuf.json_format import MessageToDict
-
 # Third Party Imports
+from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
 # Local Imports

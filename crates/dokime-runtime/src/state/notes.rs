@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -42,6 +43,7 @@ use dokime_domain::model::identity::NoteId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeState {
     pub fn note_owner_scope(&self, owner: &NoteOwner) -> Result<RecordScope, String> {
         let cycle = self.cycles.get(owner.cycle_id()).ok_or("note owner cycle is absent")?;
@@ -282,3 +284,180 @@ impl RuntimeState {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use harmos::state::Transaction;
+    // Local Imports
+    use crate::state::RuntimeState;
+    use crate::transactions::{AddOperatorNote, CreateOperatorNote};
+    use crate::{CaseId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId};
+    use dokime_domain::model;
+    use dokime_domain::model::execution::result::CycleView;
+    use dokime_domain::model::identity::CommandId;
+    use model::execution::OperatorNote;
+    use model::execution::notes::*;
+
+    fn fixture() -> (RuntimeState, NoteAdmission) {
+        let mut state = RuntimeState::new(SessionId::from_seed("notes-session"));
+        crate::transactions::MarkRuntimeStarted {
+            session_id: state.session_id.clone(),
+            record_namespace: SessionId::from_seed("notes-epoch"),
+        }
+        .apply(&mut state);
+        let cycle_id = TestCycleId::from_seed("notes-cycle");
+        let case_id = CaseId::from_seed("notes-case");
+        let cycle: CycleView = serde_json::from_value(serde_json::json!({
+            "test_cycle_id":cycle_id,"metadata":{"identifier":"fixture.cycle","label":"Fixture"},"phase":"active",
+            "created_at":crate::Timestamp::new("2026-10-19T10:00:00Z"),"updated_at":crate::Timestamp::new("2026-10-19T10:00:00Z"),
+            "test_executions":[{
+                "test_cycle_id": cycle_id,
+                    "test_execution_id": TestExecutionId::from_seed("notes-execution"),
+                    "test_case_id": case_id,
+                    "status":"skipped",
+                    "scope":{},
+                "snapshot":dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
+                    &serde_json::from_value(serde_json::json!({"suite_id":"fixture.registration",
+                        "test_case_id":case_id,
+                        "test_case_template_id":crate::TemplateId::from_seed("notes-template"),
+                        "metadata":{"identifier":"fixture.case",
+                        "label":"Case"}})).unwrap(),
+                    None, Default::default(), None, Default::default(),
+                ).unwrap()
+            }]
+        }))
+        .unwrap();
+        state.replace_cycle(cycle).expect("cycle projection has valid ownership");
+        let owner = NoteOwner::Case { cycle_id, case_id };
+        let mutation_id = CommandId::from_seed("notes-creation");
+        let admission = NoteAdmission {
+            mutation_id: mutation_id.clone(),
+            owner: owner.clone(),
+            note: OperatorNote {
+                note_id: note_identity(state.process_epoch(), "operator", &mutation_id),
+                scope: state.note_owner_scope(&owner).unwrap(),
+                author: Some("operator".into()),
+                message: "inspected connector".into(),
+                created_at: crate::Timestamp::new("2026-10-19T10:00:00Z"),
+            },
+            checkpoint_targets: Vec::new(),
+        };
+        (state, admission)
+    }
+
+    #[test]
+    fn note_mutations_restarts() {
+        let (mut state, admission) = fixture();
+        let mut create = CreateOperatorNote { admission };
+        create.check(&state).unwrap();
+        let scope = create.admission.note.scope.clone();
+
+        crate::transactions::MarkRuntimeStarted {
+            session_id: state.session_id.clone(),
+            record_namespace: SessionId::from_seed("notes-restarted-epoch"),
+        }
+        .apply(&mut state);
+        assert!(create.check(&state).unwrap_err().contains("epoch/actor"));
+
+        create.admission.note.note_id = note_identity(state.process_epoch(), "operator", &create.admission.mutation_id);
+        create.check(&state).unwrap();
+        assert_eq!(create.admission.note.scope, scope);
+    }
+
+    #[test]
+    fn retry_identity_retirement() {
+        let (mut state, admission) = fixture();
+        let create = CreateOperatorNote { admission: admission.clone() };
+        create.check(&state).unwrap();
+        create.apply(&mut state);
+        assert_eq!(state.iter_notes().count(), 1);
+        let mut retry = create.clone();
+        retry.admission.note.created_at = crate::Timestamp::new("2026-10-19T10:00:01Z");
+        retry.check(&state).unwrap();
+        retry.apply(&mut state);
+        assert_eq!(state.iter_notes().count(), 1);
+        assert_eq!(state.note_admissions[&admission.note.note_id], admission);
+        state.cycles.clear();
+        retry.check(&state).unwrap();
+        retry.apply(&mut state);
+        assert!(state.cycles.is_empty());
+        assert_eq!(state.note_admissions.len(), 1);
+        retry.admission.note.message.push('!');
+        assert!(retry.check(&state).is_err());
+        retry = create.clone();
+        retry.admission.owner = NoteOwner::Cycle { cycle_id: TestCycleId::from_seed("notes-missing-owner") };
+        assert!(retry.check(&state).is_err());
+        let old_id = create.admission.note.note_id;
+        assert_ne!(old_id, note_identity(&SessionId::from_seed("notes-other-epoch"), "operator", &admission.mutation_id));
+        assert_ne!(old_id, note_identity(state.process_epoch(), "another operator", &admission.mutation_id));
+    }
+
+    #[test]
+    fn rejects_missing_owners() {
+        let (mut state, admission) = fixture();
+        let cycle_id = admission.owner.cycle_id().clone();
+        let mut note = admission.note;
+        note.scope.test_execution_id = Some(TestExecutionId::from_seed("notes-missing-execution"));
+        let transaction = AddOperatorNote { note: note.clone() };
+        assert!(transaction.check(&state).is_err());
+        assert!(state.cycles[&cycle_id].records.notes().is_empty());
+        note.scope.test_execution_id = None;
+        note.scope.session_id = Some(SessionId::from_seed("notes-missing-session"));
+        assert!(AddOperatorNote { note: note.clone() }.check(&state).is_err());
+        note.scope = state.note_owner_scope(&admission.owner).unwrap();
+        let removed = std::mem::take(&mut state.cycles.get_mut(&cycle_id).unwrap().execution_ids);
+        for id in removed {
+            state.executions.remove(&id);
+        }
+        assert!(AddOperatorNote { note }.check(&state).is_err());
+    }
+
+    #[test]
+    fn capacity_preserves_receipts() {
+        let (mut state, admission) = fixture();
+        for index in 0..NOTE_RECEIPT_LIMIT {
+            let mut item = admission.clone();
+            item.mutation_id = CommandId::from_seed(format!("notes-mutation-{index}"));
+            item.note.note_id = note_identity(state.process_epoch(), "operator", &item.mutation_id);
+            state.note_admissions.insert(item.note.note_id.clone(), item);
+        }
+        let existing = state.note_admissions.values().next().unwrap().clone();
+        assert!(CreateOperatorNote { admission: admission.clone() }.check(&state).unwrap_err().contains("capacity"));
+        CreateOperatorNote { admission: existing.clone() }.check(&state).unwrap();
+        assert_eq!(state.note_admissions.len(), NOTE_RECEIPT_LIMIT);
+        state.note_admissions.clear();
+        for index in 0..600 {
+            let mut item = admission.clone();
+            item.note.note_id = NoteId::from_seed(format!("notes-size-{index}"));
+            item.note.message = "x".repeat(NOTE_TEXT_BYTES);
+            state.note_admissions.insert(item.note.note_id.clone(), item);
+        }
+        assert!(CreateOperatorNote { admission }.check(&state).unwrap_err().contains("capacity"));
+    }
+
+    #[test]
+    fn scoped_read_bounds() {
+        let (mut state, admission) = fixture();
+        let cycle = state.cycle_views().next().unwrap();
+        for index in 0..NOTE_SCAN_LIMIT {
+            let mut cycle = cycle.clone();
+            cycle.test_cycle_id = TestCycleId::from_seed(format!("notes-scan-cycle-{index}"));
+            for execution in &mut cycle.test_executions {
+                execution.test_cycle_id = cycle.test_cycle_id.clone();
+                execution.test_execution_id = TestExecutionId::from_seed(format!("notes-scan-execution-{index}"));
+            }
+            state.replace_cycle(cycle).expect("cycle projection has valid ownership");
+        }
+        assert!(state.annotation_sets(None, false).is_err());
+        assert!(state.annotation_sets(Some(&admission.owner), false).is_ok());
+        state.session_records_mut().push_note(OperatorNote {
+            note_id: NoteId::from_seed("notes-invalid-message"),
+            scope: RecordScope::default(),
+            author: None,
+            message: "x".repeat(NOTE_TEXT_BYTES + 1),
+            created_at: crate::Timestamp::new("2026-10-19T10:00:00Z"),
+        });
+        let invalid = &state.session_records().notes()[0];
+        assert!(state.validate_operator_note(invalid).is_err());
+    }
+}

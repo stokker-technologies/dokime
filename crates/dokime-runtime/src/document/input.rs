@@ -10,14 +10,17 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use super::context::Context;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
+
 // Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::document::definition::DocumentDefinition;
@@ -36,6 +39,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentResolveInput {
     pub definition: DocumentDefinition,
@@ -77,6 +81,7 @@ pub(super) struct RecordView<'a> {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 pub(crate) enum Records<'a> {
     Native(&'a [RecordEntry]),
@@ -92,6 +97,7 @@ pub(crate) enum Artifacts<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DocumentResolveInput {
     pub(crate) fn borrowed(&self) -> BorrowedInput<'_> {
         BorrowedInput {

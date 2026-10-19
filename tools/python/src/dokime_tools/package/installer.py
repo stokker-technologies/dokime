@@ -6,16 +6,17 @@
 #
 # ***
 
-
 """Check And Stage Native Desktop Packages"""
 
 # === Imports === #
 
 # Standard Library Imports
-
 import argparse
+import base64
+import binascii
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -23,15 +24,14 @@ import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 
-from dokime_tools.build import paths
-from dokime_tools.build.frontend import ROOT
-
 # Third Party Imports
 # Local Imports
+from dokime_tools import temporary
+from dokime_tools.build import paths
+from dokime_tools.build.frontend import ROOT
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -41,7 +41,6 @@ WEB = Path("crates/dokime-gui")
 TAURI = WEB / "src-tauri"
 UPDATER_TARGET = "windows-x86_64"
 PROJECT_URL = "https://github.com/stokker-technologies/dokime"
-
 
 # === Types === #
 
@@ -113,7 +112,12 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
     """Bundle The Built Shell With Its Companions; Development Packages Use Tauri's Debug Mode."""
     check(root)
     release = profile == "release"
-    signed = release and sys.platform == "win32" and _signing_available()
+    windows_release = release and sys.platform == "win32"
+    signed = windows_release and _signing_available()
+    if windows_release and _release_requested() and not signed:
+        raise ValueError("final Windows releases require the configured updater signing key and password")
+
+    # Stage Matching Product Bytes
     directory = _target_directory(root) / ("release" if release else "debug")
     stage_resources(root, directory=directory, profile=profile)
     bundles = directory / "bundle"
@@ -176,13 +180,14 @@ def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> 
     destination = installers / f"{slug}-{version}-{UPDATER_TARGET}-setup.exe"
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(installer, destination)
-    if os.environ.get("DOKIME_RELEASE_CONTEXT") == "true" and not signed:
+    if profile == "release" and _release_requested() and not signed:
         raise ValueError("final Windows releases require the configured updater signing key")
     if signed:
         signatures = list(nsis.rglob(installer.name + ".sig")) or list(nsis.rglob("*.sig"))
         signature = _one(signatures, "updater signature")
         copied = destination.with_suffix(".exe.sig")
         shutil.copyfile(signature, copied)
+        verify_signature(root, destination, copied)
         base = os.environ.get("TAURI_UPDATER_ARTIFACT_BASE_URL", "").strip().rstrip("/")
         if not base:
             project = PROJECT_URL
@@ -220,13 +225,49 @@ def check_package(
     installer = _one(list(directory.glob(f"{slug}-*-{UPDATER_TARGET}-setup.exe")), "Tauri installer")
     if installer.name != f"{slug}-{expected}-{UPDATER_TARGET}-setup.exe":
         raise ValueError("installer version does not match the expected version")
-    if require_signed or os.environ.get("GITHUB_REF_TYPE") == "tag" and _signing_available():
-        signature = installer.with_suffix(".exe.sig").read_text(encoding="utf-8").strip()
+
+    # Verify Published Bytes Independently Of Private Signing Credentials
+    signature_file = installer.with_suffix(".exe.sig")
+    final_release = profile == "release" and _release_requested()
+    metadata_present = signature_file.exists() or (directory / "latest.json").exists()
+    if require_signed or final_release or metadata_present:
+        signature = signature_file.read_text(encoding="utf-8").strip()
         manifest = json.loads((directory / "latest.json").read_text(encoding="utf-8"))
         platform = manifest.get("platforms", {}).get(UPDATER_TARGET, {})
-        if manifest.get("version") != expected or platform.get("signature") != signature or installer.name not in platform.get("url", ""):
+        identity_matches = manifest.get("version") == expected and platform.get("signature") == signature
+        named_installer = platform.get("url", "").rsplit("/", 1)[-1]
+        if not identity_matches or named_installer != installer.name:
             raise ValueError("updater manifest must identify the exact installer and signature")
+        verify_signature(root, installer, signature_file)
     print(f"Tauri installer artifacts are valid for {expected}.")
+
+
+def verify_signature(root: Path, installer: Path, signature: Path) -> None:
+    """Verify Exact Installer Bytes Against The Shipped Updater Public Key."""
+    config = json.loads((root / TAURI / "tauri.conf.json").read_text(encoding="utf-8"))
+    encoded_key = config["plugins"]["updater"]["pubkey"].strip()
+    encoded_signature = signature.read_text(encoding="utf-8").strip()
+    try:
+        public_key = base64.b64decode(encoded_key, validate=True)
+        signed = base64.b64decode(encoded_signature, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("updater public key and signature must contain valid base64") from error
+    with temporary.directory() as scratch:
+        key_file = scratch / "updater.pub"
+        signature_file = scratch / "installer.minisig"
+        key_file.write_bytes(public_key)
+        signature_file.write_bytes(signed)
+
+        # Minisign Verifies The Payload And Its Signed Comment
+        payload = str(installer.resolve())
+        result = subprocess.run(
+            ["minisign", "-V", "-q", "-m", payload, "-p", str(key_file), "-x", str(signature_file)],
+            cwd=root,
+            capture_output=True,
+            check=False,
+        )
+    if result.returncode:
+        raise ValueError("installer signature does not match its bytes and the configured updater public key")
 
 
 def main() -> int:
@@ -236,8 +277,13 @@ def main() -> int:
     parser.add_argument("--dist-dir", type=Path)
     parser.add_argument("--expected-version")
     parser.add_argument("--require-signed", action="store_true")
+    parser.add_argument("--release-assets", action="store_true")
     args = parser.parse_args()
     try:
+        if args.release_assets:
+            if args.command != "verify" or args.dist_dir is not None or not os.environ.get("RELEASE_ASSET_ROOT"):
+                raise ValueError("--release-assets requires verify and the native RELEASE_ASSET_ROOT")
+            args.dist_dir = Path(os.environ["RELEASE_ASSET_ROOT"])
         if args.command == "check":
             check()
         elif args.command == "bundle":
@@ -307,8 +353,24 @@ def _signing_available() -> bool:
 
 
 def _release_version(root: Path) -> str:
-    tag = os.environ.get("GITHUB_REF_NAME", "").strip().removeprefix("v") if os.environ.get("GITHUB_REF_TYPE") == "tag" else ""
-    return tag or json.loads((root / TAURI / "tauri.conf.json").read_text(encoding="utf-8"))["version"]
+    version = json.loads((root / TAURI / "tauri.conf.json").read_text(encoding="utf-8"))["version"]
+    tag = _stable_tag()
+    if tag and tag.removeprefix("v") != version:
+        raise ValueError("release tag version differs from the configured installer version")
+    return version
+
+
+def _stable_tag() -> str:
+    tag = os.environ.get("CI_COMMIT_TAG", "").strip()
+    if os.environ.get("GITHUB_REF", "").startswith("refs/tags/"):
+        tag = os.environ["GITHUB_REF"].removeprefix("refs/tags/")
+    elif os.environ.get("GITHUB_REF_TYPE") == "tag":
+        tag = os.environ.get("GITHUB_REF_NAME", "").strip()
+    return tag if re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag) else ""
+
+
+def _release_requested() -> bool:
+    return os.environ.get("DOKIME_RELEASE_CONTEXT") == "true" or bool(_stable_tag())
 
 
 def _slug(root: Path) -> str:

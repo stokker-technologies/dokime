@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::Aggregate;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{RuntimeHandle, runtime::Result};
 use dokime_domain::model::values::Value;
@@ -28,6 +30,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AggregateQuery {
     pub source: AggregateSource,
@@ -59,6 +62,7 @@ pub struct AggregateOutcome {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AggregateSource {
@@ -85,6 +89,7 @@ pub enum AggregateOperator {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn aggregate(&self, query: AggregateQuery) -> Result<AggregateOutcome> {
         crate::runtime::storage::aggregate::evaluate(&self.execution_storage, &query).await

@@ -10,13 +10,16 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(super) use bounds::Budget;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use dokime_runtime::definition::ParameterExpr;
 use dokime_runtime::definition::parameters::bounds;
@@ -36,6 +39,7 @@ use dokime_runtime::definition::parameters::bounds;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn expression(expr: &ParameterExpr, budget: &mut Budget, depth: usize) -> Result<(), Status> {
     bounds::expression(expr, budget, depth).map_err(status)
 }

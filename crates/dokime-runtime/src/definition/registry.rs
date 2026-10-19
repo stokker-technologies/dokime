@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::{SuiteSet, SuiteSnapshot, TestCase};
 use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding, TestSuiteDefinition, resolve_suite_plot_axes};
@@ -31,13 +34,17 @@ use dokime_domain::model::identity::CommandId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SuiteRegistry {
     suites: BTreeMap<String, SuiteSnapshot>,
+
     #[serde(default)]
     cases: BTreeMap<CaseId, TestCase>,
+
     #[serde(default)]
     registrations: BTreeMap<CommandId, Vec<CaseId>>,
+
     case_revisions: BTreeMap<CaseId, String>,
 }
 
@@ -46,6 +53,7 @@ pub struct SuiteRegistry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SuiteRegistry {
     // The Registry's Parts, For The State Encoding That Stores Each Suite Once
     pub(crate) fn snapshots(&self) -> &BTreeMap<String, SuiteSnapshot> {
@@ -242,6 +250,7 @@ impl SuiteRegistry {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_record_contract(existing: &[RecordContract], candidate: &RecordContract) -> Result<(), String> {
     if existing.iter().any(|contract| contract.record_schema() == candidate.record_schema()) {
         return Ok(());

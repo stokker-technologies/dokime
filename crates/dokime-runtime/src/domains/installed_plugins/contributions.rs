@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::de::DeserializeOwned;
+
 // Local Imports
 use crate::InstalledPlugin;
 use crate::definition::SuiteSet;
@@ -45,6 +47,7 @@ use crate::{runtime::Error, runtime::Result};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn decode_registrations(
     source: &str, version: &str, description: &str, registrations: &[harmos::sidecar::Registration],
 ) -> Result<InstalledPlugin> {
@@ -81,6 +84,7 @@ pub(crate) fn decode_registrations(
 }
 
 /* === Private Functions === */
+
 fn decode_once<T: DeserializeOwned>(registrations: &[harmos::sidecar::Registration], source: &str, namespace: &str) -> Result<Option<T>> {
     let matching = registrations.iter().filter(|entry| entry.namespace == namespace).collect::<Vec<_>>();
     let Some(registration) = matching.first() else {

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::MemorySize;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
@@ -29,6 +31,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 pub const DOCUMENT_SCHEMA: &str = "dokime.execution.document";
 
 /* === Macros === */
@@ -36,6 +39,7 @@ pub const DOCUMENT_SCHEMA: &str = "dokime.execution.document";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionMetadata {
@@ -70,6 +74,7 @@ pub struct ExecutionCycle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl MemorySize for ExecutionMetadata {
     fn memory_size(&self) -> usize {
         let fields = [

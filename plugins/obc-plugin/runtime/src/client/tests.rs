@@ -44,7 +44,6 @@ use crate::{
 
 /* === Private Functions === */
 
-/* === Tests === */
 #[tokio::test]
 async fn manual_power_is_visible_to_other_clients() {
     let runtime = app::launch(Testbench::default()).await.unwrap();
@@ -94,3 +93,5 @@ async fn latched_fault_refuses_power_without_changing_the_device() {
     assert_eq!(client.device().await.unwrap().power, Power::Faulted);
     runtime.stop().await.unwrap();
 }
+
+/* === Tests === */

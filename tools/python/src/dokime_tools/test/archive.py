@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:3ee99517e55c981ffa9a8d4ca2fa0626bc2c9f4c42b4b4d50bd0da684ca8a509
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:580c317a7ce128641ec34ecfc52b904287dfd20510669dad5c85c6fb9cf1c39c
 # ***
 #
 # Dokime
@@ -6,7 +6,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-
 """Build One Nextest Archive And Check The Fixture Files Consumed By Lanes."""
 
 # === Imports === #
@@ -183,7 +182,13 @@ def stamp(directory: Path, profile: str, files: Sequence[str], metadata: Mapping
     target.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
 
-def fixtures(directory: Path, profile: str = "dev", hosts: Sequence[str] = ()) -> None:
+def fixtures(
+    directory: Path,
+    profile: str = "dev",
+    hosts: Sequence[str] = (),
+    *,
+    roots: Sequence[str] | None = None,
+) -> None:
     path = paths.output(directory, "build", profile) / "fixtures/stamp.json"
     if not path.is_file():
         if hosts:
@@ -195,19 +200,29 @@ def fixtures(directory: Path, profile: str = "dev", hosts: Sequence[str] = ()) -
     if record.get("target") != paths.target():
         raise policy.TestError("fixture stamp belongs to another native target")
     files = record.get("files", {})
+    variables = {
+        "profile": profile,
+        "platform": sys.platform,
+        "architecture": platform.machine(),
+        "target": paths.target(),
+        "exe": ".exe" if os.name == "nt" else "",
+    }
+    selected_hosts = [host.format(**variables).rstrip("/") for host in hosts]
+    selected = None if roots is None else [*roots, *selected_hosts]
     for name, digest in files.items():
+        if selected is not None and not any(name == scope.rstrip("/") or name.startswith(scope.rstrip("/") + "/") for scope in selected):
+            continue
         target = _inside(directory, name)
         if not target.is_file() or _digest(target) != digest:
             raise policy.TestError(f"missing or stale fixture: {name}")
-    for host in hosts:
-        name = host.format(
-            profile=profile,
-            platform=sys.platform,
-            architecture=platform.machine(),
-            target=paths.target(),
-            exe=".exe" if os.name == "nt" else "",
-        )
-        if name not in files or not _inside(directory, name).is_file():
+    for name in selected_hosts:
+        target = _inside(directory, name)
+        if target.is_dir():
+            stamped = {path for path in files if path.startswith(name + "/")}
+            present = {path.relative_to(directory).as_posix() for path in target.rglob("*") if path.is_file()}
+            if not stamped or present != stamped:
+                raise policy.TestError(f"missing or unstamped host fixture tree: {name}")
+        elif name not in files or not target.is_file():
             raise policy.TestError(f"missing host fixture: {name}")
 
 

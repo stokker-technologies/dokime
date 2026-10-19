@@ -21,6 +21,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -28,20 +29,18 @@ use std::{
     sync::{Arc, Mutex, Weak},
     time::Duration,
 };
+
 // Third Party Imports
 
 // Local Imports
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 pub const SETTLED_RETENTION: Duration = Duration::from_secs(3);
-
 pub const MAX_OPERATIONS: usize = 32;
-
 pub const MAX_TEXT_CHARS: usize = 160;
-
 pub const MAX_PHASES: usize = 16;
-
 const FRACTION_STEP: f64 = 0.01;
 
 /* === Macros === */
@@ -49,6 +48,7 @@ const FRACTION_STEP: f64 = 0.01;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct LiveOperation {
     pub operation_id: String,
@@ -97,6 +97,7 @@ struct Entry {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum OperationOutcome {
     Running,
@@ -107,6 +108,7 @@ pub enum OperationOutcome {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl LiveOperation {
     pub fn memory_size(&self) -> usize {
         let failure = match &self.outcome {
@@ -340,6 +342,7 @@ impl std::fmt::Debug for Operation {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn bounded(mut text: String) -> String {
     if let Some((end, _)) = text.char_indices().nth(MAX_TEXT_CHARS) {
         text.truncate(end);

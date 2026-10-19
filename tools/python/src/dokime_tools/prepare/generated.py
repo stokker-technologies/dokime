@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Carry The Generated GUI Message Modules Between The Build And The Lanes
 
     python -m dokime_tools.prepare.generated
@@ -23,14 +22,12 @@ modules before they compile or import the GUI.
 import argparse
 from pathlib import Path
 
-from dokime_tools.build import paths
-
 # Third Party Imports
 # Local Imports
+from dokime_tools.build import paths
 from dokime_tools.package.staging import sync_output
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 

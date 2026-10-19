@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use crate::grpc::enums::canonical as enums;
 use crate::grpc::value::projection;
@@ -37,6 +39,7 @@ use dokime_domain::model::identity::wire as common;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(in crate::grpc) fn wire(
     value: &dokime_runtime::document::DocumentDefinition, scope: &dokime_domain::model::execution::RecordScope,
 ) -> Result<dokime_domain::model::history::wire::HistoricalDocument, Status> {
@@ -78,7 +81,104 @@ pub(in crate::grpc) fn wire(
     Ok(dokime_domain::model::history::wire::HistoricalDocument { presentation: Some(presentation), layout_nodes, cards, table_rows })
 }
 
+pub(in crate::grpc) fn historical_plot(
+    value: &dokime_runtime::document::PlotDefinition, scope: &dokime_domain::model::execution::RecordScope,
+) -> Result<dokime_domain::model::documents::wire::DocumentPlotDefinition, Status> {
+    value::collection(value.y.len())?;
+    value::collection(value.y_expressions.len())?;
+    value::collection(value.filters.len())?;
+    value::collection(value.marker_record_types.len())?;
+    value::collection(value.reference_lines.len())?;
+    value::collection(value.reference_bands.len())?;
+    let strings = [
+        value.stream.as_deref(),
+        value.x.as_deref(),
+        value.z_stream.as_deref(),
+        value.z_field.as_deref(),
+        value.series_by.as_deref(),
+        value.unit.as_deref(),
+    ];
+    for item in strings.into_iter().flatten() {
+        value::text(item)?;
+    }
+    for item in &value.y {
+        value::text(item)?;
+    }
+    for item in &value.marker_record_types {
+        value::text(item)?;
+    }
+    if let Some(window) = value.live_window_s {
+        finite(window, "live_window_s")?;
+    }
+    let request = dokime_domain::model::plots::wire::PlotRequest {
+        analysis: value.analysis.as_ref().map(analysis_selection).transpose()?,
+        plot_id: Some(value.metadata.identifier.as_str().to_owned()),
+        plot_type: enums::plot_type(&value.plot_type),
+        x_scale: enums::axis_scale(&value.x_scale),
+        y_scale: enums::axis_scale(&value.y_scale),
+        stream: value.stream.clone().unwrap_or_default(),
+        y_keys: value.y.clone(),
+        marker_record_types: value.marker_record_types.clone(),
+        filters: collect(value.filters.iter().map(plot_filter))?,
+        x_key: value.x.clone(),
+        series_by: value.series_by.clone(),
+        x_expression: value.x_expression.as_ref().map(data_expression).transpose()?,
+        y_expressions: collect(value.y_expressions.iter().map(data_expression))?,
+        series_by_expression: value.series_by_expression.as_ref().map(data_expression).transpose()?,
+        z_expression: value.z_expression.as_ref().map(data_expression).transpose()?,
+        fft: Some(fft_options(&value.fft)?),
+        interval: Some(interval_options(&value.interval)?),
+        histogram: Some(histogram_options(&value.histogram)?),
+        z_stream: value.z_stream.clone(),
+        z_field: value.z_field.clone(),
+        unit: value.unit.clone(),
+        max_points: value.display_points.map(u64::from),
+        window_s: value.live_window_s,
+        scope: Some(canonical::scope(scope)?),
+        cursor: None,
+        technique: enums::downsample_technique(&value.downsample),
+        summary_window: None,
+    };
+    let (x_axis, x_axis_unit) = enums::plot_axis(value.x_axis.as_ref());
+    let presentation = dokime_domain::model::documents::wire::PlotPresentation {
+        style: enums::plot_style(&value.style),
+        fft: Some(fft_options(&value.fft)?),
+        interval: Some(interval_options(&value.interval)?),
+        histogram: Some(histogram_options(&value.histogram)?),
+        reference_lines: collect(value.reference_lines.iter().map(reference_line))?,
+        reference_bands: collect(value.reference_bands.iter().map(reference_band))?,
+        live_window_s: value.live_window_s,
+        x_format: value.x_format.as_ref().map(canonical::format),
+        y_format: value.y_format.as_ref().map(canonical::format),
+        x_axis,
+        x_axis_unit,
+    };
+    Ok(dokime_domain::model::documents::wire::DocumentPlotDefinition {
+        metadata: Some(metadata(&value.metadata)?),
+        request: Some(request),
+        presentation: Some(presentation),
+        z_expression: value.z_expression.as_ref().map(data_expression).transpose()?,
+    })
+}
+
+pub(in crate::grpc) fn repeat(
+    source: &dokime_runtime::document::DocumentSectionRepeat,
+) -> Result<dokime_domain::model::documents::wire::DocumentRepeat, Status> {
+    value::text(&source.label_template)?;
+    if let Some(id) = &source.id_template {
+        value::text(id)?;
+    }
+    Ok(dokime_domain::model::documents::wire::DocumentRepeat {
+        value: Some(data_expression(&source.value)?),
+        label_template: source.label_template.clone(),
+        id_template: source.id_template.clone(),
+        order_by: source.order_by.as_ref().map(data_expression).transpose()?,
+        filters: collect(source.filters.iter().map(plot_filter))?,
+    })
+}
+
 /* === Private Functions === */
+
 fn layout_count(nodes: &[dokime_runtime::document::DocumentNode]) -> usize {
     nodes.iter().fold(0usize, |count, node| {
         let children = match node {
@@ -88,6 +188,7 @@ fn layout_count(nodes: &[dokime_runtime::document::DocumentNode]) -> usize {
         count.saturating_add(1).saturating_add(children)
     })
 }
+
 fn projection_failure(error: harmos::Error) -> Status {
     match error {
         harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("historical document construction exceeds its bound"),
@@ -293,86 +394,6 @@ fn data_transform(value: &dokime_runtime::expressions::DataTransform) -> Result<
     Ok(dokime_domain::model::plots::wire::DataTransform { kind: Some(kind) })
 }
 
-pub(in crate::grpc) fn historical_plot(
-    value: &dokime_runtime::document::PlotDefinition, scope: &dokime_domain::model::execution::RecordScope,
-) -> Result<dokime_domain::model::documents::wire::DocumentPlotDefinition, Status> {
-    value::collection(value.y.len())?;
-    value::collection(value.y_expressions.len())?;
-    value::collection(value.filters.len())?;
-    value::collection(value.marker_record_types.len())?;
-    value::collection(value.reference_lines.len())?;
-    value::collection(value.reference_bands.len())?;
-    let strings = [
-        value.stream.as_deref(),
-        value.x.as_deref(),
-        value.z_stream.as_deref(),
-        value.z_field.as_deref(),
-        value.series_by.as_deref(),
-        value.unit.as_deref(),
-    ];
-    for item in strings.into_iter().flatten() {
-        value::text(item)?;
-    }
-    for item in &value.y {
-        value::text(item)?;
-    }
-    for item in &value.marker_record_types {
-        value::text(item)?;
-    }
-    if let Some(window) = value.live_window_s {
-        finite(window, "live_window_s")?;
-    }
-    let request = dokime_domain::model::plots::wire::PlotRequest {
-        analysis: value.analysis.as_ref().map(analysis_selection).transpose()?,
-        plot_id: Some(value.metadata.identifier.as_str().to_owned()),
-        plot_type: enums::plot_type(&value.plot_type),
-        x_scale: enums::axis_scale(&value.x_scale),
-        y_scale: enums::axis_scale(&value.y_scale),
-        stream: value.stream.clone().unwrap_or_default(),
-        y_keys: value.y.clone(),
-        marker_record_types: value.marker_record_types.clone(),
-        filters: collect(value.filters.iter().map(plot_filter))?,
-        x_key: value.x.clone(),
-        series_by: value.series_by.clone(),
-        x_expression: value.x_expression.as_ref().map(data_expression).transpose()?,
-        y_expressions: collect(value.y_expressions.iter().map(data_expression))?,
-        series_by_expression: value.series_by_expression.as_ref().map(data_expression).transpose()?,
-        z_expression: value.z_expression.as_ref().map(data_expression).transpose()?,
-        fft: Some(fft_options(&value.fft)?),
-        interval: Some(interval_options(&value.interval)?),
-        histogram: Some(histogram_options(&value.histogram)?),
-        z_stream: value.z_stream.clone(),
-        z_field: value.z_field.clone(),
-        unit: value.unit.clone(),
-        max_points: value.display_points.map(u64::from),
-        window_s: value.live_window_s,
-        scope: Some(canonical::scope(scope)?),
-        cursor: None,
-        technique: enums::downsample_technique(&value.downsample),
-        summary_window: None,
-    };
-    let (x_axis, x_axis_unit) = enums::plot_axis(value.x_axis.as_ref());
-    let presentation = dokime_domain::model::documents::wire::PlotPresentation {
-        style: enums::plot_style(&value.style),
-        fft: Some(fft_options(&value.fft)?),
-        interval: Some(interval_options(&value.interval)?),
-        histogram: Some(histogram_options(&value.histogram)?),
-        reference_lines: collect(value.reference_lines.iter().map(reference_line))?,
-        reference_bands: collect(value.reference_bands.iter().map(reference_band))?,
-        live_window_s: value.live_window_s,
-        x_format: value.x_format.as_ref().map(canonical::format),
-        y_format: value.y_format.as_ref().map(canonical::format),
-        x_axis,
-        x_axis_unit,
-    };
-    Ok(dokime_domain::model::documents::wire::DocumentPlotDefinition {
-        metadata: Some(metadata(&value.metadata)?),
-        request: Some(request),
-        presentation: Some(presentation),
-        z_expression: value.z_expression.as_ref().map(data_expression).transpose()?,
-    })
-}
-
 fn plot_filter(value: &dokime_runtime::document::DocumentFilter) -> Result<dokime_domain::model::plots::wire::PlotFilter, Status> {
     Ok(dokime_domain::model::plots::wire::PlotFilter {
         expression: Some(data_expression(&value.expression)?),
@@ -568,22 +589,6 @@ fn layout_nodes_for_node(
         }
     }
     Ok(())
-}
-
-pub(in crate::grpc) fn repeat(
-    source: &dokime_runtime::document::DocumentSectionRepeat,
-) -> Result<dokime_domain::model::documents::wire::DocumentRepeat, Status> {
-    value::text(&source.label_template)?;
-    if let Some(id) = &source.id_template {
-        value::text(id)?;
-    }
-    Ok(dokime_domain::model::documents::wire::DocumentRepeat {
-        value: Some(data_expression(&source.value)?),
-        label_template: source.label_template.clone(),
-        id_template: source.id_template.clone(),
-        order_by: source.order_by.as_ref().map(data_expression).transpose()?,
-        filters: collect(source.filters.iter().map(plot_filter))?,
-    })
 }
 
 fn span(value: &dokime_runtime::document::ResponsiveSpan) -> dokime_domain::model::documents::wire::DocumentSpan {

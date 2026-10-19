@@ -12,18 +12,22 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State, WebviewWindow, http};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
 // Local Imports
 use super::content;
 use super::desktop::{ArtifactSource, ensure_generation_token, ensure_main_window, ensure_private_directory, set_private_file};
 use crate::connection::ConnectionSession;
 
 /* === Constants === */
+
 pub const MEDIA_SCHEME: &str = "dokime-media";
 const MAX_MEDIA_CACHE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 const MEDIA_RANGE_BYTES: u64 = 4 * 1024 * 1024;
@@ -35,6 +39,7 @@ const MEDIA_RANGE_BYTES: u64 = 4 * 1024 * 1024;
 /* === Structs === */
 
 /* === Enums === */
+
 enum RangeOutcome {
     Full,
     Partial { start: u64, end: u64 },
@@ -46,6 +51,7 @@ enum RangeOutcome {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn register(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.register_asynchronous_uri_scheme_protocol(
         MEDIA_SCHEME,
@@ -98,6 +104,7 @@ pub(crate) async fn release_all(app: &AppHandle) {
 }
 
 /* === Private Functions === */
+
 fn media_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app.path().app_cache_dir().map_err(|error| error.to_string())?.join("media"))
 }

@@ -19,7 +19,6 @@ members = [
   "crates/dokime-macros",
   "crates/dokime-server",
   "plugins/obc-plugin",
-  "crates/dokime-runtime/tests/fixtures",
   "plugins/obc-plugin/runtime",
 ]
 resolver = "2"

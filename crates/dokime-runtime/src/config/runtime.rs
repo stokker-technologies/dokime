@@ -12,10 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc, time::Duration};
+
 // Third Party Imports
+use harmos::storage::StorageSettings;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::Dokime;
 use crate::InstalledPlugin;
@@ -23,41 +27,52 @@ use crate::domains::ActionDispatcher;
 use dokime_domain::model::credentials::CredentialBackendKind;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
-use harmos::storage::StorageSettings;
 
 /* === Constants === */
+
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
 
+pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
 pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::services::Service<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
 
 /* === Structs === */
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     pub session_id: SessionId,
     pub storage_root: PathBuf,
     pub application_root: PathBuf,
+
     #[serde(default = "crate::config::storage_defaults")]
     pub storage: StorageSettings,
+
     #[serde(default = "default_compaction_interval")]
     pub compaction_interval: Duration,
+
     #[serde(default)]
     pub local_retention: Option<Duration>,
+
     pub hub_metadata: Metadata,
     pub credential_backend: RuntimeCredentialConfig,
+
     // A trusted bench is an isolated network where plain FTP sources are accepted.
     #[serde(default)]
     pub trusted_bench: bool,
+
     #[serde(skip)]
     pub installed_plugins: Vec<InstalledPlugin>,
+
     #[serde(default)]
     pub plugins: Vec<crate::plugins::PluginBundle>,
+
     #[serde(default)]
     pub plugin_lookup: Option<PathBuf>,
+
     #[serde(skip)]
     pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
+
     #[serde(skip)]
     pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
 }
@@ -65,6 +80,7 @@ pub struct RuntimeConfig {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeCredentialConfig {
     pub backend: CredentialBackendKind,
+
     #[serde(default)]
     pub local_file: Option<PathBuf>,
 }
@@ -74,6 +90,7 @@ pub struct RuntimeCredentialConfig {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeConfig {
     pub fn new(storage_root: impl Into<PathBuf>, hub_metadata: Metadata) -> Self {
         let storage_root = storage_root.into();
@@ -180,6 +197,7 @@ impl Default for RuntimeCredentialConfig {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn default_compaction_interval() -> Duration {
     Duration::from_secs(24 * 60 * 60)
 }

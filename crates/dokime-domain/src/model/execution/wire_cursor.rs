@@ -22,6 +22,7 @@ use serde::Serialize;
 // Local Imports
 
 /* === Constants === */
+
 pub const MAX_PAGE_ITEMS: u32 = 100;
 pub const DEFAULT_PAGE_ITEMS: u32 = 50;
 pub const MAX_AFTER_BYTES: usize = 4096;
@@ -31,6 +32,7 @@ pub const MAX_AFTER_BYTES: usize = 4096;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Cursor {
@@ -40,18 +42,24 @@ pub struct Cursor {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     #[error("cursor epoch/stream mismatch; resynchronize without cursor")]
     Selection,
+
     #[error("cursor is ahead of runtime")]
     Ahead,
+
     #[error("runtime changed; restart pagination")]
     Changed,
+
     #[error("text exceeds 4096 bytes")]
     AfterTooLarge,
+
     #[error("page limit exceeds 100")]
     Limit,
+
     #[error("subsequent page requires cursor")]
     Missing,
 }
@@ -59,6 +67,7 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Cursor {
     pub fn validate(&self, given: Option<&Self>, exact: bool) -> Result<(), Error> {
         let Some(given) = given else { return Ok(()) };

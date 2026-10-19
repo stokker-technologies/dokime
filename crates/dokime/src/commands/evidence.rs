@@ -30,6 +30,7 @@ use dokime_domain::model::exports::EvidenceSubject;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 #[group(id = "evidence_download")]
 pub(crate) struct Args {
@@ -56,6 +57,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(
     args: Args, subject: fn(String) -> EvidenceSubject, recovery_args: Option<super::execution::recovery::Args>,
 ) -> crate::Result<()> {

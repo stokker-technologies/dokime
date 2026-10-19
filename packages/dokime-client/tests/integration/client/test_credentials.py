@@ -68,7 +68,7 @@ def test_credential_precedence(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("data", [b"", b"short", b"\xff", b"a" * 4099, b"a" * 31 + b" "])
-def test_bad_key_file_never_uses_environment(data, tmp_path, monkeypatch):
+def test_key_file_refusal(data, tmp_path, monkeypatch):
     key_file = tmp_path / "remote.key"
     key_file.write_bytes(data)
     monkeypatch.setenv("DOKIME_KEY", "b" * 32)
@@ -76,7 +76,7 @@ def test_bad_key_file_never_uses_environment(data, tmp_path, monkeypatch):
         DokimeClient(key_file=key_file)
 
 
-def test_all_explicit_files_are_validated(tmp_path, monkeypatch):
+def test_explicit_files_checked(tmp_path, monkeypatch):
     key_file = tmp_path / "remote.key"
     env_file = tmp_path / "selected.env"
     key_file.write_text("a" * 32, encoding="utf-8")
@@ -96,7 +96,7 @@ def test_all_explicit_files_are_validated(tmp_path, monkeypatch):
         DokimeClient(key_file=key_file, env_file=env_file)
 
 
-def test_no_implicit_dotenv_search(tmp_path, monkeypatch):
+def test_dotenv_search_refused(tmp_path, monkeypatch):
     monkeypatch.delenv("DOKIME_KEY", raising=False)
     (tmp_path / ".env").write_text("DOKIME_KEY=" + "c" * 32, encoding="utf-8")
     nested = tmp_path / "nested"

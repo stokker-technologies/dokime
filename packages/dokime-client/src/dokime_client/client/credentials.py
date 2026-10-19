@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Resolve Explicit Remote Credentials Without Changing Process Environment"""
 
 # === Imports === #
@@ -26,10 +25,10 @@ from dotenv.parser import parse_stream
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
+
 _ENVIRONMENT_BYTES = 64 * 1024
 _KEY_BYTES = 4098
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*\Z")

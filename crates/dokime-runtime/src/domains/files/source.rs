@@ -32,10 +32,12 @@ use crate::{runtime::Error, runtime::Result};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 // Matched files by forward-slash path relative to the source root.
 pub(super) type Listing = BTreeMap<String, Entry>;
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
     pub(super) size: u64,
@@ -46,6 +48,7 @@ pub(super) struct Entry {
 }
 
 /* === Enums === */
+
 pub(super) enum Source {
     Local(LocalSource),
     Ftp(Box<FtpSource>),
@@ -60,6 +63,7 @@ pub(super) enum ReadFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Source {
     pub(super) async fn local(root: &str) -> Result<Self> {
         Ok(Self::Local(LocalSource::open(root).await?))

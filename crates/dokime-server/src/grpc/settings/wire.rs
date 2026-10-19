@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use harmos::domain::Portable;
 use tonic::Status as TonicStatus;
+
 // Local Imports
 use super::super::{
     execution,
@@ -48,6 +51,7 @@ use dokime_runtime::settings::SettingsEntry;
 use dokime_runtime::settings::TextArea;
 
 /* === Constants === */
+
 pub(super) const MAX_TEXT_BYTES: usize = 4096;
 
 /* === Macros === */
@@ -63,6 +67,7 @@ pub(super) const MAX_TEXT_BYTES: usize = 4096;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn identifier(value: String, field: &str) -> Result<Identifier, TonicStatus> {
     if value.len() > MAX_TEXT_BYTES {
         return Err(TonicStatus::resource_exhausted(format!("{field} exceeds {MAX_TEXT_BYTES} bytes")));
@@ -121,6 +126,7 @@ pub(super) fn plugin_error(error: RuntimePluginManagementError) -> TonicStatus {
 }
 
 /* === Private Functions === */
+
 fn encode_section(section: RuntimeSettingsSection) -> Result<dokime_domain::model::settings::wire::SettingsSection, TonicStatus> {
     let section_id = checked_identifier(&section.section_id, "section_id")?;
     bounded_text(section.label.clone(), "section label")?;

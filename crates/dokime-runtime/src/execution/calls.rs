@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -25,20 +26,22 @@ use harmos::sidecar::{CallError, Supervisor};
 
 // Local Imports
 use super::builtins::{Binding, served};
+use super::instances::refusal_failure;
 use super::instances::{LocalRun, StepInstance, refused as step_refusal};
 
-use super::instances::refusal_failure;
-
 /* === Constants === */
+
 // The JSON-RPC server error code of a refusal raised on the step side of the call.
 const STEP_REFUSAL: i64 = -32_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Answering = Arc<dyn Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + Send>> + Send + Sync>;
 
 /* === Structs === */
+
 #[derive(Clone, Default)]
 pub struct Caller(Road);
 
@@ -54,10 +57,12 @@ pub struct StepHost {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Default)]
 enum Road {
     #[default]
     Unmounted,
+
     Host(Supervisor),
     Local(Arc<BTreeMap<String, Answering>>),
 }
@@ -65,6 +70,7 @@ enum Road {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Caller {
     pub fn host(host: Supervisor) -> Self {
         Self(Road::Host(host))
@@ -188,6 +194,7 @@ impl Host for StepHost {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // Scope a child of the step's host to the execution stage and the operation it
 // routes, so the host files its evidence and idempotency under the step.
 fn routed(host: &Supervisor, stage: &str, operation: &str) -> Result<Supervisor, ContextError> {

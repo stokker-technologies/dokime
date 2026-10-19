@@ -8,17 +8,21 @@
  */
 
 /* === Modules === */
+
 mod assets;
 mod css;
 mod source;
 
 /* === Re-Exports === */
+
 pub(super) use assets::capture_logo;
 pub(super) use source::CycleSource;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -30,6 +34,7 @@ use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::DocumentId;
 
 /* === Constants === */
+
 const MAX_BYTES: usize = 4 * 1024 * 1024;
 
 /* === Macros === */
@@ -37,6 +42,7 @@ const MAX_BYTES: usize = 4 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Captured {
     pub(super) context: ExecutionContext,
     pub(super) logo: Option<crate::installed_plugins::RuntimeInstalledPluginAsset>,
@@ -144,6 +150,7 @@ pub(super) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> b
 }
 
 /* === Private Functions === */
+
 // Each execution owns its own projections and copies only its cycle/case ancestors.
 // Global items are deliberately outside the cycle export selection.
 fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {

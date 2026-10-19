@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     io::{self, Write},
     sync::Arc,
 };
+
 // Third Party Imports
 use harmos::MemorySize;
 
@@ -39,6 +41,7 @@ use dokime_domain::model::identity::DocumentId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(in crate::runtime::storage) struct CycleSource {
     cycle: Arc<CycleView>,
     budget: Budget,
@@ -64,6 +67,7 @@ struct Budget {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl CycleSource {}
 
 impl CaseSelection<'_> {
@@ -124,6 +128,7 @@ impl Write for Budget {
 }
 
 /* === Public Functions === */
+
 pub(super) fn preflight(
     state: &RuntimeState, cycle: &CycleView, execution: &TestExecution, brand: Option<&crate::installed_plugins::ResolvedBrand>,
     selection: (&RecordScope, &DocumentId), cases: &CaseSelection<'_>, prepared: Option<&CycleSource>,
@@ -387,6 +392,7 @@ pub(super) fn grouping_memory(cycle: &CycleView) -> usize {
 }
 
 /* === Private Functions === */
+
 fn rows_memory<'a, T: MemorySize + 'a>(mut rows: impl Iterator<Item = &'a T>) -> Result<(usize, usize)> {
     rows.try_fold((0usize, std::mem::size_of::<Vec<T>>()), |(count, bytes), row| {
         let count = count.checked_add(1).ok_or_else(|| error("captured row count overflows"))?;

@@ -48,6 +48,7 @@ pub const STACK_BYTES: usize = 32 * 1024 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // Runs the future to completion on a multi-threaded runtime whose driving and
 // worker threads all have `STACK_BYTES` of stack. A panic inside the future
 // propagates to the caller as it would from `block_on`.

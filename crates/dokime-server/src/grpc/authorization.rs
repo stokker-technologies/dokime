@@ -36,6 +36,7 @@ use dokime_domain::operations::Operations;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Policy {
     requirements: Vec<Requirement>,
 }
@@ -50,6 +51,7 @@ struct Requirement {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Policy {
     fn new() -> Result<Self, Error> {
         let mut requirements = Vec::new();
@@ -92,6 +94,7 @@ impl Authorizer for Policy {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &dokime_runtime::RuntimeHandle) -> Result<Arc<Listeners>, Error> {
     let authorizer = Arc::new(Policy::new()?);
     runtime.operations().register_authorizer(authorizer)?;

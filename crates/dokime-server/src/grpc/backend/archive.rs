@@ -8,24 +8,39 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use harmos::operations::{Response, StreamOutput};
 use tonic::Status;
+
 // Local Imports
 use crate::grpc::{bundle, chunked, value::canonical};
 use dokime_runtime::RuntimeHandle;
+
 /* === Constants === */
+
 const CHUNK_BYTES: usize = 64 * 1024;
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 struct Frames(Response<dokime_domain::model::backend::wire::DiagnosticsBundleFrame>);
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl chunked::Frames for Frames {
     type Frame = dokime_domain::model::backend::wire::DiagnosticsBundleFrame;
     fn metadata(&self) -> Self::Frame {
@@ -49,7 +64,9 @@ impl chunked::Frames for Frames {
         }
     }
 }
+
 /* === Public Functions === */
+
 pub(super) async fn deliver(
     runtime: &RuntimeHandle, identity: &dokime_domain::model::backend::wire::BackendIdentity, maximum: usize, tail: Option<u64>,
     output: &mut StreamOutput<dokime_domain::model::backend::wire::DiagnosticsBundleFrame>,
@@ -92,5 +109,7 @@ pub(super) async fn deliver(
     .run(output)
     .await
 }
+
 /* === Private Functions === */
+
 /* === Tests === */

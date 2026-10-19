@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,18 +29,24 @@ use dokime_client::profiles::{Credential, Error, Profile};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[command(flatten)]
     config: super::Config,
+
     #[arg(help = "Saved Backend Profile Name.")]
     name: String,
+
     #[arg(long, help = "Backend HTTP(S) Origin.")]
     endpoint: String,
+
     #[arg(long, help = "Require This Backend Identity During Connection.")]
     expected_backend: Option<String>,
+
     #[arg(long, help = "Read An Additional PEM CA Certificate From This Local File.")]
     ca: Option<std::path::PathBuf>,
+
     #[arg(long, help = "Resolve Credentials From The OS Store On Connection.")]
     keyring: bool,
 }
@@ -51,6 +58,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn run(args: Args) -> crate::Result<()> {
     let ca_certificate_pem = args
         .ca

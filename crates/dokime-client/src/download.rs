@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
+
 // Local Imports
 use super::{Client, contracts};
 
@@ -27,6 +30,7 @@ use super::{Client, contracts};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug)]
 pub struct Download<T> {
     pub path: PathBuf,
@@ -44,20 +48,27 @@ struct Policy {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("download request failed")]
     Request(#[source] super::Error),
+
     #[error(transparent)]
     Client(#[from] super::Error),
+
     #[error("invalid download: {0}")]
     Invalid(&'static str),
+
     #[error("recording receipt persistence failed")]
     Receipt(#[source] Box<dyn std::error::Error + Send + Sync>),
+
     #[error("download filesystem: {0}")]
     Io(#[from] std::io::Error),
+
     #[error(transparent)]
     Publication(#[from] harmos::filesystem::Error),
+
     #[error("download publication task: {0}")]
     Task(#[from] tokio::task::JoinError),
 }
@@ -71,6 +82,7 @@ enum Frame<T> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for Partial {
     fn drop(&mut self) {
         if let Some(path) = &self.0 {
@@ -281,7 +293,36 @@ impl Client {
 
 /* === Public Functions === */
 
+pub fn validate_destination(destination: &Path, overwrite: bool) -> Result<(), Error> {
+    if destination.file_name().is_none() {
+        return Err(Error::Invalid("destination has no filename"));
+    }
+    let parent = destination.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
+    if !std::fs::metadata(parent)?.is_dir() {
+        return Err(Error::Invalid("destination parent is not a directory"));
+    }
+    match std::fs::symlink_metadata(destination) {
+        Ok(_) if !overwrite => {
+            return Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "destination exists; select overwrite explicitly").into());
+        }
+        Ok(metadata) if !metadata.is_file() || metadata.file_type().is_symlink() => {
+            return Err(Error::Invalid("destination is not a regular file"));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    let mut name = destination.file_name().expect("validated filename").to_os_string();
+    name.push(".part");
+    match std::fs::symlink_metadata(destination.with_file_name(name)) {
+        Ok(_) => Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "download staging file already exists").into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
 /* === Private Functions === */
+
 async fn receive<T, M, F: std::future::Future<Output = super::Result<Option<T>>>>(
     next: impl FnMut() -> F, destination: PathBuf, frame: impl Fn(T) -> Result<Frame<M>, Error>,
 ) -> Result<Download<M>, Error> {
@@ -373,34 +414,6 @@ fn publish(source: &Path, destination: &Path, overwrite: bool) -> Result<(), Err
         harmos::filesystem::publication::install(source, destination)?;
     }
     Ok(())
-}
-
-pub fn validate_destination(destination: &Path, overwrite: bool) -> Result<(), Error> {
-    if destination.file_name().is_none() {
-        return Err(Error::Invalid("destination has no filename"));
-    }
-    let parent = destination.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
-    if !std::fs::metadata(parent)?.is_dir() {
-        return Err(Error::Invalid("destination parent is not a directory"));
-    }
-    match std::fs::symlink_metadata(destination) {
-        Ok(_) if !overwrite => {
-            return Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "destination exists; select overwrite explicitly").into());
-        }
-        Ok(metadata) if !metadata.is_file() || metadata.file_type().is_symlink() => {
-            return Err(Error::Invalid("destination is not a regular file"));
-        }
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
-    }
-    let mut name = destination.file_name().expect("validated filename").to_os_string();
-    name.push(".part");
-    match std::fs::symlink_metadata(destination.with_file_name(name)) {
-        Ok(_) => Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "download staging file already exists").into()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
-    }
 }
 
 /* === Tests === */

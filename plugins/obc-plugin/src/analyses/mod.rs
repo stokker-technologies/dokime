@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 pub mod ripple;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,6 +31,7 @@ use dokime_runtime::analysis::{Operation, Served};
 /* === Structs === */
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 pub enum Analyses {
     Ripple(Operation<ripple::Ripple>),

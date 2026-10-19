@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const UNSCOPED_TRACK_LABEL: &str = "-";
 
 /* === Macros === */
@@ -28,6 +31,7 @@ const UNSCOPED_TRACK_LABEL: &str = "-";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct CycleTrack(Option<String>);
 
@@ -56,6 +60,7 @@ pub struct TelemetryRow {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::streams::Track for CycleTrack {
     fn label(&self) -> String {
         self.0.as_ref().map_or_else(|| UNSCOPED_TRACK_LABEL.to_owned(), |cycle| format!("cycle_{cycle}"))

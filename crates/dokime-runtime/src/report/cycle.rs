@@ -1,24 +1,30 @@
 /* ***
  *
  * Dokime
+ *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
 
 /* === Modules === */
+
 mod index;
 
 /* === Re-Exports === */
+
 pub(crate) use index::{AnnotationKind, Index, Member, Sample};
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use harmos::{
     operations::Host,
     storage::{FileMetadata, FileReference},
 };
+
 // Local Imports
 use super::html::HtmlReport;
 use crate::storage::Manager;
@@ -35,6 +41,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct CycleReport {
     manager: Manager,
     file: super::saved::ReportFile,
@@ -45,6 +52,7 @@ pub(crate) struct CycleReport {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl CycleReport {
     pub(crate) async fn prepare(
         manager: &Manager, snapshot: CycleSnapshot, captured_members: Vec<super::CapturedExecutionReportInput>, operation: &Operation,

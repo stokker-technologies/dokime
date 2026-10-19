@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,6 +30,7 @@ use tonic::Status;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, thiserror::Error)]
 #[error("message encoding failed: {0}")]
 pub(super) struct Untranscodable(#[from] MessageError);
@@ -36,6 +38,7 @@ pub(super) struct Untranscodable(#[from] MessageError);
 /* === Enums === */
 
 /* === Traits === */
+
 pub(super) trait Transcode {
     fn wire_bytes(&self) -> Result<Vec<u8>, Untranscodable>;
 
@@ -45,6 +48,7 @@ pub(super) trait Transcode {
 }
 
 /* === Implementations === */
+
 impl<T: Portable> Transcode for T {
     fn wire_bytes(&self) -> Result<Vec<u8>, Untranscodable> {
         let mut bytes = Vec::new();

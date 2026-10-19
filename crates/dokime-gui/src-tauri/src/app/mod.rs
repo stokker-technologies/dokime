@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod content;
 pub(crate) mod desktop;
 pub(crate) mod gitlab;
@@ -20,14 +21,17 @@ pub(crate) mod settings;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
+
 // Third Party Imports
 use tauri::Manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogResult};
+
 // Local Imports
 use crate::bindings;
 
@@ -46,6 +50,7 @@ use crate::bindings;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn run() {
     // WebView2 must create its UI thread in a single-threaded COM apartment.
     #[cfg(windows)]
@@ -67,6 +72,7 @@ pub async fn desktop_restart(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 /* === Private Functions === */
+
 fn start_tauri_app() -> tauri::Result<()> {
     // Bound before the builder: a plugin drop that stalls before the webview
     // reaches a single command still needs its bridge-open/write/finish

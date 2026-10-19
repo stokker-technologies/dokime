@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::AddOperatorNote;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -40,6 +42,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct CreateNote {
     pub epoch: SessionId,
@@ -65,6 +68,7 @@ pub struct NoteCreation {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NotePublication {
     NoExistingDatasets,
@@ -76,20 +80,28 @@ pub enum NotePublication {
 pub enum NoteError {
     #[error("{0}")]
     Invalid(String),
+
     #[error("{0}")]
     Owner(String),
+
     #[error("note epoch changed; resynchronize before creating")]
     Epoch,
+
     #[error("note mutation identity was reused with different input")]
     Conflict,
+
     #[error("note creation capacity exhausted")]
     Overloaded,
+
     #[error("{NOTE_OWNER_SEALED}")]
     Sealed,
+
     #[error("note is absent from current evidence")]
     Absent,
+
     #[error("{NOTE_EDIT_NOT_AUTHOR}")]
     NotAuthor,
+
     #[error("{0}")]
     Unavailable(String),
 }
@@ -97,6 +109,7 @@ pub enum NoteError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn create_current_note(&self, request: CreateNote) -> Result<NoteCreation, NoteError> {
         if request.actor.is_empty()

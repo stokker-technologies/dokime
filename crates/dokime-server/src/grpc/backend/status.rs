@@ -8,12 +8,15 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::domain::Portable;
 use harmos::{
     MemorySize,
@@ -21,40 +24,57 @@ use harmos::{
 };
 use sha2::{Digest, Sha256};
 use tonic::Status;
+
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::identity::wire::Timestamp;
 use dokime_domain::operations::backend as wire;
 use dokime_domain::operations::runtime as native;
 use dokime_runtime::RuntimeHandle;
+
 /* === Constants === */
+
 const DISCOVERY_PAGE_BYTES: usize = 4 * 1024 * 1024;
 const DISCOVERY_WORK_BYTES: usize = 16 * 1024 * 1024;
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
     identity: Response<dokime_domain::model::backend::wire::BackendIdentity>,
 }
+
 struct Identity {
     resources: Arc<Resources>,
 }
+
 struct Archive {
     resources: Arc<Resources>,
 }
+
 struct Logs {
     resources: Arc<Resources>,
 }
+
 struct Availability {
     resources: Arc<Resources>,
 }
+
 struct Health {
     resources: Arc<Resources>,
 }
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl Operation for Identity {
     type Declaration = wire::GetIdentity;
     type Resources = Resources;
@@ -70,6 +90,7 @@ impl Operation for Identity {
         Ok(self.resources.identity.clone())
     }
 }
+
 impl Operation for Health {
     type Declaration = wire::GetHealth;
     type Resources = Resources;
@@ -98,6 +119,7 @@ impl Operation for Health {
         })
     }
 }
+
 impl Operation for Availability {
     type Declaration = wire::GetAvailability;
     type Resources = Resources;
@@ -182,6 +204,7 @@ impl Operation for Availability {
         Ok(output.into())
     }
 }
+
 impl Operation for Logs {
     type Declaration = wire::WatchLogs;
     type Resources = Resources;
@@ -209,6 +232,7 @@ impl Operation for Logs {
         Ok(().into())
     }
 }
+
 impl Operation for Archive {
     type Declaration = wire::CollectDiagnostics;
     type Resources = Resources;
@@ -232,7 +256,9 @@ impl Operation for Archive {
         Ok(().into())
     }
 }
+
 /* === Public Functions === */
+
 pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let instance = runtime.operations().submit(native::GetIdentity {})?;
     let identity = harmos::grpc::response(instance).await?;
@@ -263,10 +289,7 @@ pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -
     super::diagnostics::register(runtime, maximum)?;
     Ok(())
 }
-/* === Private Functions === */
-fn produce<T: MemorySize + Portable + Send + Sync + 'static>(maximum: usize, build: impl FnOnce() -> T) -> Result<Response<T>, Status> {
-    produce_result(maximum, || Ok(build()))
-}
+
 pub(super) fn produce_result<T: MemorySize + Portable + Send + Sync + 'static>(
     maximum: usize, build: impl FnOnce() -> Result<T, Status>,
 ) -> Result<Response<T>, Status> {
@@ -276,9 +299,17 @@ pub(super) fn produce_result<T: MemorySize + Portable + Send + Sync + 'static>(
     }
     Ok(output.into())
 }
+
+/* === Private Functions === */
+
+fn produce<T: MemorySize + Portable + Send + Sync + 'static>(maximum: usize, build: impl FnOnce() -> T) -> Result<Response<T>, Status> {
+    produce_result(maximum, || Ok(build()))
+}
+
 fn health_failure(source: harmos::Error) -> Status {
     crate::grpc::error::detailed(Status::unavailable("runtime health is unavailable"), &source.into())
 }
+
 fn discovery_failure(source: harmos::Error) -> Status {
     let status = match &source {
         harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("operation discovery admission failed"),
@@ -289,4 +320,5 @@ fn discovery_failure(source: harmos::Error) -> Status {
     };
     crate::grpc::error::detailed(status, &source.into())
 }
+
 /* === Tests === */

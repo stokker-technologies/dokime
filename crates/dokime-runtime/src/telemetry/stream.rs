@@ -10,13 +10,16 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::telemetry::TelemetryStream;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -25,6 +28,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 // The longest a buffered row waits before its sink is flushed.
 #[cfg(feature = "native")]
 const FLUSH_WINDOW: std::time::Duration = std::time::Duration::from_millis(10);
@@ -34,15 +38,20 @@ const FLUSH_WINDOW: std::time::Duration = std::time::Duration::from_millis(10);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Streams {
     sink: Arc<dyn SampleSink>,
+
     #[cfg(feature = "native")]
     admission: Option<Arc<Admission>>,
+
     #[cfg(feature = "native")]
     failure: tokio::sync::watch::Sender<Option<crate::diagnostics::Diagnostic>>,
+
     #[cfg(feature = "native")]
     listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>,
+
     #[cfg(feature = "native")]
     flushing: Arc<std::sync::atomic::AtomicBool>,
 }
@@ -69,6 +78,7 @@ struct Admission {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait SampleSink: Send + Sync {
     fn publish<'a>(
         &'a self, stream: &'a Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
@@ -90,6 +100,7 @@ pub trait SampleSink: Send + Sync {
 pub trait OwnedStream: TelemetryStream {}
 
 /* === Implementations === */
+
 impl Streams {
     pub fn new(sink: Arc<dyn SampleSink>) -> Self {
         Self {

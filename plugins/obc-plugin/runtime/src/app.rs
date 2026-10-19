@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -24,17 +25,15 @@ use crate::{Testbench, Transactions, error::LaunchError};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Origin = harmos::state::Origin<Testbench>;
-
 pub type Builder = harmos::Builder<ChargerBench>;
-
 pub type Runtime = harmos::Runtime<ChargerBench>;
-
 pub type Handle = harmos::runtime::Handle<ChargerBench>;
-
 pub type State = harmos::state::ManagedState<ChargerBench>;
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug)]
 pub struct ChargerBench;
 
@@ -43,6 +42,7 @@ pub struct ChargerBench;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::Application for ChargerBench {
     type State = Testbench;
     type Transaction = Transactions;
@@ -52,7 +52,6 @@ impl harmos::Application for ChargerBench {
 }
 
 /* === Public Functions === */
-/* === Functions === */
 
 pub fn builder(origin: impl Into<Origin>, resources: ()) -> Builder {
     Runtime::builder(origin, resources).register(Transactions::catalog())

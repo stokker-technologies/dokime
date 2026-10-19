@@ -12,8 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
+
 // Local Imports
 use super::{BackendLimits, BackendSnapshot, ConnectionError, ConnectionTarget};
 
@@ -24,6 +27,7 @@ use super::{BackendLimits, BackendSnapshot, ConnectionError, ConnectionTarget};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Target {
     pub endpoint: String,
     pub remote: bool,
@@ -35,6 +39,7 @@ pub(super) struct Target {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Target {
     pub fn parse(target: ConnectionTarget) -> Result<Self, ConnectionError> {
         let inner = match target {
@@ -47,6 +52,7 @@ impl Target {
 }
 
 /* === Public Functions === */
+
 pub(super) fn backend(value: &dokime_client::Backend) -> BackendSnapshot {
     BackendSnapshot {
         backend_id: value.backend_id.clone(),

@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod prompts;
 
 /* === Re-Exports === */
@@ -35,6 +36,7 @@ use dokime_domain::operations::planning;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct TestCycleHandle {
     client: Client,
@@ -46,6 +48,7 @@ pub struct TestCycleHandle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub fn cycle(&self, id: TestCycleId) -> TestCycleHandle {
         TestCycleHandle { client: self.clone(), id }
@@ -240,6 +243,7 @@ impl TestCycleHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn execution_members(
     epoch: &str, request: &contracts::execution::ListExecutions, page: &dokime_domain::model::execution::wire::ListExecutionsReply,
     first_ordinal: u64, seen: &mut HashSet<TestExecutionId>,

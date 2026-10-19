@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+
 // Third Party Imports
+
 // Local Imports
 use super::artifacts::ArtifactBridge;
 use super::{
@@ -32,6 +35,7 @@ use crate::transport::{
 use dokime_domain::model::execution::result::TestExecution;
 
 /* === Constants === */
+
 const ANSWER_POLL: Duration = Duration::from_millis(100);
 
 /* === Macros === */
@@ -39,6 +43,7 @@ const ANSWER_POLL: Duration = Duration::from_millis(100);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Opened {
     pub context: ExecutionFixtureContext,
     pub execution: TestExecution,
@@ -79,6 +84,7 @@ struct Pages {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Session {
     pub(super) fn new(opened: Opened) -> Self {
         let spill = opened.context.runtime.config().storage_root.clone();

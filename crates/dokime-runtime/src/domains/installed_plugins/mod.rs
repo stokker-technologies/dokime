@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod appearance;
 pub(crate) mod brand;
 mod bundled;
@@ -17,6 +18,7 @@ pub(crate) mod management;
 pub(crate) mod module_preferences;
 
 /* === Re-Exports === */
+
 pub use appearance::{
     AppearanceLimitExceeded, CapturedAppearance, RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeInstalledPluginAsset, RuntimeThemeFamily,
 };
@@ -30,6 +32,7 @@ pub use management::{
 };
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

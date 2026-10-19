@@ -48,12 +48,15 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const MAX_ACTIVE_OWNERS: usize = 10_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 /* === Structs === */
+
 pub(crate) struct TailStop {
     pub(crate) lease: Mutex<Option<crate::services::Lease>>,
 }
@@ -127,6 +130,7 @@ struct PublishedReport {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TailStopPreparation {
     pub(crate) fn into_entry(self, lease: crate::services::Lease) -> (String, Arc<TailStop>) {
         let stop = TailStop { lease: Mutex::new(Some(lease)) };
@@ -627,6 +631,7 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_report(
     acquisition: &Acquisition, inspection: &super::execution::ExecutionView, prepared: &PreparedExecutionReport,
 ) -> Result<()> {

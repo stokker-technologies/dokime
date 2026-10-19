@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -29,6 +30,7 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct StatusProbe {
     resources: Arc<Resources>,
 }
@@ -38,6 +40,7 @@ pub struct StatusProbe {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::operation]
 impl StatusProbe {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/registry.py; sha256:6731fbae208ff8ea109fe113f7f391ef88402d864ebdb02e823897b28a9c9f14
+# Rendered by stkr project update from templates/python/release/registry.py; sha256:9c5f578e10eda9f42a68d9864ed9ea4b2aba85fb6a250687bb8ccf5f05a88729
 # ***
 #
 # {{package}}
@@ -30,6 +30,7 @@ from typing import Any
 # isort: split
 from . import policy
 from .. import temporary
+from ..package import run as packages
 
 # Type Checking Imports
 
@@ -707,6 +708,9 @@ def verify_publication(directory: Path, settings: dict) -> None:
             path.write_bytes(verify_download(settings, downloads[item["name"]], item))
         verified = [{**item, "path": item["name"]} for item in manifest["files"]]
         verify_signatures(directory, settings, root, verified)
+        native = packages.paths.target()
+        if native in settings["targets"]:
+            packages.installed(directory, settings, root, native)
     sums = request(settings, downloads["SHA256SUMS"], binary=True)
     expected = "".join(f"{item['sha256']}  {item['name']}\n" for item in manifest["files"]).encode()
     expected += f"{hashlib.sha256(data or b'').hexdigest()}  release.json\n".encode()

@@ -8,21 +8,24 @@
  */
 
 /* === Modules === */
+
 mod assets;
 mod convert;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, StreamOutput};
 use prost::Message;
 use tonic::Status;
+
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use dokime_domain::operations::appearance as wire;
 use dokime_domain::operations::content;
 use dokime_runtime::RuntimeHandle;
@@ -34,6 +37,7 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub runtime: RuntimeHandle,
     pub max_message_bytes: usize,
@@ -48,6 +52,7 @@ struct Read {
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Read(Read),
@@ -57,6 +62,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Read {
     type Declaration = wire::GetAppearance;
     type Resources = Resources;
@@ -110,6 +116,7 @@ impl Operation for Download {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
@@ -127,6 +134,7 @@ pub(super) fn historical(
 }
 
 /* === Private Functions === */
+
 fn source_budget(max_message_bytes: usize) -> usize {
     max_message_bytes.min(4 * 1024 * 1024)
 }

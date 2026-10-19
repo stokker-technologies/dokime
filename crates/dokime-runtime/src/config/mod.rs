@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod application;
 pub mod branding;
 mod launch;
@@ -17,6 +18,7 @@ mod settings;
 mod view;
 
 /* === Re-Exports === */
+
 pub use crate::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID};
 pub use crate::runtime::storage::config::storage_defaults;
 pub use application::ApplicationOptions;
@@ -28,6 +30,7 @@ pub use settings::{Appearance, Density, ReportDefaults, Settings, SettingsDocume
 pub use view::ApplicationSettingsView;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

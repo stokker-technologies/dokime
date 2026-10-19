@@ -49,6 +49,7 @@ use dokime_domain::model::identity::DocumentId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct HtmlReport {
     index: Index,
     source: Source,
@@ -56,6 +57,7 @@ pub(super) struct HtmlReport {
 }
 
 /* === Enums === */
+
 enum Source {
     Saved { snapshot: CycleSnapshot, documents: BTreeMap<DocumentId, Capture>, members: Vec<Arc<CapturedExecutionReportInput>> },
     Captured { input: Arc<CapturedExecutionReportInput>, evidence: Arc<CapturedSource> },
@@ -68,6 +70,7 @@ pub(super) enum Member {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Deref for Member {
     type Target = CycleReportInput;
     fn deref(&self) -> &Self::Target {
@@ -201,6 +204,7 @@ impl HtmlReport {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn cycle_document(snapshot: &CycleSnapshot) -> Result<BTreeMap<DocumentId, Capture>> {
     let source = snapshot.source();
     let mut scope = dokime_domain::model::execution::RecordScope::default().with_cycle(source.test_cycle_id.clone());

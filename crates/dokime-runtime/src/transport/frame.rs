@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, MutexGuard, PoisonError};
 use std::time::Duration;
+
 // Third Party Imports
 
 // Local Imports
@@ -34,7 +36,9 @@ use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const ARTIFACT_BACKPRESSURE_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
 // Rows of one stream that publish together without waiting for the window.
 const BATCH_ROWS: usize = 100;
 
@@ -43,6 +47,7 @@ const BATCH_ROWS: usize = 100;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct FrameTransport {
     executions: Executions,
     token: String,
@@ -103,6 +108,7 @@ pub(crate) struct FrameProgressSink {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl FrameTransport {
     pub(crate) fn new(executions: Executions, token: String) -> Self {
         Self { executions, token, prompts: 0 }
@@ -510,6 +516,7 @@ impl LeaseRelease for FrameLeaseRelease {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // The publication clock Harmos stamps rows with: system time in Unix
 // microseconds, negative before the epoch.
 fn unix_micros() -> i64 {

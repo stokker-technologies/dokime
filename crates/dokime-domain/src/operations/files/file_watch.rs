@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = (), output = FileWatchFrame, id = "dokime.files.file_watch", version = 1,
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
@@ -36,23 +39,31 @@ pub struct FileWatch {
     // Absent takes the execution of the calling step's context; one of the two is required.
     #[row(description = "Absent takes the execution of the calling step's context; one of the two is required.")]
     pub execution_id: Option<String>,
+
     pub source: Option<FileWatchSource>,
+
     // Ordered rules: the last rule matching a path decides; a path no rule matches is excluded.
     #[row(description = "Ordered rules: the last rule matching a path decides; a path no rule matches is excluded.")]
     pub rules: Vec<FileRule>,
+
     // The artifact folder, a relative path, that mirrors the matched structure.
     #[row(description = "The artifact folder, a relative path, that mirrors the matched structure.")]
     pub output: String,
+
     pub policy: FileWatchPolicy,
+
     // Discovery and capture interval: default 1000, 50–60000 milliseconds.
     #[row(description = "Discovery and capture interval: default 1000, 50–60000 milliseconds.")]
     pub poll_interval_ms: Option<u32>,
+
     // The watch seals and completes after this many seconds; absent runs until cancelled or sealed.
     #[row(description = "The watch seals and completes after this many seconds; absent runs until cancelled or sealed.")]
     pub maximum_seconds: Option<u32>,
+
     // Files the watch may track: default 64, maximum 256.
     #[row(description = "Files the watch may track: default 64, maximum 256.")]
     pub maximum_files: Option<u32>,
+
     // Bytes the watch may capture across its files: default 256 MiB, maximum 4 GiB.
     #[row(description = "Bytes the watch may capture across its files: default 256 MiB, maximum 4 GiB.")]
     pub maximum_bytes: Option<u64>,

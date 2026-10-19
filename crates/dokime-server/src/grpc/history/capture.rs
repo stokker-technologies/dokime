@@ -8,18 +8,22 @@
  */
 
 /* === Modules === */
+
 mod wire;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use dokime_domain::operations::history;
 use dokime_runtime::RuntimeHandle;
 
@@ -30,10 +34,12 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Get {
     resources: Arc<Resources>,
 }
@@ -43,6 +49,7 @@ struct Get {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Get {
     type Declaration = history::GetCheckpointDocument;
     type Resources = Resources;
@@ -73,6 +80,7 @@ impl Operation for Get {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
@@ -83,12 +91,14 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn original_error(source: Status) -> harmos::Error {
     if source.code() == tonic::Code::ResourceExhausted {
         return exhausted();
     }
     harmos::Error::backend("project original checkpoint execution document", harmos::BackendFailure::Corrupt, source)
 }
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "canonical checkpoint execution document" }
 }

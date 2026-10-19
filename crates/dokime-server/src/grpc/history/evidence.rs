@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::wire;
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{
     catalog, content,
     value::{self, canonical},
@@ -37,10 +40,12 @@ use dokime_runtime::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Get {
     resources: Arc<Resources>,
 }
@@ -50,6 +55,7 @@ struct Get {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Get {
     type Declaration = contract::GetCheckpointEvidence;
     type Resources = Resources;
@@ -88,6 +94,7 @@ impl Operation for Get {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
@@ -98,6 +105,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn sections(
     values: Vec<dokime_domain::model::history::wire::EvidenceSection>,
 ) -> Result<Vec<dokime_domain::model::history::wire::EvidenceSection>, Status> {
@@ -250,9 +258,11 @@ fn collect<T>(items: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result
     }
     Ok(values)
 }
+
 fn status_failure(source: harmos::Error) -> Status {
     super::wire::checkpoint_failure(source.into())
 }
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "canonical checkpoint evidence" }
 }

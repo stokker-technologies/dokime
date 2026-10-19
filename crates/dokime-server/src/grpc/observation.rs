@@ -12,18 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::{
     MemorySize,
     operations::{Context, Operation, StreamOutput},
 };
 use tonic::Status;
+
 // Local Imports
 use super::value::canonical;
 use super::{execution, value};
+use crate::grpc::transcode::Transcode;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::observation as wire;
 use dokime_runtime::RuntimeHandle;
@@ -31,6 +34,7 @@ use dokime_runtime::runtime::progress::{OperationOutcome, OperationSnapshot};
 use dokime_runtime::runtime::query::RuntimeChange;
 
 /* === Constants === */
+
 pub(super) const STREAM: &str = "runtime.state";
 const MAX_SHELL_RESPONSE_BYTES: usize = 512 * 1024;
 const MAX_TRACEABILITY_RESPONSE_BYTES: usize = 512 * 1024;
@@ -40,6 +44,7 @@ const MAX_TRACEABILITY_RESPONSE_BYTES: usize = 512 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
@@ -52,14 +57,17 @@ struct Traceability {
 struct Shell {
     resources: Arc<Resources>,
 }
+
 struct Runtime {
     resources: Arc<Resources>,
 }
+
 struct Progress {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Traceability(Traceability),
@@ -71,6 +79,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Shell {
     type Declaration = wire::GetRuntimeShell;
     type Resources = Resources;
@@ -292,6 +301,7 @@ impl Operation for Traceability {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
@@ -302,6 +312,7 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 }
 
 /* === Private Functions === */
+
 fn stream_failure(error: harmos::Error) -> Status {
     match error {
         harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),

@@ -8,12 +8,14 @@
  */
 
 /* === Modules === */
+
 mod listeners;
 mod prompts;
 mod run;
 mod saved;
 
 /* === Re-Exports === */
+
 pub(super) use listeners::{read_records, read_samples, sample_interval, validate_filters};
 pub use run::{RunCallbacks, RunOptions};
 
@@ -33,6 +35,7 @@ use dokime_domain::model::identity::StepId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const REQUEST_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
 
 /* === Macros === */
@@ -40,6 +43,7 @@ const REQUEST_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_mil
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct TestExecutionHandle {
     client: Client,
@@ -51,6 +55,7 @@ pub struct TestExecutionHandle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub fn execution(&self, id: TestExecutionId) -> TestExecutionHandle {
         TestExecutionHandle { client: self.clone(), id }
@@ -210,6 +215,7 @@ impl TestExecutionHandle {
 }
 
 /* === Public Functions === */
+
 pub(super) fn admission(
     epoch: &str, reply: dokime_domain::model::execution::wire::RunReply,
 ) -> Result<dokime_domain::model::execution::wire::Admission> {
@@ -224,6 +230,7 @@ pub(super) fn admission(
 }
 
 /* === Private Functions === */
+
 fn poll_interval(interval: Option<std::time::Duration>) -> Result<std::time::Duration> {
     let interval = interval.unwrap_or(REQUEST_POLL_INTERVAL);
     if interval.is_zero() {

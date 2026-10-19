@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -21,6 +23,7 @@ use crate::{HostTelemetryCollector, HostTelemetryConfig, telemetry};
 use dokime_domain::model::plugins::InstalledPlugin;
 
 /* === Constants === */
+
 pub const HOST_SOURCE_ID: &str = "host";
 
 /* === Macros === */
@@ -36,6 +39,7 @@ pub const HOST_SOURCE_ID: &str = "host";
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn installed_plugin() -> InstalledPlugin {
     InstalledPlugin {
         source: HOST_SOURCE_ID.to_owned(),

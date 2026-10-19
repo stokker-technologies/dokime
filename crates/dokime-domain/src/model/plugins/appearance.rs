@@ -34,22 +34,30 @@ use crate::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeAppearanceFrame {
     pub app_name: String,
+
     #[serde(default)]
     pub organization: Option<OrganizationIdentity>,
+
     #[serde(default)]
     pub title_template: Option<String>,
+
     #[serde(default)]
     pub logo: Option<RuntimeAppLogo>,
+
     #[serde(default)]
     pub themes: Vec<RuntimeThemeFamily>,
+
     #[serde(default)]
     pub active_theme: Option<Identifier>,
+
     pub theme_family_locked: bool,
     pub mode_policy: ThemeModePolicy,
     pub mode_locked: bool,
+
     #[serde(default)]
     pub source_plugin_id: Option<Identifier>,
 }
@@ -59,6 +67,7 @@ pub struct RuntimeAppLogo {
     pub plugin_id: Identifier,
     pub asset_id: Identifier,
     pub url: String,
+
     #[serde(default)]
     pub alt: Option<String>,
 }
@@ -68,14 +77,19 @@ pub struct RuntimeThemeFamily {
     pub plugin_id: Identifier,
     pub theme_id: Identifier,
     pub label: String,
+
     #[serde(default)]
     pub description: Option<String>,
+
     #[serde(default)]
     pub stylesheet: Option<String>,
+
     #[serde(default)]
     pub variables: BTreeMap<String, String>,
+
     #[serde(default)]
     pub corner_radii: ThemeCornerRadii,
+
     pub light: ThemeVariant,
     pub dark: ThemeVariant,
 }
@@ -85,6 +99,7 @@ pub struct RuntimeThemeFamily {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for RuntimeAppearanceFrame {
     fn memory_size(&self) -> usize {
         let fields = [

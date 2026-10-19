@@ -10,13 +10,16 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::{ControlCycle as Control, CycleControlAction as Action};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::RequestKey;
+
 // Local Imports
 use crate::{CommandContext, RuntimeHandle, runtime::Error, unavailable_rejection};
 use dokime_domain::model::identity::TestCycleId;
@@ -35,6 +38,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub(crate) async fn freeze_report_inputs(&self, ids: Vec<TestExecutionId>) -> crate::runtime::Result<()> {
         if ids.is_empty() {
@@ -469,6 +473,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn admit_control<'a>(action: &Action, evidence: &'a tokio::sync::Mutex<()>) -> Option<tokio::sync::MutexGuard<'a, ()>> {
     if matches!(action, Action::Stop) { None } else { Some(evidence.lock().await) }
 }

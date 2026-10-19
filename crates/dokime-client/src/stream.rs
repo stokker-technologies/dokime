@@ -42,6 +42,7 @@ use super::{Client, Error, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ResponseStream<T> {
     inner: Arc<Response<T>>,
 }
@@ -79,6 +80,7 @@ pub(super) struct Input<S> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<T: Send + 'static> ResponseStream<T> {
     pub(super) fn new<S>(client: &Client, stream: S) -> Result<Self>
     where

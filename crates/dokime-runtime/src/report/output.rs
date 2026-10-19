@@ -26,6 +26,7 @@ use serde::Serialize;
 // Local Imports
 
 /* === Constants === */
+
 const REPORT_DATA_MARKER: &str = r#"<script id="hub-report-data" type="application/json">"#;
 const REPORT_DATA_END: &str = "</script>";
 static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
@@ -35,7 +36,9 @@ static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(su
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct ScriptFormatter;
+
 pub(super) struct Buffer {
     bytes: Vec<u8>,
     maximum: usize,
@@ -52,6 +55,7 @@ pub(super) struct Count {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl serde_json::ser::Formatter for ScriptFormatter {
     fn write_string_fragment<W: ?Sized + Write>(&mut self, writer: &mut W, fragment: &str) -> io::Result<()> {
         let mut start = 0;
@@ -131,8 +135,6 @@ impl Write for Count {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
 pub(super) fn write_html(writer: &mut dyn Write, payload: &impl Serialize, template: &str) -> io::Result<()> {
     // Reuse The Fixed Embedded Template; Other Inputs Keep Their Own Split.
     let (prefix, suffix) = if std::ptr::eq(template, super::asset::REPORT_APP_TEMPLATE) { *REPORT_PARTS } else { split_template(template) };
@@ -141,6 +143,8 @@ pub(super) fn write_html(writer: &mut dyn Write, payload: &impl Serialize, templ
     payload.serialize(&mut serializer).map_err(io::Error::other)?;
     writer.write_all(suffix.as_bytes())
 }
+
+/* === Private Functions === */
 
 fn split_template(template: &str) -> (&str, &str) {
     template.find(REPORT_DATA_MARKER)

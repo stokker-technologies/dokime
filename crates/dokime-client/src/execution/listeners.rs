@@ -37,6 +37,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestExecutionHandle {
     pub fn records(
         &self, record_types: Vec<String>, follow: bool, interval: Option<Duration>,
@@ -87,6 +88,7 @@ impl TestExecutionHandle {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn validate_filters(filters: &[String]) -> Result<Vec<IdentifierPattern>> {
     if filters.len() > 64 || filters.iter().map(String::len).sum::<usize>() > 4096 {
         return Err(Error::Rpc(tonic::Status::invalid_argument("filters exceed 64 patterns or 4096 characters")));
@@ -231,6 +233,7 @@ where
 }
 
 /* === Private Functions === */
+
 fn record_scope(id: &TestExecutionId) -> dokime_domain::model::identity::wire::EvidenceScope {
     dokime_domain::model::identity::wire::EvidenceScope {
         execution_id: Some(id.to_string()),
@@ -323,13 +326,14 @@ fn validate_samples(
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use dokime_domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry;
 
     #[test]
-    fn filter_bounds_and_syntax() {
+    fn filter_admission() {
         assert!(validate_filters(&[]).unwrap().is_empty());
         assert!(validate_filters(&vec!["obc.*".into(); 64]).is_ok());
         assert!(validate_filters(&vec!["obc.*".into(); 65]).is_err());
@@ -343,7 +347,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_reply_uses_whole_identifier_or_globs() {
+    fn sample_identifier_selection() {
         let scope = record_scope(&TestExecutionId::from_seed("sample selection"));
         let page = dokime_domain::model::telemetry::wire::TelemetrySamplesReply {
             samples: vec![dokime_domain::model::telemetry::wire::TelemetrySample {

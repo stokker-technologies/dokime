@@ -47,6 +47,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone)]
 pub struct Request {
@@ -103,6 +104,7 @@ pub struct Command {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Identified for Request {
     fn definition() -> (DefinitionId, u32) {
         (DefinitionId::new("dokime.object.request"), 1)
@@ -451,6 +453,7 @@ impl TryFrom<Request> for RunReceipt {
 }
 
 /* === Public Functions === */
+
 pub fn schema() -> SchemaKey {
     SchemaKey {
         payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
@@ -497,6 +500,7 @@ pub fn decode(bytes: &[u8], max_bytes: usize) -> Result<RunReceipt> {
 }
 
 /* === Private Functions === */
+
 fn reject_embedded_commands(bytes: &[u8]) -> Result<()> {
     // The Generated Schema Owns Field Order; Inspect Only The Parent Prefix.
     let prefix = ["request_id", "node_id", "cycle_id", "phase", "mode", "commands"];

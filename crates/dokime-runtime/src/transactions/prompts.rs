@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::prompts::{
     PromptAction, PromptActionEmphasis, PromptDefinition, PromptField, PromptFieldKind, PromptInstance, PromptKind, PromptRequest,
@@ -45,6 +48,7 @@ use dokime_domain::model::values::ValueType;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.prompts.request", version = 2, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestPrompt {
@@ -72,6 +76,7 @@ pub(crate) struct SettledPrompts {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PromptSettlement {
     Stopped,
@@ -82,6 +87,7 @@ pub(crate) enum PromptSettlement {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PromptSettlement {
     fn action(self) -> &'static str {
         match self {
@@ -154,6 +160,7 @@ impl Transaction<RuntimeState> for SubmitPromptResponse {
 }
 
 /* === Public Functions === */
+
 pub fn validate_request(state: &RuntimeState, request: &RequestPrompt) -> Result<PromptId, Error> {
     prepare_request(state, request).map(|(prompt, _)| prompt.prompt_id)
 }
@@ -225,6 +232,7 @@ pub(crate) fn commit_settled_prompts(state: &mut RuntimeState, settled: SettledP
 }
 
 /* === Private Functions === */
+
 fn prepare_request(
     state: &RuntimeState, request: &RequestPrompt,
 ) -> Result<(PromptInstance, crate::transactions::records::draft::Drafts), Error> {

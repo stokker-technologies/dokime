@@ -39,6 +39,7 @@ use super::super::{
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn selection(
     value: dokime_domain::model::plots::wire::AnalysisSelection,
 ) -> Result<dokime_runtime::analysis::Selection, Status> {

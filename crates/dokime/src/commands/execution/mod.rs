@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod export;
 mod prompt;
 pub(crate) mod recovery;
@@ -19,6 +20,7 @@ mod wait;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -34,6 +36,7 @@ mod wait;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(about = "Start One Execution By Its Durable Identity Without Waiting For Completion.")]
@@ -60,6 +63,7 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::Start(args) => start::run(args).await,

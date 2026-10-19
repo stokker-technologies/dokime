@@ -31,6 +31,7 @@ use dokime_domain::model::prompts::wire::PromptInstance;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(help = "Execution UUID Whose Pending Prompt Is Required.")]
@@ -59,6 +60,7 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let id = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let recovery = args.recovery.prepare(&id)?;
@@ -88,6 +90,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 /* === Private Functions === */
+
 async fn find(execution: &dokime_client::TestExecutionHandle, wait: bool) -> crate::Result<PromptInstance> {
     loop {
         let pending = execution.pending_prompts().await?;

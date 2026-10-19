@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::Path;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use dokime_domain::model::identity::DokimeIdentity;
 use dokime_domain::model::identity::Metadata;
@@ -32,6 +35,7 @@ use dokime_runtime::runtime::query::RuntimeOverviewSnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsSnapshot {
     pub captured_at: Timestamp,
@@ -74,6 +78,7 @@ pub struct StartupDoctorCheck {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticCheckStatus {
@@ -92,6 +97,7 @@ pub enum StartupDoctorCheckKey {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DiagnosticsSnapshot {
     pub fn from_runtime(snapshot: RuntimeOverviewSnapshot, storage_root: &Path, application_root: &Path) -> Self {
         let captured_at = dokime_runtime::model::time::now_utc();
@@ -140,6 +146,7 @@ impl StartupDoctorSnapshot {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn storage_root_check(storage_root: &Path) -> StartupDoctorCheck {
     let detail = Some(path_to_string(storage_root));
 

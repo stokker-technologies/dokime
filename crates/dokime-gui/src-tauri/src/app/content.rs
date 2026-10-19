@@ -12,9 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
+
 // Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
@@ -27,13 +30,17 @@ use dokime_domain::operations::content as v1;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug)]
 pub(crate) struct VerifiedContent {
     pub path: PathBuf,
+
     #[allow(dead_code)]
     pub size_bytes: u64,
+
     #[allow(dead_code)]
     pub sha256: String,
+
     pub content_type: Option<String>,
 }
 
@@ -45,6 +52,7 @@ pub struct DeliveryError {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeliveryStage {
@@ -61,6 +69,7 @@ pub enum DeliveryStage {
 pub enum DeliveryFailure {
     #[error("{0}")]
     Rpc(crate::Error),
+
     #[error("{0}")]
     Local(String),
 }
@@ -68,6 +77,7 @@ pub enum DeliveryFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DeliveryError {
     pub(crate) fn local(stage: DeliveryStage, message: impl Into<String>) -> Self {
         Self { stage, failure: DeliveryFailure::Local(message.into()) }
@@ -103,6 +113,7 @@ impl VerifiedContent {
 }
 
 /* === Public Functions === */
+
 pub(crate) async fn fetch_verified(
     lease: &SessionLease, source: &ArtifactSource, destination: &Path,
 ) -> Result<VerifiedContent, DeliveryError> {
@@ -157,6 +168,7 @@ pub(crate) async fn push_verified(
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

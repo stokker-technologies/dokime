@@ -8,19 +8,23 @@
  */
 
 /* === Modules === */
+
 mod sample;
 mod typed;
 
 /* === Re-Exports === */
+
 pub use sample::Sample;
 pub use typed::{TypedCodec, codec, decode_batch, decode_stream_values, decode_values, encode_batch};
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use harmos::MemorySize;
-// Local Imports
 
+// Local Imports
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::SessionId;
 
@@ -31,6 +35,7 @@ use dokime_domain::model::identity::SessionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TelemetryEntry {
@@ -44,6 +49,7 @@ pub struct TelemetryEntry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl MemorySize for TelemetryEntry {
     fn memory_size(&self) -> usize {
         let epoch = self.epoch.memory_size();
@@ -58,6 +64,7 @@ impl MemorySize for TelemetryEntry {
 }
 
 /* === Public Functions === */
+
 /* === Private Functions === */
 
 /* === Tests === */

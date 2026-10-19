@@ -34,6 +34,7 @@ use dokime_domain::model::identity::{TestCycleId, TestExecutionId};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, Default, clap::Args)]
 #[group(id = "interrupt_recovery")]
 pub(crate) struct Args {
@@ -58,6 +59,7 @@ pub(crate) struct Plan {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Args {
     pub(crate) fn prepare(&self, execution: &TestExecutionId) -> crate::Result<Option<Plan>> {
         self.prepare_many(std::slice::from_ref(execution))
@@ -177,6 +179,7 @@ impl Plan {
 }
 
 /* === Public Functions === */
+
 pub(crate) async fn observe<T>(
     client: &Client, execution: &TestExecutionHandle, recovery: Option<&Plan>, subject: &str,
     operation: impl Future<Output = crate::Result<T>>,

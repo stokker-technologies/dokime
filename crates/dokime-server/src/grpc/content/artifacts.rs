@@ -12,15 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{
     chunked::{self, ArtifactFrames},
     error::detailed,
@@ -38,10 +39,12 @@ use dokime_runtime::runtime::ArtifactReader;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Download {
     resources: Arc<Resources>,
 }
@@ -51,6 +54,7 @@ struct Download {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Download {
     type Declaration = content_wire::DownloadArtifact;
     type Resources = Resources;
@@ -85,6 +89,7 @@ impl Operation for Download {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     super::list::register(runtime, maximum)?;
     super::inventory::register(runtime, maximum)?;

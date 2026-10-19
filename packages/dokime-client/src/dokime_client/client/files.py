@@ -28,7 +28,6 @@ from .errors import ProtocolError
 from .models import Backend
 
 # Type Checking Imports
-
 if TYPE_CHECKING:
     from ._transport import Transport
 

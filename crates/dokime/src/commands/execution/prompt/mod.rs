@@ -10,6 +10,7 @@
 // Compose Execution Prompt Commands
 
 /* === Modules === */
+
 mod answer;
 mod next;
 mod show;
@@ -33,6 +34,7 @@ mod show;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
     #[command(about = "Find A Pending Prompt For One Execution, Optionally Waiting.")]
@@ -50,6 +52,7 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::Next(args) => next::run(args).await,

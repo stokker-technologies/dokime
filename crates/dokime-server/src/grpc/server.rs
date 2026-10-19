@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{net::SocketAddr, sync::Arc};
 
@@ -30,6 +31,7 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Service {
     runtime: RuntimeHandle,
@@ -51,6 +53,7 @@ pub struct Server {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Service {
     pub async fn new(runtime: RuntimeHandle, config: Config) -> Result<Self, Error> {
         config.validate()?;

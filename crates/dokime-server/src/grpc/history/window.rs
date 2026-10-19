@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::{inspection, wire};
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{content::window, value};
 use dokime_domain::operations::history;
 use dokime_runtime::{ExecutionFileContent, RuntimeHandle, runtime::query::execution_history::ExecutionCheckpoint};
@@ -31,10 +34,12 @@ use dokime_runtime::{ExecutionFileContent, RuntimeHandle, runtime::query::execut
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Read {
     resources: Arc<Resources>,
 }
@@ -44,6 +49,7 @@ struct Read {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Read {
     type Declaration = history::ReadCheckpointOutput;
     type Resources = Resources;
@@ -107,6 +113,7 @@ impl Operation for Read {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Read>(
         "dokime",
@@ -117,6 +124,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+
 fn project(
     checkpoint: &ExecutionCheckpoint, content: ExecutionFileContent, maximum: usize,
 ) -> harmos::Result<dokime_domain::model::history::wire::CheckpointFileWindow> {
@@ -128,6 +136,7 @@ fn project(
     }
     Ok(response)
 }
+
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted { resource: "canonical checkpoint file window" }
 }

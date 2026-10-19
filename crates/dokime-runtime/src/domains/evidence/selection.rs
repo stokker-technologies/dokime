@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::RecordFilter;
 use crate::records::RecordSeverity;
@@ -37,6 +40,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordSelection {
     pub after_sequence: Option<u64>,
@@ -55,6 +59,7 @@ pub struct RecordSelection {
 pub struct TelemetrySelection {
     #[serde(default)]
     pub after_stream_cursors: BTreeMap<String, u64>,
+
     pub limit: Option<usize>,
     pub streams: Vec<IdentifierPattern>,
     pub schema_versions: Vec<u32>,
@@ -63,6 +68,7 @@ pub struct TelemetrySelection {
     pub scope: ScopeSelection,
     pub start: Option<Timestamp>,
     pub end: Option<Timestamp>,
+
     #[serde(default)]
     pub latest: bool,
 }
@@ -80,6 +86,7 @@ pub struct ScopeSelection {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordSelection {
     pub fn matches(&self, record: &RecordEntry) -> bool {
         if !self.record_types.is_empty() && !self.record_types.contains(&record.record_type) {
@@ -181,6 +188,7 @@ impl ScopeSelection {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn scopes_correlate(left: Option<&RecordScope>, right: Option<&RecordScope>) -> bool {
     let empty = RecordScope::default();
     let left = left.unwrap_or(&empty);
@@ -210,6 +218,7 @@ pub(crate) fn scopes_correlate(left: Option<&RecordScope>, right: Option<&Record
 }
 
 /* === Private Functions === */
+
 fn fields_agree<T: PartialEq>(left: &Option<T>, right: &Option<T>) -> bool {
     match (left, right) {
         (Some(left), Some(right)) => left == right,

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
 /* === Constants === */
@@ -26,6 +28,7 @@ use serde::Serialize;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct HostCardBody {
     #[serde(default)]
@@ -36,6 +39,7 @@ pub struct HostCardBody {
 pub struct HostCardKeyValue {
     pub label: String,
     pub value: String,
+
     #[serde(default)]
     pub detail: Option<String>,
 }
@@ -44,13 +48,16 @@ pub struct HostCardKeyValue {
 pub struct HostCardMetric {
     pub label: String,
     pub value: String,
+
     #[serde(default)]
     pub unit: Option<String>,
+
     #[serde(default)]
     pub trend: Option<String>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum HostCardBlock {
@@ -60,6 +67,7 @@ pub enum HostCardBlock {
     Status {
         label: String,
         tone: HostCardTone,
+
         #[serde(default)]
         detail: Option<String>,
     },
@@ -78,6 +86,7 @@ pub enum HostCardBlock {
 pub enum HostCardTone {
     #[default]
     Neutral,
+
     Info,
     Success,
     Warning,

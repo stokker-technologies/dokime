@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod encoding;
 mod foreign_streams;
 mod notes;
@@ -15,13 +16,17 @@ mod ownership;
 mod record_history;
 
 /* === Re-Exports === */
+
 pub use ownership::{BundleCatalog, PluginOwner, ProviderCatalog};
 pub(crate) use record_history::Redefinition;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
+
 // Local Imports
 use crate::definition::SuiteRegistry;
 use crate::definition::{MaterializedParameter, SuiteSnapshot};
@@ -51,6 +56,7 @@ use foreign_streams::{admit_foreign_view, declares_foreign_view};
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(RuntimeStateInstallError, formatter {
     Self::RecordHistory(message) => write!(formatter, "record contract history: {message}"),
     Self::DuplicateRecord(identifier) => write!(formatter, "event definition {identifier} is already registered"),
@@ -64,6 +70,7 @@ product_error!(RuntimeStateInstallError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // The managed snapshot encodes this state through `encoding`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeState {
@@ -100,6 +107,7 @@ pub struct RuntimeState {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum RuntimeStateInstallError {
     DuplicateRecord(dokime_domain::model::identity::Identifier),
@@ -111,6 +119,7 @@ pub enum RuntimeStateInstallError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeState {
     pub fn case_definition_revision(&self, case: &crate::definition::TestCase) -> Result<String, String> {
         use sha2::{Digest, Sha256};
@@ -768,6 +777,7 @@ impl RuntimeState {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn unestablished_node_id() -> NodeId {
     NodeId::from_seed("dokime.unestablished-node")
 }

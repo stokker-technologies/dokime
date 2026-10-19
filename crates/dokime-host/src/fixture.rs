@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, HashMap};
+
 // Third Party Imports
 
 // Local Imports
@@ -21,6 +23,7 @@ use crate::{HostStreamSample, HostTelemetryStream};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 pub const HOST_FIXTURE_SOURCE: &str = "host.fixture";
 
 /* === Macros === */
@@ -28,6 +31,7 @@ pub const HOST_FIXTURE_SOURCE: &str = "host.fixture";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default)]
 pub struct FixtureHostTelemetrySource {
     sample_indices: HashMap<HostTelemetryStream, u64>,
@@ -38,6 +42,7 @@ pub struct FixtureHostTelemetrySource {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl FixtureHostTelemetrySource {
     pub fn new() -> Self {
         Self::default()

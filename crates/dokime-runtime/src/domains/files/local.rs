@@ -35,6 +35,7 @@ use crate::runtime::Result;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(in crate::domains::files) struct LocalSource {
     root: PathBuf,
     depth: usize,
@@ -45,6 +46,7 @@ pub(in crate::domains::files) struct LocalSource {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl LocalSource {
     pub(super) async fn open(root: &str) -> Result<Self> {
         let path = Path::new(root);
@@ -83,6 +85,7 @@ impl LocalSource {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
     let mut listing = Listing::new();
     let mut visited = 0_usize;

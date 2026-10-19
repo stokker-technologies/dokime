@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod access;
 mod appearance;
 mod authorization;
@@ -44,11 +45,13 @@ mod transcode;
 mod value;
 
 /* === Re-Exports === */
+
 pub use config::{Config, TlsIdentity};
 pub use error::Error;
 pub use server::{Server, Service};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -59,6 +62,7 @@ use dokime_domain::operations::Endpoints;
 use dokime_domain::operations::Operations;
 
 /* === Constants === */
+
 pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
 
 /* === Macros === */
@@ -74,6 +78,7 @@ pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn methods() -> impl Iterator<Item = (&'static str, bool)> {
     let mut methods = Vec::new();
     let result = <Operations as Catalog<Endpoints>>::ENTRIES.try_for_each(|entry| {

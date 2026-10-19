@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod consent;
 mod get_installation;
 mod list_admitted_plugins;
@@ -17,6 +18,7 @@ mod set_enabled;
 mod stage;
 
 /* === Re-Exports === */
+
 pub use consent::Consent;
 pub use get_installation::GetInstallation;
 pub use list_admitted_plugins::ListAdmittedPlugins;
@@ -35,9 +37,9 @@ pub use stage::Stage;
 use super::Endpoint;
 use super::INSTALLATION;
 use super::ORDINARY;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-
 use crate::model::plugins::wire::*;
 
 /* === Constants === */
@@ -64,6 +66,7 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for ListInstallations {
     const PATH: &'static str = "/dokime.v1.Plugins/ListInstallations";
 }

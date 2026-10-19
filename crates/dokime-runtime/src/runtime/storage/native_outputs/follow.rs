@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
+
 // Third Party Imports
 use harmos::storage::{FileFollower, FilePhase, FileReference, StagedFile, StorageFile};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
 // Local Imports
 use super::{COPY_BYTES, NativeOutput, error, file_metadata, open_file};
 use crate::storage::Manager;
@@ -40,6 +43,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Production {
     pub(crate) staged: StagedFile,
     producer: StorageFile,
@@ -60,6 +64,7 @@ pub(crate) struct LiveOutput {
 }
 
 /* === Enums === */
+
 // How A Follow Was Admitted, Decided Under The Original Owner's Lock.
 pub(crate) enum NativeAdmission {
     // Capture Settled First; Its Descriptor Alone Decides Finished Or Abandoned.
@@ -79,6 +84,7 @@ pub(crate) enum Settlement {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionStorage {
     pub(crate) async fn native_follower(
         self: &Arc<Self>, execution: &TestExecutionId, path: &str, offset: u64, expected: Option<&StagedFile>,
@@ -215,6 +221,7 @@ impl LiveOutput {
 }
 
 /* === Public Functions === */
+
 pub(super) async fn capture(storage: &Manager, path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {
     let started = Instant::now();
     let identity = output.production.as_ref().expect("registered original production");
@@ -243,6 +250,8 @@ pub(super) async fn interrupt(path: &str, output: &mut NativeOutput) -> Result<(
     seal(path, output, Some(SavedStreamState::Interrupted)).await
 }
 
+/* === Private Functions === */
+
 async fn seal(path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {
     let production = output.production.as_mut().expect("registered original production");
     let started = Instant::now();
@@ -267,7 +276,6 @@ async fn seal(path: &str, output: &mut NativeOutput, state: Option<SavedStreamSt
     Ok(())
 }
 
-/* === Private Functions === */
 async fn synchronize(storage: &Manager, output: &mut NativeOutput, finalizing: bool) -> Result<bool> {
     if output.production.as_ref().is_some_and(|production| production.reference.is_some()) {
         return Ok(true);

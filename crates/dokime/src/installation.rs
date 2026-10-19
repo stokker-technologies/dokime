@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -22,6 +23,7 @@ use std::process::Command;
 use crate::{Error, Result};
 
 /* === Constants === */
+
 #[cfg(any(windows, target_os = "macos"))]
 const PRODUCT: &str = "Dokime";
 
@@ -30,6 +32,7 @@ const PRODUCT: &str = "Dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct Program {
     name: &'static str,
 }
@@ -39,6 +42,7 @@ pub(crate) struct Program {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Program {
     pub(crate) const SERVER: Self = Self { name: "dokime-server" };
     pub(crate) const GUI: Self = Self { name: "dokime-gui" };
@@ -66,6 +70,7 @@ impl Program {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn hand_over(mut command: Command) -> Result<()> {
     #[cfg(unix)]
     {
@@ -80,6 +85,7 @@ pub(crate) fn hand_over(mut command: Command) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 fn executable(path: &Path) -> Option<PathBuf> {
     if !path.is_file() {
         return None;
