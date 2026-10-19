@@ -13,7 +13,10 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{path::Path, process::Stdio};
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+};
 // Third Party Imports
 use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
@@ -31,6 +34,7 @@ pub struct Host {
     child: Child,
     endpoint: String,
     replies: Lines<BufReader<ChildStdout>>,
+    stderr: PathBuf,
     _root: Option<TempDir>,
 }
 
@@ -48,6 +52,9 @@ impl Host {
     }
 
     pub async fn launch_in(root: &Path, plugin: Option<&Path>) -> Self {
+        std::fs::create_dir_all(root).unwrap();
+        let stderr = root.join("host.stderr.log");
+        let diagnostics = std::fs::File::create(&stderr).unwrap();
         let mut command = Command::new(super::artifacts::host_binary());
         command
             .args(["--dev-control", "--shutdown-stdin", "--port", "0", "--output-root"])
@@ -59,7 +66,7 @@ impl Host {
             .env("RUST_LOG", "off")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(diagnostics)
             .kill_on_drop(true);
         if let Some(plugin) = plugin {
             command.arg("--plugin").arg(plugin);
@@ -87,7 +94,7 @@ impl Host {
         assert_eq!(ready["dev_protocol"], 4);
         assert_eq!(ready["transport"], "grpc");
         let endpoint = ready["endpoint"].as_str().unwrap().to_owned();
-        Self { child, endpoint, replies: lines, _root: None }
+        Self { child, endpoint, replies: lines, stderr, _root: None }
     }
 
     pub async fn command(&mut self, request: serde_json::Value) -> serde_json::Value {
@@ -111,7 +118,8 @@ impl Host {
             drop(self.child.stdin.take());
         }
         let status = self.child.wait().await.unwrap();
-        assert!(status.success(), "the host exited with {status}");
+        let diagnostics = std::fs::read_to_string(&self.stderr).unwrap();
+        assert!(status.success(), "the host exited with {status}:\n{diagnostics}");
     }
 }
 
