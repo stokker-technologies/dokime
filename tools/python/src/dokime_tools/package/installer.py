@@ -28,7 +28,6 @@ from dokime_tools.build.frontend import ROOT
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.package import examples
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
@@ -146,23 +145,8 @@ def stage_resources(root: Path = ROOT, *, directory: Path, profile: str) -> None
         stage_file(shell, destination)
 
 
-def package_wheel(root: Path = ROOT, *, profile: str) -> None:
-    """Gather Built Client Distributions And Remote Examples Without Rebuilding."""
-    wheels = sorted((paths.output(root, "build", profile, "any") / "python").glob("dokime_client-*"))
-    if not wheels:
-        raise ValueError("packaging requires the built client wheel; run `mise run build` first")
-    destination = paths.output(root, "package", profile, "any") / "python"
-    if destination.exists():
-        shutil.rmtree(destination)
-    for wheel in wheels:
-        stage_file(wheel, destination / wheel.name)
-        print(f"Packaged {(destination / wheel.name).relative_to(root).as_posix()}")
-
-    examples.package(root, profile)
-
-
 def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> None:
-    destination = paths.output(root, "package", profile)
+    destination = paths.output(root, "package", profile) / "rust"
     plugins = sorted((paths.output(root, "build", profile) / "plugins").glob("*.dokime"))
     if not plugins:
         raise ValueError("packages require the matching built plugin bundle; run `mise run build` first")
@@ -232,7 +216,7 @@ def check_package(
     check(root)
     expected = (expected or os.environ.get("EXPECTED_PACKAGE_VERSION") or _release_version(root)).strip().removeprefix("v")
     slug = _slug(root)
-    directory = paths.output(root, "package", profile) / "installers" if dist is None else root / dist
+    directory = paths.output(root, "package", profile) / "rust/installers" if dist is None else root / dist
     installer = _one(list(directory.glob(f"{slug}-*-{UPDATER_TARGET}-setup.exe")), "Tauri installer")
     if installer.name != f"{slug}-{expected}-{UPDATER_TARGET}-setup.exe":
         raise ValueError("installer version does not match the expected version")
@@ -247,7 +231,7 @@ def check_package(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["check", "bundle", "resources", "verify", "wheel"])
+    parser.add_argument("command", choices=["check", "bundle", "resources", "verify"])
     parser.add_argument("--profile", choices=["dev", "release"], default="dev")
     parser.add_argument("--dist-dir", type=Path)
     parser.add_argument("--expected-version")
@@ -258,8 +242,6 @@ def main() -> int:
             check()
         elif args.command == "bundle":
             bundle(profile=args.profile)
-        elif args.command == "wheel":
-            package_wheel(profile=args.profile)
         elif args.command == "resources":
             stage_resources(directory=_target_directory(ROOT) / ("release" if args.profile == "release" else "debug"), profile=args.profile)
         else:

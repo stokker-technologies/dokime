@@ -871,7 +871,13 @@ separate preparation inputs for their own lanes.
 Build exports live under `target/build/<profile>/<target>/`; packages use
 `target/package/<profile>/<target>/`. Native targets include `linux-x86_64`
 and `windows-x86_64`; the pure Python distributions and remote examples use
-`any`. Generated TypeScript messages live under `target/generated/typescript/`.
+`any`. One canonical Python Build runs before native Product builds; both
+platforms consume that same wheel. Packages are separated by language: raw
+`dokime`, `dokime-server` and `cargo-dokime` executables, installers and plugin
+carriers live under the native `rust/` subtree; Python distributions and the
+declared tutorial ZIP live under `any/python/`. Raw executable names include
+the package version and ABI-accurate Rust target triple.
+Generated TypeScript messages live under `target/generated/typescript/`.
 `test` runs the layers in order, each with its own task:
 
 | Task | Layer |

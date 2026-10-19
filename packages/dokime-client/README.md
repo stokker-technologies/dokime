@@ -216,10 +216,10 @@ uncertain reply. Scripts never manage Start keys or retry mutations automaticall
 
 Repository Python Build stages the canonical guides, scripts, locked tutorial
 environment and bundled candidate wheel under
-`target/build/<profile>/any/examples/remote/`. Python Package consumes those
+`target/build/<profile>/any/python/examples/remote/`. Python Package consumes those
 files and produces
-`target/package/<profile>/any/examples/dokime-remote-examples.zip`, alongside
-the client distributions under `target/package/<profile>/any/python/`, without
+`target/package/<profile>/any/python/dokime-remote-examples-<version>.zip`, alongside
+the client distributions in that same Python subtree, without
 rebuilding. It includes only the explicit public
 example inventory; local `.env`, key files and collected evidence are excluded.
 The archive's shared [beginner guide](examples/remote/README.md) explains the

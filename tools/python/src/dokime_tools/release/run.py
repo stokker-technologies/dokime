@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/run.py; sha256:c35dffdf76ba8dedea70215cfcb02ef87d8a24a575fa4ff24e426bc5eacb04b2
+# Rendered by stkr project update from templates/python/release/run.py; sha256:c263216162197c507490c059c3792b70e4c962acd734e9fad50a173c4cdb0852
 # ***
 #
 # Dokime
@@ -30,6 +30,7 @@ from pathlib import Path
 # Local Imports
 # isort: split
 from ..test import archive
+from ..package import run as packages
 from . import policy, registry, screenshots, version
 
 # Type Checking Imports
@@ -162,7 +163,8 @@ def assets(directory: Path, settings: dict) -> list[dict]:
     selected = target(settings)
     value = tag_version(settings["tag"])
     result = []
-    for definition in settings.get("assets", []):
+    declared = settings.get("assets", []) + packages.packaged(directory, "release", selected)
+    for definition in declared:
         if definition.get("target") != selected:
             continue
         relative = definition["path"].format(profile="release", target=selected)
@@ -176,9 +178,6 @@ def assets(directory: Path, settings: dict) -> list[dict]:
             or any(item["name"] == name for item in result)
         ):
             raise policy.ToolError(f"invalid or duplicate release asset: {name}")
-        native_package = name.endswith(".whl")
-        if not native_package and not name.startswith(f"{settings['product']}-{value}-{selected}"):
-            raise policy.ToolError("release download must name product-version-target")
         if not source.is_file() or source.is_symlink():
             raise policy.ToolError(f"missing regular release asset: {source}")
         result.append(
@@ -201,40 +200,17 @@ def prepare(directory: Path, settings: dict) -> None:
         raise policy.ToolError("prepare requires a release/v<version> stabilization branch")
     if policy.execute(directory, ["git", "status", "--porcelain"], capture=True).strip():
         raise policy.ToolError("prepare requires clean committed candidate source")
-    tags = policy.execute(
-        directory,
-        ["git", "tag", "--merged", "HEAD", "--list", "v*", "--sort=-v:refname"],
-        capture=True,
-    ).splitlines()
-    if any(re.fullmatch("v" + STABLE, tag) is None for tag in tags):
-        raise policy.ToolError("prerelease tags require an explicit future policy")
-    current = policy.policy(directory, "version").get("value")
-    if not tags:
-        if not isinstance(current, str) or re.fullmatch(STABLE, current) is None:
-            raise policy.ToolError("initial release requires the current stable version")
-        planned = current
-    else:
-        planned = (
-            policy.execute(
-                directory,
-                [
-                    "git-cliff",
-                    "--bump",
-                    "patch",
-                    "--bumped-version",
-                    "--use-branch-tags",
-                ],
-                capture=True,
-            )
-            .strip()
-            .removeprefix("v")
+    planned = (
+        policy.execute(
+            directory,
+            ["git-cliff", "--bump", "patch", "--bumped-version", "--use-branch-tags"],
+            capture=True,
         )
+        .strip()
+        .removeprefix("v")
+    )
     if re.fullmatch(STABLE, planned) is None or branch != f"release/v{planned}":
         raise policy.ToolError(f"candidate branch must be release/v{planned}")
-    if tags:
-        major, minor, patch = map(int, tags[0][1:].split("."))
-        if planned != f"{major}.{minor}.{patch + 1}":
-            raise policy.ToolError("git-cliff did not produce the required patch increment")
     version.run(directory, "sync", value=planned)
     policy_path = directory / "stkr.toml"
     text = policy_path.read_text()
@@ -465,6 +441,7 @@ def tag(directory: Path, settings: dict) -> None:
 
 def stage(directory: Path, settings: dict, folder: Path) -> None:
     registry.require_tag(directory, settings)
+    packages.verify(directory, "release", target(settings))
     selected = assets(directory, settings)
     if policy.policy(directory, "version").get("value") != tag_version(settings["tag"]):
         raise policy.ToolError("prepared package version differs from release tag")

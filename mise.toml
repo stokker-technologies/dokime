@@ -26,6 +26,7 @@ uv = "0.13.0"
 # Rust Toolchain
 "aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
 "aqua:taiki-e/cargo-llvm-cov" = "0.9.1"
+"aqua:cargo-bins/cargo-binstall" = "1.26.0"
 sccache = "0.18.0"
 
 # Formatting And Linting
@@ -156,17 +157,14 @@ run = [
 
 [tasks.build]
 description = "Build Packageable Binaries, Libraries, Plugins, Frontend And Python Client"
+depends = ["build:python --profile {{usage.profile}}"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "build:typescript --profile {{usage.profile}}" },
-  { task = "build:rust --profile {{usage.profile}}" },
-  { task = "build:python --profile {{usage.profile}}" },
-]
+run = [{ task = "build:typescript --profile {{usage.profile}}" }, { task = "build:rust --profile {{usage.profile}}" }]
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."build:python"]
 description = "Build The Python Client Wheel"
-depends = ["prepare:harmos"]
+depends = ["prepare:harmos", "prepare:report"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.product python --profile {{usage.profile}}"
 
@@ -393,15 +391,18 @@ usage = 'flag "--profile <profile>" default="dev"'
 depends = ["package:rust --profile {{usage.profile}}", "package:python --profile {{usage.profile}}"]
 
 [tasks."package:python"]
-description = "Package The Built Client Wheel"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.package.installer wheel --profile {{usage.profile}}"
+description = "Package The Built Python Distributions And Declared Tutorial Bundle"
+usage = 'flag "--profile <profile>" default="dev"; flag "--target <target>" default="any"'
+run = "{{vars.tools}} dokime_tools.package.examples --profile {{usage.profile}} --target {{usage.target}}"
 
 [tasks."package:rust"]
 description = "Package The Desktop Installer With Its CLI And Server Companions And The Plugin Bundle"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.profile}}"
+run = [
+  "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.profile}}",
+]
 
 # === CI === #
 
@@ -457,6 +458,10 @@ run = "uv publish --trusted-publishing always target/package/release/any/python/
 [tasks."release:publish:rust"]
 description = "Publish Rust Crates"
 run = "cargo publish --locked --workspace"
+
+[tasks."release:verify"]
+description = "Verify Published Assets And Their Opted-In Installers"
+run = "{{vars.tools}} dokime_tools.release.run verify"
 
 # === Housekeeping === #
 

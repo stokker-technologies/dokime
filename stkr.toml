@@ -17,6 +17,7 @@ exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
 
 [languages.python]
 roots = ["tools/python", "packages"]
+build_target = "any"
 generated = [
   "packages/dokime-client/src/dokime_client/_wire",
   "packages/dokime-client/src/dokime_client/operation.py",
@@ -115,6 +116,89 @@ repository = "{{repository}}"
 selection = "{{selection}}"
 
 # === Release === #
+
+[release]
+tag = "v0.1.0"
+provider = "github"
+repository = "stokker-technologies/dokime"
+product = "dokime"
+package = "dokime"
+notes = "CHANGELOG.md"
+targets = ["linux-x86_64", "windows-x86_64"]
+tests = ["unit-rust", "integration-rust", "acceptance-rust", "system-rust"]
+assets = [
+  { target = "linux-x86_64", path = "target/package/{profile}/{target}/rust/installers/dokime_0.1.0_amd64.deb" },
+  { target = "linux-x86_64", path = "target/package/{profile}/{target}/rust/installers/dokime-0.1.0-1.x86_64.rpm" },
+  { target = "linux-x86_64", path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime", name = "obc-plugin-{version}-{target}.dokime" },
+  { target = "windows-x86_64", path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime", name = "obc-plugin-{version}-{target}.dokime" },
+  { target = "windows-x86_64", path = "target/package/{profile}/{target}/rust/installers/dokime-0.1.0-windows-x86_64-setup.exe" },
+  { target = "windows-x86_64", path = "target/package/{profile}/{target}/rust/installers/dokime-0.1.0-windows-x86_64-setup.exe.sig" },
+  { target = "windows-x86_64", path = "target/package/{profile}/{target}/rust/installers/latest.json" },
+  { target = "linux-x86_64", path = "target/package/{profile}/any/python/dokime_client-0.1.0-py3-none-any.whl" },
+  { target = "linux-x86_64", path = "target/package/{profile}/any/python/dokime_client-0.1.0.tar.gz" },
+]
+
+[version]
+value = "0.1.0"
+files = ["Cargo.toml", "packages/dokime-client/pyproject.toml", "crates/dokime-gui/src-tauri/tauri.conf.json"]
+
+[[package.executables]]
+package = "dokime"
+command = "dokime"
+name = "dokime"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+release = true
+verify = ["--version"]
+installers = ["mise", "binstall"]
+
+[[package.executables]]
+package = "dokime-server"
+command = "dokime-server"
+name = "dokime-server"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+release = true
+verify = ["--version"]
+installers = ["mise", "binstall"]
+
+[[package.executables]]
+package = "cargo-dokime"
+command = "cargo-dokime"
+name = "cargo-dokime"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+release = true
+verify = ["--version"]
+installers = ["mise", "binstall"]
+
+[[package.bundles]]
+language = "python"
+name = "dokime-remote-examples-{version}.zip"
+profiles = ["dev", "release"]
+targets = ["any"]
+release = true
+inputs = [
+  { path = "target/build/{profile}/{target}/python/examples/remote/LICENSE-APACHE", destination = "remote/LICENSE-APACHE" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/.env.example", destination = "remote/.env.example" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/README.md", destination = "remote/README.md" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/README.md", destination = "remote/cli/README.md" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/bootstrap.ps1", destination = "remote/cli/bootstrap.ps1" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/bootstrap.bat", destination = "remote/cli/bootstrap.bat" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.sh", destination = "remote/cli/control-device.sh" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.sh", destination = "remote/cli/control-test.sh" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.sh", destination = "remote/cli/control-prompt.sh" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.ps1", destination = "remote/cli/control-device.ps1" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.ps1", destination = "remote/cli/control-test.ps1" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.ps1", destination = "remote/cli/control-prompt.ps1" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.bat", destination = "remote/cli/control-device.bat" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.bat", destination = "remote/cli/control-test.bat" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.bat", destination = "remote/cli/control-prompt.bat" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-device.py", destination = "remote/python/control-device.py" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-test.py", destination = "remote/python/control-test.py" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/control-prompt.py", destination = "remote/python/control-prompt.py" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/README.md", destination = "remote/python/README.md" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/pyproject.toml", destination = "remote/python/pyproject.toml" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/python/uv.lock", destination = "remote/python/uv.lock" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/wheels/dokime_client-0.1.0-py3-none-any.whl", destination = "remote/wheels/dokime_client-0.1.0-py3-none-any.whl" },
+]
 
 # === Documentation === #
 

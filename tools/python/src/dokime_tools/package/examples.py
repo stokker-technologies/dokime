@@ -12,10 +12,10 @@
 # === Imports === #
 
 # Standard Library Imports
+import argparse
 import hashlib
 import stat
 import tomllib
-import zipfile
 from pathlib import Path
 
 # Third Party Imports
@@ -23,7 +23,9 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import parse_wheel_filename
 
 # Local Imports
+from dokime_tools import temporary
 from dokime_tools.build import paths
+from dokime_tools.package.run import assemble
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
@@ -90,23 +92,37 @@ def stage(root: Path, destination: Path, *, wheel: Path) -> list[Path]:
 
 
 def package(root: Path, profile: str) -> None:
-    """Archive The Staged Examples Without Reading Source Or Rebuilding The Client."""
-    source = paths.output(root, "build", profile, "any") / "examples/remote"
+    """Package Built Distributions And The Declared Tutorial Without Reading Source."""
+    source = paths.output(root, "build", profile, "any") / "python/examples/remote"
     if source.is_symlink() or not source.is_dir():
         raise ValueError("packaging requires the built remote examples; run `mise run build` first")
     for relative in FILES:
         _regular(source / relative)
     wheel = _candidate(source / "python")
     _environment(source / "python", wheel)
-    files = (*FILES, f"wheels/{wheel.name}")
+    built = paths.output(root, "build", profile, "any") / "python"
+    distributions = sorted(built.glob("dokime_client-*"))
+    wheels = [path for path in distributions if path.suffix == ".whl"]
+    if len(wheels) != 1:
+        raise ValueError("packaging requires exactly one matching built client wheel")
+    _environment(source / "python", wheels[0])
 
-    destination = paths.output(root, "package", profile, "any") / "examples"
-    clear_output(destination)
-    destination.mkdir()
-    output = destination / "dokime-remote-examples.zip"
-    with zipfile.ZipFile(output, "x", compression=zipfile.ZIP_STORED) as archive:
-        _write(archive, source, files)
-    print(f"Packaged {output.relative_to(root).as_posix()}")
+    destination = paths.output(root, "package", profile, "any") / "python"
+    with temporary.directory() as staging:
+        for distribution in distributions:
+            _regular(distribution)
+            stage_file(distribution, staging / distribution.name)
+        assemble(root, "python", profile, "any", staging)
+        paths.replace(root, staging, destination, origin=staging)
+    print(f"Packaged {destination.relative_to(root).as_posix()}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", choices=("dev", "release"), default="dev")
+    parser.add_argument("--target", choices=("any",), default="any")
+    options = parser.parse_args()
+    package(Path.cwd(), options.profile)
 
 
 # === Private Functions === #
@@ -157,13 +173,7 @@ def _environment(project: Path, wheel: Path) -> None:
         raise ValueError("the candidate wheel bytes differ from the tutorial lock; regenerate it from this candidate")
 
 
-def _write(archive: zipfile.ZipFile, source: Path, files: tuple[str, ...]) -> None:
-    for relative in files:
-        # Fixed ZIP Metadata Keeps Identical Build Inputs Identical Across Platforms.
-        entry = zipfile.ZipInfo(f"remote/{relative}")
-        entry.create_system = 3
-        entry.external_attr = (0o100755 if relative.endswith(".sh") else 0o100644) << 16
-        archive.writestr(entry, (source / relative).read_bytes())
-
-
 # === Entry Point === #
+
+if __name__ == "__main__":
+    main()

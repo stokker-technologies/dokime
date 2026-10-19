@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:dc947425fe0127a33c76f94f90802d282e06fa2f4d85b83306a3febeeec41eba
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:0538077732d4c5f402d8e15c085ab415b9fa5d463166d06a04c78fdb5ad6095b
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -13,7 +13,6 @@ permissions:
 env:
   MISE_LOCKED: "1"
   CARGO_INCREMENTAL: "0"
-  MISE_DATA_DIR: ${{ github.workspace }}/.cache/mise
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
   npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
@@ -27,11 +26,21 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
+    - name: Resolve Mise Directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |-
+        $directory = Join-Path ([System.IO.Path]::GetTempPath()) 'stkr-mise'
+        "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Resolve Mise Directory
+      if: runner.os != 'Windows'
+      shell: bash
+      run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
     - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       id: tools
       with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
@@ -46,7 +55,7 @@ jobs:
       with:
         install: true
         cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
+        mise_dir: ${{ env.MISE_DATA_DIR }}
     - run: git switch -c "release/v$RELEASE_VERSION"
     - run: mise run release:prepare
     - run: >-

@@ -41,12 +41,12 @@ extraction:
 
 | Platform | Installer | Matching Host Plugin |
 | --- | --- | --- |
-| Windows | `target/package/dev/windows-x86_64/installers/dokime-0.1.0-windows-x86_64-setup.exe` | `target/package/dev/windows-x86_64/plugins/obc-plugin.dokime` |
-| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/installers/dokime_0.1.0_amd64.deb` | `target/package/dev/linux-x86_64/plugins/obc-plugin.dokime` |
-| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/installers/dokime-0.1.0-1.x86_64.rpm` | `target/package/dev/linux-x86_64/plugins/obc-plugin.dokime` |
+| Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-0.1.0-windows-x86_64-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/obc-plugin.dokime` |
+| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_0.1.0_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/obc-plugin.dokime` |
+| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-0.1.0-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/obc-plugin.dokime` |
 
 The Python artifact contains
-`target/package/dev/any/examples/dokime-remote-examples.zip` and the client
+`target/package/dev/any/python/dokime-remote-examples-0.1.0.zip` and the client
 distribution under `target/package/dev/any/python/`. Extract the examples ZIP
 into a new folder named `remote-demo` on the remote PC. It contains this guide,
 `cli/`, `python/`, `wheels/` and `.env.example`. Preserve the folder layout:

@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -63,18 +64,36 @@ def rust(profile: str) -> list[Path]:
     output = paths.output(ROOT, "build", profile)
     messages = output / "product/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
+    compiler = subprocess.check_output(["rustc", "-vV"], cwd=ROOT, text=True)
+    hosts = [line.removeprefix("host: ") for line in compiler.splitlines() if line.startswith("host: ")]
+    host = hosts[0]
+    triple = os.environ.get("CARGO_BUILD_TARGET", host)
     command = ["cargo", "build", "--locked", "--profile", profile, "--message-format=json", "--features", "tauri/custom-protocol"]
     for package in PACKAGES:
         command += ["--package", package]
     with messages.open("w", encoding="utf-8") as written:
         subprocess.run(command, cwd=ROOT, stdout=written, check=True)
+    compiled = outputs.executables(messages, EXECUTABLES)
+    targets = {
+        path.parent.parent.name
+        for path in compiled.values()
+        if "-linux-" in path.parent.parent.name
+        or "-windows-" in path.parent.parent.name
+        or path.parent.parent.name.endswith("-apple-darwin")
+    }
+    if len(targets) > 1:
+        raise ValueError("Product Build exported more than one Rust target")
+    actual = next(iter(targets), triple)
+    if "CARGO_BUILD_TARGET" in os.environ and actual != triple:
+        raise ValueError("Product Build target differs from CARGO_BUILD_TARGET")
+    (messages.parent / "target.txt").write_text(actual + "\n", encoding="utf-8")
 
     binaries = output / "bin"
     libraries = output / "lib"
     clear_output(binaries)
     clear_output(libraries)
     staged = []
-    for source in outputs.executables(messages, EXECUTABLES).values():
+    for source in compiled.values():
         destination = binaries / source.name
         stage_file(source, destination)
         staged.append(destination)
@@ -89,6 +108,7 @@ def rust(profile: str) -> list[Path]:
 
 def typescript(profile: str) -> list[Path]:
     """Resolve Shipping Server Contracts Before Compiling The Embedded Frontend."""
+    frontend.ensure_report()
     messages = paths.output(ROOT, "build", profile) / "product/contracts.jsonl"
     messages.parent.mkdir(parents=True, exist_ok=True)
     command = ["cargo", "check", "--locked", "--package", "dokime-server", "--profile", profile, "--message-format=json"]
@@ -103,7 +123,11 @@ def typescript(profile: str) -> list[Path]:
 
 def python(profile: str) -> list[Path]:
     """Build The Client Distribution And Its Matching Portable Tutorial."""
-    messages = paths.output(ROOT, "build", profile) / "product/compiler.json"
+    messages = paths.output(ROOT, "build", profile, "any") / "product/contracts.jsonl"
+    messages.parent.mkdir(parents=True, exist_ok=True)
+    command = ["cargo", "check", "--locked", "--package", "dokime-server", "--profile", profile, "--message-format=json"]
+    with messages.open("w", encoding="utf-8") as written:
+        subprocess.run(command, cwd=ROOT, stdout=written, check=True)
     bindings.generate(messages, check=True)
 
     distributions = wheel.build(ROOT, profile)
@@ -111,7 +135,7 @@ def python(profile: str) -> list[Path]:
     if len(wheels) != 1:
         raise ValueError("the tutorial requires exactly one matching built wheel")
 
-    destination = paths.output(ROOT, "build", profile, "any") / "examples/remote"
+    destination = paths.output(ROOT, "build", profile, "any") / "python/examples/remote"
     staged = examples.stage(ROOT, destination, wheel=wheels[0])
     return [*distributions, *staged]
 
@@ -124,7 +148,12 @@ def files(profile: str) -> list[Path]:
     independent = paths.output(ROOT, "build", profile, "any")
     suffix = ".exe" if sys.platform == "win32" else ""
     required = [native / "bin" / f"{name}{suffix}" for name in EXECUTABLES]
-    required += [native / "plugins/obc-plugin.dokime", native / "product/compiler.json", native / "web/index.html"]
+    required += [
+        native / "plugins/obc-plugin.dokime",
+        native / "product/compiler.json",
+        native / "product/target.txt",
+        native / "web/index.html",
+    ]
     wheel_directory = independent / "python"
     wheels = list(wheel_directory.glob("dokime_client-*.whl"))
     complete = all(path.is_file() for path in required)
@@ -133,7 +162,7 @@ def files(profile: str) -> list[Path]:
 
     kinds = ("bin", "lib", "plugins", "web", "generated/typescript")
     roots = [native / kind for kind in kinds]
-    roots += [independent / "python", independent / "examples/remote"]
+    roots += [independent / "python"]
     staged = {path for root in roots for path in root.rglob("*") if path.is_file()}
     return sorted(staged)
 

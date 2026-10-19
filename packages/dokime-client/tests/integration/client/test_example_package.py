@@ -43,17 +43,16 @@ def test_candidate_archive(tmp_path: Path) -> None:
     source = root / "packages/dokime-client/examples/remote"
     (source / ".env").write_text("PRIVATE_KEY=secret", encoding="utf-8")
     (source / "python/unrelated.txt").write_text("private", encoding="utf-8")
-    destination = root / "target/build/dev/any/examples/remote"
+    destination = root / "target/build/dev/any/python/examples/remote"
     staged = examples.stage(root, destination, wheel=wheel)
     expected = {*examples.FILES, f"wheels/{WHEEL}"}
     assert {path.relative_to(destination).as_posix() for path in staged} == expected
 
     # Package Reads Only Frozen Build Inputs, Including The Original Wheel Bytes
-    wheel.write_bytes(b"changed same-version source wheel")
     shutil.rmtree(source)
     (destination / "local.key").write_bytes(b"private")
     examples.package(root, "dev")
-    output = root / "target/package/dev/any/examples/dokime-remote-examples.zip"
+    output = root / "target/package/dev/any/python/dokime-remote-examples-0.1.0.zip"
     with zipfile.ZipFile(output) as archive:
         assert set(archive.namelist()) == {f"remote/{relative}" for relative in expected}
         assert archive.read(f"remote/wheels/{WHEEL}") == original
@@ -80,7 +79,7 @@ def test_candidate_refusal(tmp_path: Path, fault: str) -> None:
     else:
         manifest.write_text(manifest.read_text().replace(">=3.13,<3.16", ">=3.14,<3.16"))
 
-    destination = root / "target/build/dev/any/examples/remote"
+    destination = root / "target/build/dev/any/python/examples/remote"
     destination.mkdir(parents=True)
     retained = destination / "retained"
     retained.write_bytes(b"previous valid candidate")
@@ -89,16 +88,18 @@ def test_candidate_refusal(tmp_path: Path, fault: str) -> None:
     assert retained.read_bytes() == b"previous valid candidate"
 
 
-@pytest.mark.parametrize("fault", ["wheel", "lock"])
+@pytest.mark.parametrize("fault", ["wheel", "lock", "distribution"])
 def test_built_candidate_refused(tmp_path: Path, fault: str) -> None:
     root, wheel = _fixture(tmp_path)
-    destination = root / "target/build/dev/any/examples/remote"
+    destination = root / "target/build/dev/any/python/examples/remote"
     examples.stage(root, destination, wheel=wheel)
     examples.package(root, "dev")
-    archive = root / "target/package/dev/any/examples/dokime-remote-examples.zip"
+    archive = root / "target/package/dev/any/python/dokime-remote-examples-0.1.0.zip"
     previous = archive.read_bytes()
     if fault == "wheel":
         (destination / "wheels" / WHEEL).write_bytes(b"tampered built candidate")
+    elif fault == "distribution":
+        wheel.write_bytes(b"tampered built distribution")
     else:
         lock = destination / "python/uv.lock"
         lock.write_text(lock.read_text().replace(hashlib.sha256(wheel.read_bytes()).hexdigest(), "0" * 64))
@@ -122,7 +123,7 @@ def test_link_refusal(tmp_path: Path, subject: str) -> None:
         path.rename(external)
         path.symlink_to(external)
     with pytest.raises(ValueError, match="regular file"):
-        examples.stage(root, root / "target/build/dev/any/examples/remote", wheel=wheel)
+        examples.stage(root, root / "target/build/dev/any/python/examples/remote", wheel=wheel)
 
 
 # === Private Functions === #
@@ -136,6 +137,10 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
         path = package / relative if relative == "LICENSE-APACHE" else source / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"Public Fixture: {relative}\n", encoding="utf-8")
+        if path.suffix == ".sh":
+            path.chmod(0o755)
+    workspace = Path(__file__).resolve().parents[5]
+    shutil.copyfile(workspace / "stkr.toml", root / "stkr.toml")
     wheel = root / "target/build/dev/any/python" / WHEEL
     wheel.parent.mkdir(parents=True)
     wheel.write_bytes(b"fixture candidate wheel bytes")
