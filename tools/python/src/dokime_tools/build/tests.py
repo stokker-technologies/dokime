@@ -47,7 +47,12 @@ def build(profile: str) -> None:
     features = "tauri/custom-protocol,dokime-runtime/fault-injection"
 
     # Compile Test Targets Through The Shared Archive Owner.
-    archive.build(ROOT, profile, ["--features", features])
+    built = archive.build(ROOT, profile, ["--features", features])
+    metadata = built.with_name("metadata.json")
+    with metadata.open("w", encoding="utf-8") as written:
+        command = ["cargo", "metadata", "--locked", "--format-version", "1", "--features", features]
+        subprocess.run(command, cwd=ROOT, stdout=written, check=True)
+    staged.append(metadata)
     directory = fixtures / "dependencies"
     staged += dependencies.cargo(ROOT, directory)
     staged += dependencies.wheelhouse(ROOT, directory)

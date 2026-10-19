@@ -855,8 +855,9 @@ Interactive `tauri dev` continues to use the Vite server.
 test fixtures, requiring the matching Product outputs first. Use `release`
 instead for release-profile test preparation. Test lanes consume that archive,
 its fixtures and matching Product hosts; Product Build does not compile the
-test archive. The archive lives under `tests/archive.tar.zst` and test fixtures
-under `fixtures/` within the selected native Build output.
+test archive. The archive lives under `tests/archive.tar.zst`, with its compiler
+messages and resolved dependency metadata beside it for authoring checks.
+Test fixtures live under `fixtures/` within the selected native Build output.
 
 `build:bench` uses the fixed `bench` profile and separately builds benchmark
 executables, their matching server/packaging hosts and plugin fixture. It does

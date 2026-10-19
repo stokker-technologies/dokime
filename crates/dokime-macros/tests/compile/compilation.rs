@@ -50,16 +50,18 @@ fn sdk_artifact() -> &'static SdkArtifact {
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dokime-runtime/Cargo.toml").canonicalize().unwrap();
         let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
         let target = std::env::var_os("CARGO_TARGET_DIR").map(|path| workspace.join(path)).unwrap_or_else(|| workspace.join("target"));
-        // The build records its compiler messages beside its nextest archive, under the profile this story was built with.
+        // Tests Build Records The Selected SDK And Dependency Graph Beside Its Archive.
         let directory =
             std::env::current_exe().unwrap().parent().and_then(std::path::Path::parent).unwrap().file_name().unwrap().to_owned();
         let profile = if directory == "debug" { "dev".into() } else { directory.to_string_lossy().into_owned() };
-        let messages = target.join("nextest").join(&profile).join("compiler.json");
+        let native = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
+        let exported = workspace.join("target/build").join(&profile).join(native).join("tests");
+        let messages = exported.join("compiler.json");
         let built = std::fs::read_to_string(&messages)
-            .unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", messages.display()));
+            .unwrap_or_else(|error| panic!("run mise run build:tests to produce {}: {error}", messages.display()));
         // Only the SDK's own dependency closure links into a plugin: another member's build script output (the
         // desktop shell's import stub libraries) would shadow the platform's runtime libraries on the search path.
-        let closure = sdk_closure(&target.join("nextest").join(&profile).join("metadata.json"), &manifest);
+        let closure = sdk_closure(&exported.join("metadata.json"), &manifest);
         let mut artifacts = Vec::new();
         let mut serde = None;
         let mut native_paths = Vec::new();
@@ -142,7 +144,8 @@ fn sdk_artifact() -> &'static SdkArtifact {
 // Every package the SDK depends on, by Cargo package id, from the build's resolved metadata.
 fn sdk_closure(metadata: &std::path::Path, manifest: &std::path::Path) -> std::collections::BTreeSet<String> {
     let metadata: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(metadata).unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", metadata.display())),
+        &std::fs::read_to_string(metadata)
+            .unwrap_or_else(|error| panic!("run mise run build:tests to produce {}: {error}", metadata.display())),
     )
     .unwrap();
     let root = metadata["packages"]
