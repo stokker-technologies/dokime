@@ -17,7 +17,7 @@ import { test } from "vitest";
 
 // Local Imports
 import { groupExecutions } from "@/features/explore/explore-data-source";
-import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage } from "@/lib/types/view-contracts";
+import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage, SavedCycleSummary } from "@/lib/types/view-contracts";
 
 /* === Re-Exports === */
 
@@ -134,4 +134,34 @@ test("Backend Cycle Totals", () => {
 
   // Entries Without Backend Totals Are Refused
   assert.throws(() => groupExecutions([page(loaded, [])]), /no totals/);
+});
+
+test("Empty Sealed Cycles Remain Discoverable Without Invented Outcomes", () => {
+  const saved: SavedCycleSummary = {
+    cycle_id: "empty-cycle",
+    label: "Saved Empty Cycle",
+    phase: "sealed",
+    created_at: "2026-10-16T08:00:00Z",
+    updated_at: "2026-10-16T09:00:00Z",
+    execution_count: 0,
+    archived: false,
+  };
+  const [empty] = groupExecutions([], [saved, saved]);
+  assert.equal(empty.title, saved.label);
+  assert.equal(empty.phase, "sealed");
+  assert.equal(empty.updated_at, saved.updated_at);
+  assert.equal(empty.result_status, null);
+  assert.equal(empty.execution_count, 0);
+  assert.deepEqual(empty.executions, []);
+  assert.deepEqual(empty.unrun, []);
+  assert.equal(groupExecutions([], [saved, saved]).length, 1);
+
+  const loaded = [entry("execution-a", "passed", "2026-10-16T08:00:00Z")];
+  const [nonempty] = groupExecutions(
+    [page(loaded, [totals({ label: "Authoritative Fold" })])],
+    [{ ...saved, cycle_id: "cycle-a", execution_count: 1 }],
+  );
+  assert.equal(nonempty.title, "Authoritative Fold");
+  assert.equal(nonempty.execution_count, 6);
+  assert.equal(groupExecutions([], [{ ...saved, execution_count: 1 }]).length, 0);
 });

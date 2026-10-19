@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+mod browse_cycles;
 mod browse_executions;
 mod delete_execution;
 mod download_checkpoint_artifact;
@@ -22,6 +23,7 @@ mod read_checkpoint_output;
 
 /* === Re-Exports === */
 
+pub use browse_cycles::BrowseCycles;
 pub use browse_executions::BrowseExecutions;
 pub use delete_execution::DeleteExecution;
 pub use download_checkpoint_artifact::DownloadCheckpointArtifact;
@@ -108,6 +110,7 @@ use crate::model::telemetry::wire::*;
 
 #[harmos_domain::catalog]
 pub enum Operations {
+    BrowseCycles(BrowseCycles),
     BrowseExecutions(BrowseExecutions),
     GetExecutionCheckpoint(GetExecutionCheckpoint),
     DeleteExecution(DeleteExecution),
@@ -123,6 +126,10 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Endpoint for BrowseCycles {
+    const PATH: &'static str = "/dokime.v1.History/BrowseCycles";
+}
 
 impl Endpoint for BrowseExecutions {
     const PATH: &'static str = "/dokime.v1.History/BrowseExecutions";

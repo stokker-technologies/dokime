@@ -469,6 +469,11 @@ attempt until the user explicitly re-enables that policy.
 Appending to an idle cycle starts no hardware, and reaching the end keeps the
 cycle Active until it is explicitly sealed.
 
+Sealed cycles remain in History after a server restart, including cycles with
+no executions. History lists their saved headers independently of execution
+results; an empty cycle has no passing or failing outcome and its saved report
+can still be opened.
+
 Scripts can opt into cancellation and evidence recovery while running or waiting:
 
 ```sh

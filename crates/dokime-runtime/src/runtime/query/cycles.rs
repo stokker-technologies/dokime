@@ -102,7 +102,11 @@ pub fn cycle_page<'a>(
 /* === Private Functions === */
 
 fn matches_filter(state: &RuntimeState, cycle: &TestCycle, filter: &CycleFilter) -> bool {
-    if !filter.archive.admits(state.archived_cycles.contains(&cycle.test_cycle_id)) {
+    matches_cycle(cycle, state.archived_cycles.contains(&cycle.test_cycle_id), filter)
+}
+
+pub(crate) fn matches_cycle(cycle: &TestCycle, archived: bool, filter: &CycleFilter) -> bool {
+    if !filter.archive.admits(archived) {
         return false;
     }
     if !filter.statuses.is_empty() && !filter.statuses.contains(&cycle.lifecycle) {

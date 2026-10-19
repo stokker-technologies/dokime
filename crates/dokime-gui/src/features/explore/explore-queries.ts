@@ -12,7 +12,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNativeSession } from "@/app/native-session/context";
-import type { NativeExecutionSelection } from "@/lib/api/native-checkpoints";
+import { fetchNativeCyclePage, type NativeCycleContinuation, type NativeExecutionSelection } from "@/lib/api/native-checkpoints";
 import { fetchExecutionPage, groupExecutions } from "./explore-data-source";
 
 /* === Types === */
@@ -25,6 +25,7 @@ export type HistoryArchiveView = "Unarchived" | "Archived" | "All";
 export const exploreQueryKeys = {
   all: ["explore"] as const,
   history: (text = "", archive: HistoryArchiveView = "Unarchived") => ["explore", "executions", { archive, text }] as const,
+  cycles: (text = "", archive: HistoryArchiveView = "Unarchived") => ["explore", "cycles", { archive, text }] as const,
 };
 
 /* === Query Hooks === */
@@ -63,9 +64,34 @@ export function useExploreHistoryQuery(text = "", archive: HistoryArchiveView = 
     getNextPageParam: (page) => page.next ?? undefined,
     staleTime: 30_000,
   });
+  const cycles = useInfiniteQuery({
+    queryKey: exploreQueryKeys.cycles(needle, archive),
+    initialPageParam: null as NativeCycleContinuation | null,
+    queryFn: ({ pageParam, signal }) =>
+      fetchNativeCyclePage(session.identity, pageParam, signal, {
+        text: needle,
+        statuses: [],
+        archive: { HarmosVariant: { case: archive, value: {} } },
+      }),
+    getNextPageParam: (page) => page.next ?? undefined,
+    staleTime: 30_000,
+  });
+  const data =
+    query.data || cycles.data
+      ? groupExecutions(query.data?.pages ?? [], cycles.data?.pages.flatMap((page) => page.entries) ?? [])
+      : undefined;
   return {
-    ...query,
-    data: query.data ? groupExecutions(query.data.pages) : undefined,
+    data,
+    isPending: query.isPending || cycles.isPending,
+    isError: query.isError || cycles.isError,
+    error: query.error ?? cycles.error,
+    hasNextPage: query.hasNextPage || cycles.hasNextPage,
+    isFetchingNextPage: query.isFetchingNextPage || cycles.isFetchingNextPage,
+    fetchNextPage: () =>
+      Promise.all([
+        query.hasNextPage ? query.fetchNextPage() : Promise.resolve(),
+        cycles.hasNextPage ? cycles.fetchNextPage() : Promise.resolve(),
+      ]),
     coverage: query.data?.pages.at(-1),
   };
 }

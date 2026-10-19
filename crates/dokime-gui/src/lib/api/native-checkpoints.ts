@@ -51,6 +51,7 @@ import type {
   ExecutionBrowseEntry,
   ExecutionBrowsePage,
   ExecutionCheckpoint,
+  SavedCycleSummary,
 } from "@/lib/types/view-contracts";
 import { mapCyclePhase } from "./native-planning";
 import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
@@ -173,6 +174,54 @@ function mapIssue(issue: HistoryIssue): {
 }
 
 /* === History discovery === */
+
+export type NativeCycleContinuation = { at: CheckpointCursor; after: bigint };
+
+export type NativeCyclePage = {
+  entries: SavedCycleSummary[];
+  next: NativeCycleContinuation | null;
+};
+
+export async function fetchNativeCyclePage(
+  session: SessionIdentity,
+  after: NativeCycleContinuation | null,
+  signal: AbortSignal | undefined,
+  filter: NonNullable<Parameters<typeof rpc.historyBrowseCycles>[1]["filter"]>,
+): Promise<NativeCyclePage> {
+  assertActive(session, signal, "History.BrowseCycles");
+  const page = await rpc.historyBrowseCycles(session, {
+    limit: NATIVE_PAGE_SIZE,
+    at: after?.at,
+    afterSequence: after?.after ?? 0n,
+    filter,
+  });
+  assertActive(session, signal, "History.BrowseCycles");
+  const at = checkpointCursor(page.at);
+  if (after && cursorKey(at).join("/") !== cursorKey(after.at).join("/")) {
+    throw new Error("History.BrowseCycles returned a different snapshot.");
+  }
+  const next = page.nextAfterSequence;
+  if (next !== undefined && (next <= (after?.after ?? 0n) || next > at.sequence)) {
+    throw new Error("History.BrowseCycles returned a continuation that did not advance within its snapshot.");
+  }
+  const entries = page.entries.map((cycle): SavedCycleSummary => {
+    const created = timestampIso(cycle.createdAt);
+    const updated = timestampIso(cycle.updatedAt);
+    if (!cycle.cycleId || !cycle.metadata || mapCyclePhase(cycle.phase) !== "sealed" || !created || !updated) {
+      throw new Error("History.BrowseCycles returned an invalid sealed cycle header.");
+    }
+    return {
+      cycle_id: cycle.cycleId,
+      label: cycle.metadata.label,
+      phase: "sealed",
+      created_at: created,
+      updated_at: updated,
+      execution_count: safeNumber(cycle.executionCount, "historical cycle execution count"),
+      archived: cycle.archived,
+    };
+  });
+  return { entries, next: next === undefined ? null : { at, after: next } };
+}
 
 /** Read one bounded immutable execution page and retain the old grouping view model. */
 /**

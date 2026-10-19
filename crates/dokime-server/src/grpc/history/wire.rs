@@ -249,7 +249,7 @@ fn exact_slots<T>(count: usize) -> Result<Vec<T>, Status> {
     Ok(values)
 }
 
-fn cursor(value: Option<dokime_domain::model::execution::wire_checkpoint::StorageCursor>) -> Result<StorageCursor, Status> {
+pub(super) fn cursor(value: Option<dokime_domain::model::execution::wire_checkpoint::StorageCursor>) -> Result<StorageCursor, Status> {
     let value = value.ok_or_else(|| Status::invalid_argument("checkpoint cursor is required"))?;
     let history = value.history.ok_or_else(|| Status::invalid_argument("checkpoint history is required"))?;
     value::text(&history.store)?;
@@ -261,7 +261,7 @@ fn cursor(value: Option<dokime_domain::model::execution::wire_checkpoint::Storag
     Ok(StorageCursor { history: StoreHistory { store, epoch }, sequence: value.sequence })
 }
 
-fn cursor_wire_ref(value: &StorageCursor) -> dokime_domain::model::execution::wire_checkpoint::StorageCursor {
+pub(super) fn cursor_wire_ref(value: &StorageCursor) -> dokime_domain::model::execution::wire_checkpoint::StorageCursor {
     dokime_domain::model::execution::wire_checkpoint::StorageCursor {
         history: Some(dokime_domain::model::execution::wire_checkpoint::StoreHistory {
             store: value.history.store.as_str().to_owned(),

@@ -12,7 +12,7 @@ dependencies = [
     { name = "python-dotenv" },
 ]
 wheels = [
-    { filename = "dokime_client-0.1.0-py3-none-any.whl", hash = "sha256:9a2c13e0e7d56d5ded18fff7e7dc63e7aa322898998c62d81a7687e122206a83" },
+    { filename = "dokime_client-0.1.0-py3-none-any.whl", hash = "sha256:6005bc4dd62bdb7c1061011f26ea02182984fea5c7f1fc539956dcba5c617f8c" },
 ]
 
 [package.metadata]

@@ -186,6 +186,9 @@ export const filesFileWatch = (session: SessionIdentity, request: Parameters<typ
 import { Row1Schema as healthListHealthRequest } from "@generated/dokime/v1/HealthMessages/ListHealth/messages_pb.js";
 import { Row2Schema as healthListHealthResponse } from "@generated/dokime/v1/HealthMessages/ListHealth/messages_pb.js";
 export const healthListHealth = (session: SessionIdentity, request: Parameters<typeof unary<typeof healthListHealthRequest, typeof healthListHealthResponse>>[4]) => unary("/dokime.v1.Health/ListHealth", healthListHealthRequest, healthListHealthResponse, session, request, 10000);
+import { Row1Schema as historyBrowseCyclesRequest } from "@generated/dokime/v1/HistoryMessages/BrowseCycles/messages_pb.js";
+import { Row2Schema as historyBrowseCyclesResponse } from "@generated/dokime/v1/HistoryMessages/BrowseCycles/messages_pb.js";
+export const historyBrowseCycles = (session: SessionIdentity, request: Parameters<typeof unary<typeof historyBrowseCyclesRequest, typeof historyBrowseCyclesResponse>>[4]) => unary("/dokime.v1.History/BrowseCycles", historyBrowseCyclesRequest, historyBrowseCyclesResponse, session, request, 10000);
 import { Row1Schema as historyBrowseExecutionsRequest } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb.js";
 import { Row2Schema as historyBrowseExecutionsResponse } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb.js";
 export const historyBrowseExecutions = (session: SessionIdentity, request: Parameters<typeof unary<typeof historyBrowseExecutionsRequest, typeof historyBrowseExecutionsResponse>>[4]) => unary("/dokime.v1.History/BrowseExecutions", historyBrowseExecutionsRequest, historyBrowseExecutionsResponse, session, request, 10000);

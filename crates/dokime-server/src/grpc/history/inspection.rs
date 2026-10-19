@@ -114,6 +114,7 @@ impl Operation for Delete {
 
 pub(in crate::grpc) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), crate::grpc::Error> {
     super::browse::register(runtime, max_message_bytes)?;
+    super::cycles::register(runtime, max_message_bytes)?;
     super::read::register(runtime, max_message_bytes)?;
     super::window::register(runtime, max_message_bytes)?;
     super::telemetry::register(runtime, max_message_bytes)?;

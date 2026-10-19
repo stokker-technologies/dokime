@@ -536,7 +536,7 @@ fn case_status(status: CaseStatus) -> dokime_domain::model::execution::wire::Cas
     }
 }
 
-fn cycle_filter(filter: Option<&dokime_domain::model::execution::wire::CycleFilter>) -> Result<CycleFilter, Status> {
+pub(super) fn cycle_filter(filter: Option<&dokime_domain::model::execution::wire::CycleFilter>) -> Result<CycleFilter, Status> {
     let Some(filter) = filter else {
         return Ok(CycleFilter::default());
     };

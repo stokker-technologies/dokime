@@ -7,7 +7,7 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
+// Saved History Discovery And Immutable Evidence Projection Contracts.
 
 /* === Modules === */
 
@@ -70,6 +70,27 @@ use crate::model::values::wire::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+/// One bounded page of saved sealed cycle headers, independent of execution discovery.
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct CycleBrowsePage {
+    pub entries: Vec<SavedCycleSummary>,
+    pub at: Option<StorageCursor>,
+    pub next_after_sequence: Option<u64>,
+}
+
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct SavedCycleSummary {
+    pub cycle_id: String,
+    pub metadata: Option<Metadata>,
+    pub phase: crate::model::execution::result::CyclePhase,
+    pub created_at: Option<Timestamp>,
+    pub updated_at: Option<Timestamp>,
+    pub execution_count: u64,
+    pub archived: bool,
+}
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

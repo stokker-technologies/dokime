@@ -191,6 +191,16 @@ export type ExecutionBrowsePage = {
   cycles: ExecutionBrowseCycle[];
 };
 
+export type SavedCycleSummary = {
+  cycle_id: string;
+  label: string;
+  phase: "sealed";
+  created_at: string;
+  updated_at: string;
+  execution_count: number;
+  archived: boolean;
+};
+
 export type ExecutionCheckpoint = Pick<NativeExecutionCheckpoint, "executionIdentifier" | "version"> & {
   position: CheckpointCursor;
   evidenceThrough: CheckpointCursor;

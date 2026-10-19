@@ -95,7 +95,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
     <div className="grid content-start">
       {cyclesQuery.isError ? (
         <p className="px-[var(--shell-inset)] py-[var(--shell-gap)] text-destructive" role="alert">
-          Unable to load execution history: {cyclesQuery.error.message}
+          Unable to load execution history: {cyclesQuery.error?.message}
         </p>
       ) : null}
       {cyclesQuery.coverage && !cyclesQuery.coverage.discovery_complete ? (
@@ -126,7 +126,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
             onClick={() => void cyclesQuery.fetchNextPage()}
             variant="outline"
           >
-            {cyclesQuery.isFetchingNextPage ? "Loading…" : "Load More Executions"}
+            {cyclesQuery.isFetchingNextPage ? "Loading…" : "Load More History"}
           </Button>
         </div>
       ) : null}

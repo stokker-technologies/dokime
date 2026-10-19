@@ -14,6 +14,7 @@ pub(crate) mod artifacts;
 pub mod cases;
 pub mod checkpoint_records;
 pub mod checkpoint_telemetry;
+pub mod cycle_history;
 pub mod cycles;
 pub(crate) mod documents;
 pub mod execution_history;

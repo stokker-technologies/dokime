@@ -1908,18 +1908,18 @@ async function cyclesHomeJourney(session, cycleTitle) {
 }
 
 /** History: the recorded executions behind the run, and the Back chevron. */
-async function historyJourney(session) {
+async function historyJourney(session, cycleId, cycleTitle) {
   await session.goto("/history");
   /* The empty table is one placeholder row too, so a row counts once it opens
      something: its primary cell is the control an operator clicks. */
   const opener = await until(
     "history rows",
-    () => session.find("css selector", "tbody tr.cursor-pointer td button:not([role=checkbox])"),
+    () => session.find("xpath", `//tbody//button[normalize-space(.)=${xpathLiteral(cycleTitle)}]`),
     120000,
   );
   assert.ok(hasText(await session.text(), "History"), "The page bar must name History");
   await session.click(opener);
-  await until("history detail", async () => (await session.location()).pathname.startsWith("/history/"), 30000);
+  await until("history detail", async () => (await session.location()).pathname === `/history/${cycleId}`, 30000);
   await until("inspectable checkpoint", async () => hasText(await session.text(), "Inspect checkpoint"), 60000);
   /* Each case also carries a pre-dispatch placeholder execution with no
      evidence behind it, so the checkpoint to inspect is a finished one. */
@@ -2632,11 +2632,57 @@ async function ownedStartupJourney() {
   await until("owned backend drains on window close", async () => !(await listening(status.connection.endpoint)), 30000);
   session = await startSession(work, undefined, evidence);
   await session.connected();
-  await session.goto(`/cycles/${cycleId}?view=cycle`);
-  await cyclePhase(session, "Sealed");
-  await exportAvailability(session, true);
+  const reopened = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", reopened.connection.endpoint);
   await closeSession();
   await writeFile(join(evidence, "owned-startup.json"), JSON.stringify(status, null, 2));
+}
+
+async function emptyCycleHistory(session, cycleId, title, endpoint) {
+  // Discover The Saved Container Through The Mounted History Library
+  await session.goto("/history");
+  const opener = await until("the empty sealed cycle in History", () =>
+    session.find("xpath", `//tbody//button[normalize-space(.)=${xpathLiteral(title)}]`),
+  );
+  const row = await session.execute("return arguments[0].closest('tr').innerText;", [opener]);
+  assert.match(row, /sealed/i, "the persisted header retains its sealed phase");
+  await session.click(opener);
+  await until("the matching saved cycle route", async () => (await session.location()).pathname === `/history/${cycleId}`);
+  await until("an empty saved container without invented executions", async () =>
+    hasText(await session.text(), "This sealed cycle contains no executions."),
+  );
+
+  // Open The Actual Saved Report Through Native Delivery
+  const openedBefore = await session.execute(
+    "return (globalThis.__dokimeInvokes ?? []).filter((entry) => entry.command === 'desktop_open_document').length;",
+  );
+  await session.clickNamed("button", "Open Report");
+  await until("the saved empty-cycle report opened", () =>
+    session.execute(
+      `
+    const opened = (globalThis.__dokimeInvokes ?? []).filter((entry) => entry.command === 'desktop_open_document');
+    const button = [...document.querySelectorAll('button')].find((candidate) => candidate.innerText.trim() === 'Open Report');
+    return opened.length > arguments[0] && opened.at(-1).state === 'settled' && button && !button.disabled;
+  `,
+      [openedBefore],
+    ),
+  );
+  assert.equal((await session.findAll("css selector", "[role=alert]")).length, 0, "saved report delivery has no failure");
+
+  // Verify The Same Sealed Evidence Is Exportable After Restart
+  const archive = join(evidence, `empty-cycle-${cycleId}.zip`);
+  const result = await promisify(execFile)(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
+    cwd: work,
+    timeout: 60000,
+  });
+  const receipt = JSON.parse(result.stdout);
+  const bytes = await readFile(archive);
+  assert.equal(receipt.size_bytes, bytes.length);
+  assert.equal(receipt.sha256, createHash("sha256").update(bytes).digest("hex"));
+  assert.equal(bytes.readUInt32LE(0), 0x04034b50, "saved evidence is a ZIP archive");
 }
 
 async function restartJourney() {
@@ -2665,8 +2711,7 @@ async function restartJourney() {
     "the relaunched shell establishes the restarted backend epoch",
   );
   assert.equal(current.ownership, "attached");
-  await session.goto(`/cycles/${activeCycleId}?view=cycle`);
-  await cyclePhase(session, "Sealed");
+  await emptyCycleHistory(session, activeCycleId, "Server Restart Evidence", endpoint);
   await session.goto("/history");
   await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 60000);
   await setDensity(session, densities.desktop);
@@ -2760,7 +2805,7 @@ async function main() {
     await journey("execution-stop", () => executionStopJourney(session, cycleId));
     await journey("containers", () => containersJourney(session, cycleId));
     await journey("cycles-home", () => cyclesHomeJourney(session, library.value.title));
-    await journey("history", () => historyJourney(session));
+    await journey("history", () => historyJourney(session, cycleId, library.value.title));
   } else {
     for (const name of ["cycle", "report", "touch", "execution-stop", "containers", "cycles-home", "history"]) {
       failures.push({

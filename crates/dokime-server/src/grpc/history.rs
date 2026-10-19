@@ -15,6 +15,7 @@ mod browse;
 mod capture;
 mod construction;
 mod context;
+mod cycles;
 pub(super) mod document;
 mod evidence;
 mod inspection;
