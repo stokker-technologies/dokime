@@ -342,13 +342,57 @@ async fn stop_signal() {
 fn arm_force_quit() {
     eprintln!("Stopping Dokime. Press Ctrl-C again to exit without finishing.");
 
-    tokio::spawn(force_quit(tokio::signal::ctrl_c(), |code| std::process::exit(code)));
+    let interrupt = tokio::signal::ctrl_c();
+    let exit = |code| std::process::exit(code);
+    let quit = force_quit(interrupt, exit);
+    tokio::spawn(quit);
 }
 
 async fn force_quit(signal: impl std::future::Future<Output = std::io::Result<()>>, exit: impl FnOnce(i32)) {
-    let _ = signal.await;
+    if let Err(error) = signal.await {
+        tracing::debug!(%error, "force-quit listener unavailable");
+        return;
+    }
     eprintln!("Interrupted again: exiting without finishing the orderly stop.");
     exit(130);
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+#[tokio::test]
+async fn force_quit_error() {
+    let exit = std::cell::Cell::new(None);
+    let record_exit = |code| {
+        let status = Some(code);
+        exit.set(status);
+    };
+    let error = std::io::Error::other("signal listener unavailable");
+    let unavailable = std::future::ready(Err(error));
+    force_quit(unavailable, record_exit).await;
+    assert_eq!(exit.get(), None, "a listener error must preserve orderly shutdown");
+
+    let interrupt = std::future::ready(Ok(()));
+    force_quit(interrupt, record_exit).await;
+    assert_eq!(exit.get(), Some(130), "a second interrupt must still force exit");
+}
+
+#[cfg(all(test, unix))]
+#[test]
+fn force_quit_shutdown() {
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let handle = runtime.handle().clone();
+    drop(runtime);
+
+    let _entered = handle.enter();
+    let exit = std::cell::Cell::new(None);
+    let record_exit = |code| {
+        let status = Some(code);
+        exit.set(status);
+    };
+    let interrupt = tokio::signal::ctrl_c();
+    let quit = force_quit(interrupt, record_exit);
+    let outcome = futures_util::FutureExt::now_or_never(quit);
+    assert_eq!(outcome, Some(()));
+    assert_eq!(exit.get(), None, "runtime teardown is not another Ctrl-C");
+}

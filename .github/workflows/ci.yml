@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:af75b07595f90d77db53cfaef862c5dc26996aebb10e5b98adf4ae4a5b3bfc34
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:053e1fc2480c66dcb63cb43010d94c0209c5cc39d96a9b4842f0c9f8d179991d
 name: CI
 "on":
   push:
@@ -293,7 +293,7 @@ jobs:
     runs-on: >-
       ${{
       fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 55
+    timeout-minutes: 120
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:

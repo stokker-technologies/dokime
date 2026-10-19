@@ -41,9 +41,8 @@ windows = ["windows-latest"]
 [ci.budgets]
 # Measured on a hosted runner (run 39101116446): the dev build, the workspace check and clippy, without a warm cache.
 build = 2400
-# Provisional ceiling: run 39135263053 cancelled Check / Rust (windows) at its fixed 30 minutes in the cold
-# no-default-features check; replace with the measured Windows duration.
-check = 2700
+# User-approved two-hour Rust check job limit: 110 minutes plus the renderer's existing ten-minute margin.
+check = 6600
 # Measured on run 39135263053: the Linux acceptance lane spent about 10 minutes (download, extraction and
 # 58 stories) before the default 10-minute job budget cancelled it.
 "test:acceptance:rust" = 660
