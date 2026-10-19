@@ -268,20 +268,30 @@ async fn execution_admissions_restart() {
 }
 
 #[tokio::test]
-async fn rotated_key_preserves_execution_admission() {
+async fn key_rotation_isolation() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
     let handle = owner.handle();
-    let service = dokime_server::grpc::Service::new(handle.clone(), keyed()).await.unwrap();
-    let server = service.listen().await.unwrap();
-    let address = server.address();
-    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let cycle = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let native = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let key = native.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner();
+    let mut settings = key.listener.as_ref().unwrap().settings.clone().unwrap();
+    settings.enabled = true;
+    settings.address = "127.0.0.1:0".into();
+    settings.tls_enabled = false;
+    settings.authentication_enabled = true;
+    let listening = native
+        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings) })
+        .await
+        .unwrap()
+        .into_inner();
+    let client = WireClient::connect(format!("http://{}", listening.listening_address.unwrap())).await.unwrap();
+    let cycle = support::planned_cycle(&client, auth(create(), &key.access_key), selection_plan(&owner)).await.unwrap();
     let cycle_id = dokime_domain::model::identity::TestCycleId::from_uuid(cycle.clone()).unwrap();
     let request = start(&owner, &cycle);
 
-    let admission = client.unary::<contracts::execution::StartExecution>(authenticated(request.clone())).await.unwrap();
+    let admission = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key.access_key)).await.unwrap();
     let admission = accepted(admission.into_inner());
     started(&gate).await;
     let running = receipt(&handle, &admission.command_id).await;
@@ -289,17 +299,24 @@ async fn rotated_key_preserves_execution_admission() {
     assert_eq!(running.submitted_by.as_deref(), Some("remote"));
     let selection = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids.clone();
 
-    // Replace Only The Receiving Listener; The Runtime Still Owns The Run.
-    server.shutdown().await.unwrap();
-    const ROTATED: &str = "rotated-access-key-012345678901234567890";
-    let config = Config::remote(address, None, Some(ROTATED)).unwrap();
-    let rotated = service.listen_with(config).await.unwrap();
-    let client = WireClient::connect(rotated.local_endpoint()).await.unwrap();
-    let refused = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), TOKEN)).await.unwrap_err();
+    // Rotate Through The Managed Owner While An Authenticated Stream Is Open.
+    let mut watching = client
+        .download::<contracts::observation::WatchRuntime>(auth(contracts::observation::WatchRuntime { cursor: None }, &key.access_key))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(watching.message().await.unwrap().is_some());
+    let rotated = native.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner();
+    while let Ok(Some(frame)) = watching.message().await {
+        assert!(!frame.shutting_down, "key rotation must leave the runtime alive");
+    }
+    let listening = rotated.listener.as_ref().unwrap().listening_address.as_ref().unwrap();
+    let client = WireClient::connect(format!("http://{listening}")).await.unwrap();
+    let refused = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key.access_key)).await.unwrap_err();
     assert_eq!(refused.code(), Code::Unauthenticated);
     assert_eq!(receipt(&handle, &admission.command_id).await, running);
 
-    let reply = client.unary::<contracts::execution::StartExecution>(auth(request, ROTATED)).await.unwrap();
+    let reply = client.unary::<contracts::execution::StartExecution>(auth(request, &rotated.access_key)).await.unwrap();
     let replay = accepted(reply.into_inner());
     assert_eq!(replay.command_id, admission.command_id);
     assert_eq!(replay.accepted_at, admission.accepted_at);
@@ -315,7 +332,7 @@ async fn rotated_key_preserves_execution_admission() {
     assert_eq!(completed.summary.finished, 1);
     assert_eq!(completed.summary.failed, 0);
 
-    rotated.shutdown().await.unwrap();
+    server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
 

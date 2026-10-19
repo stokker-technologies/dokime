@@ -71,6 +71,3 @@ impl Client {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests;

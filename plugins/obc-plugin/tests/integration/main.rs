@@ -10,6 +10,7 @@
 /* === Modules === */
 mod charger;
 mod lifecycle;
+mod operations;
 mod plugin;
 mod runs;
 

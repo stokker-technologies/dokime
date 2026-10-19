@@ -20,9 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use super::Client;
-use crate::{
-    Error, Stop, Testbench, app,
+use obc_runtime::{
+    Client, Error, Stop, Testbench, app,
     device::{Device, Fault, Power},
 };
 
@@ -44,8 +43,10 @@ use crate::{
 
 /* === Private Functions === */
 
+/* === Tests === */
+
 #[tokio::test]
-async fn manual_power_is_visible_to_other_clients() {
+async fn manual_power_shared() {
     let runtime = app::launch(Testbench::default()).await.unwrap();
     let writer = Client::new(runtime.handle());
     let reader = Client::new(runtime.handle());
@@ -63,7 +64,7 @@ async fn manual_power_is_visible_to_other_clients() {
 }
 
 #[tokio::test]
-async fn stopping_powers_down_and_refuses_later_mutations() {
+async fn stopped_mutations_refused() {
     let runtime = app::launch(Testbench::default()).await.unwrap();
     let client = Client::new(runtime.handle());
     client.set_power(true).await.unwrap();
@@ -79,7 +80,7 @@ async fn stopping_powers_down_and_refuses_later_mutations() {
 }
 
 #[tokio::test]
-async fn latched_fault_refuses_power_without_changing_the_device() {
+async fn latched_fault_preserved() {
     let mut device = Device::default();
     device.inject(Fault::Overcurrent);
     let runtime = app::launch(Testbench { device: device.clone(), ..Default::default() }).await.unwrap();
@@ -93,5 +94,3 @@ async fn latched_fault_refuses_power_without_changing_the_device() {
     assert_eq!(client.device().await.unwrap().power, Power::Faulted);
     runtime.stop().await.unwrap();
 }
-
-/* === Tests === */

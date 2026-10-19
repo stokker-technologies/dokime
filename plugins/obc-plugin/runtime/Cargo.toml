@@ -19,7 +19,3 @@ tracing = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
-
-[dev-dependencies]
-# Async
-tokio = { workspace = true }

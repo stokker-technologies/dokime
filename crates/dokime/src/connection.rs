@@ -43,7 +43,7 @@ const ENVIRONMENT_BYTES: usize = 64 * 1024;
 #[derive(Debug, clap::Args)]
 #[group(id = "connection")]
 pub(crate) struct Args {
-    #[arg(long, help = "Backend HTTP(S) Origin; Plain HTTP Is Restricted To Loopback.")]
+    #[arg(long, help = "Backend HTTP(S) Origin; Use Plain HTTP Only In An Isolated Lab.")]
     #[arg(conflicts_with = "backend")]
     endpoint: Option<String>,
 
