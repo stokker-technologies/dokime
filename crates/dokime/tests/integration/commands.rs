@@ -287,10 +287,13 @@ async fn offline_backend_profiles() {
     let command = |arguments: &[&str]| Cli::try_parse_from(std::iter::once("dokime").chain(arguments.iter().copied())).unwrap();
     command(&["backend", "list", "--profiles-file", filename, "--json"]).run().await.unwrap();
     assert!(!path.exists());
-    let invalid = command(&["backend", "add", "lab", "--endpoint", "http://remote.example", "--profiles-file", filename]);
+    let invalid = command(&["backend", "add", "lab", "--endpoint", "http://remote.example/path", "--profiles-file", filename]);
     assert_eq!(invalid.run().await.unwrap_err().exit_code(), std::process::ExitCode::from(2));
     assert!(!path.exists());
-    command(&["backend", "add", "lab", "--endpoint", "http://127.0.0.1:8765", "--profiles-file", filename]).run().await.unwrap();
+    command(&["backend", "add", "lab", "--endpoint", "http://remote.example:8765", "--profiles-file", filename]).run().await.unwrap();
+    let selection = Store::new(&path).load().unwrap().select(Some("lab"), None, None).unwrap();
+    assert!(selection.target.is_remote());
+    assert_eq!(selection.target.endpoint(), "http://remote.example:8765/");
     let original = std::fs::read(&path).unwrap();
     let duplicate = command(&["backend", "add", "lab", "--endpoint", "http://127.0.0.1:9000", "--profiles-file", filename]);
     assert!(matches!(duplicate.run().await, Err(Error::Input(_))));

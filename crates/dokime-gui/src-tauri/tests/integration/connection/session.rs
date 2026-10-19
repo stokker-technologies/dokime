@@ -163,19 +163,39 @@ async fn credentials_endpoint_bound() {
 }
 
 #[tokio::test]
-async fn remote_requires_auth() {
-    let mut service = Service::new("secure");
-    service.token = Some("private-token".into());
-    let server = Listener::start(service.clone(), true, Ipv4Addr::LOCALHOST).await;
-    let session = ConnectionSession::default();
-    assert_eq!(session.connect(server.remote(false, Some("private-token"))).await.unwrap_err(), ConnectionError::Transport);
-    assert_eq!(session.connect(server.remote(true, None)).await.unwrap_err(), ConnectionError::AuthenticationRequired);
-    assert_eq!(session.connect(server.remote(true, Some("wrong"))).await.unwrap_err(), ConnectionError::Unauthenticated);
-    let connected = session.connect(server.remote(true, Some("private-token"))).await.unwrap();
-    assert!(connected.remote);
-    let wrong_name = Listener::start(service, true, Ipv4Addr::new(127, 0, 0, 2)).await;
-    assert_eq!(session.connect(wrong_name.remote(true, Some("private-token"))).await.unwrap_err(), ConnectionError::Transport);
-    assert!(session.status().backend.is_none());
+async fn transport_and_credentials() {
+    let key = "fixture-access-key-012345678901234567890123456789";
+    for (tls, authenticated) in [(false, false), (false, true), (true, false), (true, true)] {
+        let mut service = Service::new("remote");
+        service.token = authenticated.then(|| key.to_owned());
+        let requests = service.requests.clone();
+        let server = Listener::start(service.clone(), tls, Ipv4Addr::LOCALHOST).await;
+        let session = ConnectionSession::default();
+
+        if tls {
+            let untrusted = server.remote(false, authenticated.then_some(key));
+            assert_eq!(session.connect(untrusted).await.unwrap_err(), ConnectionError::Transport);
+            let wrong_name = Listener::start(service, true, Ipv4Addr::new(127, 0, 0, 2)).await;
+            let mismatch = wrong_name.remote(true, authenticated.then_some(key));
+            assert_eq!(session.connect(mismatch).await.unwrap_err(), ConnectionError::Transport);
+        }
+        if authenticated {
+            assert_eq!(session.connect(server.remote(tls, None)).await.unwrap_err(), ConnectionError::Unauthenticated);
+            assert_eq!(session.connect(server.remote(tls, Some("wrong"))).await.unwrap_err(), ConnectionError::Unauthenticated);
+        }
+
+        let connected = session.connect(server.remote(tls, authenticated.then_some(key))).await.unwrap();
+        assert!(connected.remote, "plaintext or loopback spelling cannot convert a remote target into native local trust");
+        assert_eq!(connected.backend.as_ref().unwrap().backend_id, "remote");
+        assert!(!serde_json::to_string(&connected).unwrap().contains(key));
+        let requests = requests.lock().unwrap();
+        assert!(!requests.is_empty());
+        if !authenticated {
+            assert!(requests.iter().all(Option::is_none), "TLS alone must not add or require credentials");
+        }
+        drop(requests);
+        session.disconnect().unwrap();
+    }
 }
 
 #[tokio::test]

@@ -78,17 +78,13 @@ impl Target {
         if remote.is_none() && url.scheme() == "http" && url.host_str() == Some("localhost") {
             url.set_host(Some("127.0.0.1")).map_err(|_| invalid_target("Invalid loopback endpoint."))?;
         }
-        let remote = remote.unwrap_or(url.scheme() == "https");
-        if remote && url.scheme() != "https" {
-            return Err(invalid_target("Remote backends require HTTPS."));
-        }
+        let loopback = matches!(url.host(), Some(Host::Ipv4(ip)) if ip.is_loopback())
+            || matches!(url.host(), Some(Host::Ipv6(ip)) if ip.is_loopback());
+        let remote = remote.unwrap_or(url.scheme() == "https" || !loopback);
         if ca.is_some() && url.scheme() != "https" {
             return Err(invalid_target("CA certificates require HTTPS."));
         }
-        if !remote
-            && !matches!(url.host(), Some(Host::Ipv4(ip)) if ip.is_loopback())
-            && !matches!(url.host(), Some(Host::Ipv6(ip)) if ip.is_loopback())
-        {
+        if !remote && !loopback {
             return Err(invalid_target("Local endpoints require a literal loopback IP address."));
         }
         Ok(Self { endpoint: url.to_string(), remote, ca })
@@ -142,3 +138,31 @@ fn invalid_target(message: &'static str) -> Error {
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn endpoint_transport_policy() {
+        for (endpoint, remote) in [
+            ("http://localhost:8765", false),
+            ("http://127.0.0.1:8765", false),
+            ("http://[::1]:8765", false),
+            ("http://lab.example:8765", true),
+            ("http://192.0.2.1:8765", true),
+            ("https://127.0.0.1:8765", true),
+            ("https://lab.example:8765", true),
+        ] {
+            assert_eq!(Target::new(endpoint, None).unwrap().is_remote(), remote, "{endpoint}");
+        }
+        assert_eq!(Target::new("http://localhost:8765", None).unwrap().endpoint(), "http://127.0.0.1:8765/");
+        assert!(Target::remote("http://127.0.0.1:8765", None).unwrap().is_remote());
+        assert!(Target::local("http://lab.example:8765").is_err());
+        assert!(Target::new("http://lab.example:8765", Some("certificate".into())).is_err());
+        for endpoint in
+            ["https://user:password@lab.example", "http://lab.example/path", "http://lab.example/?key=value", "ftp://lab.example"]
+        {
+            assert!(Target::new(endpoint, None).is_err(), "{endpoint}");
+        }
+    }
+}

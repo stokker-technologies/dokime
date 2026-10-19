@@ -48,6 +48,12 @@ UTF-8 text with 32–4096 visible ASCII characters. Dotenv files are bounded to
 64 KiB, never searched for automatically, and never overwrite process values.
 Constructor arguments read these local files; they open no network channel.
 
+The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
+while explicit `http://` permits plaintext for an isolated lab and exposes keys
+and data. The listener decides independently whether a key is required. A
+profile marked `keyring` still requires its selected credentials. Public CA
+files apply only to HTTPS; certificate verification is never disabled.
+
 ```python
 async with DokimeClient(endpoint, env_file=".env", ca_certificate="server.pem") as client:
     backend = await client.connect()

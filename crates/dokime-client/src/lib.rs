@@ -177,9 +177,6 @@ impl Error {
 
 impl Client {
     pub async fn connect(target: Target, token: Option<&str>, expected_id: Option<&str>) -> Result<Self> {
-        if target.is_remote() && token.is_none() {
-            return Err(Error::AuthenticationRequired);
-        }
         let authorization = authorization(token)?;
         let channel = target.connect().await?;
         let backend = discovery::discover(channel.clone(), authorization.as_ref(), expected_id).await?;

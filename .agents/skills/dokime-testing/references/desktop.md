@@ -8,7 +8,7 @@ Global guidance owns cadence. Run narrow scenarios only for concrete blockers du
 
 Run `mise run dev`. The frontend dev server defaults to `http://127.0.0.1:5173`; set `DOKIME_DEV_PORT` for an isolated frontend. The owned gRPC listener binds a dynamic loopback port. There is no embedded desktop HTTP/WS server or `DOKIME_API_PORT` pair. The task builds the OBC bundle into `target/debug/plugins/` and sets `DOKIME_PLUGINS_DIR` there, so the owned backend loads it for that process without installing it.
 
-Use a separate `DOKIME_APPLICATION_ROOT` for validation settings, plugins and data. For explicit attachment, start the shell with its `--endpoint http://127.0.0.1:50051` argument. Remote endpoints require HTTPS and verified certificates; credentials belong in the native keyring, not URLs, arguments, logs, or browser storage.
+Use a separate `DOKIME_APPLICATION_ROOT` for validation settings, plugins and data. For explicit attachment, start the shell with its `--endpoint http://127.0.0.1:50051` argument. HTTPS verifies the server certificate. Explicit HTTP selects plaintext native gRPC for an isolated lab and exposes keys and data; authentication remains the receiving listener's independent policy. Credentials belong in the native keyring, not URLs, arguments, logs, or browser storage. A remote target never acquires native listener trust from its scheme or loopback spelling.
 
 Inspect the real workspace: suite and template selection, typed parameters, plan/create/run, pending prompts, lifecycle completion, and visible history/evidence supported by mounted views. Test failed endpoint/authentication, cancel, disconnect, reconnect, and backend switching. Old generations must not update the new cache, streams or appearance.
 

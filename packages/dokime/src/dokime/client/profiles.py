@@ -140,7 +140,7 @@ def _profile(value: object) -> Profile:
     endpoint = value["endpoint"]
     if not isinstance(endpoint, str):
         raise TypeError("invalid backend endpoint")
-    _, remote = _target(endpoint)
+    _, tls = _target(endpoint)
     identity = value.get("expected_backend_id")
     if identity is not None and (
         not isinstance(identity, str)
@@ -150,7 +150,7 @@ def _profile(value: object) -> Profile:
     ):
         raise ValueError("invalid expected backend identity")
     ca = value.get("ca_certificate_pem")
-    if ca is not None and (not isinstance(ca, str) or not ca or len(ca.encode("utf-8")) > _MAX_BYTES or "\0" in ca or not remote):
+    if ca is not None and (not isinstance(ca, str) or not ca or len(ca.encode("utf-8")) > _MAX_BYTES or "\0" in ca or not tls):
         raise ValueError("invalid CA certificate association")
     credential = value["credential"]
     if credential not in ("none", "keyring"):

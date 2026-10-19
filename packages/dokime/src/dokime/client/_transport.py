@@ -13,7 +13,6 @@
 # Standard Library Imports
 import asyncio
 import hashlib
-import ipaddress
 import json
 import math
 import os
@@ -61,11 +60,9 @@ class Transport:
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
     ) -> None:
-        self._target, self._remote = _target(endpoint)
+        self._target, self._tls = _target(endpoint)
         if token is not None and (not 32 <= len(token) <= 4096 or not all(33 <= ord(c) <= 126 for c in token)):
             raise ValueError("bearer token must contain 32–4096 visible ASCII characters")
-        if self._remote and not token:
-            raise ValueError("HTTPS endpoints require a remote key supplied by the caller using key_file or DOKIME_KEY")
         if expected_backend_id is not None and (
             not expected_backend_id
             or len(expected_backend_id.encode("utf-8")) > 256
@@ -75,7 +72,7 @@ class Transport:
         self._expected_backend_id = expected_backend_id
         if ca_certificate is not None and ca_certificate_pem is not None:
             raise ValueError("CA certificate file and PEM text are mutually exclusive")
-        if (ca_certificate is not None or ca_certificate_pem is not None) and not self._remote:
+        if (ca_certificate is not None or ca_certificate_pem is not None) and not self._tls:
             raise ValueError("CA certificates require HTTPS")
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("RPC timeout must be positive and finite")
@@ -119,7 +116,7 @@ class Transport:
                     grpc.ssl_channel_credentials(self._ca),
                     options=options,
                 )
-                if self._remote
+                if self._tls
                 else grpc.aio.insecure_channel(self._target, options=options)
             )
             try:
@@ -662,20 +659,16 @@ def _target(endpoint: str) -> tuple[str, bool]:
             or url.fragment
         ):
             raise ValueError
-        remote = url.scheme == "https"
-        if not remote:
-            host = "127.0.0.1" if host == "localhost" else host
-            if not ipaddress.ip_address(host).is_loopback:
-                raise ValueError
+        tls = url.scheme == "https"
+        if not tls and host == "localhost":
+            host = "127.0.0.1"
         authority = f"[{host}]" if ":" in host else host
         return (
-            f"{authority}:{port if port is not None else (443 if remote else 80)}",
-            remote,
+            f"{authority}:{port if port is not None else (443 if tls else 80)}",
+            tls,
         )
     except ValueError as error:
-        raise ValueError(
-            "use an HTTPS origin or an HTTP literal loopback origin without user information, path, query or fragment"
-        ) from error
+        raise ValueError("use an HTTP(S) origin without user information, path, query or fragment") from error
 
 
 # === Entry Point === #

@@ -47,7 +47,7 @@
   {
     "name": "http_remote",
     "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://dokime.example\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
-    "valid": false
+    "valid": true
   },
   {
     "name": "url_credentials",

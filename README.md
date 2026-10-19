@@ -383,6 +383,13 @@ placeholder and select it explicitly:
 dokime status --endpoint https://dokime.example:8765 --ca server.pem --env-file .env
 ```
 
+Clients also accept an explicitly selected `http://` origin for native gRPC in
+an isolated lab whose listener has TLS disabled. Plaintext exposes both keys
+and data. The receiving listener decides whether authentication is required,
+independently of TLS; omitting a key never bypasses that check. HTTPS always
+verifies certificates, and a CA file is refused for HTTP. Local-only native
+operations still depend on the receiving listener's policy.
+
 `status` and `auth status` perform a bounded live check. JSON distinguishes
 `ready`, `unreachable`, `authentication`, `permission_denied`, `incompatible`,
 `not_ready`, `timed_out` and `credentials_unavailable`; failed checks return exit

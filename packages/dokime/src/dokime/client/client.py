@@ -46,8 +46,9 @@ class DokimeClient:
     """One async connection. Read explicit local inputs before any connection.
 
     A client is used on one asyncio loop. Closing it never stops admitted work.
-    Local trusted listeners may use HTTP; remote listeners require HTTPS and a
-    bearer token. RPC errors are not automatically retried, especially mutations.
+    HTTPS verifies TLS; explicit HTTP selects plaintext for an isolated lab.
+    The listener decides whether a key is required, independently of TLS.
+    RPC errors are not automatically retried, especially mutations.
     """
 
     def __init__(
