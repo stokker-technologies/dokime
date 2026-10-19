@@ -27,7 +27,7 @@ from .backend import SUITE_ID, TEMPLATE, collect, serve
 
 # === Constants === #
 
-EXAMPLE = Path(__file__).resolve().parents[3] / "examples/client/poll_run.py"
+EXAMPLE = Path(__file__).resolve().parents[3] / "examples/remote/python/control-test.py"
 
 # === Types === #
 
@@ -89,8 +89,8 @@ def test_replay_pages() -> None:
     asyncio.run(scenario())
 
 
-def test_polling_example() -> None:
-    poll = runpy.run_path(str(EXAMPLE))["poll"]
+def test_example_filtered_listeners_drain_after_sealing() -> None:
+    observe = runpy.run_path(str(EXAMPLE))["observe"]
 
     async def scenario() -> None:
         async with serve() as (server, client):
@@ -101,16 +101,14 @@ def test_polling_example() -> None:
             await handle.start(request_key="polling-example")
 
             # The Example Reads Live Before The Run Finishes
-            polling = asyncio.create_task(poll(handle, 0.01))
+            polling = asyncio.create_task(observe(handle, record_types=("fixture.finished",), streams=("voltage",), poll_interval=0.01))
             await server.records_parked.wait()
             server.finish_gate.set()
             summary = await polling
             assert summary["samples_by_stream"] == {"voltage": 2}
-            assert summary["events_by_type"] == {
-                "fixture.started": 1,
-                "fixture.finished": 1,
-            }
-            assert summary["run"]["result"]["passed"] == 1
+            assert summary["records_by_type"] == {"fixture.finished": 1}
+            assert summary["execution_id"] == handle.id
+            assert summary["status"] == "passed"
             assert any(position.get("voltage") == 1 for position in server.sent_cursors)
             assert server.stop_calls == 0
 

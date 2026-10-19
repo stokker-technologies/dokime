@@ -222,7 +222,7 @@ class DokimeClient:
         identifier: str | None = None,
         continue_on_failure: bool = False,
     ) -> str:
-        """Create an empty Ready cycle and return its ID.
+        """Create an empty Active cycle and return its ID.
 
         Cases join it only through ``append_cases``. This RPC has no
         idempotency key: an ambiguous failure must not be blindly retried. An

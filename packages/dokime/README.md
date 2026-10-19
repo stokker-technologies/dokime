@@ -143,19 +143,16 @@ accepted=False`; stopping the execution also settles its pending prompts.
 
 ## Remote Control And Listening
 
-Use the backend's HTTPS origin, a bearer token issued for that backend, and its
-CA certificate when it uses a private certificate authority. Keep tokens outside
-source files. The example runs an existing planned execution and drains record
-and telemetry callbacks after its durable outcome:
-
-```sh
-python examples/remote_control.py \
-  --endpoint https://dokime.example:8765 \
-  --key-file /path/to/remote.key \
-  --ca-certificate /path/to/ca.pem \
-  --execution REGISTERED_EXECUTION_UUID \
-  --request-key UNIQUE_REQUEST_KEY
-```
+Use the backend's HTTPS origin, its access key and the public certificate
+downloaded from the host. Keep the key outside source files. The scripts in
+[`examples/remote/python`](examples/remote/python/) demonstrate manual device
+power, two executions in one cycle, and an execution confirmation. The test
+script follows filtered records and samples concurrently, drains both readers
+after the durable outcome, then exports each execution and the sealed cycle.
+The test and prompt scripts request cancellation on Ctrl+C and save collected
+evidence; a failed connection reports recovery identities without claiming
+cancellation succeeded. Matching first-party release artifacts and the tutorial
+dependency lock remain required before the beginner installation is available.
 
 ```python
 from dokime.client import DokimeClient
