@@ -99,6 +99,13 @@ pub fn run(args: Args) -> Result<(), Error> {
                     .replace("{{owner}}", &owner)
                     .replace("{{repository}}", REPOSITORY)
                     .replace("{{selection}}", &selection);
+                if workspace.is_some() && path.file_name().is_some_and(|name| name == "Cargo.toml") {
+                    let mut manifest = contents
+                        .parse::<toml_edit::DocumentMut>()
+                        .map_err(|error| Error::Invalid(format!("{}: {error}", path.display())))?;
+                    manifest.remove("profile");
+                    contents = manifest.to_string();
+                }
                 if detached && path.file_name().is_some_and(|name| name == "Cargo.toml") {
                     contents.push_str("\n# This package is excluded from the enclosing workspace.\n[workspace]\n");
                 }

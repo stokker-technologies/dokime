@@ -88,6 +88,10 @@ Run `cargo generate-lockfile` and `mise install` once, then commit both lockfile
 CI installs the locked dependencies and tools. `mise run check` formats, lints
 and type-checks. `mise run build` compiles the plugin and freezes its catalog
 under `target/build/<profile>/<target>/plugins/{{package}}.dokime`.
+Standalone development builds retain line tables with separate debug information,
+matching Dokime's development profile while keeping the packaged executable bounded.
+Workspace members inherit their workspace root's profiles; configure the same
+development settings there rather than adding ignored member profiles.
 `mise run build:tests` prepares the shared test archive; `mise run test:unit`
 and `mise run test:integration:rust` consume it.
 
