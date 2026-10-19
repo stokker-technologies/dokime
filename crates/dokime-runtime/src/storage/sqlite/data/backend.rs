@@ -7,7 +7,7 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
+//! SQLite Storage Backend And Snapshot Ownership.
 
 /* === Modules === */
 
@@ -42,7 +42,6 @@ use super::{Entry, Scan, entry::key};
 /* === Constants === */
 
 const METADATA_BYTES: usize = 16 * 1024;
-const RECEIPT_BYTES: usize = 32 * 1024;
 
 /* === Macros === */
 
@@ -470,12 +469,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     }
 
     fn save_mutations<'a>(&'a self, receipts: &'a [MutationReceipt]) -> StorageFuture<'a, ()> {
-        Box::pin(async move {
-            for receipt in receipts {
-                super::entry::check_size(receipt, RECEIPT_BYTES).map_err(|error| failure("validate receipt", error))?;
-            }
-            self.state.mutations_save(receipts.to_vec()).await.map_err(|error| failure("save mutation receipts", error))
-        })
+        Box::pin(
+            async move { self.state.mutations_save(receipts.to_vec()).await.map_err(|error| failure("save mutation receipts", error)) },
+        )
     }
 
     fn recover_mutations(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<MutationReceipt>> {

@@ -57,6 +57,7 @@ impl State {
                 for receipt in receipts {
                     let expires = expiry(receipt.expires_at)?;
                     if expires <= now {
+                        entry::check_size(&receipt, RECEIPT_BYTES)?;
                         continue;
                     }
                     // Flushes Repeat The Unexpired Receipt Snapshot. Encode Only New Receipts.
@@ -73,6 +74,7 @@ impl State {
                         }
                         let prior: MutationReceipt = serde_json::from_slice(&body)?;
                         if prior != receipt {
+                            entry::check_size(&receipt, RECEIPT_BYTES)?;
                             return Err(Error::Conflict("mutation receipt retry differs"));
                         }
                         continue;

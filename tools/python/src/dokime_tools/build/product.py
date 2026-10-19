@@ -12,14 +12,13 @@
 
 # Standard Library Imports
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import frontend, outputs, paths, wheel
+from dokime_tools.build import frontend, outputs, paths, run, wheel
 from dokime_tools.package import examples, plugins
 from dokime_tools.package.staging import clear_output, stage_file
 from dokime_tools.prepare import bindings, generated
@@ -64,29 +63,13 @@ def rust(profile: str) -> list[Path]:
     output = paths.output(ROOT, "build", profile)
     messages = output / "product/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
-    compiler = subprocess.check_output(["rustc", "-vV"], cwd=ROOT, text=True)
-    hosts = [line.removeprefix("host: ") for line in compiler.splitlines() if line.startswith("host: ")]
-    host = hosts[0]
-    triple = os.environ.get("CARGO_BUILD_TARGET", host)
     command = ["cargo", "build", "--locked", "--profile", profile, "--message-format=json", "--features", "tauri/custom-protocol"]
     for package in PACKAGES:
         command += ["--package", package]
     with messages.open("w", encoding="utf-8") as written:
         subprocess.run(command, cwd=ROOT, stdout=written, check=True)
     compiled = outputs.executables(messages, EXECUTABLES)
-    targets = {
-        path.parent.parent.name
-        for path in compiled.values()
-        if "-linux-" in path.parent.parent.name
-        or "-windows-" in path.parent.parent.name
-        or path.parent.parent.name.endswith("-apple-darwin")
-    }
-    if len(targets) > 1:
-        raise ValueError("Product Build exported more than one Rust target")
-    actual = next(iter(targets), triple)
-    if "CARGO_BUILD_TARGET" in os.environ and actual != triple:
-        raise ValueError("Product Build target differs from CARGO_BUILD_TARGET")
-    (messages.parent / "target.txt").write_text(actual + "\n", encoding="utf-8")
+    run.record_target(ROOT, messages, profile)
 
     binaries = output / "bin"
     libraries = output / "lib"

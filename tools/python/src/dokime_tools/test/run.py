@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/run.py; sha256:b04016b8e1aa99f59dfde4e4eb000f3bcc0fddef6ba38031b08f21fece1adffc
+# Rendered by stkr project update from templates/python/test/run.py; sha256:ae554bf03f13d502df620f74d2f00232f6e753f961bcb561db1c92678eeed9d5
 # ***
 #
 # Dokime
@@ -62,7 +62,7 @@ def test(
     """Run One Lane And Retain Its Native Report; Nonzero When Any Story Failed."""
     rules = policy.load(directory)
     key = f"{category}-{language}"
-    _preflight(directory, rules, category, profile)
+    _preflight(directory, rules, category, language, profile)
     if language == "python":
         archive.install_wheels(directory, profile)
     recorded = report.load(report.location(directory, profile, key) / "durations.json")
@@ -121,7 +121,7 @@ def coverage(
     """Instrumented lane over one layer, or every layer when no category is given."""
     rules = policy.load(directory)
     key = f"coverage-{category}-{language}" if category else f"coverage-{language}"
-    _preflight(directory, rules, category, profile)
+    _preflight(directory, rules, category, language, profile)
     with _scratch(directory, key, profile) as scratch:
         categories = [category] if category else list(policy.CATEGORIES)
         deadline = max(rules.deadline(name, coverage=True) for name in categories)
@@ -189,7 +189,7 @@ def bench(
     """Measure one benchmark layer and compare it with the `dev` baseline."""
     rules = policy.load(directory)
     measure = category in ("integration", "system")
-    _preflight(directory, rules, category, "bench")
+    _preflight(directory, rules, category, language, "bench")
     identity = {
         "platform": [
             sys.platform,
@@ -309,11 +309,13 @@ def _preflight(
     directory: Path,
     rules: policy.Policy,
     category: str | None,
+    language: str,
     profile: str,
 ) -> None:
     """Refuse a stale fixture stamp or absent host artifacts before any test runs."""
     hosts = rules.hosts if category in (None, "acceptance", "system") else ()
-    archive.fixtures(directory, profile, hosts)
+    if language == "rust" or hosts:
+        archive.fixtures(directory, profile, hosts)
 
 
 @contextmanager

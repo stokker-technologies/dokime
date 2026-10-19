@@ -27,6 +27,7 @@
 //   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
+//   f'. remote-access  TLS/key setup, saved credentials, restart, rotation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
@@ -102,6 +103,7 @@ const built = join(workspace, "target/build", profile, nativeTarget);
 const executableSuffix = process.platform === "win32" ? ".exe" : "";
 let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(built, `bin/dokime-server${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
+let cliBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
 const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
 
 const densities = {
@@ -152,7 +154,7 @@ const selectedJourneys = new Set(
 );
 
 /**
- * Write every tapped document into the evidence downloads directory.
+ * Write Public Documents Into Evidence And Access Keys Into Private Temporary Storage.
  *
  * The payload crosses in slices. A written report is megabytes of base64, and
  * one `execute` carrying all of it does not come back -- the document was
@@ -168,6 +170,8 @@ const failures = [];
 const passedJourneys = [];
 
 const notes = [];
+const secrets = new Set();
+let savedKeyCount = 0;
 
 /** What the prompt banner and its counts showed before each prompt was answered. */
 const promptSightings = [];
@@ -250,6 +254,12 @@ function xpathLiteral(value) {
 
 function normalize(value) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function redact(value) {
+  let text = String(value);
+  for (const secret of secrets) text = text.replaceAll(secret, "[REDACTED]");
+  return text;
 }
 
 function hasText(body, expected) {
@@ -415,7 +425,7 @@ async function startSession(work, endpoint, evidence) {
   session.url = () => session.request("GET", "/url");
   session.location = async () => new URL(await session.url());
   session.text = async () => {
-    session.lastBody = await session.execute("return document.body.innerText");
+    session.lastBody = redact(await session.execute("return document.body.innerText"));
     return session.lastBody;
   };
   session.find = (using, value) => session.request("POST", "/element", { using, value });
@@ -521,10 +531,20 @@ async function startSession(work, endpoint, evidence) {
   session.resize = (width, height) => session.request("POST", "/window/rect", { height, width, x: 0, y: 0 });
   session.viewport = () => session.execute("return [window.innerWidth, window.innerHeight]");
   session.screenshot = async (label) => {
-    const bytes = await session.request("GET", "/screenshot");
-    const target = join(evidence, `${label}.png`);
-    await writeFile(target, Buffer.from(bytes, "base64"));
-    return target;
+    await session.execute(`
+      const style = document.createElement('style');
+      style.id = 'dokime-secret-capture';
+      style.textContent = 'input[aria-label="Generated Access Key"] { visibility: hidden !important; }';
+      document.head.append(style);
+    `);
+    try {
+      const bytes = await session.request("GET", "/screenshot");
+      const target = join(evidence, `${label}.png`);
+      await writeFile(target, Buffer.from(bytes, "base64"));
+      return target;
+    } finally {
+      await session.execute("document.getElementById('dokime-secret-capture')?.remove();");
+    }
   };
   /**
    * Structured failure capture, beside the screenshots.
@@ -535,7 +555,7 @@ async function startSession(work, endpoint, evidence) {
    */
   session.dump = async (label, value) => {
     const target = join(evidence, `${label}.json`);
-    await writeFile(target, `${JSON.stringify(value, null, 2)}\n`);
+    await writeFile(target, `${redact(JSON.stringify(value, null, 2))}\n`);
     return target;
   };
   /** Every layer that could hold the page, as the browser reports it. */
@@ -803,8 +823,18 @@ async function drainSavedDocuments(session) {
     if (base64.length !== document.length) {
       throw new Error(`The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`);
     }
-    const target = join(session.downloads, document.filename);
-    await writeFile(target, Buffer.from(base64, "base64"));
+    assert.equal(basename(document.filename), document.filename, "saved documents have a plain filename");
+    const bytes = Buffer.from(base64, "base64");
+    let target = join(session.downloads, document.filename);
+    if (document.kind === "remote_key") {
+      assert.ok(bytes.toString("utf8").trim().length > 0, "the saved access key is nonempty");
+      secrets.add(base64);
+      secrets.add(bytes.toString("utf8").trim());
+      const directory = join(work, "credentials");
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      target = join(directory, `remote-${++savedKeyCount}.key`);
+    }
+    await writeFile(target, bytes, { mode: 0o600 });
     written.push({ kind: document.kind, path: target });
   }
   /* Cleared only once every document is on disk, so a transfer that fails
@@ -1937,6 +1967,158 @@ async function historyJourney(session) {
   await until("back to history", async () => (await session.location()).pathname === "/history", 20000);
 }
 
+/** Remote Access Uses Mounted Controls And Real TLS CLI Calls. */
+async function remoteAccessJourney() {
+  const input = (label) =>
+    until(label, () => session.find("xpath", `//input[@id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`));
+  const toggle = async (label, checked) => {
+    const control = await until(label, () =>
+      session.find("xpath", `//*[@role='switch' and @id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`),
+    );
+    const current = await session.execute("return arguments[0].getAttribute('aria-checked') === 'true';", [control]);
+    if (current !== checked) await session.click(control);
+  };
+  const confirm = async (name, notice) => {
+    await session.clickNamed("button", name);
+    await session.clickNamed("button", "Confirm");
+    await until(notice, async () => hasText(await session.text(), notice));
+  };
+  const endpoint = () =>
+    until("remote listening address", async () => {
+      const match = /Listening On (127\.0\.0\.1:\d+)/.exec(await session.text());
+      return match ? `https://${match[1]}` : null;
+    });
+  const connect = async (address, keyFile, certificate, accepted) => {
+    const args = ["catalog", "list", "--endpoint", address, "--timeout-seconds", "5"];
+    if (keyFile) args.push("--key-file", keyFile);
+    if (certificate) args.push("--ca", certificate);
+    const env = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
+    delete env.DOKIME_KEY;
+    delete env.DOKIME_ENDPOINT;
+    let result;
+    try {
+      result = await promisify(execFile)(cliBinary, args, { cwd: work, env, timeout: 15000 });
+    } catch (error) {
+      assert.ok(!accepted, "the saved remote credentials establish a real CLI connection");
+      assert.equal(error.killed, false, "credential refusal returns without killing the client");
+      assert.ok(Number.isInteger(error.code) && error.code !== 0, "credential refusal has a native failure exit code");
+      return;
+    }
+    assert.ok(accepted, "superseded or missing credentials must be refused");
+    assert.ok(result.stdout.trim().length > 0, "the connected CLI reads the real catalog");
+    assert.ok(
+      ![...secrets].some((secret) => result.stdout.includes(secret) || result.stderr.includes(secret)),
+      "CLI output contains no key",
+    );
+  };
+  const saveKey = async () => {
+    await until("one-time key dialog", async () => hasText(await session.text(), "Save Your Access Key"));
+    const value = await session.execute("return document.querySelector('input[aria-label=\"Generated Access Key\"]').value;");
+    assert.ok(typeof value === "string" && value.length > 0, "the one-time key is available");
+    secrets.add(value);
+    secrets.add(Buffer.from(`${value}\n`).toString("base64"));
+    await session.clickNamed("button", "Copy Key");
+    await until("native clipboard write", () => session.exists("button", "Copied"));
+    await session.clickNamed("button", "Save Key File…");
+    await until("saved key acknowledgement", async () => hasText(await session.text(), "Key File Saved"));
+    await session.clickNamed("button", "Save Public Certificate…");
+    const documents = await drainSavedDocuments(session);
+    const key = documents.find((document) => document.kind === "remote_key")?.path;
+    const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
+    assert.ok(key && certificate, "the GUI produces both credential files");
+    assert.ok((await readFile(key, "utf8")).trim() === value, "the saved key matches the one-time value");
+    assert.match(await readFile(certificate, "utf8"), /-----BEGIN CERTIFICATE-----/);
+    await session.clickNamed("button", "I Have Saved The Key");
+    return { key, certificate };
+  };
+
+  // Enable TLS And Authentication Through The Native GUI.
+  await session.goto("/settings/remote");
+  await until("remote settings", async () => hasText(await session.text(), "Enable Remote Access"));
+  await session.type(await input("Listen Address"), "127.0.0.1:0");
+  await session.type(await input("Certificate DNS Names And IP Addresses"), "127.0.0.1, localhost");
+  await toggle("TLS Encryption", true);
+  await toggle("Require An Access Key", true);
+  await confirm("Regenerate Certificate…", "Certificate Regenerated");
+  await session.clickNamed("button", "Generate Access Key");
+  const original = await saveKey();
+  await toggle("Enable Remote Access", true);
+  await confirm("Apply…", "Settings Applied");
+  let address = await endpoint();
+  await connect(address, original.key, original.certificate, true);
+  await connect(address, null, original.certificate, false);
+
+  // A Failed Bind Restores The Previous Listener And Leaves The Desktop Connected.
+  const occupied = net.createServer();
+  occupied.listen(0, "127.0.0.1");
+  await once(occupied, "listening");
+  try {
+    await session.type(await input("Listen Address"), `127.0.0.1:${occupied.address().port}`);
+    await session.clickNamed("button", "Apply…");
+    await session.clickNamed("button", "Confirm");
+    await until("listener rollback error", async () => hasText(await session.text(), "Change Failed"));
+    assert.equal(await endpoint(), address, "failed listener replacement retains the original bound address");
+    await connect(address, original.key, original.certificate, true);
+  } finally {
+    await new Promise((done) => occupied.close(done));
+  }
+
+  // Restart Both Clients And Server To Prove Persisted Settings And Credentials.
+  const nativeEndpoint = backend.endpoint;
+  await closeSession();
+  await stopBackend();
+  backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart");
+  session = await startSession(work, nativeEndpoint, evidence);
+  await session.connected();
+  await session.goto("/settings/remote");
+  address = await endpoint();
+  assert.ok(await session.exists("button", "Rotate Access Key…"), "only the key verifier is restored");
+  assert.equal(await session.execute("return document.querySelector('input[aria-label=\"Generated Access Key\"]') === null;"), true);
+  const browserStorage = await session.execute("return JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]);");
+  assert.ok(![...secrets].some((secret) => browserStorage.includes(secret)), "browser storage contains no access key");
+  await connect(address, original.key, original.certificate, true);
+
+  // Rotate Credentials Without Sealing An Active Cycle.
+  const activeCycle = await createEmptyContainer(session, "Remote Rotation Evidence");
+  await session.goto("/settings/remote");
+  await confirm("Rotate Access Key…", "Save Your Access Key");
+  const replacement = await saveKey();
+  address = await endpoint();
+  await connect(address, original.key, replacement.certificate, false);
+  await connect(address, replacement.key, replacement.certificate, true);
+  const previousCertificate = join(work, "credentials", "previous.pem");
+  await copyFile(replacement.certificate, previousCertificate);
+  await confirm("Regenerate Certificate…", "Certificate Regenerated");
+  address = await endpoint();
+  await session.clickNamed("button", "Save Certificate…");
+  const documents = await drainSavedDocuments(session);
+  const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
+  assert.ok(certificate, "the regenerated public certificate is saved");
+  await connect(address, replacement.key, previousCertificate, false);
+  await connect(address, replacement.key, certificate, true);
+  await session.goto(`/cycles/${activeCycle}?view=cycle`);
+  await cyclePhase(session, "Active");
+
+  // Authentication And Encryption Are Independent Explicit Lab Choices.
+  await session.goto("/settings/remote");
+  await toggle("Require An Access Key", false);
+  await confirm("Apply…", "Settings Applied");
+  address = await endpoint();
+  await connect(address, null, certificate, true);
+  await toggle("Require An Access Key", true);
+  await toggle("TLS Encryption", false);
+  await confirm("Apply…", "Settings Applied");
+  address = (await endpoint()).replace("https:", "http:");
+  await connect(address, replacement.key, null, true);
+  await connect(address, null, null, false);
+
+  // Leave The Host In Its Verified TLS And Authentication Configuration.
+  await toggle("TLS Encryption", true);
+  await confirm("Apply…", "Settings Applied");
+  await connect(await endpoint(), replacement.key, certificate, true);
+  await session.screenshot("remote-access");
+}
+
 /** Settings: every section, and the rows the redesign promises in each. */
 async function settingsJourney(session, notes) {
   const sections = [
@@ -2269,14 +2451,14 @@ async function journey(name, run) {
     if (/invalid session id|Session terminated without a reply/.test(failure.message)) {
       webviewGone = name;
     }
-    failures.push({ kind: "failure", name, reason: failure.message });
-    results.push({ name, seconds: (Date.now() - started) / 1000, failure: failure.message });
-    process.stdout.write(`   FAILED: ${failure.message}\n`);
+    failures.push({ kind: "failure", name, reason: redact(failure.message) });
+    results.push({ name, seconds: (Date.now() - started) / 1000, failure: redact(failure.message) });
+    process.stdout.write(`   FAILED: ${redact(failure.message)}\n`);
     if (session && !session.closed) {
       try {
         const shot = await session.screenshot(`failure-${name}`);
         const failureBody = await session.text().catch(() => session.lastBody ?? "");
-        await writeFile(join(evidence, `failure-${name}.txt`), `${failure.stack ?? failure.message}\n\n${failureBody}`);
+        await writeFile(join(evidence, `failure-${name}.txt`), redact(`${failure.stack ?? failure.message}\n\n${failureBody}`));
         /* What the application asked the shell to do, and how long each call
            took: a journey that waits on something that never answers says so
            here and nowhere else. */
@@ -2347,6 +2529,7 @@ async function installWindowsCandidate() {
   }
   shellBinary = checks[1][1];
   backendBinary = checks[2][1];
+  cliBinary = checks[3][1];
   await writeFile(
     join(evidence, "installation.json"),
     JSON.stringify(
@@ -2477,7 +2660,7 @@ async function restartJourney() {
 async function writeJunit() {
   if (!options.junit) return;
   const escapeXml = (value) =>
-    [...String(value)]
+    [...redact(value)]
       .filter((character) => {
         const code = character.charCodeAt(0);
         return code >= 32 || code === 9 || code === 10 || code === 13;
@@ -2531,6 +2714,7 @@ async function main() {
   for (const [label, path] of [
     ["the backend", backendBinary],
     ["the desktop shell", shellBinary],
+    ["the CLI", cliBinary],
     ["the OBC charger plugin bundle", pluginBundle],
   ]) {
     if (!existsSync(path)) throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
@@ -2571,6 +2755,7 @@ async function main() {
   }
 
   await journey("settings", () => settingsJourney(session, notes));
+  await journey("remote-access", remoteAccessJourney);
 
   /* The ownership contract the redesign did not change: a shell attached to a
      backend it does not own must leave that backend running. */
@@ -2607,8 +2792,8 @@ async function main() {
 try {
   await main();
 } catch (failure) {
-  failures.push({ kind: "failure", name: "harness", reason: failure.message });
-  process.stdout.write(`\nHarness failure: ${failure.message}\n`);
+  failures.push({ kind: "failure", name: "harness", reason: redact(failure.message) });
+  process.stdout.write(`\nHarness failure: ${redact(failure.message)}\n`);
 } finally {
   for (const [name, cleanup] of [
     ["shell shutdown", closeSession],
@@ -2638,6 +2823,10 @@ try {
       failures.push({ kind: "failure", name: "installer cleanup", reason: error.message });
     }
   }
+  if (work)
+    await rm(join(work, "credentials"), { force: true, recursive: true }).catch(() =>
+      failures.push({ kind: "failure", name: "credential cleanup", reason: "Private temporary credential removal failed" }),
+    );
   if (work && !failures.length)
     await rm(work, { force: true, recursive: true }).catch((error) =>
       failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
@@ -2655,7 +2844,7 @@ if (failures.length) {
     const group = failures.filter((entry) => entry.kind === kind);
     if (!group.length) continue;
     process.stdout.write(`\n${group.length} ${kind === "defect" ? "product defect(s)" : "journey failure(s)"}:\n`);
-    for (const entry of group) process.stdout.write(`  - ${entry.name}: ${entry.reason}\n`);
+    for (const entry of group) process.stdout.write(`  - ${entry.name}: ${redact(entry.reason)}\n`);
   }
   process.stdout.write(`\nEvidence: ${evidence}\n`);
   process.exitCode = 1;
