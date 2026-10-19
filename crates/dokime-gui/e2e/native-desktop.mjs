@@ -68,8 +68,9 @@ import { copyFile, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from
 import http from "node:http";
 
 import net from "node:net";
+import { tmpdir } from "node:os";
 
-import { basename, dirname, extname, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -87,17 +88,21 @@ import { parseArgs, promisify } from "node:util";
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
+const { values: options } = parseArgs({
+  options: { junit: { type: "string" }, release: { type: "boolean", default: false }, profile: { type: "string" } },
+});
+const profile = options.profile ?? (options.release ? "release" : "dev");
+assert.ok(["dev", "release"].includes(profile), "native desktop profile must be dev or release");
+const architecture = { x64: "x86_64", arm64: "aarch64" }[process.arch] ?? process.arch;
+const nativeTarget = `${process.platform === "win32" ? "windows" : "linux"}-${architecture}`;
+const reportsRoot = join(workspace, "target/tests", profile, nativeTarget, "system-typescript");
 
 /** The Single Build Stages The Development Candidates Together. */
-const built = join(workspace, "dist/build", process.platform === "win32" ? "windows" : "linux");
+const built = join(workspace, "target/build", profile, nativeTarget);
 const executableSuffix = process.platform === "win32" ? ".exe" : "";
 let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(built, `bin/dokime-server${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
 const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
-
-/** A shell built without `tauri/custom-protocol` loads this origin. */
-const configuredOrigin = process.env.DOKIME_E2E_DEV_URL;
 
 const densities = {
   desktop: { density: "comfortable", height: 1000, width: 1600 },
@@ -156,9 +161,6 @@ const selectedJourneys = new Set(
  */
 const DOCUMENT_SLICE_CHARS = 512 * 1024;
 
-const { values: options } = parseArgs({
-  options: { junit: { type: "string" }, release: { type: "boolean", default: false } },
-});
 const releaseValidation = options.release;
 const windows = process.platform === "win32";
 const results = [];
@@ -186,7 +188,6 @@ let evidence;
 let installation;
 
 let installerAttempted = false;
-let frontendServer;
 
 /* === Types === */
 
@@ -605,7 +606,11 @@ async function startSession(work, endpoint, evidence) {
     return true;
   });
   const initial = await session.location();
-  session.origin = configuredOrigin ?? `${initial.protocol}//${initial.host}`;
+  const embedded =
+    (initial.protocol === "tauri:" && initial.hostname === "localhost") ||
+    (["http:", "https:"].includes(initial.protocol) && initial.hostname === "tauri.localhost");
+  assert.ok(embedded, `the packaged shell must render embedded assets, received ${initial.href}`);
+  session.origin = `${initial.protocol}//${initial.host}`;
   return session;
 }
 
@@ -1002,13 +1007,13 @@ async function startCaseFromItsRow(session, fragment) {
   await closeAnyMenu(session);
   await session.clickNamed("button", trigger);
   await until("the row menu", () => session.find("css selector", "[role=menu]"), 15000);
-  await session.clickNamed("menuitem", "Run Case");
+  await session.clickNamed("menuitem", "Start Execution");
   await closeAnyMenu(session);
   return until(
     `the ${fragment} case to start`,
     async () => {
       const row = await caseRowText(session, fragment);
-      return row !== before || /Running|Waiting|Finalizing|Passed|Failed/.test(row);
+      return row !== before || /Running|Waiting|Finalizing|Passed|Failed/.test(row) || /Execution Started/.test(await toastText(session));
     },
     20000,
   ).catch(() => false);
@@ -1325,54 +1330,13 @@ async function cycleJourney(session, cycleId) {
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
   assert.ok(hasText(header, "Ready"), "A materialized cycle must render its Ready status");
   assert.ok(await session.exists("button", "Cycle Actions"), "The header must carry the overflow menu");
-  /* Start Cycle is the redesign's promise on a Ready cycle. Two things can
-     deny it: a header that does not offer it, and a backend that refuses the
-     admission. Either way the cases still have to run for everything behind
-     them to be covered, so the gate states what happened and starts the work
-     from the row menus instead. */
-  let admitted = false;
-  if (await session.exists("button", "Start Cycle")) {
-    await session.clickNamed("button", "Start Cycle");
-    /* The admission's own answer, before anything waits on its effect: the
-       workspace toasts every command's outcome with the backend's own text,
-       and a refused run is a refusal to state here rather than five silent
-       minutes later. */
-    const answer = await until("the run admission's answer", async () => (await toastText(session)) || null, 45000).catch(() => "");
-    /* Silence is not an admission. A command that announced nothing at all is
-       the failure this gate exists to catch, so it takes the same route as a
-       stated refusal rather than waiting five minutes on an effect nothing
-       promised. */
-    admitted = /queued cases started/i.test(answer);
-    if (!admitted) {
-      defect(
-        "cycle/run-queued",
-        `Start Cycle did not start the cycle. The application said: ${
-          normalize(answer) || "nothing at all"
-        }. Started the cases from their row menus instead.`,
-      );
-    }
-  } else {
-    defect(
-      "cycle/run-queued",
-      `Start Cycle is absent on a Ready cycle whose header reads "${
-        /(\d+ of \d+ cases finished)/.exec(normalize(header))?.[1] ?? "n of n cases finished"
-      }". Started the cases from their row menus instead.`,
-    );
+  assert.ok(!(await session.exists("button", "Start Cycle")), "Containers have no Start control");
+  assert.ok(!(await session.exists("button", "Stop Cycle")), "Containers have one Seal action");
+  const started = [];
+  for (const fragment of [PROTECTION_TEMPLATE, STARTUP_TEMPLATE]) {
+    if (await startCaseFromItsRow(session, fragment)) started.push(fragment);
   }
-
-  if (!admitted) {
-    /* One measuring case for the evidence and the report, and the prompting
-       case for the banner: enough to cover everything behind the run without
-       paying for five. */
-    const started = [];
-    for (const fragment of [PROTECTION_TEMPLATE, STARTUP_TEMPLATE]) {
-      if (await startCaseFromItsRow(session, fragment)) started.push(fragment);
-    }
-    assert.ok(started.length > 0, "Run Case on a row must start a case when Start Cycle does not run one");
-    if (started.length < 2) {
-      defect("cycle/run-case", `Run Case started only ${JSON.stringify(started)}; the other case stayed where it was.`);
-    }
-  }
+  assert.equal(started.length, 2, "Both selected execution starts must be admitted");
 
   /* Open Report while the cycle is in flight: no seal yet, so the runtime
      renders one from the run so far and the shell hands it to the opener
@@ -1440,7 +1404,7 @@ async function cycleJourney(session, cycleId) {
         );
         return false;
       }
-      return /\b(Passed|Failed|Blocked)\b/.test(rows);
+      return /\b(Passed|Failed|Blocked)\b/.test(await caseRowText(session, STARTUP_TEMPLATE));
     },
     300000,
   );
@@ -1532,6 +1496,9 @@ async function cycleJourney(session, cycleId) {
   );
   assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
   assert.match(await sidebarText(session), /Re-Run Of #\d+/, "The new row must name its previous execution");
+  await until("Start on the fresh attempt", () => session.exists("button", "Start"), 30000);
+  await session.clickNamed("button", "Start");
+  await until("the new attempt admission", async () => /Execution Started/.test(await toastText(session)), 30000);
   /* Plot Settings Persist In The Native Frozen Document. */
   await session.clickCss("button[aria-label^='Plot settings for ']");
   const settingsText = await until(
@@ -1673,12 +1640,11 @@ async function cycleJourney(session, cycleId) {
 }
 
 /**
- * Stop one execution of a running copy and keep its siblings running.
+ * Stop One Execution And Preserve Its Unstarted Siblings.
  *
  * Stop Execution in the page bar is scoped to the selected execution: the
- * cycle never enters Stopping and every other case still reaches a recorded
- * outcome. Stop Cycle lives on the cycle page only, labelled as such, and asks
- * before acting. The copy keeps the measured cycle the later journeys read
+ * cycle remains Active and sibling attempts remain unstarted. Seal Cycle
+ * is the only container finalization action. The copy keeps the measured cycle the later journeys read
  * untouched.
  */
 async function executionStopJourney(session, cycleId) {
@@ -1695,8 +1661,7 @@ async function executionStopJourney(session, cycleId) {
     },
     30000,
   );
-  await until("Start Cycle on the copy", () => session.exists("button", "Start Cycle"), 30000);
-  await session.clickNamed("button", "Start Cycle");
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "Explicit Start admits the selected execution");
 
   // === Select The Running Execution === //
 
@@ -1761,27 +1726,18 @@ async function executionStopJourney(session, cycleId) {
   // === Stop Only That Execution === //
 
   await session.clickNamed("button", "Stop Execution");
-  await until("the stop acknowledgement", async () => /Execution Stop Requested/.test(await toastText(session)), 20000);
+  await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), 20000);
   const header = normalize(await session.text());
   assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
 
-  // === Siblings Finish And The Stopped Row Settles === //
+  // === Stop Seals Only The Selected Execution And Preserves Unstarted Siblings === //
 
-  await runUntil(
-    session,
-    "the copy's remaining cases to finish",
-    async () => {
-      const rows = await sidebarText(session);
-      return !/\b(Running|Waiting|Finalizing|Queued)\b/.test(rows);
-    },
-    300000,
-  );
-  const rows = await sidebarText(session);
   const stoppedRow = await caseRowText(session, running);
-  /* Stopped inside its open step (here, the operator prompt), the host
-     interrupts the execution; stopped between steps, it reads Stopped. */
-  assert.ok(/\b(Stopped|Interrupted)\b/.test(stoppedRow), `The stopped execution must read Stopped or Interrupted: ${stoppedRow}`);
-  assert.ok(/\b(Passed|Failed|Blocked)\b/.test(rows), "Sibling executions must still reach a recorded outcome");
+  assert.ok(/\b(Stopped|Interrupted)\b/.test(stoppedRow), `The stopped execution must keep its truthful outcome: ${stoppedRow}`);
+  const rows = await sidebarText(session);
+  assert.ok(/\b(Queued|Planned)\b/.test(rows), "Stop must preserve unstarted sibling attempts");
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await cyclePhase(session, "Active");
   return copyId;
 }
 
@@ -2195,10 +2151,7 @@ async function reportJourney(session, cycleId) {
           "--dump-dom",
           served,
         ],
-        /* Chrome's singleton socket lives under TMPDIR and must fit a Unix
-           socket path; the repository's TMPDIR is too deep in a worktree. The
-           profile itself stays in the run's work directory. */
-        { env: { ...process.env, TMPDIR: windows ? process.env.TMPDIR : "/tmp" }, maxBuffer: 64 * 1024 * 1024 },
+        { maxBuffer: 64 * 1024 * 1024 },
       );
       dom = rendered.stdout;
       if (/Frozen Report/.test(dom) && /Attempt 1 Of/.test(dom)) break;
@@ -2360,7 +2313,7 @@ async function installWindowsCandidate() {
   if (process.env.DOKIME_E2E_DISPOSABLE_WINDOWS !== "1") {
     throw new Error("Installer acceptance requires a disposable interactive Windows account: set DOKIME_E2E_DISPOSABLE_WINDOWS=1 there.");
   }
-  if (configuredOrigin || process.env.DOKIME_E2E_SHELL || process.env.DOKIME_E2E_BACKEND) {
+  if (process.env.DOKIME_E2E_DEV_URL || process.env.DOKIME_E2E_SHELL || process.env.DOKIME_E2E_BACKEND) {
     throw new Error(
       "Windows acceptance drives the installed shell and backend with bundled frontend assets; development overrides are invalid.",
     );
@@ -2449,6 +2402,16 @@ async function stopBackend() {
   backend = undefined;
 }
 
+/** Create An Empty Container Through The Native Form */
+async function createEmptyContainer(session, title) {
+  await session.goto("/cycles");
+  await session.clickNamed("button", "New Cycle");
+  const input = await until("the new cycle form", () => session.find("css selector", "#new-cycle-title"));
+  await session.type(input, title);
+  await session.clickNamed("button", "Create Cycle");
+  return until("the created cycle route", async () => /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname)?.[1] ?? null);
+}
+
 async function ownedStartupJourney() {
   session = await startSession(work, undefined, evidence);
   await session.clickNamed("button", "Start Local Backend");
@@ -2460,13 +2423,24 @@ async function ownedStartupJourney() {
   assert.equal(status.ownership, "owned_local", "the native shell owns its companion backend");
   assert.ok(status.connection?.endpoint, "the owned companion reports its negotiated endpoint");
   assert.ok(await listening(status.connection.endpoint), "the native companion is listening");
+  const cycleId = await createEmptyContainer(session, "Managed Shutdown Evidence");
+  await cyclePhase(session, "Active");
   await session.screenshot("owned-startup");
   await closeSession();
   await until("owned backend drains on window close", async () => !(await listening(status.connection.endpoint)), 30000);
+  session = await startSession(work, undefined, evidence);
+  await session.clickNamed("button", "Start Local Backend");
+  await session.connected();
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
+  await cyclePhase(session, "Sealed");
+  await exportAvailability(session, true);
+  await closeSession();
   await writeFile(join(evidence, "owned-startup.json"), JSON.stringify(status, null, 2));
 }
 
 async function restartJourney() {
+  const activeCycleId = await createEmptyContainer(session, "Server Restart Evidence");
+  await cyclePhase(session, "Active");
   const previous = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
@@ -2490,6 +2464,8 @@ async function restartJourney() {
     "the relaunched shell establishes the restarted backend epoch",
   );
   assert.equal(current.ownership, "attached");
+  await session.goto(`/cycles/${activeCycleId}?view=cycle`);
+  await cyclePhase(session, "Sealed");
   await session.goto("/history");
   await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 60000);
   await setDensity(session, densities.desktop);
@@ -2533,57 +2509,21 @@ async function writeJunit() {
   );
 }
 
-/** Serve Only The Built Frontend; The Native Shell Still Owns Every IPC Call. */
-async function serveDevelopmentAssets() {
-  const root = join(built, "frontend");
-  assert.ok(existsSync(join(root, "index.html")), "the development artifact supplies verified static frontend assets");
-  const origin = new URL(configuredOrigin ?? "http://127.0.0.1:5173");
-  assert.equal(origin.protocol, "http:");
-  assert.equal(origin.hostname, "127.0.0.1", "the development frontend stays on loopback");
-  const types = {
-    ".html": "text/html",
-    ".js": "application/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".svg": "image/svg+xml",
-    ".woff2": "font/woff2",
-  };
-  frontendServer = http.createServer(async (request, response) => {
-    try {
-      const pathname = decodeURIComponent(new URL(request.url, origin).pathname);
-      let file = resolve(root, `.${pathname}`);
-      if (file !== root && !file.startsWith(`${root}${sep}`)) {
-        response.writeHead(403).end();
-        return;
-      }
-      if (!existsSync(file) || file === root || !extname(file)) file = join(root, "index.html");
-      const bytes = await readFile(file);
-      const suffix = extname(file);
-      response.writeHead(200, { "content-type": types[suffix] ?? "application/octet-stream" });
-      response.end(bytes);
-    } catch (error) {
-      response.writeHead(500).end(String(error));
-    }
-  });
-  await new Promise((ready, reject) => {
-    frontendServer.once("error", reject);
-    frontendServer.listen(Number(origin.port || 80), origin.hostname, ready);
-  });
-}
-
 async function main() {
   if (!windows && process.platform !== "linux") throw new Error("Native acceptance requires Windows WebView2 or Linux WebKitGTK.");
   if (releaseValidation && selectedJourneys.size) throw new Error("Installed release validation requires every maintained journey.");
   if (!windows && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new Error("Driving the native WebView needs a running display session.");
   }
-  await mkdir(targetRoot, { recursive: true });
+  const evidenceRoot = options.junit ? dirname(resolve(options.junit)) : reportsRoot;
+  await mkdir(evidenceRoot, { recursive: true });
   // A lane keeps the evidence beside its JUnit report, which CI uploads with it.
-  evidence = await mkdtemp(join(options.junit ? dirname(resolve(options.junit)) : targetRoot, "native-desktop-e2e-"));
-  work = await mkdtemp(join(targetRoot, "native-desktop-work-"));
+  evidence = await mkdtemp(join(evidenceRoot, "native-desktop-e2e-"));
+  work = await mkdtemp(join(tmpdir(), "dokime-native-desktop-"));
   process.stdout.write(`Evidence: ${evidence}\n`);
   if (releaseValidation && !windows) throw new Error("Installed release validation currently requires Windows.");
-  if (!releaseValidation) await serveDevelopmentAssets();
+  if (process.env.DOKIME_E2E_DEV_URL)
+    throw new Error("Packaged desktop validation requires embedded assets, without a dev-origin override.");
   if (releaseValidation) {
     const installed = await journey("installation", installWindowsCandidate);
     if (!installed.ok) throw new Error("Windows installer acceptance failed");
@@ -2596,10 +2536,8 @@ async function main() {
     if (!existsSync(path)) throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
   }
 
-  if (windows) {
-    const owned = await journey("owned-startup", ownedStartupJourney);
-    if (!owned.ok) throw new Error("Windows ownership acceptance failed");
-  }
+  const owned = await journey("owned-startup", ownedStartupJourney);
+  if (!owned.ok) throw new Error("Native ownership acceptance failed");
   backend = await startBackend(work, evidence);
   session = await startSession(work, backend.endpoint, evidence);
   await sizeViewport(session, densities.desktop);
@@ -2637,6 +2575,8 @@ async function main() {
   /* The ownership contract the redesign did not change: a shell attached to a
      backend it does not own must leave that backend running. */
   await journey("attachment", async () => {
+    const activeCycleId = await createEmptyContainer(session, "Surviving Server Evidence");
+    await cyclePhase(session, "Active");
     assert.ok(await listening(backend.endpoint), "the attached backend must still be listening");
     await session.goto("/cycles");
     const status = await session.executeAsync(`
@@ -2651,8 +2591,15 @@ async function main() {
       backend.endpoint,
       "the session must name the endpoint it was attached to",
     );
+    await closeSession();
+    assert.ok(await listening(backend.endpoint), "closing an attachment preserves the server");
+    session = await startSession(work, backend.endpoint, evidence);
+    await session.connected();
+    await session.goto(`/cycles/${activeCycleId}?view=cycle`);
+    await cyclePhase(session, "Active");
+    assert.ok(await session.exists("button", "Seal Cycle"), "reconnecting preserves Active admission");
   });
-  if (windows) await journey("restart", restartJourney);
+  await journey("restart", restartJourney);
 }
 
 /* === Entry Point === */
@@ -2666,12 +2613,6 @@ try {
   for (const [name, cleanup] of [
     ["shell shutdown", closeSession],
     ["backend shutdown", stopBackend],
-    [
-      "frontend shutdown",
-      async () => {
-        if (frontendServer?.listening) await new Promise((done) => frontendServer.close(done));
-      },
-    ],
   ]) {
     try {
       await cleanup();

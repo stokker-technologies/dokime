@@ -66,7 +66,7 @@ pub fn benchmark(criterion: &mut Criterion) {
         let samples = telemetry_samples(count, "bench.telemetry");
         let selection = TelemetrySelection {
             limit: Some(1_000),
-            streams: vec![identifier("bench.telemetry")],
+            streams: vec![identifier("bench.telemetry").into()],
             sources: vec!["bench".to_owned()],
             signals: vec!["value".to_owned()],
             ..TelemetrySelection::default()

@@ -97,6 +97,7 @@ pub(super) struct Registry<'a> {
     suites: BTreeMap<&'a String, Snapshot>,
     cases: &'a BTreeMap<CaseId, TestCase>,
     registrations: &'a BTreeMap<CommandId, Vec<CaseId>>,
+    case_revisions: &'a BTreeMap<CaseId, String>,
 }
 
 #[derive(Deserialize)]
@@ -105,6 +106,7 @@ pub(super) struct DecodedRegistry {
     suites: BTreeMap<String, Snapshot>,
     cases: BTreeMap<CaseId, TestCase>,
     registrations: BTreeMap<CommandId, Vec<CaseId>>,
+    case_revisions: BTreeMap<CaseId, String>,
 }
 
 /* === Enums === */
@@ -158,7 +160,7 @@ impl<'a> Pool<'a> {
                 (id, encoded)
             })
             .collect();
-        Registry { suites, cases: registry.cases(), registrations: registry.registrations() }
+        Registry { suites, cases: registry.cases(), registrations: registry.registrations(), case_revisions: registry.case_revisions() }
     }
 
     pub(super) fn records(&mut self, records: &'a Records) -> BTreeMap<&'a Identifier, u32> {
@@ -205,7 +207,7 @@ impl DecodedPool {
     }
 
     pub(super) fn registry(&self, registry: DecodedRegistry) -> Result<SuiteRegistry, String> {
-        let DecodedRegistry { suites, cases, registrations } = registry;
+        let DecodedRegistry { suites, cases, registrations, case_revisions } = registry;
         let suites = suites
             .into_iter()
             .map(|(id, encoded)| {
@@ -222,7 +224,7 @@ impl DecodedPool {
                 Ok((id, snapshot))
             })
             .collect::<Result<_, String>>()?;
-        Ok(SuiteRegistry::from_parts(suites, cases, registrations))
+        Ok(SuiteRegistry::from_parts(suites, cases, registrations, case_revisions))
     }
 
     pub(super) fn records(&self, records: BTreeMap<Identifier, u32>) -> Result<Records, String> {

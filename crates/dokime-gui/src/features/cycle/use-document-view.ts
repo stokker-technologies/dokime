@@ -6,7 +6,7 @@
 import { useMemo } from "react";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { orderedDocumentSections } from "@/lib/document-layout";
-import { documentView, type DocumentViewOptions } from "./document-view-model";
+import { type DocumentViewOptions, documentView } from "./document-view-model";
 import { useExecutionFilesQuery, useHealthQuery, useNotesQuery, useRecordsQuery, useTraceabilityQuery } from "./server-state";
 import { useFrozenPlotPayloads } from "./snapshot-source";
 

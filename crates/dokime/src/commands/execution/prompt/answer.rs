@@ -47,6 +47,9 @@ pub(crate) struct Args {
     #[command(flatten)]
     connection: crate::connection::Args,
 
+    #[command(flatten)]
+    recovery: super::super::recovery::Args,
+
     #[arg(long, help = "Emit The Committed Prompt Receipt As JSON.")]
     json: bool,
 }
@@ -68,8 +71,11 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let values = answer_values(&args.values_json)?;
     let accepted = !["cancel", "abort"].contains(&action.as_str());
 
+    let recovery = args.recovery.prepare(&execution)?;
     let client = args.connection.connect().await?;
-    let result = client.execution(execution).respond_prompt(&prompt, action, values, accepted).await;
+    let execution = client.execution(execution);
+    let operation = async { execution.respond_prompt(&prompt, action, values, accepted).await.map_err(crate::Error::from) };
+    let result = super::super::recovery::observe(&client, &execution, recovery.as_ref(), "Prompt Answer", operation).await;
     client.close_and_wait().await;
     let receipt = result?;
     if args.json {

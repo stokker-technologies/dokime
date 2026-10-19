@@ -155,28 +155,32 @@ async fn large_cycles_order() {
         Code::InvalidArgument
     );
     server.shutdown().await.unwrap();
-    owner.shutdown().await.unwrap();
+    let shutdown = owner.shutdown().await;
+    assert!(shutdown.is_ok(), "shutdown: {shutdown:?}; storage: {:?}", owner.handle().storage().status());
 }
 
 #[tokio::test]
-async fn large_run_preparation() {
+async fn queued_cycle_seals_every_member() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
+    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let blocker = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
+    client.start_first(run(&blocker)).await.unwrap();
+    gate.started.notified().await;
     let mut suite = support::fixture_suite(&["passed"]);
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
     parameter.value_type = dokime_runtime::ValueType::Integer;
     parameter.expression = dokime_runtime::definition::ParameterExpr::Range { start: 0, stop: PREPARATION_CASES as i64 - 1, step: 1 };
     support::register_fixture_execution(&owner.handle(), suite).await;
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
-    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
-    let outcome = client.unary::<contracts::execution::RunCycle>(run(&id)).await.unwrap().into_inner().outcome.unwrap();
+    let outcome = client.start_first(run(&id)).await.unwrap().into_inner().outcome.unwrap();
     assert!(matches!(outcome, model::execution::wire::RunReplyOutcome::Accepted(_)));
     {
         client
-            .unary::<contracts::execution::StopCycle>(contracts::execution::StopCycle { cycle_id: id.clone(), context: None })
+            .unary::<contracts::execution::SealCycle>(contracts::execution::SealCycle { cycle_id: id.clone(), context: None })
             .await
             .unwrap();
         let summary = client
@@ -201,11 +205,7 @@ async fn large_run_preparation() {
     .await;
     assert_eq!(after.case_count, PREPARATION_CASES as u64);
     assert_eq!(after.execution_count, PREPARATION_CASES as u64);
-    // A Dispatch Would Have Stored The Gate's Permit, So One Poll Decides
-    assert!(
-        futures_util::FutureExt::now_or_never(gate.started.notified()).is_none(),
-        "stopping preparation must prevent provider dispatch"
-    );
+    assert_eq!(gate.calls.load(std::sync::atomic::Ordering::SeqCst), 1, "queued members never reached the provider");
     let mut request = contracts::execution::ListExecutions { cycle_id: id.clone(), limit: 73, ..Default::default() };
     let mut count = 0;
     loop {
@@ -224,6 +224,14 @@ async fn large_run_preparation() {
         request.cursor = page.cursor;
     }
     assert_eq!(count, PREPARATION_CASES);
+    gate.release.notify_one();
+    let blocker = dokime_runtime::TestCycleId::from_uuid(blocker).unwrap();
+    support::on_state_change(&owner.handle(), async || {
+        let snapshot = owner.handle().watch_state().latest();
+        let id = &snapshot.state().cycles[&blocker].execution_ids[0];
+        snapshot.state().executions[id].saved.is_some().then_some(())
+    })
+    .await;
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

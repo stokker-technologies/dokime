@@ -12,7 +12,6 @@
 
 # Standard Library Imports
 from collections.abc import AsyncIterator, Mapping
-from datetime import datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
@@ -27,9 +26,11 @@ from . import _wire
 from ._transport import DiscoveredOperation, Transport, _cursor
 from .credentials import load_key
 from .errors import ProtocolError, RpcError
-from .execution import Cycle, RunRequest, TestExecutionHandle
+from .execution import Cycle, Execution
 from .execution.request import _identity
-from .models import Backend, Suite, Template, Value
+from .models import Backend, Suite
+from .models import Template as TemplateSummary
+from .planning import Template
 
 # Type Checking Imports
 
@@ -215,6 +216,23 @@ class DokimeClient:
         """Resolve a suite by its ID, as the catalog lists it."""
         return _suite(await self._suite_definition(suite_id))
 
+    async def template(self, identifier: str) -> Template:
+        """Resolve One Readable Template Identifier Across The Registered Catalog."""
+        backend = await self.connect()
+        matches = []
+        async for suite in self._suite_identities():
+            definition = await self._suite_by_id(suite.suite_id)
+            for item in definition.templates:
+                if identifier == item.metadata.identifier:
+                    matches.append((suite.suite_id, item))
+        if len(matches) > 1:
+            raise ValueError("template identifier is ambiguous")
+        if not matches:
+            raise RpcError("NOT_FOUND", "template not found")
+        suite_id, item = matches[0]
+        _identity(item.template_id)
+        return Template(item.metadata.identifier, item.metadata.label, suite_id, item.template_id, self._transport, backend)
+
     async def create_cycle(
         self,
         *,
@@ -222,10 +240,11 @@ class DokimeClient:
         description: str | None = None,
         identifier: str | None = None,
         continue_on_failure: bool = False,
-    ) -> str:
-        """Create an empty Active cycle and return its ID.
+        continue_automatically: bool = False,
+    ) -> Cycle:
+        """Create An Empty Active Cycle And Return Its Bound Handle.
 
-        Cases join it only through ``append_cases``. This RPC has no
+        Cases join it only through ``Cycle.append``. This RPC has no
         idempotency key: an ambiguous failure must not be blindly retried. An
         omitted identifier is derived by the backend.
         """
@@ -246,6 +265,7 @@ class DokimeClient:
                 "CreateCycle",
                 metadata=metadata,
                 continue_on_failure=continue_on_failure,
+                continue_automatically=continue_automatically,
             ),
         )
         _cursor(backend, created)
@@ -253,120 +273,22 @@ class DokimeClient:
             _identity(created.cycle_id)
         except ValueError as error:
             raise ProtocolError("created cycle identity is invalid") from error
-        return created.cycle_id
-
-    async def append_cases(
-        self,
-        cycle_id: str,
-        *,
-        suite: str,
-        template: str,
-        parameters: Mapping[str, Value] | None = None,
-    ) -> tuple[TestExecutionHandle, ...]:
-        """Append the cases a suite template generates to an existing cycle.
-
-        Return the ordered execution handles created by this append. Suite and
-        template are named by their IDs; omitted parameters use registered defaults.
-        """
-        _identity(cycle_id)
-        plan = await self._selection(suite, template, parameters)
-        return await self._append(cycle_id, plan)
-
-    async def new_cycle(
-        self,
-        *,
-        suite: str,
-        template: str,
-        parameters: Mapping[str, Value] | None = None,
-        label: str | None = None,
-    ) -> Cycle:
-        """Create a cycle and append one template's cases without running them.
-
-        Composes ``create_cycle`` and ``append_cases`` after validating the
-        selection; not idempotent. An omitted label names the cycle after the
-        moment it was created.
-        """
-        plan = await self._selection(suite, template, parameters)
-        identifier = await self.create_cycle(label=label if label is not None else _default_cycle_label())
-        await self._append(identifier, plan)
-        return await self.cycle(identifier)
-
-    async def _selection(
-        self,
-        suite: str,
-        template: str,
-        parameters: Mapping[str, Value] | None,
-    ) -> dict[str, Any]:
-        definition = await self._suite_definition(suite)
-        # A template is named by its readable ID; the registered UUID stays on
-        # the wire between this client and the backend.
-        matches = [item for item in definition.templates if item.metadata.identifier == template]
-        if len(matches) != 1:
-            raise ValueError("template must identify exactly one registered template")
-        selected = matches[0]
-        _identity(selected.template_id)
-        return {
-            "selections": [
-                {
-                    "suite_id": definition.identity.suite_id,
-                    "template_id": selected.template_id,
-                    "parameters": [
-                        {"key": name, "value": {"values": [_wire.encode(item)]}} for name, item in sorted((parameters or {}).items())
-                    ],
-                }
-            ],
-        }
-
-    async def _append(self, cycle_id: str, plan: dict[str, Any]) -> tuple[TestExecutionHandle, ...]:
-        backend = await self.connect()
-        await self._transport.verify(backend, live=True)
-        appended = await self._transport.unary(
-            "Execution",
-            "AppendPlannedCases",
-            _wire.request(
-                "Execution",
-                "AppendPlannedCases",
-                cycle_id=cycle_id,
-                plan={**plan, "cycle_id": cycle_id},
-            ),
-        )
-        _cursor(backend, appended)
-        seen = set()
-        handles = []
-        for execution_id in appended.execution_ids:
-            try:
-                _identity(execution_id)
-            except ValueError as error:
-                raise ProtocolError("appended execution identity is invalid") from error
-            if execution_id in seen:
-                raise ProtocolError("append reply repeats an execution identity")
-            seen.add(execution_id)
-            handles.append(TestExecutionHandle(execution_id, self._transport, backend))
-        return tuple(handles)
+        return Cycle(created.cycle_id, self._transport, backend, ())
 
     async def cycle(self, cycle_id: str) -> Cycle:
         """Resolve a live cycle on the current backend."""
         return await Cycle._bind(self._transport, cycle_id, await self.connect())
 
-    async def get_run_request(self, request_id: str) -> RunRequest:
-        """Recover original native published progress, without owning a cycle."""
-        return await RunRequest.resolve(self._transport, await self.connect(), request_id)
-
-    async def execution(self, execution_id: str) -> TestExecutionHandle:
+    async def execution(self, execution_id: str) -> Execution:
         """Bind an existing native identity without lookup or device work."""
         backend = await self.connect()
-        return TestExecutionHandle(execution_id, self._transport, backend)
+        return Execution._bind(execution_id, self._transport, backend)
 
 
 # === Public Functions === #
 
 
 # === Private Functions === #
-
-
-def _default_cycle_label() -> str:
-    # Named after the local moment it is created, as the desktop names it.
-    return f"Test Cycle - {datetime.now().astimezone():%Y-%m-%d %H:%M}"
 
 
 def _readable(value: str) -> bool:
@@ -386,7 +308,7 @@ def _suite(item: Message) -> Suite:
         item.identity.metadata.identifier,
         item.identity.metadata.label,
         tuple(
-            Template(
+            TemplateSummary(
                 t.metadata.identifier,
                 t.metadata.label,
                 tuple(p.parameter_id for p in t.parameters),

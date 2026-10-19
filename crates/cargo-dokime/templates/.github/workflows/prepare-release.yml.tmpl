@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:fd9a445af7eff81f118511599c0c01ea9e52476c7291e38ed07d1fb668f5893d
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:87135970deff601bc70fe536b1f8ff836bdbce77d151e4b20b1c3c5415b0ff8c
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -34,8 +34,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true

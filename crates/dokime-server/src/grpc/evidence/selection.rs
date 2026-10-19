@@ -18,6 +18,7 @@
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
+use dokime_domain::model::identity::IdentifierPattern;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::records::evidence::RecordEntry;
 
@@ -32,6 +33,7 @@ pub(super) const MAX_SEVERITIES: usize = 4;
 /* === Structs === */
 pub(super) struct Selection {
     value: dokime_domain::model::evidence::wire::CapturedRecordSelection,
+    record_types: Vec<IdentifierPattern>,
     pub(super) stream: String,
 }
 
@@ -53,9 +55,11 @@ impl Selection {
             items.sort();
             items.dedup();
         }
-        for kind in &value.record_types {
-            dokime_domain::model::identity::Identifier::new(kind).map_err(|_| Status::invalid_argument("invalid record type"))?;
-        }
+        let record_types = value
+            .record_types
+            .iter()
+            .map(|kind| IdentifierPattern::new(kind).map_err(|_| Status::invalid_argument("invalid record type pattern")))
+            .collect::<Result<_, _>>()?;
         if value.severities.len() > MAX_SEVERITIES
             || value.severities.iter().any(|severity| {
                 !matches!(*severity, common::Severity::Debug | common::Severity::Info | common::Severity::Warn | common::Severity::Error)
@@ -99,12 +103,12 @@ impl Selection {
             "evidence.records:{}",
             Sha256::digest(harmos::Message::encode_to_vec(&value)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
-        Ok(Self { value, stream })
+        Ok(Self { value, record_types, stream })
     }
 
     pub(super) fn matches(&self, record: &RecordEntry) -> bool {
         let value = &self.value;
-        if !value.record_types.is_empty() && !value.record_types.iter().any(|v| v == record.record_type.as_str())
+        if !self.record_types.is_empty() && !self.record_types.iter().any(|pattern| pattern.matches(record.record_type.as_str()))
             || !value.sources.is_empty() && !value.sources.contains(&record.source)
             || !value.severities.is_empty() && !value.severities.contains(&super::canonical::severity(record.severity))
         {

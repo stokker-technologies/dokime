@@ -14,6 +14,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from fnmatch import fnmatchcase
 from typing import Any
 
 # Third Party Imports
@@ -21,7 +22,7 @@ import grpc
 from google.protobuf.message import Message
 
 # Local Imports
-from dokime.client import DokimeClient, _wire
+from dokime.client import DokimeClient, Execution, _wire
 
 from .canonical import _message, _value, _value_object, register
 
@@ -62,9 +63,13 @@ class BackendFixture:
         self.max_response_bytes = 16 * 1024 * 1024
         self.package = "dokime.v1"
         self.descriptor = bytes(32)
-        self.key: str | None = None
         self.created = 0
         self.append_calls = 0
+        self.materialize_calls = 0
+        self.appended_ids: list[str] = []
+        self.append_entered = asyncio.Event()
+        self.append_allowed = asyncio.Event()
+        self.append_allowed.set()
         self.cycle_request: Any = None
         self.restart_during: str | None = None
         self.execution_control_calls: list[str] = []
@@ -74,11 +79,7 @@ class BackendFixture:
         self.seal_allowed = asyncio.Event()
         self.seal_allowed.set()
         self.cycle_phase = {"Active": {}}
-        self.rerun_calls: list[str] = []
-        self.case_runs: list[str] = []
         self.run_calls = 0
-        self.receipt_reads = 0
-        self.fail_receipt_read = False
         self.phase = {"Queued": {}}
         self.fail_admission = False
         self.execution_mode: Message | None = None
@@ -149,12 +150,11 @@ class BackendFixture:
         self.methods = {
             "Backend": ["GetIdentity", "GetHealth", "GetAvailability"],
             "Catalog": ["ListSuites", "GetSuite"],
+            "Planning": ["MaterializeTemplate"],
             "Execution": [
                 "CreateCycle",
-                "AppendPlannedCases",
-                "RunCycle",
-                "RunExecution",
-                "GetRunRequest",
+                "AppendExecutions",
+                "StartExecution",
                 "GetExecutionCommand",
                 "GetCycle",
                 "SealCycle",
@@ -163,8 +163,6 @@ class BackendFixture:
                 "PauseExecution",
                 "ResumeExecution",
                 "StopExecution",
-                "ScheduleCaseRerun",
-                "RunCase",
             ],
             "Evidence": ["WatchRecords", "ListRecords"],
             "Telemetry": ["ListSamples"],
@@ -327,63 +325,78 @@ class BackendFixture:
             ),
         )
 
-    async def AppendPlannedCases(self, request: Any, context: Any) -> Any:
-        self.append_calls += 1
-        if self.restart_during == "AppendPlannedCases":
-            self.epoch = "epoch-2"
-        assert request.cycle_id == CYCLE_ID == request.plan.cycle_id
-        assert len(request.plan.selections) == 1
-        assert not request.plan.case_ids
-        self.overrides = {entry.key: entry.value for entry in request.plan.selections[0].parameters}
+    async def MaterializeTemplate(self, request: Any, context: Any) -> Any:
+        self.materialize_calls += 1
+        assert request.selection.suite_id == SUITE_ID
+        assert request.selection.template_id == TEMPLATE_ID
+        self.overrides = {entry.key: entry.value for entry in request.selection.parameters}
+        parameters = {key: _wire.decode(value.values[0]) for key, value in self.overrides.items()}
         return _message(
-            "Execution",
-            "AppendPlannedCases",
-            direction="response",
-            path="",
-            execution_ids=[EXECUTION_ID],
-            observed_cursor=_message(
-                "Evidence",
-                "ListRecords",
-                direction="request",
-                path="after",
-                epoch=self.epoch,
-            ),
+            "Planning",
+            "MaterializeTemplate",
+            cases=[
+                {
+                    "case_id": CASE_ID,
+                    "suite_id": SUITE_ID,
+                    "template_id": TEMPLATE_ID,
+                    "metadata": {"identifier": "probe.1", "label": "Probe #1"},
+                    "parameters": _wire.encode(parameters),
+                    "definition_revision": "a" * 64,
+                    "provider": "fixture.plugin",
+                    "ordinal": 0,
+                }
+            ],
+            observed_cursor={"epoch": self.epoch},
         )
 
-    async def RunCycle(self, request: Any, context: Any) -> Any:
+    async def AppendExecutions(self, request: Any, context: Any) -> Any:
+        self.append_calls += 1
+        if self.restart_during == "AppendExecutions":
+            self.epoch = "epoch-2"
+        assert request.cycle_id == CYCLE_ID
+        assert all(binding.case_id == CASE_ID for binding in request.executions)
+        for binding in request.executions:
+            if binding.execution_id not in self.appended_ids:
+                self.appended_ids.append(binding.execution_id)
+        self.append_entered.set()
+        await self.append_allowed.wait()
+        return _message(
+            "Execution",
+            "AppendExecutions",
+            execution_ids=[binding.execution_id for binding in request.executions],
+            observed_cursor={"epoch": self.epoch},
+        )
+
+    async def StartExecution(self, request: Any, context: Any) -> Any:
+        assert request.execution_id == EXECUTION_ID
         self.run_calls += 1
         if self.deny_run:
             return _message(
                 "Execution",
-                "RunCycle",
-                direction="response",
+                "StartExecution",
                 outcome={
                     "Rejected": {
-                        "field_0": _message(
-                            "Execution",
-                            "RunCase",
-                            direction="response",
-                            path="outcome.Rejected.field_0",
-                            code="provider_unavailable",
-                            message="No provider",
-                        )
+                        "field_0": {
+                            "code": "provider_unavailable",
+                            "message": "No provider",
+                        }
                     }
                 },
             )
-        if self.key is None:
-            self.key = request.idempotency_key
+        if self.execution_mode is None:
+            self.execution_mode = request.mode
             self.phase = {"Running": {}}
             self.job = asyncio.create_task(self.produce())
-        elif self.key != request.idempotency_key:
+        elif self.execution_mode != request.mode:
             return _message(
                 "Execution",
-                "RunCycle",
+                "StartExecution",
                 direction="response",
                 outcome={
                     "Rejected": {
                         "field_0": _message(
                             "Execution",
-                            "RunCase",
+                            "StartExecution",
                             direction="response",
                             path="outcome.Rejected.field_0",
                             code="request_identity_conflict",
@@ -396,77 +409,15 @@ class BackendFixture:
             await context.abort(grpc.StatusCode.UNAVAILABLE, "response lost after admission")
         return _message(
             "Execution",
-            "RunCycle",
-            direction="response",
+            "StartExecution",
             outcome={
                 "Accepted": {
-                    "field_0": _message(
-                        "Execution",
-                        "RunCase",
-                        direction="response",
-                        path="outcome.Accepted.field_0",
-                        command_id=REQUEST_ID,
-                        cursor=_message(
-                            "Evidence",
-                            "ListRecords",
-                            direction="request",
-                            path="after",
-                            epoch=self.epoch,
-                        ),
-                    )
+                    "field_0": {
+                        "command_id": REQUEST_ID,
+                        "cursor": {"epoch": self.epoch},
+                    }
                 }
             },
-        )
-
-    async def RunExecution(self, request: Any, context: Any) -> Any:
-        assert request.execution_id == EXECUTION_ID
-        if self.execution_mode is None:
-            self.execution_mode = request.mode
-        elif self.execution_mode != request.mode:
-            return _message(
-                "Execution",
-                "RunCycle",
-                direction="response",
-                outcome={
-                    "Rejected": {
-                        "field_0": _message(
-                            "Execution",
-                            "RunCase",
-                            direction="response",
-                            path="outcome.Rejected.field_0",
-                            code="request_identity_conflict",
-                        )
-                    }
-                },
-            )
-        return await self.RunCycle(
-            _message(
-                "Execution",
-                "RunCycle",
-                direction="request",
-                path="",
-                cycle_id=CYCLE_ID,
-                idempotency_key=request.idempotency_key,
-            ),
-            context,
-        )
-
-    async def GetRunRequest(self, request: Any, context: Any) -> Any:
-        self.receipt_reads += 1
-        if self.fail_receipt_read:
-            self.fail_receipt_read = False
-            await context.abort(grpc.StatusCode.UNAVAILABLE, "fixture receipt read failed")
-        assert request.request_id == REQUEST_ID
-        return _message(
-            "Execution",
-            "GetRunRequest",
-            direction="response",
-            path="",
-            request_id=REQUEST_ID,
-            cycle_id=CYCLE_ID,
-            phase=self.phase,
-            planned_count=1,
-            finished_count=int(self.terminal.is_set()),
         )
 
     async def GetExecutionCommand(self, request: Any, context: Any) -> Any:
@@ -669,38 +620,6 @@ class BackendFixture:
             ),
         )
 
-    async def ScheduleCaseRerun(self, request: Any, context: Any) -> Any:
-        assert request.cycle_id == CYCLE_ID
-        self.rerun_calls.append(request.case_id)
-        return _message(
-            "Execution",
-            "ScheduleCaseRerun",
-            direction="response",
-            path="",
-            observed_cursor=_message(
-                "Evidence",
-                "ListRecords",
-                direction="request",
-                path="after",
-                epoch=self.epoch,
-            ),
-        )
-
-    async def RunCase(self, request: Any, context: Any) -> Any:
-        assert request.cycle_id == CYCLE_ID
-        self.case_runs.append(f"{request.case_id}:{request.idempotency_key}")
-        return await self.RunCycle(
-            _message(
-                "Execution",
-                "RunCycle",
-                direction="request",
-                path="",
-                cycle_id=CYCLE_ID,
-                idempotency_key=request.idempotency_key,
-            ),
-            context,
-        )
-
     def publish(self, kind: str) -> None:
         n = len(self.records) + 1
         self.records.append(
@@ -760,7 +679,7 @@ class BackendFixture:
         records = [
             r
             for r in self.records[after:scanned]
-            if (not selection.record_types or r.record_type in selection.record_types)
+            if (not selection.record_types or any(fnmatchcase(r.record_type, pattern) for pattern in selection.record_types))
             and (not selection.scope.HasField("execution_id") or r.scope.execution_id == selection.scope.execution_id)
             and (not selection.scope.HasField("cycle_id") or r.scope.cycle_id == selection.scope.cycle_id)
         ]
@@ -856,6 +775,20 @@ async def serve(
             backend.job.cancel()
             await asyncio.gather(backend.job, return_exceptions=True)
         await server.stop(0)
+
+
+async def prepare(client: DokimeClient, *, suite: str = SUITE_ID, template: str = TEMPLATE, parameters: Any = None, label: str = "Fixture"):
+    from unittest.mock import patch
+    from uuid import UUID
+
+    assert suite == SUITE_ID
+    selected = await client.template(template)
+    cases = await selected.materialize(parameters=parameters)
+    with patch("dokime.client.execution.handle.uuid4", return_value=UUID(EXECUTION_ID)):
+        executions = [Execution(case) for case in cases]
+    cycle = await client.create_cycle(label=label)
+    await cycle.append(executions)
+    return cycle
 
 
 async def collect[T](iterator: AsyncIterator[T]) -> list[T]:

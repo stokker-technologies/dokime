@@ -21,6 +21,7 @@ from google.protobuf.internal import builder as _builder
 # Local Imports
 from dokime._wire import _pool
 # @@protoc_insertion_point(imports)
+from dokime._wire.dokime.v1.PlanningMessages.MaterializeTemplate import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_PlanningMessages_dot_MaterializeTemplate_dot_messages__pb2
 from dokime._wire.dokime.v1.PlanningMessages.PreviewSelection import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_PlanningMessages_dot_PreviewSelection_dot_messages__pb2
 from dokime._wire.dokime.v1.PlanningMessages.RegisterSelection import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_PlanningMessages_dot_RegisterSelection_dot_messages__pb2
 
@@ -47,15 +48,15 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n%dokime/_wire/dokime/v1/Planning.proto\x12\tdokime.v1\x1aGdokime/_wire/dokime/v1/PlanningMessages/PreviewSelection/messages.proto\x1aHdokime/_wire/dokime/v1/PlanningMessages/RegisterSelection/messages.proto2\x81\x02\n\x08Planning\x12x\n\x10PreviewSelection\x12\x31.dokime.v1.PlanningMessages.PreviewSelection.Row1\x1a\x31.dokime.v1.PlanningMessages.PreviewSelection.Row2\x12{\n\x11RegisterSelection\x12\x32.dokime.v1.PlanningMessages.RegisterSelection.Row1\x1a\x32.dokime.v1.PlanningMessages.RegisterSelection.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n%dokime/_wire/dokime/v1/Planning.proto\x12\tdokime.v1\x1aJdokime/_wire/dokime/v1/PlanningMessages/MaterializeTemplate/messages.proto\x1aGdokime/_wire/dokime/v1/PlanningMessages/PreviewSelection/messages.proto\x1aHdokime/_wire/dokime/v1/PlanningMessages/RegisterSelection/messages.proto2\x85\x03\n\x08Planning\x12\x81\x01\n\x13MaterializeTemplate\x12\x34.dokime.v1.PlanningMessages.MaterializeTemplate.Row1\x1a\x34.dokime.v1.PlanningMessages.MaterializeTemplate.Row2\x12x\n\x10PreviewSelection\x12\x31.dokime.v1.PlanningMessages.PreviewSelection.Row1\x1a\x31.dokime.v1.PlanningMessages.PreviewSelection.Row2\x12{\n\x11RegisterSelection\x12\x32.dokime.v1.PlanningMessages.RegisterSelection.Row1\x1a\x32.dokime.v1.PlanningMessages.RegisterSelection.Row2b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime._wire.dokime.v1.Planning_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_PLANNING']._serialized_start=200
-  _globals['_PLANNING']._serialized_end=457
+  _globals['_PLANNING']._serialized_start=276
+  _globals['_PLANNING']._serialized_end=665
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

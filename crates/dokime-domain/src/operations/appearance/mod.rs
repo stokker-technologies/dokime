@@ -20,7 +20,6 @@ pub use get_appearance::GetAppearance;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
 
@@ -46,7 +45,6 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for GetAppearance {
     const PATH: &'static str = "/dokime.v1.Appearance/GetAppearance";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

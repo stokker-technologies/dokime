@@ -10,15 +10,13 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub(crate) use crate::transactions::AppendCycle as Append;
 
 /* === Imports === */
 // Standard Library Imports
 // Third Party Imports
 
 // Local Imports
-use crate::definition::TestCase;
-use crate::{CommandContext, RuntimeHandle, runtime::Error};
+use crate::{RuntimeHandle, runtime::Error};
 use dokime_domain::model::identity::TestCycleId;
 
 /* === Constants === */
@@ -35,34 +33,51 @@ use dokime_domain::model::identity::TestCycleId;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    pub async fn append_cycle_cases(
-        &self, test_cycle_id: TestCycleId, cases: Vec<TestCase>, context: CommandContext,
-    ) -> Result<Vec<dokime_domain::model::identity::TestExecutionId>, Error> {
+    pub async fn append_executions(
+        &self, cycle_id: TestCycleId,
+        executions: Vec<(dokime_domain::model::identity::TestExecutionId, dokime_domain::model::identity::CaseId)>,
+    ) -> Result<(), Error> {
+        if executions.is_empty() || executions.len() > 1000 {
+            return Err(Error::conflict("invalid_append", "append requires 1 to 1000 executions"));
+        }
         let sources = {
             let state = self.state_read();
-            cases.iter().filter_map(|case| state.suites.suite_for_case(case)).map(|entry| entry.source.clone()).collect::<Vec<_>>()
+            executions
+                .iter()
+                .filter_map(|(_, id)| state.suites.case(id))
+                .filter_map(|case| state.suites.suite_for_case(case))
+                .map(|suite| suite.source.clone())
+                .collect::<Vec<_>>()
         };
-        let admission_identifier = context.idempotency_key.as_deref().filter(|key| !key.is_empty()).map_or_else(
-            crate::model::identity::new_id::<dokime_domain::model::identity::CommandId>,
-            |key| {
-                dokime_domain::model::identity::CommandId::from_seed(format!(
-                    "cycle-append:{}:{test_cycle_id}:{key}",
-                    self.state_read().identity.node.node_id
-                ))
-            },
-        );
-        let transaction = Append {
-            admission_identifier,
+        let transaction = crate::transactions::AppendExecutions {
+            cycle_id: cycle_id.clone(),
+            executions,
             settings: super::settings(self, sources)?,
-            test_cycle_id: test_cycle_id.clone(),
-            cases,
             occurred_at: crate::model::time::now_utc(),
         };
-        let execution_ids = transaction.execution_ids();
-        self.commit_with_key(context.idempotency_key, transaction).await?;
-        self.execution_storage.save_cycle(test_cycle_id.clone()).await?;
-        self.reconcile_sampling().await;
-        Ok(execution_ids)
+        let permit = self.admit_owned_work().ok_or(Error::ShuttingDown)?;
+        let runtime = self.clone();
+        tokio::spawn(async move {
+            let _permit = permit;
+            for (id, _) in &transaction.executions {
+                let known = runtime.state_read().executions.contains_key(id);
+                if known {
+                    continue;
+                }
+                let stored =
+                    crate::runtime::storage::execution::ExecutionView::open(runtime.storage(), id, harmos::storage::ObjectVersion::Latest)
+                        .await?;
+                if stored.is_some() {
+                    return Err(Error::conflict("execution_exists", "execution identity already belongs to saved history"));
+                }
+            }
+            runtime.commit(transaction).await.map_err(|error| Error::Operation(error.to_string()))?;
+            runtime.execution_storage.save_cycle(cycle_id).await?;
+            runtime.reconcile_sampling().await;
+            Ok(())
+        })
+        .await
+        .map_err(|error| Error::Operation(error.to_string()))?
     }
 }
 

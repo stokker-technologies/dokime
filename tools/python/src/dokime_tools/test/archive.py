@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:e0ef7b313fa36e0b04b5a025f13fb8f29e2699dc535341984cd1914083c4e83e
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:3ee99517e55c981ffa9a8d4ca2fa0626bc2c9f4c42b4b4d50bd0da684ca8a509
 # ***
 #
 # Dokime
@@ -20,14 +20,15 @@ import platform
 import shutil
 import subprocess
 import sys
-import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 # Third Party Imports
 
 # Local Imports
-from . import cache, policy
+from . import policy
+from ..build import paths
+from .. import temporary
 
 # Type Checking Imports
 
@@ -37,7 +38,6 @@ from . import cache, policy
 
 ARCHIVE = "archive.tar.zst"
 MESSAGES = "compiler.json"
-FIXTURES = Path("target/fixtures/stamp.json")
 
 # === Types === #
 
@@ -58,13 +58,12 @@ def revision(directory: Path) -> str | None:
 
 
 def location(directory: Path, profile: str) -> Path:
-    return directory / "target/nextest" / profile / ARCHIVE
+    return paths.output(directory, "build", profile) / "tests" / ARCHIVE
 
 
 def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
-    if profile not in (*policy.PROFILES, "bench"):
+    if profile not in policy.PROFILES:
         raise policy.TestError("unknown build profile")
-    cache.prepare()
     path = location(directory, profile)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
@@ -74,7 +73,7 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         "archive",
         "--locked",
         "--workspace",
-        "--all-targets",
+        "--tests",
         "--cargo-profile",
         profile,
         "--cargo-message-format",
@@ -94,29 +93,6 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
                 print(diagnostic, file=sys.stderr, end="")
         raise policy.TestError(f"nextest archive build failed; compiler messages: {path.with_name(MESSAGES)}")
     require(directory, profile)
-    files = []
-    messages = []
-    for line in path.with_name(MESSAGES).read_text(encoding="utf-8").splitlines():
-        message = json.loads(line)
-        executable = message.get("executable")
-        if executable and "bench" in message.get("target", {}).get("kind", []):
-            source = Path(executable)
-            destination = directory / "target/fixtures/bench" / source.name
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
-            message["executable"] = destination.relative_to(directory).as_posix()
-            message["manifest_path"] = Path(message["manifest_path"]).relative_to(directory).as_posix()
-            files.append(message["executable"])
-        messages.append(json.dumps(message))
-        if executable and message.get("target", {}).get("kind") == ["bin"] and not message.get("profile", {}).get("test"):
-            source = Path(executable)
-            destination = directory / "target/fixtures/bin" / source.name
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
-            files.append(destination.relative_to(directory).as_posix())
-    path.with_name(MESSAGES).write_text("\n".join(messages) + "\n", encoding="utf-8")
-    if files:
-        stamp(directory, profile, files)
     prune(path.parent, {ARCHIVE, MESSAGES}, archives=True)
     return path
 
@@ -137,29 +113,28 @@ def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
 def binaries(directory: Path, profile: str) -> dict[str, str]:
     """Map Archive Binary IDs To Names, Retaining Package Identity For Measured Overrides."""
     path = require(directory, profile)
-    listing = Path(tempfile.mkdtemp(prefix="listing-", dir=path.parent))
-    command = [
-        "cargo",
-        "nextest",
-        "list",
-        "--archive-file",
-        str(path),
-        "--workspace-remap",
-        str(directory),
-        "--extract-to",
-        str(listing),
-        "--list-type",
-        "binaries-only",
-        "--message-format",
-        "json",
-    ]
-    try:
+    with temporary.directory() as listing:
+        extracted = listing / "extract"
+        extracted.mkdir()
+        command = [
+            "cargo",
+            "nextest",
+            "list",
+            "--archive-file",
+            str(path),
+            "--workspace-remap",
+            str(directory),
+            "--extract-to",
+            str(extracted),
+            "--list-type",
+            "binaries-only",
+            "--message-format",
+            "json",
+        ]
         result = subprocess.run(command, cwd=directory, capture_output=True, text=True, check=False)
-    finally:
-        shutil.rmtree(listing)
-    if result.returncode:
-        raise policy.TestError(f"nextest could not list test binaries: {result.stderr.strip()}")
-    return {identity: entry["binary-name"] for identity, entry in json.loads(result.stdout).get("rust-binaries", {}).items()}
+        if result.returncode:
+            raise policy.TestError(f"nextest could not list test binaries: {result.stderr.strip()}")
+        return {identity: entry["binary-name"] for identity, entry in json.loads(result.stdout).get("rust-binaries", {}).items()}
 
 
 def require(directory: Path, profile: str) -> Path:
@@ -169,8 +144,15 @@ def require(directory: Path, profile: str) -> Path:
     return path
 
 
-def install_wheels(directory: Path) -> None:
-    wheels = sorted((directory / "target/wheels").glob("*.whl"))
+def install_wheels(directory: Path, profile: str, native: str | None = None) -> None:
+    targets = [native] if native is not None else [paths.target(), "any"]
+    roots = [paths.output(directory, "build", profile, target) / "python" for target in targets]
+    wheels = sorted(path for root in roots for path in root.glob("*.whl"))
+    names = [path.name.split("-", 1)[0].replace("_", "-").lower() for path in wheels]
+    if len(names) != len(set(names)):
+        raise policy.TestError("ambiguous built wheels across selected native/any outputs")
+    if any(root.is_dir() for root in roots) and not wheels:
+        raise policy.TestError("missing built wheels in the selected profile/target")
     if wheels:
         subprocess.run(
             [
@@ -192,16 +174,17 @@ def stamp(directory: Path, profile: str, files: Sequence[str], metadata: Mapping
     """Name And Hash The Built Fixtures, Without Binding Source Or Revision."""
     record = {
         "profile": profile,
+        "target": paths.target(),
         "files": {name: _digest(_inside(directory, name)) for name in files},
         "metadata": dict(metadata or {}),
     }
-    target = directory / FIXTURES
+    target = paths.output(directory, "build", profile) / "fixtures/stamp.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
 
 def fixtures(directory: Path, profile: str = "dev", hosts: Sequence[str] = ()) -> None:
-    path = directory / FIXTURES
+    path = paths.output(directory, "build", profile) / "fixtures/stamp.json"
     if not path.is_file():
         if hosts:
             raise policy.TestError("missing fixture stamp")
@@ -209,6 +192,8 @@ def fixtures(directory: Path, profile: str = "dev", hosts: Sequence[str] = ()) -
     record = json.loads(path.read_text(encoding="utf-8"))
     if record.get("profile") != profile:
         raise policy.TestError("fixture stamp belongs to another profile")
+    if record.get("target") != paths.target():
+        raise policy.TestError("fixture stamp belongs to another native target")
     files = record.get("files", {})
     for name, digest in files.items():
         target = _inside(directory, name)
@@ -219,7 +204,7 @@ def fixtures(directory: Path, profile: str = "dev", hosts: Sequence[str] = ()) -
             profile=profile,
             platform=sys.platform,
             architecture=platform.machine(),
-            target=record.get("metadata", {}).get("target", ""),
+            target=paths.target(),
             exe=".exe" if os.name == "nt" else "",
         )
         if name not in files or not _inside(directory, name).is_file():
@@ -228,14 +213,15 @@ def fixtures(directory: Path, profile: str = "dev", hosts: Sequence[str] = ()) -
 
 def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build The Workspace Nextest Archive")
-    parser.add_argument("--profile", choices=(*policy.PROFILES, "bench"), default="dev")
+    parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
     parser.add_argument("--install-wheels", action="store_true")
+    parser.add_argument("--target")
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     options = parser.parse_args(arguments)
     extra = options.extra[1:] if options.extra[:1] == ["--"] else options.extra
     try:
         if options.install_wheels:
-            install_wheels(policy.root())
+            install_wheels(policy.root(), options.profile, options.target)
             return 0
         print(build(policy.root(), options.profile, extra))
         return 0

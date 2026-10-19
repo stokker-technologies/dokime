@@ -14,12 +14,18 @@
 import asyncio
 import runpy
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+from uuid import UUID
 
 # Third Party Imports
-# Local Imports
-from dokime.client import RunPhase, _wire
+import pytest
 
-from .backend import SUITE_ID, TEMPLATE, collect, serve
+# Local Imports
+from dokime.client import Cycle, Execution, _wire
+from dokime.client.execution import handle as execution_module
+
+from .backend import EXECUTION_ID, SUITE_ID, TEMPLATE, collect, prepare, serve
 
 # Type Checking Imports
 
@@ -44,12 +50,14 @@ def test_live_values() -> None:
             # Planned Parameters Keep Their Wire Values
             suites = [s async for s in client.suites()]
             assert suites[0].templates[0].id == TEMPLATE
-            run_cycle = await client.new_cycle(
+            run_cycle = await prepare(
+                client,
                 suite=SUITE_ID,
                 template=TEMPLATE,
                 parameters={"integer": 2**60, "flag": True, "array": [1, None]},
             )
-            run = await run_cycle.run(request_key="lab-order")
+            run = run_cycle.executions[0]
+            await run.start()
             assert server.overrides is not None
             assert _wire.decode(server.overrides["integer"].values[0]) == 2**60
             assert _wire.decode(server.overrides["flag"].values[0]) is True
@@ -57,8 +65,8 @@ def test_live_values() -> None:
 
             # Live Readers Follow Until The Run Completes
             following = asyncio.gather(
-                collect(run_cycle.records(until=run)),
-                collect(run_cycle.samples(page_size=1, poll_interval=0.01, until=run)),
+                collect(run.records(follow=True)),
+                collect(run.samples(page_size=1, poll_interval=0.01, follow=True)),
                 run.wait(poll_interval=0.01),
             )
             await server.records_parked.wait()
@@ -66,7 +74,7 @@ def test_live_values() -> None:
             events, samples, status = await following
             assert [r.id for r in events] == ["event-1", "event-2"]
             assert [s.values["voltage"] for s in samples] == [231.0, 232.0]
-            assert status.phase is RunPhase.COMPLETED
+            assert status.status == "passed"
             summary = await run_cycle.result()
             assert summary.passed == 1
             assert server.stop_calls == 0
@@ -78,37 +86,54 @@ def test_live_values() -> None:
 def test_replay_pages() -> None:
     async def scenario() -> None:
         async with serve() as (_, client):
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            run = await run_cycle.run(request_key="lab-order")
+            run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            run = run_cycle.executions[0]
+            await run.start()
             await run.wait(poll_interval=0.01)
             records = await collect(run_cycle.records(record_types=["fixture.finished"], record_ids=["event-2"]))
             assert [r.id for r in records] == ["event-2"]
-            assert await collect(run_cycle.records(record_ids=["missing"], until=run)) == []
+            assert await collect(run.records(record_ids=["missing"], follow=True)) == []
             assert len(await collect(run_cycle.samples(page_size=1))) == 2
 
     asyncio.run(scenario())
 
 
-def test_example_filtered_listeners_drain_after_sealing() -> None:
-    observe = runpy.run_path(str(EXAMPLE))["observe"]
+def test_example_listeners_drain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    run = runpy.run_path(str(EXAMPLE))["run"]
 
     async def scenario() -> None:
         async with serve() as (server, client):
             server.sample_page_size = 1
             server.finish_gate.clear()
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            (handle,) = run_cycle.executions
-            await handle.start(request_key="polling-example")
+            for key, value in {
+                "DokimeClient": lambda *_args, **_kwargs: client,
+                "TEMPLATE": TEMPLATE,
+                "KEY_FILE": None,
+                "CA_CERTIFICATE": None,
+                "OUTPUT_DIRECTORY": tmp_path,
+                "EXECUTION_COUNT": 1,
+                "RECORD_TYPES": ("fixture.fin*",),
+                "STREAMS": ("volt?ge",),
+            }.items():
+                monkeypatch.setitem(run.__globals__, key, value)
+            monkeypatch.setattr(execution_module, "uuid4", lambda: UUID(EXECUTION_ID))
+            saved = SimpleNamespace(path=tmp_path / "bundle.zip", sha256="fixture-checksum")
+            execution_export = AsyncMock(return_value=saved)
+            cycle_export = AsyncMock(return_value=saved)
+            monkeypatch.setattr(Execution, "export", execution_export)
+            monkeypatch.setattr(Cycle, "export", cycle_export)
 
             # The Example Reads Live Before The Run Finishes
-            polling = asyncio.create_task(observe(handle, record_types=("fixture.finished",), streams=("voltage",), poll_interval=0.01))
+            polling = asyncio.create_task(run())
             await server.records_parked.wait()
             server.finish_gate.set()
-            summary = await polling
-            assert summary["samples_by_stream"] == {"voltage": 2}
-            assert summary["records_by_type"] == {"fixture.finished": 1}
-            assert summary["execution_id"] == handle.id
-            assert summary["status"] == "passed"
+            assert await polling == 0
+            output = capsys.readouterr().out
+            assert output.count("Sample: voltage #") == 2
+            assert output.count("Record: fixture.finished #") == 1
+            assert f"Saved Outcome: passed Execution: {EXECUTION_ID}" in output
+            execution_export.assert_awaited_once_with(tmp_path / "execution-1.zip", overwrite=False)
+            cycle_export.assert_awaited_once_with(tmp_path / "cycle.zip", overwrite=False)
             assert any(position.get("voltage") == 1 for position in server.sent_cursors)
             assert server.stop_calls == 0
 

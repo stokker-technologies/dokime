@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+mod append;
 mod copy;
 
 /* === Re-Exports === */
+pub use append::AppendExecutions;
 pub use copy::CopyCycle;
 
 /* === Imports === */
@@ -45,6 +47,7 @@ use dokime_domain::state::records::set::TestRecordSet;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CycleDefinition {
     pub metadata: Metadata,
+    pub continue_automatically: bool,
     pub continue_on_failure: bool,
 }
 
@@ -53,9 +56,10 @@ pub struct CycleDefinition {
 pub struct RegisterCases {
     pub registration_id: CommandId,
     pub cases: Vec<TestCase>,
+    pub definition_revisions: BTreeMap<dokime_domain::model::identity::CaseId, String>,
 }
 
-// A cycle is created empty and Ready; cases join it only through AppendCycle.
+// A Cycle Opens Empty; Explicit Execution Identities Join Through AppendExecutions.
 #[harmos::transaction(id = "dokime.execution.cycle.create", version = 4, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreateCycle {
@@ -64,37 +68,11 @@ pub struct CreateCycle {
     pub occurred_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.cycle.append", version = 4, irreversible)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AppendCycle {
-    pub admission_identifier: dokime_domain::model::identity::CommandId,
-    pub test_cycle_id: TestCycleId,
-    pub cases: Vec<TestCase>,
-    pub occurred_at: Timestamp,
-    #[serde(default)]
-    pub settings: BTreeMap<String, BTreeMap<String, Value>>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl AppendCycle {
-    pub(crate) fn execution_ids(&self) -> Vec<dokime_domain::model::identity::TestExecutionId> {
-        self.cases
-            .iter()
-            .enumerate()
-            .map(|(ordinal, case)| {
-                dokime_domain::model::identity::TestExecutionId::from_seed(format!(
-                    "cycle:{}:case:{}:admission:{}:ordinal:{ordinal}",
-                    self.test_cycle_id, case.test_case_id, self.admission_identifier
-                ))
-            })
-            .collect()
-    }
-}
-
 impl Transaction<RuntimeState> for RegisterCases {
     type Error = String;
 
@@ -103,8 +81,18 @@ impl Transaction<RuntimeState> for RegisterCases {
         if self.cases.is_empty() || self.cases.len() > 1000 {
             return Err("registration requires 1 to 1000 cases".into());
         }
+        if self.definition_revisions.len() != self.cases.len() {
+            return Err("registration requires one authoritative revision per case".into());
+        }
         state.suites.validate_registration(&self.registration_id, &self.cases)?;
         for case in &self.cases {
+            let revision = state.case_definition_revision(case)?;
+            if self.definition_revisions.get(&case.test_case_id) != Some(&revision) {
+                return Err("case definition or provider changed during materialization".into());
+            }
+            if state.suites.case_revisions().get(&case.test_case_id).is_some_and(|known| known != &revision) {
+                return Err("registered case definition is immutable".into());
+            }
             let suite = state.suites.suite_for_case(case).ok_or("case owning suite is not installed")?;
             if case.suite.as_ref() != Some(&suite.suite.metadata)
                 || !suite.suite.test_case_templates.iter().any(|template| template.test_case_template_id == case.test_case_template_id)
@@ -117,6 +105,7 @@ impl Transaction<RuntimeState> for RegisterCases {
 
     fn apply(&self, state: &mut RuntimeState) {
         state.suites.register_selection(&self.registration_id, &self.cases).expect("Harmos checked immutable case registration");
+        state.suites.capture_case_revisions(&self.definition_revisions);
     }
 }
 
@@ -133,19 +122,6 @@ impl Transaction<RuntimeState> for CreateCycle {
     }
     fn apply(&self, state: &mut RuntimeState) {
         apply_create_cycle(state, self).expect("Harmos checked cycle creation before applying it");
-    }
-}
-
-impl Transaction<RuntimeState> for AppendCycle {
-    type Error = String;
-
-    fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
-        ensure_runtime_active(state)?;
-        prepare_append_cycle(state, self).map(|_| ()).map_err(|error| error.to_string())
-    }
-
-    fn apply(&self, state: &mut RuntimeState) {
-        apply_append_cycle(state, self).expect("Harmos checked cycle append before applying it");
     }
 }
 
@@ -191,25 +167,11 @@ fn prepare_create_cycle(
     Ok((cycle, records))
 }
 
-fn apply_append_cycle(state: &mut RuntimeState, append: &AppendCycle) -> Result<(), Error> {
-    let cycle = prepare_append_cycle(state, append)?;
-    state.suites.register_cases(cycle.cases()).map_err(conflict)?;
-    state.replace_cycle(cycle).expect("cycle projection has valid ownership");
-    Ok(())
-}
-
-fn prepare_append_cycle(state: &RuntimeState, append: &AppendCycle) -> Result<CycleView, Error> {
-    let cases = &append.cases;
-    let mut cycle = state.cycle_view(&append.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
-    state.suites.validate_cases(cases).map_err(conflict)?;
-    append_cases(&mut cycle, cases.clone(), append.occurred_at.clone()).map_err(conflict)?;
-    materialize_cycle_executions(state, &mut cycle, append)?;
-    state.validate_cycle_view(&cycle).map_err(conflict)?;
-    Ok(cycle)
-}
-
-fn materialize_cycle_executions(state: &RuntimeState, cycle: &mut CycleView, append: &AppendCycle) -> Result<(), Error> {
-    for (case, id) in append.cases.iter().zip(append.execution_ids()) {
+fn materialize_executions(
+    state: &RuntimeState, cycle: &mut CycleView, cases: &[TestCase],
+    ids: impl IntoIterator<Item = dokime_domain::model::identity::TestExecutionId>, settings: &BTreeMap<String, BTreeMap<String, Value>>,
+) -> Result<(), Error> {
+    for (case, id) in cases.iter().zip(ids) {
         let source = state.suites.suite_for_case(case).map(|suite| suite.source.as_str());
         let plugin = source.and_then(|source| state.execution_identity(source));
         let mut execution = super::provider::materialize_execution(
@@ -218,7 +180,7 @@ fn materialize_cycle_executions(state: &RuntimeState, cycle: &mut CycleView, app
             case,
             id,
             plugin,
-            source.and_then(|source| append.settings.get(source)).cloned().unwrap_or_default(),
+            source.and_then(|source| settings.get(source)).cloned().unwrap_or_default(),
         )?;
         execution.status = dokime_domain::model::execution::result::ExecutionStatus::Skipped;
         cycle.test_executions.push(execution);
@@ -229,7 +191,7 @@ fn materialize_cycle_executions(state: &RuntimeState, cycle: &mut CycleView, app
 fn empty_cycle(
     test_cycle_id: TestCycleId, session_id: dokime_domain::model::identity::SessionId, definition: CycleDefinition, at: Timestamp,
 ) -> CycleView {
-    let CycleDefinition { metadata, continue_on_failure } = definition;
+    let CycleDefinition { metadata, continue_automatically, continue_on_failure } = definition;
     CycleView {
         saved: None,
         test_cycle_id,
@@ -242,6 +204,7 @@ fn empty_cycle(
         updated_at: at,
         test_executions: Vec::new(),
         records: TestRecordSet::default(),
+        continue_automatically,
         continue_on_failure,
         result: None,
     }

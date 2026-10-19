@@ -91,7 +91,7 @@ impl RuntimeHandle {
                     // Display reduction runs outside Harmos's writer task.
                     let samples = self
                         .collect_telemetry(&crate::evidence_runtime::TelemetrySelection {
-                            streams: stream.clone().into_iter().collect(),
+                            streams: stream.clone().into_iter().map(Into::into).collect(),
                             ..crate::evidence_runtime::TelemetrySelection::default()
                         })
                         .await;

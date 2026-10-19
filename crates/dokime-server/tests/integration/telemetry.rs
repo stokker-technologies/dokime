@@ -87,7 +87,30 @@ async fn telemetry_pages_window() {
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let stream = dokime_runtime::domains::telemetry::telemetry_stream_id(None, &id);
-    let base = contracts::telemetry::ListSamples { streams: vec![id.to_string()], limit: 2, ..Default::default() };
+    let base = contracts::telemetry::ListSamples {
+        streams: vec!["fixture.*".into(), "fixture.progres?".into(), "missing.*".into()],
+        limit: 2,
+        ..Default::default()
+    };
+
+    let excluded = client
+        .unary::<contracts::telemetry::ListSamples>(authenticated(contracts::telemetry::ListSamples {
+            streams: vec!["missing.*".into()],
+            ..base.clone()
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(excluded.samples.is_empty());
+
+    let malformed = client
+        .unary::<contracts::telemetry::ListSamples>(authenticated(contracts::telemetry::ListSamples {
+            streams: vec!["fixture.[ab]".into()],
+            ..base.clone()
+        }))
+        .await
+        .unwrap_err();
+    assert_eq!(malformed.code(), Code::InvalidArgument);
 
     let first = client.unary::<contracts::telemetry::ListSamples>(authenticated(base.clone())).await.unwrap().into_inner();
     assert_eq!(sequences(&first), [1, 2]);

@@ -24,7 +24,6 @@ pub use watch_records::WatchRecords;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
@@ -58,17 +57,14 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for ListRecords {
     const PATH: &'static str = "/dokime.v1.Evidence/ListRecords";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for WatchRecords {
     const PATH: &'static str = "/dokime.v1.Evidence/WatchRecords";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetCapturedRecordSchema {
     const PATH: &'static str = "/dokime.v1.Evidence/GetCapturedRecordSchema";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

@@ -14,14 +14,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Write, path::PathBuf, time::Duration};
+use std::{io::Write, path::PathBuf};
 
 // Third Party Imports
 
 // Local Imports
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::wire::Metadata;
-use dokime_domain::model::planning::wire::SelectionPlan;
 use dokime_domain::operations::execution::CreateCycle;
 
 /* === Constants === */
@@ -33,7 +32,7 @@ use dokime_domain::operations::execution::CreateCycle;
 /* === Structs === */
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
-    #[arg(long, conflicts_with_all = ["identifier", "label", "description", "continue_on_failure"], help = "Read The Canonical CreateCycle JSON Without Flag Overrides.")]
+    #[arg(long, conflicts_with_all = ["identifier", "label", "description", "continue_automatically", "continue_on_failure"], help = "Read The Canonical CreateCycle JSON Without Flag Overrides.")]
     input_file: Option<PathBuf>,
     #[arg(long, required_unless_present = "input_file", help = "Cycle Title.")]
     label: Option<String>,
@@ -43,18 +42,14 @@ pub(crate) struct Args {
     description: Option<String>,
     #[arg(long)]
     continue_on_failure: bool,
-    #[arg(long = "case-id", help = "Registered Case ID To Append After Creation; Repeat To Preserve Order.")]
-    case_ids: Vec<String>,
+    #[arg(long, help = "Let The Server Continue With The Next Unstarted Member After A Durable Seal.")]
+    continue_automatically: bool,
     #[command(flatten)]
     connection: crate::connection::Args,
-    #[arg(long, help = "Submit The Created Cycle Once Using This Caller-Retained Key.")]
-    request_key: Option<String>,
-    #[arg(long, requires = "request_key", value_parser = clap::value_parser!(u64).range(1..=86400), help = "Wait For A Terminal Receipt After Submission.")]
-    wait_seconds: Option<u64>,
-    #[arg(long, help = "Emit Creation, Admission, And Optional Receipt As JSON Lines.")]
+    #[arg(long, help = "Emit The Created Cycle Identity As JSON.")]
     json: bool,
 
-    #[arg(long, conflicts_with_all = ["json", "request_key"], help = "Print Only The Created Cycle UUID For Scripts.")]
+    #[arg(long, conflicts_with = "json", help = "Print Only The Created Cycle UUID For Scripts.")]
     id_only: bool,
 }
 
@@ -81,6 +76,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                 created_at: None,
                 updated_at: None,
             }),
+            continue_automatically: args.continue_automatically,
             continue_on_failure: args.continue_on_failure,
             context: None,
         },
@@ -90,12 +86,6 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     {
         Identifier::new(metadata.identifier.clone()).map_err(|error| crate::Error::Input(error.to_string()))?;
     }
-    for id in &args.case_ids {
-        dokime_domain::model::identity::CaseId::from_wire(id).map_err(|error| crate::Error::Input(error.to_string()))?;
-    }
-    if let Some(key) = &args.request_key {
-        dokime_domain::model::execution::command::validate_idempotency_key(key).map_err(|error| crate::Error::Input(error.to_string()))?;
-    }
     let client = args.connection.connect().await?;
     let result = async {
         let cycle = client.create_cycle(request).await?;
@@ -104,36 +94,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             println!("{}", cycle.id());
             std::io::stdout().flush()?;
         } else {
-            created(&mut std::io::stdout(), cycle.id().as_str(), args.request_key.as_deref(), args.json)?;
-        }
-        if !args.case_ids.is_empty() {
-            cycle
-                .append_cases(SelectionPlan { selections: Vec::new(), max_cases: 0, case_ids: args.case_ids, cycle_id: String::new() })
-                .await?;
-        }
-        if let Some(key) = args.request_key {
-            let admission = cycle.run(&key).await?;
-            {
-                let mut output = std::io::stdout();
-                if args.json {
-                    writeln!(
-                        output,
-                        "{}",
-                        serde_json::json!({
-                            "cycle_id": cycle.id().as_str(), "request_id": admission.command_id,
-                        })
-                    )?;
-                } else {
-                    writeln!(output, "Admitted Request {} For Cycle {}", admission.command_id, cycle.id())?;
-                }
-                output.flush()?;
-            }
-            if let Some(seconds) = args.wait_seconds {
-                let id = dokime_domain::model::identity::CommandId::from_uuid(&admission.command_id)
-                    .map_err(|error| crate::Error::Setup(error.to_string()))?;
-                let receipt = cycle.request(id).wait(Some(Duration::from_secs(seconds)), None).await?;
-                super::request::print(&receipt, args.json)?;
-            }
+            created(&mut std::io::stdout(), cycle.id().as_str(), args.json)?;
         }
         Ok(())
     }
@@ -143,18 +104,11 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 /* === Private Functions === */
-fn created(output: &mut impl Write, cycle: &str, key: Option<&str>, json: bool) -> crate::Result<()> {
+fn created(output: &mut impl Write, cycle: &str, json: bool) -> crate::Result<()> {
     if json {
-        let mut value = serde_json::json!({"cycle_id": cycle});
-        if let Some(key) = key {
-            value["request_key"] = key.into();
-        }
-        writeln!(output, "{value}")?;
+        writeln!(output, "{}", serde_json::json!({"cycle_id": cycle}))?;
     } else {
         writeln!(output, "Created Cycle {cycle}")?;
-        if let Some(key) = key {
-            writeln!(output, "Run Request Key {key}")?;
-        }
     }
     output.flush()?;
     Ok(())

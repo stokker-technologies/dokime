@@ -78,7 +78,7 @@ async fn stored_provider_paths() {
     register_python_suite(&handle, suite.clone()).await;
     let cycle = start_cycle(&handle, suite, false).await;
     let mut records = handle.subscribe_records();
-    handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    handle.start_next_execution(cycle.clone(), CommandContext::default()).await;
     wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Failed).await;
     wait_for_subscription_record(&mut records, "provider.execution.failed").await;
     let evidence = handle.evidence_snapshot().await.unwrap();

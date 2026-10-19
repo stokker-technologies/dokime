@@ -1,35 +1,44 @@
 #Requires -Version 7.3
 # Dokime - SPDX-License-Identifier: Apache-2.0
-# Pass Connection Flags Such As --endpoint, --ca, --key-file Or --env-file.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandArgumentPassing = 'Standard'
 $PSNativeCommandUseErrorActionPreference = $false
 
-$Connection = @($args)
-$Dokime = if ($env:DOKIME_EXECUTABLE) { $env:DOKIME_EXECUTABLE } else { 'dokime' }
-$Responses = $env:DOKIME_RESPONSE_DIRECTORY
-$Completed = $false
-$Result = 0
+# Connection Parameters
+$ENDPOINT = 'https://127.0.0.1:8766'
+$CA_CERTIFICATE = 'server.pem'
+$KEY_FILE = 'remote.key'
+$ENV_FILE = ''
+
+# Response Files
+$RESPONSE_DIRECTORY = ''
+
+# Connect With The Explicit Parameters
+$Connection = @('--endpoint', $ENDPOINT)
+if ($CA_CERTIFICATE) { $Connection += @('--ca', $CA_CERTIFICATE) }
+if ($KEY_FILE) { $Connection += @('--key-file', $KEY_FILE) }
+if ($ENV_FILE) { $Connection += @('--env-file', $ENV_FILE) }
 
 function Invoke-Dokime {
-    param([string[]]$Command)
-    $ConnectionArguments = $script:Connection
-    & $script:Dokime @Command @ConnectionArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Dokime Returned Exit Code $LASTEXITCODE; No Command Was Retried"
-    }
+    param([string[]]$Command, [switch]$AllowSavedFailure)
+    dokime @Command @script:Connection
+    $Status = $LASTEXITCODE
+    if ($AllowSavedFailure -and $Status -eq 1) { $script:Result = 1; return }
+    if ($Status -ne 0) { throw "Dokime Returned Exit Code $Status; No Mutation Was Retried" }
 }
 
-try {
-    if ($Responses) {
-        if (Test-Path -LiteralPath $Responses) {
-            throw 'Choose A New Response Directory; Existing Data Is Preserved'
-        }
-        New-Item -ItemType Directory -Path $Responses | Out-Null
-    }
+# Reserve All Response Files Before Device Work
+if ($RESPONSE_DIRECTORY) {
+    if (Test-Path -LiteralPath $RESPONSE_DIRECTORY) { throw 'Response Directory Exists; Existing Data Is Preserved' }
+    New-Item -ItemType Directory -Path $RESPONSE_DIRECTORY | Out-Null
+}
 
-    Invoke-Dokime -Command @('operation', 'list')
+# Discover Device Operations
+Invoke-Dokime -Command @('operation', 'list')
+
+# Read, Power On, Observe, Power Off And Verify
+try {
     $Calls = @(
         @('obc.device.read', '{}', 'before'),
         @('obc.device.set_power', '{"enabled":true}', 'power-on'),
@@ -39,21 +48,10 @@ try {
     )
     foreach ($Call in $Calls) {
         $Command = @('operation', 'call', $Call[0], '--json', $Call[1])
-        if ($Responses) {
-            $Destination = Join-Path $Responses "$($Call[2]).json"
-            $Command += @('--output', $Destination)
-        }
+        if ($RESPONSE_DIRECTORY) { $Command += @('--output', (Join-Path $RESPONSE_DIRECTORY "$($Call[2]).json")) }
         Invoke-Dokime -Command $Command
     }
-    $Completed = $true
+} catch {
+    [Console]::Error.WriteLine("Device Workflow Incomplete: $_. Read Device State Before Resending")
+    exit 3
 }
-catch {
-    [Console]::Error.WriteLine($_.Exception.Message)
-    $Result = 3
-}
-finally {
-    if (-not $Completed) {
-        [Console]::Error.WriteLine('Device Outcome May Be Unconfirmed. Read Device State Before Resending; No Command Was Retried')
-    }
-}
-exit $Result

@@ -456,7 +456,7 @@ impl RuntimeHandle {
     ) {
         let mut host = self
             .collect_telemetry(&TelemetrySelection {
-                streams: vec![Identifier::new("host.system").expect("valid stream")],
+                streams: vec![Identifier::new("host.system").expect("valid stream").into()],
                 ..TelemetrySelection::default()
             })
             .await;

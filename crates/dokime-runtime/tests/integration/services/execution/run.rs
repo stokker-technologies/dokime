@@ -47,14 +47,17 @@ async fn cycle_exposes_rows() {
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
 
-    let run = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
     publish_tracking_sample(&runtime, &running).await;
     // Publication Returns Once The Sample Is Durable, So The Stream Reads It Directly.
     let streamed = runtime
-        .selected_telemetry(TelemetrySelection { streams: vec![Identifier::new("tracking").unwrap()], ..TelemetrySelection::default() })
+        .selected_telemetry(TelemetrySelection {
+            streams: vec![Identifier::new("tracking").unwrap().into()],
+            ..TelemetrySelection::default()
+        })
         .await
         .len();
     executor.release();
@@ -88,7 +91,7 @@ async fn provider_lane_run() {
     let created = cycle_snapshot(&runtime, &test_cycle_id).await.created_at;
     assert_wall_clock(&created);
 
-    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
     wait_for_subscription_record(&mut records, "provider.execution.completed").await;
     for execution in &cycle.test_executions {
@@ -144,7 +147,7 @@ async fn provider_lane_run() {
     let queued = cycle_snapshot(&runtime, &repeated_id).await;
     assert_eq!(queued.cases().count(), 2);
 
-    let receipt = runtime.run_cycle_cases(repeated_id.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(repeated_id.clone(), CommandContext::default()).await;
     let repeated_cycle = wait_for_cycle_lifecycle(&runtime, &repeated_id, CycleStatus::Completed).await;
     // Completion Precedes Durable Capture; Read After Those Writers Settle.
     for execution in &repeated_cycle.test_executions {
@@ -170,8 +173,10 @@ async fn failing_panicking_failed() {
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
     let mut records = runtime.subscribe_records();
 
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
+    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
+    runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let cycle = cycle_snapshot(&runtime, &test_cycle_id).await;
     wait_for_subscription_record(&mut records, "provider.execution.failed").await;
     let evidence = runtime.evidence_snapshot().await.unwrap();
 
@@ -210,8 +215,10 @@ async fn failing_panicking_failed() {
     register_python_suite(&runtime, suite.clone()).await;
     let panicking_id = start_cycle(&runtime, suite, false).await;
 
-    let receipt = runtime.run_cycle_cases(panicking_id.clone(), CommandContext::default()).await;
-    let panicking_cycle = wait_for_cycle_lifecycle(&runtime, &panicking_id, CycleStatus::Failed).await;
+    let receipt = runtime.start_next_execution(panicking_id.clone(), CommandContext::default()).await;
+    wait_for_cycle_lifecycle(&runtime, &panicking_id, CycleStatus::Failed).await;
+    runtime.seal_cycle(panicking_id.clone(), CommandContext::default()).await.unwrap();
+    let panicking_cycle = cycle_snapshot(&runtime, &panicking_id).await;
     let overview = runtime.runtime_overview().await.expect("runtime overview query succeeds");
 
     assert_eq!(receipt.status, CommandStatus::Accepted);
@@ -240,13 +247,16 @@ async fn stop_holds_unwind() {
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
 
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
 
-    let stop = runtime.stop_cycle(test_cycle_id.clone(), CommandContext::default()).await;
+    let sealing = runtime.clone();
+    let selected = test_cycle_id.clone();
+    let stop = tokio::spawn(async move { sealing.seal_cycle(selected, CommandContext::default()).await });
     let stopping = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopping).await;
     let archive = runtime.set_cycle_archived(test_cycle_id.clone(), true, CommandContext::default()).await;
     executor.release();
+    let stop = stop.await.unwrap();
 
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopped).await;
     let cycle = cycle_snapshot(&runtime, &test_cycle_id).await;
@@ -283,7 +293,7 @@ async fn stop_spares_sibling() {
     };
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
     let stopped_id = running
@@ -300,36 +310,38 @@ async fn stop_spares_sibling() {
     let during = cycle_snapshot(&runtime, &test_cycle_id).await;
     let repeated = runtime.stop_execution(stopped_id.clone(), CommandContext::default()).await;
 
-    // === Settle And Read The Sealed Reports === //
-
-    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopped).await;
-    let stopped = cycle.test_executions.iter().find(|execution| execution.test_execution_id == stopped_id).unwrap();
-    let sibling = cycle.test_executions.iter().find(|execution| execution.test_execution_id != stopped_id).unwrap();
-    let cycle_report = crate::service_support::reports::payload(
-        runtime.storage(),
-        &cycle.saved.as_ref().expect("a cycle with a stopped execution seals its final report").report,
-    )
-    .await;
+    assert!(stop.is_ok(), "{stop:?}");
+    assert!(repeated.is_ok(), "repeated Stop resolves the durable execution seal");
+    assert_eq!(during.phase, dokime_domain::model::execution::result::CyclePhase::Active);
+    assert_eq!(during.lifecycle, CycleStatus::Stopped);
+    assert!(!during.continue_automatically);
+    assert!(during.saved.is_none());
+    assert_eq!(during.test_executions.len(), 2);
+    let stopped = during.test_executions.iter().find(|execution| execution.test_execution_id == stopped_id).unwrap();
+    let sibling = during.test_executions.iter().find(|execution| execution.test_execution_id != stopped_id).unwrap();
+    let original_sibling = running.test_executions.iter().find(|execution| execution.test_execution_id != stopped_id).unwrap();
+    assert_eq!(stopped.status, ExecutionStatus::Cancelled);
+    assert_eq!(sibling, original_sibling);
+    assert!(sibling.started_at.is_none() && sibling.saved.is_none());
     let execution_report = crate::service_support::reports::payload(
         runtime.storage(),
-        &stopped.saved.as_ref().expect("a stopped execution seals its final report").report,
+        &stopped.saved.as_ref().expect("Stop durably seals the selected execution").report,
     )
     .await;
-
-    assert!(stop.is_ok(), "{stop:?}");
-    assert!(repeated.is_err(), "a second stop of the same execution is refused");
-    assert_eq!(during.lifecycle, CycleStatus::Running);
-    assert_eq!(cycle.test_executions.len(), 2);
-    assert_eq!(stopped.status, ExecutionStatus::Cancelled);
-    assert_eq!(sibling.status, ExecutionStatus::Passed);
     assert_eq!(execution_report["test_executions"][0]["status"], "stopped");
-    let statuses = cycle_report["test_executions"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|execution| execution["status"].as_str().unwrap().to_owned())
-        .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(statuses, ["passed".to_owned(), "stopped".to_owned()].into());
+
+    runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let sealed = cycle_snapshot(&runtime, &test_cycle_id).await;
+    assert_eq!(sealed.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
+    let final_stopped = sealed.test_executions.iter().find(|execution| execution.test_execution_id == stopped_id).unwrap();
+    assert_eq!(final_stopped, stopped);
+    assert!(sealed.test_executions.iter().all(|execution| execution.saved.is_some()));
+    let cycle_report = crate::service_support::reports::payload(
+        runtime.storage(),
+        &sealed.saved.as_ref().expect("Seal durably finalizes the cycle report").report,
+    )
+    .await;
+    assert!(cycle_report["test_executions"].as_array().unwrap().iter().all(|execution| execution["status"] == "stopped"));
 }
 
 #[tokio::test]
@@ -341,7 +353,7 @@ async fn cycle_spanning_group() {
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
     let test_cycle_id = start_cycle(&runtime, first, false).await;
     runtime
-        .append_cycle_cases(
+        .append_fixture_cases(
             test_cycle_id.clone(),
             materialize_cases("provider:testdb:plt400.diagnostics", &second),
             CommandContext::default(),
@@ -349,7 +361,7 @@ async fn cycle_spanning_group() {
         .await
         .unwrap();
 
-    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{:?}", receipt.rejection);
 
     let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
@@ -382,7 +394,7 @@ async fn fail_fast_failure() {
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
     let test_cycle_id = start_cycle(&runtime, first, false).await;
     runtime
-        .append_cycle_cases(
+        .append_fixture_cases(
             test_cycle_id.clone(),
             materialize_cases("provider:testdb:plt400.diagnostics", &second),
             CommandContext::default(),
@@ -390,7 +402,7 @@ async fn fail_fast_failure() {
         .await
         .unwrap();
 
-    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{:?}", receipt.rejection);
 
     let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;

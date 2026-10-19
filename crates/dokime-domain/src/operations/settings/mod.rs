@@ -44,7 +44,6 @@ pub use update_storage_policy::UpdateStoragePolicy;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
 use crate::model::values::wire::Value;
@@ -85,67 +84,54 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for ReadStoragePolicy {
     const PATH: &'static str = "/dokime.v1.Settings/ReadStoragePolicy";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for UpdateStoragePolicy {
     const PATH: &'static str = "/dokime.v1.Settings/UpdateStoragePolicy";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for GetSettings {
     const PATH: &'static str = "/dokime.v1.Settings/GetSettings";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListStorageSources {
     const PATH: &'static str = "/dokime.v1.Settings/ListStorageSources";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ReorderStorageSources {
     const PATH: &'static str = "/dokime.v1.Settings/ReorderStorageSources";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for SetStorageSourceEnabled {
     const PATH: &'static str = "/dokime.v1.Settings/SetStorageSourceEnabled";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for GetPluginSettings {
     const PATH: &'static str = "/dokime.v1.Settings/GetPluginSettings";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for UpdatePluginSettings {
     const PATH: &'static str = "/dokime.v1.Settings/UpdatePluginSettings";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for UpdatePluginCredential {
     const PATH: &'static str = "/dokime.v1.Settings/UpdatePluginCredential";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for ReadApplicationSettings {
     const PATH: &'static str = "/dokime.v1.Settings/ReadApplicationSettings";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for UpdateAppearance {
     const PATH: &'static str = "/dokime.v1.Settings/UpdateAppearance";
-    const ACCESS: Access = Access::Control;
 }
 
 impl Endpoint for UpdateReportDefaults {
     const PATH: &'static str = "/dokime.v1.Settings/UpdateReportDefaults";
-    const ACCESS: Access = Access::Control;
 }
 
 impl Endpoint for UpdateDataRoot {
     const PATH: &'static str = "/dokime.v1.Settings/UpdateDataRoot";
-    const ACCESS: Access = Access::Admin;
 }
 
 /* === Public Functions === */

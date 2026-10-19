@@ -22,7 +22,7 @@ import pytest
 from google.protobuf.message import Message
 
 # Local Imports
-from dokime.client import _contracts
+from dokime.client import Cycle, Execution, _contracts
 from dokime.client._transport import Transport
 from dokime.client.errors import ProtocolError, RpcError
 from dokime.client.exports import export_evidence
@@ -68,8 +68,9 @@ class Reader:
 
 
 class ExportTransport(Transport):
-    def __init__(self, reader: Reader) -> None:
+    def __init__(self, reader: Reader, *, kind: str = "Execution") -> None:
         self.reader = reader
+        self.kind = kind
         self.verifications = 0
         self.requests = 0
 
@@ -80,7 +81,7 @@ class ExportTransport(Transport):
 
     async def stream(self, service: str, method: str, request: Message):
         assert (service, method) == ("Content", "DownloadEvidence")
-        assert request.subject.Execution.field_0 == IDENTITY
+        assert getattr(request.subject, self.kind).field_0 == IDENTITY
         self.requests += 1
         return self.reader
 
@@ -90,11 +91,12 @@ def test_verified_export(tmp_path: Path) -> None:
     destination = tmp_path / "execution.zip"
     destination.write_bytes(b"previous")
     transport = ExportTransport(Reader(_frames()))
+    execution = Execution._bind(IDENTITY, transport, BACKEND)
     with pytest.raises(FileExistsError):
-        asyncio.run(export_evidence(transport, BACKEND, "Execution", IDENTITY, destination))
+        asyncio.run(execution.export(destination))
     assert (transport.verifications, transport.requests) == (0, 0)
     assert destination.read_bytes() == b"previous"
-    result = asyncio.run(export_evidence(transport, BACKEND, "Execution", IDENTITY, destination, overwrite=True))
+    result = asyncio.run(execution.export(destination, overwrite=True))
     assert result.path == destination
     assert result.size_bytes == len(DATA)
     assert result.sha256 == hashlib.sha256(DATA).hexdigest()
@@ -102,6 +104,17 @@ def test_verified_export(tmp_path: Path) -> None:
     assert transport.requests == 1
     assert transport.reader.closed
     assert not destination.with_suffix(".zip.part").exists()
+
+
+def test_cycle_export(tmp_path: Path) -> None:
+    transport = ExportTransport(Reader(_frames(kind="Cycle")), kind="Cycle")
+    cycle = Cycle(IDENTITY, transport, BACKEND, ())
+    destination = tmp_path / "cycle.zip"
+    saved = asyncio.run(cycle.export(destination))
+    assert saved.path.read_bytes() == DATA
+    assert saved.sha256 == hashlib.sha256(DATA).hexdigest()
+    assert transport.requests == 1
+    assert transport.reader.closed
 
 
 @pytest.mark.parametrize("fault", ["hash", "identity", "size", "trailing", "completion", "status"])
@@ -132,6 +145,13 @@ def test_export_refusal(tmp_path: Path, fault: str) -> None:
     assert transport.requests == 1
     assert not destination.with_suffix(".zip.part").exists()
 
+    # Retry Transfers The Same Saved Subject Without Admitting Any Execution
+    transport.reader = Reader(_frames())
+    execution = Execution._bind(IDENTITY, transport, BACKEND)
+    saved = asyncio.run(execution.export(destination, overwrite=True))
+    assert saved.path.read_bytes() == DATA
+    assert transport.requests == 2
+
 
 def test_export_cancellation(tmp_path: Path) -> None:
     destination = tmp_path / "execution.zip"
@@ -158,12 +178,12 @@ def _frame(branch: str, fields: dict) -> Message:
     return _contracts.construct(output.DESCRIPTOR, {"payload": {branch: {"field_0": fields}}})
 
 
-def _frames() -> list[Message]:
+def _frames(*, kind: str = "Execution") -> list[Message]:
     sha256 = hashlib.sha256(DATA).hexdigest()
     metadata = _frame(
         "Metadata",
         {
-            "subject": {"Execution": {"field_0": IDENTITY}},
+            "subject": {kind: {"field_0": IDENTITY}},
             "schema_version": 1,
             "filename": "execution.zip",
             "size_bytes": len(DATA),

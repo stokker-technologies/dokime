@@ -6,8 +6,8 @@
  * server API types.
  */
 
+import type { Row13 as GeneratedNativeExecutionCheckpoint } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row13 as GeneratedNativeExecutionCheckpoint } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { ValueFormat } from "./format";
 
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;

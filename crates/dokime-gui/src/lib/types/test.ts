@@ -11,7 +11,7 @@ import type { JsonObject } from "../types";
 import type { CycleSummaryDefinition } from "./cycle-summary";
 
 type ExecutionControls = {
-  requestId: string;
+  requestId?: string;
   paused: boolean;
   stopRequested: boolean;
   canPause: boolean;
@@ -230,6 +230,7 @@ export type TestCycle = {
   current_test_execution_id?: string | null;
   current_queue_item_id?: string | null;
   continue_on_failure: boolean;
+  continue_automatically: boolean;
   started_at?: string | null;
   finished_at?: string | null;
   duration_s?: number | null;
@@ -250,8 +251,6 @@ export type TestCycle = {
  * because admission is re-checked on the mutation itself.
  */
 export type CaseActions = {
-  run: boolean;
-  schedule_rerun: boolean;
   delete: boolean;
   unavailable_reasons: string[];
 };
@@ -286,10 +285,6 @@ export type ExecutionQueueItem = {
   /** The status of `current_test_execution_id`, as the summary projects it. */
   current_test_execution_status?: TestExecution["status"] | null;
   attempt_count: number;
-  /* A recorded outcome with a fresh undispatched attempt on top of it.
-     Optional because a report frozen before the projection carried it has no
-     such field, and a missing statement is not a scheduled rerun. */
-  rerun_scheduled?: boolean;
   /** Absent where the projection reports none, which is every captured cycle. */
   actions?: CaseActions | null;
   blocked_reason?: string | null;

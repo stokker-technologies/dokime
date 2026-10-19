@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:9639c16f32833662071d86eebb315211164c1f25a3bc19dbc1c94e3e8ffca21d
+# Rendered by stkr project update from templates/ci/.github/workflows/prepare-release.yml; sha256:dc947425fe0127a33c76f94f90802d282e06fa2f4d85b83306a3febeeec41eba
 name: Prepare Release
 "on":
   workflow_dispatch:
@@ -42,8 +42,6 @@ jobs:
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true

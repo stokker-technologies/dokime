@@ -72,14 +72,19 @@ async fn execution_prompt_identity() {
         template_id: suite.test_case_templates[0].test_case_template_id.to_string(),
         ..Default::default()
     };
-    let plan = model::planning::wire::SelectionPlan { selections: vec![selection], ..Default::default() };
-    let first = cycle.append_cases(plan.clone()).await.unwrap().execution_ids.remove(0);
-    let sibling = cycle.append_cases(plan).await.unwrap().execution_ids.remove(0);
+    let cases = client.materialize_template(contracts::planning::MaterializeTemplate { selection: Some(selection) }).await.unwrap();
+    let first = uuid::Uuid::now_v7().to_string();
+    let sibling = uuid::Uuid::now_v7().to_string();
+    let bindings = [&first, &sibling]
+        .into_iter()
+        .map(|id| contracts::execution::ExecutionBinding { execution_id: id.clone(), case_id: cases.cases[0].case_id.clone() })
+        .collect();
+    cycle.append(bindings).await.unwrap();
     assert_ne!(first, sibling);
     let execution_id = dokime_runtime::TestExecutionId::from_uuid(&first).unwrap();
     let execution = client.execution(execution_id.clone());
     let other = client.execution(dokime_runtime::TestExecutionId::from_uuid(&sibling).unwrap());
-    let command = ["dokime", "execution", "run", &first, "--request-key", "prompt-control", "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "start", &first, "--endpoint", &endpoint];
     dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     gate.started.notified().await;
 
@@ -166,7 +171,7 @@ async fn execution_prompt_identity() {
 
     // === Stop A Different Execution While Its Question Waits === //
 
-    let command = ["dokime", "execution", "run", &sibling, "--request-key", "prompt-stop", "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "start", &sibling, "--endpoint", &endpoint];
     dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     gate.started.notified().await;
     let waiting_id = dokime_runtime::model::identity::new_id::<PromptId>();
@@ -223,7 +228,6 @@ async fn execution_prompt_identity() {
 
 #[tokio::test]
 async fn prompt_answers_identity() {
-    const READ_TOKEN: &str = "prompt-read-token-012345678901234567890123456789";
     let root = tempfile::tempdir().unwrap();
     let mut definition = FormPrompt::<BTreeMap<String, i64>>::new("fixture.answer", "Exact answer")
         .field(PromptField {
@@ -253,14 +257,7 @@ async fn prompt_answers_identity() {
             .await
             .unwrap();
     }
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Control), BearerGrant::new("prompt-reader".into(), Role::Read, READ_TOKEN).unwrap()])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client.unary::<contracts::prompts::ListDefinitions>(contracts::prompts::ListDefinitions::default()).await.unwrap_err().code(),
@@ -337,7 +334,7 @@ async fn prompt_answers_identity() {
         .unwrap()
         .into_inner();
     let response = prompt.response.unwrap();
-    assert_eq!(response.responder, "fixture");
+    assert_eq!(response.responder, "remote");
     assert!(matches!(
         response.values.unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("counter") == Some(&Value::Integer(i64::MAX))
@@ -366,13 +363,9 @@ async fn prompt_answers_identity() {
         1
     );
     let read = WireClient::connect(server.local_endpoint()).await.unwrap();
-    read.unary::<contracts::prompts::GetPrompt>(auth(contracts::prompts::GetPrompt { prompt_id: ids[0].to_string() }, READ_TOKEN))
+    read.unary::<contracts::prompts::GetPrompt>(auth(contracts::prompts::GetPrompt { prompt_id: ids[0].to_string() }, TOKEN))
         .await
         .unwrap();
-    assert_eq!(
-        read.unary::<contracts::prompts::Respond>(auth(answer(i64::MAX), READ_TOKEN)).await.unwrap_err().code(),
-        Code::PermissionDenied
-    );
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -406,7 +399,7 @@ async fn prompt_condition_commit() {
         })
         .await
         .unwrap();
-    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let view = client
         .unary::<contracts::prompts::GetPrompt>(authenticated(contracts::prompts::GetPrompt { prompt_id: id.to_string() }))
@@ -465,7 +458,7 @@ async fn prompt_level_watched() {
         })
         .await
         .unwrap();
-    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     // === Read The Prompt And Its Request Record === //
@@ -516,6 +509,7 @@ async fn settled_prompt_refused() {
         .create_cycle(
             dokime_runtime::transactions::CycleDefinition {
                 metadata: support::metadata("cycle.prompt.settle", "Prompt Settle"),
+                continue_automatically: false,
                 continue_on_failure: false,
             },
             CommandContext::default(),
@@ -532,15 +526,15 @@ async fn settled_prompt_refused() {
         })
         .await
         .unwrap();
-    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let pending = |cycle: &TestCycleId| contracts::prompts::ListPending { cycle_id: Some(cycle.to_string()), ..Default::default() };
     let waiting = client.unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle))).await.unwrap().into_inner();
     assert_eq!(waiting.prompts.len(), 1);
 
-    // === Stop The Cycle === //
+    // === Seal The Cycle === //
 
-    handle.stop_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
+    handle.seal_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
 
     // === Nothing Waits, And A Late Answer Is A Failed Precondition === //
 

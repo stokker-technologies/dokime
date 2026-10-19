@@ -225,7 +225,7 @@ async fn host_collector_stream() {
     initial_request.source_id = source.clone();
     initial_request.stream = "host.system".into();
     let initial = runtime.request_host_sampling(scope(None), vec![initial_request]).await.unwrap();
-    let initial_selection = TelemetrySelection { streams: vec![Identifier::new("host.system").unwrap()], ..Default::default() };
+    let initial_selection = TelemetrySelection { streams: vec![Identifier::new("host.system").unwrap().into()], ..Default::default() };
     until_telemetry(&runtime, || async { (!runtime.collect_telemetry(&initial_selection).await.is_empty()).then_some(()) }).await;
 
     let streams = ["host.system", "host.bluetooth"];
@@ -247,8 +247,10 @@ async fn host_collector_stream() {
     assert_eq!(leases.len(), streams.len());
     assert_eq!(leases[0].job_id, leases[1].job_id);
     assert_eq!(leases[0].job_id, initial[0].job_id);
-    let selection =
-        TelemetrySelection { streams: streams.iter().map(|stream| Identifier::new(*stream).unwrap()).collect(), ..Default::default() };
+    let selection = TelemetrySelection {
+        streams: streams.iter().map(|stream| Identifier::new(*stream).unwrap().into()).collect(),
+        ..Default::default()
+    };
     until_telemetry(&runtime, || async {
         let samples = runtime.collect_telemetry(&selection).await;
         streams.iter().all(|stream| samples.iter().any(|sample| sample.stream.as_str() == *stream)).then_some(())

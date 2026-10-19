@@ -291,7 +291,7 @@ async fn stopping_cycle_waits() {
         async move { runtime.wait_for_prompt_response_for_cycle(prompt_id.clone(), cycle_id).await }
     });
 
-    let stop = runtime.stop_cycle(cycle_id.clone(), CommandContext::default()).await;
+    let stop = runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await;
     assert!(stop.is_ok());
 
     // The stop settles the cycle's question without answering it, so the
@@ -346,7 +346,7 @@ async fn cycle_stop_settles() {
     let suite = inspection_suite(plt400_suite());
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
     let id = ask_inspection(&runtime, &running, 0).await;
@@ -354,7 +354,7 @@ async fn cycle_stop_settles() {
 
     // === Stop The Cycle === //
 
-    runtime.stop_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
+    runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
 
     // === The Stop Itself Settled The Question === //
 
@@ -381,7 +381,7 @@ async fn execution_stop_settles() {
     };
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
     let index = running
@@ -413,7 +413,7 @@ async fn interruption_settles_prompts() {
     let suite = inspection_suite(plt400_suite());
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
     let id = ask_inspection(&runtime, &running, 0).await;
@@ -697,7 +697,7 @@ async fn check_stopped_question(stop_cycle: bool) {
         false,
     )
     .await;
-    let receipt = runtime.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     let asked = until_state(&runtime, |state| !state.pending_prompt_projection().is_empty()).await;
     let id = asked.state().pending_prompt_projection()[0].prompt_id.clone();
@@ -705,7 +705,7 @@ async fn check_stopped_question(stop_cycle: bool) {
     // === Stop While The Question Is Open === //
 
     if stop_cycle {
-        runtime.stop_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
+        runtime.seal_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
     } else {
         let execution = runtime.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap().test_executions[0]
             .test_execution_id

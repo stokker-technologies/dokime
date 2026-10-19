@@ -28,7 +28,7 @@ pub use update_listener::UpdateListener;
 // Third Party Imports
 
 // Local Imports
-use super::{Access, Endpoint, ORDINARY, TRANSFER};
+use super::{Endpoint, ORDINARY, TRANSFER};
 use crate::model::remote::{GeneratedAccessKey, RemoteListenerSettings, RemoteListenerStatus};
 
 /* === Constants === */
@@ -55,25 +55,21 @@ pub enum Operations {
 
 impl Endpoint for ReadListener {
     const PATH: &'static str = "/dokime.v1.Remote/ReadListener";
-    const ACCESS: Access = Access::Admin;
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for UpdateListener {
     const PATH: &'static str = "/dokime.v1.Remote/UpdateListener";
-    const ACCESS: Access = Access::Admin;
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for GenerateKey {
     const PATH: &'static str = "/dokime.v1.Remote/GenerateKey";
-    const ACCESS: Access = Access::Admin;
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for RegenerateCertificate {
     const PATH: &'static str = "/dokime.v1.Remote/RegenerateCertificate";
-    const ACCESS: Access = Access::Admin;
     const LOCAL_ONLY: bool = true;
 }
 

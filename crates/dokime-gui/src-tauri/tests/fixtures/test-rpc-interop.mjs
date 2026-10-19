@@ -11,7 +11,7 @@ const { invoke, load } = harness;
 try {
   const api = await load("generated/client.js");
   const value = await harness.loadCanonical("dokime/v1/CatalogMessages/GetSuite/messages_pb.js");
-  const execution = await harness.loadCanonical("dokime/v1/ExecutionMessages/RunCycle/messages_pb.js");
+  const execution = await harness.loadCanonical("dokime/v1/ExecutionMessages/StartExecution/messages_pb.js");
   const generation = process.env.DOKIME_TEST_GENERATION;
   function connected(isCurrent = () => true) {
     return { generation, isCurrent };
@@ -184,14 +184,14 @@ try {
     new Uint8Array(await invoke("fixture_value", toBinary(value.Row19Schema, values))),
   );
   assert.deepEqual(valueReply, values);
-  const admission = create(execution.Row7Schema, {
+  const admission = create(execution.Row9Schema, {
     cursor: { position: 18446744073709551615n },
     acceptedAt: { seconds: -1n, nanos: 999999999 },
   });
   const admissionReply = fromBinary(
-    execution.Row7Schema,
+    execution.Row9Schema,
     new Uint8Array(
-      await invoke("fixture_admission", toBinary(execution.Row7Schema, admission)),
+      await invoke("fixture_admission", toBinary(execution.Row9Schema, admission)),
     ),
   );
   assert.deepEqual(admissionReply, admission);

@@ -104,7 +104,6 @@ pub struct RequestCycleReportFinalization {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SealCycle {
     pub sealed_cycle: dokime_domain::model::execution::result::TestCycle,
-    pub sealed_executions: Vec<dokime_domain::model::execution::saved::ExecutionSeal>,
 }
 
 #[harmos::transaction(id = "dokime.execution.seal", version = 1, irreversible)]
@@ -211,8 +210,8 @@ impl Transaction<RuntimeState> for StageQueuedStop {
         if request.summary.phase != RunPhase::Queued || request.summary.prepared != 0 || request.summary.provider_started_at.is_some() {
             return Err("request already owns provider work".into());
         }
-        if state.cycles[&request.summary.cycle_id].phase != dokime_domain::model::execution::result::CyclePhase::Sealing {
-            return Err("queued cancellation requires a sealing cycle".into());
+        if !request.summary.stop_requested {
+            return Err("queued cancellation requires a stop request".into());
         }
         Ok(())
     }
@@ -307,15 +306,15 @@ impl Transaction<RuntimeState> for SealCycle {
             return Err("sealed cycle differs from its terminal owner".into());
         }
         seal.validate(sealed).map_err(|source| source.to_string())?;
-        if self.sealed_executions.len() != sealed.execution_ids.len() {
-            return Err("sealed executions differ from cycle membership".into());
-        }
-        for (id, execution_seal) in sealed.execution_ids.iter().zip(&self.sealed_executions) {
-            if &execution_seal.source.execution.execution_id != id {
-                return Err("sealed executions differ from cycle membership".into());
-            }
-            if state.executions[id].saved.as_ref().is_some_and(|saved| saved != execution_seal) {
-                return Err("execution already has a different immutable report seal".into());
+        for revision in &seal.executions {
+            let execution = state.executions.get(&revision.execution_id).ok_or("execution seal owner is missing")?;
+            let execution_seal = execution.saved.as_ref().ok_or("cycle member must be sealed before its cycle")?;
+            execution_seal.validate(execution).map_err(|error| error.to_string())?;
+            let source_matches = execution_seal.source.execution.execution_id == revision.execution_id
+                && execution_seal.source.owner_node_id == seal.owner_node_id;
+            let dependencies_saved = revision.position.covers(&execution_seal.dependencies_saved).map_err(|error| error.to_string())?;
+            if !source_matches || !dependencies_saved {
+                return Err("cycle seal differs from its durable execution seals".into());
             }
         }
         Ok(())
@@ -324,11 +323,6 @@ impl Transaction<RuntimeState> for SealCycle {
         let id = &self.sealed_cycle.test_cycle_id;
         state.cycles.insert(id.clone(), self.sealed_cycle.clone());
         state.cycle_report_finalizations.remove(id);
-        for seal in &self.sealed_executions {
-            let member = &seal.source.execution.execution_id;
-            state.executions.get_mut(member).expect("checked member").saved = Some(seal.clone());
-            state.report_finalizations.remove(member);
-        }
     }
 }
 
@@ -456,7 +450,6 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
             request.summary.finished_at = Some(self.at.clone());
             request.summary.paused = false;
             request.pending.clear();
-            request.groups.clear();
             request.conclusion = Some(CycleStatus::Stopped);
             request.failure = Some("runtime restarted before request completion".into());
         }
@@ -570,6 +563,7 @@ mod tests {
             updated_at: at,
             execution_ids: vec![],
             records: Default::default(),
+            continue_automatically: false,
             continue_on_failure: false,
             result: None,
         };

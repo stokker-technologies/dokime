@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/run.py; sha256:f470b06ceeb55b1036a8f9ef599a44ef3afbfc1850f8bde15bd3ba9ff23a3644
+# Rendered by stkr project update from templates/python/release/run.py; sha256:c35dffdf76ba8dedea70215cfcb02ef87d8a24a575fa4ff24e426bc5eacb04b2
 # ***
 #
 # Dokime
@@ -58,23 +58,14 @@ LOCKS = (
 def inputs(directory: Path) -> dict:
     """Identify Committed Source And Locked Native Resolved Inputs Across Promotions."""
 
-    def output(command: list[str]) -> str:
-        return subprocess.run(
-            command,
-            cwd=directory,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=True,
-        ).stdout
-
-    tree = output(["git", "rev-parse", "HEAD^{tree}"]).strip()
-    if output(["git", "status", "--porcelain", "--untracked-files=normal"]).strip():
+    tree = policy.execute(directory, ["git", "rev-parse", "HEAD^{tree}"], capture=True).strip()
+    if policy.execute(directory, ["git", "status", "--porcelain", "--untracked-files=normal"], capture=True).strip():
         tree = None
     graph = []
     overrides = []
     if (directory / "Cargo.toml").is_file():
-        metadata = json.loads(output(["cargo", "metadata", "--locked", "--offline", "--format-version", "1"]))
+        resolved = policy.execute(directory, ["cargo", "metadata", "--locked", "--format-version", "1"], capture=True)
+        metadata = json.loads(resolved)
         identities = {}
         for package in metadata["packages"]:
             source = package["source"]
@@ -174,7 +165,8 @@ def assets(directory: Path, settings: dict) -> list[dict]:
     for definition in settings.get("assets", []):
         if definition.get("target") != selected:
             continue
-        source = policy.inside(directory, definition["path"])
+        relative = definition["path"].format(profile="release", target=selected)
+        source = policy.inside(directory, relative)
         name = definition.get("name", source.name).format(product=settings["product"], version=value, target=selected)
         if (
             Path(name).name != name
@@ -192,7 +184,7 @@ def assets(directory: Path, settings: dict) -> list[dict]:
         result.append(
             {
                 "name": name,
-                "path": definition["path"],
+                "path": relative,
                 "target": selected,
                 "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                 "size": source.stat().st_size,

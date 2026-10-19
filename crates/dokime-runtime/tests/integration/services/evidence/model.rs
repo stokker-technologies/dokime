@@ -49,7 +49,7 @@ async fn definitions_survive_completion() {
 
     register_custom_suite(&runtime, custom_suite()).await;
     let test_cycle_id = start_cycle(&runtime, custom_suite(), false).await;
-    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
 
     assert_eq!(receipt.status, CommandStatus::Accepted);
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
@@ -93,7 +93,7 @@ async fn tracking_derives_kpis() {
 
     register_custom_suite(&runtime, custom_suite()).await;
     let test_cycle_id = start_cycle(&runtime, custom_suite(), false).await;
-    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
 

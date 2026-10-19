@@ -294,7 +294,8 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
     let Some(mut cycle) = state.cycle_view(&finish.test_cycle_id) else {
         return plan;
     };
-    let stopped = matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
+    let stopped = state.run_requests.get(&finish.request_id).is_some_and(|request| request.summary.stop_requested)
+        || matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
     let bounded =
         state.run_requests.values().any(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal());
     let outcome_ids = outcome.executions.iter().map(|execution| execution.test_execution_id.as_str()).collect::<BTreeSet<_>>();
@@ -446,7 +447,8 @@ fn prepare_provider_error(state: &RuntimeState, finish: &FinishProvider, error: 
     let mut terminal_records = Vec::new();
     plan.cycle = state.cycle_view(&finish.test_cycle_id);
     if let Some(cycle) = plan.cycle.as_mut() {
-        stopped = matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
+        stopped = state.run_requests.get(&finish.request_id).is_some_and(|request| request.summary.stop_requested)
+            || matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
         cycle.lifecycle = if stopped { CycleStatus::Stopped } else { CycleStatus::Failed };
         for execution in &mut cycle.test_executions {
             if !finish.started_execution_ids.contains(&execution.test_execution_id) {

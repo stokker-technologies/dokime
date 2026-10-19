@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:656d9f95650f11cc152fabcdd8414d24f976c2fe64ab3a1719d7229ed2a144b5
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:f0a9c7c259e76c10a0646d654e3a72ad21fd872f500e126982837ce3aea23715
 name: CI
 "on":
   push:
@@ -41,8 +41,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -73,7 +71,7 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
-        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo,git-cliff
   check_python:
     name: Check / Python
     runs-on:
@@ -90,8 +88,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -122,7 +118,8 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
   check_rust:
     name: Check / Rust
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
@@ -138,8 +135,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -163,9 +158,7 @@ jobs:
         version: v0.18.0
     - run: mise run format:rust --check
     - run: mise run lint:rust
-    - run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        project_tools.test.cache -- cargo check --workspace --all-targets --no-default-features
+    - run: mise exec -- cargo check --workspace --all-targets --no-default-features
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
@@ -187,8 +180,8 @@ jobs:
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: >-
         python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
-  build_dev:
-    name: Build / Dev
+  build_product_dev:
+    name: Build / Product / Dev
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 30
     steps:
@@ -202,8 +195,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -218,7 +209,7 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
       with:
-        shared-key: ${{ matrix.os }}-build_dev
+        shared-key: ${{ matrix.os }}-build_product_dev
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
         cache-workspace-crates: false
         cache-on-failure: false
@@ -230,34 +221,34 @@ jobs:
       if: matrix.os != 'windows'
       shell: bash
       run: |-
-        mkdir -p target/tmp
+        mkdir -p target/ci
         outputs=()
-        for path in 'target/nextest/' 'target/fixtures/' 'target/wheels/' 'dist/'; do
+        for path in target/build/dev/ target/generated/; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/tmp/build-dev-${{ matrix.os }}.tar.zst" -- "${outputs[@]}"
+        tar --zstd -cf "target/ci/build-product-dev-${{ matrix.os }}.tar.zst" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- "${outputs[@]}"
     - name: Archive Build
       if: matrix.os == 'windows'
       shell: pwsh
       run: |-
-        New-Item -ItemType Directory -Force target/tmp | Out-Null
-        $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/') | ForEach-Object { $_.TrimEnd('/','\') } | Where-Object { Test-Path -LiteralPath $_ }
+        New-Item -ItemType Directory -Force target/ci | Out-Null
+        $outputs = @('target/build/dev/', 'target/generated/') | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
         if (!$outputs) { throw 'No build outputs found' }
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/tmp/build-dev-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0" -- @outputs
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-product-dev-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- @outputs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-dev-${{ matrix.os }}
-        path: target/tmp/build-dev-${{ matrix.os }}.tar.zst
+        name: build-product-dev-${{ matrix.os }}
+        path: target/ci/build-product-dev-${{ matrix.os }}.tar.zst
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: build-diagnostics-dev-${{ matrix.os }}
-        path: target/nextest/*/compiler.json
+        name: build-product-diagnostics-dev-${{ matrix.os }}
+        path: target/build/dev/*/product/compiler.json
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -282,10 +273,12 @@ jobs:
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
       MISE_ENABLE_TOOLS: >-
         python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
-  build_release:
-    name: Build / Release
+  build_tests_dev:
+    name: Build / Tests / Dev
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 30
+    needs:
+    - build_product_dev
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -297,8 +290,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -313,7 +304,113 @@ jobs:
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
       with:
-        shared-key: ${{ matrix.os }}-build_release
+        shared-key: ${{ matrix.os }}-build_tests_dev
+        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
+        cache-workspace-crates: false
+        cache-on-failure: false
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-dev-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: tar --zstd -xf "build-product-dev-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-dev-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - run: mise run build:tests --profile dev
+    - name: Archive Build
+      if: matrix.os != 'windows'
+      shell: bash
+      run: |-
+        mkdir -p target/ci
+        outputs=()
+        for path in target/build/dev/*/tests target/build/dev/*/fixtures; do
+          if [ -e "$path" ]; then outputs+=("$path"); fi
+        done
+        [ ${#outputs[@]} -gt 0 ]
+        tar --zstd -cf "target/ci/build-tests-dev-${{ matrix.os }}.tar.zst"  -- "${outputs[@]}"
+    - name: Archive Build
+      if: matrix.os == 'windows'
+      shell: pwsh
+      run: |-
+        New-Item -ItemType Directory -Force target/ci | Out-Null
+        $outputs = @('target/build/dev/*/tests', 'target/build/dev/*/fixtures') | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+        if (!$outputs) { throw 'No build outputs found' }
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-tests-dev-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-tests-dev-${{ matrix.os }}
+        path: target/ci/build-tests-dev-${{ matrix.os }}.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: build-tests-diagnostics-dev-${{ matrix.os }}
+        path: target/build/dev/*/tests/compiler.json
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
+      with:
+        path: .cache/mise/
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - linux
+        - windows
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
+  build_product_release:
+    name: Build / Product / Release
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ matrix.os }}-build_product_release
         save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
         cache-workspace-crates: false
         cache-on-failure: false
@@ -325,34 +422,143 @@ jobs:
       if: matrix.os != 'windows'
       shell: bash
       run: |-
-        mkdir -p target/tmp
+        mkdir -p target/ci
         outputs=()
-        for path in 'target/nextest/' 'target/fixtures/' 'target/wheels/' 'dist/'; do
+        for path in target/build/release/ target/generated/; do
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/tmp/build-release-${{ matrix.os }}.tar.zst" -- "${outputs[@]}"
+        tar --zstd -cf "target/ci/build-product-release-${{ matrix.os }}.tar.zst" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- "${outputs[@]}"
     - name: Archive Build
       if: matrix.os == 'windows'
       shell: pwsh
       run: |-
-        New-Item -ItemType Directory -Force target/tmp | Out-Null
-        $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/') | ForEach-Object { $_.TrimEnd('/','\') } | Where-Object { Test-Path -LiteralPath $_ }
+        New-Item -ItemType Directory -Force target/ci | Out-Null
+        $outputs = @('target/build/release/', 'target/generated/') | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
         if (!$outputs) { throw 'No build outputs found' }
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/tmp/build-release-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0" -- @outputs
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-product-release-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- @outputs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-release-${{ matrix.os }}
-        path: target/tmp/build-release-${{ matrix.os }}.tar.zst
+        name: build-product-release-${{ matrix.os }}
+        path: target/ci/build-product-release-${{ matrix.os }}.tar.zst
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: build-diagnostics-release-${{ matrix.os }}
-        path: target/nextest/*/compiler.json
+        name: build-product-diagnostics-release-${{ matrix.os }}
+        path: target/build/release/*/product/compiler.json
+        if-no-files-found: ignore
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
+      with:
+        path: .cache/mise/
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - linux
+        - windows
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_VERSION: ${{ matrix.os }}
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
+  build_tests_release:
+    name: Build / Tests / Release
+    runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
+    timeout-minutes: 30
+    needs:
+    - build_product_release
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: .cache/mise/
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ github.workspace }}/.cache/mise
+    - name: Cache / Registry
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ runner.os }}-registry
+        cache-targets: false
+        cache-bin: false
+        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      with:
+        shared-key: ${{ matrix.os }}-build_tests_release
+        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
+        cache-workspace-crates: false
+        cache-on-failure: false
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-release-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: tar --zstd -xf "build-product-release-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-release-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - run: mise run build:tests --profile release
+    - name: Archive Build
+      if: matrix.os != 'windows'
+      shell: bash
+      run: |-
+        mkdir -p target/ci
+        outputs=()
+        for path in target/build/release/*/tests target/build/release/*/fixtures; do
+          if [ -e "$path" ]; then outputs+=("$path"); fi
+        done
+        [ ${#outputs[@]} -gt 0 ]
+        tar --zstd -cf "target/ci/build-tests-release-${{ matrix.os }}.tar.zst"  -- "${outputs[@]}"
+    - name: Archive Build
+      if: matrix.os == 'windows'
+      shell: pwsh
+      run: |-
+        New-Item -ItemType Directory -Force target/ci | Out-Null
+        $outputs = @('target/build/release/*/tests', 'target/build/release/*/fixtures') | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { Resolve-Path -LiteralPath $_.FullName -Relative }
+        if (!$outputs) { throw 'No build outputs found' }
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-tests-release-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-tests-release-${{ matrix.os }}
+        path: target/ci/build-tests-release-${{ matrix.os }}.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: build-tests-diagnostics-release-${{ matrix.os }}
+        path: target/build/release/*/tests/compiler.json
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -383,8 +589,10 @@ jobs:
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
-    - build_dev
-    - build_release
+    - build_product_dev
+    - build_product_release
+    - build_tests_dev
+    - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -396,8 +604,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -416,18 +622,35 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
+          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
     - name: Extract Build
       shell: bash
       run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
+        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
       if: matrix.os != 'windows'
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -439,7 +662,7 @@ jobs:
         name: >-
           junit-test_unit_rust-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
           'dev' }}-${{ matrix.os }}
-        path: target/tests/
+        path: target/tests/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -463,14 +686,17 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
   validate_test_integration_rust:
     name: Validate / Integration / Rust
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
-    - build_dev
-    - build_release
+    - build_product_dev
+    - build_product_release
+    - build_tests_dev
+    - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -482,8 +708,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -502,18 +726,35 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
+          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
     - name: Extract Build
       shell: bash
       run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
+        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
       if: matrix.os != 'windows'
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -525,7 +766,7 @@ jobs:
         name: >-
           junit-test_integration_rust-${{ startsWith(github.ref, 'refs/tags/v') &&
           'release' || 'dev' }}-${{ matrix.os }}
-        path: target/tests/
+        path: target/tests/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -549,14 +790,17 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
   validate_test_acceptance_rust:
     name: Validate / Acceptance / Rust
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
     timeout-minutes: 10
     needs:
-    - build_dev
-    - build_release
+    - build_product_dev
+    - build_product_release
+    - build_tests_dev
+    - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -568,8 +812,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -588,18 +830,35 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
+          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
     - name: Extract Build
       shell: bash
       run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
+        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
       if: matrix.os != 'windows'
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
+      if: matrix.os != 'windows'
+    - name: Extract Build
+      shell: pwsh
+      run: |-
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
@@ -611,7 +870,7 @@ jobs:
         name: >-
           junit-test_acceptance_rust-${{ startsWith(github.ref, 'refs/tags/v') &&
           'release' || 'dev' }}-${{ matrix.os }}
-        path: target/tests/
+        path: target/tests/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -635,7 +894,8 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
   package_rust:
     name: Package / Rust
     runs-on: ${{ fromJSON('{"linux":["ubuntu-latest"],"windows":[]}')[matrix.os] }}
@@ -647,8 +907,8 @@ jobs:
     - validate_test_unit_rust
     - validate_test_integration_rust
     - validate_test_acceptance_rust
-    - build_dev
-    - build_release
+    - build_product_dev
+    - build_product_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -660,8 +920,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -680,33 +938,48 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
+          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-${{ matrix.os }}
     - name: Extract Build
       shell: bash
       run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
+        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-${{ matrix.os }}.tar.zst"
       if: matrix.os != 'windows'
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       if: matrix.os == 'windows'
     - run: >-
         mise run package:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}
+    - name: Archive Package
+      shell: bash
+      run: |-
+        mkdir -p target/ci
+        outputs=("target/package/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}")
+        if [ -d target/release-assets ]; then outputs+=(target/release-assets); fi
+        tar -cf "target/ci/package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-rust-${{ matrix.os }}.tar" -- "${outputs[@]}"
+      if: matrix.os != 'windows'
+    - name: Archive Package
+      shell: pwsh
+      run: |-
+        New-Item -ItemType Directory -Force target/ci | Out-Null
+        $outputs = @('target/package/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}', 'target/release-assets') | Where-Object { Test-Path -LiteralPath $_ }
+        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-rust-${{ matrix.os }}.tar" --force-local -- @outputs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      if: matrix.os == 'windows'
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
         name: >-
           package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
           }}-rust-${{ matrix.os }}
-        path: |-
-          target/package/
-          target/release-assets/
-          dist/
+        path: >-
+          target/ci/package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
+          'dev' }}-rust-${{ matrix.os }}.tar
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -721,9 +994,10 @@ jobs:
       if: always()
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
-      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
-      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
+      'cancelled') && (github.event_name == 'pull_request' || startsWith(github.ref,
+      'refs/tags/v') || ((github.event_name == 'push' || github.event_name ==
+      'workflow_dispatch') && (github.ref == 'refs/heads/dev' || startsWith(github.ref,
+      'refs/heads/release/v'))))
     strategy:
       fail-fast: false
       matrix:
@@ -734,7 +1008,8 @@ jobs:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
+      MISE_ENABLE_TOOLS: >-
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
   publish_dry:
     name: Publish / Dry
     runs-on:
@@ -751,8 +1026,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -779,8 +1052,9 @@ jobs:
     - run: sccache --show-stats
       if: always()
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))
+      github.event_name == 'pull_request' || ((github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/dev' ||
+      startsWith(github.ref, 'refs/heads/release/v')))
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
@@ -804,8 +1078,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -825,6 +1097,10 @@ jobs:
       with:
         pattern: package-release-*
         merge-multiple: true
+        path: target/ci
+    - name: Extract Packages
+      shell: bash
+      run: for archive in target/ci/package-*.tar; do tar -xf "$archive"; done
     - id: crates
       uses: rust-lang/crates-io-auth-action@v1
     - run: mise run release:publish
@@ -858,8 +1134,10 @@ jobs:
     - linux
     timeout-minutes: 180
     needs:
-    - build_dev
-    - build_release
+    - build_product_dev
+    - build_product_release
+    - build_tests_dev
+    - build_tests_release
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -871,8 +1149,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
         RUSTC_WRAPPER: ""
       with:
         install: true
@@ -880,12 +1156,24 @@ jobs:
         mise_dir: ${{ github.workspace }}/.cache/mise
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
+        name: >-
+          build-product-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-linux
     - name: Extract Build
       shell: bash
       run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-linux.tar.zst"
+        tar --zstd -xf "build-product-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-linux.tar.zst"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: >-
+          build-tests-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
+          }}-linux
+    - name: Extract Build
+      shell: bash
+      run: >-
+        tar --zstd -xf "build-tests-${{ startsWith(github.ref, 'refs/tags/v') &&
+        'release' || 'dev' }}-linux.tar.zst"
     - run: >-
         mise run test:coverage --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
         'release' || 'dev' }}
@@ -895,7 +1183,7 @@ jobs:
         name: >-
           junit-coverage-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
           }}-linux
-        path: target/tests/
+        path: target/tests/${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true

@@ -10,18 +10,15 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime_domain::operations::Access as Role;
 
 /* === Imports === */
 // Standard Library Imports
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     net::SocketAddr,
     sync::{Arc, RwLock},
 };
 // Third Party Imports
-use harmos::plugin::Grant;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use tonic::{Request, Status};
@@ -35,33 +32,15 @@ use super::Error;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct OperationPermission {
-    pub owner: String,
-    pub id: String,
-    #[serde(default)]
-    pub grants: Vec<Grant>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Principal {
-    subject: String,
-    role: Role,
-    operations: Arc<[OperationPermission]>,
+    subject: &'static str,
     local: bool,
-    full: bool,
 }
 
 #[derive(Default)]
 pub(super) struct Listeners {
     policies: RwLock<BTreeMap<SocketAddr, (Policy, bool)>>,
-}
-
-#[derive(Clone)]
-pub struct BearerGrant {
-    principal: Principal,
-    digest: [u8; 32],
 }
 
 /* === Enums === */
@@ -70,31 +49,18 @@ pub(crate) enum Policy {
     TrustedLocal,
     Open,
     Key([u8; 32]),
-    Bearer(Arc<[BearerGrant]>),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
 impl Principal {
-    pub(crate) fn full_control(&self) -> bool {
-        self.full
-    }
-
     pub(crate) fn is_local(&self) -> bool {
         self.local
     }
 
     pub fn subject(&self) -> &str {
-        &self.subject
-    }
-
-    pub(crate) fn operation(&self, owner: &str, id: &str) -> Option<&OperationPermission> {
-        self.operations.iter().find(|permission| permission.owner == owner && permission.id == id)
-    }
-
-    pub fn role(&self) -> Role {
-        self.role
+        self.subject
     }
 
     pub fn of<T>(request: &Request<T>) -> Result<&Self, Status> {
@@ -102,80 +68,11 @@ impl Principal {
     }
 }
 
-impl std::fmt::Debug for BearerGrant {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("BearerGrant").finish_non_exhaustive()
-    }
-}
-
-impl BearerGrant {
-    pub fn new(subject: String, role: Role, token: &str) -> Result<Self, Error> {
-        if subject.trim().is_empty() || subject.len() > 256 || subject.chars().any(char::is_control) {
-            return Err(Error::Configuration("invalid principal subject"));
-        }
-        if !(32..=4096).contains(&token.len()) || !token.bytes().all(|byte| byte.is_ascii_graphic()) {
-            return Err(Error::Configuration("bearer tokens require 32–4096 visible ASCII bytes"));
-        }
-        Ok(Self {
-            principal: Principal { subject, role, operations: Arc::from([]), local: false, full: false },
-            digest: Sha256::digest(token.as_bytes()).into(),
-        })
-    }
-}
-
-impl BearerGrant {
-    pub fn with_operations(mut self, operations: Vec<OperationPermission>) -> Result<Self, Error> {
-        if operations.len() > 128 {
-            return Err(Error::Configuration("at most 128 exact plugin operation permissions are allowed"));
-        }
-        let mut seen = BTreeSet::new();
-        for permission in &operations {
-            harmos::Identifier::new(&permission.owner).map_err(|_| Error::Configuration("invalid plugin permission owner"))?;
-            harmos::Identifier::new(&permission.id).map_err(|_| Error::Configuration("invalid plugin permission operation"))?;
-            if permission.owner == "dokime" || permission.owner == "harmos" {
-                return Err(Error::Configuration("plugin permissions cannot replace product or host policy"));
-            }
-            if !seen.insert((&permission.owner, &permission.id)) {
-                return Err(Error::Configuration("duplicate plugin operation permission"));
-            }
-            if permission.grants.len() > 32 {
-                return Err(Error::Configuration("at most 32 scoped grants are allowed per operation"));
-            }
-            let mut grants = BTreeSet::new();
-            for grant in &permission.grants {
-                let exact = grant.operation() == permission.id
-                    && grant.scope().is_some_and(|scope| {
-                        !scope.trim().is_empty()
-                            && scope.len() <= 1024
-                            && !scope.chars().any(|character| character.is_control() || character == '*')
-                    });
-                if !exact || !grants.insert(grant) {
-                    return Err(Error::Configuration("scoped grants require distinct bounded exact scopes on the permitted operation"));
-                }
-            }
-        }
-        self.principal.operations = operations.into();
-        Ok(self)
-    }
-}
-
 impl Policy {
-    pub(crate) fn bearer(grants: Vec<BearerGrant>) -> Result<Self, Error> {
-        if grants.is_empty() {
-            return Err(Error::Configuration("bearer authentication requires at least one grant"));
-        }
-        for (index, grant) in grants.iter().enumerate() {
-            if grants[..index].iter().any(|other| bool::from(grant.digest.ct_eq(&other.digest))) {
-                return Err(Error::Configuration("duplicate bearer token grants"));
-            }
-        }
-        Ok(Self::Bearer(grants.into()))
-    }
-
     fn authenticate_values<'a>(&self, mut credentials: impl Iterator<Item = Option<&'a str>>) -> Result<Principal, Status> {
         if matches!(self, Self::TrustedLocal | Self::Open) {
             let subject = if matches!(self, Self::TrustedLocal) { "local" } else { "remote" };
-            return Ok(Principal { subject: subject.into(), role: Role::Admin, operations: Arc::from([]), local: false, full: true });
+            return Ok(Principal { subject, local: false });
         }
         let value = credentials
             .next()
@@ -186,29 +83,15 @@ impl Policy {
         }
         let (_, token) = value
             .split_once(' ')
-            .filter(|(scheme, token)| {
-                scheme.eq_ignore_ascii_case("bearer")
-                    && (32..=4096).contains(&token.len())
-                    && token.bytes().all(|byte| byte.is_ascii_graphic())
-            })
+            .filter(|(scheme, token)| scheme.eq_ignore_ascii_case("bearer") && valid_key(token))
             .ok_or_else(|| Status::unauthenticated("invalid credentials"))?;
         let digest: [u8; 32] = Sha256::digest(token.as_bytes()).into();
-        if let Self::Key(expected) = self {
-            return bool::from(digest.ct_eq(expected))
-                .then(|| Principal { subject: "remote".into(), role: Role::Admin, operations: Arc::from([]), local: false, full: true })
-                .ok_or_else(|| Status::unauthenticated("invalid credentials"));
-        }
-        let Self::Bearer(grants) = self else {
+        let Self::Key(expected) = self else {
             return Err(Status::unauthenticated("invalid listener policy"));
         };
-        // Compare all fixed-size digests; never early-return on a matching grant.
-        let mut matched = None;
-        for (index, grant) in grants.iter().enumerate() {
-            if bool::from(digest.ct_eq(&grant.digest)) {
-                matched = Some(index);
-            }
-        }
-        matched.map(|index| grants[index].principal.clone()).ok_or_else(|| Status::unauthenticated("invalid credentials"))
+        bool::from(digest.ct_eq(expected))
+            .then_some(Principal { subject: "remote", local: false })
+            .ok_or_else(|| Status::unauthenticated("invalid credentials"))
     }
 }
 
@@ -261,8 +144,17 @@ impl harmos::grpc::authentication::Authenticator for Listeners {
 }
 
 /* === Public Functions === */
+pub(super) fn verifier(key: &str) -> Result<[u8; 32], Error> {
+    if !valid_key(key) {
+        return Err(Error::Configuration("access keys require 32–4096 visible ASCII bytes"));
+    }
+    Ok(Sha256::digest(key.as_bytes()).into())
+}
 
 /* === Private Functions === */
+fn valid_key(key: &str) -> bool {
+    (32..=4096).contains(&key.len()) && key.bytes().all(|byte| byte.is_ascii_graphic())
+}
 
 /* === Tests === */
 
@@ -287,7 +179,6 @@ mod tests {
         assert!(remote_policy.authenticate_values(std::iter::empty()).is_err());
         let credential = format!("Bearer {key}");
         let principal = remote_policy.authenticate_values([Some(credential.as_str())].into_iter()).unwrap();
-        assert!(principal.full_control());
         assert_eq!(principal.subject(), "remote");
         assert!(remote_policy.authenticate_values([Some(credential.as_str()), Some(credential.as_str())].into_iter()).is_err());
         assert!(remote_policy.authenticate_values([Some("Bearer wrong-key-012345678901234567890123456789")].into_iter()).is_err());

@@ -137,14 +137,19 @@ pub(crate) async fn planned_cycle(
 ) -> Result<String, Status> {
     let metadata = create.metadata().clone();
     let cycle_id = client.unary::<contracts::execution::CreateCycle>(create).await?.into_inner().cycle_id;
-    let append = contracts::execution::AppendPlannedCases { cycle_id: cycle_id.clone(), plan: Some(plan), context: None };
-    client.unary::<contracts::execution::AppendPlannedCases>(Request::from_parts(metadata, Extensions::default(), append)).await?;
+    let append = wire::SelectionAppend { cycle_id: cycle_id.clone(), plan: Some(plan), context: None };
+    client.append_selection(Request::from_parts(metadata, Extensions::default(), append)).await?;
     Ok(cycle_id)
 }
 
 pub async fn cycle_with_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>) -> TestCycleId {
-    let cycle_id = runtime.create_cycle(CycleDefinition { metadata, continue_on_failure: false }, CommandContext::default()).await.unwrap();
-    runtime.append_cycle_cases(cycle_id.clone(), cases, CommandContext::default()).await.unwrap();
+    let cycle_id = runtime
+        .create_cycle(CycleDefinition { metadata, continue_automatically: false, continue_on_failure: false }, CommandContext::default())
+        .await
+        .unwrap();
+    let executions = cases.iter().map(|case| (dokime_runtime::model::identity::new_id(), case.test_case_id.clone())).collect();
+    runtime.register_cases(dokime_runtime::model::identity::new_id(), cases).await.unwrap();
+    runtime.append_executions(cycle_id.clone(), executions).await.unwrap();
     cycle_id
 }
 

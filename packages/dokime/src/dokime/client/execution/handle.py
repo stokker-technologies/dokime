@@ -13,12 +13,12 @@
 
 # Standard Library Imports
 import asyncio
-import unicodedata
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+from uuid import uuid4
 
 from google.protobuf.json_format import MessageToDict
 
@@ -42,8 +42,9 @@ from ..models import (
     Sample,
     Value,
 )
-from .listeners import read_records, read_samples
-from .request import RunRequest, _identity, _interval
+from ..planning import TestCase
+from .listeners import read_records, read_samples, validate_patterns
+from .request import _identity, _interval
 
 # Type Checking Imports
 
@@ -70,16 +71,35 @@ class ExecutionOutcome:
     result: ResultSummary
 
 
-class TestExecutionHandle:
-    """An existing execution on one native connection; construction starts no work."""
+class Execution:
+    """A Fresh Local Attempt; Append It To A Cycle Before Using Remote Controls."""
 
-    __slots__ = ("_backend", "_id", "_transport")
+    __slots__ = ("_backend", "_case", "_cycle_id", "_id", "_transport")
 
-    def __init__(self, execution_id: str, transport: Transport, backend: Backend) -> None:
+    def __init__(self, test_case: TestCase) -> None:
+        if not isinstance(test_case, TestCase):
+            raise TypeError("Execution requires a materialized TestCase")
+        self._id = str(uuid4())
+        self._case: TestCase | None = test_case
+        self._transport = test_case._transport
+        self._backend = test_case._backend
+        self._cycle_id: str | None = None
+
+    @classmethod
+    def _bind(cls, execution_id: str, transport: Transport, backend: Backend) -> "Execution":
         _identity(execution_id)
-        self._id = execution_id
-        self._transport = transport
-        self._backend = backend
+        result = cls.__new__(cls)
+        result._id = execution_id
+        result._case = None
+        result._transport = transport
+        result._backend = backend
+        # Existing Identities Are Already Registered; Snapshot Resolves Their Cycle.
+        result._cycle_id = ""
+        return result
+
+    def _require_bound(self) -> None:
+        if self._cycle_id is None:
+            raise ValueError("append this execution to a cycle before using remote controls")
 
     @property
     def id(self) -> str:
@@ -87,6 +107,7 @@ class TestExecutionHandle:
 
     async def export(self, destination: str | Path, *, overwrite: bool = False) -> Download:
         """Download This Execution's Sealed Evidence, Including From An Active Cycle."""
+        self._require_bound()
         return await export_evidence(self._transport, self._backend, "Execution", self.id, destination, overwrite=overwrite)
 
     async def snapshot(self) -> dict[str, Any]:
@@ -122,6 +143,7 @@ class TestExecutionHandle:
         await scope.respond(prompt_id, action=action, values=values, accepted=accepted)
 
     async def _snapshot(self) -> Message:
+        self._require_bound()
         await self._transport.verify(self._backend, live=True)
         detail = await self._transport.unary(
             "Execution",
@@ -135,6 +157,7 @@ class TestExecutionHandle:
 
     async def checkpoint(self) -> Checkpoint | None:
         """Inspect this execution's saved seal; absence never certifies completion."""
+        self._require_bound()
         await self._transport.verify(self._backend)
         try:
             point = await self._transport.unary(
@@ -210,32 +233,29 @@ class TestExecutionHandle:
     async def start(
         self,
         *,
-        request_key: str,
         mode: Literal["automatic", "interactive"] = "automatic",
-    ) -> RunRequest:
-        """Submit once; retain this identity, key and mode on an uncertain outcome."""
+    ) -> None:
+        """Admit This Attempt Once; Retry The Same Execution And Mode After An Uncertain Reply."""
+        self._require_bound()
         if mode not in ("automatic", "interactive"):
             raise ValueError("execution mode must be automatic or interactive")
-        _key(request_key)
         await self._transport.verify(self._backend, live=True)
         try:
             reply = await self._transport.unary(
                 "Execution",
-                "RunExecution",
+                "StartExecution",
                 _wire.request(
                     "Execution",
-                    "RunExecution",
+                    "StartExecution",
                     execution_id=self.id,
-                    idempotency_key=request_key,
                     mode={mode.title(): {}},
                 ),
             )
         except RpcError as error:
             if error.submission_uncertain:
-                raise ExecutionSubmissionUncertain(self.id, request_key, mode) from error
+                raise ExecutionSubmissionUncertain(self.id, mode) from error
             raise
-        admission = _admission(self._backend, reply)
-        return RunRequest(self._transport, self._backend, admission.command_id)
+        _admission(self._backend, reply)
 
     async def follow_file(
         self,
@@ -295,32 +315,40 @@ class TestExecutionHandle:
     async def run(
         self,
         *,
-        request_key: str,
         mode: Literal["automatic", "interactive"] = "automatic",
         on_record: Callable[[Record], Awaitable[None]] | None = None,
         on_sample: Callable[[Sample], Awaitable[None]] | None = None,
+        record_types: Sequence[str] = (),
+        streams: Sequence[str] = (),
         timeout: float | None = None,
         poll_interval: float | None = None,
     ) -> ExecutionOutcome:
         """Start, wait for the saved outcome, and drain supplied async callbacks.
 
         A callback failure or cancellation closes readers and leaves remote work
-        running. Resolve uncertain admission with the same key and mode.
+        running. Resolve uncertain admission with the same execution and mode.
         """
+
+        validate_patterns(record_types)
+        validate_patterns(streams)
+        if timeout is not None:
+            _interval(timeout)
+        if poll_interval is not None:
+            _interval(poll_interval)
 
         async def records() -> None:
             if on_record is not None:
-                async with aclosing(self.records(follow=True, poll_interval=poll_interval)) as reader:
+                async with aclosing(self.records(record_types=record_types, follow=True, poll_interval=poll_interval)) as reader:
                     async for item in reader:
                         await on_record(item)
 
         async def samples() -> None:
             if on_sample is not None:
-                async with aclosing(self.samples(follow=True, poll_interval=poll_interval)) as reader:
+                async with aclosing(self.samples(streams=streams, follow=True, poll_interval=poll_interval)) as reader:
                     async for item in reader:
                         await on_sample(item)
 
-        await self.start(request_key=request_key, mode=mode)
+        await self.start(mode=mode)
         async with asyncio.TaskGroup() as tasks:
             if on_record is not None:
                 tasks.create_task(records())
@@ -460,11 +488,6 @@ def _admission(backend: Backend, reply: Message) -> Message:
         raise ProtocolError("invalid admission identity") from error
     _cursor(backend, outcome, "cursor")
     return outcome
-
-
-def _key(key: str) -> None:
-    if not key.strip() or len(key.encode("utf-8")) > 256 or any(unicodedata.category(c) == "Cc" for c in key):
-        raise ValueError("request key must contain 1–256 bytes without control characters")
 
 
 def _command_receipt(

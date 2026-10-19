@@ -4,8 +4,8 @@ import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore 
 import { Button } from "@/components/ui/button";
 import { releaseNativeMedia } from "@/lib/api/native-delivery";
 import { type AppearanceResource, loadAppearance } from "@/lib/rpc/appearance";
-import { connectionError } from "./errors";
 import { Appearance, Connection, Controller, useNativeSessionController } from "./context";
+import { connectionError } from "./errors";
 import { type ConnectedSession, NativeSession } from "./session";
 
 /** One native owner and fresh backend query/resource scope per generation. */

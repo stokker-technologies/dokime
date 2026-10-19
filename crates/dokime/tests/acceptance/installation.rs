@@ -39,7 +39,7 @@ const ENDPOINT: &str = "http://127.0.0.1:8765";
 
 /* === Private Functions === */
 fn installation(programs: &[&Path]) -> tempfile::TempDir {
-    let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+    let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tmp");
     let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir_in(target).unwrap();
     for program in programs {
         let program = program.canonicalize().expect("the program under test exists");
@@ -51,7 +51,10 @@ fn installation(programs: &[&Path]) -> tempfile::TempDir {
 fn server() -> PathBuf {
     let platform = if cfg!(windows) { "windows" } else { "linux" };
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().find(|path| path.join("Cargo.lock").is_file()).unwrap();
-    let server = root.join("dist/build").join(platform).join("bin").join(format!("dokime-server{}", std::env::consts::EXE_SUFFIX));
+    let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
+    let target = format!("{platform}-{}", std::env::consts::ARCH);
+    let server =
+        root.join("target/build").join(profile).join(target).join("bin").join(format!("dokime-server{}", std::env::consts::EXE_SUFFIX));
     assert!(server.is_file(), "run mise run build to produce {}", server.display());
     server
 }

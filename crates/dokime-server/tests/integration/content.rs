@@ -161,12 +161,7 @@ async fn artifact_transfer(message_bytes: usize) {
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(
-        owner.handle(),
-        Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap().with_max_message_bytes(message_bytes),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(message_bytes)).await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().initial_stream_window_size(4096).connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
@@ -184,15 +179,8 @@ async fn artifact_transfer(message_bytes: usize) {
     )
     .await
     .unwrap();
-    let reply = execution
-        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
-        .await
-        .unwrap()
-        .into_inner();
+    let reply =
+        execution.start_first(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() })).await.unwrap().into_inner();
     assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))));
     artifacts.ready.notified().await;
     let records = artifacts.records.lock().unwrap().clone();
@@ -517,9 +505,7 @@ async fn artifact_upload_owned() {
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
     let server = Server::start(
         owner.handle(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Control)])
-            .unwrap()
+        keyed()
             // The native client needs the full availability inventory, which is charged
             // about 14 KiB for 109 gRPC paths and cannot fit a 4 KiB budget (see
             // `artifact_transfer_budget`).
@@ -544,14 +530,7 @@ async fn artifact_upload_owned() {
     )
     .await
     .unwrap();
-    execution
-        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
-        .await
-        .unwrap();
+    execution.start_first(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() })).await.unwrap();
     gate.started.notified().await;
     let execution_id = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -803,10 +782,7 @@ async fn completion_harness()
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server =
-        Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap().with_max_message_bytes(4096))
-            .await
-            .unwrap();
+    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(4096)).await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
@@ -824,14 +800,7 @@ async fn completion_harness()
     )
     .await
     .unwrap();
-    execution
-        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
-        .await
-        .unwrap();
+    execution.start_first(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() })).await.unwrap();
     gate.started.notified().await;
     let execution_id = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -1023,9 +992,22 @@ async fn open_report_states() {
     assert_eq!(metadata.test_execution_id.as_deref(), Some(execution_id.as_str()));
     assert!(String::from_utf8_lossy(&html).contains("<!doctype html>"));
 
-    // Terminal: Both Reports Are The Sealed Bytes, Unchanged Across Reads
+    // Completed Executions Leave Their Cycle Active Until Explicitly Sealed.
     gate.release.notify_one();
     wait_for_watched_lifecycle(&owner, &cycle, dokime_domain::model::execution::result::CycleStatus::Completed).await;
+    let (metadata, _) = execution_report(&execution, &execution_id).await;
+    assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Sealed);
+    let (metadata, _) = cycle_report(&execution, &cycle_id).await;
+    assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Current);
+    execution
+        .unary::<contracts::execution::SealCycle>(authenticated(contracts::execution::SealCycle {
+            cycle_id: cycle_id.clone(),
+            context: None,
+        }))
+        .await
+        .unwrap();
+
+    // Explicit Seal Persists Both Reports Unchanged Across Reads.
     let (metadata, first) = cycle_report(&execution, &cycle_id).await;
     assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Sealed);
     let (_, second) = cycle_report(&execution, &cycle_id).await;
@@ -1092,7 +1074,7 @@ async fn large_artifact_buffering() {
     let config = crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.bundle", "Content"));
     let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact)).await.unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
     let cycle_id = support::planned_cycle(
@@ -1110,14 +1092,7 @@ async fn large_artifact_buffering() {
     )
     .await
     .unwrap();
-    execution
-        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
-        .await
-        .unwrap();
+    execution.start_first(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() })).await.unwrap();
     support::on_state_change(&owner.handle(), async || {
         let cycle = execution
             .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))

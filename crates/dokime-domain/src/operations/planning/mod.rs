@@ -8,10 +8,12 @@
  */
 
 /* === Modules === */
+mod materialize_template;
 mod preview_selection;
 mod register_selection;
 
 /* === Re-Exports === */
+pub use materialize_template::MaterializeTemplate;
 pub use preview_selection::PreviewSelection;
 pub use register_selection::RegisterSelection;
 
@@ -22,7 +24,6 @@ pub use register_selection::RegisterSelection;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
 #[allow(unused_imports)]
@@ -45,6 +46,7 @@ use crate::model::planning::wire::*;
 
 #[harmos_domain::catalog]
 pub enum Operations {
+    MaterializeTemplate(MaterializeTemplate),
     RegisterSelection(RegisterSelection),
     PreviewSelection(PreviewSelection),
 }
@@ -52,14 +54,16 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+impl Endpoint for MaterializeTemplate {
+    const PATH: &'static str = "/dokime.v1.Planning/MaterializeTemplate";
+}
+
 impl Endpoint for RegisterSelection {
     const PATH: &'static str = "/dokime.v1.Planning/RegisterSelection";
-    const ACCESS: Access = Access::Control;
 }
 
 impl Endpoint for PreviewSelection {
     const PATH: &'static str = "/dokime.v1.Planning/PreviewSelection";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

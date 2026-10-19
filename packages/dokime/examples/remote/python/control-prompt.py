@@ -7,21 +7,19 @@
 # ***
 
 
-"""Answer One Execution Confirmation And Export Evidence"""
+"""Answer One Confirmation And Save Execution Evidence"""
 
 # === Imports === #
 
 # Standard Library Imports
-import argparse
 import asyncio
 import json
 import sys
 from contextlib import aclosing
 from pathlib import Path
-from uuid import uuid4
 
 # Third Party Imports
-from dokime.client import DokimeClient, DokimeError, TestExecutionHandle
+from dokime.client import Cycle, DokimeClient, DokimeError, Execution
 
 # Local Imports
 
@@ -32,6 +30,22 @@ from dokime.client import DokimeClient, DokimeError, TestExecutionHandle
 
 # === Constants === #
 
+# Connection Parameters
+ENDPOINT = "https://127.0.0.1:8766"
+CA_CERTIFICATE: Path | None = Path("server.pem")
+KEY_FILE: Path | None = Path("remote.key")
+ENV_FILE: Path | None = None
+
+# Case And Execution Parameters
+TEMPLATE = "obc.checks.pulse"
+CYCLE_LABEL = "Remote Confirmation Demonstration"
+ANSWER = "yes"
+WAIT_SECONDS = 60.0
+
+# Evidence Files
+OUTPUT_DIRECTORY = Path("prompt-evidence")
+OVERWRITE = False
+
 # === Types === #
 
 # === Classes === #
@@ -39,38 +53,33 @@ from dokime.client import DokimeClient, DokimeError, TestExecutionHandle
 # === Public Functions === #
 
 
-async def run(arguments: argparse.Namespace) -> int:
-    directory: Path = arguments.directory
-    directory.mkdir(parents=True, exist_ok=True)
+async def run() -> int:
+    if ANSWER not in ("yes", "no") or WAIT_SECONDS <= 0:
+        raise ValueError("ANSWER must be yes or no and WAIT_SECONDS must be positive")
+    OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
     for name in ("execution.zip", "cycle.zip"):
-        destination = directory / name
-        if destination.exists() and not arguments.overwrite:
-            raise FileExistsError(f"{destination} exists; choose another directory or pass --overwrite")
+        path = OUTPUT_DIRECTORY / name
+        if path.exists() and not OVERWRITE:
+            raise FileExistsError(f"{path} exists; choose another output directory or enable OVERWRITE")
 
-    async with DokimeClient(
-        arguments.endpoint,
-        key_file=arguments.key_file,
-        env_file=arguments.env_file,
-        ca_certificate=arguments.ca_certificate,
-    ) as client:
-        cycle_id: str | None = None
-        execution: TestExecutionHandle | None = None
+    async with DokimeClient(ENDPOINT, ca_certificate=CA_CERTIFICATE, key_file=KEY_FILE, env_file=ENV_FILE) as client:
+        cycle: Cycle | None = None
+        execution: Execution | None = None
         exported = False
         try:
-            cycle_id = await client.create_cycle(label="Remote Confirmation Demonstration")
-            print(f"Cycle: {cycle_id}", flush=True)
-            (execution,) = await client.append_cases(
-                cycle_id,
-                suite="obc.checks",
-                template="obc.checks.pulse",
-                parameters={"require_confirmation": True},
-            )
-            request_key = str(uuid4())
-            print(f"Execution: {execution.id} Request Key: {request_key} Mode: automatic", flush=True)
-            await execution.start(request_key=request_key)
-            print(f"Request Accepted For Execution {execution.id}", flush=True)
+            # Materialize The Confirmation Case And Append Its Attempt
+            template = await client.template(TEMPLATE)
+            (test_case,) = await template.materialize(parameters={"require_confirmation": True})
+            attempt = Execution(test_case)
+            cycle = await client.create_cycle(label=CYCLE_LABEL, continue_automatically=False)
+            print(f"Cycle: {cycle.id}", flush=True)
+            print(f"Execution: {attempt.id}", flush=True)
+            await cycle.append([attempt])
+            execution = attempt
 
-            async with asyncio.timeout(60):
+            # Start Without Blocking So The Script Can Answer Its Prompt
+            await execution.start()
+            async with asyncio.timeout(WAIT_SECONDS):
                 while True:
                     async with aclosing(execution.pending_prompts()) as reader:
                         pending = [prompt async for prompt in reader]
@@ -83,64 +92,47 @@ async def run(arguments: argparse.Namespace) -> int:
                         raise ValueError("execution sealed without the expected confirmation")
                     await asyncio.sleep(0.2)
 
+            # Inspect And Answer This Exact Execution's Prompt Once
             print(f"Prompt: {prompt.id} Execution: {execution.id}", flush=True)
-            question = await execution.prompt(prompt.id)
-            print("Question:", json.dumps(question), flush=True)
-            print(f"Answer: {arguments.answer}", flush=True)
-            await execution.respond(prompt.id, action=arguments.answer)
-            outcome = await execution.wait()
+            print("Question:", json.dumps(await execution.prompt(prompt.id)), flush=True)
+            print(f"Answer: {ANSWER}", flush=True)
+            await execution.respond(prompt.id, action=ANSWER)
+            outcome = await execution.wait(timeout=WAIT_SECONDS)
             print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
-            await execution.export(directory / "execution.zip", overwrite=arguments.overwrite)
+            await execution.export(OUTPUT_DIRECTORY / "execution.zip", overwrite=OVERWRITE)
             exported = True
-            cycle = await client.cycle(cycle_id)
             await cycle.seal()
-            saved = await cycle.export(directory / "cycle.zip", overwrite=arguments.overwrite)
+            saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
             print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
             return 0 if outcome.status == "passed" else 1
 
         except asyncio.CancelledError:
+            # Recover Only This Script's Execution And Cycle
             print("Cancellation Requested; Waiting For Saved Evidence", file=sys.stderr, flush=True)
-            if cycle_id is None:
-                print("Cycle Creation Was Not Confirmed; Inspect The Host Before Creating Another", file=sys.stderr, flush=True)
+            if cycle is None:
+                print("Cycle Creation Was Not Confirmed; Inspect The Server Before Creating Another", file=sys.stderr, flush=True)
                 raise
             if execution is not None and await execution.checkpoint() is None:
                 await execution.stop()
-            # Close Admission Before Waiting On An Interrupted Submission.
-            cycle = await client.cycle(cycle_id)
             await cycle.seal()
             if execution is not None:
                 outcome = await execution.wait()
-
-        if execution is not None:
-            print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
-            if not exported:
-                await execution.export(directory / "execution.zip", overwrite=arguments.overwrite)
-        saved = await cycle.export(directory / "cycle.zip", overwrite=arguments.overwrite)
-        print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
-        return 130
+                print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
+                if not exported:
+                    await execution.export(OUTPUT_DIRECTORY / "execution.zip", overwrite=OVERWRITE)
+            saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
+            print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
+            return 130
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-
-    parser.add_argument("--endpoint", required=True)
-    parser.add_argument("--ca-certificate", type=Path)
-    parser.add_argument("--key-file", type=Path)
-    parser.add_argument("--env-file", type=Path, help="Read this explicit dotenv file; process variables take precedence")
-
-    parser.add_argument("--directory", type=Path, default=Path("prompt-evidence"))
-    parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--answer", choices=("yes", "no"), default="yes", help="The confirmation action this script submits once")
-    arguments = parser.parse_args()
-
     try:
-        return asyncio.run(run(arguments))
+        return asyncio.run(run())
     except KeyboardInterrupt:
-        print("Client Closed; Cancellation May Be Unconfirmed. Retain The Cycle, Execution And Request Key Above", file=sys.stderr)
+        print("Recovery Was Not Confirmed; Retain The Printed Cycle And Execution Identities", file=sys.stderr)
         return 130
     except (DokimeError, OSError, ValueError, TimeoutError) as error:
-        print(f"Workflow Incomplete: {error}", file=sys.stderr)
-        print("Remote Work May Continue. Inspect The Printed Execution And Prompt Before Resubmitting", file=sys.stderr)
+        print(f"Workflow Incomplete: {error}. Inspect The Printed Execution And Prompt Before Resubmitting", file=sys.stderr)
         return 1
 
 

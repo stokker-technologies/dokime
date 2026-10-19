@@ -16,13 +16,13 @@ import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tan
 
 /* === Local Imports === */
 
+import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { PromptRequest } from "@/lib/types";
-import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 
 type CycleSummary = Wire<GeneratedCycleSummary>;
 

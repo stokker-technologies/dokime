@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -22,6 +23,7 @@ use sha2::{Digest, Sha256};
 // Local Imports
 
 /* === Constants === */
+
 const REPOSITORY: &str = "https://github.com/stokker-technologies/dokime";
 
 /* === Macros === */
@@ -38,69 +40,6 @@ const REPOSITORY: &str = "https://github.com/stokker-technologies/dokime";
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-// Every locked package with its version, whatever source the lock names.
-fn pins(lock: &str) -> Vec<(String, String)> {
-    let document = lock.parse::<toml_edit::DocumentMut>().unwrap();
-    let mut pins = document["package"]
-        .as_array_of_tables()
-        .unwrap()
-        .iter()
-        .map(|package| (package["name"].as_str().unwrap().to_owned(), package["version"].as_str().unwrap().to_owned()))
-        .collect::<Vec<_>>();
-    pins.sort();
-    pins
-}
-
-fn workspace() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
-}
-
-// The offline closure the build stages beside its other outputs, so a lane runner's artifact carries it.
-fn dependencies() -> PathBuf {
-    workspace().join("dist/build").join(if cfg!(windows) { "windows" } else { "linux" }).join("dependencies")
-}
-
-fn task(plugin: &Path, name: &str) {
-    run(plugin, "mise", &["run", name]);
-}
-
-fn run(plugin: &Path, program: &str, arguments: &[&str]) {
-    let name = format!("{program} {}", arguments.join(" "));
-    let mut command = Command::new(program);
-    // The Starter Runs As Its Author Would, Outside The Lane That Runs This Story.
-    for (variable, _) in std::env::vars_os() {
-        if variable.to_str().is_some_and(|variable| {
-            variable.starts_with("NEXTEST") || matches!(variable, "VIRTUAL_ENV" | "MISE_LOCKED" | "MISE_ENABLE_TOOLS")
-        }) {
-            command.env_remove(variable);
-        }
-    }
-    let output = command
-        .args(arguments)
-        .current_dir(plugin)
-        .env("MISE_TRUSTED_CONFIG_PATHS", plugin)
-        .env("MISE_YES", "1")
-        .env_remove("UV_PROJECT_ENVIRONMENT")
-        .env_remove("UV_PROJECT")
-        .env_remove("UV_WORKING_DIR")
-        .env("UV_OFFLINE", "true")
-        .env("UV_CONFIG_FILE", plugin.join("uv.toml"))
-        .env("UV_FIND_LINKS", dependencies().join("wheels"))
-        .env("UV_CACHE_DIR", plugin.join("target/uv-cache"))
-        .env("CARGO_NET_OFFLINE", "true")
-        .env_remove("CARGO_TARGET_DIR")
-        .output()
-        .expect("mise runs the generated plugin's tasks");
-    assert!(
-        output.status.success(),
-        "{name} failed:\n{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-/* === Tests === */
 // a generated plugin passes its own check and unit tasks against this tree.
 
 pub(super) fn generated_plugin_tasks() {
@@ -110,6 +49,7 @@ pub(super) fn generated_plugin_tasks() {
     // Generate The Plugin
     let output = Command::new(super::support::tool()).args(["dokime", "new"]).arg(&plugin).output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(!plugin.starts_with(workspace()), "the Hub-owned system temporary fixture cannot join the product workspace");
     for file in [
         "mise.toml",
         "stkr.toml",
@@ -192,3 +132,71 @@ pub(super) fn generated_plugin_tasks() {
     task(&plugin, "build");
     task(&plugin, "test:unit");
 }
+
+/* === Private Functions === */
+
+// Every locked package with its version, whatever source the lock names.
+fn pins(lock: &str) -> Vec<(String, String)> {
+    let document = lock.parse::<toml_edit::DocumentMut>().unwrap();
+    let mut pins = document["package"]
+        .as_array_of_tables()
+        .unwrap()
+        .iter()
+        .map(|package| (package["name"].as_str().unwrap().to_owned(), package["version"].as_str().unwrap().to_owned()))
+        .collect::<Vec<_>>();
+    pins.sort();
+    pins
+}
+
+fn workspace() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
+}
+
+// The offline closure the build stages beside its other outputs, so a lane runner's artifact carries it.
+fn dependencies() -> PathBuf {
+    let platform = if cfg!(windows) { "windows" } else { "linux" };
+    let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
+    let target = format!("{platform}-{}", std::env::consts::ARCH);
+    workspace().join("target/build").join(profile).join(target).join("fixtures/dependencies")
+}
+
+fn task(plugin: &Path, name: &str) {
+    run(plugin, "mise", &["run", name]);
+}
+
+fn run(plugin: &Path, program: &str, arguments: &[&str]) {
+    let name = format!("{program} {}", arguments.join(" "));
+    let mut command = Command::new(program);
+    // The Starter Runs As Its Author Would, Outside The Lane That Runs This Story.
+    for (variable, _) in std::env::vars_os() {
+        if variable.to_str().is_some_and(|variable| {
+            variable.starts_with("NEXTEST") || matches!(variable, "VIRTUAL_ENV" | "MISE_LOCKED" | "MISE_ENABLE_TOOLS")
+        }) {
+            command.env_remove(variable);
+        }
+    }
+    let output = command
+        .args(arguments)
+        .current_dir(plugin)
+        .env("MISE_TRUSTED_CONFIG_PATHS", plugin)
+        .env("MISE_YES", "1")
+        .env_remove("UV_PROJECT_ENVIRONMENT")
+        .env_remove("UV_PROJECT")
+        .env_remove("UV_WORKING_DIR")
+        .env("UV_OFFLINE", "true")
+        .env("UV_CONFIG_FILE", plugin.join("uv.toml"))
+        .env("UV_FIND_LINKS", dependencies().join("wheels"))
+        .env("UV_CACHE_DIR", plugin.join("target/uv-cache"))
+        .env("CARGO_NET_OFFLINE", "true")
+        .env_remove("CARGO_TARGET_DIR")
+        .output()
+        .expect("mise runs the generated plugin's tasks");
+    assert!(
+        output.status.success(),
+        "{name} failed:\n{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/* === Tests === */

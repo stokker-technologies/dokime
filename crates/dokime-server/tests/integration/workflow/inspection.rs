@@ -98,13 +98,8 @@ async fn inspection_separates_outputs() {
     let selected = owner.handle().cycles().await.remove(0).test_executions.remove(0).test_execution_id.to_string();
     for unknown_variant in [false, true] {
         let refused = client
-            .invalid_enum::<contracts::execution::RunExecution, model::execution::wire::ExecutionMode>(
-                authenticated(contracts::execution::RunExecution {
-                    mode: Default::default(),
-                    execution_id: selected.clone(),
-                    idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
-                    context: None,
-                }),
+            .invalid_enum::<contracts::execution::StartExecution, model::execution::wire::ExecutionMode>(
+                authenticated(contracts::execution::StartExecution { mode: Default::default(), execution_id: selected.clone() }),
                 "mode",
                 unknown_variant,
             )
@@ -114,11 +109,9 @@ async fn inspection_separates_outputs() {
         assert_eq!(owner.handle().cycles().await.remove(0).test_executions.remove(0).started_at, None);
     }
     client
-        .unary::<contracts::execution::RunExecution>(authenticated(contracts::execution::RunExecution {
+        .unary::<contracts::execution::StartExecution>(authenticated(contracts::execution::StartExecution {
             mode: Default::default(),
             execution_id: selected,
-            idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
-            context: None,
         }))
         .await
         .unwrap();

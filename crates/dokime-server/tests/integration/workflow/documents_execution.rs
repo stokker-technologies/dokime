@@ -42,7 +42,7 @@ use model::documents::wire::DocumentFrameFrame as Frame;
 #[tokio::test]
 async fn running_execution_owners() {
     let Gated { root: _root, gate, mut owner, service: _service, server, execution, cycle } = Gated::open().await;
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
+    execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let attempts = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {

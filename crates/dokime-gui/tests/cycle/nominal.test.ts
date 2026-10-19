@@ -25,7 +25,6 @@ import {
   nodeMenuGroups,
   reportDownloadState,
   reportFilename,
-  rerunnableCaseIds,
   rowOffersRunAgain,
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
@@ -134,9 +133,9 @@ test("Node Menus", () => {
 });
 
 test("Execution Controls", () => {
-  // An Execution That Has Not Started Offers Start And Nothing Else
-  assert.deepEqual(executionControlSet("planned", null), ["Start"]);
-  assert.deepEqual(executionControlSet("created", null), ["Start"]);
+  // Unstarted Attempts Can Start Or Stop Without Dispatching
+  assert.deepEqual(executionControlSet("planned", null), ["Start", "Stop Execution"]);
+  assert.deepEqual(executionControlSet("created", null), ["Start", "Stop Execution"]);
 
   // Start Leaves Once The Execution Runs Or Ends, In Start | Re-Run | Stop Order
   const running = {
@@ -248,14 +247,6 @@ test("Execution Rows", () => {
     typeof isCycleTerminal
   >[0][];
   assert.deepEqual(lifecycles.map(isCycleTerminal), [true, true, true, true, false, false, false]);
-  assert.deepEqual(
-    rerunnableCaseIds([
-      { caseId: "allowed", actions: { schedule_rerun: true } },
-      { caseId: "refused", actions: { schedule_rerun: false } },
-      { caseId: "unstated", actions: null },
-    ] as unknown as CycleCase[]),
-    ["allowed", "unstated"],
-  );
 });
 
 test("Follow Active", () => {
@@ -402,22 +393,28 @@ test("New Cycle Form", () => {
   assert.notEqual(form.title, defaultCycleLabel(new Date(2026, 9, 17, 9, 30)));
   assert.equal(form.description, "");
   assert.equal(form.continueOnFailure, true);
+  assert.equal(form.continueAutomatically, false);
   assert.equal(newCycleFormError(form), null);
 
   // A Blank Title Is Refused
   assert.equal(newCycleFormError({ ...form, title: "   " }), EMPTY_TITLE_ERROR);
 
   // The Request Trims Its Text And Omits A Blank Description
-  assert.deepEqual(newCycleRequest({ continueOnFailure: false, description: "  ", title: "  Bench A  " }), {
+  assert.deepEqual(newCycleRequest({ continueAutomatically: false, continueOnFailure: false, description: "  ", title: "  Bench A  " }), {
+    continueAutomatically: false,
     continueOnFailure: false,
     description: undefined,
     label: "Bench A",
   });
-  assert.deepEqual(newCycleRequest({ continueOnFailure: true, description: " Night run ", title: "Bench B" }), {
-    continueOnFailure: true,
-    description: "Night run",
-    label: "Bench B",
-  });
+  assert.deepEqual(
+    newCycleRequest({ continueAutomatically: true, continueOnFailure: true, description: " Night run ", title: "Bench B" }),
+    {
+      continueAutomatically: true,
+      continueOnFailure: true,
+      description: "Night run",
+      label: "Bench B",
+    },
+  );
 });
 
 test("Saved Report Opens In The Default Browser", async () => {

@@ -58,6 +58,7 @@ pub struct Cycle {
     updated_at: String,
     execution_ids: Vec<String>,
     records: Option<annotations::Set>,
+    continue_automatically: bool,
     continue_on_failure: bool,
     result: Option<Summary>,
 }
@@ -97,6 +98,7 @@ struct Input<'a> {
     updated_at: &'a Timestamp,
     execution_ids: &'a [TestExecutionId],
     records: &'a dokime_domain::state::records::set::TestRecordSet,
+    continue_automatically: bool,
     continue_on_failure: bool,
     result: &'a Option<ResultSummary>,
 }
@@ -121,6 +123,7 @@ impl<'a> From<&'a TestCycle> for Input<'a> {
             phase: source.phase,
             lifecycle: source.lifecycle,
             execution_ids: &source.execution_ids,
+            continue_automatically: source.continue_automatically,
             continue_on_failure: source.continue_on_failure,
         }
     }
@@ -157,6 +160,7 @@ impl<'a> Input<'a> {
             phase: source.phase,
             lifecycle: source.lifecycle,
             execution_ids: ids,
+            continue_automatically: source.continue_automatically,
             continue_on_failure: source.continue_on_failure,
         }
     }
@@ -298,6 +302,7 @@ impl Cycle {
             updated_at: source.updated_at.as_str().to_owned(),
             execution_ids,
             records: Some(records),
+            continue_automatically: source.continue_automatically,
             continue_on_failure: source.continue_on_failure,
             result: source.result.as_ref().map(Summary::from),
         })
@@ -354,6 +359,7 @@ impl TryFrom<Cycle> for TestCycle {
             updated_at,
             execution_ids,
             records: row.records.ok_or(Error::Invalid("cycle record ownership is missing"))?.restore_owned()?,
+            continue_automatically: row.continue_automatically,
             continue_on_failure: row.continue_on_failure,
             result: row.result.map(TryInto::try_into).transpose()?,
         };

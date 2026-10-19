@@ -151,7 +151,7 @@ async fn stopped_report_boundary() {
     let suite = fixture_suite(&["passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.ready.subscribe().wait_for(|ready| *ready).await.unwrap();
     assert_eq!(executor.queue.lock().unwrap().as_ref().unwrap().samples.len(), 1);
     let running = cycle_snapshot(&runtime, &cycle_id).await;
@@ -181,7 +181,7 @@ async fn stopped_report_boundary() {
     assert_eq!(sampler.state.delivered.load(Ordering::SeqCst), 0);
     runtime.storage().flush().await.unwrap();
     let persisted_before_stop = runtime.storage().cursor_saved();
-    runtime.stop_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     let stopped = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Stopped).await;
     let execution_id = stopped.test_executions[0].test_execution_id.clone();
     let checkpoint = crate::service_support::native::checkpoint(&runtime, &execution_id).await;

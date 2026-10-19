@@ -1,82 +1,126 @@
 #Requires -Version 7.3
 # Dokime - SPDX-License-Identifier: Apache-2.0
-# Pass Connection Flags Such As --endpoint, --ca, --key-file Or --env-file.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandArgumentPassing = 'Standard'
 $PSNativeCommandUseErrorActionPreference = $false
 
-$Connection = @($args)
-$Dokime = if ($env:DOKIME_EXECUTABLE) { $env:DOKIME_EXECUTABLE } else { 'dokime' }
-$Directory = if ($env:DOKIME_OUTPUT_DIRECTORY) { $env:DOKIME_OUTPUT_DIRECTORY } else { 'prompt-evidence' }
-$CycleId = ''
-$ExecutionId = ''
-$PromptId = ''
-$RequestKey = ''
-$Completed = $false
-$Result = 0
+# Connection Parameters
+$ENDPOINT = 'https://127.0.0.1:8766'
+$CA_CERTIFICATE = 'server.pem'
+$KEY_FILE = 'remote.key'
+$ENV_FILE = ''
+
+# Case And Execution Parameters
+$TEMPLATE = 'obc.checks.pulse'
+$CYCLE_LABEL = 'Remote Confirmation Demonstration'
+$ANSWER = 'yes'
+$WAIT_SECONDS = 60
+
+# Evidence Files
+$OUTPUT_DIRECTORY = 'prompt-evidence'
+$OVERWRITE = $false
+
+# Connect With The Explicit Parameters
+$Connection = @('--endpoint', $ENDPOINT)
+if ($CA_CERTIFICATE) { $Connection += @('--ca', $CA_CERTIFICATE) }
+if ($KEY_FILE) { $Connection += @('--key-file', $KEY_FILE) }
+if ($ENV_FILE) { $Connection += @('--env-file', $ENV_FILE) }
 
 function Invoke-Dokime {
     param([string[]]$Command, [switch]$AllowSavedFailure)
-    $ConnectionArguments = $script:Connection
-    & $script:Dokime @Command @ConnectionArguments
+    dokime @Command @script:Connection
     $Status = $LASTEXITCODE
-    if ($AllowSavedFailure -and $Status -eq 1) {
-        $script:Result = 1
-        return
-    }
-    if ($Status -ne 0) {
-        throw "Dokime Returned Exit Code $Status; No Answer Or Submission Was Retried"
-    }
+    if ($AllowSavedFailure -and $Status -eq 1) { $script:Result = 1; return }
+    if ($Status -ne 0) { throw "Dokime Returned Exit Code $Status; No Mutation Was Retried" }
 }
+
+$CycleId = ''
+$ExecutionId = ''
+$Result = 0
+$Completed = $false
+$OperationalFailure = $false
+
+# Preserve Evidence Before Starting Any Device Work
+function Assert-Destination([string]$Path) {
+    if ((Test-Path -LiteralPath $Path) -and -not $OVERWRITE) { throw "Evidence File Exists: $Path" }
+}
+$Export = @()
+if ($OVERWRITE) { $Export = @('--overwrite') }
 
 try {
-    if (Test-Path -LiteralPath $Directory) {
-        throw 'Choose A New Output Directory; Existing Evidence Is Preserved'
-    }
-    New-Item -ItemType Directory -Path $Directory | Out-Null
-    $Recovery = Join-Path $Directory 'recovery'
-    New-Item -ItemType Directory -Path $Recovery | Out-Null
+    if ($WAIT_SECONDS -le 0) { throw 'WAIT_SECONDS Must Be Positive' }
+    New-Item -ItemType Directory -Force -Path $OUTPUT_DIRECTORY | Out-Null
+    $Recovery = Join-Path $OUTPUT_DIRECTORY 'recovery'
+    New-Item -ItemType Directory -Force -Path $Recovery | Out-Null
 
-    $Created = @(Invoke-Dokime -Command @('cycle', 'create', '--label', 'Remote Confirmation Demonstration', '--id-only'))
-    if ($Created.Count -ne 1) { throw 'Cycle Creation Did Not Return One Identity; Inspect The Host Before Creating Another' }
+    if ($ANSWER -notin @('yes', 'no')) { throw 'ANSWER Must Be yes Or no' }
+    Assert-Destination (Join-Path $OUTPUT_DIRECTORY 'execution.zip')
+    Assert-Destination (Join-Path $OUTPUT_DIRECTORY 'cycle.zip')
+
+    # Materialize The Confirmation Case And Append Its Attempt
+    $Cases = @(Invoke-Dokime -Command @('plan', 'materialize', '--template', $TEMPLATE,
+        '--parameters-json', '{"require_confirmation":true}', '--id-only'))
+    if ($Cases.Count -ne 1) { throw 'Expected One Confirmation Case' }
+
+    $Created = @(Invoke-Dokime -Command @('cycle', 'create', '--label', $CYCLE_LABEL, '--id-only'))
+    if ($Created.Count -ne 1) { throw 'Cycle Creation Did Not Return One Identity' }
     $CycleId = [guid]::Parse([string]$Created[0]).ToString()
     [Console]::Out.WriteLine("Cycle: $CycleId")
-    $Created = @(Invoke-Dokime -Command @('cycle', 'append', $CycleId, '--template', 'obc.checks.pulse',
-        '--parameters-json', '{"require_confirmation":true}', '--id-only'))
-    if ($Created.Count -ne 1) { throw "Append Did Not Return One Execution; Inspect Cycle $CycleId Before Appending Again" }
-    $ExecutionId = [guid]::Parse([string]$Created[0]).ToString()
-    $RequestKey = "remote-$ExecutionId"
-    [Console]::Out.WriteLine("Execution: $ExecutionId Request Key: $RequestKey Mode: automatic")
-    Invoke-Dokime -Command @('execution', 'run', $ExecutionId, '--request-key', $RequestKey)
+    $RecoveryArguments = @('--cancel-on-interrupt', '--owned-cycle', $CycleId, '--recovery-directory', $Recovery)
 
-    $Next = @('execution', 'prompt', 'next', $ExecutionId, '--wait-seconds', '60', '--id-only',
-        '--cancel-on-interrupt', '--owned-cycle', $CycleId, '--recovery-directory', $Recovery)
-    $Pending = @(Invoke-Dokime -Command $Next)
-    if ($Pending.Count -ne 1) { throw "Prompt Discovery Did Not Return One Identity; Inspect Execution $ExecutionId" }
+    $Created = @(Invoke-Dokime -Command (@('cycle', 'append', $CycleId, '--case-id', [string]$Cases[0], '--id-only') + $RecoveryArguments))
+    if ($Created.Count -ne 1) { throw 'Append Did Not Return One Execution Identity' }
+    $ExecutionId = [guid]::Parse([string]$Created[0]).ToString()
+    [Console]::Out.WriteLine("Execution: $ExecutionId")
+
+    # Start Without Blocking So The Script Can Answer Its Prompt
+    Invoke-Dokime -Command (@('execution', 'start', $ExecutionId) + $RecoveryArguments)
+    $Pending = @(Invoke-Dokime -Command @('execution', 'prompt', 'next', $ExecutionId,
+        '--wait-seconds', "$WAIT_SECONDS", '--id-only', '--cancel-on-interrupt',
+        '--owned-cycle', $CycleId, '--recovery-directory', $Recovery))
+    if ($Pending.Count -ne 1) { throw 'Prompt Discovery Did Not Return One Identity' }
     $PromptId = [guid]::Parse([string]$Pending[0]).ToString()
     [Console]::Out.WriteLine("Prompt: $PromptId Execution: $ExecutionId")
-    Invoke-Dokime -Command @('execution', 'prompt', 'show', $ExecutionId, $PromptId)
-    Invoke-Dokime -Command @('execution', 'prompt', 'answer', $ExecutionId, $PromptId, '--action', 'yes')
+    Invoke-Dokime -Command (@('execution', 'prompt', 'show', $ExecutionId, $PromptId) + $RecoveryArguments)
+    Invoke-Dokime -Command (@('execution', 'prompt', 'answer', $ExecutionId, $PromptId, '--action', $ANSWER) + $RecoveryArguments)
+    Invoke-Dokime -Command @('execution', 'wait', $ExecutionId, '--wait-seconds', "$WAIT_SECONDS",
+        '--cancel-on-interrupt', '--owned-cycle', $CycleId, '--recovery-directory', $Recovery) -AllowSavedFailure
+    Invoke-Dokime -Command (@('execution', 'export', $ExecutionId, '--output', (Join-Path $OUTPUT_DIRECTORY 'execution.zip')) + $Export + $RecoveryArguments)
 
-    $Wait = @('execution', 'wait', $ExecutionId, '--wait-seconds', '120', '--cancel-on-interrupt',
-        '--owned-cycle', $CycleId, '--recovery-directory', $Recovery)
-    Invoke-Dokime -Command $Wait -AllowSavedFailure
-    $Destination = Join-Path $Directory 'execution.zip'
-    Invoke-Dokime -Command @('execution', 'export', $ExecutionId, '--output', $Destination)
+    # Seal The Container And Save Its Complete Bundle
     Invoke-Dokime -Command @('cycle', 'seal', $CycleId)
-    $Destination = Join-Path $Directory 'cycle.zip'
-    Invoke-Dokime -Command @('cycle', 'export', $CycleId, '--output', $Destination)
+    Invoke-Dokime -Command (@('cycle', 'export', $CycleId, '--output', (Join-Path $OUTPUT_DIRECTORY 'cycle.zip')) + $Export)
     $Completed = $true
-}
-catch {
-    [Console]::Error.WriteLine($_.Exception.Message)
-    $Result = 3
-}
-finally {
-    if (-not $Completed) {
-        [Console]::Error.WriteLine("Recovery Cycle: $CycleId Execution: $ExecutionId Prompt: $PromptId Request Key: $RequestKey")
-        [Console]::Error.WriteLine('A Failed Connection Does Not Confirm Cancellation Or An Answer. Inspect The Original Identities Before Resubmitting')
+} catch {
+    $OperationalFailure = $true
+    [Console]::Error.WriteLine("Workflow Incomplete: $_. Inspect Cycle: $CycleId Execution: $ExecutionId Before Resubmitting")
+    exit 3
+} finally {
+    # Cover Shell Interruption Between Native Commands
+    if (-not $Completed -and -not $OperationalFailure -and $CycleId) {
+        try {
+            [Console]::Error.WriteLine("Cancellation Requested For Script-Owned Cycle: $CycleId")
+            if ($ExecutionId) {
+                try { Invoke-Dokime -Command @('execution', 'stop', $ExecutionId) }
+                catch { [Console]::Error.WriteLine('Stop Was Not Confirmed; Resolving Through The Owned Cycle Seal') }
+            }
+            Invoke-Dokime -Command @('cycle', 'seal', $CycleId)
+            if ($ExecutionId) {
+                Invoke-Dokime -Command @('execution', 'wait', $ExecutionId) -AllowSavedFailure
+                $Destination = Join-Path $Recovery "execution-$ExecutionId.zip"
+                if (-not (Test-Path -LiteralPath $Destination)) {
+                    Invoke-Dokime -Command @('execution', 'export', $ExecutionId, '--output', $Destination)
+                }
+            }
+            $Destination = Join-Path $Recovery "cycle-$CycleId.zip"
+            if (-not (Test-Path -LiteralPath $Destination)) {
+                Invoke-Dokime -Command @('cycle', 'export', $CycleId, '--output', $Destination)
+            }
+        } catch {
+            [Console]::Error.WriteLine("Recovery Was Not Confirmed: $_. Retain Cycle: $CycleId Execution: $ExecutionId")
+        }
+        exit 130
     }
 }
 exit $Result

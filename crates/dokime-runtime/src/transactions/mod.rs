@@ -47,11 +47,11 @@ pub use lifecycle::{
 pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
 pub use parameters::UpsertScopedParameter;
-pub use planning::{AppendCycle, CopyCycle, CreateCycle, CycleDefinition, RegisterCases};
+pub use planning::{AppendExecutions, CopyCycle, CreateCycle, CycleDefinition, RegisterCases};
 pub use plugins::{InstallHostPlugin, ReconcileProviders, ReloadProviderCatalog};
 pub use prompts::{RequestPrompt, SubmitPromptResponse};
 pub use provider::RunProvider;
-pub use provider::request::{AdvanceRunGroup, CompleteRun, DispatchProvider, PrepareAttempt, SettleRun, Unsealed};
+pub use provider::request::{CompleteRun, DispatchProvider, PrepareAttempt, SettleRun, Unsealed};
 pub use provider_finish::FinishProvider;
 pub use suite_sets::{RemoveSuiteSet, SetSuiteSet};
 pub use traceability::{BeginStepAttempt, RecordExecutionTraceability, RecordStepAttempt, SetCapturePhase, UpdateExecutionPhase};
@@ -122,13 +122,12 @@ pub enum Transactions {
     UpdateCyclePolicy(UpdateCyclePolicy),
     SetArchived(SetArchived),
     RenameLabel(RenameLabel),
-    AppendCycle(AppendCycle),
+    AppendExecutions(AppendExecutions),
     CreateCycle(CreateCycle),
     CopyCycle(CopyCycle),
     RunProvider(RunProvider),
     PrepareAttempt(PrepareAttempt),
     DispatchProvider(DispatchProvider),
-    AdvanceRunGroup(AdvanceRunGroup),
     CompleteRun(CompleteRun),
     SettleRun(SettleRun),
 }

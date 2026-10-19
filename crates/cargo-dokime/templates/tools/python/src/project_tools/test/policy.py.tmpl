@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/policy.py; sha256:1cd11f591067cbcbff4600a44b4f2e28993845eb8ea51e7cf7f62024b15cdef7
+# Rendered by stkr project update from templates/python/test/policy.py; sha256:d619430c75965557940297f120c1193098c841aa46155147cdd2f303ed9af70e
 # ***
 #
 # {{package}}
@@ -14,7 +14,7 @@ Keys, all optional:
     [conventions.testing]
     limits = { unit = 512, integration = 256, acceptance = 128, system = 64 }
     deadlines = { unit = 10, integration = 120, acceptance = 900, system = 900 }
-    hosts = ["dist/build/{profile}/app"]
+    hosts = ["target/build/{profile}/{target}/bin/app{exe}"]
     bench_regression_percent = 20
 
     [[conventions.testing.overrides]]

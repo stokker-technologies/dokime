@@ -158,12 +158,13 @@ pub async fn blocked_cycle(
 pub async fn blocked_cycle_with(
     config: RuntimeConfig,
 ) -> (Runtime, RuntimeHandle, dokime_runtime::TestCycleId, Arc<executors::BlockingPublishingExecutor>) {
+    use suites::ExecutionFixtureStart;
     let executor = Arc::new(executors::BlockingPublishingExecutor::new());
     let (owner, runtime) = started_with_fixture(config, executor.clone()).await;
     let suite = suites::fixture_suite(&["passed"]);
     suites::register_python_suite(&runtime, suite.clone()).await;
     let cycle_id = suites::start_cycle(&runtime, suite, false).await;
-    let response = runtime.run_cycle_cases(cycle_id.clone(), dokime_runtime::runtime::command::CommandContext::default()).await;
+    let response = runtime.start_next_execution(cycle_id.clone(), dokime_runtime::runtime::command::CommandContext::default()).await;
     assert_eq!(response.status, dokime_runtime::runtime::command::CommandStatus::Accepted, "{response:?}");
     executor.wait_until_entered().await;
 

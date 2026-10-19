@@ -185,7 +185,7 @@ pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -
             input_parameter_count: execution.snapshot.parameters().len() as u64,
             controls: dokime_runtime::runtime::query::execution_controls(snapshot.state(), &execution.test_execution_id).map(|controls| {
                 execution_model::ExecutionControls {
-                    request_id: controls.request_id.to_string(),
+                    request_id: controls.request_id.map(|id| id.to_string()),
                     mode: match controls.mode {
                         dokime_domain::model::execution::ExecutionMode::Automatic => execution_model::ExecutionMode::Automatic,
                         dokime_domain::model::execution::ExecutionMode::Interactive => execution_model::ExecutionMode::Interactive,

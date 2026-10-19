@@ -182,20 +182,32 @@ async fn create_cycle(
         .await
         .unwrap()
         .cycle_id;
-    execution
-        .execution_append_planned_cases(contracts::execution::AppendPlannedCases {
-            cycle_id: cycle_id.clone(),
+    let registered = execution
+        .planning_register_selection(contracts::planning::RegisterSelection {
             plan: Some(plan),
-            context: None,
+            idempotency_key: uuid::Uuid::now_v7().to_string(),
         })
         .await
         .unwrap();
+    let executions = registered
+        .cases
+        .into_iter()
+        .map(|case| contracts::execution::ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: case.case_id })
+        .collect();
+    execution.execution_append_executions(contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions }).await.unwrap();
     cycle_id
 }
 
 async fn run_cycle(execution: &mut Client, cycle_id: &str) {
+    let members = execution
+        .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() })
+        .await
+        .unwrap();
     let reply = execution
-        .execution_run_cycle(contracts::execution::RunCycle { cycle_id: cycle_id.to_owned(), ..Default::default() })
+        .execution_start_execution(contracts::execution::StartExecution {
+            execution_id: members.executions[0].execution_id.clone(),
+            mode: model::execution::wire::ExecutionMode::Automatic,
+        })
         .await
         .unwrap();
     assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))));

@@ -13,8 +13,10 @@
 
 # Standard Library Imports
 import asyncio
+import re
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import suppress
+from fnmatch import fnmatchcase
 
 # Third Party Imports
 from google.protobuf.message import Message
@@ -46,6 +48,7 @@ async def read_records(
     record_types: Sequence[str],
     completion: Awaitable[object] | None,
 ) -> AsyncGenerator[Message]:
+    validate_patterns(record_types)
     selection = _wire.nested("Evidence", "ListRecords", "selection", scope=scope, record_types=record_types)
     after = None
     if completion is not None:
@@ -124,6 +127,7 @@ async def read_samples(
     interval: float,
     completion: Callable[[], Awaitable[bool]],
 ) -> AsyncGenerator[Message]:
+    validate_patterns(streams)
     if not 1 <= page_size <= 5000:
         raise ValueError("page size must be between 1 and 5000")
     positions: dict[str, int] = {}
@@ -156,7 +160,8 @@ async def read_samples(
         ):
             raise ProtocolError("telemetry continuation did not advance")
         for item in page.samples:
-            if not item.HasField("scope") or not _scope(scope, item.scope) or (streams and item.stream not in streams):
+            selected = not streams or any(fnmatchcase(item.stream, pattern) for pattern in streams)
+            if not item.HasField("scope") or not _scope(scope, item.scope) or not selected:
                 raise ProtocolError("sample identity or stream differs")
         positions.update(through)
         yield page
@@ -167,6 +172,14 @@ async def read_samples(
 
 
 # === Private Functions === #
+
+
+def validate_patterns(patterns: Sequence[str]) -> None:
+    if isinstance(patterns, str) or len(patterns) > 64:
+        raise ValueError("listener filters require a sequence of at most 64 identifier globs")
+    for pattern in patterns:
+        if not isinstance(pattern, str) or len(pattern) > 4096 or re.fullmatch(r"[A-Za-z0-9_*?][A-Za-z0-9_.*?-]*", pattern) is None:
+            raise ValueError("listener filters accept identifier globs using only '*' and '?' wildcards")
 
 
 def _scope(expected: Message, actual: Message) -> bool:

@@ -59,6 +59,7 @@ struct Encoded<'a> {
     cycles: &'a BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
     #[serde(serialize_with = "executions::serialize")]
     executions: &'a BTreeMap<TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
+    retired_executions: &'a BTreeSet<TestExecutionId>,
     run_requests: &'a BTreeMap<CommandId, crate::transactions::provider::request::RunRequest>,
     run_queue: &'a std::collections::VecDeque<CommandId>,
     cycle_report_finalizations: &'a BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
@@ -94,6 +95,7 @@ struct Decoded {
     cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
     #[serde(deserialize_with = "executions::deserialize")]
     executions: BTreeMap<TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
+    retired_executions: BTreeSet<TestExecutionId>,
     #[serde(default)]
     run_requests: BTreeMap<CommandId, crate::transactions::provider::request::RunRequest>,
     run_queue: std::collections::VecDeque<CommandId>,
@@ -133,6 +135,7 @@ impl Serialize for RuntimeState {
             telemetry_definitions,
             cycles,
             executions,
+            retired_executions,
             run_requests,
             run_queue,
             cycle_report_finalizations,
@@ -173,6 +176,7 @@ impl Serialize for RuntimeState {
             telemetry_definitions,
             cycles,
             executions,
+            retired_executions,
             run_requests,
             run_queue,
             cycle_report_finalizations,
@@ -220,6 +224,7 @@ impl Decoded {
             telemetry_definitions,
             cycles,
             executions,
+            retired_executions,
             run_requests,
             run_queue,
             cycle_report_finalizations,
@@ -252,6 +257,7 @@ impl Decoded {
             telemetry_definitions: catalog.telemetry(telemetry_definitions)?,
             cycles,
             executions,
+            retired_executions,
             run_requests,
             run_queue,
             cycle_report_finalizations,

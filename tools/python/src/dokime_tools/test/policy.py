@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/policy.py; sha256:bb20f5e511dc722bfd69bebba1f9dfde0b88eefa53b174046bffa6a3ad6afab1
+# Rendered by stkr project update from templates/python/test/policy.py; sha256:72adcd4d2b17422e5568fa654513602cbff069fd25b4b20b99bbb5078e6b9041
 # ***
 #
 # Dokime
@@ -14,7 +14,7 @@ Keys, all optional:
     [conventions.testing]
     limits = { unit = 512, integration = 256, acceptance = 128, system = 64 }
     deadlines = { unit = 10, integration = 120, acceptance = 900, system = 900 }
-    hosts = ["dist/build/{profile}/app"]
+    hosts = ["target/build/{profile}/{target}/bin/app{exe}"]
     bench_regression_percent = 20
 
     [[conventions.testing.overrides]]

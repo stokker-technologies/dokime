@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+use crate::service_support::suites::ExecutionFixtureStart;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
@@ -437,7 +438,7 @@ async fn capture_failure_provider() {
         false,
     )
     .await;
-    handle.run_cycle_cases(cycle, dokime_runtime::runtime::command::CommandContext::default()).await;
+    handle.start_next_execution(cycle, dokime_runtime::runtime::command::CommandContext::default()).await;
     provider.entered.notified().await;
 
     let reader = handle.captured_records();
@@ -547,6 +548,7 @@ async fn native_entry_independent() {
         updated_at: now,
         execution_ids: vec![],
         records: Default::default(),
+        continue_automatically: false,
         continue_on_failure: false,
         result: None,
     };

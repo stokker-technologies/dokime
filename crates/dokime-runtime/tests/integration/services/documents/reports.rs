@@ -129,6 +129,7 @@ async fn report_save_receipt() {
             updated_at: finished_at.clone(),
             test_executions: vec![original_execution.clone()],
             records: Default::default(),
+            continue_automatically: false,
             continue_on_failure: false,
             result: None,
         },
@@ -314,7 +315,7 @@ async fn report_opens_anytime() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].test_execution_id.clone();
 
@@ -330,7 +331,9 @@ async fn report_opens_anytime() {
 
     // Sealed: The Exact Bytes Finalization Published
     executor.release();
-    let cycle = wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
+    let cycle = cycle_snapshot(&runtime, &id).await;
     let seal = cycle.saved.clone().unwrap();
     let published = crate::service_support::reports::bytes(runtime.storage(), &seal.report).await;
     let sealed = runtime.open_cycle_report(&id).await.unwrap();
@@ -354,17 +357,17 @@ async fn report_opens_anytime() {
 #[tokio::test]
 async fn report_download_serves() {
     let root = tempdir().unwrap();
-    let executor = Arc::new(SecondGroupHoldExecutor::default());
+    let executor = Arc::new(SecondExecutionHoldExecutor::default());
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let first = plt400_suite();
     let second = plt400_diagnostics_suite();
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
     let id = start_cycle(&runtime, first, false).await;
     runtime
-        .append_cycle_cases(id.clone(), materialize_cases("provider:testdb:plt400.diagnostics", &second), CommandContext::default())
+        .append_fixture_cases(id.clone(), materialize_cases("provider:testdb:plt400.diagnostics", &second), CommandContext::default())
         .await
         .unwrap();
-    let receipt = runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{:?}", receipt.rejection);
     executor.wait_until_entered().await;
     let settled = cycle_snapshot(&runtime, &id)
@@ -400,7 +403,9 @@ async fn report_download_serves() {
 
     // Finalized: Both Downloads Serve The Sealed Artifacts
     executor.release();
-    let cycle = wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
+    let cycle = cycle_snapshot(&runtime, &id).await;
     let cycle_seal = cycle.saved.clone().expect("the completed cycle is sealed");
     let sealed = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
@@ -421,7 +426,7 @@ async fn open_report_repeatedly() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].clone();
     let recorded = execution.steps.len();
@@ -509,7 +514,7 @@ async fn cycle_report_reboot() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let waiting = tokio::spawn({
         let runtime = runtime.clone();
@@ -520,7 +525,9 @@ async fn cycle_report_reboot() {
     waiting.abort();
     assert!(waiting.await.unwrap_err().is_cancelled());
     executor.release();
-    let cycle = wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
+    let cycle = cycle_snapshot(&runtime, &id).await;
     let original = cycle.saved.as_ref().unwrap().clone();
     // The Whole Report Is Rendered Before Publication, So Storage Verifies It.
     assert_eq!(original.report.metadata.expected_length, Some(original.report.length));

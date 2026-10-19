@@ -63,13 +63,14 @@ class Row5(_message.Message):
     def __init__(self, key: _Optional[_Union[Row10, _Mapping]] = ..., descending: _Optional[bool] = ...) -> None: ...
 
 class Row6(_message.Message):
-    __slots__ = ("cycle_id", "metadata", "phase", "status", "case_count", "execution_count", "continue_on_failure", "observed_cursor", "created_at", "started_at", "updated_at", "result", "archived", "sealed", "running_count", "queued_count")
+    __slots__ = ("cycle_id", "metadata", "phase", "status", "case_count", "execution_count", "continue_automatically", "continue_on_failure", "observed_cursor", "created_at", "started_at", "updated_at", "result", "archived", "sealed", "running_count", "queued_count")
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     PHASE_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     CASE_COUNT_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_COUNT_FIELD_NUMBER: _ClassVar[int]
+    CONTINUE_AUTOMATICALLY_FIELD_NUMBER: _ClassVar[int]
     CONTINUE_ON_FAILURE_FIELD_NUMBER: _ClassVar[int]
     OBSERVED_CURSOR_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -86,6 +87,7 @@ class Row6(_message.Message):
     status: Row7
     case_count: int
     execution_count: int
+    continue_automatically: bool
     continue_on_failure: bool
     observed_cursor: Row3
     created_at: Row8
@@ -96,7 +98,7 @@ class Row6(_message.Message):
     sealed: bool
     running_count: int
     queued_count: int
-    def __init__(self, cycle_id: _Optional[str] = ..., metadata: _Optional[_Union[Row11, _Mapping]] = ..., phase: _Optional[_Union[Row12, _Mapping]] = ..., status: _Optional[_Union[Row7, _Mapping]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., continue_on_failure: _Optional[bool] = ..., observed_cursor: _Optional[_Union[Row3, _Mapping]] = ..., created_at: _Optional[_Union[Row8, _Mapping]] = ..., started_at: _Optional[_Union[Row8, _Mapping]] = ..., updated_at: _Optional[_Union[Row8, _Mapping]] = ..., result: _Optional[_Union[Row13, _Mapping]] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ..., running_count: _Optional[int] = ..., queued_count: _Optional[int] = ...) -> None: ...
+    def __init__(self, cycle_id: _Optional[str] = ..., metadata: _Optional[_Union[Row11, _Mapping]] = ..., phase: _Optional[_Union[Row12, _Mapping]] = ..., status: _Optional[_Union[Row7, _Mapping]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., continue_automatically: _Optional[bool] = ..., continue_on_failure: _Optional[bool] = ..., observed_cursor: _Optional[_Union[Row3, _Mapping]] = ..., created_at: _Optional[_Union[Row8, _Mapping]] = ..., started_at: _Optional[_Union[Row8, _Mapping]] = ..., updated_at: _Optional[_Union[Row8, _Mapping]] = ..., result: _Optional[_Union[Row13, _Mapping]] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ..., running_count: _Optional[int] = ..., queued_count: _Optional[int] = ...) -> None: ...
 
 class Row7(_message.Message):
     __slots__ = ("Unspecified", "Ready", "Running", "Paused", "Stopping", "Completed", "Failed", "Blocked", "Stopped")

@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+mod export;
 mod prompt;
-mod recovery;
+pub(crate) mod recovery;
 mod run;
+mod start;
 mod stop;
 mod wait;
 
@@ -34,7 +36,10 @@ mod wait;
 /* === Enums === */
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
-    #[command(about = "Run One Pending Execution With A Caller-Retained Request Key.")]
+    #[command(about = "Start One Execution By Its Durable Identity Without Waiting For Completion.")]
+    Start(start::Args),
+
+    #[command(about = "Start One Execution And Wait For Its Durable Sealed Outcome.")]
     Run(run::Args),
 
     #[command(about = "Wait For A Durable Execution Outcome Without Replaying Work.")]
@@ -47,7 +52,7 @@ pub(crate) enum Command {
     Stop(stop::Args),
 
     #[command(about = "Download A Sealed Execution's Evidence While Its Cycle May Stay Active.")]
-    Export(super::evidence::Args),
+    Export(export::Args),
 }
 
 /* === Traits === */
@@ -57,11 +62,12 @@ pub(crate) enum Command {
 /* === Public Functions === */
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
+        Command::Start(args) => start::run(args).await,
         Command::Run(args) => run::run(args).await,
         Command::Wait(args) => wait::run(args).await,
         Command::Prompt(command) => prompt::run(command).await,
         Command::Stop(args) => stop::run(args).await,
-        Command::Export(args) => super::evidence::run(args, dokime_domain::model::exports::EvidenceSubject::Execution).await,
+        Command::Export(args) => export::run(args).await,
     }
 }
 

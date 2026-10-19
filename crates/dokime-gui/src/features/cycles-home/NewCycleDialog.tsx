@@ -97,6 +97,12 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             />
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <Label htmlFor="new-cycle-continue-automatically">Continue Automatically</Label>
+            <Switch
+              checked={form.continueAutomatically}
+              id="new-cycle-continue-automatically"
+              onCheckedChange={(continueAutomatically) => change({ continueAutomatically })}
+            />
             <Label htmlFor="new-cycle-continue-on-failure">Continue after a failed case</Label>
             <Switch
               checked={form.continueOnFailure}

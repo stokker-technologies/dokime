@@ -40,6 +40,9 @@ pub(crate) struct Args {
     #[command(flatten)]
     connection: crate::connection::Args,
 
+    #[command(flatten)]
+    recovery: super::super::recovery::Args,
+
     #[arg(long, help = "Emit The Admitted Prompt And Any Committed Response As JSON.")]
     json: bool,
 }
@@ -54,8 +57,11 @@ pub(crate) struct Args {
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let execution = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let prompt = PromptId::from_uuid(&args.prompt_id).map_err(|error| crate::Error::Input(error.to_string()))?;
+    let recovery = args.recovery.prepare(&execution)?;
     let client = args.connection.connect().await?;
-    let result = client.execution(execution).prompt(&prompt).await;
+    let execution = client.execution(execution);
+    let operation = async { execution.prompt(&prompt).await.map_err(crate::Error::from) };
+    let result = super::super::recovery::observe(&client, &execution, recovery.as_ref(), "Prompt Display", operation).await;
     client.close_and_wait().await;
     let view = result?;
 

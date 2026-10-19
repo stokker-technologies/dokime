@@ -13,6 +13,35 @@
 
 /* === Local Imports === */
 
+import type {
+  Row14 as GeneratedExecutionAvailability,
+  Row15 as GeneratedExecutionBrowseLifecycle,
+  Row8 as GeneratedExecutionStatus,
+  Row12 as GeneratedHistoricalExecutionMetadata,
+  Row6 as GeneratedHistoryIssue,
+  Row2 as GeneratedNativeExecutionBrowsePage,
+  Row13 as GeneratedNativeExecutionCheckpoint,
+} from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type {
+  Row3 as GeneratedArtifactFrame,
+  Row11 as GeneratedArtifactMetadata,
+  Row15 as GeneratedArtifactState,
+} from "@generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
+import type { Row2 as GeneratedCheckpointContext } from "@generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
+import type { Row2 as GeneratedCheckpointDocument } from "@generated/dokime/v1/HistoryMessages/GetCheckpointDocument/messages_pb";
+import type {
+  Row2 as GeneratedCheckpointEvidence,
+  Row15 as GeneratedExecutionFileKind,
+  Row5 as GeneratedExecutionFileMetadata,
+  Row16 as GeneratedExecutionFileState,
+} from "@generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
+import type {
+  Row7 as GeneratedCapturedRecord,
+  Row2 as GeneratedCheckpointRecordPage,
+  Row10 as GeneratedSeverity,
+} from "@generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
+import type { Row2 as GeneratedCheckpointTelemetryPage } from "@generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
+import type { Row4 as GeneratedExecutionFileWindow } from "@generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
@@ -23,37 +52,8 @@ import type {
   ExecutionBrowsePage,
   ExecutionCheckpoint,
 } from "@/lib/types/view-contracts";
-import type {
-  Row14 as GeneratedExecutionAvailability,
-  Row15 as GeneratedExecutionBrowseLifecycle,
-  Row8 as GeneratedExecutionStatus,
-  Row12 as GeneratedHistoricalExecutionMetadata,
-  Row6 as GeneratedHistoryIssue,
-  Row2 as GeneratedNativeExecutionBrowsePage,
-  Row13 as GeneratedNativeExecutionCheckpoint,
-} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type {
-  Row3 as GeneratedArtifactFrame,
-  Row11 as GeneratedArtifactMetadata,
-  Row15 as GeneratedArtifactState,
-} from "../../../.generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
-import type { Row2 as GeneratedCheckpointContext } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
-import type { Row2 as GeneratedCheckpointDocument } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointDocument/messages_pb";
-import type {
-  Row2 as GeneratedCheckpointEvidence,
-  Row15 as GeneratedExecutionFileKind,
-  Row5 as GeneratedExecutionFileMetadata,
-  Row16 as GeneratedExecutionFileState,
-} from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type {
-  Row7 as GeneratedCapturedRecord,
-  Row2 as GeneratedCheckpointRecordPage,
-  Row10 as GeneratedSeverity,
-} from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
-import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
-import type { Row4 as GeneratedExecutionFileWindow } from "../../../.generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
-import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
 import { mapCyclePhase } from "./native-planning";
+import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
 
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
 type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;

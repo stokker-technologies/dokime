@@ -106,76 +106,69 @@ impl harmos::operations::Operation for Handler {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn publication_failure(overwrite: bool) {
-    let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
-    let handle = owner.handle();
-    let resources = Gate::default();
-    let gate = Arc::new(resources);
-    handle.operations().register_wire_operation::<Handler>("fixture.output", dokime_runtime::app::Lanes::Open, gate.clone()).unwrap();
-    let server = Server::start(handle, Config::local()).await.unwrap();
-    let endpoint = server.local_endpoint();
-
-    let directory = root.path().join("response");
-    std::fs::create_dir(&directory).unwrap();
-    let destination = directory.join("response.json");
-    if overwrite {
-        std::fs::write(&destination, b"original response").unwrap();
-    }
-    let command =
-        ["dokime", "operation", "call", "fixture.output.mutate", "--endpoint", &endpoint, "--output", destination.to_str().unwrap()];
-    let arguments = command.into_iter().chain(overwrite.then_some("--overwrite"));
-    let args = dokime::Cli::try_parse_from(arguments).unwrap();
-    let pending = args.run();
-    tokio::pin!(pending);
-
-    // The Real Handler Has Acted, But Cannot Complete Before The Destination Changes.
-    let budget = std::time::Duration::from_secs(15);
-    tokio::time::timeout(budget, async {
-        tokio::select! {
-            () = gate.acted.notified() => {},
-            result = &mut pending => panic!("command returned before the operation acted: {result:?}"),
-        }
-    })
-    .await
-    .unwrap();
-    assert_eq!(gate.calls.load(Ordering::SeqCst), 1);
-    if overwrite {
-        std::fs::rename(&destination, directory.join("original.json")).unwrap();
-        std::fs::create_dir(&destination).unwrap();
-        std::fs::write(destination.join("retained.json"), b"concurrent directory content").unwrap();
-    } else {
-        std::fs::write(&destination, b"concurrent response").unwrap();
-    }
-
-    gate.release.notify_one();
-    let error = tokio::time::timeout(budget, &mut pending).await.unwrap().unwrap_err();
-    assert!(matches!(error, dokime::Error::OperationOutput { .. }), "{error}");
-    assert_eq!(error.exit_code(), std::process::ExitCode::from(3));
-    assert_eq!(gate.calls.load(Ordering::SeqCst), 1, "a failed response publication must never replay the operation");
-
-    if overwrite {
-        assert_eq!(std::fs::read(directory.join("original.json")).unwrap(), b"original response");
-        assert_eq!(std::fs::read(destination.join("retained.json")).unwrap(), b"concurrent directory content");
-        assert_eq!(std::fs::read_dir(&destination).unwrap().count(), 1);
-    } else {
-        assert_eq!(std::fs::read(&destination).unwrap(), b"concurrent response");
-    }
-    assert_eq!(
-        std::fs::read_dir(&directory).unwrap().count(),
-        if overwrite { 2 } else { 1 },
-        "failed publication must remove staged output"
-    );
-
-    server.shutdown().await.unwrap();
-    owner.shutdown().await.unwrap();
-}
 
 /* === Tests === */
 #[tokio::test]
 async fn response_publication_faults() {
-    publication_failure(false).await;
-    publication_failure(true).await;
+    for overwrite in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let mut owner = runtime(root.path()).await;
+        let handle = owner.handle();
+        let resources = Gate::default();
+        let gate = Arc::new(resources);
+        handle.operations().register_wire_operation::<Handler>("fixture.output", dokime_runtime::app::Lanes::Open, gate.clone()).unwrap();
+        let server = Server::start(handle, Config::local()).await.unwrap();
+        let endpoint = server.local_endpoint();
+
+        let directory = root.path().join("response");
+        std::fs::create_dir(&directory).unwrap();
+        let destination = directory.join("response.json");
+        if overwrite {
+            std::fs::write(&destination, b"original response").unwrap();
+        }
+        let command =
+            ["dokime", "operation", "call", "fixture.output.mutate", "--endpoint", &endpoint, "--output", destination.to_str().unwrap()];
+        let arguments = command.into_iter().chain(overwrite.then_some("--overwrite"));
+        let args = dokime::Cli::try_parse_from(arguments).unwrap();
+        let pending = args.run();
+        tokio::pin!(pending);
+
+        // The Real Handler Has Acted, But Cannot Complete Before The Destination Changes.
+        tokio::select! {
+            () = gate.acted.notified() => {},
+            result = &mut pending => panic!("command returned before the operation acted: {result:?}"),
+        }
+        assert_eq!(gate.calls.load(Ordering::SeqCst), 1);
+        if overwrite {
+            std::fs::rename(&destination, directory.join("original.json")).unwrap();
+            std::fs::create_dir(&destination).unwrap();
+            std::fs::write(destination.join("retained.json"), b"concurrent directory content").unwrap();
+        } else {
+            std::fs::write(&destination, b"concurrent response").unwrap();
+        }
+
+        gate.release.notify_one();
+        let error = pending.await.unwrap_err();
+        assert!(matches!(error, dokime::Error::OperationOutput { .. }), "{error}");
+        assert_eq!(error.exit_code(), std::process::ExitCode::from(3));
+        assert_eq!(gate.calls.load(Ordering::SeqCst), 1, "a failed response publication must never replay the operation");
+
+        if overwrite {
+            assert_eq!(std::fs::read(directory.join("original.json")).unwrap(), b"original response");
+            assert_eq!(std::fs::read(destination.join("retained.json")).unwrap(), b"concurrent directory content");
+            assert_eq!(std::fs::read_dir(&destination).unwrap().count(), 1);
+        } else {
+            assert_eq!(std::fs::read(&destination).unwrap(), b"concurrent response");
+        }
+        assert_eq!(
+            std::fs::read_dir(&directory).unwrap().count(),
+            if overwrite { 2 } else { 1 },
+            "failed publication must remove staged output"
+        );
+
+        server.shutdown().await.unwrap();
+        owner.shutdown().await.unwrap();
+    }
 }
 
 #[tokio::test]
@@ -210,17 +203,12 @@ async fn response_unavailable_after_effect() {
     let pending = args.run();
     tokio::pin!(pending);
 
-    let budget = std::time::Duration::from_secs(15);
-    tokio::time::timeout(budget, async {
-        tokio::select! {
-            () = gate.acted.notified() => {},
-            result = &mut pending => panic!("command returned before the operation acted: {result:?}"),
-        }
-    })
-    .await
-    .unwrap();
+    tokio::select! {
+        () = gate.acted.notified() => {},
+        result = &mut pending => panic!("command returned before the operation acted: {result:?}"),
+    }
     gate.release.notify_one();
-    let error = tokio::time::timeout(budget, &mut pending).await.unwrap().unwrap_err();
+    let error = pending.await.unwrap_err();
 
     assert!(matches!(error, dokime::Error::OperationUncertain { .. }), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(3));

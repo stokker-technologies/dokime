@@ -60,7 +60,6 @@ import {
   buildCycleExecutionRows,
   type CycleExecutionRow,
   type CycleSelection,
-  caseActionTooltip,
   cycleStatusLabel,
   cycleStatusVariant,
   finishedCaseCount,
@@ -87,7 +86,7 @@ export type CycleWorkspaceProps = {
   onSelectionChange: (next: CycleSelection) => void;
 };
 
-type PendingConfirm = { kind: "stop" | "seal" } | null;
+type PendingConfirm = { kind: "seal" } | null;
 
 /* === Components === */
 
@@ -159,9 +158,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     () =>
       live ? (
         <div className="grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]">
-          {executionSelected ? null : (
-            <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} onSeal={() => setConfirm({ kind: "seal" })} />
-          )}
+          {executionSelected ? null : <CycleRunControls cycleId={cycleId} onSeal={() => setConfirm({ kind: "seal" })} />}
           {reportSubject ? (
             <>
               <CycleExportButton cycleId={cycleId} executionId={reportSubject.executionId} sealed={evidenceSealed} />
@@ -297,12 +294,12 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       onRerun:
         selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
           ? () =>
-              run({ done: "Case Re-Run Started", failed: "Case Re-Run Failed" }, async () => {
+              run({ done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" }, async () => {
                 const created = await rerunCase.rerun(selectedRow.case.caseId);
                 if (created) onSelectionChange({ executionId: created });
               })
           : null,
-      rerunRefusal: selectedRow.case.actions && !selectedRow.case.actions.schedule_rerun ? caseActionTooltip(selectedRow.case) : undefined,
+      rerunRefusal: plan.test_cycle.phase === "active" ? undefined : "Only Active Cycles Accept New Attempts",
     };
     return (
       <div className="grid min-h-0">
@@ -371,6 +368,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       <CycleEvidencePane cycleId={cycleId} live={live} plan={plan} snapshot={runtimeQuery.data ?? null} />
 
       <RuntimePolicyDialog
+        continueAutomatically={plan.test_cycle.continue_automatically}
         continueOnFailure={plan.test_cycle.continue_on_failure}
         onOpenChange={setPolicyOpen}
         onSubmit={(value) =>
@@ -382,36 +380,30 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         open={live && policyOpen}
       />
 
-      <Dialog onOpenChange={(next) => !next && setConfirm(null)} open={live && confirm !== null}>
+      <Dialog onOpenChange={(next) => !next && !commands.sealCycle.isPending && setConfirm(null)} open={live && confirm !== null}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{confirm?.kind === "seal" ? "Seal Cycle" : "Stop Cycle"}</DialogTitle>
+            <DialogTitle>Seal Cycle</DialogTitle>
             <DialogDescription>
-              {confirm?.kind === "seal"
-                ? "Sealing closes this cycle permanently. Its running work stops, unrun executions are cancelled, and all evidence is saved. Other cycles keep running. This can take time while evidence drains."
-                : `Stopping the cycle stops every running and queued execution of its ${cases.length} cases. The cycle stays Active. To stop only one execution, select it and use Stop Execution.`}
+              Sealing closes this cycle permanently. Its running work stops, unstarted executions are cancelled, and all evidence is saved.
+              Other cycles keep running. This can take time while evidence drains.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setConfirm(null)} variant="outline">
+            <Button disabled={commands.sealCycle.isPending} onClick={() => setConfirm(null)} variant="outline">
               Cancel
             </Button>
             <Button
               disabled={commands.sealCycle.isPending}
               onClick={() => {
-                if (confirm?.kind === "seal") {
-                  run({ done: "Cycle Sealed", failed: "Cycle Seal Could Not Be Confirmed" }, async () => {
-                    await commands.sealCycle.mutateAsync();
-                    setConfirm(null);
-                  });
-                  return;
-                }
-                setConfirm(null);
-                run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () => commands.stopCycle.mutateAsync());
+                run({ done: "Cycle Sealed", failed: "Cycle Seal Could Not Be Confirmed" }, async () => {
+                  await commands.sealCycle.mutateAsync();
+                  setConfirm(null);
+                });
               }}
               variant="danger"
             >
-              {commands.sealCycle.isPending ? "Sealing — Saving Evidence" : confirm?.kind === "seal" ? "Seal Cycle" : "Stop Cycle"}
+              {commands.sealCycle.isPending ? "Sealing — Saving Evidence" : "Seal Cycle"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -439,30 +431,40 @@ function executionTitlePrefix(row: CycleExecutionRow): string {
 /* === Private Components === */
 
 function RuntimePolicyDialog({
+  continueAutomatically,
   continueOnFailure,
   onOpenChange,
   onSubmit,
   open,
 }: {
+  continueAutomatically: boolean;
   continueOnFailure: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (continueOnFailure: boolean) => void;
+  onSubmit: (policy: { continueAutomatically: boolean; continueOnFailure: boolean }) => void;
   open: boolean;
 }) {
   const [value, setValue] = useState(continueOnFailure);
+  const [automatic, setAutomatic] = useState(continueAutomatically);
 
   useEffect(() => {
-    if (open) setValue(continueOnFailure);
-  }, [continueOnFailure, open]);
+    if (open) {
+      setValue(continueOnFailure);
+      setAutomatic(continueAutomatically);
+    }
+  }, [continueAutomatically, continueOnFailure, open]);
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Runtime Policy</DialogTitle>
-          <DialogDescription>How this cycle reacts when a case fails.</DialogDescription>
+          <DialogDescription>
+            After explicit Start, the server can continue through unstarted executions in order. Stop Execution halts continuation.
+          </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+          <Label htmlFor="cycle-continue-automatically">Continue Automatically</Label>
+          <Switch checked={automatic} id="cycle-continue-automatically" onCheckedChange={setAutomatic} />
           <Label htmlFor="cycle-continue-on-failure">Continue after a failed case</Label>
           <Switch checked={value} id="cycle-continue-on-failure" onCheckedChange={setValue} />
         </div>
@@ -470,7 +472,7 @@ function RuntimePolicyDialog({
           <Button onClick={() => onOpenChange(false)} variant="outline">
             Cancel
           </Button>
-          <Button onClick={() => onSubmit(value)}>Save Policy</Button>
+          <Button onClick={() => onSubmit({ continueAutomatically: automatic, continueOnFailure: value })}>Save Policy</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

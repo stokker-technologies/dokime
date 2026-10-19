@@ -106,23 +106,22 @@ impl Transaction<RuntimeState> for CompleteRun {
             outcome_phase(status)
         };
         request.summary.finished_at = Some(self.at.clone());
-        // A target group the policy or a Stop never let start still owes the
-        // receipt its planned attempts, as unstarted.
-        request.summary.unstarted += request.groups.iter().map(|group| group.pending.len() as u64).sum::<u64>();
+        // A Cancelled Admission Retains Its Unstarted Attempt Count.
         request.summary.unstarted += request.pending.len() as u64;
         request.pending.clear();
-        request.groups.clear();
         let cycle = state.cycles.get_mut(&request.summary.cycle_id).expect("request cycle");
         cycle.result = Some(crate::transactions::provider_finish::summarize(
             cycle.execution_ids.iter().map(|id| state.executions.get(id).expect("cycle execution owner exists")),
         ));
-        cycle.lifecycle = if cycle.execution_ids.iter().any(|id| {
+        cycle.lifecycle = if request.summary.stop_requested {
+            CycleStatus::Stopped
+        } else if cycle.result.as_ref().is_some_and(|result| result.failed > 0 || result.blocked > 0) {
+            CycleStatus::Failed
+        } else if cycle.execution_ids.iter().any(|id| {
             let execution = &state.executions[id];
             execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none()
         }) {
             CycleStatus::Ready
-        } else if request.summary.stop_requested {
-            CycleStatus::Stopped
         } else {
             crate::transactions::provider_finish::lifecycle_for(cycle.result.as_ref())
         };
@@ -312,6 +311,7 @@ mod tests {
                 updated_at: at.clone(),
                 execution_ids: Vec::new(),
                 records: Default::default(),
+                continue_automatically: false,
                 continue_on_failure: false,
                 result: None,
             },
@@ -342,9 +342,7 @@ mod tests {
                 test_execution_id: None,
                 selected_execution_ids: Vec::new(),
                 pending: Default::default(),
-                groups: Default::default(),
                 settled_execution_ids: Vec::new(),
-                stopped_execution_ids: Vec::new(),
                 conclusion: Some(CycleStatus::Completed),
                 failure: None,
                 publication_failure: None,

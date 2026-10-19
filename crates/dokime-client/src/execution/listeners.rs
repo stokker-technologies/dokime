@@ -21,6 +21,7 @@ use tokio::sync::mpsc;
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result, TestExecutionHandle, contracts, invalid, poll_interval, validate_observed_cursor};
+use dokime_domain::model::identity::IdentifierPattern;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
@@ -40,6 +41,7 @@ impl TestExecutionHandle {
     pub fn records(
         &self, record_types: Vec<String>, follow: bool, interval: Option<Duration>,
     ) -> Result<ResponseStream<dokime_domain::model::evidence::wire::RecordPage>> {
+        validate_filters(&record_types)?;
         let interval = poll_interval(interval)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -58,6 +60,7 @@ impl TestExecutionHandle {
     pub fn samples(
         &self, streams: Vec<String>, follow: bool, page_size: u32, interval: Option<Duration>,
     ) -> Result<ResponseStream<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>> {
+        validate_filters(&streams)?;
         let interval = sample_interval(page_size, interval)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -84,6 +87,18 @@ impl TestExecutionHandle {
 }
 
 /* === Public Functions === */
+pub(crate) fn validate_filters(filters: &[String]) -> Result<Vec<IdentifierPattern>> {
+    if filters.len() > 64 || filters.iter().map(String::len).sum::<usize>() > 4096 {
+        return Err(Error::Rpc(tonic::Status::invalid_argument("filters exceed 64 patterns or 4096 characters")));
+    }
+    filters
+        .iter()
+        .map(|filter| {
+            IdentifierPattern::new(filter.clone()).map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))
+        })
+        .collect()
+}
+
 pub(crate) fn sample_interval(page_size: u32, interval: Option<Duration>) -> Result<Duration> {
     if !(1..=5000).contains(&page_size) {
         return Err(Error::Rpc(tonic::Status::invalid_argument("page size must be between 1 and 5000")));
@@ -151,6 +166,7 @@ pub(crate) async fn read_records<F>(
 where
     F: Future<Output = Result<()>> + Send,
 {
+    let patterns = validate_filters(&record_types)?;
     let selection = dokime_domain::model::evidence::wire::CapturedRecordSelection {
         scope: Some(scope.clone()),
         record_types,
@@ -172,7 +188,7 @@ where
                     page = reader.message() => page?
                         .ok_or_else(|| invalid("record reader ended before completion"))?,
                 };
-                validate_records(&scope, &client.backend().epoch, &page, after.as_ref())?;
+                validate_records(&scope, &patterns, &client.backend().epoch, &page, after.as_ref())?;
                 let scanned = page.scanned.clone();
                 if sender.send(Ok(page)).await.is_err() {
                     return Ok(false);
@@ -192,7 +208,7 @@ where
     client.verify(true).await?;
     let mut request = contracts::evidence::ListRecords { selection: Some(selection), after: None, through: None };
     let mut page = client.evidence_list_records(request.clone()).await?;
-    validate_records(&scope, &client.backend().epoch, &page, None)?;
+    validate_records(&scope, &patterns, &client.backend().epoch, &page, None)?;
     let frontier = page.through.clone();
     if let Some(after) = after {
         request.after = Some(after);
@@ -200,7 +216,7 @@ where
         page = client.evidence_list_records(request.clone()).await?;
     }
     loop {
-        validate_records(&scope, &client.backend().epoch, &page, request.after.as_ref())?;
+        validate_records(&scope, &patterns, &client.backend().epoch, &page, request.after.as_ref())?;
         if page.through != frontier {
             return Err(invalid("record replay changed its fixed frontier"));
         }
@@ -231,8 +247,8 @@ fn record_scope(id: &TestExecutionId) -> dokime_domain::model::identity::wire::E
 }
 
 fn validate_records(
-    scope: &dokime_domain::model::identity::wire::EvidenceScope, epoch: &str, page: &dokime_domain::model::evidence::wire::RecordPage,
-    after: Option<&dokime_domain::model::execution::wire_cursor::Cursor>,
+    scope: &dokime_domain::model::identity::wire::EvidenceScope, patterns: &[IdentifierPattern], epoch: &str,
+    page: &dokime_domain::model::evidence::wire::RecordPage, after: Option<&dokime_domain::model::execution::wire_cursor::Cursor>,
 ) -> Result<()> {
     validate_observed_cursor(epoch, page.scanned.as_ref())?;
     validate_observed_cursor(epoch, page.through.as_ref())?;
@@ -255,6 +271,9 @@ fn validate_records(
     }
     let mut previous = after.map(|cursor| cursor.position);
     for record in &page.records {
+        if !patterns.is_empty() && !patterns.iter().any(|pattern| pattern.matches(&record.record_type)) {
+            return Err(invalid("record type differs from the requested selection"));
+        }
         if record.scope.as_ref().is_none_or(|actual| {
             scope.execution_id.as_ref().is_some_and(|id| actual.execution_id.as_ref() != Some(id))
                 || scope.cycle_id.as_ref().is_some_and(|id| actual.cycle_id.as_ref() != Some(id))
@@ -272,10 +291,12 @@ fn validate_samples(
     scope: &dokime_domain::model::identity::wire::EvidenceScope, streams: &[String], positions: &HashMap<String, u64>,
     page: &dokime_domain::model::telemetry::wire::TelemetrySamplesReply,
 ) -> Result<()> {
+    let patterns = validate_filters(streams)?;
+    let selected = |identifier: &str| patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(identifier));
     let mut seen = std::collections::HashSet::new();
     let mut advanced = false;
     for entry in &page.through_stream_cursors {
-        if entry.key.is_empty() || !seen.insert(entry.key.as_str()) || (!streams.is_empty() && !streams.contains(&entry.key)) {
+        if entry.key.is_empty() || !seen.insert(entry.key.as_str()) || !selected(&entry.key) {
             return Err(invalid("telemetry cursor selection is invalid"));
         }
         match positions.get(&entry.key) {
@@ -293,7 +314,7 @@ fn validate_samples(
         if sample.scope.as_ref().is_none_or(|actual| {
             scope.execution_id.as_ref().is_some_and(|id| actual.execution_id.as_ref() != Some(id))
                 || scope.cycle_id.as_ref().is_some_and(|id| actual.cycle_id.as_ref() != Some(id))
-        }) || !streams.is_empty() && !streams.contains(&sample.stream)
+        }) || !selected(&sample.stream)
         {
             return Err(invalid("sample identity or native cursor differs"));
         }
@@ -302,3 +323,57 @@ fn validate_samples(
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime_domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry;
+
+    #[test]
+    fn filter_bounds_and_syntax() {
+        assert!(validate_filters(&[]).unwrap().is_empty());
+        assert!(validate_filters(&vec!["obc.*".into(); 64]).is_ok());
+        assert!(validate_filters(&vec!["obc.*".into(); 65]).is_err());
+        let maximal = vec!["a".repeat(64); 64];
+        assert!(validate_filters(&maximal).is_ok());
+        let over = vec!["a".repeat(65); 64];
+        assert!(validate_filters(&over).is_err());
+        for filter in ["", "obc.[ab]", "obc.{a,b}", "^obc.*$", "obc/.*", "obc.\\*", "obc.é"] {
+            assert!(validate_filters(&[filter.into()]).is_err(), "accepted {filter:?}");
+        }
+    }
+
+    #[test]
+    fn sample_reply_uses_whole_identifier_or_globs() {
+        let scope = record_scope(&TestExecutionId::from_seed("sample selection"));
+        let page = dokime_domain::model::telemetry::wire::TelemetrySamplesReply {
+            samples: vec![dokime_domain::model::telemetry::wire::TelemetrySample {
+                sample_id: "sample-3".into(),
+                stream: "obc.run.samples".into(),
+                schema_version: 1,
+                sequence: 3,
+                timestamp: None,
+                received_at: None,
+                source: "obc".into(),
+                scope: Some(scope.clone()),
+                values: None,
+                summary: None,
+                metadata: None,
+            }],
+            through_stream_cursors: vec![TelemetrySamplesReplyThroughStreamCursorsEntry { key: "obc.run.samples".into(), value: 3 }],
+            complete: true,
+        };
+        let positions = HashMap::new();
+        for filters in [vec![], vec!["obc.*".into()], vec!["other.*".into(), "obc.run.?amples".into()]] {
+            validate_samples(&scope, &filters, &positions, &page).unwrap();
+        }
+        for filters in [vec!["OBC.*".into()], vec!["obc.run.sample".into()], vec!["run.*".into()]] {
+            assert!(validate_samples(&scope, &filters, &positions, &page).is_err());
+        }
+        let positions = HashMap::from([("obc.run.samples".into(), 4)]);
+        assert!(validate_samples(&scope, &["*".into()], &positions, &page).is_err());
+
+        let mut foreign = page;
+        foreign.samples[0].stream = "other.run.samples".into();
+        assert!(validate_samples(&scope, &["obc.*".into()], &HashMap::new(), &foreign).is_err());
+    }
+}

@@ -11,8 +11,8 @@
 
     python -m dokime_tools.prepare.generated
 
-The build regenerates the ignored `crates/dokime-gui/.generated` modules from the server's contract
-export and stages a copy under `dist/build/<platform>/generated/typescript`, a path the build
+The build regenerates `target/generated/typescript` from the server's contract export
+and stages a copy under `target/build/<profile>/<target>/generated/typescript`, a path the build
 artifact carries. A lane runner has only the artifact, so the TypeScript lanes restore the staged
 modules before they compile or import the GUI.
 """
@@ -20,8 +20,10 @@ modules before they compile or import the GUI.
 # === Imports === #
 
 # Standard Library Imports
-import sys
+import argparse
 from pathlib import Path
+
+from dokime_tools.build import paths
 
 # Third Party Imports
 # Local Imports
@@ -35,8 +37,7 @@ from dokime_tools.package.staging import sync_output
 # === Constants === #
 
 ROOT = Path(__file__).resolve().parents[5]
-MODULES = ROOT / "crates/dokime-gui/.generated"
-STAGED = ROOT / "dist/build" / ("windows" if sys.platform == "win32" else "linux") / "generated/typescript"
+MODULES = ROOT / "target/generated/typescript"
 
 # === Types === #
 
@@ -45,20 +46,25 @@ STAGED = ROOT / "dist/build" / ("windows" if sys.platform == "win32" else "linux
 # === Public Functions === #
 
 
-def stage() -> None:
+def stage(profile: str) -> Path:
     """Copy The Freshly Generated Modules Into The Build Output."""
-    sync_output(MODULES, STAGED)
+    staged = paths.output(ROOT, "build", profile) / "generated/typescript"
+    sync_output(MODULES, staged)
+    return staged
 
 
-def restore() -> None:
+def restore(profile: str) -> None:
     """Replace The GUI's Generated Modules With The Staged Build Output."""
-    if not STAGED.is_dir():
-        raise SystemExit(f"missing staged generated modules {STAGED}; run `mise run build`")
-    sync_output(STAGED, MODULES)
+    staged = paths.output(ROOT, "build", profile) / "generated/typescript"
+    if not staged.is_dir():
+        raise SystemExit(f"missing staged generated modules {staged}; run `mise run build`")
+    sync_output(staged, MODULES)
 
 
 def main() -> int:
-    restore()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", choices=paths.PROFILES, default="dev")
+    restore(parser.parse_args().profile)
     return 0
 
 

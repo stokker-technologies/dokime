@@ -130,7 +130,8 @@ async fn sealed_window_all() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    let execution_id = handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
+    handle.start_execution(execution_id, model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     gate.started.notified().await;
     let scope = handle.watch_state().latest().state().cycle_view(&cycle).unwrap().test_executions[0].scope.clone();
     let execution = scope.test_execution_id.clone().unwrap();

@@ -72,25 +72,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             None => find(&execution, false).await,
         }
     };
-    let result = async {
-        if let Some(plan) = &recovery {
-            plan.verify(&execution).await?;
-        }
-        tokio::select! {
-            prompt = read => prompt,
-            interrupted = super::super::recovery::interrupted(&args.execution_id, "Prompt", recovery.is_some()) => {
-                interrupted?;
-                if let Some(plan) = &recovery {
-                    plan.recover(&client, &execution).await?;
-                    let message = format!("Interrupted execution {} while waiting for a prompt. Collected execution and cycle evidence were saved; no answer was retried.", args.execution_id);
-                    return Err(crate::Error::Setup(message));
-                }
-                let message = format!("Stopped waiting for a prompt. Remote execution {} may continue; reconnect using this identity.", args.execution_id);
-                Err(crate::Error::Setup(message))
-            }
-        }
-    }
-    .await;
+    let result = super::super::recovery::observe(&client, &execution, recovery.as_ref(), "Prompt", read).await;
     client.close_and_wait().await;
     let prompt = result?;
 

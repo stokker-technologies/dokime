@@ -29,8 +29,10 @@ export default defineConfig({
   },
   plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {
+    dedupe: ["@bufbuild/protobuf"],
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@generated": fileURLToPath(new URL("../../target/generated/typescript", import.meta.url)),
     },
   },
   build: {

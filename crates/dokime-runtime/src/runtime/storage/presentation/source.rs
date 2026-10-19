@@ -348,6 +348,7 @@ pub(super) fn grouping(cycle: &CycleView) -> CycleView {
         updated_at: cycle.updated_at.clone(),
         test_executions: Vec::new(),
         records: cycle.records.clone(),
+        continue_automatically: cycle.continue_automatically,
         continue_on_failure: cycle.continue_on_failure,
         result: cycle.result.clone(),
     }
@@ -366,6 +367,7 @@ pub(super) fn grouping_memory(cycle: &CycleView) -> usize {
         updated_at,
         test_executions: _,
         records,
+        continue_automatically: _,
         continue_on_failure: _,
         result: _,
     } = cycle;

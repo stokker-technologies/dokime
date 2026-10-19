@@ -31,12 +31,12 @@ pub use cycle::TestCycleHandle;
 pub use dokime_domain::operations as contracts;
 pub use download::validate_destination as validate_download_destination;
 pub use download::{Download, Error as DownloadError};
-pub use execution::{ExecutionRequestHandle, TestExecutionHandle};
+pub use execution::{RunCallbacks, RunOptions, TestExecutionHandle};
 pub use follow::FileResume;
 pub use raw::RawStreaming;
 pub use stream::{RequestStream, ResponseStream};
 pub use target::Target;
-pub use tonic::Code as RpcCode;
+pub use tonic::{Code as RpcCode, Status as RpcStatus};
 pub use upload::Error as UploadError;
 
 /* === Imports === */

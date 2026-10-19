@@ -54,7 +54,6 @@ pub(crate) struct Materialization {
 
 pub(crate) struct CompletedCycle {
     pub header: TestCycle,
-    pub executions: Vec<ExecutionSeal>,
 }
 
 /* === Enums === */
@@ -169,7 +168,6 @@ impl RuntimeHandle {
             return Err(invalid("durable cycle seal differs from its frozen finalization intent"));
         }
         seal.validate(&revision.value).map_err(crate::storage::Error::from)?;
-        let mut executions = Vec::with_capacity(seal.executions.len());
         for member in &seal.executions {
             let execution = ExecutionView::open(self.storage(), &member.execution_id, ObjectVersion::Exact(member.version.clone()))
                 .await?
@@ -177,11 +175,12 @@ impl RuntimeHandle {
             if execution.revision()?.position != member.position {
                 return Err(invalid("durable cycle member revision differs"));
             }
-            let member_seal = execution.execution().saved.as_ref().ok_or_else(|| invalid("durable cycle member is unsealed"))?;
-            executions.push(member_seal.clone());
+            if execution.execution().saved.is_none() {
+                return Err(invalid("durable cycle member is unsealed"));
+            }
         }
         self.release_cycle_history(&revision.value, &revision.position).await?;
-        Ok(Some(Arc::new(CompletedCycle { header: revision.value, executions })))
+        Ok(Some(Arc::new(CompletedCycle { header: revision.value })))
     }
 
     pub(crate) async fn finish_saved_cycle(&self, source: &CycleView, operation: &Operation) -> Result<Arc<CompletedCycle>> {
@@ -317,7 +316,7 @@ impl RuntimeHandle {
         if !saved.covers(&receipt.position)? {
             return Err(invalid("cycle seal is not saved"));
         }
-        let completed = Arc::new(CompletedCycle { header: cycle, executions: (*pending.executions).clone() });
+        let completed = Arc::new(CompletedCycle { header: cycle });
         self.release_cycle_history(&completed.header, &saved).await?;
         Ok(completed)
     }
@@ -399,6 +398,7 @@ fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
         && left.updated_at == right.updated_at
         && left.execution_ids == right.execution_ids
         && left.records == right.records
+        && left.continue_automatically == right.continue_automatically
         && left.continue_on_failure == right.continue_on_failure
         && left.result == right.result
 }
@@ -416,6 +416,7 @@ pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
         updated_at: cycle.updated_at.clone(),
         execution_ids: cycle.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect(),
         records: cycle.records.clone(),
+        continue_automatically: cycle.continue_automatically,
         continue_on_failure: cycle.continue_on_failure,
         result: cycle.result.clone(),
     }

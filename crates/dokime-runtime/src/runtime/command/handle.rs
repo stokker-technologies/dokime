@@ -21,7 +21,6 @@ use crate::{
     CommandContext, CommandId, CommandReceipt, JobRunId, RuntimeHandle, commands::accepted_receipt,
     execution_runtime::provider::admission::RunProvider, internal_rejection, rejected_receipt, runtime::Error, unavailable_rejection,
 };
-use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
@@ -62,66 +61,23 @@ impl RuntimeHandle {
         }
     }
 
-    pub async fn run_cycle_cases(&self, test_cycle_id: TestCycleId, context: CommandContext) -> CommandReceipt {
-        self.owned_provider(test_cycle_id, None, dokime_domain::model::execution::ExecutionMode::Automatic, context).await
-    }
-
-    pub async fn run_cycle_case(&self, test_cycle_id: TestCycleId, test_case_id: CaseId, context: CommandContext) -> CommandReceipt {
-        let saved_retry = if let Some(id) = self.provider_request_id(&context) {
-            match self.request_storage.get(&id).await {
-                Ok(Some(receipt)) => receipt
-                    .last_claim
-                    .as_ref()
-                    .filter(|claim| receipt.summary.cycle_id == test_cycle_id && claim.case_id == test_case_id)
-                    .map(|claim| claim.execution_id.clone()),
-                Ok(None) => None,
-                Err(error) => {
-                    return rejected_receipt(id, &context, crate::model::time::now_utc(), unavailable_rejection(error.to_string()));
-                }
-            }
-        } else {
-            None
-        };
-        if let Some(execution_id) = saved_retry {
-            return self
-                .owned_provider(test_cycle_id, Some(execution_id), dokime_domain::model::execution::ExecutionMode::Automatic, context)
-                .await;
-        }
-        let execution_id = {
-            let state = self.state_read();
-            let retry = self
-                .provider_request_id(&context)
-                .and_then(|id| state.run_requests.get(&id))
-                .filter(|request| request.summary.cycle_id == test_cycle_id)
-                .and_then(|request| request.test_execution_id.as_ref())
-                .and_then(|id| state.executions.get(id))
-                .filter(|execution| execution.test_case_id == test_case_id);
-            retry
-                .or_else(|| {
-                    state.cycles.get(&test_cycle_id).and_then(|cycle| {
-                        state.executions_for_cycle(cycle).find(|execution| {
-                            execution.test_case_id == test_case_id && crate::transactions::provider::execution_available(&state, execution)
-                        })
-                    })
-                })
-                .map(|execution| execution.test_execution_id.clone())
-        };
-        let Some(execution_id) = execution_id else {
-            return rejected_receipt(
-                crate::model::identity::new_id::<CommandId>(),
-                &context,
-                crate::model::time::now_utc(),
-                Error::conflict("execution_not_planned", crate::transactions::provider::EXECUTION_NOT_PLANNED),
-            );
-        };
-        self.run_execution(execution_id, dokime_domain::model::execution::ExecutionMode::Automatic, context).await
-    }
-
-    pub async fn run_execution(
-        &self, test_execution_id: TestExecutionId, mode: dokime_domain::model::execution::ExecutionMode, context: CommandContext,
+    pub async fn start_execution(
+        &self, test_execution_id: TestExecutionId, mode: dokime_domain::model::execution::ExecutionMode, mut context: CommandContext,
     ) -> CommandReceipt {
-        let cycle_id = self.state_read().executions.get(&test_execution_id).map(|execution| execution.test_cycle_id.clone());
-        let Some(cycle_id) = cycle_id else {
+        // Admission Identity Belongs To The Attempt, Independent Of Caller Or Listener.
+        context.idempotency_key = None;
+        let execution = match self.known_execution(&test_execution_id).await {
+            Ok(execution) => execution,
+            Err(error) => {
+                return rejected_receipt(
+                    self.execution_start_id(&test_execution_id),
+                    &context,
+                    crate::model::time::now_utc(),
+                    unavailable_rejection(error.to_string()),
+                );
+            }
+        };
+        let Some(execution) = execution else {
             return rejected_receipt(
                 crate::model::identity::new_id::<CommandId>(),
                 &context,
@@ -129,25 +85,28 @@ impl RuntimeHandle {
                 Error::not_found("execution_not_found", "execution not found"),
             );
         };
-        self.owned_provider(cycle_id, Some(test_execution_id), mode, context).await
+        self.owned_provider(execution.test_cycle_id, test_execution_id, mode, context).await
     }
 
-    fn provider_request_id(&self, context: &CommandContext) -> Option<CommandId> {
-        let key = context.idempotency_key.as_deref().filter(|key| !key.is_empty())?;
-        use sha2::Digest;
+    fn execution_start_id(&self, id: &TestExecutionId) -> CommandId {
         let node = self.state_read().identity.node.node_id.clone();
-        let digest = sha2::Sha256::digest(
-            serde_json::to_vec(&("execution-request", &node, &context.submitted_by, key)).expect("request identity encodes"),
-        );
-        let mut bytes = [0_u8; 16];
-        bytes.copy_from_slice(&digest[..16]);
-        bytes[6] = (bytes[6] & 0x0f) | 0x80;
-        bytes[8] = (bytes[8] & 0x3f) | 0x80;
-        Some(CommandId::from_uuid(uuid::Uuid::from_bytes(bytes).to_string()).expect("derived request UUID"))
+        CommandId::from_seed(format!("execution-start:{node}:{id}"))
+    }
+
+    pub(crate) async fn known_execution(
+        &self, id: &TestExecutionId,
+    ) -> Result<Option<dokime_domain::model::execution::result::TestExecution>, Error> {
+        let live = self.state_read().executions.get(id).cloned();
+        if live.is_some() {
+            return Ok(live);
+        }
+        let saved =
+            crate::runtime::storage::execution::ExecutionView::open(self.storage(), id, harmos::storage::ObjectVersion::Latest).await?;
+        Ok(saved.map(|view| view.execution().clone()))
     }
 
     async fn owned_provider(
-        &self, cycle: TestCycleId, execution: Option<TestExecutionId>, mode: dokime_domain::model::execution::ExecutionMode,
+        &self, cycle: TestCycleId, execution: TestExecutionId, mode: dokime_domain::model::execution::ExecutionMode,
         context: CommandContext,
     ) -> CommandReceipt {
         if self.is_shutting_down() {
@@ -193,10 +152,17 @@ impl RuntimeHandle {
     }
 
     async fn submit_provider(
-        &self, test_cycle_id: TestCycleId, test_execution_id: Option<TestExecutionId>,
-        mode: dokime_domain::model::execution::ExecutionMode, context: CommandContext,
+        &self, test_cycle_id: TestCycleId, test_execution_id: TestExecutionId, mode: dokime_domain::model::execution::ExecutionMode,
+        context: CommandContext,
     ) -> CommandReceipt {
         let _plugin_admission = self.plugin_admission.lock().await;
+        self.submit_provider_admitted(test_cycle_id, test_execution_id, mode, context).await
+    }
+
+    pub(crate) async fn submit_provider_admitted(
+        &self, test_cycle_id: TestCycleId, test_execution_id: TestExecutionId, mode: dokime_domain::model::execution::ExecutionMode,
+        context: CommandContext,
+    ) -> CommandReceipt {
         if self.is_shutting_down() {
             return rejected_receipt(
                 crate::model::identity::new_id::<CommandId>(),
@@ -207,19 +173,32 @@ impl RuntimeHandle {
         }
         let started = Instant::now();
         let node = self.state_read().identity.node.node_id.clone();
-        let command_id = self.provider_request_id(&context).unwrap_or_else(crate::model::identity::new_id::<CommandId>);
+        let command_id = self.execution_start_id(&test_execution_id);
+        let test_execution_id = Some(test_execution_id);
         use sha2::Digest;
         let encoded = serde_json::to_vec(&(&test_cycle_id, &test_execution_id, mode)).expect("request identity encodes");
         let fingerprint: String = sha2::Sha256::digest(encoded).iter().map(|byte| format!("{byte:02x}")).collect();
         match self.request_storage.get(&command_id).await {
             Ok(Some(receipt)) => {
-                if receipt.fingerprint != fingerprint || receipt.submitted_by != context.submitted_by {
+                if receipt.fingerprint != fingerprint {
                     return rejected_receipt(
                         command_id,
                         &context,
                         crate::model::time::now_utc(),
                         Error::conflict("request_identity_conflict", "request identity already belongs to another run selection"),
                     );
+                }
+                // A Prepared Receipt Is Not Proof That Runtime Admission Succeeded.
+                let interrupted_before_dispatch = receipt.summary.phase == crate::transactions::provider::request::RunPhase::Interrupted
+                    && receipt.summary.provider_started_at.is_none();
+                let sealed = if let Some(id) = &test_execution_id {
+                    self.known_execution(id).await.ok().flatten().is_some_and(|execution| execution.saved.is_some())
+                } else {
+                    false
+                };
+                if interrupted_before_dispatch && !sealed {
+                    let problem = receipt.interruption.clone().unwrap_or_else(|| "execution admission was interrupted".into());
+                    return rejected_receipt(command_id, &context, crate::model::time::now_utc(), unavailable_rejection(problem));
                 }
                 let mut accepted = accepted_receipt(
                     command_id.clone(),
@@ -233,6 +212,36 @@ impl RuntimeHandle {
             Ok(None) => (),
             Err(error) => {
                 return rejected_receipt(command_id, &context, crate::model::time::now_utc(), unavailable_rejection(error.to_string()));
+            }
+        }
+        if let Some(id) = &test_execution_id {
+            match self.known_execution(id).await {
+                Ok(Some(execution)) if execution.started_at.is_some() || execution.finished_at.is_some() || execution.saved.is_some() => {
+                    if execution.started_at.is_some() && execution.mode != mode {
+                        return rejected_receipt(
+                            command_id,
+                            &context,
+                            crate::model::time::now_utc(),
+                            Error::conflict("start_options_conflict", "execution was started with different options"),
+                        );
+                    }
+                    let at = execution.started_at.or(execution.finished_at).unwrap_or_else(crate::model::time::now_utc);
+                    let mut existing = accepted_receipt(command_id, &context, at, None);
+                    existing.runtime_revision = self.state_manager.applied().0;
+                    return existing;
+                }
+                Ok(Some(_)) => (),
+                Ok(None) => {
+                    return rejected_receipt(
+                        command_id,
+                        &context,
+                        crate::model::time::now_utc(),
+                        Error::not_found("execution_not_found", "execution not found"),
+                    );
+                }
+                Err(error) => {
+                    return rejected_receipt(command_id, &context, crate::model::time::now_utc(), unavailable_rejection(error.to_string()));
+                }
             }
         }
         let contracts = self.state_read().telemetry_contracts();

@@ -20,7 +20,6 @@ pub use list_samples::ListSamples;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
 #[allow(unused_imports)]
@@ -48,7 +47,6 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for ListSamples {
     const PATH: &'static str = "/dokime.v1.Telemetry/ListSamples";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

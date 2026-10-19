@@ -40,6 +40,7 @@ pub struct CreateCycle {
         description = "The label is required and nonblank; an empty identifier is derived by the backend. Description, tags and attributes are optional."
     )]
     pub metadata: Option<Metadata>,
+    pub continue_automatically: bool,
     pub continue_on_failure: bool,
     pub context: Option<MutationContext>,
 }

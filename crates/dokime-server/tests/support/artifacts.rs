@@ -58,7 +58,9 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    workspace_root().join("dist/build").join(PLATFORM)
+    let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
+    let target = format!("{PLATFORM}-{}", std::env::consts::ARCH);
+    workspace_root().join("target/build").join(profile).join(target)
 }
 
 /* === Tests === */

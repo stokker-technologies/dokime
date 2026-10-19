@@ -84,7 +84,7 @@ async fn notes_until_seal() {
         .admission
         .note;
 
-    handle.stop_cycle(id.clone(), CommandContext::default()).await.unwrap();
+    handle.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
     let stopped = wait_for_cycle_lifecycle(&handle, &id, CycleStatus::Stopped).await;
     let seal = stopped.saved.as_ref().expect("stopping finalizes the cycle report");
     let payload = crate::service_support::reports::payload(handle.storage(), &seal.report).await;
@@ -138,10 +138,12 @@ async fn undeclared_records_settle() {
     // Stop freezes the already-persisted boundary, so the record must be saved first.
     wait_for_record_type(&handle, UNDECLARED).await;
     handle.storage().flush().await.unwrap();
-    handle.stop_cycle(id.clone(), CommandContext::default()).await.unwrap();
-    // The run fails its publication; the cycle keeps its stopped outcome.
+    let sealing = handle.seal_cycle(id.clone(), CommandContext::default()).await;
+    assert!(sealing.is_err(), "failed evidence durability cannot acknowledge a sealed cycle");
+    // The Run Fails Publication; The Container Retains Its Truthful Outcome.
     wait_for_record_type(&handle, "test.cycle.finalization.failed").await;
     let settled = wait_for_cycle_lifecycle(&handle, &id, CycleStatus::Stopped).await;
+    assert_eq!(settled.phase, dokime_domain::model::execution::result::CyclePhase::Sealing);
     assert!(settled.saved.is_none(), "an unsealable cycle claims no report");
     let evidence = handle.evidence_snapshot().await.unwrap();
     for (record_type, scoped) in
@@ -162,5 +164,6 @@ async fn undeclared_records_settle() {
             "{record_type} names the undeclared type: {record:?}"
         );
     }
-    owner.shutdown().await.unwrap();
+    let shutdown = owner.shutdown().await;
+    assert!(shutdown.is_err(), "shutdown retains the failed evidence finalization");
 }

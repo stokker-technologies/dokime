@@ -61,48 +61,116 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
         }
         evidence(client, extension, workflow, &stdout, &directory).await;
     }
+    for extension in extensions {
+        conflicts(client, endpoint, &root.join(format!("{extension} conflicts")), extension).await;
+    }
     interruption::scripts(client, endpoint, &root.join("interruptions")).await;
 }
 
 /* === Private Functions === */
 async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> String {
-    let mut command = command(extension, workflow, endpoint, directory);
+    let mut command = if extension == "bat" && workflow == "test" {
+        // Local Filenames Must Never Expand Observation Filter Globs.
+        let cwd = directory.parent().unwrap();
+        std::fs::write(cwd.join("obc.run.started"), b"local record filename").unwrap();
+        std::fs::write(cwd.join("obc.pudding"), b"local stream filename").unwrap();
+        let filters = [("RECORD_TYPES", "\"obc.run.*\" \"unrelated.*\""), ("STREAMS", "\"obc.pu*\" \"unused.*\"")];
+        configured_command(extension, workflow, endpoint, directory, &filters)
+    } else {
+        command(extension, workflow, endpoint, directory)
+    };
     let output = command.output().await.unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "{extension} {workflow} failed with {}\n{stdout}\n{stderr}", output.status);
-    stdout
+    format!("{stdout}\n{stderr}")
 }
 
 fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> Command {
+    configured_command(extension, workflow, endpoint, directory, &[])
+}
+
+fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory: &Path, parameters: &[(&str, &str)]) -> Command {
     let workspace = artifacts::workspace_root();
     let family = if extension == "py" { "python" } else { "cli" };
     let script = workspace.join(format!("packages/dokime/examples/remote/{family}/control-{workflow}.{extension}"));
     let binary = artifacts::host_binary().with_file_name(if cfg!(windows) { "dokime.exe" } else { "dokime" });
     assert!(binary.is_file(), "the Build archive must contain {}", binary.display());
-    let mut command = launcher(extension, &script);
+    std::fs::create_dir_all(directory).unwrap();
+    let source = std::fs::read_to_string(&script).unwrap();
+    let output = directory.to_str().unwrap();
+    let responses = directory.join("responses");
+    let mut values = vec![
+        ("ENDPOINT", endpoint.to_owned()),
+        ("CA_CERTIFICATE", String::new()),
+        ("KEY_FILE", String::new()),
+        ("ENV_FILE", String::new()),
+        ("OUTPUT_DIRECTORY", output.to_owned()),
+        ("RESPONSE_DIRECTORY", responses.to_str().unwrap().to_owned()),
+    ];
+    values.extend(parameters.iter().map(|(name, value)| (*name, (*value).to_owned())));
+    let source = configure(&source, extension, &values);
+    let configured = directory.join(script.file_name().unwrap());
+    std::fs::write(&configured, source).unwrap();
+    let mut command = launcher(extension, &configured);
     let mut paths = vec![binary.parent().unwrap().to_owned()];
     let inherited = std::env::var_os("PATH").unwrap_or_default();
     paths.extend(std::env::split_paths(&inherited));
 
-    command
-        .args(["--endpoint", endpoint])
-        .env("PATH", std::env::join_paths(paths).unwrap())
-        .env("DOKIME_EXECUTABLE", binary)
-        .env("DOKIME_OUTPUT_DIRECTORY", directory)
-        .env("DOKIME_RESPONSE_DIRECTORY", directory.join("responses"))
-        .current_dir(directory.parent().unwrap())
-        .kill_on_drop(true);
+    command.env("PATH", std::env::join_paths(paths).unwrap()).current_dir(directory.parent().unwrap()).kill_on_drop(true);
     for name in ["DOKIME_KEY", "DOKIME_KEY_FILE", "DOKIME_ENV_FILE", "DOKIME_CA_CERTIFICATE", "DOKIME_BACKEND"] {
         command.env_remove(name);
     }
-    if extension == "py" {
-        let flag = if workflow == "device" { "--response-directory" } else { "--directory" };
-        let destination = if workflow == "device" { directory.join("responses") } else { directory.to_owned() };
-        command.arg(flag).arg(destination);
-    }
-
     command
+}
+
+fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String {
+    source
+        .lines()
+        .map(|line| {
+            for (name, value) in values {
+                let matches = match extension {
+                    "py" => line.starts_with(&format!("{name} =")) || line.starts_with(&format!("{name}:")),
+                    "ps1" => line.starts_with(&format!("${name} =")),
+                    "sh" => line.starts_with(&format!("{name}=")),
+                    "bat" => line.starts_with(&format!("set \"{name}=")) || line.starts_with(&format!("set {name}=")),
+                    _ => unreachable!(),
+                };
+                if !matches {
+                    continue;
+                }
+                let numeric = matches!(*name, "SAMPLE_COUNT" | "EXECUTION_COUNT" | "WAIT_SECONDS");
+                let quoted = serde_json::to_string(value).unwrap();
+                return match extension {
+                    "py" => {
+                        let selected = if numeric {
+                            value.clone()
+                        } else if value.is_empty() {
+                            "None".into()
+                        } else if matches!(*name, "ENDPOINT" | "CYCLE_LABEL" | "TEMPLATE" | "ANSWER") {
+                            quoted
+                        } else {
+                            format!("Path({quoted})")
+                        };
+                        format!("{} = {selected}", line.split_once(" = ").unwrap().0)
+                    }
+                    "ps1" => {
+                        if numeric {
+                            format!("${name} = {value}")
+                        } else {
+                            format!("${name} = '{}'", value.replace('\'', "''"))
+                        }
+                    }
+                    "sh" => format!("{name}='{}'", value.replace('\'', "'\\''")),
+                    "bat" => format!("set \"{name}={}\"", value.replace('%', "%%")),
+                    _ => unreachable!(),
+                };
+            }
+            line.to_owned()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
 }
 
 fn launcher(extension: &str, script: &Path) -> Command {
@@ -136,6 +204,41 @@ async fn device(client: &Client, extension: &str, stdout: &str, directory: &Path
     let Some(Event::Completion(state)) = response.message().await.unwrap() else { panic!("device read has one completion") };
     device_state(&state, false);
     assert!(response.message().await.unwrap().is_none());
+}
+
+async fn conflicts(client: &Client, endpoint: &str, root: &Path, extension: &str) {
+    // An Existing Response Directory Must Prevent Every Device Effect.
+    let directory = root.join("device");
+    let mut device_command = command(extension, "device", endpoint, &directory);
+    let responses = directory.join("responses");
+    std::fs::create_dir(&responses).unwrap();
+    let preserved = responses.join("before.json");
+    std::fs::write(&preserved, b"existing response").unwrap();
+    let powered = client.call_operation("obc.device.set_power", None, br#"{"enabled":true}"#, Vec::new()).await.unwrap();
+    assert!(matches!(powered.message().await.unwrap(), Some(Event::Completion(_))));
+    assert!(powered.message().await.unwrap().is_none());
+    let output = device_command.output().await.unwrap();
+    assert!(!output.status.success());
+    assert_eq!(std::fs::read(&preserved).unwrap(), b"existing response");
+    let state = client.call_operation("obc.device.read", None, b"{}", Vec::new()).await.unwrap();
+    let Some(Event::Completion(value)) = state.message().await.unwrap() else { panic!("device state is required") };
+    device_state(&value, true);
+    let off = client.call_operation("obc.device.set_power", None, br#"{"enabled":false}"#, Vec::new()).await.unwrap();
+    assert!(matches!(off.message().await.unwrap(), Some(Event::Completion(_))));
+    assert!(off.message().await.unwrap().is_none());
+
+    // Bundle Conflicts Must Not Create A Cycle Or Admit Hardware Work.
+    for workflow in ["test", "prompt"] {
+        let directory = root.join(workflow);
+        let mut command = command(extension, workflow, endpoint, &directory);
+        let destination = directory.join("cycle.zip");
+        std::fs::write(&destination, b"existing evidence").unwrap();
+        let output = command.output().await.unwrap();
+        assert!(!output.status.success());
+        assert_eq!(std::fs::read(&destination).unwrap(), b"existing evidence");
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(identities(&stdout, "Cycle: ").is_empty(), "preflight must precede cycle creation");
+    }
 }
 
 fn device_responses(extension: &str, stdout: &str, directory: &Path) {
@@ -209,21 +312,45 @@ async fn evidence(client: &Client, extension: &str, workflow: &str, stdout: &str
         assert_eq!(prompt.response.unwrap().action, "yes");
         return;
     }
-    if extension == "py" {
-        drained(stdout, expected, &samples);
-    }
+    drained(stdout, expected, &samples, extension);
 }
 
-fn drained(stdout: &str, expected: usize, samples: &BTreeMap<String, u64>) {
+fn drained(stdout: &str, expected: usize, samples: &BTreeMap<String, u64>, extension: &str) {
     let summaries: Vec<Value> =
         stdout.lines().filter_map(|line| line.strip_prefix("Drained Evidence: ")).map(|text| serde_json::from_str(text).unwrap()).collect();
     assert_eq!(summaries.len(), expected);
     for summary in summaries {
         let id = summary["execution_id"].as_str().unwrap();
+        if extension != "py" {
+            assert_eq!(summary["samples"].as_u64().unwrap(), samples[id]);
+            assert_eq!(summary["records"], 2);
+            native_observations(stdout, id, samples[id]);
+            continue;
+        }
         assert_eq!(summary["status"], "passed");
         assert_eq!(summary["samples_by_stream"]["obc.pulse"].as_u64().unwrap(), samples[id]);
         assert_eq!(summary["records_by_type"]["obc.run.started"], 1);
         assert_eq!(summary["records_by_type"]["obc.run.completed"], 1);
+    }
+}
+
+fn native_observations(stdout: &str, execution: &str, sample_count: u64) {
+    let observations: Vec<Value> = stdout
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter(|value| value["value"]["scope"]["execution_id"] == execution)
+        .collect();
+    let samples: Vec<_> = observations.iter().filter(|value| value["observation"] == "sample").collect();
+    assert_eq!(samples.len() as u64, sample_count);
+    let mut sequences = std::collections::BTreeSet::new();
+    for sample in samples {
+        assert_eq!(sample["value"]["stream"], "obc.pulse");
+        assert!(sequences.insert(sample["value"]["sequence"].as_u64().unwrap()), "sample callbacks cannot repeat");
+    }
+    for kind in ["obc.run.started", "obc.run.completed"] {
+        let records: Vec<_> =
+            observations.iter().filter(|value| value["observation"] == "record" && value["value"]["record_type"] == kind).collect();
+        assert_eq!(records.len(), 1);
     }
 }
 

@@ -44,8 +44,8 @@ import { type CycleExecutionRow, type CycleSelection, isActiveExecutionStatus, i
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { evidencePaneState } from "./document-query-model";
 import { ExecutionControl } from "./ExecutionControl";
-import { executionPagePrompts } from "./execution-sections-model";
 import { ExecutionSectionsView } from "./ExecutionSectionsView";
+import { executionPagePrompts } from "./execution-sections-model";
 import { usePlotWindow } from "./PlotWindowSlider";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
 

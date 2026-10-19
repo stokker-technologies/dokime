@@ -7,23 +7,19 @@
 # ***
 
 
-"""Run And Export Two Simulated Executions"""
+"""Run Independent Attempts With Listeners And Saved Evidence"""
 
 # === Imports === #
 
 # Standard Library Imports
-import argparse
 import asyncio
 import json
 import sys
 from collections import Counter
-from collections.abc import Sequence
-from contextlib import aclosing
 from pathlib import Path
-from uuid import uuid4
 
 # Third Party Imports
-from dokime.client import DokimeClient, DokimeError, TestExecutionHandle
+from dokime.client import Cycle, DokimeClient, DokimeError, Execution, Record, Sample
 
 # Local Imports
 
@@ -34,6 +30,27 @@ from dokime.client import DokimeClient, DokimeError, TestExecutionHandle
 
 # === Constants === #
 
+# Connection Parameters
+ENDPOINT = "https://127.0.0.1:8766"
+CA_CERTIFICATE: Path | None = Path("server.pem")
+KEY_FILE: Path | None = Path("remote.key")
+ENV_FILE: Path | None = None
+
+# Case And Execution Parameters
+TEMPLATE = "obc.checks.pulse"
+CYCLE_LABEL = "Remote Pulse Demonstration"
+SAMPLE_COUNT = 8
+EXECUTION_COUNT = 2
+WAIT_SECONDS = 60.0
+
+# Observation Filters
+RECORD_TYPES = ("obc.run.*",)
+STREAMS = ("obc.pulse",)
+
+# Evidence Files
+OUTPUT_DIRECTORY = Path("test-evidence")
+OVERWRITE = False
+
 # === Types === #
 
 # === Classes === #
@@ -41,137 +58,114 @@ from dokime.client import DokimeClient, DokimeError, TestExecutionHandle
 # === Public Functions === #
 
 
-async def observe(
-    execution: TestExecutionHandle,
-    *,
-    record_types: Sequence[str],
-    streams: Sequence[str],
-    poll_interval: float = 0.2,
-) -> dict[str, object]:
-    """Follow Both Evidence Sources Until Their Final Pages Have Drained."""
-    records: Counter[str] = Counter()
-    samples: Counter[str] = Counter()
-
-    async def read_records() -> None:
-        async with aclosing(execution.records(record_types=record_types, follow=True, poll_interval=poll_interval)) as reader:
-            async for record in reader:
-                records[record.type] += 1
-                print(f"Record: {record.type} #{record.sequence}", flush=True)
-
-    async def read_samples() -> None:
-        async with aclosing(execution.samples(streams=streams, follow=True, poll_interval=poll_interval)) as reader:
-            async for sample in reader:
-                samples[sample.stream] += 1
-                print(f"Sample: {sample.stream} #{sample.sequence} {sample.values}", flush=True)
-
-    async with asyncio.TaskGroup() as listeners:
-        listeners.create_task(read_records())
-        listeners.create_task(read_samples())
-        outcome = await execution.wait(poll_interval=poll_interval)
-
-    # A Durable Outcome Alone Does Not Prove That Listeners Drained.
-    return {
-        "execution_id": execution.id,
-        "status": outcome.status,
-        "records_by_type": dict(records),
-        "samples_by_stream": dict(samples),
-    }
+async def print_record(record: Record) -> None:
+    print(f"Record: {record.type} #{record.sequence}", flush=True)
 
 
-async def run(arguments: argparse.Namespace) -> int:
-    directory: Path = arguments.directory
-    directory.mkdir(parents=True, exist_ok=True)
-    for name in ("execution-1.zip", "execution-2.zip", "cycle.zip"):
-        destination = directory / name
-        if destination.exists() and not arguments.overwrite:
-            raise FileExistsError(f"{destination} exists; choose another directory or pass --overwrite")
+async def print_sample(sample: Sample) -> None:
+    print(f"Sample: {sample.stream} #{sample.sequence} {sample.values}", flush=True)
 
-    async with DokimeClient(
-        arguments.endpoint,
-        key_file=arguments.key_file,
-        env_file=arguments.env_file,
-        ca_certificate=arguments.ca_certificate,
-    ) as client:
-        cycle_id: str | None = None
-        execution: TestExecutionHandle | None = None
+
+async def run() -> int:
+    if EXECUTION_COUNT < 1 or WAIT_SECONDS <= 0:
+        raise ValueError("execution count and wait deadline must be positive")
+    OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+
+    async with DokimeClient(ENDPOINT, ca_certificate=CA_CERTIFICATE, key_file=KEY_FILE, env_file=ENV_FILE) as client:
+        cycle: Cycle | None = None
+        execution: Execution | None = None
         exported: set[str] = set()
         destination: Path | None = None
-        successful = True
         try:
-            cycle_id = await client.create_cycle(label="Remote Pulse Demonstration")
-            print(f"Cycle: {cycle_id}", flush=True)
-            cycle = await client.cycle(cycle_id)
+            # Materialize Cases And Construct Independent Attempts
+            template = await client.template(TEMPLATE)
+            cases = await template.materialize(parameters={"sample_count": SAMPLE_COUNT})
+            executions = []
+            for test_case in cases * EXECUTION_COUNT:
+                executions.append(Execution(test_case))
 
-            for index in (1, 2):
-                (execution,) = await client.append_cases(
-                    cycle_id,
-                    suite="obc.checks",
-                    template="obc.checks.pulse",
-                    parameters={"sample_count": arguments.sample_count},
+            # Reserve Evidence Destinations Before Starting Any Device Work
+            filenames = [f"execution-{index}.zip" for index in range(1, len(executions) + 1)] + ["cycle.zip"]
+            for name in filenames:
+                path = OUTPUT_DIRECTORY / name
+                if path.exists() and not OVERWRITE:
+                    raise FileExistsError(f"{path} exists; choose another output directory or enable OVERWRITE")
+
+            # Create The Cycle And Append Without Starting
+            cycle = await client.create_cycle(label=CYCLE_LABEL, continue_automatically=False)
+            print(f"Cycle: {cycle.id}", flush=True)
+            for selected in executions:
+                print(f"Execution: {selected.id}", flush=True)
+            await cycle.append(executions)
+
+            # Run Sequentially, Drain Callbacks And Save Each Bundle
+            successful = True
+            for index, execution in enumerate(executions, start=1):
+                destination = OUTPUT_DIRECTORY / f"execution-{index}.zip"
+                records_by_type: Counter[str] = Counter()
+                samples_by_stream: Counter[str] = Counter()
+
+                async def record_received(record: Record, counts: Counter[str] = records_by_type) -> None:
+                    counts[record.type] += 1
+                    await print_record(record)
+
+                async def sample_received(sample: Sample, counts: Counter[str] = samples_by_stream) -> None:
+                    counts[sample.stream] += 1
+                    await print_sample(sample)
+
+                outcome = await execution.run(
+                    record_types=RECORD_TYPES,
+                    streams=STREAMS,
+                    on_record=record_received,
+                    on_sample=sample_received,
+                    timeout=WAIT_SECONDS,
                 )
-                request_key = str(uuid4())
-                destination = directory / f"execution-{index}.zip"
-                print(f"Execution: {execution.id} Request Key: {request_key} Mode: automatic", flush=True)
-                await execution.start(request_key=request_key)
-                snapshot = await execution.snapshot()
-                status = snapshot.get("summary", {})
-                print("Current Status:", json.dumps(status), flush=True)
-
-                summary = await observe(execution, record_types=("obc.run.started", "obc.run.completed"), streams=("obc.pulse",))
-                print("Drained Evidence:", json.dumps(summary), flush=True)
-                successful = successful and summary["status"] == "passed"
-                saved = await execution.export(destination, overwrite=arguments.overwrite)
+                print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
+                drained = {
+                    "execution_id": execution.id,
+                    "status": outcome.status,
+                    "records_by_type": dict(records_by_type),
+                    "samples_by_stream": dict(samples_by_stream),
+                }
+                print("Drained Evidence:", json.dumps(drained, sort_keys=True), flush=True)
+                successful = successful and outcome.status == "passed"
+                saved = await execution.export(destination, overwrite=OVERWRITE)
                 exported.add(execution.id)
                 print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
 
+            # Seal The Container And Save Its Complete Bundle
             await cycle.seal()
-            saved_cycle = await cycle.export(directory / "cycle.zip", overwrite=arguments.overwrite)
-            print(f"Cycle Evidence: {saved_cycle.path} SHA-256: {saved_cycle.sha256}", flush=True)
+            saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
+            print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
             return 0 if successful else 1
 
         except asyncio.CancelledError:
+            # Recover Only This Script's Execution And Cycle
             print("Cancellation Requested; Waiting For Saved Evidence", file=sys.stderr, flush=True)
-            if cycle_id is None:
-                print("Cycle Creation Was Not Confirmed; Inspect The Host Before Creating Another", file=sys.stderr, flush=True)
+            if cycle is None:
+                print("Cycle Creation Was Not Confirmed; Inspect The Server Before Creating Another", file=sys.stderr, flush=True)
                 raise
             if execution is not None and await execution.checkpoint() is None:
                 await execution.stop()
-            # Close Admission Before Waiting On An Interrupted Submission.
-            cycle = await client.cycle(cycle_id)
             await cycle.seal()
             if execution is not None:
                 outcome = await execution.wait()
                 print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
                 if execution.id not in exported and destination is not None:
-                    await execution.export(destination, overwrite=arguments.overwrite)
-
-        # Only This Script's Newly Created Cycle Is Sealed.
-        saved_cycle = await cycle.export(directory / "cycle.zip", overwrite=arguments.overwrite)
-        print(f"Cycle Evidence: {saved_cycle.path} SHA-256: {saved_cycle.sha256}", flush=True)
-        return 130
+                    await execution.export(destination, overwrite=OVERWRITE)
+            saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
+            print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
+            return 130
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-
-    parser.add_argument("--endpoint", required=True)
-    parser.add_argument("--ca-certificate", type=Path)
-    parser.add_argument("--key-file", type=Path)
-    parser.add_argument("--env-file", type=Path, help="Read this explicit dotenv file; process variables take precedence")
-
-    parser.add_argument("--directory", type=Path, default=Path("test-evidence"))
-    parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--sample-count", type=int, choices=range(1, 65), default=8, metavar="1..64")
-    arguments = parser.parse_args()
-
     try:
-        return asyncio.run(run(arguments))
+        return asyncio.run(run())
     except KeyboardInterrupt:
-        print("Client Closed; Cancellation May Be Unconfirmed. Retain The Cycle, Execution And Request Key Above", file=sys.stderr)
+        print("Recovery Was Not Confirmed; Retain The Printed Cycle And Execution Identities", file=sys.stderr)
         return 130
-    except (DokimeError, OSError, ValueError, ExceptionGroup) as error:
-        print(f"Workflow Incomplete: {error}", file=sys.stderr)
-        print("Remote Work May Continue. Recover With The Printed Identities; Do Not Create Another Cycle Blindly", file=sys.stderr)
+    except (DokimeError, OSError, ValueError, TimeoutError, ExceptionGroup) as error:
+        print(f"Workflow Incomplete: {error}. Inspect The Printed Identities Before Resubmitting", file=sys.stderr)
         return 1
 
 

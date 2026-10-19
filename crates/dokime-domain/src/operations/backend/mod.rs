@@ -32,7 +32,6 @@ pub use watch_trace::WatchTrace;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
@@ -68,37 +67,29 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for GetIdentity {
     const PATH: &'static str = "/dokime.v1.Backend/GetIdentity";
-    const ACCESS: Access = Access::Read;
 }
 impl Endpoint for GetHealth {
     const PATH: &'static str = "/dokime.v1.Backend/GetHealth";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetAvailability {
     const PATH: &'static str = "/dokime.v1.Backend/GetAvailability";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetDiagnostics {
     const PATH: &'static str = "/dokime.v1.Backend/GetDiagnostics";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for CollectDiagnostics {
     const PATH: &'static str = "/dokime.v1.Backend/CollectDiagnostics";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for WatchLogs {
     const PATH: &'static str = "/dokime.v1.Backend/WatchLogs";
-    const ACCESS: Access = Access::Read;
 }
 
-// Read, Like WatchLogs: The Same Redacted Process Output, Scoped Or Not.
 impl Endpoint for WatchTrace {
     const PATH: &'static str = "/dokime.v1.Backend/WatchTrace";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

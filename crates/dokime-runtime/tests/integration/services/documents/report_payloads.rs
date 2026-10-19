@@ -105,6 +105,7 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
             updated_at: dokime_runtime::model::time::now_utc(),
             test_executions: vec![execution],
             records: TestRecordSet::default(),
+            continue_automatically: false,
             continue_on_failure: false,
             result: None,
         },
@@ -1170,7 +1171,7 @@ async fn latest_member_annotations() {
     // Each Run Settles With Its Member's Seal Before The Next Observation
     let run = async |member: &dokime_runtime::TestExecutionId| {
         let receipt = runtime
-            .run_execution(member.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default())
+            .start_execution(member.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default())
             .await;
         assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
         let checkpoint = crate::service_support::native::checkpoint(&runtime, member).await;

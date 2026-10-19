@@ -94,10 +94,6 @@ impl RuntimeHandle {
                 }
             }
         }
-        // Every Selected Execution Finishes And Seals Before The Next Group.
-        if early_failure.is_none() && self.advance_to_next_group(&request_id, &cycle_id).await {
-            return Ok(());
-        }
         self.commit(crate::transactions::SettleRun { request_id: request_id.clone(), at: finish.finished_at.clone() })
             .await
             .map_err(|error| Error::Operation(error.to_string()))?;
@@ -198,60 +194,47 @@ impl RuntimeHandle {
                 Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
             }
         }
+        self.continue_cycle(&request_id, &cycle_id).await;
         self.dispatch_next_request().await;
         Ok(())
     }
-    async fn advance_to_next_group(
-        &self, request_id: &dokime_domain::model::identity::CommandId, cycle_id: &dokime_domain::model::identity::TestCycleId,
-    ) -> bool {
-        {
-            let state = self.state_read();
-            let Some(request) = state.run_requests.get(request_id) else {
-                return false;
-            };
-            if request.groups.is_empty() {
-                return false;
-            }
-            // Fail-fast is the cycle's policy, and it spans groups: a target
-            // whose group failed stops the targets queued behind it.
-            let failed = request.summary.failed > 0 || request.failure.is_some();
-            let continues = state.cycles.get(cycle_id).is_some_and(|cycle| cycle.continue_on_failure);
-            if failed && !continues {
-                return false;
-            }
-        }
-        let before = self.state_manager.applied();
-        if self
-            .commit(crate::transactions::AdvanceRunGroup { request_id: request_id.clone(), at: crate::model::time::now_utc() })
-            .await
-            .is_err()
-        {
-            return false;
-        }
-        let (summary, target) = {
-            let state = self.state_read();
-            let request = &state.run_requests[request_id];
-            (request.summary.clone(), request.target.clone())
-        };
-        loop {
-            match self.request_storage.update(request_id, |receipt| receipt.summary = summary.clone()).await {
-                Ok(()) => break,
-                Err(error) if self.is_shutting_down() => {
-                    tracing::error!(%error, "failed to checkpoint the advanced run request");
-                    break;
-                }
-                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
-            }
-        }
-        crate::execution_runtime::provider::ProviderCycleRequest {
-            request_id: request_id.to_string(),
-            test_cycle_id: cycle_id.to_string(),
-            target: serde_json::to_value(target).expect("provider target serializes"),
-        }
-        .submit(self.clone(), before);
-        true
-    }
 
+    fn continue_cycle<'a>(
+        &'a self, request_id: &'a dokime_domain::model::identity::CommandId, cycle_id: &'a dokime_domain::model::identity::TestCycleId,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            let _admission = self.plugin_admission.lock().await;
+            let next = {
+                let state = self.state_read();
+                let cycle = &state.cycles[cycle_id];
+                let request = &state.run_requests[request_id];
+                let failed = request.summary.failed > 0 || request.failure.is_some() || request.publication_failure.is_some();
+                let enabled = cycle.continue_automatically && (!failed || cycle.continue_on_failure);
+                if !enabled || request.summary.stop_requested || cycle.ensure_active().is_err() {
+                    return;
+                }
+                let Some(previous) = request.test_execution_id.as_ref() else { return };
+                let Some(position) = cycle.execution_ids.iter().position(|id| id == previous) else { return };
+                let next = cycle
+                    .execution_ids
+                    .iter()
+                    .skip(position + 1)
+                    .find(|id| {
+                        state
+                            .executions
+                            .get(*id)
+                            .is_some_and(|execution| crate::transactions::provider::execution_available(&state, execution))
+                    })
+                    .cloned();
+                next.map(|id| (id, request.summary.mode))
+            };
+            let Some((execution_id, mode)) = next else { return };
+            let receipt = self.submit_provider_admitted(cycle_id.clone(), execution_id, mode, crate::CommandContext::default()).await;
+            if receipt.status != crate::commands::CommandStatus::Accepted {
+                tracing::error!(%cycle_id, ?receipt, "automatic execution continuation was refused");
+            }
+        })
+    }
     async fn finish_provider_attempts(&self, finish: Finish) -> Result<()> {
         let execution_ids = finish.started_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
         let quiescence = self.quiesce_execution_sampling(&execution_ids).await?;

@@ -227,7 +227,11 @@ async fn collect_plot_telemetry(
     let groups = telemetry_read_groups(requests);
     let collected = join_all(groups.iter().map(|group| {
         let bounded = group.request_indexes.iter().any(|&index| requests[index].analysis.is_some());
-        let selection = TelemetrySelection { streams: group.streams.clone(), scope: group.scope.clone(), ..TelemetrySelection::default() };
+        let selection = TelemetrySelection {
+            streams: group.streams.iter().cloned().map(Into::into).collect(),
+            scope: group.scope.clone(),
+            ..TelemetrySelection::default()
+        };
         async move { runtime.try_collect_telemetry_bounded(&selection, bounded.then_some(crate::analysis::MAX_SAMPLES as usize)).await }
     }))
     .await;

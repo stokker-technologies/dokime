@@ -94,7 +94,11 @@ async fn run_kill_child() {
     let (_owner, runtime) = booted(&root).await;
     let created = runtime
         .create_cycle(
-            CycleDefinition { metadata: metadata("fixture.cycle", "Fixture Cycle"), continue_on_failure: false },
+            CycleDefinition {
+                metadata: metadata("fixture.cycle", "Fixture Cycle"),
+                continue_automatically: false,
+                continue_on_failure: false,
+            },
             CommandContext::default(),
         )
         .await;

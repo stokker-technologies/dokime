@@ -75,8 +75,8 @@ fn create() -> contracts::execution::CreateCycle {
     }
 }
 
-fn append(cycle_id: &str, plan: model::planning::wire::SelectionPlan) -> contracts::execution::AppendPlannedCases {
-    contracts::execution::AppendPlannedCases { cycle_id: cycle_id.into(), plan: Some(plan), context: None }
+fn append(cycle_id: &str, plan: model::planning::wire::SelectionPlan) -> support::wire::SelectionAppend {
+    support::wire::SelectionAppend { cycle_id: cycle_id.into(), plan: Some(plan), context: None }
 }
 
 async fn empty_cycle(execution: &WireClient) -> String {
@@ -129,7 +129,7 @@ async fn ordered_selections_provider() {
         )
         .await
         .unwrap();
-    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut selected = selection(&first);
     selected.parameters.push(model::planning::wire::RegisteredSelectionParametersEntry {
@@ -287,11 +287,7 @@ async fn planning_refuses_inputs() {
             expected,
             "previewing {label}"
         );
-        assert_eq!(
-            execution.unary::<contracts::execution::AppendPlannedCases>(append(&target, input)).await.unwrap_err().code(),
-            expected,
-            "appending {label}"
-        );
+        assert_eq!(execution.append_selection(append(&target, input)).await.unwrap_err().code(), expected, "appending {label}");
     }
     assert_no_cases(&owner).await;
     server.shutdown().await.unwrap();
@@ -299,8 +295,8 @@ async fn planning_refuses_inputs() {
     owner.shutdown().await.unwrap();
     let mut owner = runtime(root.path()).await;
     owner.handle().set_suites("provider:fixture", SuiteSet::new([support::fixture_registration(first.clone())])).await.unwrap();
-    let read = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
-    let planning = WireClient::connect(read.local_endpoint()).await.unwrap();
+    let remote = Server::start(owner.handle(), keyed()).await.unwrap();
+    let planning = WireClient::connect(remote.local_endpoint()).await.unwrap();
     planning
         .unary::<contracts::planning::PreviewSelection>(authenticated(contracts::planning::PreviewSelection {
             plan: Some(plan(vec![selection(&first)])),
@@ -317,12 +313,9 @@ async fn planning_refuses_inputs() {
             .code(),
         Code::Unauthenticated
     );
-    let execution = WireClient::connect(read.local_endpoint()).await.unwrap();
-    assert_eq!(
-        execution.unary::<contracts::execution::CreateCycle>(authenticated(create())).await.unwrap_err().code(),
-        Code::PermissionDenied
-    );
-    read.shutdown().await.unwrap();
+    let execution = WireClient::connect(remote.local_endpoint()).await.unwrap();
+    execution.unary::<contracts::execution::CreateCycle>(authenticated(create())).await.unwrap();
+    remote.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
 
@@ -393,7 +386,7 @@ async fn effective_native_materialization() {
             .await
             .unwrap_err();
         assert_eq!(error_code(&failure), "parameter_expansion_limit");
-        let failure = execution.unary::<contracts::execution::AppendPlannedCases>(append(&target, input)).await.unwrap_err();
+        let failure = execution.append_selection(append(&target, input)).await.unwrap_err();
         assert_eq!(error_code(&failure), "parameter_expansion_limit");
         // The registered expression is irrelevant when explicitly overridden.
         let mut selected = selection(&suite);
@@ -422,7 +415,7 @@ async fn effective_native_materialization() {
         .unwrap_err();
     assert_eq!(error_code(&failure), "invalid_selection");
     assert!(failure.message().contains("10201"));
-    assert!(execution.unary::<contracts::execution::AppendPlannedCases>(append(&target, input)).await.is_err());
+    assert!(execution.append_selection(append(&target, input)).await.is_err());
     assert_no_cases(&owner).await;
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
@@ -457,10 +450,7 @@ async fn payload_budget_allocation() {
         .await
         .unwrap_err();
     assert_eq!(error_code(&failure), "planning_payload_limit");
-    assert_eq!(
-        error_code(&execution.unary::<contracts::execution::AppendPlannedCases>(append(&target, input)).await.unwrap_err()),
-        "planning_payload_limit"
-    );
+    assert_eq!(error_code(&execution.append_selection(append(&target, input)).await.unwrap_err()), "planning_payload_limit");
     // A smaller explicit selection is valid with the same large default files.
     let mut selected = selection(&suite);
     selected.parameters.push(model::planning::wire::RegisteredSelectionParametersEntry {
@@ -507,16 +497,75 @@ async fn payload_budget_allocation() {
         ),
         "planning_payload_limit"
     );
-    assert_eq!(
-        error_code(&execution.unary::<contracts::execution::AppendPlannedCases>(append(&target, input)).await.unwrap_err()),
-        "planning_payload_limit"
-    );
+    assert_eq!(error_code(&execution.append_selection(append(&target, input)).await.unwrap_err()), "planning_payload_limit");
     assert_no_cases(&owner).await;
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn materialization_rejects_nonfinite_parameters_before_registration() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let mut suite = support::fixture_suite(&["passed"]);
+    let handle = owner.handle();
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    for value_type in [
+        dokime_runtime::ValueType::Number,
+        dokime_runtime::ValueType::Boolean,
+        dokime_runtime::ValueType::Text,
+        dokime_runtime::ValueType::Array,
+        dokime_runtime::ValueType::Object,
+    ] {
+        suite.test_case_templates[0].parameters[0].value_type = value_type.clone();
+        handle.set_suites("provider:fixture", SuiteSet::new([support::fixture_registration(suite.clone())])).await.unwrap();
+        for number in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let value = match value_type {
+                dokime_runtime::ValueType::Array => Value::Array(vec![Value::Object([("nested".into(), Value::Number(number))].into())]),
+                dokime_runtime::ValueType::Object => Value::Object([("nested".into(), Value::Array(vec![Value::Number(number)]))].into()),
+                _ => Value::Number(number),
+            };
+            let mut selected = selection(&suite);
+            selected.parameters.push(model::planning::wire::RegisteredSelectionParametersEntry {
+                key: "fixture.result".into(),
+                value: Some(model::planning::wire::SelectionValues { values: vec![model::values::wire::Value::from(&value)] }),
+            });
+            let request = contracts::planning::MaterializeTemplate { selection: Some(selected) };
+            let refused = client.unary::<contracts::planning::MaterializeTemplate>(request).await.unwrap_err();
+            assert_eq!(refused.code(), Code::InvalidArgument, "type {value_type:?}, number {number}");
+            assert!(refused.message().contains("finite"));
+            let snapshot = handle.watch_state().latest();
+            assert_eq!(snapshot.state().suites.cases_for_suite(suite.metadata.identifier.as_str()).count(), 0);
+            assert!(snapshot.state().cycles.is_empty());
+            assert!(snapshot.state().executions.is_empty());
+            assert!(snapshot.state().run_requests.is_empty());
+        }
+    }
+
+    // Finite Nested Values Still Materialize Without Starting An Execution.
+    let value = Value::Object([("nested".into(), Value::Array(vec![Value::Number(1.25)]))].into());
+    let mut selected = selection(&suite);
+    selected.parameters.push(model::planning::wire::RegisteredSelectionParametersEntry {
+        key: "fixture.result".into(),
+        value: Some(model::planning::wire::SelectionValues { values: vec![model::values::wire::Value::from(&value)] }),
+    });
+    let reply = client
+        .unary::<contracts::planning::MaterializeTemplate>(contracts::planning::MaterializeTemplate { selection: Some(selected) })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(reply.cases.len(), 1);
+    assert_eq!(field(reply.cases[0].parameters.as_ref().unwrap(), "fixture.result"), value);
+    let snapshot = handle.watch_state().latest();
+    assert_eq!(snapshot.state().suites.cases_for_suite(suite.metadata.identifier.as_str()).count(), 1);
+    assert!(snapshot.state().executions.is_empty());
+    assert!(snapshot.state().run_requests.is_empty());
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
 
 #[tokio::test]
 async fn registered_cases_selection() {

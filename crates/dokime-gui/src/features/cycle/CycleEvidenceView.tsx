@@ -23,15 +23,15 @@
 
 import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
-import type { DocumentSurface } from "./document-view-model";
 import {
   DocumentViewPresentation,
   type DocumentViewProps,
   documentWindowElapsedUnit,
   FrozenDocumentConsole,
 } from "./DocumentViewPresentation";
-import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
-import { PlotWindowControl, usePlotWindow } from "./PlotWindowSlider";
+import { BUSY_NOTICE, type evidencePaneState } from "./document-query-model";
+import type { DocumentSurface } from "./document-view-model";
+import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
 
 /* === Types === */
 

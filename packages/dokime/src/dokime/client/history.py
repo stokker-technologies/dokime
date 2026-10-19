@@ -170,9 +170,9 @@ class ExecutionEvidence:
 
     async def document(self) -> dict[str, Any]:
         await self._transport.verify(self._backend)
-        from .execution.handle import TestExecutionHandle
+        from .execution.handle import Execution
 
-        reply = await TestExecutionHandle(self.checkpoint.execution_id, self._transport, self._backend)._document_at(self.checkpoint)
+        reply = await Execution._bind(self.checkpoint.execution_id, self._transport, self._backend)._document_at(self.checkpoint)
         return _json(reply.document.execution)
 
     async def traceability(self) -> tuple[Traceability, ...]:

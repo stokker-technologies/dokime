@@ -16,23 +16,24 @@
 import type { NewCycleRequest } from "@/lib/api/native-planning";
 import { defaultCycleLabel } from "@/lib/time-format";
 
+/* === Constants === */
+
+export const EMPTY_TITLE_ERROR = "A cycle needs a title.";
+
 /* === Types === */
 
 export type NewCycleForm = {
   title: string;
   description: string;
   continueOnFailure: boolean;
+  continueAutomatically: boolean;
 };
-
-/* === Constants === */
-
-export const EMPTY_TITLE_ERROR = "A cycle needs a title.";
 
 /* === Public Functions === */
 
 /** The form as it opens at `now`: titled by that moment, continuing past failures. */
 export function initialNewCycleForm(now: Date): NewCycleForm {
-  return { continueOnFailure: true, description: "", title: defaultCycleLabel(now) };
+  return { continueAutomatically: false, continueOnFailure: true, description: "", title: defaultCycleLabel(now) };
 }
 
 /** Why the form cannot be submitted, or `null` when it can. */
@@ -45,6 +46,7 @@ export function newCycleRequest(form: NewCycleForm): NewCycleRequest {
   const description = form.description.trim();
   return {
     continueOnFailure: form.continueOnFailure,
+    continueAutomatically: form.continueAutomatically,
     description: description || undefined,
     label: form.title.trim(),
   };

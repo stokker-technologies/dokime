@@ -6,14 +6,16 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("cycle_id", "continue_on_failure", "context")
+    __slots__ = ("cycle_id", "continue_automatically", "continue_on_failure", "context")
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
+    CONTINUE_AUTOMATICALLY_FIELD_NUMBER: _ClassVar[int]
     CONTINUE_ON_FAILURE_FIELD_NUMBER: _ClassVar[int]
     CONTEXT_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str
+    continue_automatically: bool
     continue_on_failure: bool
     context: Row3
-    def __init__(self, cycle_id: _Optional[str] = ..., continue_on_failure: _Optional[bool] = ..., context: _Optional[_Union[Row3, _Mapping]] = ...) -> None: ...
+    def __init__(self, cycle_id: _Optional[str] = ..., continue_automatically: _Optional[bool] = ..., continue_on_failure: _Optional[bool] = ..., context: _Optional[_Union[Row3, _Mapping]] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("observed_cursor",)

@@ -19,7 +19,7 @@ import { beforeAll, test } from "vitest";
 /* === Constants === */
 
 const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const descriptors = resolve(gui, ".generated");
+const descriptors = resolve(gui, "../../target/generated/typescript");
 const facadePath = "src/lib/rpc/generated/client.ts";
 
 /* === State === */
@@ -64,7 +64,7 @@ test("Canonical Bindings", () => {
   assert.ok(files.length > 0, "the generated descriptors declare no files");
 
   // Canonical Descriptor Paths
-  assert.ok(facade.includes("../../../../.generated/dokime/v1/"));
+  assert.ok(facade.includes("@generated/dokime/v1/"));
   assert.equal(facade.includes('from "./dokime/v1/'), false);
 
   // Canonical Methods

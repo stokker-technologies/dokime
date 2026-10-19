@@ -98,6 +98,7 @@ pub struct RuntimeCycleSummary {
     pub updated_at: Timestamp,
     pub test_cases: Vec<TestCase>,
     pub test_executions: Vec<RuntimeExecutionSummary>,
+    pub continue_automatically: bool,
     pub continue_on_failure: bool,
     pub result: Option<ResultSummary>,
 }
@@ -182,6 +183,7 @@ impl RuntimeCycleSummary {
             updated_at: cycle.updated_at.clone(),
             test_cases: cycle.cases().cloned().collect::<Vec<_>>(),
             test_executions: cycle.test_executions.iter().map(RuntimeExecutionSummary::from_execution).collect(),
+            continue_automatically: cycle.continue_automatically,
             continue_on_failure: cycle.continue_on_failure,
             result: cycle.result.clone(),
         }

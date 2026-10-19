@@ -11,22 +11,22 @@
 
 /* === External Imports === */
 
-import type { Value as SerializedValue } from "@/lib/document-contracts";
-import { isDatetimeValue } from "@/lib/record-display";
-import type { Wire } from "@/lib/rpc/canonical";
-import type { ElapsedUnit, JsonObject, RecordScope, Severity, ValueFormat } from "@/lib/types";
 import type {
   Row107 as NativeElapsed,
   Row19 as NativeFormat,
   Row4 as NativeSeverity,
   Row16 as NativeValueType,
-} from "../../../.generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb";
+} from "@generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb";
 import type {
   Row6 as NativeMetadata,
   Row11 as NativeTimestamp,
   Row19 as NativeValue,
-} from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row4 as NativeScope } from "../../../.generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
+} from "@generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row4 as NativeScope } from "@generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
+import type { Value as SerializedValue } from "@/lib/document-contracts";
+import { isDatetimeValue } from "@/lib/record-display";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { ElapsedUnit, JsonObject, RecordScope, Severity, ValueFormat } from "@/lib/types";
 
 type Value = Wire<NativeValue>;
 type Metadata = Wire<NativeMetadata>;

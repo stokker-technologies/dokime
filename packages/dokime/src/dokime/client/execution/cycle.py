@@ -27,8 +27,6 @@ from .. import _wire, prompts
 from .._transport import Transport, _cursor
 from ..errors import (
     ProtocolError,
-    RpcError,
-    SubmissionUncertain,
 )
 from ..exports import export_evidence
 from ..history import Download, download_report
@@ -40,9 +38,9 @@ from ..models import (
     Sample,
     Value,
 )
-from .handle import TestExecutionHandle, _admission, _key
+from .handle import Execution
 from .listeners import read_records, read_samples
-from .request import RunRequest, _identity
+from .request import _identity
 
 # Type Checking Imports
 
@@ -63,7 +61,7 @@ class Cycle:
         cycle_id: str,
         transport: Transport,
         backend: Backend,
-        executions: tuple[TestExecutionHandle, ...],
+        executions: tuple[Execution, ...],
     ) -> None:
         _identity(cycle_id)
         self._id = cycle_id
@@ -75,12 +73,48 @@ class Cycle:
     def id(self) -> str:
         return self._id
 
+    async def append(self, executions: Sequence[Execution]) -> None:
+        """Atomically Register These Exact Attempts In Order; Retrying Cannot Duplicate Them."""
+        executions = tuple(executions)
+        if not 1 <= len(executions) <= 1000:
+            raise ValueError("append requires 1 to 1000 executions")
+        identifiers = [execution.id for execution in executions]
+        if len(set(identifiers)) != len(identifiers):
+            raise ValueError("append repeats an execution identity")
+        bindings = []
+        for execution in executions:
+            case = execution._case
+            same_connection = execution._transport is self._transport and execution._backend == self._backend
+            if case is None or not same_connection:
+                raise ValueError("append requires materialized executions from this connection")
+            if execution._cycle_id not in (None, self.id):
+                raise ValueError("execution already belongs to another cycle")
+            bindings.append({"execution_id": execution.id, "case_id": case.id})
+
+        request = _wire.request(
+            "Execution",
+            "AppendExecutions",
+            cycle_id=self.id,
+            executions=bindings,
+        )
+        await self._transport.verify(self._backend, live=True)
+        reply = await self._transport.unary("Execution", "AppendExecutions", request)
+        _cursor(self._backend, reply)
+        if list(reply.execution_ids) != identifiers:
+            raise ProtocolError("append reply changed execution identities or order")
+
+        members = {execution.id: execution for execution in self._executions}
+        for execution in executions:
+            execution._cycle_id = self.id
+            members.setdefault(execution.id, execution)
+        self._executions = tuple(members.values())
+
     async def export(self, destination: str | Path, *, overwrite: bool = False) -> Download:
         """Download Every Member Of This Durably Sealed Cycle."""
         return await export_evidence(self._transport, self._backend, "Cycle", self.id, destination, overwrite=overwrite)
 
     @property
-    def executions(self) -> tuple[TestExecutionHandle, ...]:
+    def executions(self) -> tuple[Execution, ...]:
         """Ordered membership observed at binding; handles share the connection.
 
         Bind the cycle again to observe later membership changes. Reading or
@@ -108,7 +142,7 @@ class Cycle:
                 if not row.case_id or row.ordinal != len(members) or row.execution_id in seen:
                     raise ProtocolError("execution membership identity or order differs")
                 seen.add(row.execution_id)
-                members.append(TestExecutionHandle(row.execution_id, transport, backend))
+                members.append(Execution._bind(row.execution_id, transport, backend))
             if not page.HasField("next_after_execution_id"):
                 break
             if not page.executions or page.next_after_execution_id != page.executions[-1].execution_id:
@@ -117,75 +151,6 @@ class Cycle:
             _wire.copy(request.cursor, page.cursor)
         result._executions = tuple(members)
         return result
-
-    def _check_request(self, request: "RunRequest | None") -> None:
-        if request is not None and (
-            request.cycle_id != self.id or request._transport is not self._transport or request._backend != self._backend
-        ):
-            raise ValueError("request belongs to another cycle or connection")
-
-    async def run(self, *, request_key: str) -> "RunRequest":
-        """Submit or resolve the same cycle/key without creating another cycle."""
-        _key(request_key)
-        await self._transport.verify(self._backend, live=True)
-        try:
-            reply = await self._transport.unary(
-                "Execution",
-                "RunCycle",
-                _wire.request(
-                    "Execution",
-                    "RunCycle",
-                    cycle_id=self.id,
-                    idempotency_key=request_key,
-                ),
-            )
-        except RpcError as error:
-            if error.submission_uncertain:
-                raise SubmissionUncertain(self.id, request_key) from error
-            raise
-        admission = _admission(self._backend, reply)
-        return RunRequest(self._transport, self._backend, admission.command_id, self.id)
-
-    async def schedule_rerun(self, case_id: str) -> None:
-        """Append the case's next attempt as a new execution; nothing runs yet.
-
-        Creation is not idempotent: each call that succeeds appends another
-        attempt, and earlier attempts and their evidence stay as they are.
-        """
-        if not case_id:
-            raise ValueError("case_id must not be empty")
-        await self._transport.verify(self._backend, live=True)
-        reply = await self._transport.unary(
-            "Execution",
-            "ScheduleCaseRerun",
-            _wire.request("Execution", "ScheduleCaseRerun", cycle_id=self.id, case_id=case_id),
-        )
-        _cursor(self._backend, reply)
-
-    async def run_case(self, case_id: str, *, request_key: str) -> "RunRequest":
-        """Admit the case's queued attempt once under the caller-retained key."""
-        if not case_id:
-            raise ValueError("case_id must not be empty")
-        _key(request_key)
-        await self._transport.verify(self._backend, live=True)
-        try:
-            reply = await self._transport.unary(
-                "Execution",
-                "RunCase",
-                _wire.request(
-                    "Execution",
-                    "RunCase",
-                    cycle_id=self.id,
-                    case_id=case_id,
-                    idempotency_key=request_key,
-                ),
-            )
-        except RpcError as error:
-            if error.submission_uncertain:
-                raise SubmissionUncertain(self.id, request_key) from error
-            raise
-        admission = _admission(self._backend, reply)
-        return RunRequest(self._transport, self._backend, admission.command_id, self.id)
 
     async def result(self) -> ResultSummary:
         """Read current cycle result counters, not a particular request's result."""
@@ -262,16 +227,14 @@ class Cycle:
         record_types: Sequence[str] = (),
         record_ids: Sequence[str] = (),
         execution_id: str | None = None,
-        until: "RunRequest | None" = None,
     ) -> AsyncGenerator[Record]:
-        """Replay captured records, follow live, and drain after terminal receipt.
+        """Replay captured records through the current frontier.
 
         Event types filter on the server; occurrence IDs filter locally. Empty
         filters collect every captured record in scope, including records from
         before subscription. Unscoped backend records are outside this scope.
-        Without until, read a fixed current frontier. No cross-restart replay.
+        Read a fixed current frontier. No cross-restart replay.
         """
-        self._check_request(until)
         await self._snapshot()
         scope = _wire.nested(
             "Evidence",
@@ -282,19 +245,13 @@ class Cycle:
         )
         ids = frozenset(record_ids)
 
-        async def complete():
-            assert until is not None
-            status = await until.wait()
-            if status.phase.value == "interrupted":
-                raise ProtocolError("interrupted acquisition does not certify complete live evidence")
-
         async with aclosing(
             read_records(
                 self._transport,
                 self._backend,
                 scope,
                 record_types,
-                complete() if until is not None else None,
+                None,
             )
         ) as reader:
             async for page in reader:
@@ -307,21 +264,18 @@ class Cycle:
         *,
         streams: Sequence[str] = (),
         execution_id: str | None = None,
-        until: "RunRequest | None" = None,
         poll_interval: float = 0.2,
         page_size: int = 500,
     ) -> AsyncGenerator[Sample]:
         """Read raw telemetry from the beginning with lossless cursor polling.
 
         This wraps ListSamples, not a server-streaming raw-telemetry RPC.
-        until=request drains after durable completion. Otherwise read until
-        caught up; that is not an immutable snapshot of an actively writing run.
+        Read until caught up; that is not an immutable snapshot of an actively writing run.
         Oversized replies fail explicitly; lower page_size and retry collection.
         """
         _interval(poll_interval)
         if not 1 <= page_size <= 5000:
             raise ValueError("page_size must be between 1 and 5000")
-        self._check_request(until)
         await self._snapshot()
         scope = _wire.nested(
             "Evidence",
@@ -332,12 +286,7 @@ class Cycle:
         )
 
         async def complete() -> bool:
-            if until is None:
-                return True
-            status = await until.status()
-            if status.phase.value == "interrupted":
-                raise ProtocolError("interrupted acquisition does not certify complete live evidence")
-            return status.terminal
+            return True
 
         async for page in read_samples(
             self._transport,

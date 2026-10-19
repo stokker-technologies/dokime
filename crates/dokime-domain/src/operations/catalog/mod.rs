@@ -30,7 +30,6 @@ pub use list_telemetry_schemas::ListTelemetrySchemas;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
 #[allow(unused_imports)]
@@ -72,32 +71,26 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for ListSuites {
     const PATH: &'static str = "/dokime.v1.Catalog/ListSuites";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetSuite {
     const PATH: &'static str = "/dokime.v1.Catalog/GetSuite";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListRecordSchemas {
     const PATH: &'static str = "/dokime.v1.Catalog/ListRecordSchemas";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetRecordSchema {
     const PATH: &'static str = "/dokime.v1.Catalog/GetRecordSchema";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListTelemetrySchemas {
     const PATH: &'static str = "/dokime.v1.Catalog/ListTelemetrySchemas";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetTelemetrySchema {
     const PATH: &'static str = "/dokime.v1.Catalog/GetTelemetrySchema";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

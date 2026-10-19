@@ -34,6 +34,12 @@ use {
 
 /* === Structs === */
 
+#[harmos::message]
+struct BenchRow {
+    elapsed_s: f64,
+    voltage_v: f64,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -71,7 +77,7 @@ async fn current_document_rows() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let selected = model::documents::wire::DocumentScope {
         cycle_id: cycle.to_string(),
@@ -206,7 +212,8 @@ async fn summary_complete_telemetry() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    let execution_id = handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
+    handle.start_execution(execution_id, model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     gate.started.notified().await;
     let scope = handle.watch_state().latest().state().cycle_view(&cycle).unwrap().test_executions[0].scope.clone();
     assert!(scope.test_execution_id.is_some());
@@ -294,6 +301,13 @@ async fn duration_x_axis() {
     suite.test_case_templates[0].document = Some(authored);
 
     let mut contract = TelemetryContract::declared("bench.samples", "Bench Samples");
+    contract.storage_schema = Some(
+        harmos::schema::graph::Schema::from_declaration(
+            <BenchRow as harmos::schema::Described>::DEFINITION,
+            &harmos::config::SchemaSettings::default(),
+        )
+        .unwrap(),
+    );
     contract.columns = vec![
         TelemetryColumn::declared("elapsed_s", "Elapsed", ValueType::Number, TelemetryRole::Value).with_unit(MeasurementUnit::custom(
             Identifier::new("unit.s").unwrap(),

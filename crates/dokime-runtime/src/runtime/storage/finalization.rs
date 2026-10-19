@@ -71,7 +71,7 @@ impl RuntimeHandle {
                 return Err(error);
             }
         };
-        self.commit(crate::transactions::SealCycle { sealed_cycle: sealed.header.clone(), sealed_executions: sealed.executions.clone() })
+        self.commit(crate::transactions::SealCycle { sealed_cycle: sealed.header.clone() })
             .await
             .map_err(|error| Error::Operation(error.to_string()))?;
         self.execution_storage.retire_cycle_report(id).await;
@@ -110,8 +110,7 @@ impl RuntimeHandle {
             return Ok(());
         }
         // A Previous Attempt May Have Persisted Its Seal Before Managed Adoption Failed.
-        if let Some(seal) = self.execution_storage.durable_seal(id).await? {
-            self.commit(crate::transactions::SealExecution { seal }).await.map_err(|error| Error::Operation(error.to_string()))?;
+        if self.adopt_saved_execution(id).await? {
             return Ok(());
         }
         let intent = self.state_manager.state().read(|state| state.report_finalizations.get(id).cloned()).await?.value;
@@ -120,17 +119,35 @@ impl RuntimeHandle {
         } else {
             // Normal Completion May Await Accepted Samples; Stop Already Has Its Earlier Intent.
             let evidence_at = self.storage().flush().await?;
-            self.commit(crate::transactions::RequestReportFinalization {
-                executions: vec![id.clone()],
-                intent: crate::transactions::ReportFinalization {
-                    evidence_at: evidence_at.clone(),
-                    requested_at: crate::model::time::now_utc(),
-                    lifecycle: None,
-                },
-            })
-            .await
-            .map_err(|error| Error::Operation(error.to_string()))?;
-            evidence_at
+            let requested = self
+                .commit(crate::transactions::RequestReportFinalization {
+                    executions: vec![id.clone()],
+                    intent: crate::transactions::ReportFinalization {
+                        evidence_at: evidence_at.clone(),
+                        requested_at: crate::model::time::now_utc(),
+                        lifecycle: None,
+                    },
+                })
+                .await;
+            if let Err(error) = requested {
+                if self.adopt_saved_execution(id).await? {
+                    return Ok(());
+                }
+                return Err(Error::Operation(error.to_string()));
+            }
+            let captured = self
+                .state_manager
+                .state()
+                .read(|state| state.report_finalizations.get(id).map(|intent| intent.evidence_at.clone()))
+                .await?
+                .value;
+            let Some(captured) = captured else {
+                if self.adopt_saved_execution(id).await? {
+                    return Ok(());
+                }
+                return Err(invalid("execution finalization intent disappeared before sealing"));
+            };
+            captured
         };
         if self.execution_storage.acquisition(id).await.is_none() {
             self.execution_storage.acquire(cycle, execution).await?;
@@ -144,6 +161,14 @@ impl RuntimeHandle {
         let seal = self.execution_storage.durable_seal(id).await?.ok_or_else(|| invalid("execution seal is not durable"))?;
         self.commit(crate::transactions::SealExecution { seal }).await.map_err(|error| Error::Operation(error.to_string()))?;
         Ok(())
+    }
+
+    async fn adopt_saved_execution(&self, id: &TestExecutionId) -> Result<bool> {
+        let Some(seal) = self.execution_storage.durable_seal(id).await? else {
+            return Ok(false);
+        };
+        self.commit(crate::transactions::SealExecution { seal }).await.map_err(|error| Error::Operation(error.to_string()))?;
+        Ok(true)
     }
 }
 

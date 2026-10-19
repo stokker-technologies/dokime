@@ -72,9 +72,9 @@ impl ExecutionFixture for WideTelemetryExecutor {
         _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
-            for (index, execution) in runnable_executions(cycle).enumerate() {
+            for execution in runnable_executions(cycle) {
                 activate_fixture_execution(&context, execution).await;
-                if index == 0 {
+                if execution.test_execution_id == cycle.test_executions[0].test_execution_id {
                     let scope = provider_execution_scope(cycle);
                     context.publish_telemetry_batch(wide_batch(scope)).await.unwrap();
                 }
@@ -100,9 +100,9 @@ impl Captured {
 // Run One Wide Cycle To Its Seal And Return Its Final Resident View
 async fn sealed_cycle(handle: &RuntimeHandle, suite: TestSuite) -> CycleView {
     let cycle_id = start_cycle(handle, suite, false).await;
-    handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     wait_for_cycle_lifecycle(handle, &cycle_id, CycleStatus::Completed).await;
-    // Aggregates Finalize After The Terminal Transaction, Before The Seal
+    handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     until_state(handle, |state| state.cycle_views().any(|cycle| cycle.test_cycle_id == cycle_id && cycle.saved.is_some())).await;
     let cycle = cycle_snapshot(handle, &cycle_id).await;
     assert_eq!(cycle.test_executions.len(), MEMBERS);

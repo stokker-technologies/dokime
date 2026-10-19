@@ -17,7 +17,6 @@
 
 // Standard Library Imports
 use std::{
-    collections::BTreeMap,
     io::{Read, Write},
     path::{Path, PathBuf},
     process::Command,
@@ -26,6 +25,7 @@ use std::{
 // Third Party Imports
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::oneshot,
     task::{JoinHandle, JoinSet},
@@ -34,10 +34,16 @@ use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use dokime_client::{Client, TestCycleHandle, TestExecutionHandle};
+use dokime_domain::model::identity::wire::Metadata;
+use dokime_domain::model::planning::wire::{RegisteredSelection, RegisteredSelectionParametersEntry, SelectionValues};
 use dokime_domain::model::{
     execution::{ExecutionMode, result::CyclePhase, wire::ResultStatus},
     identity::{TestCycleId, TestExecutionId},
     values::Value,
+};
+use dokime_domain::operations::{
+    execution::{CreateCycle, ExecutionBinding},
+    planning::MaterializeTemplate,
 };
 
 /* === Constants === */
@@ -64,10 +70,26 @@ struct Proxy {
     task: Option<JoinHandle<()>>,
 }
 
+#[derive(Clone)]
+struct Gate {
+    client: Client,
+    label: String,
+    boundary: Boundary,
+    reached: CancellationToken,
+    released: CancellationToken,
+}
+
 /* === Enums === */
 enum Action {
-    Interrupt,
-    Disconnect(oneshot::Sender<()>),
+    Interrupt(Client),
+    Disconnect(Client, oneshot::Sender<()>),
+    InterruptAt(Gate),
+}
+
+#[derive(Clone, Copy)]
+enum Boundary {
+    Append,
+    Start,
 }
 
 /* === Traits === */
@@ -91,6 +113,10 @@ impl Drop for Proxy {
 
 impl Proxy {
     async fn start(endpoint: &str) -> Self {
+        Self::with_gate(endpoint, None).await
+    }
+
+    async fn with_gate(endpoint: &str, gate: Option<Gate>) -> Self {
         let target = endpoint.strip_prefix("http://").expect("the built host fixture uses a plaintext loopback endpoint").to_owned();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("http://{}", listener.local_addr().unwrap());
@@ -103,16 +129,17 @@ impl Proxy {
                     biased;
                     _ = stopped.cancelled() => break,
                     connection = listener.accept() => {
-                        let (mut incoming, _) = connection.unwrap();
+                        let (incoming, _) = connection.unwrap();
                         let target = target.clone();
                         let cancelled = stopped.clone();
+                        let gate = gate.clone();
                         connections.spawn(async move {
                             tokio::select! {
                                 biased;
                                 _ = cancelled.cancelled() => {},
                                 _ = async {
-                                    let mut outgoing = TcpStream::connect(target).await?;
-                                    tokio::io::copy_bidirectional(&mut incoming, &mut outgoing).await?;
+                                    let outgoing = TcpStream::connect(target).await?;
+                                    relay(incoming, outgoing, gate).await?;
                                     Ok::<(), std::io::Error>(())
                                 } => {},
                             }
@@ -132,6 +159,78 @@ impl Proxy {
     }
 }
 
+impl Gate {
+    async fn hold(&self) -> std::io::Result<()> {
+        if self.released.is_cancelled() {
+            return Ok(());
+        }
+        if !self.reached.is_cancelled() && !self.committed().await? {
+            return Ok(());
+        }
+        self.reached.cancel();
+        let deadline = std::time::Duration::from_secs(30);
+        let release = tokio::time::timeout(deadline, self.released.cancelled());
+        release.await.map_err(|_| std::io::Error::other("native recovery did not release its held mutation response"))?;
+        Ok(())
+    }
+
+    async fn committed(&self) -> std::io::Result<bool> {
+        use dokime_domain::model::execution::wire::CycleFilter;
+        use dokime_domain::operations::execution::ListCycles;
+
+        // Locate The Script's Cycle Without Depending On Its Pending Reply.
+        let filter = CycleFilter { text: self.label.clone(), ..Default::default() };
+        let request = ListCycles { limit: 100, filter: Some(filter), ..Default::default() };
+        let reply = self.client.execution_list_cycles(request).await.map_err(|error| std::io::Error::other(error.to_string()))?;
+        let cycle = reply.cycles.into_iter().find(|cycle| cycle.metadata.as_ref().is_some_and(|metadata| metadata.label == self.label));
+        let Some(cycle) = cycle else {
+            return Ok(false);
+        };
+        if cycle.execution_count == 0 {
+            return Ok(false);
+        }
+        if matches!(self.boundary, Boundary::Append) {
+            return Ok(true);
+        }
+
+        // Start Is Confirmed By Admission, Including Queued Admission.
+        let id = TestCycleId::from_uuid(&cycle.cycle_id).unwrap();
+        let cycle = self.client.cycle(id);
+        let members = cycle.executions().await.map_err(|error| std::io::Error::other(error.to_string()))?;
+        for member in members {
+            let snapshot = member.snapshot().await.map_err(|error| std::io::Error::other(error.to_string()))?;
+            if snapshot.controls.is_some() {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+async fn relay(mut incoming: TcpStream, mut outgoing: TcpStream, gate: Option<Gate>) -> std::io::Result<()> {
+    let Some(gate) = gate else {
+        tokio::io::copy_bidirectional(&mut incoming, &mut outgoing).await?;
+        return Ok(());
+    };
+    let (mut inbound, mut output) = incoming.into_split();
+    let (mut response, mut outbound) = outgoing.into_split();
+    let requests = tokio::io::copy(&mut inbound, &mut outbound);
+    let responses = async {
+        let mut buffer = [0_u8; 65_536];
+        loop {
+            let count = response.read(&mut buffer).await?;
+            if count == 0 {
+                break;
+            }
+            gate.hold().await?;
+            output.write_all(&buffer[..count]).await?;
+        }
+        output.shutdown().await
+    };
+    tokio::try_join!(requests, responses)?;
+    Ok(())
+}
+
 /* === Public Functions === */
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
@@ -142,6 +241,10 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
         scenario(client, endpoint, root, extension, "prompt").await;
         disconnected(client, endpoint, root, extension, "test").await;
         disconnected(client, endpoint, root, extension, "prompt").await;
+        if *extension != "py" {
+            mutation_interruption(client, endpoint, root, extension, Boundary::Append).await;
+            mutation_interruption(client, endpoint, root, extension, Boundary::Start).await;
+        }
         let summary = other_execution.snapshot().await.unwrap();
         assert!(!summary.summary.unwrap().sealed, "another client's execution must survive every script interrupt");
         assert_eq!(other_cycle.snapshot().await.unwrap().phase, CyclePhase::Active);
@@ -155,11 +258,30 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
 /* === Private Functions === */
 async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHandle) {
     let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
-    let parameters = BTreeMap::from([("require_confirmation".to_owned(), Value::Bool(true))]);
-    let cycle = client.plan_cycle("obc.checks", "obc.checks.pulse", parameters, Some("Independent Waiting Operator".into())).await.unwrap();
+    let parameters = vec![RegisteredSelectionParametersEntry {
+        key: "require_confirmation".into(),
+        value: Some(SelectionValues { values: vec![Value::Bool(true).into()] }),
+    }];
+    let selection =
+        RegisteredSelection { suite_id: "obc.checks".into(), template_id: "obc.checks.pulse".into(), parameters, files: Vec::new() };
+    let materialized = client.materialize_template(MaterializeTemplate { selection: Some(selection) }).await.unwrap();
+    assert_eq!(materialized.cases.len(), 1);
+    let metadata = Metadata {
+        identifier: String::new(),
+        label: "Independent Waiting Operator".into(),
+        description: None,
+        tags: Vec::new(),
+        attributes: Vec::new(),
+        created_at: None,
+        updated_at: None,
+    };
+    let request = CreateCycle { metadata: Some(metadata), continue_automatically: false, continue_on_failure: false, context: None };
+    let cycle = client.create_cycle(request).await.unwrap();
+    let binding = ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: materialized.cases[0].case_id.clone() };
+    cycle.append(vec![binding]).await.unwrap();
     let mut members = cycle.executions().await.unwrap();
     let execution = members.pop().unwrap();
-    execution.start("independent-waiting-operator", ExecutionMode::Automatic).await.unwrap();
+    execution.start(ExecutionMode::Automatic).await.unwrap();
 
     loop {
         let pending = execution.pending_prompts().await.unwrap();
@@ -174,19 +296,56 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
     (cycle, execution)
 }
 
+async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, extension: &str, boundary: Boundary) {
+    // Hold The Mutation Reply Only After Its Server Effect Is Observable.
+    let (name, workflow) = match boundary {
+        Boundary::Append => ("append confirmation", "test"),
+        Boundary::Start => ("start confirmation", "prompt"),
+    };
+    let directory = root.join(format!("{extension} {name}"));
+    let label = format!("Remote {extension} {name} {}", uuid::Uuid::now_v7());
+    let gate = Gate {
+        client: client.clone(),
+        label: label.clone(),
+        boundary,
+        reached: CancellationToken::new(),
+        released: CancellationToken::new(),
+    };
+    let proxy = Proxy::with_gate(endpoint, Some(gate.clone())).await;
+    let parameters = [("EXECUTION_COUNT", "1"), ("CYCLE_LABEL", label.as_str())];
+    let command = super::configured_command(extension, workflow, &proxy.endpoint, &directory, &parameters);
+    let command = terminal_command(command.as_std(), extension == "bat");
+
+    // Ctrl+C Arrives Before Confirmation; Cleanup Must Reconcile Exact Membership.
+    let process = tokio::task::spawn_blocking(move || run(command, "Cycle: ", Action::InterruptAt(gate)));
+    let outcome = process.await.unwrap();
+    proxy.close().await;
+    assert!(outcome.triggered && !outcome.success, "{name} was not interrupted:\n{}", outcome.text);
+    let cycles = super::identities(&outcome.text, "Cycle: ");
+    assert_eq!(cycles.len(), 1, "{}", outcome.text);
+    let cycle_id = TestCycleId::from_uuid(&cycles[0]).unwrap();
+    let cycle = client.cycle(cycle_id);
+    assert_eq!(cycle.snapshot().await.unwrap().phase, CyclePhase::Sealed);
+    let members = cycle.executions().await.unwrap();
+    assert_eq!(members.len(), 1, "interruption cannot retry append or Start");
+    let execution = &members[0];
+    let outcome = execution.wait(None, None).await.unwrap();
+    assert_eq!(outcome.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
+    let execution_id = execution.id().to_string();
+    let executions = vec![execution_id.clone()];
+    let (execution_file, cycle_file) = recovered(extension, workflow, &directory, &cycles[0], &execution_id);
+    let samples = super::archive(&execution_file, &cycles[0], &executions, true, "cancelled");
+    assert_eq!(samples[&execution_id], 0, "the independent execution keeps Start queued");
+    super::archive(&cycle_file, &cycles[0], &executions, true, "cancelled");
+}
+
 async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str, workflow: &str) {
     let directory = root.join(format!("{extension} {workflow}"));
-    let command = super::command(extension, workflow, endpoint, &directory);
+    let command = super::configured_command(extension, workflow, endpoint, &directory, &[("EXECUTION_COUNT", "1")]);
     let command = command.as_std();
     let command = terminal_command(command, extension == "bat");
-    let marker = if extension == "py" && workflow == "test" {
-        "Current Status:"
-    } else if extension == "py" {
-        "Execution:"
-    } else {
-        "Waiting For "
-    };
-    let outcome = tokio::task::spawn_blocking(move || run(command, marker, Action::Interrupt)).await.unwrap();
+    let selected = client.clone();
+    let outcome = tokio::task::spawn_blocking(move || run(command, "Execution: ", Action::Interrupt(selected))).await.unwrap();
     assert!(outcome.triggered, "the script exited before the selected interrupt boundary:\n{}", outcome.text);
     assert!(!outcome.success, "interruption must return nonzero:\n{}", outcome.text);
 
@@ -209,17 +368,11 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
 async fn disconnected(client: &Client, endpoint: &str, root: &Path, extension: &str, workflow: &str) {
     let proxy = Proxy::start(endpoint).await;
     let directory = root.join(format!("disconnected {extension} {workflow}"));
-    let command = super::command(extension, workflow, &proxy.endpoint, &directory);
+    let command = super::configured_command(extension, workflow, &proxy.endpoint, &directory, &[("EXECUTION_COUNT", "1")]);
     let command = terminal_command(command.as_std(), extension == "bat");
-    let marker = if extension == "py" && workflow == "test" {
-        "Current Status:"
-    } else if extension == "py" {
-        "Request Accepted For Execution "
-    } else {
-        "Waiting For "
-    };
     let (disconnect, ready) = oneshot::channel();
-    let process = tokio::task::spawn_blocking(move || run(command, marker, Action::Disconnect(disconnect)));
+    let selected = client.clone();
+    let process = tokio::task::spawn_blocking(move || run(command, "Execution: ", Action::Disconnect(selected, disconnect)));
     let triggered = ready.await;
     proxy.close().await;
     let outcome = process.await.unwrap();
@@ -252,10 +405,10 @@ async fn disconnected(client: &Client, endpoint: &str, root: &Path, extension: &
 
 async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
     let directory = root.join("partial Python capture");
-    let mut command = super::command("py", "test", endpoint, &directory);
-    command.args(["--sample-count", "64"]);
+    let command = super::configured_command("py", "test", endpoint, &directory, &[("SAMPLE_COUNT", "64"), ("EXECUTION_COUNT", "1")]);
     let command = terminal_command(command.as_std(), false);
-    let outcome = tokio::task::spawn_blocking(move || run(command, "Sample: obc.pulse #", Action::Interrupt)).await.unwrap();
+    let selected = client.clone();
+    let outcome = tokio::task::spawn_blocking(move || run(command, "Sample: obc.pulse #", Action::Interrupt(selected))).await.unwrap();
     assert!(outcome.triggered && !outcome.success, "partial capture was not interrupted:\n{}", outcome.text);
     let cycles = super::identities(&outcome.text, "Cycle: ");
     let executions = super::identities(&outcome.text, "Execution: ");
@@ -275,8 +428,10 @@ async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
 }
 
 fn recovered(extension: &str, workflow: &str, directory: &Path, cycle: &str, execution: &str) -> (PathBuf, PathBuf) {
-    if extension == "sh" {
-        return (directory.join("interrupted-execution.zip"), directory.join("interrupted-cycle.zip"));
+    let native = directory.join("recovery").join(format!("execution-{execution}.zip"));
+    if extension == "sh" && !native.exists() {
+        let filename = if workflow == "test" { "execution-1.zip" } else { "execution.zip" };
+        return (directory.join(filename), directory.join("cycle.zip"));
     }
     if extension == "py" {
         let filename = if workflow == "test" { "execution-1.zip" } else { "execution.zip" };
@@ -310,6 +465,7 @@ fn terminal_command(command: &Command, batch: bool) -> CommandBuilder {
 }
 
 fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
+    let runtime = tokio::runtime::Handle::current();
     let size = PtySize { rows: 40, cols: 240, pixel_width: 0, pixel_height: 0 };
     let pair = native_pty_system().openpty(size).unwrap();
     let child = pair.slave.spawn_command(command).unwrap();
@@ -321,7 +477,7 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     let marker = marker.to_owned();
     let mut killer = process.child.clone_killer();
     let read = std::thread::spawn(move || {
-        let result = read_terminal(reader, writer, &marker, action);
+        let result = read_terminal(reader, writer, &marker, action, runtime);
         if result.is_err() {
             let _ = killer.kill();
         }
@@ -336,12 +492,16 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
 }
 
 fn read_terminal(
-    mut reader: Box<dyn Read + Send>, mut writer: Box<dyn Write + Send>, marker: &str, action: Action,
+    mut reader: Box<dyn Read + Send>, mut writer: Box<dyn Write + Send>, marker: &str, action: Action, runtime: tokio::runtime::Handle,
 ) -> std::io::Result<(String, bool)> {
     let mut bytes = Vec::new();
     let mut buffer = [0_u8; 4096];
     let mut cursors = 0;
     let mut action = Some(action);
+    let gate = match &action {
+        Some(Action::InterruptAt(gate)) => Some(gate.clone()),
+        _ => None,
+    };
     let mut triggered = false;
     let mut continued = false;
     loop {
@@ -360,17 +520,36 @@ fn read_terminal(
             cursors += 1;
         }
         let text = String::from_utf8_lossy(&bytes);
-        if !triggered && text.contains(marker) {
+        let execution = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("Execution: "))
+            .filter_map(|line| line.split_whitespace().next())
+            .find_map(|id| TestExecutionId::from_uuid(id).ok());
+        let selected = execution.is_some() || gate.is_some();
+        if !triggered && text.contains(marker) && selected {
             match action.take().unwrap() {
-                Action::Interrupt => {
+                Action::Interrupt(client) => {
+                    runtime.block_on(admitted(&client, execution.unwrap()));
                     writer.write_all(b"\x03")?;
                     writer.flush()?;
                 }
-                Action::Disconnect(disconnect) => {
+                Action::Disconnect(client, disconnect) => {
+                    runtime.block_on(admitted(&client, execution.unwrap()));
                     let _ = disconnect.send(());
+                }
+                Action::InterruptAt(gate) => {
+                    let waiting = async { tokio::time::timeout(std::time::Duration::from_secs(30), gate.reached.cancelled()).await };
+                    runtime.block_on(waiting).map_err(|_| std::io::Error::other("mutation reply gate was not reached"))?;
+                    writer.write_all(b"\x03")?;
+                    writer.flush()?;
                 }
             }
             triggered = true;
+        }
+        if triggered && text.contains("Cancellation Requested") {
+            if let Some(gate) = &gate {
+                gate.released.cancel();
+            }
         }
         if !continued && text.contains("Terminate batch job") {
             writer.write_all(b"N\r")?;
@@ -382,6 +561,22 @@ fn read_terminal(
     let plain = anstream::adapter::strip_str(&text).to_string();
     let text = plain.replace("\r\n", "\n");
     Ok((text, triggered))
+}
+
+async fn admitted(client: &Client, id: TestExecutionId) {
+    let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+    let execution = client.execution(id);
+    let waiting = async {
+        loop {
+            let snapshot = execution.snapshot().await.unwrap();
+            if snapshot.controls.is_some() {
+                break;
+            }
+            changes.message().await.unwrap().expect("runtime observation remains open until admission");
+        }
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(30), waiting).await.expect("script must admit its printed execution");
+    changes.close().await;
 }
 
 /* === Tests === */

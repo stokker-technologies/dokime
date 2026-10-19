@@ -18,9 +18,8 @@
 
 # Local Imports
 from .cycle import Cycle as Cycle
+from .handle import Execution as Execution
 from .handle import ExecutionOutcome as ExecutionOutcome
-from .handle import TestExecutionHandle as TestExecutionHandle
-from .request import RunRequest as RunRequest
 
 # Type Checking Imports
 

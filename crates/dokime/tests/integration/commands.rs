@@ -43,16 +43,37 @@ use dokime_client::profiles::Store;
 
 /* === Tests === */
 
+#[test]
+fn execution_only_lifecycle_parser() {
+    for command in ["run", "stop", "request", "rerun"] {
+        assert!(Cli::try_parse_from(["dokime", "cycle", command]).is_err());
+    }
+    let execution = "00000000-0000-0000-0000-000000000001";
+    let run = ["dokime", "execution", "run", execution];
+    assert!(Cli::try_parse_from(run).is_ok());
+    let listening = ["--records", "--samples", "--record-type", "obc.*", "--record-type", "dokime.*", "--stream", "obc.?"];
+    assert!(Cli::try_parse_from(run.into_iter().chain(listening)).is_ok());
+    assert!(Cli::try_parse_from(run.into_iter().chain(["--request-key", "obsolete"])).is_err());
+    assert!(Cli::try_parse_from(["dokime", "plan", "materialize", "--template", "obc.check", "--id-only"]).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "cycle", "append", execution, "--case-id", execution, "--id-only"]).is_ok());
+}
+
 #[tokio::test]
 async fn interrupt_recovery_input_boundaries() {
     let execution = "00000000-0000-0000-0000-000000000001";
     let cycle = "00000000-0000-0000-0000-000000000002";
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().to_str().unwrap();
-    for leaf in [vec!["execution", "wait"], vec!["execution", "prompt", "next"]] {
-        let mut command = vec!["dokime"];
-        command.extend(leaf);
-        command.push(execution);
+    let export_output = directory.path().join("requested-export.zip");
+    for command in [
+        vec!["dokime", "execution", "start", execution],
+        vec!["dokime", "execution", "run", execution],
+        vec!["dokime", "execution", "wait", execution],
+        vec!["dokime", "execution", "prompt", "next", execution],
+        vec!["dokime", "execution", "prompt", "show", execution, execution],
+        vec!["dokime", "execution", "prompt", "answer", execution, execution, "--action", "yes"],
+        vec!["dokime", "execution", "export", execution, "--output", export_output.to_str().unwrap()],
+    ] {
         for missing in [
             vec!["--cancel-on-interrupt"],
             vec!["--owned-cycle", cycle],
@@ -74,6 +95,17 @@ async fn interrupt_recovery_input_boundaries() {
         assert_eq!(std::fs::read(&destination).unwrap(), b"previous evidence");
         std::fs::remove_file(destination).unwrap();
     }
+
+    let append = ["dokime", "cycle", "append", cycle, "--case-id", execution];
+    for incomplete in [vec!["--cancel-on-interrupt"], vec!["--owned-cycle", cycle], vec!["--recovery-directory", path]] {
+        assert!(Cli::try_parse_from(append.into_iter().chain(incomplete)).is_err());
+    }
+    let flags = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+    let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
+    assert!(matches!(parsed.run().await, Err(Error::Client(_))));
+    let flags = ["--cancel-on-interrupt", "--owned-cycle", execution, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+    let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
+    assert!(matches!(parsed.run().await, Err(Error::Input(_))), "append cannot authorize recovery of another cycle");
 }
 
 #[tokio::test]
@@ -85,7 +117,7 @@ async fn json_files_connection() {
         vec!["plan", "preview", "--case-id", "case", "--selection-json", "{}"],
         vec!["plan", "register", "--input-file", "request.json", "--request-key", "plan-1"],
         vec!["cycle", "create", "--input-file", "request.json", "--label", "Override"],
-        // A cycle needs a label; waiting needs a run request.
+        // A cycle needs a label and has no start or wait shortcut.
         vec!["cycle", "create"],
         vec!["cycle", "create", "--label", "Test", "--wait-seconds", "5"],
         vec!["cycle", "create", "--label", "Test", "--id-only", "--json"],
@@ -145,17 +177,14 @@ async fn json_files_connection() {
     assert!(matches!(refused, Error::Client(_)));
 
     for arguments in [
-        vec!["cycle", "run", "invalid", "--request-key", "run-1"],
-        vec!["cycle", "run", "98184567-8924-4fb0-b4e2-667347e097a1", "--request-key", " "],
-        vec!["cycle", "request", "invalid"],
-        vec!["cycle", "stop", "invalid"],
-        vec!["cycle", "rerun", "invalid", "case", "--key", "rerun-1"],
-        vec!["cycle", "rerun", "98184567-8924-4fb0-b4e2-667347e097a1", "invalid", "--key", "rerun-1"],
-        vec!["cycle", "rerun", "98184567-8924-4fb0-b4e2-667347e097a1", "a13ae695-1f02-4464-9f7b-0b14ecffcb41", "--key", " "],
         vec!["execution", "stop", "invalid"],
-        vec!["execution", "run", "invalid", "--request-key", "run-1"],
-        vec!["execution", "run", "98184567-8924-4fb0-b4e2-667347e097a1", "--request-key", " "],
+        vec!["execution", "run", "invalid"],
+        vec!["execution", "start", "invalid"],
         vec!["execution", "wait", "invalid"],
+        vec!["execution", "run", "98184567-8924-4fb0-b4e2-667347e097a1", "--stream", "obc.[ab]"],
+        vec!["execution", "run", "98184567-8924-4fb0-b4e2-667347e097a1", "--record-type", "^obc.*$"],
+        vec!["plan", "materialize", "--case-id", "98184567-8924-4fb0-b4e2-667347e097a1"],
+        vec!["plan", "materialize", "--template", "checks.probe", "--max-cases", "1"],
         vec!["execution", "prompt", "next", "invalid"],
         vec!["execution", "prompt", "show", "98184567-8924-4fb0-b4e2-667347e097a1", "invalid"],
         vec![
@@ -189,14 +218,10 @@ async fn json_files_connection() {
         vec!["plan", "preview", "--input-file", file.path().to_str().unwrap()],
         vec!["plan", "register", "--input-file", file.path().to_str().unwrap()],
         vec!["cycle", "create", "--input-file", file.path().to_str().unwrap()],
-        vec!["cycle", "create", "--case-id", "invalid", "--identifier", "test", "--label", "Test"],
         vec!["cycle", "create", "--label", "Test", "--identifier", "Not An Identifier"],
-        vec!["cycle", "create", "--label", "Test", "--request-key", " "],
-        vec!["cycle", "append", "invalid", "--template", "checks.probe"],
+        vec!["cycle", "append", "invalid", "--case-id", "98184567-8924-4fb0-b4e2-667347e097a1"],
         vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--case-id", "invalid"],
         vec!["cycle", "append", "--input-file", file.path().to_str().unwrap()],
-        vec!["cycle", "request", "98184567-8924-4fb0-b4e2-667347e097a1", "--cycle-id", "invalid"],
-        vec!["cycle", "run", "--input-file", file.path().to_str().unwrap()],
     ] {
         let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "invalid-endpoint"])).unwrap();
         assert!(matches!(args.run().await, Err(Error::Input(_))));
@@ -204,7 +229,7 @@ async fn json_files_connection() {
 
     for arguments in [
         vec!["cycle", "create", "--label", "Test"],
-        vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--template", "checks.probe"],
+        vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--case-id", "98184567-8924-4fb0-b4e2-667347e097a1"],
         vec!["plan", "preview", "--template", "checks.probe"],
         vec![
             "plan",

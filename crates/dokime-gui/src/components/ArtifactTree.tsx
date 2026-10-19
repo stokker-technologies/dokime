@@ -9,9 +9,9 @@
 
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { TextArtifactViewer } from "./TextArtifactViewer";
-import { ArtifactTreeView, type ArtifactTreeProps } from "./ArtifactTreeView";
 import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from "@/lib/api/native-content";
+import { type ArtifactTreeProps, ArtifactTreeView } from "./ArtifactTreeView";
+import { TextArtifactViewer } from "./TextArtifactViewer";
 
 /* === Components === */
 export function ArtifactTree(props: ArtifactTreeProps) {

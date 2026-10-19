@@ -19,8 +19,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::state::RuntimeState;
-use crate::transactions::cycle::{ensure_case_deletable, ensure_case_restartable};
-use crate::transactions::provider::{ensure_case_runnable, planned_attempt};
+use crate::transactions::cycle::ensure_case_deletable;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestCycle;
@@ -30,8 +29,6 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 const HISTORICAL: &str = "historical checkpoints cannot be modified";
-
-const NO_MATERIALIZED_ATTEMPT: &str = "case has no materialized execution";
 
 /* === Macros === */
 
@@ -44,7 +41,6 @@ pub struct CaseProjection {
     pub latest_execution_id: Option<TestExecutionId>,
     pub latest_execution_status: Option<ExecutionStatus>,
     pub attempt_count: u32,
-    pub rerun_scheduled: bool,
     pub actions: CaseActions,
 }
 
@@ -56,8 +52,6 @@ pub struct CaseTally {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CaseActions {
-    pub run: bool,
-    pub schedule_rerun: bool,
     pub delete: bool,
     pub unavailable_reasons: Vec<String>,
 }
@@ -78,13 +72,10 @@ impl CaseProjection {
 }
 
 /* === Public Functions === */
-pub fn case_projection(state: &RuntimeState, cycle: &CycleView, test_case_id: &CaseId) -> CaseProjection {
+pub fn case_projection(_state: &RuntimeState, cycle: &CycleView, test_case_id: &CaseId) -> CaseProjection {
     let attempts = attempts(cycle, test_case_id);
     let latest = attempts.last().copied();
-    let mut actions = CaseActions { run: true, schedule_rerun: true, delete: true, unavailable_reasons: Vec::new() };
-
-    admit(&mut actions.run, &mut actions.unavailable_reasons, ensure_case_runnable(state, cycle, test_case_id));
-    admit(&mut actions.schedule_rerun, &mut actions.unavailable_reasons, restartable(cycle, test_case_id, "schedule a case rerun"));
+    let mut actions = CaseActions { delete: true, unavailable_reasons: Vec::new() };
     admit(&mut actions.delete, &mut actions.unavailable_reasons, ensure_case_deletable(cycle, test_case_id));
 
     CaseProjection {
@@ -92,7 +83,6 @@ pub fn case_projection(state: &RuntimeState, cycle: &CycleView, test_case_id: &C
         latest_execution_id: latest.map(|execution| execution.test_execution_id.clone()),
         latest_execution_status: latest.map(|execution| execution.status.clone()),
         attempt_count: attempts.len() as u32,
-        rerun_scheduled: rerun_scheduled(cycle, test_case_id, &attempts),
         actions,
     }
 }
@@ -121,7 +111,6 @@ pub fn historical_case_projection(cycle: &CycleView, test_case_id: &CaseId) -> C
         latest_execution_id: latest.map(|execution| execution.test_execution_id.clone()),
         latest_execution_status: latest.map(|execution| execution.status.clone()),
         attempt_count,
-        rerun_scheduled: false,
         actions: CaseActions { unavailable_reasons: vec![HISTORICAL.to_owned()], ..Default::default() },
     }
 }
@@ -159,20 +148,6 @@ fn status(latest: Option<&TestExecution>) -> CaseStatus {
         ExecutionStatus::Cancelled => CaseStatus::Cancelled,
         ExecutionStatus::Interrupted => CaseStatus::Interrupted,
     }
-}
-
-fn rerun_scheduled(cycle: &CycleView, test_case_id: &CaseId, attempts: &[&TestExecution]) -> bool {
-    planned_attempt(cycle, test_case_id).is_some()
-        && attempts.iter().rev().skip(1).any(|execution| execution.finished_at.is_some() || execution.status != ExecutionStatus::Skipped)
-}
-
-fn restartable(cycle: &CycleView, test_case_id: &CaseId, operation: &str) -> Result<(), String> {
-    crate::transactions::cycle::ensure_cycle_mutable(cycle)?;
-    ensure_case_restartable(cycle, test_case_id, operation)?;
-    if cycle.test_executions.iter().all(|execution| &execution.test_case_id != test_case_id) {
-        return Err(NO_MATERIALIZED_ATTEMPT.to_owned());
-    }
-    Ok(())
 }
 
 fn admit(allowed: &mut bool, reasons: &mut Vec<String>, outcome: Result<(), String>) {

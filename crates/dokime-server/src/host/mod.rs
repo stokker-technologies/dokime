@@ -209,10 +209,12 @@ async fn rerun_latest_case(handle: &dokime_runtime::RuntimeHandle, owners: &[Str
     let Some((cycle, execution)) = latest else {
         return "Run a case in the desktop GUI to select it for automatic re-run.".into();
     };
-    if let Err(error) = handle.rerun_cycle_case(cycle.test_cycle_id.clone(), execution.test_case_id.clone(), Default::default()).await {
+    let execution_id: dokime_runtime::TestExecutionId = dokime_runtime::model::identity::new_id();
+    let binding = (execution_id.clone(), execution.test_case_id.clone());
+    if let Err(error) = handle.append_executions(cycle.test_cycle_id.clone(), vec![binding]).await {
         return format!("Automatic re-run unavailable: {error}");
     }
-    let receipt = handle.run_cycle_case(cycle.test_cycle_id.clone(), execution.test_case_id.clone(), Default::default()).await;
+    let receipt = handle.start_execution(execution_id, execution.mode, Default::default()).await;
     match receipt.rejection {
         Some(error) => format!("Automatic re-run refused: {}", error.message),
         None => "Re-running the latest case with its retained inputs.".into(),

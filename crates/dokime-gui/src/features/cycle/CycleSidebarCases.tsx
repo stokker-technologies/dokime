@@ -33,10 +33,10 @@
 
 /* === External Imports === */
 
+import { CycleSidebarCasesView } from "./CycleSidebarCasesView";
+import { useCycleCommands, useCycleDetailQuery, useRerunCase } from "./cycle-queries";
 /* === Local Imports === */
 import type { CycleSelection } from "./cycle-workspace-model";
-import { useCycleCommands, useCycleDetailQuery, useRerunCase } from "./cycle-queries";
-import { CycleSidebarCasesView } from "./CycleSidebarCasesView";
 
 /* === Types === */
 export type CycleSidebarCasesProps = {
@@ -55,7 +55,7 @@ export function CycleSidebarCases(props: CycleSidebarCasesProps) {
       detailQuery={detailQuery}
       actions={{
         rerunCase: rerunCase.rerun,
-        runCase: (id) => commands.runCase.mutateAsync(id),
+        startExecution: (id) => commands.startExecution.mutateAsync(id),
         deleteCase: (id) => commands.deleteCase.mutateAsync(id),
       }}
     />

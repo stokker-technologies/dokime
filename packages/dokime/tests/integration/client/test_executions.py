@@ -25,7 +25,7 @@ from dokime.client import (
     ExecutionSubmissionUncertain,
     ProtocolError,
     RpcError,
-    RunPhase,
+    RunRejected,
     _wire,
 )
 
@@ -37,6 +37,7 @@ from .backend import (
     SUITE_ID,
     TEMPLATE,
     collect,
+    prepare,
     serve,
 )
 from .canonical import _message
@@ -76,9 +77,9 @@ def test_wait_awaits_seal() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.seal_automatically = False
-            cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
+            cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
             (handle,) = cycle.executions
-            await handle.start(request_key="delayed-seal")
+            await handle.start()
             await server.terminal.wait()
             assert await handle.checkpoint() is None
 
@@ -101,7 +102,7 @@ def test_wait_awaits_seal() -> None:
 def test_run_drains_callbacks() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
-            cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
+            cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
             (handle,) = cycle.executions
             entered = asyncio.Event()
             release = asyncio.Event()
@@ -118,9 +119,10 @@ def test_run_drains_callbacks() -> None:
 
             running = asyncio.create_task(
                 handle.run(
-                    request_key="callback-drain",
                     on_record=on_record,
                     on_sample=on_sample,
+                    record_types=("missing.*", "fixture.*"),
+                    streams=("missing.*", "volt?ge"),
                     poll_interval=0.005,
                 )
             )
@@ -144,10 +146,25 @@ def test_run_drains_callbacks() -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("pattern", ["", "fixture.[ab]", "fixture.{start,stop}", "^fixture.*$", "fixture/.*", "fixture.é"])
+def test_invalid_listener_prevents_start(pattern: str) -> None:
+    async def scenario() -> None:
+        async with serve() as (server, client):
+            handle = await client.execution(EXECUTION_ID)
+            with pytest.raises(ValueError, match="identifier globs"):
+                await handle.run(record_types=(pattern,))
+            with pytest.raises(ValueError, match="identifier globs"):
+                await handle.run(streams=(pattern,))
+            assert server.run_calls == 0
+            assert server.created == 0
+
+    asyncio.run(scenario())
+
+
 def test_callback_failure_isolated() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
-            cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
+            cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
             (handle,) = cycle.executions
 
             async def on_record(item: Any) -> None:
@@ -155,7 +172,6 @@ def test_callback_failure_isolated() -> None:
 
             with pytest.raises(ExceptionGroup) as failed:
                 await handle.run(
-                    request_key="failed-callback",
                     on_record=on_record,
                     poll_interval=0.005,
                 )
@@ -165,6 +181,34 @@ def test_callback_failure_isolated() -> None:
             outcome = await handle.wait(poll_interval=0.005)
             assert outcome.status == "passed"
             assert server.stop_calls == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("patterns", [("x" * 4097,), ("valid",) * 65, "literal"])
+def test_filter_vector_limits(patterns: Any) -> None:
+    async def scenario() -> None:
+        async with serve() as (server, client):
+            execution = await client.execution(EXECUTION_ID)
+            with pytest.raises(ValueError):
+                await execution.run(record_types=patterns)
+            with pytest.raises(ValueError):
+                await execution.run(streams=patterns)
+            assert server.run_calls == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("deadline", [0.0, -1.0, float("nan"), float("inf")])
+def test_invalid_deadlines(deadline: float) -> None:
+    async def scenario() -> None:
+        async with serve() as (server, client):
+            execution = await client.execution(EXECUTION_ID)
+            with pytest.raises(ValueError):
+                await execution.run(timeout=deadline)
+            with pytest.raises(ValueError):
+                await execution.run(poll_interval=deadline)
+            assert server.run_calls == 0
 
     asyncio.run(scenario())
 
@@ -199,8 +243,9 @@ def test_control_restart_refused(method: str) -> None:
 def test_finished_controls() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            run = await run_cycle.run(request_key="done")
+            run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            run = run_cycle.executions[0]
+            await run.start()
             await run.wait(poll_interval=0.01)
 
             # Stop Is Idempotent; Pause And Resume Refuse A Finished Execution
@@ -221,14 +266,15 @@ def test_stop_evidence() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.finish_gate.clear()
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            run = await run_cycle.run(request_key="lab-order")
-            records_task = asyncio.create_task(collect(run_cycle.records(until=run)))
+            run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            run = run_cycle.executions[0]
+            await run.start()
+            records_task = asyncio.create_task(collect(run.records(follow=True)))
             control = await client.execution(EXECUTION_ID)
             await control.stop()
             status = await run.wait(poll_interval=0.01)
             assert server.stop_calls == 1
-            assert status.phase is RunPhase.STOPPED
+            assert status.status == "cancelled"
             assert (await records_task)[-1].type == "fixture.stopped"
 
     asyncio.run(scenario())
@@ -238,9 +284,10 @@ def test_close_keeps_run() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.finish_gate.clear()
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            run = await run_cycle.run(request_key="lab-order")
-            assert not (await run.status()).terminal
+            run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            run = run_cycle.executions[0]
+            await run.start()
+            assert await run.checkpoint() is None
 
             # Closing Twice Leaves Remote Work Running To Completion
             await client.close()
@@ -249,7 +296,7 @@ def test_close_keeps_run() -> None:
             await server.terminal.wait()
             assert server.stop_calls == 0
             with pytest.raises(ClientClosed):
-                await run.status()
+                await run.checkpoint()
 
     asyncio.run(scenario())
 
@@ -291,26 +338,30 @@ def test_execution_mode_recovery() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)
+            invalid_mode: Any = "unsupported"
             with pytest.raises(ValueError):
-                await handle.start(request_key="")
+                await handle.start(mode=invalid_mode)
             assert server.run_calls == 0
 
-            # An Uncertain Admission Retains Identity, Key And Mode
+            # An Uncertain Admission Retains Execution Identity And Mode
             server.fail_admission = True
             with pytest.raises(ExecutionSubmissionUncertain) as caught:
-                await handle.start(request_key="execution-key", mode="interactive")
+                await handle.start(mode="interactive")
             failure = caught.value
             assert failure.execution_id == EXECUTION_ID
-            assert failure.request_key == "execution-key"
             assert failure.mode == "interactive"
             assert failure.__cause__ is not None
 
-            recovered = await handle.start(request_key=failure.request_key, mode=failure.mode)
-            assert recovered.id == REQUEST_ID
+            await handle.start(mode=failure.mode)
             assert server.created == 0
             assert server.run_calls == 2
             assert server.execution_mode is not None
             assert _wire.enum_name(server.execution_mode) == "interactive"
+            with pytest.raises(RunRejected, match="request_identity_conflict"):
+                await handle.start(mode="automatic")
+            assert server.run_calls == 3
+            assert (await handle.wait()).status == "passed"
+            assert len(server.samples) == 2
 
     asyncio.run(scenario())
 
@@ -319,20 +370,13 @@ def test_execution_observation() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)
-            server.fail_receipt_read = True
-            request = await handle.start(request_key="acknowledged-execution")
-            assert request.id == REQUEST_ID
-            assert server.receipt_reads == 0
+            assert "/dokime.v1.Execution/GetRunRequest" not in handle._backend.methods
+            assert not hasattr(client, "get_run_request")
+            await handle.start()
 
-            # The Cycle Is Known Only After A Successful Receipt Read
-            with pytest.raises(ProtocolError):
-                _ = request.cycle_id
-            with pytest.raises(RpcError):
-                await request.status()
-            assert request.id == REQUEST_ID
-            await request.status()
-            assert request.cycle_id == CYCLE_ID
-            assert server.receipt_reads == 2
+            # Completion Uses The Execution Seal, Without A Separate Batch Receipt.
+            outcome = await handle.wait(poll_interval=0.01)
+            assert outcome.status == "passed"
             assert server.run_calls == 1
             assert server.created == 0
 

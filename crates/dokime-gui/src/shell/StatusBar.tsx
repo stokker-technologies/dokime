@@ -18,7 +18,6 @@ import type { ReactNode } from "react";
 
 import { useNativeSession } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +27,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
 import { useRecordsQuery } from "@/features/cycle/server-state";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
@@ -45,9 +43,23 @@ import {
   operationsCountLabel,
   summarizeOperations,
 } from "@/shell/status-bar-operations";
-import { FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
+import { FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
+
+/* === Constants === */
+
+const ACTIVE_CYCLE_STATUSES = ["Running", "Paused", "Stopping"];
+
+const statusItemClassName =
+  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+const CONNECTION_LABEL = {
+  connected: "Connected",
+  disconnected: "Disconnected",
+  reconnecting: "Reconnecting",
+  unknown: "Unknown",
+} as const;
 
 /* === Types === */
 
@@ -64,20 +76,6 @@ type AttentionEntry = {
   detail: string;
   open: () => void;
 };
-
-/* === Constants === */
-
-const ACTIVE_CYCLE_STATUSES = ["Running", "Paused", "Stopping"];
-
-const statusItemClassName =
-  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-const CONNECTION_LABEL = {
-  connected: "Connected",
-  disconnected: "Disconnected",
-  reconnecting: "Reconnecting",
-  unknown: "Unknown",
-} as const;
 
 /* === Components === */
 

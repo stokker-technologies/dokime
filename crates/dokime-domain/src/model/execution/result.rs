@@ -60,6 +60,8 @@ pub struct TestCycle {
     pub updated_at: Timestamp,
     pub execution_ids: Vec<TestExecutionId>,
     pub records: TestRecordSet,
+    #[serde(default)]
+    pub continue_automatically: bool,
     pub continue_on_failure: bool,
     pub result: Option<ResultSummary>,
 }
@@ -83,6 +85,8 @@ pub struct CycleView {
     pub test_executions: Vec<TestExecution>,
     #[serde(default)]
     pub records: TestRecordSet,
+    #[serde(default)]
+    pub continue_automatically: bool,
     #[serde(default)]
     pub continue_on_failure: bool,
     pub result: Option<ResultSummary>,

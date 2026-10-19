@@ -144,7 +144,7 @@ impl ExecutionFixtureContext {
             .state_read()
             .run_requests
             .get(request_id)
-            .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
+            .is_some_and(|request| request.summary.stop_requested && request.test_execution_id.as_ref() == Some(test_execution_id))
     }
 
     pub async fn execution_stopped(&self, test_execution_id: &TestExecutionId) {
@@ -152,15 +152,14 @@ impl ExecutionFixtureContext {
             return std::future::pending().await;
         };
         let mut state = self.runtime.watch_state();
-        let _ = state
-            .wait_until(|snapshot| {
-                snapshot
-                    .state()
-                    .run_requests
-                    .get(request_id)
-                    .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
-            })
-            .await;
+        let _ =
+            state
+                .wait_until(|snapshot| {
+                    snapshot.state().run_requests.get(request_id).is_some_and(|request| {
+                        request.summary.stop_requested && request.test_execution_id.as_ref() == Some(test_execution_id)
+                    })
+                })
+                .await;
     }
 
     pub async fn cycle_lifecycle(&self, test_cycle_id: &TestCycleId) -> Option<CycleStatus> {

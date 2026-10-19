@@ -125,14 +125,14 @@ async fn record_position_writer(root: PathBuf) {
         if index == 16 {
             // One record-free transaction makes both logical-position parities
             // available without relying on the number of boot transactions.
-            runtime.update_cycle_policy(cycle.clone(), true, CommandContext::default()).await.unwrap();
+            runtime.update_cycle_policy(cycle.clone(), true, true, CommandContext::default()).await.unwrap();
         }
         publish_position_record(&runtime, format!("Old Process {index}")).await;
     }
     let old = runtime.selected_records(position_selection()).await.unwrap();
     assert_eq!(old.len(), 32);
     runtime.storage().flush().await.unwrap();
-    runtime.run_cycle_cases(cycle, CommandContext::default()).await;
+    runtime.start_next_execution(cycle, CommandContext::default()).await;
     executor.wait_until_entered().await;
     // The Shared Manager Saves Facts And Logical Recovery Before The Kill.
     let temporary = root.join("saved-records.tmp");

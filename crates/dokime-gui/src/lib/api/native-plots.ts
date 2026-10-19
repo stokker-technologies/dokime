@@ -15,6 +15,8 @@ import { create } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
+import * as plotWire from "@generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
+import type { Row3 as WatchFrame } from "@generated/dokime/v1/PlotsMessages/Watch/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -44,8 +46,6 @@ import type {
   TelemetrySampleRecord,
 } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
-import * as plotWire from "../../../.generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
-import type { Row3 as WatchFrame } from "../../../.generated/dokime/v1/PlotsMessages/Watch/messages_pb";
 import { aggregateMessage } from "./native-aggregate";
 import { mapParameter } from "./native-catalog";
 import {

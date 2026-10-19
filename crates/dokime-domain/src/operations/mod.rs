@@ -48,8 +48,6 @@ use harmos_domain::operations::RestartPolicy;
 use harmos_domain::operations::RetryPolicy;
 use harmos_domain::operations::WireDeclaration;
 use harmos_domain::schema::Described;
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 
@@ -79,21 +77,12 @@ pub struct Endpoints;
 
 pub struct Declaration {
     pub path: &'static str,
-    pub access: Access,
     pub local_only: bool,
     pub wire: WireDeclaration,
     pub rust_type: fn() -> &'static str,
 }
 
 /* === Enums === */
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Access {
-    Read,
-    Control,
-    Admin,
-}
-
 #[harmos_domain::catalog]
 pub enum Operations {
     Host(harmos_domain::operations::host::Catalog),
@@ -144,18 +133,16 @@ pub enum Operations {
 }
 
 /* === Traits === */
-// The Dokime authorization of one public operation, enforced at the listener.
+// Public Transport Binding And Its Native-Only Boundary.
 pub trait Endpoint: OperationDeclaration {
     const PATH: &'static str;
-    const ACCESS: Access;
-    // Served only to a loopback listener, because the reply names a host path.
+    // Native Listener Trust Never Comes From A Remote Call's Loopback Address.
     const LOCAL_ONLY: bool = false;
 }
 
 /* === Implementations === */
 impl Endpoint for harmos_domain::operations::host::Catalog {
     const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Visitor for Endpoints {
@@ -167,13 +154,8 @@ where
     O: Endpoint,
     O::Response: Described,
 {
-    const ENTRY: Declaration = Declaration {
-        path: O::PATH,
-        access: O::ACCESS,
-        local_only: O::LOCAL_ONLY,
-        wire: WireDeclaration::of::<O>(),
-        rust_type: std::any::type_name::<O>,
-    };
+    const ENTRY: Declaration =
+        Declaration { path: O::PATH, local_only: O::LOCAL_ONLY, wire: WireDeclaration::of::<O>(), rust_type: std::any::type_name::<O> };
 }
 
 /* === Public Functions === */

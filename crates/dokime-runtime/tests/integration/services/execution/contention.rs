@@ -62,12 +62,12 @@ async fn contended_reads_stay_interactive() {
     let queued = start(&handle, &suite, "contention.queued").await;
     let case = cycle_snapshot(&handle, &queued).await.cases().next().unwrap().test_case_id.clone();
     let running = start(&handle, &suite, "contention.running").await;
-    let held = handle.run_cycle_cases(running.clone(), CommandContext::default()).await;
+    let held = handle.start_next_execution(running.clone(), CommandContext::default()).await;
     assert_eq!(held.status, CommandStatus::Accepted);
     let snapshot = until_state(&handle, |state| !state.cycles[&running].execution_ids.is_empty()).await;
     let execution = snapshot.state().cycles[&running].execution_ids[0].clone();
     let selection = TelemetrySelection {
-        streams: vec![Identifier::new(PULSE_STREAM).unwrap()],
+        streams: vec![Identifier::new(PULSE_STREAM).unwrap().into()],
         scope: ScopeSelection { test_execution_id: Some(execution.clone()), ..Default::default() },
         ..Default::default()
     };
@@ -126,7 +126,7 @@ async fn contended_reads_stay_interactive() {
     for _ in 0..ROUNDS {
         barrier.wait().await;
         if case_run.is_none() {
-            let receipt = handle.run_cycle_case(queued.clone(), case.clone(), CommandContext::default()).await;
+            let receipt = handle.start_case_execution(queued.clone(), case.clone(), CommandContext::default()).await;
             assert_eq!(receipt.status, CommandStatus::Accepted);
             case_run = Some(receipt);
         }

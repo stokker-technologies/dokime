@@ -34,7 +34,6 @@ use dokime_domain::model::execution::result::ResultSummary;
 use dokime_domain::model::execution::result::StepRecord;
 use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::execution::result::TestExecution;
-use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
@@ -65,9 +64,9 @@ pub struct RunProvider {
     pub accepted_at: Timestamp,
 }
 
-pub(super) struct RunPlanGroup {
+pub(super) struct RunPlan {
     pub(super) target: ExecutionProviderTarget,
-    pub(super) execution_ids: Vec<TestExecutionId>,
+    pub(super) execution_id: TestExecutionId,
 }
 
 /* === Enums === */
@@ -104,28 +103,6 @@ impl Transaction<RuntimeState> for RunProvider {
 }
 
 /* === Public Functions === */
-pub(crate) fn ensure_case_runnable(state: &RuntimeState, cycle: &CycleView, test_case_id: &CaseId) -> Result<(), String> {
-    cycle.ensure_active().map_err(str::to_owned)?;
-    let execution = cycle
-        .test_executions
-        .iter()
-        .find(|execution| &execution.test_case_id == test_case_id && execution_available(state, execution))
-        .ok_or(EXECUTION_NOT_PLANNED)?;
-    if state.suites.provider_target_for_case(execution.snapshot.case()).is_none() {
-        return Err(PROVIDER_UNAVAILABLE.to_owned());
-    }
-    Ok(())
-}
-
-pub(crate) fn planned_attempt<'a>(cycle: &'a CycleView, test_case_id: &CaseId) -> Option<&'a TestExecution> {
-    cycle.test_executions.iter().find(|execution| {
-        &execution.test_case_id == test_case_id
-            && execution.status == ExecutionStatus::Skipped
-            && execution.started_at.is_none()
-            && execution.finished_at.is_none()
-    })
-}
-
 pub(crate) fn execution_available(state: &RuntimeState, execution: &TestExecution) -> bool {
     execution.status == ExecutionStatus::Skipped
         && execution.started_at.is_none()
@@ -211,65 +188,36 @@ pub(crate) fn scheduled_execution_record(
 }
 
 /* === Private Functions === */
-fn prepare_run_provider(state: &RuntimeState, run: &RunProvider) -> Result<Vec<RunPlanGroup>, Error> {
-    if run.mode == dokime_domain::model::execution::ExecutionMode::Interactive && run.test_execution_id.is_none() {
-        return Err(Error::conflict("interactive_selection_required", "interactive runs require one explicit execution"));
+fn prepare_run_provider(state: &RuntimeState, run: &RunProvider) -> Result<RunPlan, Error> {
+    let id = run
+        .test_execution_id
+        .as_ref()
+        .ok_or_else(|| Error::conflict("execution_selection_required", "start requires one explicit execution"))?;
+    let cycle = state.cycles.get(&run.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
+    cycle.ensure_active().map_err(|reason| Error::conflict("cycle_closed", reason))?;
+    if cycle.execution_ids.is_empty() {
+        return Err(Error::conflict("empty_cycle", "cycle has no test cases; append executions before starting work"));
     }
-    let cycle_view = state.cycles.get(&run.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
-    cycle_view.ensure_active().map_err(|reason| Error::conflict("cycle_closed", reason))?;
-    if cycle_view.execution_ids.is_empty() {
-        return Err(Error::conflict("empty_cycle", "cycle has no test cases; append cases before running it"));
+    if !cycle.execution_ids.contains(id) {
+        return Err(Error::conflict("execution_not_planned", "execution is not a member of its cycle"));
     }
-    let members = cycle_view
-        .execution_ids
-        .iter()
-        .map(|id| {
-            state.executions.get(id).ok_or_else(|| Error::conflict("execution_not_planned", "cycle references a missing execution owner"))
-        })
-        .collect::<Result<Vec<_>, Error>>()?;
-    let selected = members
-        .into_iter()
-        .filter(|execution| {
-            execution_available(state, execution) && run.test_execution_id.as_ref().is_none_or(|id| &execution.test_execution_id == id)
-        })
-        .collect::<Vec<_>>();
-    if selected.is_empty() {
-        return Err(Error::conflict("execution_not_planned", EXECUTION_NOT_PLANNED));
-    }
-    if selected.iter().any(|execution| execution.test_cycle_id != run.test_cycle_id) {
+    let execution =
+        state.executions.get(id).ok_or_else(|| Error::conflict("execution_not_planned", "cycle references a missing execution owner"))?;
+    if execution.test_cycle_id != run.test_cycle_id {
         return Err(Error::conflict("execution_owner_mismatch", "planned execution belongs to another cycle"));
     }
-    let grouped =
-        provider_target_groups(selected.iter().map(|execution| state.suites.provider_target_for_case(execution.snapshot.case())))?;
-    let mut groups = Vec::new();
-    for (target, members) in grouped {
-        let identity = state.execution_identity(&target.source);
-        let mut execution_ids = Vec::new();
-        for original in members.into_iter().map(|index| selected[index]) {
-            if original.snapshot.plugin() != identity.as_ref() {
-                return Err(Error::conflict("provider_identity_changed", "the materialized execution belongs to another plugin revision"));
-            }
-            execution_ids.push(original.test_execution_id.clone());
-        }
-        groups.push(RunPlanGroup { target, execution_ids });
+    if !execution_available(state, execution) {
+        return Err(Error::conflict("execution_not_planned", EXECUTION_NOT_PLANNED));
     }
-    Ok(groups)
-}
-
-fn provider_target_groups(
-    targets: impl IntoIterator<Item = Option<ExecutionProviderTarget>>,
-) -> Result<Vec<(ExecutionProviderTarget, Vec<usize>)>, Error> {
-    let mut groups: Vec<(ExecutionProviderTarget, Vec<usize>)> = Vec::new();
-    for (index, target) in targets.into_iter().enumerate() {
-        let target = target.ok_or_else(|| Error::unavailable("runtime_unavailable", PROVIDER_UNAVAILABLE))?;
-        // Each Execution Can Seal Before The Next One Starts.
-        groups.push((target, vec![index]));
+    let target = state
+        .suites
+        .provider_target_for_case(execution.snapshot.case())
+        .ok_or_else(|| Error::unavailable("runtime_unavailable", PROVIDER_UNAVAILABLE))?;
+    let identity = state.execution_identity(&target.source);
+    if execution.snapshot.plugin() != identity.as_ref() {
+        return Err(Error::conflict("provider_identity_changed", "the materialized execution belongs to another plugin revision"));
     }
-
-    if groups.is_empty() {
-        return Err(Error::unavailable("runtime_unavailable", "cycle execution requires a provider execution binding"));
-    }
-    Ok(groups)
+    Ok(RunPlan { target, execution_id: id.clone() })
 }
 
 fn scheduled_steps(template: Option<&TestCaseTemplate>, execution_id: &TestExecutionId) -> Vec<StepRecord> {

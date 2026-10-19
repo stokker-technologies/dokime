@@ -36,7 +36,6 @@ pub use upload_artifact::UploadArtifact;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
@@ -105,47 +104,38 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for DownloadAppearanceAsset {
     const PATH: &'static str = "/dokime.v1.Content/DownloadAppearanceAsset";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for DownloadEvidence {
     const PATH: &'static str = "/dokime.v1.Content/DownloadEvidence";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListExecutionFiles {
     const PATH: &'static str = "/dokime.v1.Content/ListExecutionFiles";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ReadExecutionFile {
     const PATH: &'static str = "/dokime.v1.Content/ReadExecutionFile";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for DownloadExecutionFile {
     const PATH: &'static str = "/dokime.v1.Content/DownloadExecutionFile";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for FollowExecutionFile {
     const PATH: &'static str = "/dokime.v1.Content/FollowExecutionFile";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListArtifacts {
     const PATH: &'static str = "/dokime.v1.Content/ListArtifacts";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for DownloadArtifact {
     const PATH: &'static str = "/dokime.v1.Content/DownloadArtifact";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for UploadArtifact {
     const PATH: &'static str = "/dokime.v1.Content/UploadArtifact";
-    const ACCESS: Access = Access::Control;
 }
 
 /* === Public Functions === */

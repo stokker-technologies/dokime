@@ -103,7 +103,7 @@ impl Drop for Server {
 
 /* === Public Functions === */
 pub fn plugin_bundle() -> Option<PathBuf> {
-    let path = build_root().join("plugins/obc-plugin.dokime");
+    let path = build_root().join("fixtures/plugins/obc-plugin.dokime");
     path.is_file().then_some(path)
 }
 
@@ -119,8 +119,8 @@ fn build_root() -> PathBuf {
         .ancestors()
         .find(|directory| directory.join("Cargo.lock").is_file())
         .expect("the workspace root holds Cargo.lock")
-        .join("dist/build")
-        .join(PLATFORM)
+        .join("target/build/bench")
+        .join(format!("{PLATFORM}-{}", std::env::consts::ARCH))
 }
 
 /* === Tests === */

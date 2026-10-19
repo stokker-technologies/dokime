@@ -25,7 +25,6 @@ pub use watch::Watch;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
@@ -70,17 +69,14 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for ListAnalyses {
     const PATH: &'static str = "/dokime.v1.Plots/ListAnalyses";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for QuerySnapshots {
     const PATH: &'static str = "/dokime.v1.Plots/QuerySnapshots";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for Watch {
     const PATH: &'static str = "/dokime.v1.Plots/Watch";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

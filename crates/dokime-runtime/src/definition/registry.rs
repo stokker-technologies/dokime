@@ -38,6 +38,7 @@ pub struct SuiteRegistry {
     cases: BTreeMap<CaseId, TestCase>,
     #[serde(default)]
     registrations: BTreeMap<CommandId, Vec<CaseId>>,
+    case_revisions: BTreeMap<CaseId, String>,
 }
 
 /* === Enums === */
@@ -59,10 +60,21 @@ impl SuiteRegistry {
         &self.registrations
     }
 
+    pub(crate) fn case_revisions(&self) -> &BTreeMap<CaseId, String> {
+        &self.case_revisions
+    }
+
+    pub(crate) fn capture_case_revisions(&mut self, revisions: &BTreeMap<CaseId, String>) {
+        for (id, revision) in revisions {
+            self.case_revisions.entry(id.clone()).or_insert_with(|| revision.clone());
+        }
+    }
+
     pub(crate) fn from_parts(
         suites: BTreeMap<String, SuiteSnapshot>, cases: BTreeMap<CaseId, TestCase>, registrations: BTreeMap<CommandId, Vec<CaseId>>,
+        case_revisions: BTreeMap<CaseId, String>,
     ) -> Self {
-        Self { suites, cases, registrations }
+        Self { suites, cases, registrations, case_revisions }
     }
 
     pub fn case(&self, id: &CaseId) -> Option<&TestCase> {

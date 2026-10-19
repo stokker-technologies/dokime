@@ -43,7 +43,7 @@ async fn native_history_index() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
     let cycle_id = start_cycle(&handle, suite, false).await;
-    handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
     let execution_id = cycle.test_executions[0].test_execution_id.clone();
     let checkpoint = crate::service_support::native::checkpoint(&handle, &execution_id).await;
@@ -87,7 +87,7 @@ async fn live_telemetry_state() {
     assert_eq!(before.stream_cursors.len(), 1);
     assert_eq!(before.stream_cursors.values().copied().next(), Some(FIRST));
 
-    let selection = TelemetrySelection { streams: vec![Identifier::new("tracking").unwrap()], ..TelemetrySelection::default() };
+    let selection = TelemetrySelection { streams: vec![Identifier::new("tracking").unwrap().into()], ..TelemetrySelection::default() };
 
     // Graceful shutdown seals the durable streams; reboot on the same root.
     drop(handle);

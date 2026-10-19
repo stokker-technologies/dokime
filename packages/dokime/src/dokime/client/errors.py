@@ -81,32 +81,18 @@ class RunRejected(DokimeError):
         self.message = message
 
 
-class SubmissionUncertain(DokimeError):
-    """Resolve the original Cycle.run(request_key=...) admission. Do not recreate."""
-
-    def __init__(self, cycle_id: str, request_key: str) -> None:
-        super().__init__(
-            f"Run admission was not confirmed for cycle {cycle_id}. Resolve it with Cycle.run using this cycle_id and request_key."
-        )
-        self.cycle_id = cycle_id
-        self.request_key = request_key
-
-
 class ExecutionSubmissionUncertain(DokimeError):
-    """Resolve admission with the same execution, request key and execution mode."""
+    """Resolve Admission With The Same Execution Identity And Mode."""
 
     def __init__(
         self,
         execution_id: str,
-        request_key: str,
         mode: Literal["automatic", "interactive"],
     ) -> None:
         super().__init__(
-            f"Execution admission was not confirmed for {execution_id}. "
-            "Resolve it with TestExecutionHandle.start using the same request_key and mode."
+            f"Execution admission was not confirmed for {execution_id}. Resolve it with Execution.start using the same execution and mode."
         )
         self.execution_id = execution_id
-        self.request_key = request_key
         self.mode = mode
 
 

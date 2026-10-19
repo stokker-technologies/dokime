@@ -28,7 +28,6 @@ pub use watch_file::WatchFile;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 
@@ -62,7 +61,6 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for FileWatch {
     const PATH: &'static str = "/dokime.v1.Files/FileWatch";
-    const ACCESS: Access = Access::Control;
     // A local root reads the host's filesystem, which a remote listener never exposes.
     const LOCAL_ONLY: bool = true;
 }

@@ -21,7 +21,7 @@ use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::value::{self, canonical};
-use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::IdentifierPattern;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::operations::telemetry as wire;
@@ -68,6 +68,9 @@ impl Operation for List {
         let after_stream_cursors = bounded_cursors(std::mem::take(&mut request.after_stream_cursors))?;
         if request.latest && !after_stream_cursors.is_empty() {
             return Err(Status::invalid_argument("latest telemetry windows cannot be continued with after_stream_cursors"));
+        }
+        if request.streams.len() > 64 {
+            return Err(Status::invalid_argument("stream selection exceeds 64 alternatives"));
         }
         let selection = TelemetrySelection {
             after_stream_cursors: after_stream_cursors.clone(),
@@ -206,9 +209,9 @@ fn bounded_texts(values: Vec<String>, label: &str) -> Result<Vec<String>, Status
         .collect()
 }
 
-fn stream(value: String) -> Result<Identifier, Status> {
+fn stream(value: String) -> Result<IdentifierPattern, Status> {
     value::text(&value)?;
-    Identifier::new(value).map_err(|error| Status::invalid_argument(format!("invalid telemetry stream: {error}")))
+    IdentifierPattern::new(value).map_err(|error| Status::invalid_argument(format!("invalid telemetry stream pattern: {error}")))
 }
 
 fn scope_selection(scope: Option<common::EvidenceScope>) -> Result<ScopeSelection, Status> {

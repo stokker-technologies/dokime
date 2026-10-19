@@ -32,7 +32,6 @@ pub use stage::Stage;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::INSTALLATION;
 use super::ORDINARY;
@@ -67,37 +66,30 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for ListInstallations {
     const PATH: &'static str = "/dokime.v1.Plugins/ListInstallations";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for GetInstallation {
     const PATH: &'static str = "/dokime.v1.Plugins/GetInstallation";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for Stage {
     const PATH: &'static str = "/dokime.v1.Plugins/Stage";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for Consent {
     const PATH: &'static str = "/dokime.v1.Plugins/Consent";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for SetEnabled {
     const PATH: &'static str = "/dokime.v1.Plugins/SetEnabled";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for Remove {
     const PATH: &'static str = "/dokime.v1.Plugins/Remove";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for ListAdmittedPlugins {
     const PATH: &'static str = "/dokime.v1.Plugins/ListAdmittedPlugins";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

@@ -87,7 +87,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     system = platform.system()
     _step(f"host system is {system}")
-    _create_temporary_directory()
     for step in platform_steps(system, gui_packages=arguments.gui_packages):
         step()
     for task in arguments.tasks:
@@ -308,7 +307,7 @@ def prepare_harmos(
             if local_source is not None
             else ["--git", identity["git"], "--rev", identity["rev"]]
         )
-        with tempfile.TemporaryDirectory(prefix="harmos-tool-", dir=destination.parent) as temporary:
+        with tempfile.TemporaryDirectory(prefix="harmos-tool-") as temporary:
             staged = Path(temporary)
             _run(
                 [
@@ -438,15 +437,6 @@ def _locked_revision(root: Path, source: str) -> str:
             if _is_revision(revision):
                 return revision
     raise ValueError("the Harmos branch has no locked public revision; a local path override is active")
-
-
-def _create_temporary_directory() -> None:
-    temporary = os.environ.get("TMPDIR")
-    if not temporary:
-        _step("skipping temporary directory: TMPDIR is unset")
-        return
-    _step(f"creating {temporary}")
-    Path(temporary).mkdir(parents=True, exist_ok=True)
 
 
 def _package_installed(name: str) -> bool:

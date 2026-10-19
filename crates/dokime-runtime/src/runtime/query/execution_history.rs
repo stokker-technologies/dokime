@@ -249,10 +249,18 @@ impl RuntimeHandle {
             let mut live = Vec::new();
             for cycle in state.cycles.values() {
                 for execution in state.executions_for_cycle(cycle) {
+                    let mut metadata = ExecutionMetadata::new(execution);
+                    let queued = state
+                        .run_requests
+                        .values()
+                        .any(|request| !request.summary.phase.terminal() && request.pending.contains(&execution.test_execution_id));
+                    if queued {
+                        metadata.status = ExecutionStatus::Pending;
+                    }
                     live.push(ExecutionBrowseEntry {
-                        metadata: ExecutionMetadata::new(execution),
+                        metadata,
                         checkpoint: None,
-                        availability: if active.binary_search(&execution.test_execution_id).is_ok() {
+                        availability: if queued || active.binary_search(&execution.test_execution_id).is_ok() {
                             ExecutionAvailability::Live
                         } else {
                             ExecutionAvailability::Uncheckpointed

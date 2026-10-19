@@ -20,8 +20,8 @@ from pathlib import Path
 from zipfile import ZipFile
 
 # Third Party Imports
-
 # Local Imports
+from dokime_tools.build import paths
 
 # Type Checking Imports
 
@@ -36,9 +36,9 @@ from zipfile import ZipFile
 # === Public Functions === #
 
 
-def test_pure_wheel(workspace: Path) -> None:
+def test_pure_wheel(workspace: Path, request) -> None:
     # The build writes the wheel where every Python lane installs it from.
-    wheel_dir = workspace / "target/wheels"
+    wheel_dir = paths.output(workspace, "build", request.config.getoption("--profile"), "any") / "python"
     wheels = list(wheel_dir.glob("dokime-*.whl"))
     assert len(wheels) == 1, "build exactly one wheel before acceptance"
     assert wheels[0].name.endswith("-py3-none-any.whl")
@@ -83,7 +83,7 @@ def test_pure_wheel(workspace: Path) -> None:
             sys.executable,
             "-I",
             "-c",
-            "import dokime; from dokime.client import Capture, Cycle, DokimeClient, RunRequest; assert DokimeClient()._transport.backend is None",
+            "import dokime; from dokime.client import Cycle, DokimeClient, Execution, Template, TestCase; assert DokimeClient()._transport.backend is None",
         ],
         cwd=wheel_dir,
         check=True,

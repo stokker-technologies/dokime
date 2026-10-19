@@ -26,7 +26,6 @@ pub use list_notes::ListNotes;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
 use crate::model::execution::wire_cursor::Cursor;
@@ -60,22 +59,18 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for ListNotes {
     const PATH: &'static str = "/dokime.v1.Notes/ListNotes";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for CreateNote {
     const PATH: &'static str = "/dokime.v1.Notes/CreateNote";
-    const ACCESS: Access = Access::Control;
 }
 
 impl Endpoint for EditNote {
     const PATH: &'static str = "/dokime.v1.Notes/EditNote";
-    const ACCESS: Access = Access::Control;
 }
 
 impl Endpoint for ListHealth {
     const PATH: &'static str = "/dokime.v1.Health/ListHealth";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

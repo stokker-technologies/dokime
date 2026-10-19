@@ -1,61 +1,56 @@
 @echo off
 rem Dokime - SPDX-License-Identifier: Apache-2.0
-rem Pass Connection Flags Such As --endpoint, --ca, --key-file Or --env-file.
 setlocal EnableExtensions DisableDelayedExpansion
-set "Responses=%DOKIME_RESPONSE_DIRECTORY%"
 
-if not defined Responses goto Discover
-if exist "%Responses%" goto DirectoryExists
-mkdir "%Responses%"
+rem Connection Parameters
+set "ENDPOINT=https://127.0.0.1:8766"
+set "CA_CERTIFICATE=server.pem"
+set "KEY_FILE=remote.key"
+set "ENV_FILE="
+
+rem Response Files
+set "RESPONSE_DIRECTORY="
+
+rem Connect With The Explicit Parameters
+set CONNECTION=--endpoint "%ENDPOINT%"
+if defined CA_CERTIFICATE set CONNECTION=%CONNECTION% --ca "%CA_CERTIFICATE%"
+if defined KEY_FILE set CONNECTION=%CONNECTION% --key-file "%KEY_FILE%"
+if defined ENV_FILE set CONNECTION=%CONNECTION% --env-file "%ENV_FILE%"
+
+rem Reserve All Response Files Before Device Work
+if not defined RESPONSE_DIRECTORY goto Discover
+if exist "%RESPONSE_DIRECTORY%" (
+    echo Response Directory Exists; Existing Data Is Preserved 1>&2
+    exit /b 2
+)
+mkdir "%RESPONSE_DIRECTORY%"
 if errorlevel 1 goto Failed
 
 :Discover
-dokime operation list %*
+dokime operation list %CONNECTION%
 if errorlevel 1 goto Failed
 
-if defined Responses (
-    dokime operation call obc.device.read --json "{}" --output "%Responses%\before.json" %*
-) else (
-    dokime operation call obc.device.read --json "{}" %*
-)
+rem Read, Power On, Observe, Power Off And Verify
+call :Operation obc.device.read "{}" before
 if errorlevel 1 goto Failed
-
-if defined Responses (
-    dokime operation call obc.device.set_power --json "{\"enabled\":true}" --output "%Responses%\power-on.json" %*
-) else (
-    dokime operation call obc.device.set_power --json "{\"enabled\":true}" %*
-)
+call :Operation obc.device.set_power "{\"enabled\":true}" power-on
 if errorlevel 1 goto Failed
-
-if defined Responses (
-    dokime operation call obc.device.read --json "{}" --output "%Responses%\running.json" %*
-) else (
-    dokime operation call obc.device.read --json "{}" %*
-)
+call :Operation obc.device.read "{}" running
 if errorlevel 1 goto Failed
-
-if defined Responses (
-    dokime operation call obc.device.set_power --json "{\"enabled\":false}" --output "%Responses%\power-off.json" %*
-) else (
-    dokime operation call obc.device.set_power --json "{\"enabled\":false}" %*
-)
+call :Operation obc.device.set_power "{\"enabled\":false}" power-off
 if errorlevel 1 goto Failed
-
-if defined Responses (
-    dokime operation call obc.device.read --json "{}" --output "%Responses%\after.json" %*
-) else (
-    dokime operation call obc.device.read --json "{}" %*
-)
+call :Operation obc.device.read "{}" after
 if errorlevel 1 goto Failed
 exit /b 0
 
-:DirectoryExists
-echo Choose A New Response Directory; Existing Data Is Preserved 1>&2
-exit /b 2
+:Operation
+if defined RESPONSE_DIRECTORY (
+    dokime operation call %1 --json %2 --output "%RESPONSE_DIRECTORY%\%3.json" %CONNECTION%
+) else (
+    dokime operation call %1 --json %2 %CONNECTION%
+)
+exit /b %ERRORLEVEL%
 
 :Failed
-set "Status=%ERRORLEVEL%"
-if "%Status%"=="0" set "Status=3"
-echo Device Workflow Incomplete; No Command Was Retried 1>&2
-echo A Dispatched Command May Have Acted. Read Device State Before Resending 1>&2
-exit /b %Status%
+echo Device Workflow Incomplete; Read Device State Before Resending. No Command Was Retried 1>&2
+exit /b 3

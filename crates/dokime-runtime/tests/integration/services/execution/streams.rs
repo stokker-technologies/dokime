@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+use crate::service_support::suites::ExecutionFixtureStart;
 
 // Standard Library Imports
 
@@ -200,13 +201,13 @@ async fn live_rows_paths() {
         dokime_domain::model::execution::snapshot::ExecutionImplementation::Embedded { generation } if !generation.is_empty()));
     assert_eq!(admitted_identity.content_digest(), None);
 
-    let receipt = handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    let receipt = handle.start_next_execution(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     signals.entered.notified().await;
     let rows = until_telemetry(&handle, || async {
         let rows = handle
             .collect_telemetry(&dokime_runtime::domains::evidence::TelemetrySelection {
-                streams: vec![Identifier::new(Reading::ID).unwrap()],
+                streams: vec![Identifier::new(Reading::ID).unwrap().into()],
                 scope: dokime_runtime::domains::evidence::ScopeSelection { test_cycle_id: Some(cycle.clone()), ..Default::default() },
                 ..Default::default()
             })

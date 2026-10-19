@@ -109,6 +109,7 @@ async fn listener_policy_isolation() {
         .create_cycle(
             dokime_runtime::transactions::CycleDefinition {
                 metadata: support::metadata("remote.listeners", "Listener Isolation"),
+                continue_automatically: false,
                 continue_on_failure: false,
             },
             Default::default(),
@@ -122,7 +123,7 @@ async fn listener_policy_isolation() {
     let certificate = generated.cert.pem().into_bytes();
     let key = generated.signing_key.serialize_pem().into_bytes();
     let identity = TlsIdentity::from_pem(certificate.clone(), key);
-    let config = Config::remote("0.0.0.0:0".parse().unwrap(), identity.clone(), vec![grant(Role::Admin)]).unwrap();
+    let config = Config::remote("0.0.0.0:0".parse().unwrap(), Some(identity.clone()), Some(TOKEN)).unwrap();
     let remote = service.listen_with(config.clone()).await.unwrap();
     let channel = Endpoint::from_shared(remote.local_endpoint())
         .unwrap()
@@ -178,8 +179,7 @@ async fn listener_policy_isolation() {
     local_client.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap();
     assert_eq!(handle.watch_state().latest().state().cycles[&cycle].phase, model::execution::result::CyclePhase::Active);
     let replacement = "replacement-key-012345678901234567890123456789";
-    let config =
-        Config::remote(address, identity, vec![BearerGrant::new("replacement".into(), Role::Admin, replacement).unwrap()]).unwrap();
+    let config = Config::remote(address, Some(identity), Some(replacement)).unwrap();
     let remote = service.listen_with(config).await.unwrap();
     let channel = Endpoint::from_shared(remote.local_endpoint())
         .unwrap()
@@ -212,6 +212,7 @@ async fn remote_cycle_seal() {
     let handle = owner.handle();
     let definition = dokime_runtime::transactions::CycleDefinition {
         metadata: support::metadata("remote.seal", "Remote Campaign"),
+        continue_automatically: false,
         continue_on_failure: false,
     };
     let cycle = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
@@ -248,6 +249,7 @@ async fn operation_response_files() {
     let handle = owner.handle();
     let definition = dokime_runtime::transactions::CycleDefinition {
         metadata: support::metadata("remote.operations", "Original"),
+        continue_automatically: false,
         continue_on_failure: false,
     };
     let cycle = handle.create_cycle(definition, Default::default()).await.unwrap();
@@ -357,7 +359,7 @@ async fn discovery_shares_independently() {
         client.unary::<contracts::backend::GetAvailability>(contracts::backend::GetAvailability {}).await.unwrap().into_inner();
     use prost::Message;
     let descriptor = prost_types::FileDescriptorSet::decode(dokime_server::grpc::FILE_DESCRIPTOR_SET).unwrap();
-    let expected = descriptor
+    let mut expected = descriptor
         .file
         .into_iter()
         .flat_map(|file| {
@@ -368,6 +370,13 @@ async fn discovery_shares_independently() {
             })
         })
         .collect::<std::collections::BTreeSet<_>>();
+    // Runtime Startup Also Registers The Shared Storage Provider's Original Catalog.
+    let storage = harmos::operations::Contracts::of::<harmos::storage::operations::Operations>().unwrap();
+    for contract in storage {
+        if let Some(binding) = contract.grpc() {
+            expected.insert(binding.path());
+        }
+    }
     let advertised = availability.methods.iter().cloned().collect::<std::collections::BTreeSet<_>>();
     assert_eq!(advertised.len(), availability.methods.len(), "duplicate advertised method");
     assert_eq!(advertised, expected);
@@ -400,7 +409,7 @@ async fn discovery_shares_independently() {
 async fn malformed_credentials_wire() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
-    let config = Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap();
+    let config = keyed();
     let server = Server::start(owner.handle(), config).await.unwrap();
     let client = connect(&server).await;
     let mut invalid = Request::new(contracts::backend::GetIdentity {});
@@ -452,8 +461,8 @@ async fn remote_requires_binding() {
     let mut owner = runtime(root.path()).await;
     let remote = "0.0.0.0:0".parse().unwrap();
     assert!(Server::start(owner.handle(), Config::local().with_bind_addr(remote)).await.is_err());
-    assert!(Config::remote(remote, TlsIdentity::from_pem(vec![], vec![]), vec![]).is_err());
-    let invalid = Config::remote(remote, TlsIdentity::from_pem(vec![], vec![]), vec![grant(Role::Admin)]).unwrap();
+    assert!(Config::remote(remote, None, Some("short")).is_err());
+    let invalid = Config::remote(remote, Some(TlsIdentity::from_pem(vec![], vec![])), Some(TOKEN)).unwrap();
     assert!(Server::start(owner.handle(), invalid).await.is_err());
     assert!(!owner.handle().is_shutting_down());
     owner.shutdown().await.unwrap();
@@ -467,8 +476,7 @@ async fn tls_listener_clients() {
     let key = generated.signing_key.serialize_pem().into_bytes();
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
-    let config =
-        Config::remote("0.0.0.0:0".parse().unwrap(), TlsIdentity::from_pem(certificate.clone(), key), vec![grant(Role::Admin)]).unwrap();
+    let config = Config::remote("0.0.0.0:0".parse().unwrap(), Some(TlsIdentity::from_pem(certificate.clone(), key)), Some(TOKEN)).unwrap();
     assert!(!format!("{config:?}").contains(TOKEN));
     assert!(!format!("{config:?}").contains("PRIVATE KEY"));
     let service = dokime_server::grpc::Service::new(owner.handle(), config).await.unwrap();

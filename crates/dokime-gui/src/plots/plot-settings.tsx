@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { createContext, type ComponentType, useContext } from "react";
+import { type ComponentType, createContext, useContext } from "react";
 // Local Imports
 import type { DocumentDownsampleTechnique, DocumentViewPlot } from "@/lib/types";
 

@@ -35,7 +35,7 @@ const UNSEALED: &str = "final execution report was not sealed";
 /* === Type Aliases === */
 
 /* === Structs === */
-struct UnencodableReport(FakePythonExecutor);
+struct UnencodableReport(FakePythonExecutor, Arc<std::sync::atomic::AtomicBool>);
 
 /* === Enums === */
 
@@ -50,7 +50,7 @@ impl ExecutionFixture for UnencodableReport {
     }
 
     fn refuse_final_report(&self, _: &TestExecution) -> Option<String> {
-        Some(UNENCODABLE.to_owned())
+        self.1.load(std::sync::atomic::Ordering::SeqCst).then(|| UNENCODABLE.to_owned())
     }
 }
 
@@ -132,7 +132,9 @@ async fn execution_save_sealing() {
         std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
     }
     executor.release();
-    let completed = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
+    handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let completed = cycle_snapshot(&handle, &cycle_id).await;
     let frame = follower.next_frame(maximum).await.unwrap().unwrap();
     let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
         panic!("the original production closes with a sealed reference");
@@ -246,13 +248,14 @@ async fn terminal_capture_repaired() {
 #[tokio::test(flavor = "multi_thread")]
 async fn permanent_finalization_settles() {
     let root = tempdir().unwrap();
+    let refuse = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let (mut owner, runtime) =
-        started_with_fixture(config(root.path()), Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed")))).await;
+        started_with_fixture(config(root.path()), Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed"), refuse.clone()))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
     let mut watch = runtime.watch_state();
-    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
 
     // The report can never be encoded. The watch stream settles the run
@@ -277,15 +280,26 @@ async fn permanent_finalization_settles() {
     );
     assert!(diagnosis.as_deref().is_some_and(|cause| cause.contains(UNENCODABLE)), "the diagnosis names the injected cause: {diagnosis:?}");
     drop(terminal);
+    drop(watch);
     drop(runtime);
+    assert!(owner.shutdown().await.is_err(), "unsealable evidence cannot acknowledge successful shutdown");
+    refuse.store(false, std::sync::atomic::Ordering::SeqCst);
     owner.shutdown().await.unwrap();
+    drop(owner);
 
     // Restart on the same store with a fixture whose reports encode. The
     // publication failure stays terminal and its cause durable: in the receipt,
     // and as evidence scoped to the execution and to the cycle.
     let (mut owner, runtime) = started_with_fixture(config(root.path()), Arc::new(FakePythonExecutor::fixed("passed"))).await;
-    register_python_suite(&runtime, suite).await;
-    assert_eq!(cycle_snapshot(&runtime, &test_cycle_id).await.lifecycle, CycleStatus::Completed);
+    register_python_suite(&runtime, suite.clone()).await;
+    let original_cycle =
+        dokime_runtime::storage::objects::cycle::read(runtime.storage(), &test_cycle_id, harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap()
+            .value;
+    assert_eq!(original_cycle.lifecycle, CycleStatus::Completed);
+    assert!(original_cycle.saved.is_some(), "publication repair is durable without replaying the provider");
     let receipt = runtime.run_request(&receipt.command_id).await.unwrap().unwrap();
     assert_eq!(receipt.summary.phase, RunPhase::Failed);
     assert_eq!(receipt.summary.failed, 0);
@@ -294,10 +308,28 @@ async fn permanent_finalization_settles() {
         "the receipt reports the unsealed cause: {:?}",
         receipt.interruption
     );
-    let evidence = runtime.evidence_snapshot().await.unwrap();
+    let mut reader = runtime
+        .storage()
+        .read_records::<dokime_runtime::storage::records::RecordRow>(harmos::storage::RecordRead {
+            at: runtime.storage().cursor_saved(),
+            selection: harmos::storage::query::RecordSelection {
+                schema: dokime_runtime::storage::records::schema(),
+                scope: None,
+                item: None,
+                source_start: None,
+                source_end: None,
+            },
+            after: 0,
+        })
+        .await
+        .unwrap();
+    let mut records = Vec::new();
+    while let Some(batch) = reader.next().await.unwrap() {
+        records.extend(batch.into_iter().map(|row| row.payload.entry().unwrap().clone()));
+    }
+    drop(reader);
     for (record_type, scoped) in [("test.execution.finalization.failed", Some(&failed_id)), ("test.cycle.finalization.failed", None)] {
-        let record = evidence
-            .records
+        let record = records
             .iter()
             .find(|record| record.record_type.as_str() == record_type)
             .unwrap_or_else(|| panic!("{record_type} is recorded as evidence"));
@@ -309,22 +341,32 @@ async fn permanent_finalization_settles() {
         );
     }
 
-    // A rerun runs and seals the whole cycle, the failed attempt included.
-    runtime
-        .rerun_cycle_case(test_cycle_id.clone(), test_case_id.clone(), CommandContext::default())
-        .await
-        .expect("an unsealed finalization leaves the case restartable");
-    runtime.run_cycle_case(test_cycle_id.clone(), test_case_id, CommandContext::default()).await;
-    until_state(&runtime, |state| {
-        state.cycle_views().any(|cycle| cycle.test_cycle_id == test_cycle_id && cycle.test_executions.len() == 2 && cycle.saved.is_some())
-    })
-    .await;
-    let rerun = cycle_snapshot(&runtime, &test_cycle_id).await;
-    let original = &rerun.test_executions[0];
+    // A New Attempt Uses A New Container And Preserves The Repaired Original.
+    let checkpoint = crate::service_support::native::checkpoint(&runtime, &failed_id).await;
+    let original_view = crate::service_support::native::open(&runtime, &checkpoint).await;
+    let original = original_view.execution();
     assert_eq!(original.test_execution_id, failed_id);
     assert_eq!(original.status, ExecutionStatus::Passed);
-    assert!(original.saved.is_some(), "the failed attempt seals with the cycle");
-    let attempt = &rerun.test_executions[1];
+    assert!(original.saved.is_some(), "publication repair preserves the original outcome");
+    assert_eq!(original_cycle.execution_ids.len(), 1);
+    let fresh_cycle = runtime
+        .create_cycle(
+            CycleDefinition { metadata: original_cycle.metadata.clone(), continue_automatically: false, continue_on_failure: false },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    runtime
+        .append_executions(fresh_cycle.clone(), vec![(dokime_runtime::model::identity::new_id::<TestExecutionId>(), test_case_id.clone())])
+        .await
+        .unwrap();
+    runtime.start_case_execution(fresh_cycle.clone(), test_case_id, CommandContext::default()).await;
+    wait_for_cycle_lifecycle(&runtime, &fresh_cycle, CycleStatus::Completed).await;
+    runtime.seal_cycle(fresh_cycle.clone(), CommandContext::default()).await.unwrap();
+    let rerun = cycle_snapshot(&runtime, &fresh_cycle).await;
+    assert_eq!(rerun.test_executions.len(), 1);
+    let attempt = &rerun.test_executions[0];
+    assert_ne!(attempt.test_execution_id, failed_id);
     assert_eq!(attempt.status, ExecutionStatus::Passed);
     assert!(attempt.saved.is_some(), "the rerun attempt is sealed");
     drop(runtime);

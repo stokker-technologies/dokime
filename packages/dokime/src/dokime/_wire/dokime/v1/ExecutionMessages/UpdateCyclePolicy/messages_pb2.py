@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nIdokime/_wire/dokime/v1/ExecutionMessages/UpdateCyclePolicy/messages.proto\x12-dokime.v1.ExecutionMessages.UpdateCyclePolicy\"\xab\x01\n\x04Row1\x12\x1d\n\x08\x63ycle_id\x18\xaf\xab\xd7\xb9\x01 \x01(\tR\x07\x63ycleId\x12\x32\n\x13\x63ontinue_on_failure\x18\x83\xf5\xd0\x9f\x01 \x01(\x08R\x11\x63ontinueOnFailure\x12P\n\x07\x63ontext\x18\x89\xc8\x9c\x64 \x01(\x0b\x32\x33.dokime.v1.ExecutionMessages.UpdateCyclePolicy.Row3R\x07\x63ontext\"h\n\x04Row2\x12`\n\x0fobserved_cursor\x18\xfe\xac\xba\xf7\x01 \x01(\x0b\x32\x33.dokime.v1.ExecutionMessages.UpdateCyclePolicy.Row4R\x0eobservedCursor\"T\n\x04Row3\x12.\n\x0e\x63orrelation_id\x18\x8c\xfe\xdc\xb0\x01 \x01(\tH\x00R\rcorrelationId\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_370622220\"\\\n\x04Row4\x12\x18\n\x05\x65poch\x18\xc5\x92\xed\xca\x01 \x01(\tR\x05\x65poch\x12\x1a\n\x06stream\x18\xa0\xf2\xbd\xfb\x01 \x01(\tR\x06stream\x12\x1e\n\x08position\x18\x97\xc3\xbd\x9a\x01 \x01(\x04R\x08position\"\xa6\x01\n\x04Row0\x12M\n\x07request\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ExecutionMessages.UpdateCyclePolicy.Row1R\x07request\x12O\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ExecutionMessages.UpdateCyclePolicy.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nIdokime/_wire/dokime/v1/ExecutionMessages/UpdateCyclePolicy/messages.proto\x12-dokime.v1.ExecutionMessages.UpdateCyclePolicy\"\xe6\x01\n\x04Row1\x12\x1d\n\x08\x63ycle_id\x18\xaf\xab\xd7\xb9\x01 \x01(\tR\x07\x63ycleId\x12\x39\n\x16\x63ontinue_automatically\x18\xa4\xa5\xa7\xb6\x01 \x01(\x08R\x15\x63ontinueAutomatically\x12\x32\n\x13\x63ontinue_on_failure\x18\x83\xf5\xd0\x9f\x01 \x01(\x08R\x11\x63ontinueOnFailure\x12P\n\x07\x63ontext\x18\x89\xc8\x9c\x64 \x01(\x0b\x32\x33.dokime.v1.ExecutionMessages.UpdateCyclePolicy.Row3R\x07\x63ontext\"h\n\x04Row2\x12`\n\x0fobserved_cursor\x18\xfe\xac\xba\xf7\x01 \x01(\x0b\x32\x33.dokime.v1.ExecutionMessages.UpdateCyclePolicy.Row4R\x0eobservedCursor\"T\n\x04Row3\x12.\n\x0e\x63orrelation_id\x18\x8c\xfe\xdc\xb0\x01 \x01(\tH\x00R\rcorrelationId\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_370622220\"\\\n\x04Row4\x12\x18\n\x05\x65poch\x18\xc5\x92\xed\xca\x01 \x01(\tR\x05\x65poch\x12\x1a\n\x06stream\x18\xa0\xf2\xbd\xfb\x01 \x01(\tR\x06stream\x12\x1e\n\x08position\x18\x97\xc3\xbd\x9a\x01 \x01(\x04R\x08position\"\xa6\x01\n\x04Row0\x12M\n\x07request\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ExecutionMessages.UpdateCyclePolicy.Row1R\x07request\x12O\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ExecutionMessages.UpdateCyclePolicy.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -53,15 +53,15 @@ _pool.build(DESCRIPTOR, 'dokime._wire.dokime.v1.ExecutionMessages.UpdateCyclePol
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ROW1']._serialized_start=125
-  _globals['_ROW1']._serialized_end=296
-  _globals['_ROW2']._serialized_start=298
-  _globals['_ROW2']._serialized_end=402
-  _globals['_ROW3']._serialized_start=404
-  _globals['_ROW3']._serialized_end=488
-  _globals['_ROW4']._serialized_start=490
-  _globals['_ROW4']._serialized_end=582
-  _globals['_ROW0']._serialized_start=585
-  _globals['_ROW0']._serialized_end=751
+  _globals['_ROW1']._serialized_end=355
+  _globals['_ROW2']._serialized_start=357
+  _globals['_ROW2']._serialized_end=461
+  _globals['_ROW3']._serialized_start=463
+  _globals['_ROW3']._serialized_end=547
+  _globals['_ROW4']._serialized_start=549
+  _globals['_ROW4']._serialized_end=641
+  _globals['_ROW0']._serialized_start=644
+  _globals['_ROW0']._serialized_end=810
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

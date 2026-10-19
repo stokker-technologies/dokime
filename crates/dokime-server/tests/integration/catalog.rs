@@ -79,7 +79,7 @@ async fn schemas_exact_pages() {
     telemetry.columns[1].display_unit = Some("ticks".into());
     registration.telemetry_contracts = vec![telemetry];
     handle.set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([registration.clone()])).await.unwrap();
-    let config = Config::default().with_bearer_auth(vec![grant(Role::Read)]).unwrap();
+    let config = keyed();
     let server = Server::start(handle.clone(), config).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
@@ -243,7 +243,7 @@ async fn catalog_suite_extensions() {
     ]);
     let registration = support::fixture_registration(suite);
     handle.set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([registration])).await.unwrap();
-    let config = Config::default().with_bearer_auth(vec![grant(Role::Read)]).unwrap();
+    let config = keyed();
     let server = Server::start(handle, config).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 

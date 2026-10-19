@@ -124,33 +124,14 @@ fn control_requires_stdin() {
 }
 
 #[test]
-fn authentication_file_bounded() {
+fn native_listener_requires_loopback() {
     let root = tempfile::tempdir().unwrap();
-    let auth = root.path().join("auth.json");
-    for (bytes, expected) in [
-        (br#"{"grants":[]}"#.to_vec(), "requires 1 to 128 grants"),
-        (b"invalid-json".to_vec(), "invalid authentication file"),
-        (vec![b' '; 1024 * 1024 + 1], "input file exceeds 1048576 bytes"),
-    ] {
-        std::fs::write(&auth, bytes).unwrap();
-        let output = Command::new(super::executable()).args(["--auth-file"]).arg(&auth).output().unwrap();
-        assert!(!output.status.success());
-        assert!(String::from_utf8_lossy(&output.stderr).contains(expected), "{}", String::from_utf8_lossy(&output.stderr));
-    }
-    std::fs::write(&auth, br#"{"grants":[{"subject":"operator","role":"admin","token":"01234567890123456789012345678901"}]}"#).unwrap();
-    let output = Command::new(super::executable())
-        .args(["--auth-file"])
-        .arg(&auth)
-        .arg("--env-file")
-        .arg(root.path().join("missing.env"))
-        .output()
-        .unwrap();
+    let application = root.path().join("application");
+    let output =
+        Command::new(super::executable()).args(["--host", "0.0.0.0"]).env("DOKIME_APPLICATION_ROOT", &application).output().unwrap();
     assert!(!output.status.success());
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("cannot load environment file"),
-        "valid authentication file must pass before environment loading: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("the native listener requires loopback"));
+    assert!(!application.exists());
 }
 
 #[tokio::test]

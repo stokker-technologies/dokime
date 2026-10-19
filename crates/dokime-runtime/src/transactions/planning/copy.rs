@@ -100,6 +100,7 @@ impl Transaction<RuntimeState> for CopyCycle {
 
             test_executions: Vec::new(),
             records: TestRecordSet::default(),
+            continue_automatically: source.continue_automatically,
             continue_on_failure: source.continue_on_failure,
             result: None,
         };

@@ -34,6 +34,7 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpdateCyclePolicy {
     pub cycle_id: String,
+    pub continue_automatically: bool,
     pub continue_on_failure: bool,
     pub context: Option<MutationContext>,
 }

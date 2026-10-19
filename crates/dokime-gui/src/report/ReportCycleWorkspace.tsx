@@ -23,15 +23,15 @@ import { CycleWorkspaceHeader } from "@/features/cycle/CycleWorkspaceHeader";
 import {
   buildCycleCases,
   buildCycleExecutionRows,
+  type CycleSelection,
   cycleStatusLabel,
   cycleStatusVariant,
   finishedCaseCount,
   isUnstartedExecution,
   selectedCycleRow,
-  type CycleSelection,
 } from "@/features/cycle/cycle-workspace-model";
-import { documentSurface, documentView, type DocumentSurfaceOptions } from "@/features/cycle/document-view-model";
 import { evidencePaneState } from "@/features/cycle/document-query-model";
+import { type DocumentSurfaceOptions, documentSurface, documentView } from "@/features/cycle/document-view-model";
 import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
 import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";

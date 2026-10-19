@@ -26,29 +26,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
+import { deliverNativeArtifact } from "@/lib/api/native-delivery";
 import {
+  appendNativeCaseAttempt,
   deleteNativeTestCycleCases,
   fetchNativeTestCycleDetail,
-  pauseNativeTestCycle,
   pauseNativeTestExecution,
   renameNativeTestCycle,
   renameNativeTestExecution,
   reopenNativeTestCycle,
-  rerunNativeTestCase,
-  rerunNativeTestCycle,
-  resumeNativeTestCycle,
   resumeNativeTestExecution,
-  runNativeQueuedTestCycle,
-  runNativeQueuedTestExecution,
   sealNativeTestCycle,
   setNativeCycleArchived,
   setNativeExecutionArchived,
-  stopNativeTestCycle,
+  startNativeTestExecution,
   stopNativeTestExecution,
   updateNativeTestCyclePolicy,
 } from "@/lib/api/native-execution";
 import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
-import { deliverNativeArtifact } from "@/lib/api/native-delivery";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import {
   downloadNativeCycleReport,
@@ -57,7 +52,7 @@ import {
   type NativeReportHtml,
   openNativeReport,
 } from "@/lib/api/native-reports";
-import { createdExecutionId, reportFilename } from "./cycle-workspace-model";
+import { reportFilename } from "./cycle-workspace-model";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
@@ -208,32 +203,12 @@ export function useCycleCommands(cycleId: string) {
       mutationFn: (executionId: string) => stopNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
-    pauseCycle: useMutation({
-      mutationFn: () => pauseNativeTestCycle(session().identity, cycleId),
+    startExecution: useMutation({
+      mutationFn: (executionId: string) => startNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
-    resumeCycle: useMutation({
-      mutationFn: () => resumeNativeTestCycle(session().identity, cycleId),
-      onSettled: invalidateAll,
-    }),
-    runCase: useMutation({
-      mutationFn: (executionId: string) => runNativeQueuedTestExecution(session().identity, executionId),
-      onSettled: invalidateAll,
-    }),
-    runQueued: useMutation({
-      mutationFn: () => runNativeQueuedTestCycle(session().identity, cycleId),
-      onSettled: invalidateAll,
-    }),
-    rerunCycle: useMutation({
-      mutationFn: (caseIds: readonly string[]) => rerunNativeTestCycle(session().identity, cycleId, caseIds),
-      onSettled: invalidateAll,
-    }),
-    scheduleRerun: useMutation({
-      mutationFn: (caseId: string) => rerunNativeTestCase(session().identity, cycleId, caseId),
-      onSettled: invalidateAll,
-    }),
-    stopCycle: useMutation({
-      mutationFn: () => stopNativeTestCycle(session().identity, cycleId),
+    appendAttempt: useMutation({
+      mutationFn: (caseId: string) => appendNativeCaseAttempt(session().identity, cycleId, caseId),
       onSettled: invalidateAll,
     }),
     sealCycle: useMutation({
@@ -241,7 +216,8 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     updatePolicy: useMutation({
-      mutationFn: (continueOnFailure: boolean) => updateNativeTestCyclePolicy(session().identity, cycleId, continueOnFailure),
+      mutationFn: ({ continueAutomatically, continueOnFailure }: { continueAutomatically: boolean; continueOnFailure: boolean }) =>
+        updateNativeTestCyclePolicy(session().identity, cycleId, continueAutomatically, continueOnFailure),
       onSettled: invalidateAll,
     }),
   };
@@ -249,24 +225,13 @@ export function useCycleCommands(cycleId: string) {
 
 export type CycleCommands = ReturnType<typeof useCycleCommands>;
 
-/**
- * Re-run a case and hand back the execution the re-run created.
- *
- * Neither scheduling nor run admission names the new execution, so the
- * executions known before the request are remembered and the first execution
- * of the case outside them, once the detail is read again, is the re-run.
- * `null` means the refreshed detail did not show it yet.
- */
+/** Append A Fresh Attempt And Select It For Explicit Start */
 export function useRerunCase(cycleId: string) {
   const commands = useCycleCommands(cycleId);
-  const detailQuery = useCycleDetailQuery(cycleId);
   return {
-    pending: commands.scheduleRerun.isPending,
+    pending: commands.appendAttempt.isPending,
     rerun: async (caseId: string): Promise<string | null> => {
-      const known = new Set((detailQuery.data?.executions ?? []).map((execution) => execution.test_execution_id));
-      await commands.scheduleRerun.mutateAsync(caseId);
-      const refreshed = await detailQuery.refetch();
-      return createdExecutionId(refreshed?.data?.executions ?? [], caseId, known);
+      return commands.appendAttempt.mutateAsync(caseId);
     },
   };
 }

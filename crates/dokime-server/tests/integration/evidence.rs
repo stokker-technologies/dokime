@@ -74,7 +74,10 @@ async fn publish(handle: &RuntimeHandle) {
 }
 
 fn selection() -> model::evidence::wire::CapturedRecordSelection {
-    model::evidence::wire::CapturedRecordSelection { record_types: vec!["calibration.field.completed".into()], ..Default::default() }
+    model::evidence::wire::CapturedRecordSelection {
+        record_types: vec!["calibration.field.complet?d".into(), "calibration.field.*".into(), "missing.*".into()],
+        ..Default::default()
+    }
 }
 
 #[tokio::test]

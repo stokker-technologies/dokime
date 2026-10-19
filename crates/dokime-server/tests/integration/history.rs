@@ -23,8 +23,6 @@ use dokime_domain::model;
 use {dokime_runtime::CycleStatus, dokime_runtime::runtime::command::CommandContext};
 
 /* === Constants === */
-const CONTROL_TOKEN: &str = "history-control-token-012345678901234567890";
-const ADMIN_TOKEN: &str = "history-admin-token-01234567890123456789012";
 
 /* === Macros === */
 
@@ -46,7 +44,7 @@ async fn checkpoint_for(
 ) -> model::execution::wire_checkpoint::ExecutionCheckpoint {
     support::on_state_change(handle, async || {
         let checkpoint = history
-            .unary::<contracts::history::BrowseExecutions>(auth(BrowseExecutions { limit: 100, ..Default::default() }, ADMIN_TOKEN))
+            .unary::<contracts::history::BrowseExecutions>(auth(BrowseExecutions { limit: 100, ..Default::default() }, TOKEN))
             .await
             .unwrap()
             .into_inner()
@@ -82,23 +80,14 @@ async fn deletion_validates_unsupported() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    let execution_id = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
+    handle.start_execution(execution_id, model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     gate.started.notified().await;
 
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![
-                BearerGrant::new("control".into(), Role::Control, CONTROL_TOKEN).unwrap(),
-                BearerGrant::new("admin".into(), Role::Admin, ADMIN_TOKEN).unwrap(),
-            ])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let mut history = WireClient::connect(server.local_endpoint()).await.unwrap();
     let live = history
-        .unary::<contracts::history::BrowseExecutions>(auth(BrowseExecutions { limit: 100, ..Default::default() }, ADMIN_TOKEN))
+        .unary::<contracts::history::BrowseExecutions>(auth(BrowseExecutions { limit: 100, ..Default::default() }, TOKEN))
         .await
         .unwrap()
         .into_inner()
@@ -115,16 +104,12 @@ async fn deletion_validates_unsupported() {
     let request = DeleteExecution { checkpoint: Some(checkpoint.clone()), request_identifier: "delete-request-1".into() };
 
     assert_eq!(history.unary::<contracts::history::DeleteExecution>(request.clone()).await.unwrap_err().code(), Code::Unauthenticated);
-    assert_eq!(
-        history.unary::<contracts::history::DeleteExecution>(auth(request.clone(), CONTROL_TOKEN)).await.unwrap_err().code(),
-        Code::PermissionDenied
-    );
     for request_identifier in [String::new(), "x".repeat(257)] {
         assert_eq!(
             history
                 .unary::<contracts::history::DeleteExecution>(auth(
                     DeleteExecution { checkpoint: Some(checkpoint.clone()), request_identifier },
-                    ADMIN_TOKEN,
+                    TOKEN,
                 ))
                 .await
                 .unwrap_err()
@@ -133,13 +118,13 @@ async fn deletion_validates_unsupported() {
         );
     }
     assert_eq!(
-        history.unary::<contracts::history::DeleteExecution>(auth(request.clone(), ADMIN_TOKEN)).await.unwrap_err().code(),
+        history.unary::<contracts::history::DeleteExecution>(auth(request.clone(), TOKEN)).await.unwrap_err().code(),
         Code::Unimplemented,
         "native storage has no deletion contract"
     );
 
     assert_eq!(
-        history.unary::<contracts::history::DeleteExecution>(auth(request, ADMIN_TOKEN)).await.unwrap_err().code(),
+        history.unary::<contracts::history::DeleteExecution>(auth(request, TOKEN)).await.unwrap_err().code(),
         Code::Unimplemented,
         "native storage has no deletion contract"
     );
@@ -150,7 +135,7 @@ async fn deletion_validates_unsupported() {
         let refusal = history
             .unary::<contracts::history::DeleteExecution>(auth(
                 DeleteExecution { request_identifier: request_identifier.into(), ..deletion.clone() },
-                ADMIN_TOKEN,
+                TOKEN,
             ))
             .await
             .unwrap_err();

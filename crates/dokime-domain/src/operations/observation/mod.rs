@@ -26,7 +26,6 @@ pub use watch_runtime::WatchRuntime;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
@@ -66,22 +65,18 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for WatchRuntime {
     const PATH: &'static str = "/dokime.v1.Observation/WatchRuntime";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for WatchExecutionProgress {
     const PATH: &'static str = "/dokime.v1.Observation/WatchExecutionProgress";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetRuntimeShell {
     const PATH: &'static str = "/dokime.v1.Observation/GetRuntimeShell";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetTraceability {
     const PATH: &'static str = "/dokime.v1.Observation/GetTraceability";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

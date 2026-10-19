@@ -33,14 +33,6 @@ pub struct NetworkArgs {
     pub host: IpAddr,
     #[arg(long, default_value_t = 8765, help = "Listen on this exact port; use zero to allocate an available port.")]
     pub port: u16,
-    #[arg(long, requires_all = ["tls_cert", "tls_key", "auth_file"], conflicts_with = "dev_control", help = "Explicitly permit remote clients. Requires TLS and authenticated grants.")]
-    pub allow_remote: bool,
-    #[arg(long, requires = "allow_remote")]
-    pub tls_cert: Option<PathBuf>,
-    #[arg(long, requires = "allow_remote")]
-    pub tls_key: Option<PathBuf>,
-    #[arg(long, help = "JSON file containing subject, role and token grants. Never pass tokens in arguments.")]
-    pub auth_file: Option<PathBuf>,
     #[arg(long, default_value_t = 2)]
     pub message_limit_mib: usize,
     #[arg(long, help = "Also serve gRPC-Web over HTTP/1.1 for browser clients. The desktop never needs it.")]

@@ -30,7 +30,6 @@ pub use screenshot::Screenshot;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::TRANSFER;
@@ -64,35 +63,30 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for Screenshot {
     const PATH: &'static str = "/dokime.v1.Media/Screenshot";
-    const ACCESS: Access = Access::Control;
     // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for Photo {
     const PATH: &'static str = "/dokime.v1.Media/Photo";
-    const ACCESS: Access = Access::Control;
     // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for AudioRecording {
     const PATH: &'static str = "/dokime.v1.Media/AudioRecording";
-    const ACCESS: Access = Access::Control;
     // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for ScreenRecording {
     const PATH: &'static str = "/dokime.v1.Media/ScreenRecording";
-    const ACCESS: Access = Access::Control;
     // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }
 
 impl Endpoint for CameraRecording {
     const PATH: &'static str = "/dokime.v1.Media/CameraRecording";
-    const ACCESS: Access = Access::Control;
     // The host's screen, camera and microphone are never exposed to a remote listener.
     const LOCAL_ONLY: bool = true;
 }

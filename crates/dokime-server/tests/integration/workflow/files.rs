@@ -42,7 +42,7 @@ use dokime_domain::model;
 async fn live_file_rewrites() {
     let Gated { root: _root, gate, mut owner, service, server, execution, cycle } = Gated::open_bounded(4096).await;
     let runtime = owner.handle();
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
+    execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -482,7 +482,7 @@ async fn live_follow_refusal(change: &str) {
     use {model::content::wire::ExecutionFileFollowFramePayload as Frame, model::content::wire::ExecutionFilePhase};
     let Gated { root: _root, gate, mut owner, service, server, execution, cycle } = Gated::open().await;
     let runtime = owner.handle();
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
+    execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -628,7 +628,7 @@ async fn execution_file_buffer() {
 
     let Gated { root: _root, gate, mut owner, service: _service, server, execution, cycle } = Gated::open().await;
     let runtime = owner.handle();
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle))).await.unwrap();
+    execution.start_first(authenticated(run(&cycle))).await.unwrap();
     gate.started.notified().await;
     let executions = execution
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {

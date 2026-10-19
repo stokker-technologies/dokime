@@ -49,12 +49,12 @@ async fn cycle_container_request_outcomes() {
     let suite = fixture_suite(&["failed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let cycle = start_cycle(&runtime, suite.clone(), true).await;
-    let failed = runtime.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    let failed = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &failed.command_id).await;
     let original = cycle_snapshot(&runtime, &cycle).await.test_executions[0].clone();
     let case = materialized_case("provider:testdb:plt400.ract", Some(&suite), "later.passed", "Later Passed", "passed");
-    runtime.append_cycle_cases(cycle.clone(), vec![case], CommandContext::default()).await.unwrap();
-    let passed = runtime.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    runtime.append_fixture_cases(cycle.clone(), vec![case], CommandContext::default()).await.unwrap();
+    let passed = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &passed.command_id).await;
     let receipt = runtime.run_request(&passed.command_id).await.unwrap().unwrap();
     assert_eq!(receipt.summary.phase, RunPhase::Completed);
@@ -74,14 +74,14 @@ async fn cycle_container_request_order() {
     register_python_suite(&runtime, suite.clone()).await;
     let first = start_cycle(&runtime, suite.clone(), true).await;
     let other = start_cycle(&runtime, suite, true).await;
-    let first_run = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    let first_run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
-    let other_run = runtime.run_cycle_cases(other.clone(), CommandContext::default()).await;
+    let other_run = runtime.start_next_execution(other.clone(), CommandContext::default()).await;
 
     let before = cycle_snapshot(&runtime, &first).await;
     let case = before.test_executions[0].snapshot.case().clone();
-    runtime.append_cycle_cases(first.clone(), vec![case], CommandContext::default()).await.unwrap();
-    let last_run = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    runtime.append_fixture_cases(first.clone(), vec![case], CommandContext::default()).await.unwrap();
+    let last_run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     assert_eq!(first_run.status, CommandStatus::Accepted);
     assert_eq!(other_run.status, CommandStatus::Accepted);
     assert_eq!(last_run.status, CommandStatus::Accepted);
@@ -93,16 +93,18 @@ async fn cycle_container_request_order() {
     for request in [&first_run, &other_run, &last_run] {
         crate::service_support::waits::wait_for_run_settled(&runtime, &request.command_id).await;
     }
+    wait_for_cycle_lifecycle(&runtime, &first, CycleStatus::Completed).await;
+    wait_for_cycle_lifecycle(&runtime, &other, CycleStatus::Completed).await;
     let first = cycle_snapshot(&runtime, &first).await;
     let other = cycle_snapshot(&runtime, &other).await;
     let members = &first.test_executions;
     assert_eq!(members.len(), 3);
     assert!(members.iter().all(|execution| execution.saved.is_some()));
-    assert!(members[1].finished_at.as_ref().unwrap() <= other.test_executions[0].started_at.as_ref().unwrap());
-    assert!(other.test_executions[1].finished_at.as_ref().unwrap() <= members[2].started_at.as_ref().unwrap());
+    assert!(members[0].finished_at.as_ref().unwrap() <= other.test_executions[0].started_at.as_ref().unwrap());
+    assert!(other.test_executions[0].finished_at.as_ref().unwrap() <= members[1].started_at.as_ref().unwrap());
     let first_receipt = runtime.run_request(&first_run.command_id).await.unwrap().unwrap();
     let last_receipt = runtime.run_request(&last_run.command_id).await.unwrap().unwrap();
-    assert_eq!((first_receipt.summary.planned, first_receipt.summary.finished), (2, 2));
+    assert_eq!((first_receipt.summary.planned, first_receipt.summary.finished), (1, 1));
     assert_eq!((last_receipt.summary.planned, last_receipt.summary.finished), (1, 1));
 }
 
@@ -117,13 +119,13 @@ async fn cycle_container_seal_isolation() {
     register_python_suite(&runtime, suite.clone()).await;
     let first = start_cycle(&runtime, suite.clone(), true).await;
     let other = start_cycle(&runtime, suite, true).await;
-    let first_run = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    let first_run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
-    let other_run = runtime.run_cycle_cases(other.clone(), CommandContext::default()).await;
+    let other_run = runtime.start_next_execution(other.clone(), CommandContext::default()).await;
     let before = cycle_snapshot(&runtime, &first).await;
     let case = before.test_executions[0].snapshot.case().clone();
-    runtime.append_cycle_cases(first.clone(), vec![case], CommandContext::default()).await.unwrap();
-    let queued = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    runtime.append_fixture_cases(first.clone(), vec![case], CommandContext::default()).await.unwrap();
+    let queued = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
 
     let (first_seal, repeated_seal) = tokio::join!(
         runtime.seal_cycle(first.clone(), CommandContext::default()),
@@ -135,6 +137,17 @@ async fn cycle_container_seal_isolation() {
     assert_eq!(sealed.phase, CyclePhase::Sealed);
     assert!(sealed.test_executions.iter().all(|execution| execution.saved.is_some()));
     assert!(sealed.test_executions.iter().all(|execution| execution.status == ExecutionStatus::Cancelled));
+    {
+        use harmos::state::Transaction;
+
+        let snapshot = runtime.watch_state().latest();
+        let mut state = snapshot.state().clone();
+        let transaction = dokime_runtime::transactions::SealCycle { sealed_cycle: state.cycles[&first].clone() };
+        transaction.check(&state).expect("cycle seal replays against individually sealed members");
+        let member = &sealed.test_executions[0].test_execution_id;
+        state.executions.get_mut(member).unwrap().saved = None;
+        assert!(transaction.check(&state).is_err(), "cycle publication cannot adopt an unsealed member");
+    }
     for request in [first_run, queued] {
         let receipt = runtime.run_request(&request.command_id).await.unwrap().unwrap();
         assert!(receipt.summary.phase.terminal());
@@ -143,6 +156,7 @@ async fn cycle_container_seal_isolation() {
     assert_eq!(cycle_snapshot(&runtime, &other).await.phase, CyclePhase::Active);
     executor.release();
     crate::service_support::waits::wait_for_run_settled(&runtime, &other_run.command_id).await;
+    wait_for_cycle_lifecycle(&runtime, &other, CycleStatus::Completed).await;
     let other = cycle_snapshot(&runtime, &other).await;
     assert!(other.test_executions.iter().all(|execution| execution.status == ExecutionStatus::Passed));
     assert_eq!(other.phase, CyclePhase::Active);
@@ -162,30 +176,30 @@ async fn unavailable_sidecar_context() {
         submitted_by: Some("runtime-test".to_owned()),
     };
 
-    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), context.clone()).await;
+    let receipt = runtime.start_next_execution(test_cycle_id.clone(), context.clone()).await;
 
     assert_eq!(receipt.status, CommandStatus::Accepted, "{:?}", receipt.rejection);
     assert_eq!(receipt.correlation_id, Some(correlation_id));
-    assert_eq!(receipt.idempotency_key, context.idempotency_key);
+    assert!(receipt.idempotency_key.is_none());
     assert!(receipt.rejection.is_none());
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
 }
 
 #[tokio::test]
-async fn append_reopens_cycle() {
+async fn append_keeps_cycle_open() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::case_parameter())).await;
     let suite = fixture_suite(&["failed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
 
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
 
     let appended = materialized_case("provider:testdb:plt400.ract", Some(&suite), "append.after_failure", "Append After Failure", "passed");
-    let append = runtime.append_cycle_cases(test_cycle_id.clone(), vec![appended.clone()], CommandContext::default()).await;
+    let append = runtime.append_fixture_cases(test_cycle_id.clone(), vec![appended.clone()], CommandContext::default()).await;
     let ready = cycle_snapshot(&runtime, &test_cycle_id).await;
-    let run = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
 
     assert!(append.is_ok(), "{append:?}");
     assert_eq!(ready.lifecycle, CycleStatus::Ready);
@@ -203,14 +217,14 @@ async fn duplicate_case_executions() {
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, true).await;
 
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
     let original = completed.test_executions[0].clone();
     let original_case = completed.cases().next().unwrap().clone();
     let original_case_id = original_case.test_case_id.clone();
     assert!(original.saved.is_some());
 
-    let append = runtime.append_cycle_cases(test_cycle_id.clone(), vec![original_case], CommandContext::default()).await;
+    let append = runtime.append_fixture_cases(test_cycle_id.clone(), vec![original_case], CommandContext::default()).await;
     assert!(append.is_ok(), "{append:?}");
     let ready = cycle_snapshot(&runtime, &test_cycle_id).await;
     assert_eq!(ready.cases().count(), 1);
@@ -223,7 +237,7 @@ async fn duplicate_case_executions() {
     assert!(appended.saved.is_none());
     assert!(ready.saved.is_none());
 
-    let rerun = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let rerun = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &rerun.command_id).await;
     let completed = cycle_snapshot(&runtime, &test_cycle_id).await;
     assert_eq!(completed.lifecycle, CycleStatus::Completed);
@@ -244,20 +258,29 @@ async fn run_queued_results() {
     let stop_on_failure = start_cycle(&runtime, suite.clone(), false).await;
     let continue_on_failure = start_cycle(&runtime, suite, true).await;
 
-    runtime.run_cycle_cases(stop_on_failure.clone(), CommandContext::default()).await;
-    runtime.run_cycle_cases(continue_on_failure.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(stop_on_failure.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(continue_on_failure.clone(), CommandContext::default()).await;
     let stopped = wait_for_cycle_lifecycle(&runtime, &stop_on_failure, CycleStatus::Failed).await;
-    let continued = wait_for_cycle_lifecycle(&runtime, &continue_on_failure, CycleStatus::Failed).await;
+    let mut changes = runtime.watch_state();
+    let continued = changes
+        .wait_until(|snapshot| {
+            snapshot.state().cycles[&continue_on_failure].execution_ids.iter().all(|id| snapshot.state().executions[id].saved.is_some())
+        })
+        .await
+        .unwrap()
+        .state()
+        .cycle_view(&continue_on_failure)
+        .unwrap();
 
     assert_eq!(stopped.lifecycle, CycleStatus::Failed);
-    // This fixture runs all cases before returning; the fold must retain the
-    // already-produced third result regardless of sequential scheduling policy.
     assert_eq!(stopped.test_executions.len(), 3);
-    assert_eq!(stopped.test_executions[2].status, ExecutionStatus::Passed);
+    assert_eq!(stopped.test_executions[2].status, ExecutionStatus::Skipped);
+    assert!(stopped.test_executions[2].started_at.is_none());
+    assert!(stopped.test_executions[2].saved.is_none());
     assert_eq!(stopped.test_executions[0].status, ExecutionStatus::Passed);
     assert_eq!(stopped.test_executions[1].status, ExecutionStatus::Failed);
     assert_eq!(stopped.cases().count(), 3);
-    assert_eq!(stopped.result.as_ref().unwrap().passed, 2);
+    assert_eq!(stopped.result.as_ref().unwrap().passed, 1);
     assert_eq!(stopped.result.as_ref().unwrap().failed, 1);
     assert_eq!(stopped.result.as_ref().unwrap().blocked, 0);
     assert_eq!(stopped.test_executions[0].steps.len(), 1);
@@ -277,7 +300,7 @@ async fn later_cases_start() {
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
 
-    let run = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run.status, CommandStatus::Accepted, "{:?}", run.rejection);
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
@@ -285,7 +308,7 @@ async fn later_cases_start() {
     let second_execution = &running.test_executions[1];
 
     assert_eq!(first_execution.status, ExecutionStatus::Running);
-    assert_eq!(second_execution.status, ExecutionStatus::Pending);
+    assert_eq!(second_execution.status, ExecutionStatus::Skipped);
     assert!(first_execution.started_at.is_some());
     assert!(second_execution.started_at.is_none());
 
@@ -321,10 +344,14 @@ async fn running_queued_counts() {
         }
     };
 
-    // One Case Runs While The Others Wait Their Turn
-    let run = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    // Each Explicitly Accepted Execution Waits In The Serialized Lane.
+    let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run.status, CommandStatus::Accepted, "{:?}", run.rejection);
     executor.wait_until_entered().await;
+    for _ in 0..2 {
+        let queued = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
+        assert_eq!(queued.status, CommandStatus::Accepted);
+    }
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
     let waiting = tally(&runtime);
     assert_eq!(waiting.running, 1);
@@ -339,7 +366,7 @@ async fn running_queued_counts() {
     assert_eq!(cycle.result_status, None);
     assert!(cycle.started_at.is_some());
 
-    // A Settled, Sealed Cycle Has Nothing Running Or Waiting And Passed
+    // Settled Executions Have Nothing Running Or Waiting And All Passed.
     executor.release();
     let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
     for execution in &completed.test_executions {
@@ -358,17 +385,20 @@ async fn running_queued_counts() {
 }
 
 #[tokio::test]
-async fn request_retries_receipt() {
+async fn execution_identity_retries_receipt() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"; 3]);
     register_python_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, true).await;
+    let execution_id = cycle_snapshot(&runtime, &cycle_id).await.test_executions[0].test_execution_id.clone();
     let context =
         CommandContext { idempotency_key: Some("large-request".into()), submitted_by: Some("operator".into()), ..Default::default() };
-    let accepted = runtime.run_cycle_cases(cycle_id.clone(), context.clone()).await;
+    let mode = dokime_domain::model::execution::ExecutionMode::Automatic;
+    let accepted = runtime.start_execution(execution_id.clone(), mode, context.clone()).await;
     assert_eq!(accepted.status, CommandStatus::Accepted, "{:?}", accepted.rejection);
-    let duplicate = runtime.run_cycle_cases(cycle_id.clone(), context.clone()).await;
+    let other = CommandContext { submitted_by: Some("another-listener".into()), ..Default::default() };
+    let duplicate = runtime.start_execution(execution_id.clone(), mode, other).await;
     assert_eq!(duplicate.command_id, accepted.command_id);
     let mut watch = runtime.watch_state();
     let snapshot = watch.wait_until(|snapshot| snapshot.state().cycles[&cycle_id].lifecycle == CycleStatus::Completed).await.unwrap();
@@ -379,20 +409,25 @@ async fn request_retries_receipt() {
     wait_for_run_settled(&runtime, &accepted.command_id).await;
     let settled = runtime.run_request(&accepted.command_id).await.unwrap().unwrap();
     assert_eq!(settled.summary.phase, dokime_domain::model::execution::request::RunPhase::Completed);
-    assert_eq!(settled.summary.prepared, 3);
-    assert_eq!(settled.summary.finished, 3);
+    assert_eq!(settled.summary.prepared, 1);
+    assert_eq!(settled.summary.finished, 1);
     assert_eq!(settled.summary.unstarted, 0);
-    assert_eq!(runtime.run_cycle_cases(cycle_id.clone(), context.clone()).await.command_id, accepted.command_id);
+    assert_eq!(runtime.start_execution(execution_id.clone(), mode, context.clone()).await.command_id, accepted.command_id);
     assert_eq!(cycle_snapshot(&runtime, &cycle_id).await.test_executions.len(), 3);
+    let sealed_execution = cycle_snapshot(&runtime, &cycle_id).await.test_executions[0].clone();
+    runtime.stop_execution(execution_id.clone(), CommandContext::default()).await.unwrap();
+    let halted = cycle_snapshot(&runtime, &cycle_id).await;
+    assert!(!halted.continue_automatically);
+    assert_eq!(halted.test_executions[0], sealed_execution);
     drop(runtime);
     owner.shutdown().await.unwrap();
     let config = config(root.path());
     let (mut rebooted, handle) = started(config).await;
     assert!(handle.runtime_overview().await.expect("runtime overview query succeeds").cycles.is_empty());
-    let resolved = handle.run_cycle_cases(cycle_id, context).await;
+    let resolved = handle.start_execution(execution_id, mode, context).await;
     assert_eq!(resolved.status, CommandStatus::Accepted);
     assert_eq!(resolved.command_id, accepted.command_id);
-    assert_eq!(handle.run_request(&resolved.command_id).await.unwrap().unwrap().summary.finished, 3);
+    assert_eq!(handle.run_request(&resolved.command_id).await.unwrap().unwrap().summary.finished, 1);
     drop(handle);
     rebooted.shutdown().await.unwrap();
 }

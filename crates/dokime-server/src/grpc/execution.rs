@@ -343,7 +343,7 @@ impl Resources {
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     control::register(runtime)?;
-    requests::register(runtime, max_message_bytes)?;
+    requests::register(runtime)?;
     commands::register(runtime, max_message_bytes)?;
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
@@ -407,6 +407,7 @@ pub(super) fn summary(
         sealed: cycle.saved.is_some(),
         case_count: state.cases_for_cycle(cycle).count() as u64,
         execution_count: cycle.execution_ids.len() as u64,
+        continue_automatically: cycle.continue_automatically,
         continue_on_failure: cycle.continue_on_failure,
         observed_cursor: Some(cursor),
         created_at: Some(canonical::timestamp(&cycle.created_at)?),
@@ -444,10 +445,7 @@ pub(super) fn case_summary(
         latest_execution_id: projection.latest_execution_id.as_ref().map(|id| id.as_str().to_owned()),
         latest_execution_status: projection.latest_execution_status.as_ref().map(execution_status),
         attempt_count: projection.attempt_count,
-        rerun_scheduled: projection.rerun_scheduled,
         actions: Some(dokime_domain::model::execution::wire::CaseActions {
-            run: projection.actions.run,
-            schedule_rerun: projection.actions.schedule_rerun,
             delete: projection.actions.delete,
             unavailable_reasons: projection.actions.unavailable_reasons,
         }),

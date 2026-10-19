@@ -15,6 +15,7 @@ import { toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
+import * as documentWire from "@generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
 import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
 import {
   documentCard,
@@ -30,7 +31,6 @@ import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { DocumentDataExpression, DocumentDownsampleTechnique, DocumentViewCard, DocumentViewPayload, Metadata } from "@/lib/types";
-import * as documentWire from "../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
 import { aggregateName } from "./native-aggregate";
 import { enumTail, mapNativeValueFormat, nativeValueObjectToJson, nativeValueToJson, safeNumber } from "./native-values";
 

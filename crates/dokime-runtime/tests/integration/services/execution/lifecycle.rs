@@ -80,7 +80,7 @@ async fn cycle_container_lifecycle() {
     let second = start_cycle(&runtime, suite, false).await;
     assert_eq!(runtime.cycles().await.len(), 2);
 
-    let run = runtime.run_cycle_cases(first.clone(), CommandContext::default()).await;
+    let run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
     let completed = cycle_snapshot(&runtime, &first).await;
     assert_eq!(completed.phase, CyclePhase::Active);
@@ -90,10 +90,11 @@ async fn cycle_container_lifecycle() {
     assert!(original.saved.is_some());
 
     let case = original.snapshot.case().clone();
-    runtime.append_cycle_cases(first.clone(), vec![case.clone()], CommandContext::default()).await.unwrap();
+    runtime.append_fixture_cases(first.clone(), vec![case.clone()], CommandContext::default()).await.unwrap();
     let appended = cycle_snapshot(&runtime, &first).await;
     let execution = appended.test_executions[1].test_execution_id.clone();
-    let run = runtime.run_execution(execution, dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
+    let run =
+        runtime.start_execution(execution, dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
     let completed = cycle_snapshot(&runtime, &first).await;
     assert_eq!(completed.test_executions[0], original);
@@ -108,7 +109,7 @@ async fn cycle_container_lifecycle() {
     assert_eq!(sealed.test_executions[0], original);
     runtime.seal_cycle(first.clone(), CommandContext::default()).await.unwrap();
     assert_eq!(cycle_snapshot(&runtime, &first).await, sealed);
-    assert!(runtime.append_cycle_cases(first.clone(), vec![case], CommandContext::default()).await.is_err());
+    assert!(runtime.append_fixture_cases(first.clone(), vec![case], CommandContext::default()).await.is_err());
     assert_eq!(cycle_snapshot(&runtime, &second).await.phase, CyclePhase::Active);
 
     owner.shutdown().await.unwrap();
@@ -134,15 +135,16 @@ async fn rerun_fresh_started() {
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
 
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
     let test_case_id = completed.cases().next().unwrap().test_case_id.clone();
     let first_started_at = completed.test_executions[0].started_at.clone().expect("first execution should have a start timestamp");
 
-    let restart = runtime.rerun_cycle_case(test_cycle_id.clone(), test_case_id.clone(), CommandContext::default()).await;
+    let fresh_id = dokime_runtime::model::identity::new_id::<TestExecutionId>();
+    let restart = runtime.append_executions(test_cycle_id.clone(), vec![(fresh_id, test_case_id.clone())]).await;
     assert!(restart.is_ok());
 
-    runtime.run_cycle_case(test_cycle_id.clone(), test_case_id, CommandContext::default()).await;
+    runtime.start_case_execution(test_cycle_id.clone(), test_case_id, CommandContext::default()).await;
     let restarted = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
     let restarted_execution = &restarted.test_executions[1];
     let restarted_at = restarted_execution.started_at.clone().expect("restarted execution should have a fresh start timestamp");
@@ -197,16 +199,16 @@ async fn stop_archive_state() {
     let early = runtime.set_cycle_archived(test_cycle_id.clone(), true, CommandContext::default()).await;
     assert!(early.is_err(), "a ready cycle must refuse archiving");
 
-    let stop = runtime.stop_cycle(test_cycle_id.clone(), CommandContext::default()).await;
+    let stop = runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await;
     assert!(stop.is_ok(), "{stop:?}");
-    let run_stopped = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let run_stopped = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run_stopped.status, CommandStatus::Rejected);
     assert!(
-        runtime.browse_executions(Default::default()).await.unwrap().entries.iter().all(|entry| entry.checkpoint.is_none()),
-        "never-started execution must remain an unsealed draft"
+        runtime.browse_executions(Default::default()).await.unwrap().entries.iter().all(|entry| entry.checkpoint.is_some()),
+        "cycle sealing durably finalizes never-started members"
     );
 
-    // Stopped And Unsealed Is Terminal: Archiving Hides It And Changes Nothing Else
+    // Sealed Containers May Be Archived Without Changing Their Evidence.
     let before = cycle_snapshot(&runtime, &test_cycle_id).await;
     assert_eq!(before.lifecycle, CycleStatus::Stopped);
     runtime.set_cycle_archived(test_cycle_id.clone(), true, CommandContext::default()).await.unwrap();
@@ -283,7 +285,7 @@ async fn rename_refuses_sealed() {
     }
 
     // The Sealed Execution Keeps The Label It Ran Under
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
     runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
     let checkpoint = crate::service_support::native::checkpoint(&runtime, &first.test_execution_id).await;
@@ -304,14 +306,10 @@ async fn rename_refuses_sealed() {
     let execution = refused(runtime.rename_execution(first.test_execution_id.clone(), "Too Late".into(), CommandContext::default()).await);
     assert!(execution.contains("sealed"), "{execution}");
 
-    // A Re-Run Shares The Sealed Case, So It Refuses Too
+    // A Sealed Container Refuses New Attempts.
     let test_case_id = first.test_case_id.clone();
-    runtime.rerun_cycle_case(test_cycle_id.clone(), test_case_id, CommandContext::default()).await.unwrap();
-    let rerun = cycle_snapshot(&runtime, &test_cycle_id).await;
-    let attempt = rerun.test_executions.last().unwrap().clone();
-    assert_ne!(attempt.test_execution_id, first.test_execution_id);
-    assert_eq!(attempt.snapshot.case().metadata.label, "Charger Soak");
-    refused(runtime.rename_execution(attempt.test_execution_id, "Too Late".into(), CommandContext::default()).await);
+    let fresh_id = dokime_runtime::model::identity::new_id::<TestExecutionId>();
+    assert!(runtime.append_executions(test_cycle_id.clone(), vec![(fresh_id, test_case_id)]).await.is_err());
     let after = cycle_snapshot(&runtime, &test_cycle_id).await;
     assert_eq!(after.metadata.label, "Charger Burn-In");
     assert!(after.test_executions.iter().all(|execution| execution.snapshot.case().metadata.label == "Charger Soak"));
@@ -351,7 +349,7 @@ async fn rename_refuses_empty() {
 }
 
 #[tokio::test]
-async fn stopped_cycles_telemetry() {
+async fn stopped_execution_refuses_later_telemetry() {
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
@@ -359,12 +357,12 @@ async fn stopped_cycles_telemetry() {
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
 
-    let run = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
-    let stop = runtime.stop_cycle(test_cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopping).await;
+    let selected = running.test_executions[0].test_execution_id.clone();
+    let stop = runtime.stop_execution(selected, CommandContext::default()).await;
 
     let before = runtime.evidence_snapshot().await.unwrap().telemetry.len();
     publish_tracking_sample(&runtime, &running).await;
@@ -385,7 +383,7 @@ async fn pause_blocks_boundaries() {
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
 
-    let run = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
     wait_for_record_type(&runtime, "test.cycle.started").await;
@@ -449,3 +447,112 @@ async fn pause_refuses_states() {
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn continuation_dispatches_only_after_predecessor_seal() {
+    let root = tempdir().unwrap();
+    let executor = Arc::new(SecondExecutionHoldExecutor::default());
+    let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let suite = fixture_suite(&["passed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    executor.wait_until_entered().await;
+
+    let during = cycle_snapshot(&runtime, &cycle_id).await;
+    assert_eq!(during.phase, dokime_domain::model::execution::result::CyclePhase::Active);
+    assert!(during.saved.is_none());
+    assert_eq!(during.test_executions[0].status, ExecutionStatus::Passed);
+    assert!(during.test_executions[0].saved.is_some());
+    assert_eq!(during.test_executions[1].status, ExecutionStatus::Running);
+    let saved = dokime_runtime::storage::objects::execution::read(
+        runtime.storage(),
+        &during.test_executions[0].test_execution_id,
+        harmos::storage::ObjectVersion::Latest,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(saved.value.saved, during.test_executions[0].saved);
+    assert!(runtime.run_request(&receipt.command_id).await.unwrap().unwrap().summary.phase.terminal());
+
+    executor.release();
+    let completed = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    assert!(completed.test_executions.iter().all(|execution| execution.saved.is_some()));
+    assert_eq!(completed.phase, dokime_domain::model::execution::result::CyclePhase::Active);
+    assert!(completed.saved.is_none());
+}
+
+#[tokio::test]
+async fn queued_start_identity_and_stop_are_execution_scoped() {
+    use dokime_domain::model::execution::{ExecutionMode, result::CyclePhase};
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let suite = fixture_suite(&["passed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let running = start_cycle(&runtime, suite.clone(), false).await;
+    runtime.update_cycle_policy(running.clone(), false, false, CommandContext::default()).await.unwrap();
+    runtime.start_next_execution(running.clone(), CommandContext::default()).await;
+    executor.wait_until_entered().await;
+
+    let queued = start_cycle(&runtime, suite, false).await;
+    let members = cycle_snapshot(&runtime, &queued).await.test_executions;
+    let id = members[0].test_execution_id.clone();
+    let first = CommandContext { submitted_by: Some("native-listener".into()), ..Default::default() };
+    let other = CommandContext { submitted_by: Some("remote-listener".into()), ..Default::default() };
+    let (first, duplicate) = tokio::join!(
+        runtime.start_execution(id.clone(), ExecutionMode::Automatic, first),
+        runtime.start_execution(id.clone(), ExecutionMode::Automatic, other),
+    );
+    assert_eq!(first.status, CommandStatus::Accepted);
+    assert_eq!(duplicate.status, CommandStatus::Accepted);
+    assert_eq!(first.command_id, duplicate.command_id);
+    let conflict = runtime.start_execution(id.clone(), ExecutionMode::Interactive, CommandContext::default()).await;
+    assert_eq!(conflict.status, CommandStatus::Rejected);
+
+    let (stopped_once, stopped_twice) = tokio::join!(
+        runtime.stop_execution(id.clone(), CommandContext::default()),
+        runtime.stop_execution(id.clone(), CommandContext::default()),
+    );
+    stopped_once.unwrap();
+    stopped_twice.unwrap();
+    let stopped = cycle_snapshot(&runtime, &queued).await;
+    assert_eq!(stopped.phase, CyclePhase::Active);
+    assert!(!stopped.continue_automatically);
+    assert_eq!(stopped.test_executions[0].status, ExecutionStatus::Cancelled);
+    assert!(stopped.test_executions[0].saved.is_some());
+    assert_eq!(stopped.test_executions[1], members[1]);
+    assert_eq!(cycle_snapshot(&runtime, &running).await.test_executions[0].status, ExecutionStatus::Running);
+    let retry = runtime.start_execution(id, ExecutionMode::Automatic, CommandContext::default()).await;
+    assert_eq!(retry.command_id, first.command_id);
+    assert_eq!(retry.status, CommandStatus::Accepted);
+    executor.release();
+}
+
+#[tokio::test]
+async fn continuation_failure_leaves_unstarted_siblings_and_idle_append() {
+    use dokime_domain::model::execution::{ExecutionMode, result::CyclePhase};
+    let root = tempdir().unwrap();
+    let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::case_parameter())).await;
+    let suite = fixture_suite(&["failed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let cycle = start_cycle(&runtime, suite, false).await;
+    let before = cycle_snapshot(&runtime, &cycle).await;
+    let first = before.test_executions[0].test_execution_id.clone();
+    let receipt = runtime.start_execution(first, ExecutionMode::Automatic, CommandContext::default()).await;
+    wait_for_run_settled(&runtime, &receipt.command_id).await;
+    let failed = cycle_snapshot(&runtime, &cycle).await;
+    assert_eq!(failed.phase, CyclePhase::Active);
+    assert_eq!(failed.test_executions[0].status, ExecutionStatus::Failed);
+    assert!(failed.test_executions[0].saved.is_some());
+    assert_eq!(failed.test_executions[1], before.test_executions[1]);
+
+    let case = before.test_executions[1].snapshot.case().clone();
+    runtime.append_fixture_cases(cycle.clone(), vec![case], CommandContext::default()).await.unwrap();
+    let idle = cycle_snapshot(&runtime, &cycle).await;
+    assert_eq!(idle.test_executions.len(), 3);
+    assert!(idle.test_executions[1..].iter().all(|execution| execution.started_at.is_none() && execution.finished_at.is_none()));
+    assert_eq!(runtime.watch_state().latest().state().run_requests.len(), 1);
+}

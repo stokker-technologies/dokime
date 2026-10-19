@@ -13,11 +13,11 @@
 
 /* === Local Imports === */
 
+import type { Row8 as Metadata, Row3 as ReportFrame } from "@generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type { Row8 as Metadata, Row3 as ReportFrame } from "../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb";
 import { NATIVE_HTML_DOCUMENT_BYTES, openNativeDocument, saveNativeDocument } from "./native-delivery";
 import { NativeApiLimitError, NativeApiUnsupportedError } from "./native-values";
 

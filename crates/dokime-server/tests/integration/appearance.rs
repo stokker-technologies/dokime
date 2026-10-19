@@ -66,7 +66,7 @@ async fn appearance_asset_bound() {
     let mut owner = runtime(root.path()).await;
     owner.handle().set_brand(Some(brand(&path)));
     let expected = owner.handle().appearance_frame().await;
-    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let appearance = WireClient::connect(server.local_endpoint()).await.unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(

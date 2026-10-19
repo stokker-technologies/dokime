@@ -1,77 +1,110 @@
 #!/bin/sh
 # Dokime — SPDX-License-Identifier: Apache-2.0
-# Pass Connection Flags Such As --endpoint, --ca, --key-file Or --env-file.
 set -eu
 
-dokime=${DOKIME_EXECUTABLE:-dokime}
-directory=${DOKIME_OUTPUT_DIRECTORY:-prompt-evidence}
-cycle=
-execution=
-prompt=
-result=0
+# Connection Parameters
+ENDPOINT="https://127.0.0.1:8766"
+CA_CERTIFICATE="server.pem"
+KEY_FILE="remote.key"
+ENV_FILE=""
 
-mkdir -p "$directory"
-for name in execution.zip cycle.zip interrupted-execution.zip interrupted-cycle.zip; do
-    destination=$directory/$name
-    if [ -e "$destination" ] || [ -L "$destination" ]; then
-        printf 'Evidence File Exists: %s; Choose An Empty Output Directory\n' "$destination" >&2
+# Case And Execution Parameters
+TEMPLATE="obc.checks.pulse"
+CYCLE_LABEL="Remote Confirmation Demonstration"
+ANSWER="yes"
+WAIT_SECONDS=60
+
+# Evidence Files
+OUTPUT_DIRECTORY="prompt-evidence"
+OVERWRITE=false
+
+# Connect With The Explicit Parameters
+cli() {
+    set -- "$@" --endpoint "$ENDPOINT"
+    if [ -n "$CA_CERTIFICATE" ]; then set -- "$@" --ca "$CA_CERTIFICATE"; fi
+    if [ -n "$KEY_FILE" ]; then set -- "$@" --key-file "$KEY_FILE"; fi
+    if [ -n "$ENV_FILE" ]; then set -- "$@" --env-file "$ENV_FILE"; fi
+    dokime "$@"
+}
+
+cycle=""
+execution=""
+result=0
+case "$WAIT_SECONDS" in ''|*[!0-9]*|0) printf 'WAIT_SECONDS Must Be A Positive Integer\n' >&2; exit 2 ;; esac
+mkdir -p "$OUTPUT_DIRECTORY/recovery"
+
+# Retain Confirmed Identities On Failure
+trap 'status=$?; if [ "$status" -ne 0 ]; then printf "Workflow Incomplete; Inspect Cycle: %s Execution: %s Before Resubmitting\n" "$cycle" "$execution" >&2; fi' 0
+
+# Preserve Existing Evidence Before Starting Device Work
+preflight() {
+    if [ "$OVERWRITE" != true ] && { [ -e "$1" ] || [ -L "$1" ]; }; then
+        printf 'Evidence File Exists: %s\n' "$1" >&2
         exit 2
     fi
-done
-
-recover() {
-    status=$?
-    if [ "$status" -ne 0 ]; then
-        printf 'Recovery Cycle: %s Execution: %s Prompt: %s\n' "$cycle" "$execution" "$prompt" >&2
-        printf 'A Failed Connection Does Not Confirm Cancellation Or An Answer. Inspect The Original Identities Before Resubmitting\n' >&2
-    fi
 }
-trap recover 0
-
-# Exit 1 Means A Saved Non-Passing Outcome; Other Errors Cannot Prove Sealing.
+export_bundle() {
+    if [ "$OVERWRITE" = true ]; then cli "$@" --overwrite; else cli "$@"; fi
+}
 wait_saved() {
-    wait_status=0
-    "$dokime" execution wait "$execution" --wait-seconds 120 "$@" || wait_status=$?
-    case "$wait_status" in
-        0) return 0 ;;
-        1) result=1; return 0 ;;
-        *) return "$wait_status" ;;
-    esac
+    status=0
+    cli "$@" || status=$?
+    case "$status" in 0) ;; 1) result=1 ;; *) exit "$status" ;; esac
 }
 
+# Recover This Script's Cycle At Any Shell Interruption Boundary
 cancel() {
     trap '' INT TERM
-    printf 'Cancellation Requested; Waiting For Saved Evidence\n' >&2
     if [ -z "$cycle" ]; then
-        printf 'Cycle Creation Was Not Confirmed. Inspect The Host Before Creating Another\n' >&2
+        printf 'Cycle Creation Was Not Confirmed; Inspect The Server Before Resubmitting\n' >&2
         exit 130
     fi
+    if [ -n "$execution" ]; then cli execution stop "$execution" || :; fi
+    cli cycle seal "$cycle"
     if [ -n "$execution" ]; then
-        "$dokime" execution stop "$execution" "$@" || printf 'Stop Was Not Confirmed; Checking For A Durable Outcome\n' >&2
+        wait_saved execution wait "$execution"
+        if [ ! -e "$OUTPUT_DIRECTORY/execution.zip" ]; then
+            export_bundle execution export "$execution" --output "$OUTPUT_DIRECTORY/execution.zip"
+        fi
     fi
-    "$dokime" cycle seal "$cycle" "$@"
-    if [ -n "$execution" ]; then
-        wait_saved "$@"
-        "$dokime" execution export "$execution" --output "$directory/interrupted-execution.zip" "$@"
+    if [ ! -e "$OUTPUT_DIRECTORY/cycle.zip" ]; then
+        export_bundle cycle export "$cycle" --output "$OUTPUT_DIRECTORY/cycle.zip"
     fi
-    "$dokime" cycle export "$cycle" --output "$directory/interrupted-cycle.zip" "$@"
     exit 130
 }
-trap 'cancel "$@"' INT TERM
+trap cancel INT TERM
 
-cycle=$("$dokime" cycle create --label 'Remote Confirmation Demonstration' --id-only "$@")
+case "$ANSWER" in yes|no) ;; *) printf 'ANSWER Must Be yes Or no\n' >&2; exit 2 ;; esac
+preflight "$OUTPUT_DIRECTORY/execution.zip"
+preflight "$OUTPUT_DIRECTORY/cycle.zip"
+
+# Materialize The Confirmation Case And Append Its Attempt
+cases=$(cli plan materialize --template "$TEMPLATE" --parameters-json '{"require_confirmation":true}' --id-only)
+set -- $cases
+[ "$#" -eq 1 ] || { printf 'Expected One Confirmation Case\n' >&2; exit 2; }
+case_id=$1
+cycle=$(cli cycle create --label "$CYCLE_LABEL" --id-only)
 printf 'Cycle: %s\n' "$cycle"
-execution=$("$dokime" cycle append "$cycle" --template obc.checks.pulse --parameters-json '{"require_confirmation":true}' --id-only "$@")
-request_key=remote-$execution
-printf 'Execution: %s Request Key: %s Mode: automatic\n' "$execution" "$request_key"
-"$dokime" execution run "$execution" --request-key "$request_key" "$@"
+execution=$(cli cycle append "$cycle" --case-id "$case_id" --id-only \
+            --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery")
+printf 'Execution: %s\n' "$execution"
 
-prompt=$("$dokime" execution prompt next "$execution" --wait-seconds 60 --id-only "$@")
+# Start Without Blocking So The Script Can Answer Its Prompt
+cli execution start "$execution" \
+    --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery"
+prompt=$(cli execution prompt next "$execution" --wait-seconds "$WAIT_SECONDS" --id-only \
+    --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery")
 printf 'Prompt: %s Execution: %s\n' "$prompt" "$execution"
-"$dokime" execution prompt show "$execution" "$prompt" "$@"
-"$dokime" execution prompt answer "$execution" "$prompt" --action yes "$@"
-wait_saved "$@"
-"$dokime" execution export "$execution" --output "$directory/execution.zip" "$@"
-"$dokime" cycle seal "$cycle" "$@"
-"$dokime" cycle export "$cycle" --output "$directory/cycle.zip" "$@"
+cli execution prompt show "$execution" "$prompt" \
+    --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery"
+cli execution prompt answer "$execution" "$prompt" --action "$ANSWER" \
+    --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery"
+wait_saved execution wait "$execution" --wait-seconds "$WAIT_SECONDS" \
+    --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery"
+export_bundle execution export "$execution" --output "$OUTPUT_DIRECTORY/execution.zip" \
+        --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery"
+
+# Seal The Container And Save Its Complete Bundle
+cli cycle seal "$cycle"
+export_bundle cycle export "$cycle" --output "$OUTPUT_DIRECTORY/cycle.zip"
 exit "$result"

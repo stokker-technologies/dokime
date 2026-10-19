@@ -80,6 +80,8 @@ pub struct RuntimeState {
     pub telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
     pub cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
     pub executions: BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
+    // Live Projections Can Retire; Attempt Identities Must Never Be Reused.
+    pub retired_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
     pub cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     pub report_finalizations: BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
     pub run_requests: BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
@@ -110,6 +112,15 @@ pub enum RuntimeStateInstallError {
 
 /* === Implementations === */
 impl RuntimeState {
+    pub fn case_definition_revision(&self, case: &crate::definition::TestCase) -> Result<String, String> {
+        use sha2::{Digest, Sha256};
+        let suite = self.suites.suite_for_case(case).ok_or("case owning suite is not installed")?;
+        let identity = self.execution_identity(&suite.source);
+        let captured = serde_json::to_vec(&(suite, identity)).map_err(|error| error.to_string())?;
+        let digest = Sha256::digest(captured);
+        Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+    }
+
     pub fn process_epoch(&self) -> &SessionId {
         &self.record_namespace
     }
@@ -121,6 +132,9 @@ impl RuntimeState {
                 return Err("cycle identity differs from its canonical key".into());
             }
             for id in &cycle.execution_ids {
+                if self.retired_executions.contains(id) {
+                    return Err("live execution identity is marked retired".into());
+                }
                 if !membership.insert(id) {
                     return Err("execution has duplicate cycle membership".into());
                 }
@@ -187,6 +201,7 @@ impl RuntimeState {
             updated_at: cycle.updated_at.clone(),
             test_executions,
             records: cycle.records.clone(),
+            continue_automatically: cycle.continue_automatically,
             continue_on_failure: cycle.continue_on_failure,
             result: cycle.result.clone(),
         })
@@ -198,6 +213,7 @@ impl RuntimeState {
         for id in sealed {
             let cycle = self.cycles.remove(&id).expect("selected sealed cycle");
             for execution_id in &cycle.execution_ids {
+                self.retired_executions.insert(execution_id.clone());
                 self.executions.remove(execution_id);
             }
             self.records.record_visibility.retain(|record| {
@@ -230,6 +246,9 @@ impl RuntimeState {
         }
         let mut ids = std::collections::BTreeSet::new();
         for execution in &view.test_executions {
+            if self.retired_executions.contains(&execution.test_execution_id) {
+                return Err("execution identity belongs to retired history".into());
+            }
             if execution.test_cycle_id != view.test_cycle_id {
                 return Err("execution belongs to another cycle".into());
             }
@@ -259,6 +278,7 @@ impl RuntimeState {
         if let Some(previous) = self.cycles.get(&view.test_cycle_id) {
             for id in &previous.execution_ids {
                 if !ids.contains(id) {
+                    self.retired_executions.insert(id.clone());
                     self.executions.remove(id);
                 }
             }
@@ -281,6 +301,7 @@ impl RuntimeState {
                 updated_at: view.updated_at,
                 execution_ids,
                 records: view.records,
+                continue_automatically: view.continue_automatically,
                 continue_on_failure: view.continue_on_failure,
                 result: view.result,
             },
@@ -303,6 +324,7 @@ impl RuntimeState {
             telemetry_definitions: BTreeMap::new(),
             cycles: BTreeMap::new(),
             executions: BTreeMap::new(),
+            retired_executions: std::collections::BTreeSet::new(),
             run_requests: BTreeMap::new(),
             run_queue: std::collections::VecDeque::new(),
             cycle_report_finalizations: BTreeMap::new(),

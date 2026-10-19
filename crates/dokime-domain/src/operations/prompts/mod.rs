@@ -28,7 +28,6 @@ pub use respond::Respond;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
 #[allow(unused_imports)]
@@ -72,27 +71,22 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for ListDefinitions {
     const PATH: &'static str = "/dokime.v1.Prompts/ListDefinitions";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetDefinition {
     const PATH: &'static str = "/dokime.v1.Prompts/GetDefinition";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListPending {
     const PATH: &'static str = "/dokime.v1.Prompts/ListPending";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetPrompt {
     const PATH: &'static str = "/dokime.v1.Prompts/GetPrompt";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for Respond {
     const PATH: &'static str = "/dokime.v1.Prompts/Respond";
-    const ACCESS: Access = Access::Control;
 }
 
 /* === Public Functions === */

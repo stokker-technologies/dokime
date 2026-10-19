@@ -10,7 +10,7 @@
 /* The selected execution's run controls, published into the page bar's
  * action slot while an execution is selected.
  *
- * Start for an attempt that has not started, Re-Run for an ended attempt,
+ * Start or Stop for an unstarted attempt, Re-Run for an ended attempt,
  * Pause or Resume for an execution-addressed run, and Stop Execution, in that
  * order (`executionControlSet`); the group is absent when the execution offers
  * none. Eligibility is the runtime's: the execution's own `controls` say what
@@ -43,6 +43,14 @@ import {
 } from "./cycle-workspace-model";
 import { useExecutionDetailQuery } from "./server-state";
 
+/* === Constants === */
+
+const CONTROL_REPORT: Record<ControlAction, string> = {
+  pause: "Execution Pause Requested",
+  resume: "Execution Resume Requested",
+  stop: "Execution Stopped And Evidence Saved",
+};
+
 /* === Types === */
 
 export type CycleExecutionControlsProps = {
@@ -52,14 +60,6 @@ export type CycleExecutionControlsProps = {
 };
 
 type ControlAction = "pause" | "resume" | "stop";
-
-/* === Constants === */
-
-const CONTROL_REPORT: Record<ControlAction, string> = {
-  pause: "Execution Pause Requested",
-  resume: "Execution Resume Requested",
-  stop: "Execution Stop Requested",
-};
 
 /* === Components === */
 
@@ -75,10 +75,10 @@ export function CycleExecutionControls({ cycleId, selection, onSelectExecution }
 
   const execution = (started && detailQuery.data) || row.execution;
   const controls = execution.controls;
-  const caseActions = row.case.actions;
-  const startAllowed = caseActions === null || caseActions.run;
-  const rerunAllowed = caseActions === null || caseActions.schedule_rerun;
-  const set = executionControlSet(execution.status, controls);
+  const startAllowed = detail?.plan?.test_cycle.phase === "active";
+  const rerunAllowed = startAllowed;
+  const stopping = commands.stopExecution.isPending;
+  const set = stopping ? ["Stop Execution"] : executionControlSet(execution.status, controls);
 
   const control = (action: ControlAction) => {
     const mutation = {
@@ -101,7 +101,7 @@ export function CycleExecutionControls({ cycleId, selection, onSelectExecution }
       .rerun(execution.case_id)
       .then((created) => {
         if (created) onSelectExecution(created);
-        toast.success("Case Re-Run Started");
+        toast.success("New Attempt Ready To Start");
       })
       .catch((error: unknown) =>
         toast.error("Case Re-Run Failed", {
@@ -111,7 +111,7 @@ export function CycleExecutionControls({ cycleId, selection, onSelectExecution }
   };
 
   const start = () => {
-    void commands.runCase
+    void commands.startExecution
       .mutateAsync(execution.test_execution_id)
       .then(() => toast.success("Execution Started"))
       .catch((error: unknown) =>
@@ -128,7 +128,7 @@ export function CycleExecutionControls({ cycleId, selection, onSelectExecution }
       {set.includes("Start") ? (
         <Button
           className={PAGE_BAR_CONTROL_CLASS}
-          disabled={!startAllowed || commands.runCase.isPending}
+          disabled={!startAllowed || commands.startExecution.isPending}
           onClick={start}
           title={startAllowed ? undefined : caseActionTooltip(row.case)}
           variant="default"
@@ -141,7 +141,7 @@ export function CycleExecutionControls({ cycleId, selection, onSelectExecution }
         <Button
           aria-label="Re-Run Case"
           className={PAGE_BAR_CONTROL_CLASS}
-          disabled={!rerunAllowed || commands.scheduleRerun.isPending}
+          disabled={!rerunAllowed || commands.appendAttempt.isPending}
           onClick={rerun}
           title={rerunAllowed ? undefined : caseActionTooltip(row.case)}
           variant="outline"
@@ -150,8 +150,7 @@ export function CycleExecutionControls({ cycleId, selection, onSelectExecution }
           Re-Run
         </Button>
       ) : null}
-      {/* A member of a cycle run pauses with its cycle; only an
-          execution-addressed run offers its own Pause and Resume. */}
+      {/* Pause And Resume Follow The Selected Execution's Admission */}
       {!controls || !(set.includes("Pause Execution") || set.includes("Resume Execution")) ? null : controls.paused ? (
         <Button
           className={PAGE_BAR_CONTROL_CLASS}
@@ -173,15 +172,17 @@ export function CycleExecutionControls({ cycleId, selection, onSelectExecution }
           Pause Execution
         </Button>
       )}
-      {set.includes("Stop Execution") && controls ? (
+      {set.includes("Stop Execution") ? (
         <Button
           className={PAGE_BAR_CONTROL_CLASS}
-          disabled={!controls.canStop || controls.stopRequested || commands.stopExecution.isPending}
+          disabled={
+            !startAllowed || Boolean(controls?.stopRequested) || stopping || (!isUnstartedExecution(execution.status) && !controls?.canStop)
+          }
           onClick={() => control("stop")}
           variant="danger"
         >
           <Square data-icon="inline-start" />
-          Stop Execution
+          {stopping ? "Stopping — Saving Evidence" : "Stop Execution"}
         </Button>
       ) : null}
     </fieldset>

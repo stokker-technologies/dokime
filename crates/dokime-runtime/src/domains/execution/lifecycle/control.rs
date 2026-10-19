@@ -79,7 +79,95 @@ impl RuntimeHandle {
     }
 
     pub async fn stop_execution(&self, id: TestExecutionId, context: CommandContext) -> Result<(), Error> {
-        self.control_execution(id, Action::Stop, context).await
+        let permit = self.admit_owned_work().ok_or(Error::ShuttingDown)?;
+        let runtime = self.clone();
+        tokio::spawn(async move {
+            let _permit = permit;
+            runtime.stop_execution_inner(id, context).await
+        })
+        .await
+        .map_err(|source| Error::Join { source })?
+    }
+
+    async fn stop_execution_inner(&self, id: TestExecutionId, context: CommandContext) -> Result<(), Error> {
+        let admission = self.plugin_admission.lock().await;
+        let execution = self.known_execution(&id).await?.ok_or_else(|| Error::not_found("execution_not_found", "execution not found"))?;
+        if !self.state_read().executions.contains_key(&id) {
+            return if execution.saved.is_some() { Ok(()) } else { Err(Error::Operation("historical execution is not sealed".into())) };
+        }
+        let cycle_id = execution.test_cycle_id.clone();
+        if self.state_read().cycles[&cycle_id].phase == dokime_domain::model::execution::result::CyclePhase::Sealed {
+            return Ok(());
+        }
+        self.commit_with_key(
+            context.idempotency_key,
+            crate::transactions::ControlExecution {
+                test_execution_id: id.clone(),
+                action: Action::Stop,
+                occurred_at: crate::model::time::now_utc(),
+            },
+        )
+        .await?;
+
+        let request = crate::transactions::ControlExecution::owning_request(&self.state_read(), &id).cloned();
+        let owns_task = request.as_ref().is_some_and(|request| {
+            self.provider_tasks
+                .lock()
+                .expect("provider task registry is healthy")
+                .iter()
+                .any(|task| task.request_id == request.summary.request_id && !task.settled.is_cancelled())
+        });
+        let queued = !owns_task
+            && request.as_ref().is_some_and(|request| request.summary.phase == crate::transactions::provider::request::RunPhase::Queued);
+        if queued {
+            let request = request.as_ref().expect("queued request");
+            self.commit(crate::transactions::StageQueuedStop {
+                request_id: request.summary.request_id.clone(),
+                at: crate::model::time::now_utc(),
+            })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
+        }
+        drop(admission);
+
+        if !queued && let Some(request) = &request {
+            let pending = self
+                .provider_tasks
+                .lock()
+                .expect("provider task registry is healthy")
+                .iter()
+                .filter(|task| task.request_id == request.summary.request_id)
+                .map(|task| task.settled.clone())
+                .collect::<Vec<_>>();
+            for settled in pending {
+                settled.cancelled().await;
+            }
+        }
+        let cycle =
+            self.state_read().cycle_view(&cycle_id).ok_or_else(|| Error::not_found("cycle_not_found", "execution cycle not found"))?;
+        let execution = cycle
+            .test_executions
+            .iter()
+            .find(|execution| execution.test_execution_id == id)
+            .ok_or_else(|| Error::not_found("execution_not_found", "execution not found"))?;
+        if execution.saved.is_none() {
+            self.finish_saved_execution(&cycle, execution).await?;
+        }
+        if queued {
+            let request = request.expect("queued request");
+            let at = self.state_read().run_requests[&request.summary.request_id]
+                .completion_at
+                .clone()
+                .ok_or_else(|| Error::Operation("queued stop has no completion timestamp".into()))?;
+            self.commit(crate::transactions::CompleteRun { request_id: request.summary.request_id.clone(), at, unsealed: None })
+                .await
+                .map_err(|error| Error::Operation(error.to_string()))?;
+            let summary = self.state_read().run_requests[&request.summary.request_id].summary.clone();
+            self.request_storage.update(&request.summary.request_id, |receipt| receipt.summary = summary).await?;
+        }
+        self.execution_storage.save_cycle_header(cycle_id).await?;
+        self.dispatch_next_request().await;
+        Ok(())
     }
 
     async fn control_execution(&self, id: TestExecutionId, action: Action, context: CommandContext) -> Result<(), Error> {
@@ -143,7 +231,7 @@ impl RuntimeHandle {
         self.control_cycle(test_cycle_id, Action::Resume, context).await
     }
 
-    pub async fn stop_cycle(&self, test_cycle_id: TestCycleId, context: CommandContext) -> Result<(), Error> {
+    pub(crate) async fn stop_cycle(&self, test_cycle_id: TestCycleId, context: CommandContext) -> Result<(), Error> {
         self.control_cycle(test_cycle_id, Action::Stop, context).await
     }
 

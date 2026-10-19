@@ -22,7 +22,6 @@ use crate::transactions::cycle::apply_cycle_reset;
 use crate::{CommandContext, RuntimeHandle, runtime::Error};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -40,15 +39,6 @@ use dokime_domain::model::identity::TestExecutionId;
 impl RuntimeHandle {
     pub async fn delete_cycle_case(&self, test_cycle_id: TestCycleId, test_case_id: CaseId, context: CommandContext) -> Result<(), Error> {
         self.reset_cycle(test_cycle_id, Action::Delete { test_case_id }, context).await
-    }
-
-    pub async fn rerun_cycle_case(&self, test_cycle_id: TestCycleId, test_case_id: CaseId, context: CommandContext) -> Result<(), Error> {
-        self.reset_cycle(
-            test_cycle_id,
-            Action::Rerun { test_case_id, execution_id: crate::model::identity::new_id::<TestExecutionId>() },
-            context,
-        )
-        .await
     }
 
     async fn reset_cycle(&self, test_cycle_id: TestCycleId, action: Action, context: CommandContext) -> Result<(), Error> {

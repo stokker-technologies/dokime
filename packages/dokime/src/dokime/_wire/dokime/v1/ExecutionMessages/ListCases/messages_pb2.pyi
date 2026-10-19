@@ -39,7 +39,7 @@ class Row3(_message.Message):
     def __init__(self, epoch: _Optional[str] = ..., stream: _Optional[str] = ..., position: _Optional[int] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("case_id", "template_id", "metadata", "ordinal", "status", "latest_execution_id", "latest_execution_status", "attempt_count", "rerun_scheduled", "actions", "suite_id")
+    __slots__ = ("case_id", "template_id", "metadata", "ordinal", "status", "latest_execution_id", "latest_execution_status", "attempt_count", "actions", "suite_id")
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -48,7 +48,6 @@ class Row4(_message.Message):
     LATEST_EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     LATEST_EXECUTION_STATUS_FIELD_NUMBER: _ClassVar[int]
     ATTEMPT_COUNT_FIELD_NUMBER: _ClassVar[int]
-    RERUN_SCHEDULED_FIELD_NUMBER: _ClassVar[int]
     ACTIONS_FIELD_NUMBER: _ClassVar[int]
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     case_id: str
@@ -59,10 +58,9 @@ class Row4(_message.Message):
     latest_execution_id: str
     latest_execution_status: Row7
     attempt_count: int
-    rerun_scheduled: bool
     actions: Row8
     suite_id: str
-    def __init__(self, case_id: _Optional[str] = ..., template_id: _Optional[str] = ..., metadata: _Optional[_Union[Row5, _Mapping]] = ..., ordinal: _Optional[int] = ..., status: _Optional[_Union[Row6, _Mapping]] = ..., latest_execution_id: _Optional[str] = ..., latest_execution_status: _Optional[_Union[Row7, _Mapping]] = ..., attempt_count: _Optional[int] = ..., rerun_scheduled: _Optional[bool] = ..., actions: _Optional[_Union[Row8, _Mapping]] = ..., suite_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, case_id: _Optional[str] = ..., template_id: _Optional[str] = ..., metadata: _Optional[_Union[Row5, _Mapping]] = ..., ordinal: _Optional[int] = ..., status: _Optional[_Union[Row6, _Mapping]] = ..., latest_execution_id: _Optional[str] = ..., latest_execution_status: _Optional[_Union[Row7, _Mapping]] = ..., attempt_count: _Optional[int] = ..., actions: _Optional[_Union[Row8, _Mapping]] = ..., suite_id: _Optional[str] = ...) -> None: ...
 
 class Row5(_message.Message):
     __slots__ = ("identifier", "label", "description", "tags", "attributes", "created_at", "updated_at")
@@ -133,16 +131,12 @@ class Row7(_message.Message):
     def __init__(self, Unspecified: _Optional[_Union[Row22, _Mapping]] = ..., Invalidated: _Optional[_Union[Row23, _Mapping]] = ..., Pending: _Optional[_Union[Row24, _Mapping]] = ..., Running: _Optional[_Union[Row25, _Mapping]] = ..., Passed: _Optional[_Union[Row26, _Mapping]] = ..., Failed: _Optional[_Union[Row27, _Mapping]] = ..., Blocked: _Optional[_Union[Row28, _Mapping]] = ..., Cancelled: _Optional[_Union[Row29, _Mapping]] = ..., Interrupted: _Optional[_Union[Row30, _Mapping]] = ..., Skipped: _Optional[_Union[Row31, _Mapping]] = ...) -> None: ...
 
 class Row8(_message.Message):
-    __slots__ = ("run", "schedule_rerun", "delete", "unavailable_reasons")
-    RUN_FIELD_NUMBER: _ClassVar[int]
-    SCHEDULE_RERUN_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("delete", "unavailable_reasons")
     DELETE_FIELD_NUMBER: _ClassVar[int]
     UNAVAILABLE_REASONS_FIELD_NUMBER: _ClassVar[int]
-    run: bool
-    schedule_rerun: bool
     delete: bool
     unavailable_reasons: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, run: _Optional[bool] = ..., schedule_rerun: _Optional[bool] = ..., delete: _Optional[bool] = ..., unavailable_reasons: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, delete: _Optional[bool] = ..., unavailable_reasons: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Row9(_message.Message):
     __slots__ = ("key", "value")

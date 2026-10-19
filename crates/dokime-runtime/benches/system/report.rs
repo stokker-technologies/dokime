@@ -193,13 +193,19 @@ async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runti
     }
     let test_cycle_id = runtime
         .create_cycle(
-            CycleDefinition { metadata: registration.suite.metadata.clone(), continue_on_failure: true },
+            CycleDefinition { metadata: registration.suite.metadata.clone(), continue_automatically: true, continue_on_failure: true },
             CommandContext::default(),
         )
         .await
         .unwrap();
-    runtime.append_cycle_cases(test_cycle_id.clone(), cases, CommandContext::default()).await.unwrap();
-    let receipt = runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let executions =
+        cases.iter().map(|case| (dokime_runtime::model::identity::new_id::<TestExecutionId>(), case.test_case_id.clone())).collect();
+    let registration = dokime_runtime::model::identity::new_id::<CommandId>();
+    runtime.register_cases(registration, cases).await.unwrap();
+    runtime.append_executions(test_cycle_id.clone(), executions).await.unwrap();
+    let execution_id = runtime.watch_state().latest().state().cycles[&test_cycle_id].execution_ids[0].clone();
+    let receipt =
+        runtime.start_execution(execution_id, dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     (owner, runtime, test_cycle_id, receipt.command_id)
 }
 

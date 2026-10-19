@@ -22,7 +22,6 @@ pub use update_plot_settings::UpdatePlotSettings;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
 use super::TRANSFER;
@@ -56,12 +55,10 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for CaptureCurrentDocument {
     const PATH: &'static str = "/dokime.v1.Documents/CaptureCurrentDocument";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for UpdatePlotSettings {
     const PATH: &'static str = "/dokime.v1.Documents/UpdatePlotSettings";
-    const ACCESS: Access = Access::Control;
 }
 
 /* === Public Functions === */

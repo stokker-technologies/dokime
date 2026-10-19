@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/tools/cliff.toml; sha256:bfa3f241bb7d1e349ac14a499b3a6e23960d36347afbee7b5a5b60921f38ae99
+# Rendered by stkr project update from templates/tools/cliff.toml; sha256:38010051c8a3c0c3133c069845fe46945e5fe5148238d0f748f1fd6ae90f22f4
 # ***
 #
 # Dokime
@@ -32,6 +32,7 @@ conventional_commits = true
 filter_unconventional = true
 split_commits = false
 commit_parsers = [
+  { message = '^chore\(release\): prepare v[0-9]+\.[0-9]+\.[0-9]+$', skip = true },
   { message = "^feat", group = "added" },
   { message = "^fix", group = "fixed" },
   { message = "^docs", group = "changed" },

@@ -40,7 +40,7 @@ use dokime_domain::model;
 /* === Private Functions === */
 async fn client(root: &std::path::Path) -> (impl Sized, WireClient) {
     let owner = runtime(root).await;
-    let config = Config::default().with_bearer_auth(vec![grant(Role::Read)]).unwrap();
+    let config = keyed();
     let server = Server::start(owner.handle(), config).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 

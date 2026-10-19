@@ -49,10 +49,7 @@ use tonic::{
 };
 // Local Imports
 use dokime_client::contracts;
-use dokime_server::grpc::{
-    Config, Server, TlsIdentity,
-    access::{BearerGrant, Role},
-};
+use dokime_server::grpc::{Config, Server, TlsIdentity};
 use support::wire::*;
 use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime};
 

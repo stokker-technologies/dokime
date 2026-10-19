@@ -94,6 +94,18 @@ impl Args {
 }
 
 impl Planned {
+    pub(crate) fn single_template(self) -> crate::Result<Self> {
+        let plan = self.plan.as_ref().ok_or_else(|| crate::Error::Input("one template selection is required".into()))?;
+        let one_template = plan.selections.len() == 1 && plan.case_ids.is_empty();
+        let canonical_expansion = plan.max_cases == 0 && plan.cycle_id.is_empty();
+        if !one_template || !canonical_expansion {
+            return Err(crate::Error::Input(
+                "materialize requires exactly one template selection without case IDs, cycle or a case limit".into(),
+            ));
+        }
+        Ok(self)
+    }
+
     // Everything checkable without a backend is refused before connecting.
     pub(crate) fn canonical(plan: Option<SelectionPlan>) -> crate::Result<Self> {
         if let Some(plan) = &plan {

@@ -32,6 +32,7 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Structs === */
 #[derive(Debug, clap::Args)]
+#[group(id = "execution_wait")]
 pub(crate) struct Args {
     #[arg(help = "Execution UUID Whose Saved Seal Is Required.")]
     execution_id: String,
@@ -57,28 +58,46 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
+    execute(args, None).await
+}
+
+pub(super) async fn execute(args: Args, options: Option<dokime_client::RunOptions>) -> crate::Result<()> {
     let id = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let recovery = args.recovery.prepare(&id)?;
     let client = args.connection.connect().await?;
     let execution = client.execution(id);
     let timeout = args.wait_seconds.map(Duration::from_secs);
     let result = async {
-        if let Some(plan) = &recovery {
-            plan.verify(&execution).await?;
-        }
-        tokio::select! {
-            outcome = execution.wait(timeout, None) => outcome.map_err(crate::Error::from),
-            interrupted = super::recovery::interrupted(&args.execution_id, "Saved Outcome", recovery.is_some()) => {
-                interrupted?;
-                if let Some(plan) = &recovery {
-                    plan.recover(&client, &execution).await?;
-                    let message = format!("Interrupted execution {}. Collected execution and cycle evidence were saved; no operation was retried.", args.execution_id);
-                    return Err(crate::Error::Setup(message));
+        let observing = async {
+            let Some(mut options) = options else {
+                return execution.wait(timeout, None).await.map_err(crate::Error::from);
+            };
+            options.timeout = timeout;
+            let mut record_count = 0usize;
+            let mut sample_count = 0usize;
+            let mut records = |page: &dokime_domain::model::evidence::wire::RecordPage| {
+                for record in &page.records {
+                    observation("record", record)?;
+                    record_count += 1;
                 }
-                let message = format!("Stopped waiting for execution {}. Remote work may continue; reconnect using this identity.", args.execution_id);
-                Err(crate::Error::Setup(message))
-            }
-        }
+                Ok(())
+            };
+            let mut samples = |page: &dokime_domain::model::telemetry::wire::TelemetrySamplesReply| {
+                for sample in &page.samples {
+                    observation("sample", sample)?;
+                    sample_count += 1;
+                }
+                Ok(())
+            };
+            let callbacks = dokime_client::RunCallbacks { records: Some(&mut records), samples: Some(&mut samples) };
+            let outcome = execution.run(options, callbacks).await?;
+            eprintln!(
+                "Drained Evidence: {}",
+                serde_json::json!({"execution_id": args.execution_id, "records": record_count, "samples": sample_count})
+            );
+            Ok::<_, crate::Error>(outcome)
+        };
+        super::recovery::observe(&client, &execution, recovery.as_ref(), "Saved Outcome", observing).await
     }
     .await;
     client.close_and_wait().await;
@@ -103,5 +122,12 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 /* === Private Functions === */
+
+fn observation(kind: &str, value: &impl serde::Serialize) -> dokime_client::Result<()> {
+    use std::io::Write;
+    let output = serde_json::json!({"observation": kind, "value": value});
+    let result = writeln!(std::io::stderr(), "{output}");
+    result.map_err(|error| dokime_client::Error::Rpc(dokime_client::RpcStatus::internal(error.to_string())))
+}
 
 /* === Tests === */

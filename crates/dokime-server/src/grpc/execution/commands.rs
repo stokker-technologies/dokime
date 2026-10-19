@@ -21,8 +21,7 @@ use harmos::operations::{Context, Operation};
 use tonic::Status;
 // Local Imports
 use super::loan;
-use super::{requests, value};
-use crate::grpc::access::{Principal, Role};
+use super::value;
 use crate::grpc::value::canonical;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::CommandId;
@@ -66,9 +65,9 @@ impl Operation for Submit {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut wire::SubmitExecutionCommand, _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::SubmitExecutionCommand, _: &mut (),
     ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
-        submit(&self.resources, requests::principal(&context)?, request).await
+        submit(&self.resources, request).await
     }
 }
 
@@ -82,9 +81,9 @@ impl Operation for Lookup {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut wire::GetExecutionCommand, _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::GetExecutionCommand, _: &mut (),
     ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
-        get(&self.resources, requests::principal(&context)?, request).await
+        get(&self.resources, request).await
     }
 }
 
@@ -99,18 +98,15 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 }
 
 async fn submit(
-    resources: &super::Resources, principal: &Principal, request: &wire::SubmitExecutionCommand,
+    resources: &super::Resources, request: &wire::SubmitExecutionCommand,
 ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
     let runtime = &resources.runtime;
-    if principal.role() < Role::Control {
-        return Err(Status::permission_denied("control permission is required"));
-    }
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
     let execution_id =
         TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     let action = action(request.action, request.step_id.as_deref())?;
-    owned(runtime, principal, &request_id).await?;
+    receipt(runtime, &request_id).await?;
     let receipt = runtime.admit_execution_command(&request_id, command_id, execution_id, action).await.map_err(|error| match error {
         Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message),
         error => {
@@ -121,24 +117,23 @@ async fn submit(
 }
 
 async fn get(
-    resources: &super::Resources, principal: &Principal, request: &wire::GetExecutionCommand,
+    resources: &super::Resources, request: &wire::GetExecutionCommand,
 ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
     let runtime = &resources.runtime;
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
-    let receipt = owned(runtime, principal, &request_id).await?;
+    let receipt = receipt(runtime, &request_id).await?;
     let command = receipt.commands.get(&command_id).ok_or_else(|| Status::not_found("execution command not found"))?;
     charged_project(resources, &request_id, command)
 }
 
 /* === Private Functions === */
-async fn owned(runtime: &RuntimeHandle, principal: &Principal, request_id: &CommandId) -> Result<std::sync::Arc<RunReceipt>, Status> {
+async fn receipt(runtime: &RuntimeHandle, request_id: &CommandId) -> Result<std::sync::Arc<RunReceipt>, Status> {
     let receipt = runtime
         .run_request(request_id)
         .await
         .map_err(|error| super::super::error::detailed(Status::unavailable("cannot resolve primary run receipt; retry lookup"), &error))?
         .ok_or_else(|| Status::not_found("run request not found"))?;
-    requests::authorize(principal, &receipt)?;
     Ok(receipt)
 }
 

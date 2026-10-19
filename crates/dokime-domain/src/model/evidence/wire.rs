@@ -7,7 +7,7 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
+// Captured Evidence Selection And Paged Record Messages
 
 /* === Modules === */
 
@@ -41,8 +41,8 @@ use crate::model::values::wire::Value;
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapturedRecordSelection {
-    // Conjunction of exact supplied fields. Missing record fields do not match.
-    #[row(description = "Conjunction of exact supplied fields. Missing record fields do not match.")]
+    // Scope, Sources And Severities Are Exact; Record Type Globs Are Alternatives.
+    #[row(description = "Scope, sources and severities are exact; record type globs are alternatives.")]
     pub scope: Option<EvidenceScope>,
 
     pub record_types: Vec<String>,

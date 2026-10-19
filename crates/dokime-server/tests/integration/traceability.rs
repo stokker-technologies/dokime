@@ -95,7 +95,7 @@ async fn get_traceability_cursor() {
     )
     .await;
 
-    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let first = client
@@ -251,8 +251,8 @@ async fn get_traceability_cursor() {
         Code::FailedPrecondition
     );
 
-    handle.stop_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
-    handle.stop_cycle(second_cycle_id, CommandContext::default()).await.unwrap();
+    handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    handle.seal_cycle(second_cycle_id, CommandContext::default()).await.unwrap();
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();

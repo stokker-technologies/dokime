@@ -173,46 +173,39 @@ impl ScopedFixture {
             )
             .await
             .unwrap();
-        let cycle_id_typed = artifact::registered_cycle(&handle, "rpc.artifact-upload", metadata()).await;
+        let (cycle_id_typed, executions) = artifact::registered_cycle(&handle, "rpc.artifact-upload", metadata()).await;
         let cycle_id = cycle_id_typed.to_string();
-        handle.run_cycle_cases(cycle_id_typed, Default::default()).await;
+        let execution_id_typed = executions[0].clone();
+        let receipt = handle
+            .start_execution(execution_id_typed.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, Default::default())
+            .await;
+        assert_eq!(receipt.status, dokime_runtime::runtime::command::CommandStatus::Accepted);
         let mut state = handle.watch_state();
-        let server = dokime_server::grpc::Server::start(
-            handle,
-            dokime_server::grpc::Config::local()
-                .with_bearer_auth(vec![
-                    dokime_server::grpc::access::BearerGrant::new(
-                        "native-gui".into(),
-                        dokime_server::grpc::access::Role::Control,
-                        "artifact-upload-fixture-token-01234567890123",
-                    )
-                    .unwrap(),
-                ])
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        let server = dokime_server::grpc::Server::start(handle, dokime_server::grpc::Config::local()).await.unwrap();
         let session = dokime_gui::connection::ConnectionSession::default();
         session
             .connect(dokime_gui::connection::ConnectRequest {
                 target: dokime_gui::connection::ConnectionTarget::Local { endpoint: server.local_endpoint() },
-                credentials: dokime_gui::connection::ConnectionCredentials::Bearer {
-                    token: "artifact-upload-fixture-token-01234567890123".into(),
-                    remember: false,
-                },
+                credentials: dokime_gui::connection::ConnectionCredentials::None,
                 expected_backend_id: None,
             })
             .await
             .unwrap();
         let snapshot = state
-            .wait_until(|snapshot| snapshot.state().executions.values().any(|execution| execution.test_cycle_id.as_str() == cycle_id))
+            .wait_until(|snapshot| {
+                snapshot
+                    .state()
+                    .executions
+                    .get(&execution_id_typed)
+                    .is_some_and(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Running)
+            })
             .await
             .expect("the runtime remains live during fixture setup");
         let execution_id = snapshot
             .state()
             .executions
             .values()
-            .find(|execution| execution.test_cycle_id.as_str() == cycle_id)
+            .find(|execution| execution.test_execution_id == execution_id_typed)
             .unwrap()
             .test_execution_id
             .to_string();

@@ -71,11 +71,9 @@ impl GetIdentity {
 }
 impl super::Endpoint for GetHealth {
     const PATH: &'static str = GetHealth::PATH;
-    const ACCESS: super::Access = super::Access::Read;
 }
 impl super::Endpoint for GetIdentity {
     const PATH: &'static str = GetIdentity::PATH;
-    const ACCESS: super::Access = super::Access::Read;
 }
 
 /* === Public Functions === */

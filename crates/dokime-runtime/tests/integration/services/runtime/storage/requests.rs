@@ -47,6 +47,63 @@ use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::e
 /* === Tests === */
 
 #[tokio::test]
+async fn prepared_receipt_refuses_start_without_runtime_admission() {
+    use sha2::{Digest, Sha256};
+    let root = tempdir().unwrap();
+    let (_owner, handle) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&handle, suite.clone()).await;
+    let cycle_id = start_cycle(&handle, suite, false).await;
+    let execution_id = cycle_snapshot(&handle, &cycle_id).await.test_executions[0].test_execution_id.clone();
+    let node = handle.identity().node.node_id;
+    let command_id = CommandId::from_seed(format!("execution-start:{node}:{execution_id}"));
+    let mode = dokime_domain::model::execution::ExecutionMode::Automatic;
+    let encoded = serde_json::to_vec(&(&cycle_id, Some(&execution_id), mode)).unwrap();
+    let fingerprint = Sha256::digest(encoded).iter().map(|byte| format!("{byte:02x}")).collect();
+    let receipt = RunReceipt {
+        node_id: node,
+        summary: RunSummary {
+            mode,
+            request_id: command_id.clone(),
+            cycle_id: cycle_id.clone(),
+            phase: RunPhase::Queued,
+            paused: false,
+            stop_requested: false,
+            planned: 1,
+            prepared: 0,
+            finished: 0,
+            unstarted: 0,
+            failed: 0,
+            accepted_at: dokime_runtime::model::time::now_utc(),
+            provider_started_at: None,
+            finished_at: None,
+        },
+        fingerprint,
+        submitted_by: None,
+        claimed: 0,
+        last_claim: None,
+        interruption: None,
+        commands: BTreeMap::new(),
+    };
+    let native = Request::new(&receipt).unwrap();
+    let saved = handle.storage().write_object(&native).await.unwrap();
+    handle.storage().flush_until(&saved.position).await.unwrap();
+
+    for _ in 0..2 {
+        let retry = handle.start_execution(execution_id.clone(), mode, CommandContext::default()).await;
+        assert_eq!(retry.status, CommandStatus::Rejected);
+        assert_eq!(retry.command_id, command_id);
+        assert!(handle.watch_state().latest().state().run_requests.is_empty());
+        let execution = cycle_snapshot(&handle, &cycle_id).await.test_executions[0].clone();
+        assert!(execution.started_at.is_none() && execution.finished_at.is_none());
+    }
+    let interrupted = handle.run_request(&command_id).await.unwrap().unwrap();
+    assert_eq!(interrupted.summary.phase, RunPhase::Interrupted);
+    assert!(interrupted.last_claim.is_none());
+    assert_eq!(interrupted.claimed, 0);
+}
+
+#[tokio::test]
 async fn receipt_initialize_storage() {
     let root = tempdir().unwrap();
     let (mut runtime, handle) = booted(root.path()).await;
@@ -148,7 +205,7 @@ async fn admitted_progress_stop() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
     let cycle = start_cycle(&handle, suite, false).await;
-    let receipt = handle.run_cycle_cases(cycle, CommandContext::default()).await;
+    let receipt = handle.start_next_execution(cycle, CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
 
@@ -157,7 +214,7 @@ async fn admitted_progress_stop() {
     assert_eq!(progress.summary.prepared, 1);
     assert!(!progress.summary.phase.terminal());
     let progress_boundary = handle.storage().status().accepted;
-    assert!(!handle.storage().status().saved.covers(&progress_boundary).unwrap());
+    assert!(handle.storage().status().accepted.covers(&progress_boundary).unwrap());
     executor.release();
     wait_for_run_settled(&handle, &receipt.command_id).await;
     let terminal = handle.run_request(&receipt.command_id).await.unwrap().unwrap();
@@ -185,10 +242,10 @@ async fn shutdown_settles_requests() {
     let active_cycle = start_cycle(&handle, suite.clone(), false).await;
     let queued_cycle = start_cycle(&handle, suite, false).await;
 
-    let active = handle.run_cycle_cases(active_cycle, CommandContext::default()).await;
+    let active = handle.start_next_execution(active_cycle, CommandContext::default()).await;
     assert_eq!(active.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
-    let queued = handle.run_cycle_cases(queued_cycle, CommandContext::default()).await;
+    let queued = handle.start_next_execution(queued_cycle, CommandContext::default()).await;
     assert_eq!(queued.status, CommandStatus::Accepted);
     let pending = handle.run_request(&queued.command_id).await.unwrap().unwrap();
     assert!(!pending.summary.phase.terminal());
@@ -221,13 +278,13 @@ async fn queued_execution_request() {
     register_python_suite(&handle, suite.clone()).await;
     let active_cycle = start_cycle(&handle, suite.clone(), false).await;
     let queued_cycle = start_cycle(&handle, suite, false).await;
-    let active = handle.run_cycle_cases(active_cycle, CommandContext::default()).await;
+    let active = handle.start_next_execution(active_cycle, CommandContext::default()).await;
     assert_eq!(active.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
 
     let id = cycle_snapshot(&handle, &queued_cycle).await.test_executions[0].test_execution_id.clone();
     let queued =
-        handle.run_execution(id.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
+        handle.start_execution(id.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     assert_eq!(queued.status, CommandStatus::Accepted);
     handle.pause_execution(id.clone(), CommandContext::default()).await.unwrap();
     assert!(handle.run_request(&queued.command_id).await.unwrap().unwrap().summary.paused);

@@ -68,15 +68,15 @@ async fn empty_cycle_grows() {
     assert_eq!(frame.count, 1);
 
     // Empty: Running Is Refused
-    let refused = runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    let refused = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(refused.status, CommandStatus::Rejected);
-    assert_eq!(refused.rejection.as_ref().map(|rejection| rejection.code.as_str()), Some("empty_cycle"));
+    assert_eq!(refused.rejection.as_ref().map(|rejection| rejection.code.as_str()), Some("execution_not_found"));
     assert_eq!(cycle_snapshot(&runtime, &cycle_id).await.lifecycle, CycleStatus::Ready);
 
     // Appended: Cases Join Unstarted
     let registration = runtime.test_suites().await.into_iter().find(|entry| entry.suite == suite).expect("fixture suite is installed");
     runtime
-        .append_cycle_cases(cycle_id.clone(), materialize_cases(&registration.suite_id, &registration.suite), CommandContext::default())
+        .append_fixture_cases(cycle_id.clone(), materialize_cases(&registration.suite_id, &registration.suite), CommandContext::default())
         .await
         .unwrap();
     let appended = cycle_snapshot(&runtime, &cycle_id).await;
@@ -89,21 +89,21 @@ async fn empty_cycle_grows() {
     assert!(appended.test_executions[0].finished_at.is_none());
 
     // Run: The Appended Cases Complete
-    let accepted = runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    let accepted = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(accepted.status, CommandStatus::Accepted, "{accepted:?}");
     let completed = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
     assert_eq!(completed.test_executions.len(), 1);
     assert_eq!(completed.test_executions[0].status, ExecutionStatus::Passed);
 }
 
-// Stopping a cycle that never received cases seals it with an empty report.
+// Sealing An Empty Cycle Persists An Empty Report.
 #[tokio::test]
-async fn empty_cycle_stops() {
+async fn empty_cycle_seals() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     let cycle_id = start_cases(&runtime, metadata("cycle.unused", "Unused Cycle"), Vec::new(), false).await;
 
-    runtime.stop_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     let stopped = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Stopped).await;
     assert!(stopped.test_executions.is_empty());
     assert!(stopped.saved.is_some(), "stopping seals the empty cycle");

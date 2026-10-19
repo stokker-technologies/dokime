@@ -19,7 +19,7 @@ use zeroize::Zeroizing;
 // Local Imports
 use super::{
     Error,
-    access::{BearerGrant, Policy},
+    access::{self, Policy},
 };
 
 /* === Constants === */
@@ -83,8 +83,9 @@ impl Config {
         }
     }
 
-    pub fn remote(bind_addr: SocketAddr, tls: TlsIdentity, grants: Vec<BearerGrant>) -> Result<Self, Error> {
-        Ok(Self { bind_addr, policy: Policy::bearer(grants)?, tls: Some(tls), max_message_bytes: 1024 * 1024, remote: true, web: None })
+    pub fn remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, key: Option<&str>) -> Result<Self, Error> {
+        let digest = key.map(access::verifier).transpose()?;
+        Ok(Self::managed_remote(bind_addr, tls, digest, 1024 * 1024))
     }
 
     pub(super) fn managed_remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, digest: Option<[u8; 32]>, maximum: usize) -> Self {
@@ -94,11 +95,6 @@ impl Config {
     pub fn with_bind_addr(mut self, address: SocketAddr) -> Self {
         self.bind_addr = address;
         self
-    }
-
-    pub fn with_bearer_auth(mut self, grants: Vec<BearerGrant>) -> Result<Self, Error> {
-        self.policy = Policy::bearer(grants)?;
-        Ok(self)
     }
 
     pub fn with_max_message_bytes(mut self, bytes: usize) -> Self {

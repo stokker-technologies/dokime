@@ -22,7 +22,7 @@ generated = ["packages/dokime/src/dokime/_wire", "packages/dokime/src/dokime/ope
 [languages.typescript]
 roots = ["crates/dokime-gui"]
 exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
-generated = ["crates/dokime-gui/.generated", "crates/dokime-gui/src/lib/rpc/generated"]
+generated = ["target/generated/typescript", "crates/dokime-gui/src/lib/rpc/generated"]
 
 [features]
 # The build scripts compile the operation contracts with protoc.

@@ -88,7 +88,7 @@ async fn start_smoke(handle: &RuntimeHandle, label: &str, members: usize) -> Tes
 }
 
 async fn run(handle: &RuntimeHandle, cycle_id: &TestCycleId) -> CommandId {
-    let receipt = handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     receipt.command_id
 }
@@ -100,7 +100,7 @@ async fn settled(handle: &RuntimeHandle, run: &CommandId) -> Arc<RunReceipt> {
 
 async fn rows_saved(handle: &RuntimeHandle, cycle_id: &TestCycleId, stream: &str, rows: u32) {
     let selection = TelemetrySelection {
-        streams: vec![Identifier::new(stream).unwrap()],
+        streams: vec![Identifier::new(stream).unwrap().into()],
         scope: ScopeSelection { test_cycle_id: Some(cycle_id.clone()), ..ScopeSelection::default() },
         ..TelemetrySelection::default()
     };

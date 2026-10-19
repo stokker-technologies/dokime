@@ -256,13 +256,13 @@ async fn cancellation_preserves_verdict_and_log() {
         let (mut owner, handle) = started(config(root.path()).register(Arc::new(provider))).await;
         let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
         let cycle_id = start_cases(&handle, metadata("session.cancel", "Cancellation"), materialize_cases(SOURCE, &suite), false).await;
-        let receipt = handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+        let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
         assert_eq!(receipt.status, CommandStatus::Accepted);
         probe.entered.notified().await;
         let stopped = {
             let handle = handle.clone();
             let cycle_id = cycle_id.clone();
-            tokio::spawn(async move { handle.stop_cycle(cycle_id, CommandContext::default()).await.unwrap() })
+            tokio::spawn(async move { handle.seal_cycle(cycle_id, CommandContext::default()).await.unwrap() })
         };
         probe.cancelled.notified().await;
         if mode == Settlement::Deferred {
@@ -320,7 +320,7 @@ async fn ignored_stop(mode: Settlement) {
     let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.ignored", "Ignored Stop"), materialize_cases(SOURCE, &suite), false).await;
-    let receipt = handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     probe.entered.notified().await;
     let original = cycle_snapshot(&handle, &cycle_id).await.test_executions.remove(0);
@@ -329,7 +329,7 @@ async fn ignored_stop(mode: Settlement) {
     let stopping = {
         let handle = handle.clone();
         let cycle_id = cycle_id.clone();
-        tokio::spawn(async move { handle.stop_cycle(cycle_id, CommandContext::default()).await.unwrap() })
+        tokio::spawn(async move { handle.seal_cycle(cycle_id, CommandContext::default()).await.unwrap() })
     };
     probe.cancelled.notified().await;
     // The paused clock reaches the stop budget only while the runtime is idle: forcing it forward
@@ -371,7 +371,7 @@ async fn provider_failure_closes_stream_lease() {
     ));
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
     let cycle_id = start_cases(&handle, metadata("session.failure", "Provider Failure"), materialize_cases(SOURCE, &suite), false).await;
-    let receipt = handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     probe.entered.notified().await;
     let cycle = cycle_snapshot(&handle, &cycle_id).await;

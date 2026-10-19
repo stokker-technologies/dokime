@@ -184,6 +184,7 @@ async fn cycles_reopen_producers() {
             dokime_runtime::TestExecutionId::from_seed("native-second"),
         ],
         records: Default::default(),
+        continue_automatically: false,
         continue_on_failure: false,
         result: None,
     };

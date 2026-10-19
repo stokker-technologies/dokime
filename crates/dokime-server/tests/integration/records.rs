@@ -127,7 +127,8 @@ async fn waiting_cycle(root: &std::path::Path, expectation: Arc<Expectation>) ->
     let cycle =
         support::cycle_with_cases(&handle, support::metadata("records.cycle", "Records Cycle"), support::materialize_cases(SUITE, &suite))
             .await;
-    handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    let execution_id = handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
+    handle.start_execution(execution_id, model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     (owner, cycle)
 }
 

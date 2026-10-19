@@ -467,7 +467,7 @@ class Row33(_message.Message):
     def __init__(self, Unspecified: _Optional[_Union[Row75, _Mapping]] = ..., Ready: _Optional[_Union[Row76, _Mapping]] = ..., Running: _Optional[_Union[Row77, _Mapping]] = ..., Paused: _Optional[_Union[Row78, _Mapping]] = ..., Stopping: _Optional[_Union[Row79, _Mapping]] = ..., Completed: _Optional[_Union[Row80, _Mapping]] = ..., Failed: _Optional[_Union[Row81, _Mapping]] = ..., Blocked: _Optional[_Union[Row82, _Mapping]] = ..., Stopped: _Optional[_Union[Row83, _Mapping]] = ...) -> None: ...
 
 class Row34(_message.Message):
-    __slots__ = ("case_id", "template_id", "metadata", "ordinal", "status", "latest_execution_id", "latest_execution_status", "attempt_count", "rerun_scheduled", "actions", "suite_id")
+    __slots__ = ("case_id", "template_id", "metadata", "ordinal", "status", "latest_execution_id", "latest_execution_status", "attempt_count", "actions", "suite_id")
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -476,7 +476,6 @@ class Row34(_message.Message):
     LATEST_EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     LATEST_EXECUTION_STATUS_FIELD_NUMBER: _ClassVar[int]
     ATTEMPT_COUNT_FIELD_NUMBER: _ClassVar[int]
-    RERUN_SCHEDULED_FIELD_NUMBER: _ClassVar[int]
     ACTIONS_FIELD_NUMBER: _ClassVar[int]
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     case_id: str
@@ -487,10 +486,9 @@ class Row34(_message.Message):
     latest_execution_id: str
     latest_execution_status: Row85
     attempt_count: int
-    rerun_scheduled: bool
     actions: Row86
     suite_id: str
-    def __init__(self, case_id: _Optional[str] = ..., template_id: _Optional[str] = ..., metadata: _Optional[_Union[Row25, _Mapping]] = ..., ordinal: _Optional[int] = ..., status: _Optional[_Union[Row84, _Mapping]] = ..., latest_execution_id: _Optional[str] = ..., latest_execution_status: _Optional[_Union[Row85, _Mapping]] = ..., attempt_count: _Optional[int] = ..., rerun_scheduled: _Optional[bool] = ..., actions: _Optional[_Union[Row86, _Mapping]] = ..., suite_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, case_id: _Optional[str] = ..., template_id: _Optional[str] = ..., metadata: _Optional[_Union[Row25, _Mapping]] = ..., ordinal: _Optional[int] = ..., status: _Optional[_Union[Row84, _Mapping]] = ..., latest_execution_id: _Optional[str] = ..., latest_execution_status: _Optional[_Union[Row85, _Mapping]] = ..., attempt_count: _Optional[int] = ..., actions: _Optional[_Union[Row86, _Mapping]] = ..., suite_id: _Optional[str] = ...) -> None: ...
 
 class Row35(_message.Message):
     __slots__ = ("status", "passed", "failed", "blocked", "skipped")
@@ -861,16 +859,12 @@ class Row85(_message.Message):
     def __init__(self, Unspecified: _Optional[_Union[Row123, _Mapping]] = ..., Invalidated: _Optional[_Union[Row124, _Mapping]] = ..., Pending: _Optional[_Union[Row125, _Mapping]] = ..., Running: _Optional[_Union[Row126, _Mapping]] = ..., Passed: _Optional[_Union[Row127, _Mapping]] = ..., Failed: _Optional[_Union[Row128, _Mapping]] = ..., Blocked: _Optional[_Union[Row129, _Mapping]] = ..., Cancelled: _Optional[_Union[Row130, _Mapping]] = ..., Interrupted: _Optional[_Union[Row131, _Mapping]] = ..., Skipped: _Optional[_Union[Row132, _Mapping]] = ...) -> None: ...
 
 class Row86(_message.Message):
-    __slots__ = ("run", "schedule_rerun", "delete", "unavailable_reasons")
-    RUN_FIELD_NUMBER: _ClassVar[int]
-    SCHEDULE_RERUN_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("delete", "unavailable_reasons")
     DELETE_FIELD_NUMBER: _ClassVar[int]
     UNAVAILABLE_REASONS_FIELD_NUMBER: _ClassVar[int]
-    run: bool
-    schedule_rerun: bool
     delete: bool
     unavailable_reasons: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, run: _Optional[bool] = ..., schedule_rerun: _Optional[bool] = ..., delete: _Optional[bool] = ..., unavailable_reasons: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, delete: _Optional[bool] = ..., unavailable_reasons: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Row87(_message.Message):
     __slots__ = ("Unspecified", "Pending", "Passed", "Failed", "Blocked", "Cancelled")

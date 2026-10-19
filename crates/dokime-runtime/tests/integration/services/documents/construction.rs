@@ -47,7 +47,7 @@ async fn default_document_order() {
     let suite = suite_with_authored_document();
     register_custom_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
     let execution = cycle.test_executions.first().unwrap();
     let default_document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
@@ -113,7 +113,7 @@ async fn current_cycle_state() {
     let document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
     let prepared = runtime.prepare_current_cycle_document(&cycle_id, &document_id).unwrap();
     let revision = runtime.watch_state().latest().revision();
-    runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
     assert!(runtime.watch_state().latest().revision() > revision);
     let captured = prepared.capture().await.unwrap();
@@ -161,7 +161,7 @@ async fn current_cycle_state() {
     // An Original Cycle Cut Cannot Acquire An Artifact From A Later Member.
     let original = runtime.prepare_current_cycle_document(&cycle_id, &document_id).unwrap();
     let case = runtime.watch_state().latest().state().cycle_view(&cycle_id).unwrap().test_executions[0].snapshot.case().clone();
-    runtime.append_cycle_cases(cycle_id.clone(), vec![case], CommandContext::default()).await.unwrap();
+    runtime.append_fixture_cases(cycle_id.clone(), vec![case], CommandContext::default()).await.unwrap();
     let scope = runtime.watch_state().latest().state().cycle_view(&cycle_id).unwrap().test_executions.last().unwrap().scope.clone();
     let upload = runtime
         .begin_artifact_upload(dokime_runtime::artifacts::ArtifactUploadInput {
@@ -192,9 +192,11 @@ async fn cycle_report_executions() {
     register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, false).await;
     let case = runtime.watch_state().latest().state().cycle_view(&cycle_id).unwrap().test_executions[0].snapshot.case().clone();
-    runtime.append_cycle_cases(cycle_id.clone(), vec![case], CommandContext::default()).await.unwrap();
-    runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    runtime.append_fixture_cases(cycle_id.clone(), vec![case], CommandContext::default()).await.unwrap();
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let cycle = cycle_snapshot(&runtime, &cycle_id).await;
     let mut member_payloads = Vec::new();
     let mut samples = Vec::new();
     for execution in &cycle.test_executions {
@@ -244,7 +246,7 @@ async fn section_run_report() {
     let suite = suite_with_authored_document();
     register_custom_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
     let execution = cycle.test_executions.first().unwrap();
     let default_document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
@@ -343,7 +345,7 @@ async fn current_fact_frontiers() {
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
     let execution_id = &cycle.test_executions[0].test_execution_id;
@@ -437,7 +439,7 @@ async fn document_routes_samples() {
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
     let execution = &cycle.test_executions[0];
@@ -450,7 +452,8 @@ async fn document_routes_samples() {
         assert_eq!(receipt.accepted, count as u64);
     }
 
-    let monitoring = TelemetrySelection { streams: vec![Identifier::new("host.wifi.channel_occupancy").unwrap()], ..Default::default() };
+    let monitoring =
+        TelemetrySelection { streams: vec![Identifier::new("host.wifi.channel_occupancy").unwrap().into()], ..Default::default() };
     assert_eq!(runtime.collect_telemetry(&monitoring).await.len(), 14);
     for test_cycle_id in [None, Some(cycle_id.clone())] {
         let captured = runtime
@@ -520,7 +523,7 @@ async fn repeated_sections_follow() {
 
     // Publish Channels Out Of Order Into The Running Execution
     let cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
     let execution = &cycle.test_executions[0];
@@ -647,7 +650,7 @@ async fn saved_report_evidence() {
     let admitted =
         runtime.test_suites().await.into_iter().find(|entry| entry.suite.metadata.identifier == suite.metadata.identifier).unwrap().suite;
     let cycle_id = start_cycle(&runtime, admitted, false).await;
-    runtime.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
 
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
     let execution = &cycle.test_executions[0];

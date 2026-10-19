@@ -102,15 +102,15 @@ Each execution identifies exactly one case and one cycle. Repeating a case
 creates another execution; retrying a step is recorded as a step attempt within
 that execution. A cycle can bring together cases from different templates and
 suites—it is not a copy of one suite. A cycle is created explicitly, starts
-empty and grows only as cases are appended to it; running an empty cycle is
-refused.
+empty and grows as explicit execution attempts are appended. Appending never
+starts hardware; an execution is the Start/Stop unit.
 
-Several cycles can stay **Active** at once. An explicit run request selects the
-unrun executions present when it is accepted; later additions need another run
-request. Requests run in acceptance order, with one execution running across the
-server. Each execution saves and seals its own evidence when it finishes, while
-its cycle stays Active. Select the destination cycle in the Library before
-adding cases.
+Several cycles can stay **Active** at once, with one execution running across
+the server. Start admits an execution once by its durable identity. Optional
+server-owned ordered continuation can start the next unstarted member after
+natural completion and sealing; it defaults to false. Stop durably disables that
+continuation policy. Each execution saves and seals its evidence while its cycle stays
+Active. Select the destination cycle in the Library before adding attempts.
 
 **Seal Cycle** closes admission immediately, stops that cycle's running work,
 cancels unrun executions and waits for every execution and the cycle report to
@@ -134,6 +134,11 @@ A list can also be one parameter value. An ordered load sequence such as
 mean three separate cases. Expansion is declared explicitly.
 
 ## Quick Start
+
+For an installed host and a second PC, follow the
+[candidate-artifact OBC walkthrough](packages/dokime/examples/remote/README.md).
+It uses matching CI installers, plugin and examples without a source checkout;
+a matching published release combination remains separate.
 
 Dokime is pre-1.0 and currently supports Windows and Linux. To launch from
 source, install [mise](https://mise.jdx.dev) and use the pinned toolchain:
@@ -192,9 +197,10 @@ dokime-server --grpc-web --allowed-origin https://frontend.example
 
 Repeat `--allowed-origin` for additional origins. An origin contains only its
 scheme and authority; paths, credentials and wildcards are refused, and an
-origin without `--grpc-web` is an error. Remote listeners still require
-explicit remote configuration, TLS and bearer credentials; browser-origin
-permission does not grant operation access. A GUI built with
+origin without `--grpc-web` is an error. The standalone listener is native and
+requires a loopback address. Remote listeners use the persistent Remote Access
+settings, with TLS and access-key authentication selected independently;
+browser-origin permission does not grant operation access. A GUI built with
 `DOKIME_TRANSPORT=grpc-web` is such a browser client.
 
 ## Native Remote Access
@@ -209,45 +215,27 @@ access key. Certificate DNS/IP identities change only through explicit
 regeneration. TLS and authentication are independent choices, with separate
 isolated-lab warnings.
 
-The pinned Harmos runtime permits one attached listener per runtime. The
-desktop's native listener occupies that attachment, so enabling an additional
-remote listener currently fails and preserves the previous settings. The
-management surface does not yet provide a working second-PC connection.
-Full control over request-dependent plugin scopes also requires an upstream
-external-authorization capability; exact scoped plugin grants remain enforced.
+The remote listener shares the runtime with the native listener and has its own
+transport and authentication settings. Reconfiguring it does not stop admitted
+executions. A rotated key can recover their receipts and control them without
+repeating execution. Remote connections through loopback retain remote access
+rules, including native-only management and host-path restrictions.
 
-## Plugin Operation Permissions
+## Full-Control Access And Plugin Capabilities
 
-Standalone `--auth-file` plugin calls require an explicit permission on the server
-`--auth-file` bearer grant. Product operations keep their declared role policy:
+A valid access key grants full control over remote product operations and
+installed plugins, including request-dependent channel, stream and source scopes.
+An authentication-off listener grants the same control to every connection;
+use that setting only in an isolated lab. There are no per-user roles or server
+permission files. TLS controls transport encryption and certificate verification
+independently of access-key authentication.
 
-```json
-{
-  "grants": [{
-    "subject": "operator",
-    "role": "control",
-    "token": "REPLACE_WITH_A_PRIVATE_TOKEN_OF_AT_LEAST_32_BYTES",
-    "operations": [
-      { "owner": "chamber", "id": "chamber.read", "grants": [] },
-      {
-        "owner": "chamber",
-        "id": "chamber.stream",
-        "grants": [{ "operation": "chamber.stream", "scope": "chamber.temperature" }]
-      }
-    ]
-  }]
-}
-```
-
-The owner and operation ID are exact; wildcards and duplicate permissions are
-refused. Unlisted plugin operations remain denied on these bearer-grant
-connections. Native trusted-local connections admit installed unscoped plugin
-operations through their live contracts. Listing an operation grants it; `grants` adds only the scopes a
-request may resolve to, such as the channel, stream or source it names. Each grant
-names the listed operation and one exact scope; an empty list admits only requests
-that resolve to no scope. The same permission
-filters live discovery and actual invocation. Rediscover after a provider changes;
-metadata does not promise admission or bypass request-dependent grants.
+Native-only operations and internal host providers remain unavailable remotely.
+Plugin identity comes from the original runtime registration, never an owner
+name supplied by a caller. Plugins still declare their own requirements for
+calls into other plugins or host services; an operator's key cannot expand those
+capabilities. A grant must name the operation being called. Discovery and
+invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
 
@@ -308,29 +296,26 @@ while let Some(event) = stream.message().await? {
 stream.close().await;
 ```
 
-Browse the registered suite catalog, stop work explicitly and re-run a case:
+Browse the registered suite catalog, start an attempt and stop work explicitly:
 
 ```sh
 dokime catalog list --backend lab --json
 dokime catalog show REGISTERED_SUITE_ID --backend lab --json
+dokime execution start EXECUTION_UUID --backend lab --json
 dokime execution stop EXECUTION_UUID --backend lab --json
-dokime cycle stop CYCLE_UUID --backend lab --json
 dokime cycle seal CYCLE_UUID --backend lab --json
-dokime cycle rerun CYCLE_UUID CASE_UUID --key rerun-1 --backend lab --json
 ```
 
 Replace the identifiers with those returned by the backend. `catalog list
 --json` emits one complete suite definition per line; a later read failure
 returns a nonzero exit status after any earlier lines. `execution stop` stops
-one execution while the rest of its cycle keeps running; `cycle stop` stops
-every execution of the cycle. Both return the observed cursor and do not wait
-for a sealed report. `cycle rerun` appends the case's next attempt as a new
-execution, leaving earlier attempts and their evidence untouched, and admits it
-once under the given key. Cancelling a local request wait leaves backend work running;
-query the durable request again to observe settlement.
+the selected execution and halts its cycle's automatic continuation. Wait for
+its saved outcome before downloading evidence. To repeat a case, append a new
+execution identity and Start that attempt; earlier evidence remains unchanged.
+Cancelling an ordinary local wait leaves admitted backend work running.
 
 `cycle seal` waits for the durable cycle seal. Repeating it is safe, including
-after a lost response. `cycle stop` leaves the container Active. The Python
+after a lost response. Other cycles remain available. The Python
 client provides the same durable boundary with `await cycle.seal()`.
 
 Download saved evidence without running any work again:
@@ -429,39 +414,62 @@ location and accepts an explicit `path` override.
 
 ## Planning And Creating Cycles
 
-Name a template by its readable ID, `<suite id>.<segment>`, as `dokime catalog
-show` lists it:
+Name a template by the readable ID that `dokime catalog show` lists. Preview
+its cases, then materialize them before constructing execution attempts:
 
 ```sh
 dokime plan preview --template obc.charger.steady.measurement --backend lab --json
+dokime plan materialize --template obc.charger.steady.measurement --backend lab --json
 dokime cycle create --label "Campaign 1" --backend lab --json
-dokime cycle append CYCLE_ID --template obc.charger.steady.measurement --backend lab --json
+dokime cycle append CYCLE_ID --case-id CASE_ID --backend lab --json
 ```
 
-A cycle is always created explicitly and empty; `cycle append` adds the cases a
-plan generates to an existing cycle and never creates one. An omitted
-`--identifier` is derived by the backend.
+Materialization captures the case's definition and provider revision. Append
+refuses stale cases and creates distinct execution UUIDs for each repeated
+`--case-id`, preserving order. A cycle is explicitly created empty; append
+registers attempts without starting hardware. An omitted cycle `--identifier`
+is derived by the backend.
 
-For a linear script, `--id-only` prints the created cycle UUID or the ordered
-execution UUIDs from that exact append. It never infers new executions by
-comparing a cycle before and after a concurrent mutation. This pulse template
-produces one execution:
+For a linear script, `--id-only` prints materialized case IDs, the created cycle
+UUID, or execution UUIDs from that exact append. This pulse selection produces
+one case and one attempt:
 
 ```sh
+case_id=$(dokime plan materialize --template obc.checks.pulse --parameters-json '{"sample_count":8}' --backend lab --id-only)
 cycle_id=$(dokime cycle create --label "Remote Pulse" --backend lab --id-only)
-execution_id=$(dokime cycle append "$cycle_id" --template obc.checks.pulse --backend lab --id-only)
-dokime execution run "$execution_id" --request-key pulse-1 --backend lab
-dokime execution wait "$execution_id" --wait-seconds 60 --backend lab
+execution_id=$(dokime cycle append "$cycle_id" --case-id "$case_id" --backend lab --id-only)
+dokime execution run "$execution_id" --records --samples --record-type 'obc.run.*' --stream obc.pulse --wait-seconds 60 --backend lab
 dokime execution export "$execution_id" --output pulse.zip --backend lab
+dokime cycle seal "$cycle_id" --backend lab
+dokime cycle export "$cycle_id" --output cycle.zip --backend lab
 ```
 
-`execution wait` waits for the durable saved result and returns nonzero for a
-failed, blocked or cancelled execution. Interrupting that wait leaves remote
-work running; request `execution stop EXECUTION_ID` explicitly, then wait and
-export the collected evidence. Retain the execution ID and request key after a
-disconnection; never submit another command just to discover whether it ran.
+`execution start` admits one execution and returns without waiting.
+`execution run` composes that same Start with a durable wait and requested
+listener drain. Both use the execution's identity for idempotency: reconnect
+with the same UUID and mode after an uncertain Start response. A finished
+execution never restarts; append a fresh attempt to run its case again.
+There are no caller-managed Start keys or cycle Run/Stop commands.
 
-Scripts can opt into cancellation and evidence recovery during that wait:
+`--records` and `--samples` observe all captured records and samples.
+Repeated `--record-type` and `--stream` flags restrict their respective
+selection with case-sensitive whole-identifier globs. Observations and the final
+drain summary appear on stderr; the final result appears on stdout.
+`execution wait` observes an already admitted execution without starting it.
+A saved nonpassing outcome returns nonzero. Interrupting an ordinary wait leaves
+remote work running; `execution stop EXECUTION_ID` requests a cooperative stop.
+
+Several cycles can stay Active, with one execution running server-wide.
+`continue_automatically` defaults to false. To let the server continue with
+the next unstarted member after natural completion and durable sealing, create
+the cycle with `--continue-automatically`. `--continue-on-failure` controls
+failure continuation. Explicit execution Stop durably sets the cycle's
+`continue_automatically=false`. Later explicit Start runs only the selected
+attempt until the user explicitly re-enables that policy.
+Appending to an idle cycle starts no hardware, and reaching the end keeps the
+cycle Active until it is explicitly sealed.
+
+Scripts can opt into cancellation and evidence recovery while running or waiting:
 
 ```sh
 mkdir -p recovery
@@ -469,85 +477,89 @@ dokime execution wait "$execution_id" --backend lab \
   --cancel-on-interrupt --owned-cycle "$cycle_id" --recovery-directory recovery
 ```
 
-The same three options work with `execution prompt next`. They verify that the
-execution belongs to the named cycle before mutation. Use `--owned-cycle` only
-for a cycle your script created and reserves for itself: on Ctrl+C, recovery
-requests an execution stop, seals that cycle and downloads
-`execution-<UUID>.zip` and `cycle-<UUID>.zip`. Sealing cancels its other pending
-members. Existing files are refused before connection, and bundles use the
-shared verified atomic downloader. The interrupted command returns nonzero;
-successful ordinary waiting leaves the cycle Active. A failed connection does
-not confirm cancellation or a completed download; retain the original IDs.
-Waits report their execution identity and Ctrl+C behavior on stderr once the
-interrupt listener is ready; JSON and `--id-only` results stay on stdout.
+The same options work with `cycle append`, `execution start`, `execution run`,
+`execution export` and prompt `next/show/answer`.
+They verify exact cycle membership before mutation. Use `--owned-cycle` only
+for a cycle created and reserved by the script: Ctrl+C stops that execution,
+seals that cycle and downloads `execution-<UUID>.zip` and `cycle-<UUID>.zip`.
+Sealing cancels its unstarted members; other cycles and the shared server remain
+available. Existing recovery files are refused before connection. A lost
+connection cannot confirm cancellation or a completed download; retain the
+original identities and inspect them before resubmitting.
+Batch recovery applies while these native commands are observing an interrupt;
+it cannot reliably cover connection setup or gaps between commands. A lost
+Create reply leaves the cycle identity unknown and requires manual inspection.
 
 The [Remote CLI Workflows](packages/dokime/examples/remote/cli/README.md) include
 device, test and confirmation scripts for POSIX shell, PowerShell 7.3+ and
-Command Prompt. They require the matching CLI and simulated OBC plugin;
-the matching first-party release combination is still pending.
+Command Prompt. Edit their connection, execution, observation and file globals,
+then run without arguments. Their names, grouping and meanings match the
+[Python examples](packages/dokime/examples/remote/python/control-test.py).
+The scripts require the matching CLI and simulated OBC plugin; a matching
+first-party release combination and native workflow validation remain pending.
+The [candidate walkthrough](packages/dokime/examples/remote/README.md) explains
+how to obtain one matching CI artifact set and use its bundled Python wheel.
 
-`--parameters-json` supplies single values for `--template` as a plain JSON
-object. The default pulse has no prompt. To require its one confirmation:
+`--parameters-json` supplies single template parameter values as a plain
+JSON object. The default pulse has no prompt. To require one confirmation,
+materialize that case and explicitly Start its attempt so the script can answer:
 
 ```sh
-execution_id=$(dokime cycle append "$cycle_id" --template obc.checks.pulse \
+case_id=$(dokime plan materialize --template obc.checks.pulse \
   --parameters-json '{"require_confirmation":true}' --backend lab --id-only)
-dokime execution run "$execution_id" --request-key pulse-confirm-1 --backend lab
+cycle_id=$(dokime cycle create --label "Remote Confirmation" --backend lab --id-only)
+execution_id=$(dokime cycle append "$cycle_id" --case-id "$case_id" --backend lab --id-only)
+dokime execution start "$execution_id" --backend lab
 prompt_id=$(dokime execution prompt next "$execution_id" --wait-seconds 60 --backend lab --id-only)
 dokime execution prompt show "$execution_id" "$prompt_id" --backend lab
 dokime execution prompt answer "$execution_id" "$prompt_id" --action yes --backend lab
 dokime execution wait "$execution_id" --wait-seconds 60 --backend lab
 ```
 
-Prompt reads and answers require the matching execution and prompt UUIDs.
-The server refuses stale or duplicate answers. After an ambiguous response,
-inspect `prompt show` before deciding what to do; answers are never retried
-automatically. Actions `cancel` and `abort` submit a cancelled response.
-When finished, use `cycle seal CYCLE_ID` before `cycle export CYCLE_ID`.
+Prompt reads and answers require both exact identities. The server refuses stale
+or duplicate answers. After an ambiguous response, inspect `prompt show`
+before deciding what to do. Actions `cancel` and `abort` submit a cancelled
+response. Seal the script-owned cycle before exporting its complete bundle.
 
-Preview leaves registration unchanged. `plan register` materializes cases
-without a cycle; append them by ID with `cycle append CYCLE_ID --case-id CASE_ID`. Registration returns case IDs; retain its
-key and repeat the same request to recover registration after an uncertain
-response. Repeated selections and `--case-id` arguments preserve order and
-create distinct attempts. Omitted parameters and files use registered backend
-defaults. `--selection-json` accepts a canonical `RegisteredSelection` and can
-be repeated for parameter sweeps and file selections.
-
-Each `--input-file` takes the operation's canonical JSON request and refuses
-selection or metadata flag overrides. For example, `plan register` accepts:
+`--input-file` takes the operation's canonical JSON without flag overrides.
+For `plan materialize`, the request contains one registered template selection:
 
 ```json
 {
-  "plan": {
-    "selections": [{
-      "suite_id": "SUITE_ID",
-      "template_id": "TEMPLATE_ID",
-      "parameters": [],
-      "files": []
-    }],
-    "max_cases": 0,
-    "case_ids": [],
-    "cycle_id": ""
-  },
-  "idempotency_key": "campaign-1"
+  "selection": {
+    "suite_id": "SUITE_ID",
+    "template_id": "TEMPLATE_ID",
+    "parameters": [],
+    "files": []
+  }
 }
 ```
 
-`plan preview` uses the same `plan` without `idempotency_key`, and `cycle
-append` takes it with the target `cycle_id`. The backend
-validates expansion and materializes cases; zero `max_cases` selects its limit
-of 1000. A plan selects templates or registered case IDs. Each materialized
-case is labelled `<Template Label> #<n>`, numbered per template from `#1`; a
-cycle being appended to continues its own numbering, and
-the case's parameter values stay on the case rather than in its label.
+For an append whose exact identities must survive a lost response, retain its
+canonical `AppendExecutions` input before calling `cycle append --input-file`:
+
+```json
+{
+  "cycle_id": "CYCLE_UUID",
+  "executions": [
+    { "execution_id": "EXECUTION_UUID", "case_id": "CASE_UUID" }
+  ]
+}
+```
+
+Repeating that append with the same bindings cannot duplicate attempts;
+conflicting identity reuse fails. Flag-based appends print their registration
+identities to stderr before transmission. Retain those identities if the reply
+is lost.
+
 Until a cycle or execution seals, operators can rename it with the pencil
-beside its title in the desktop app or with `Execution/RenameCycle` and
-`Execution/RenameExecution`; a sealed, archived or History subject refuses with
-`FailedPrecondition`. Renaming an execution renames its case, every attempt
-included, and each rename is recorded as an `operator.label_edited` record
-carrying the old and new label. Numbering continues from each case's stored
-ordinal, so a renamed `#2` is never reused. For `cycle create`, save this
-canonical request as `cycle.json`:
+beside its desktop title or with `Execution/RenameCycle` and
+`Execution/RenameExecution`. Sealed, archived and History subjects refuse
+with `FailedPrecondition`. Renaming an execution renames its case, including
+other attempts, and records an `operator.label_edited` record with both labels.
+
+For `cycle create --input-file cycle.json`, retain the explicit continuation
+policy alongside its metadata:
 
 ```json
 {
@@ -560,22 +572,18 @@ canonical request as `cycle.json`:
     "created_at": null,
     "updated_at": null
   },
+  "continue_automatically": false,
   "continue_on_failure": false,
   "context": null
 }
 ```
 
 ```sh
-dokime cycle create --input-file cycle.json --case-id CASE_ID --request-key run-1 --wait-seconds 60 --backend lab --json
+dokime cycle create --input-file cycle.json --backend lab --id-only
 ```
 
-For scripts, `--case-id` appends registered cases right after creation and
-`--request-key` then runs the cycle. Creation prints and flushes the cycle ID
-before appending or submitting work. Retain the
-cycle ID and run key to recover an uncertain admission. Creation, admission and
-an optional terminal receipt are separate JSON lines; a later failure leaves
-already emitted recovery identities available. Creating a cycle does not
-itself run it. Waiting locally does not seal a report or cancel backend work.
+Cycle creation is a separate non-idempotent mutation. If its response is
+uncertain, inspect the backend before creating another container.
 
 ## Examples
 
@@ -744,9 +752,9 @@ reports retain their original HTML and frozen execution context. A cycle report
 queries each member's retained evidence at its original persisted boundary. Missing or damaged report artifacts
 produce an explicit error. Stopping a test preserves the last persisted evidence
 boundary for report finalization. If publication fails, the recorded test
-verdicts stand and no partial report is kept; stopping the cycle again publishes
-from the same persisted boundary, including after a restart. Stopping a cycle no
-run will finish, even an empty one, seals it with its report.
+verdicts stand and no partial report is kept. Retrying cycle sealing publishes
+from the same persisted boundary, including after a restart. Cycle Seal also
+finalizes an empty cycle with its report.
 
 ## Cargo Features
 
@@ -787,6 +795,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 
 ## Documentation
 
+- [Remote OBC Walkthrough](packages/dokime/examples/remote/README.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
 - [OBC Plugin](plugins/obc-plugin/) — the charger simulation and complete test templates.
 - [Plugin Starter](crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Runtime And Plugin SDK](crates/dokime-runtime/src/lib.rs) — public authoring APIs and module documentation.
@@ -826,14 +835,43 @@ mise run format --check
 mise run lint
 mise run check
 mise run build
+mise run build:tests
 mise run test
+mise run build:bench
+mise run bench
+mise run package
 mise run ci
 ```
 
 `check` covers every Rust feature combination and the WebAssembly domain build.
-`build` compiles once into binaries, the OBC bundle, the frontend, the
-generated clients, the Python wheel and the test archive; every test layer runs
-from those outputs. `test` runs the layers in order, each with its own task:
+`build` produces packageable Product outputs in `dev` or `release`: shipping
+binaries and libraries, the OBC bundle, generated clients, the frontend, the
+Python distribution and its tutorial. It resolves the server contracts before
+compiling the frontend, then builds the desktop shell with those assets
+embedded in both profiles. Dev keeps workspace Rust code unoptimized.
+Interactive `tauri dev` continues to use the Vite server.
+
+`build:tests --profile dev` separately compiles the shared test archive and
+test fixtures, requiring the matching Product outputs first. Use `release`
+instead for release-profile test preparation. Test lanes consume that archive,
+its fixtures and matching Product hosts; Product Build does not compile the
+test archive. The archive lives under `tests/archive.tar.zst` and test fixtures
+under `fixtures/` within the selected native Build output.
+
+`build:bench` uses the fixed `bench` profile and separately builds benchmark
+executables, their matching server/packaging hosts and plugin fixture. It does
+not build a test archive or a desktop GUI. Benchmark executables and compiler
+metadata live under `bench/`, hosts under `bin/`, and plugin fixtures under
+`fixtures/plugins/` within the native bench Build output.
+
+`package --profile dev` consumes matching Product outputs without compiling;
+select `release` to package release Product bytes. Tests and Bench outputs are
+separate preparation inputs for their own lanes.
+Build exports live under `target/build/<profile>/<target>/`; packages use
+`target/package/<profile>/<target>/`. Native targets include `linux-x86_64`
+and `windows-x86_64`; the pure Python distributions and remote examples use
+`any`. Generated TypeScript messages live under `target/generated/typescript/`.
+`test` runs the layers in order, each with its own task:
 
 | Task | Layer |
 | --- | --- |
@@ -851,11 +889,11 @@ See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
 ### Generated Clients
 
-The Rust build generates the protobuf descriptors of every public operation;
+The server contract producer generates the protobuf descriptors of every public operation;
 `mise run build` regenerates the Python package's contract files from them with
 Harmos's `cargo harmos bindings python` exporter and refuses a stale tracked
 copy. The desktop's TypeScript client is generated from the same descriptors
-by the Buf generator after the Cargo build. Ordinary wheel and source-package
+by the Buf generator before compiling its frontend and packaged shell. Ordinary wheel and source-package
 installation uses the tracked files and needs no Rust compiler.
 
 The desktop WebView never talks to the network. Every call from the generated

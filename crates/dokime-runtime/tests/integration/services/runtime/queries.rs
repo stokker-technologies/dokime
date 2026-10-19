@@ -153,7 +153,8 @@ async fn telemetry_reads_stream() {
     assert_eq!(summaries.len(), 1);
     assert_eq!(summaries[0].stream, stream);
     assert_eq!(summaries[0].total, 3);
-    let selected = runtime.selected_telemetry(TelemetrySelection { streams: vec![stream.clone()], ..TelemetrySelection::default() }).await;
+    let selected =
+        runtime.selected_telemetry(TelemetrySelection { streams: vec![stream.clone().into()], ..TelemetrySelection::default() }).await;
     assert_eq!(selected.len(), 3);
     assert_eq!(selected[0].stream, stream);
     assert_eq!(selected[0].sequence, 1);

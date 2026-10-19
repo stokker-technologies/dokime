@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 # Local Imports
+from dokime_tools.build import paths
 
 # Type Checking Imports
 
@@ -33,6 +34,10 @@ import pytest
 # === Public Functions === #
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption("--profile", choices=("dev", "release"), default="dev")
+
+
 @pytest.fixture(scope="session")
 def workspace() -> Path:
     """The Workspace Root Is The Nearest Ancestor Holding Cargo.lock"""
@@ -43,10 +48,9 @@ def workspace() -> Path:
 
 
 @pytest.fixture(scope="session")
-def artifact(workspace: Path) -> Callable[[str], Path]:
-    """Resolve A Built Artifact Below dist/build/<platform>, Failing When Absent"""
-    platform = "windows" if os.name == "nt" else "linux"
-    build = workspace / "dist/build" / platform
+def artifact(workspace: Path, request: pytest.FixtureRequest) -> Callable[[str], Path]:
+    """Resolve A Matching Profile/Target Build Artifact, Failing When Absent"""
+    build = paths.output(workspace, "build", request.config.getoption("--profile"))
 
     def resolve(relative: str) -> Path:
         path = build / relative

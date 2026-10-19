@@ -23,7 +23,6 @@ use tonic::Status;
 use super::{cycle_id, status};
 use crate::grpc::{
     access::Principal,
-    planning,
     value::{self, canonical},
 };
 use dokime_domain::model::identity::CaseId;
@@ -49,15 +48,11 @@ struct Copy {
     runtime: Arc<RuntimeHandle>,
 }
 
-struct Append {
+struct AppendExecutions {
     runtime: Arc<RuntimeHandle>,
 }
 
 struct Delete {
-    runtime: Arc<RuntimeHandle>,
-}
-
-struct Rerun {
     runtime: Arc<RuntimeHandle>,
 }
 
@@ -89,10 +84,6 @@ struct ResumeCycle {
     runtime: Arc<RuntimeHandle>,
 }
 
-struct StopCycle {
-    runtime: Arc<RuntimeHandle>,
-}
-
 struct SealCycle {
     runtime: Arc<RuntimeHandle>,
 }
@@ -114,9 +105,8 @@ struct StopExecution {
 enum Operations {
     Create(Create),
     Copy(Copy),
-    Append(Append),
+    AppendExecutions(AppendExecutions),
     Delete(Delete),
-    Rerun(Rerun),
     ArchiveCycle(ArchiveCycle),
     ArchiveExecution(ArchiveExecution),
     RenameCycle(RenameCycle),
@@ -124,7 +114,6 @@ enum Operations {
     Policy(Policy),
     PauseCycle(PauseCycle),
     ResumeCycle(ResumeCycle),
-    StopCycle(StopCycle),
     SealCycle(SealCycle),
     PauseExecution(PauseExecution),
     ResumeExecution(ResumeExecution),
@@ -160,7 +149,14 @@ impl Operation for Create {
         let metadata = canonical::decode_metadata(&metadata)?;
         let id = self
             .runtime
-            .create_cycle(CycleDefinition { metadata, continue_on_failure: request.continue_on_failure }, context)
+            .create_cycle(
+                CycleDefinition {
+                    metadata,
+                    continue_automatically: request.continue_automatically,
+                    continue_on_failure: request.continue_on_failure,
+                },
+                context,
+            )
             .await
             .map_err(status)?;
         Ok((dokime_domain::model::execution::wire::CreateCycleReply {
@@ -195,8 +191,8 @@ impl Operation for Copy {
     }
 }
 
-impl Operation for Append {
-    type Declaration = wire::AppendPlannedCases;
+impl Operation for AppendExecutions {
+    type Declaration = wire::AppendExecutions;
     type Resources = RuntimeHandle;
     type Error = Status;
     type Context<'a> = Context<'a>;
@@ -207,24 +203,28 @@ impl Operation for Append {
     }
 
     async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut wire::AppendPlannedCases, _: &mut (),
+        &mut self, _: Self::Context<'a>, request: &mut wire::AppendExecutions, _: &mut (),
     ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::AppendCasesReply>, Status> {
-        let context = command_context(&context, request.context.as_ref())?;
-        let id = cycle_id(&request.cycle_id)?;
-        let mut plan = request.plan.take();
-        if let Some(plan) = plan.as_mut().filter(|plan| plan.case_ids.is_empty()) {
-            if plan.cycle_id.is_empty() {
-                plan.cycle_id.clone_from(&request.cycle_id);
-            } else if plan.cycle_id != request.cycle_id {
-                return Err(Status::invalid_argument("selection plan numbers a different cycle"));
-            }
+        if request.executions.len() > 1000 {
+            return Err(Status::resource_exhausted("append exceeds 1000 execution limit"));
         }
-        let snapshot = self.runtime.watch_state().latest();
-        let plan = planning::resolve(snapshot.state(), plan, &dokime_runtime::model::identity::new_id::<CommandId>())?;
-        let ids = self.runtime.append_cycle_cases(id, plan.cases, context).await.map_err(status)?;
+        let cycle = cycle_id(&request.cycle_id)?;
+        let executions = request
+            .executions
+            .iter()
+            .map(|binding| {
+                value::text(&binding.execution_id)?;
+                value::text(&binding.case_id)?;
+                let execution = TestExecutionId::from_uuid(binding.execution_id.clone())
+                    .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
+                let case = CaseId::from_wire(binding.case_id.clone()).map_err(|_| Status::invalid_argument("invalid case ID"))?;
+                Ok((execution, case))
+            })
+            .collect::<Result<Vec<_>, Status>>()?;
+        self.runtime.append_executions(cycle, executions).await.map_err(status)?;
         Ok(dokime_domain::model::execution::wire::AppendCasesReply {
             observed_cursor: observed(&self.runtime).observed_cursor,
-            execution_ids: ids.into_iter().map(|id| id.to_string()).collect(),
+            execution_ids: request.executions.iter().map(|binding| binding.execution_id.clone()).collect(),
         }
         .into())
     }
@@ -249,29 +249,6 @@ impl Operation for Delete {
         value::text(&request.case_id)?;
         let case = CaseId::from_wire(request.case_id.clone()).map_err(|_| Status::invalid_argument("invalid case ID"))?;
         self.runtime.delete_cycle_case(cycle, case, context).await.map_err(status)?;
-        Ok((observed(&self.runtime)).into())
-    }
-}
-
-impl Operation for Rerun {
-    type Declaration = wire::ScheduleCaseRerun;
-    type Resources = RuntimeHandle;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(runtime: Arc<RuntimeHandle>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { runtime })
-    }
-
-    async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut wire::ScheduleCaseRerun, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
-        let context = command_context(&context, request.context.as_ref())?;
-        let cycle = cycle_id(&request.cycle_id)?;
-        value::text(&request.case_id)?;
-        let case = CaseId::from_wire(request.case_id.clone()).map_err(|_| Status::invalid_argument("invalid case ID"))?;
-        self.runtime.rerun_cycle_case(cycle, case, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
     }
 }
@@ -380,7 +357,10 @@ impl Operation for Policy {
         &mut self, context: Self::Context<'a>, request: &mut wire::UpdateCyclePolicy, _: &mut (),
     ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        self.runtime.update_cycle_policy(cycle_id(&request.cycle_id)?, request.continue_on_failure, context).await.map_err(status)?;
+        self.runtime
+            .update_cycle_policy(cycle_id(&request.cycle_id)?, request.continue_automatically, request.continue_on_failure, context)
+            .await
+            .map_err(status)?;
         Ok((observed(&self.runtime)).into())
     }
 }
@@ -421,26 +401,6 @@ impl Operation for ResumeCycle {
     ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime.resume_cycle(cycle_id(&request.cycle_id)?, context).await.map_err(status)?;
-        Ok((observed(&self.runtime)).into())
-    }
-}
-
-impl Operation for StopCycle {
-    type Declaration = wire::StopCycle;
-    type Resources = RuntimeHandle;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(runtime: Arc<RuntimeHandle>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { runtime })
-    }
-
-    async fn run<'a>(
-        &mut self, context: Self::Context<'a>, request: &mut wire::StopCycle, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
-        let context = command_context(&context, request.context.as_ref())?;
-        self.runtime.stop_cycle(cycle_id(&request.cycle_id)?, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
     }
 }

@@ -12,8 +12,8 @@
 
 /* === Local Imports === */
 
+import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 
 /* === Constants === */
 

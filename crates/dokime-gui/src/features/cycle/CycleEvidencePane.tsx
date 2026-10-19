@@ -27,8 +27,8 @@ import { useMemo } from "react";
 /* === Local Imports === */
 
 import type { HubLiveState, RecordScope, TestCyclePlan } from "@/lib/types";
-import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { CycleEvidenceView } from "./CycleEvidenceView";
+import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { evidencePaneState } from "./document-query-model";
 import { usePlotWindow } from "./PlotWindowSlider";
 import { useCycleDocumentQuery } from "./server-state";

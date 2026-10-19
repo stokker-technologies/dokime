@@ -131,15 +131,18 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         )
         .await
         .unwrap();
-    let cycle_id = registered_cycle(runtime, "rpc.artifact", metadata()).await;
-    let receipt = runtime.run_cycle_cases(cycle_id, Default::default()).await;
+    let (_cycle_id, executions) = registered_cycle(runtime, "rpc.artifact", metadata()).await;
+    let receipt =
+        runtime.start_execution(executions[0].clone(), dokime_domain::model::execution::ExecutionMode::Automatic, Default::default()).await;
     assert_eq!(receipt.status, dokime_runtime::runtime::command::CommandStatus::Accepted);
     // The Provider Publishes The Artifact Once Its Upload Finished
     let mut published = provider.0.subscribe();
     published.wait_for(Option::is_some).await.expect("the provider outlives its cycle").clone().unwrap()
 }
 
-pub async fn registered_cycle(runtime: &RuntimeHandle, suite_id: &str, metadata: Metadata) -> dokime_runtime::TestCycleId {
+pub async fn registered_cycle(
+    runtime: &RuntimeHandle, suite_id: &str, metadata: Metadata,
+) -> (dokime_runtime::TestCycleId, Vec<dokime_runtime::TestExecutionId>) {
     let suite =
         runtime.test_suites().await.into_iter().find(|entry| entry.suite_id == suite_id).expect("fixture suite is registered").suite;
     let options = dokime_runtime::definition::CaseMaterializationOptions {
@@ -160,13 +163,24 @@ pub async fn registered_cycle(runtime: &RuntimeHandle, suite_id: &str, metadata:
             case.suite = Some(suite.metadata.clone());
             case
         })
-        .collect();
+        .collect::<Vec<_>>();
     let cycle_id = runtime
-        .create_cycle(dokime_runtime::transactions::CycleDefinition { metadata, continue_on_failure: false }, Default::default())
+        .create_cycle(
+            dokime_runtime::transactions::CycleDefinition { metadata, continue_automatically: false, continue_on_failure: false },
+            Default::default(),
+        )
         .await
         .unwrap();
-    runtime.append_cycle_cases(cycle_id.clone(), cases, Default::default()).await.unwrap();
-    cycle_id
+    let bindings = cases
+        .iter()
+        .map(|case| {
+            let execution = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
+            (execution, case.test_case_id.clone())
+        })
+        .collect::<Vec<_>>();
+    runtime.register_cases(options.registration_id, cases).await.unwrap();
+    runtime.append_executions(cycle_id.clone(), bindings.clone()).await.unwrap();
+    (cycle_id, bindings.into_iter().map(|(execution, _case)| execution).collect())
 }
 
 /* === Private Functions === */

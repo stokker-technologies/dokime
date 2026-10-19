@@ -412,7 +412,7 @@ async fn watch_file_matchers() {
     let rows = bench
         .handle
         .collect_telemetry(&TelemetrySelection {
-            streams: vec![identifier("tracking")],
+            streams: vec![identifier("tracking").into()],
             scope: ScopeSelection { test_execution_id: Some(execution.clone()), ..Default::default() },
             ..Default::default()
         })

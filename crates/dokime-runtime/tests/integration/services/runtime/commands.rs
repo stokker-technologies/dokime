@@ -59,18 +59,21 @@ async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
 }
 
 #[tokio::test]
-async fn receipts_respect_idempotency() {
+async fn start_receipts_follow_execution_identity() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = provider_runtime(root.path()).await;
     let context = CommandContext { idempotency_key: Some("client-key-1".to_owned()), ..CommandContext::default() };
     let test_cycle_id = provider_cycle(&runtime, "idempotent").await;
+    let execution_id = cycle_snapshot(&runtime, &test_cycle_id).await.test_executions[0].test_execution_id.clone();
+    let mode = dokime_domain::model::execution::ExecutionMode::Automatic;
 
-    let first = runtime.run_cycle_cases(test_cycle_id.clone(), context.clone()).await;
-    let duplicate = runtime.run_cycle_cases(test_cycle_id, context.clone()).await;
+    let first = runtime.start_execution(execution_id.clone(), mode, context.clone()).await;
+    let duplicate = runtime.start_execution(execution_id, mode, CommandContext::default()).await;
     let fresh_cycle_id = provider_cycle(&runtime, "fresh").await;
-    let fresh = runtime.run_cycle_cases(fresh_cycle_id, CommandContext::default()).await;
+    let fresh = runtime.start_next_execution(fresh_cycle_id, CommandContext::default()).await;
 
     assert_eq!(first.status, CommandStatus::Accepted);
+    assert!(first.idempotency_key.is_none());
     assert_eq!(duplicate.command_id, first.command_id);
     assert_eq!(duplicate.accepted_at, first.accepted_at);
     assert_eq!(duplicate.job_id, first.job_id);
@@ -83,7 +86,7 @@ async fn accepted_provider_revision() {
     let (_owner, runtime) = provider_runtime(root.path()).await;
     let test_cycle_id = provider_cycle(&runtime, "replay").await;
     let before = runtime.runtime_overview().await.unwrap().revision;
-    let receipt = runtime.run_cycle_cases(test_cycle_id, CommandContext::default()).await;
+    let receipt = runtime.start_next_execution(test_cycle_id, CommandContext::default()).await;
     let revision = runtime.runtime_overview().await.expect("runtime overview query succeeds").revision;
 
     assert_eq!(receipt.status, CommandStatus::Accepted);
@@ -99,14 +102,14 @@ async fn refusals_refuses_processor() {
     let revision = || async { runtime.runtime_overview().await.expect("runtime overview query succeeds").revision };
     let before = revision().await;
 
-    let rejected = runtime.run_cycle_cases(dokime_runtime::model::identity::new_id::<TestCycleId>(), CommandContext::default()).await;
+    let rejected = runtime.start_next_execution(dokime_runtime::model::identity::new_id::<TestCycleId>(), CommandContext::default()).await;
     let after = revision().await;
 
     assert_eq!(rejected.status, CommandStatus::Rejected);
     assert_eq!(before, after, "refused commands must not be journaled");
 
     let accepted_cycle_id = provider_cycle(&runtime, "after-rejection").await;
-    let accepted = runtime.run_cycle_cases(accepted_cycle_id, CommandContext::default()).await;
+    let accepted = runtime.start_next_execution(accepted_cycle_id, CommandContext::default()).await;
 
     assert_eq!(accepted.status, CommandStatus::Accepted);
     assert!(accepted.runtime_revision > rejected.runtime_revision);
@@ -119,7 +122,8 @@ async fn refusals_refuses_processor() {
 async fn idempotency_survives_restart() {
     let root = tempdir().unwrap();
     let context = CommandContext { idempotency_key: Some("restart-key-1".to_owned()), ..CommandContext::default() };
-    let definition = CycleDefinition { metadata: metadata("fixture.cycle", "Fixture Cycle"), continue_on_failure: false };
+    let definition =
+        CycleDefinition { metadata: metadata("fixture.cycle", "Fixture Cycle"), continue_automatically: false, continue_on_failure: false };
 
     let cycle_id = {
         let (mut runtime, handle) = booted(root.path()).await;
@@ -135,13 +139,17 @@ async fn idempotency_survives_restart() {
 
     let (mut runtime, handle) = booted(root.path()).await;
     let restored = handle.runtime_overview().await.unwrap().cycles;
-    assert_eq!(restored.len(), 1);
-    assert_eq!(restored[0].test_cycle_id, cycle_id);
-    assert_eq!(restored[0].lifecycle, CycleStatus::Stopped);
+    assert!(restored.is_empty(), "sealed containers are read from native history after restart");
+    let saved = dokime_runtime::storage::objects::cycle::read(handle.storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(saved.value.test_cycle_id, cycle_id);
+    assert_eq!(saved.value.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
     let fresh = handle.create_cycle(definition.clone(), context.clone()).await.unwrap();
     assert_eq!(fresh, cycle_id);
     assert_eq!(handle.create_cycle(definition, context).await.unwrap(), fresh);
-    assert_eq!(handle.runtime_overview().await.expect("runtime overview query succeeds").cycles.len(), 1);
+    assert!(handle.runtime_overview().await.expect("runtime overview query succeeds").cycles.is_empty());
     drop(handle);
     runtime.shutdown().await.unwrap();
 }

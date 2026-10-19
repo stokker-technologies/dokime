@@ -61,10 +61,10 @@ async fn step_pages_selections() {
         })
         .collect();
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
-    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = support::planned_cycle(&client, authenticated(create()), selection_plan(&owner)).await.unwrap();
-    client.unary::<contracts::execution::RunCycle>(authenticated(run(&id))).await.unwrap();
+    client.start_first(authenticated(run(&id))).await.unwrap();
     gate.started.notified().await;
     let execution_id = client
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {

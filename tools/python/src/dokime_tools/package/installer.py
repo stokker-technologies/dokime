@@ -23,12 +23,13 @@ import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 
+from dokime_tools.build import paths
 from dokime_tools.build.frontend import ROOT
 
 # Third Party Imports
 # Local Imports
 from dokime_tools.package import examples
-from dokime_tools.package.staging import stage_file
+from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
 
@@ -39,9 +40,6 @@ from dokime_tools.package.staging import stage_file
 
 WEB = Path("crates/dokime-gui")
 TAURI = WEB / "src-tauri"
-DIST = Path("dist/tauri/windows-x86_64")
-LINUX_DIST = Path("dist/tauri/linux-x86_64")
-PLATFORM = "windows" if sys.platform == "win32" else "linux"
 UPDATER_TARGET = "windows-x86_64"
 PROJECT_URL = "https://github.com/stokker-technologies/dokime"
 
@@ -118,15 +116,11 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
     release = profile == "release"
     signed = release and sys.platform == "win32" and _signing_available()
     directory = _target_directory(root) / ("release" if release else "debug")
-    stage_resources(root, directory=directory)
+    stage_resources(root, directory=directory, profile=profile)
     bundles = directory / "bundle"
     for package in ("nsis",) if sys.platform == "win32" else ("deb", "rpm"):
         if (bundles / package).exists():
             shutil.rmtree(bundles / package)
-    if release:
-        for dist in (DIST, LINUX_DIST):
-            if (root / dist).exists():
-                shutil.rmtree(root / dist)
     command = [
         "node",
         "./node_modules/@tauri-apps/cli/tauri.js",
@@ -134,15 +128,12 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
         *([] if release else ["--debug"]),
     ]
     subprocess.run(command, cwd=root / WEB, check=True)
-    if release:
-        collect(root, signed=signed, bundles=bundles)
-    else:
-        collect_development(root, bundles=bundles)
+    collect(root, profile=profile, signed=signed, bundles=bundles)
 
 
-def stage_resources(root: Path = ROOT, *, directory: Path) -> None:
+def stage_resources(root: Path = ROOT, *, directory: Path, profile: str) -> None:
     """Place The Built Executables Where The Tauri Bundler Reads Them, Without Compiling."""
-    built = root / "dist/build" / PLATFORM / "bin"
+    built = paths.output(root, "build", profile) / "bin"
     suffix = ".exe" if sys.platform == "win32" else ""
     triple = _host_triple(root)
     for name in ("dokime", "dokime-server"):
@@ -155,40 +146,31 @@ def stage_resources(root: Path = ROOT, *, directory: Path) -> None:
         stage_file(shell, destination)
 
 
-def collect_development(root: Path = ROOT, *, bundles: Path) -> None:
-    """Gather The Unsigned Development Installers And The Plugin Bundle."""
-    destination = root / "target/package" / PLATFORM
-    for kind in ("installers", "plugins"):
-        if (destination / kind).exists():
-            shutil.rmtree(destination / kind)
-    patterns = ["nsis/*-setup.exe"] if sys.platform == "win32" else ["deb/*.deb", "rpm/*.rpm"]
-    installers = [path for pattern in patterns for path in bundles.glob(pattern)]
-    if len(installers) != len(patterns):
-        raise ValueError(f"expected {len(patterns)} development installers under {bundles}; found {len(installers)}")
-    plugins = sorted((root / "dist/build" / PLATFORM / "plugins").glob("*.dokime"))
-    if not plugins:
-        raise ValueError("development packages require the built plugin bundle; run `mise run build` first")
-    for source, kind in [*((path, "installers") for path in installers), *((path, "plugins") for path in plugins)]:
-        stage_file(source, destination / kind / source.name)
-        print(f"Packaged {(destination / kind / source.name).relative_to(root).as_posix()}")
-
-
-def package_wheel(root: Path = ROOT) -> None:
+def package_wheel(root: Path = ROOT, *, profile: str) -> None:
     """Gather Built Client Distributions And Remote Examples Without Rebuilding."""
-    wheels = sorted((root / "target/wheels").glob("dokime-*"))
+    wheels = sorted((paths.output(root, "build", profile, "any") / "python").glob("dokime-*"))
     if not wheels:
         raise ValueError("packaging requires the built client wheel; run `mise run build` first")
-    destination = root / "target/package" / PLATFORM / "python"
+    destination = paths.output(root, "package", profile, "any") / "python"
     if destination.exists():
         shutil.rmtree(destination)
     for wheel in wheels:
         stage_file(wheel, destination / wheel.name)
         print(f"Packaged {(destination / wheel.name).relative_to(root).as_posix()}")
 
-    examples.package(root, PLATFORM)
+    examples.package(root, profile)
 
 
-def collect(root: Path = ROOT, *, signed: bool, bundles: Path) -> None:
+def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> None:
+    destination = paths.output(root, "package", profile)
+    plugins = sorted((paths.output(root, "build", profile) / "plugins").glob("*.dokime"))
+    if not plugins:
+        raise ValueError("packages require the matching built plugin bundle; run `mise run build` first")
+    for kind in ("installers", "plugins"):
+        clear_output(destination / kind)
+    for plugin in plugins:
+        stage_file(plugin, destination / "plugins" / plugin.name)
+    installers = destination / "installers"
     if sys.platform == "linux":
         version = _release_version(root)
         slug = _slug(root)
@@ -196,10 +178,9 @@ def collect(root: Path = ROOT, *, signed: bool, bundles: Path) -> None:
             f"{slug}_{version}_amd64.deb": _one(list((bundles / "deb").glob("*.deb")), "DEB installer"),
             f"{slug}-{version}-1.x86_64.rpm": _one(list((bundles / "rpm").glob("*.rpm")), "RPM installer"),
         }
-        destination = root / LINUX_DIST
-        destination.mkdir(parents=True, exist_ok=True)
+        installers.mkdir(parents=True, exist_ok=True)
         for name, source in sources.items():
-            stage_file(source, destination / name)
+            stage_file(source, installers / name)
         print(f"Built Linux packages in {bundles}")
         return
     if sys.platform != "win32":
@@ -208,7 +189,7 @@ def collect(root: Path = ROOT, *, signed: bool, bundles: Path) -> None:
     installer = _one([p for p in nsis.rglob("*.exe") if "setup" in p.name], "NSIS installer")
     version = _release_version(root)
     slug = _slug(root)
-    destination = root / DIST / f"{slug}-{version}-{UPDATER_TARGET}-setup.exe"
+    destination = installers / f"{slug}-{version}-{UPDATER_TARGET}-setup.exe"
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(installer, destination)
     if os.environ.get("DOKIME_RELEASE_CONTEXT") == "true" and not signed:
@@ -243,14 +224,15 @@ def collect(root: Path = ROOT, *, signed: bool, bundles: Path) -> None:
 def check_package(
     root: Path = ROOT,
     *,
-    dist: Path = DIST,
+    dist: Path | None = None,
+    profile: str = "release",
     expected: str | None = None,
     require_signed: bool = False,
 ) -> None:
     check(root)
     expected = (expected or os.environ.get("EXPECTED_PACKAGE_VERSION") or _release_version(root)).strip().removeprefix("v")
     slug = _slug(root)
-    directory = root / dist
+    directory = paths.output(root, "package", profile) / "installers" if dist is None else root / dist
     installer = _one(list(directory.glob(f"{slug}-*-{UPDATER_TARGET}-setup.exe")), "Tauri installer")
     if installer.name != f"{slug}-{expected}-{UPDATER_TARGET}-setup.exe":
         raise ValueError("installer version does not match the expected version")
@@ -267,7 +249,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["check", "bundle", "resources", "verify", "wheel"])
     parser.add_argument("--profile", choices=["dev", "release"], default="dev")
-    parser.add_argument("--dist-dir", type=Path, default=DIST)
+    parser.add_argument("--dist-dir", type=Path)
     parser.add_argument("--expected-version")
     parser.add_argument("--require-signed", action="store_true")
     args = parser.parse_args()
@@ -277,12 +259,13 @@ def main() -> int:
         elif args.command == "bundle":
             bundle(profile=args.profile)
         elif args.command == "wheel":
-            package_wheel()
+            package_wheel(profile=args.profile)
         elif args.command == "resources":
-            stage_resources(directory=_target_directory(ROOT) / ("release" if args.profile == "release" else "debug"))
+            stage_resources(directory=_target_directory(ROOT) / ("release" if args.profile == "release" else "debug"), profile=args.profile)
         else:
             check_package(
                 dist=args.dist_dir,
+                profile=args.profile,
                 expected=args.expected_version,
                 require_signed=args.require_signed,
             )

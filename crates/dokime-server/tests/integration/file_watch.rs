@@ -58,12 +58,7 @@ async fn file_watch_artifacts() {
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(
-        owner.handle(),
-        Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap().with_max_message_bytes(1024 * 1024),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(owner.handle(), Config::local().with_max_message_bytes(1024 * 1024)).await.unwrap();
     let client = connect(&server).await;
     let scope = super::media::running_execution(&owner, &client, &gate).await;
     let execution = scope.execution_id.clone().unwrap();

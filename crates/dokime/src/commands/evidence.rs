@@ -31,6 +31,7 @@ use dokime_domain::model::exports::EvidenceSubject;
 
 /* === Structs === */
 #[derive(Debug, clap::Args)]
+#[group(id = "evidence_download")]
 pub(crate) struct Args {
     #[arg(help = "Sealed Execution Or Cycle UUID To Export.")]
     id: String,
@@ -55,17 +56,37 @@ pub(crate) struct Args {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) async fn run(args: Args, subject: fn(String) -> EvidenceSubject) -> crate::Result<()> {
+pub(crate) async fn run(
+    args: Args, subject: fn(String) -> EvidenceSubject, recovery_args: Option<super::execution::recovery::Args>,
+) -> crate::Result<()> {
     let id = dokime_domain::model::identity::TestCycleId::from_uuid(&args.id)
         .map_err(|_| crate::Error::Input("Evidence identity must be a UUID".into()))?;
     dokime_client::validate_download_destination(&args.output, args.overwrite)?;
+    let subject = subject(id.to_string());
+    let execution_id = match &subject {
+        EvidenceSubject::Execution(id) => {
+            Some(dokime_domain::model::identity::TestExecutionId::from_uuid(id).map_err(|error| crate::Error::Input(error.to_string()))?)
+        }
+        EvidenceSubject::Cycle(_) => None,
+    };
+    let recovery = match (execution_id.as_ref(), recovery_args) {
+        (Some(id), Some(args)) => args.prepare(id)?,
+        _ => None,
+    };
     let client = args.connection.connect().await?;
-    let request = dokime_client::contracts::content::DownloadEvidence { subject: Some(subject(id.to_string())) };
-    let result = tokio::select! {
-        result = client.download_evidence(request, args.output, args.overwrite) => result.map_err(crate::Error::from),
-        signal = tokio::signal::ctrl_c() => match signal {
-            Ok(()) => Err(crate::Error::Input("Evidence download cancelled. Retry the export to download from the beginning; executions are unaffected.".into())),
-            Err(error) => Err(error.into()),
+    let request = dokime_client::contracts::content::DownloadEvidence { subject: Some(subject) };
+    let download = async { client.download_evidence(request, args.output, args.overwrite).await.map_err(crate::Error::from) };
+    let result = match execution_id {
+        Some(id) => {
+            let execution = client.execution(id);
+            super::execution::recovery::observe(&client, &execution, recovery.as_ref(), "Evidence Export", download).await
+        }
+        None => tokio::select! {
+            result = download => result,
+            signal = tokio::signal::ctrl_c() => match signal {
+                Ok(()) => Err(crate::Error::Input("Evidence download cancelled. Retry the export to download from the beginning; executions are unaffected.".into())),
+                Err(error) => Err(error.into()),
+            },
         },
     };
     client.close_and_wait().await;

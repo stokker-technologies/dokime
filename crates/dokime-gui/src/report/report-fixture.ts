@@ -119,6 +119,7 @@ function plan(): TestCyclePlan {
     test_cycle: {
       case_count: 1,
       continue_on_failure: false,
+      continue_automatically: false,
       generated_at: "2026-09-30T10:00:00.000Z",
       metadata: {},
       queue_count: 1,

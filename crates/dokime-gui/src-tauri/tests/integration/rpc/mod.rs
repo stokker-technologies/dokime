@@ -21,11 +21,10 @@ use serde_json::json;
 use sha2::Digest;
 // Local Imports
 use crate::support::bridge::{self, Harness, fenced};
-use crate::support::server::{Fixture, TOKEN};
+use crate::support::server::Fixture;
 use dokime_domain::model;
 use dokime_domain::operations::backend;
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES};
-use dokime_server::grpc::access::Role;
 
 /* === Constants === */
 const STAGE: &str = "/dokime.v1.Plugins/Stage";
@@ -190,7 +189,7 @@ fn hex(bytes: &[u8]) -> String {
 /* === Tests === */
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn refuses_invalid_dispatch() {
-    let fixture = Fixture::with_role(Role::Admin).await;
+    let fixture = Fixture::new().await;
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     for command in ["rpc", "rpc_stream_open"] {
@@ -284,7 +283,7 @@ fn client_stream_opens() {
 #[test]
 fn stages_large_bundle() {
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::with_role(Role::Admin));
+    let fixture = runtime.block_on(Fixture::new());
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     let bytes = large_bundle(70 * 1024 * 1024);
@@ -303,7 +302,7 @@ fn stages_large_bundle() {
 fn refuses_foreign_bundle() {
     let target = if cfg!(windows) { "x86_64-unknown-linux-gnu" } else { "x86_64-pc-windows-msvc" };
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::with_role(Role::Admin));
+    let fixture = runtime.block_on(Fixture::new());
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     let frames = stage(&harness, generation, &bundle_for_target(1024, target));
@@ -321,9 +320,7 @@ fn refuses_foreign_bundle() {
 async fn owner_cancellation_health() {
     use tauri::Manager;
 
-    // Staging is an administrator operation: under any lesser role the call
-    // fails on its own before the cancellation reaches it.
-    let fixture = Fixture::with_role(Role::Admin).await;
+    let fixture = Fixture::new().await;
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     let (stream, channel) = harness.open(generation, STAGE, &envelope(1, &[]), true).unwrap();
@@ -335,9 +332,8 @@ async fn owner_cancellation_health() {
     let frames = harness.settle(channel);
     let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
     assert_eq!(error["kind"], "cancelled");
-    let client = dokime_client::Client::connect(dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(), Some(TOKEN), None)
-        .await
-        .unwrap();
+    let client =
+        dokime_client::Client::connect(dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
     assert!(client.backend_get_health(backend::GetHealth {}).await.is_ok());
     fixture.close().await;
 }
@@ -367,8 +363,8 @@ async fn generation_fences_streams() {
 async fn client_close_drops() {
     use dokime_client::{Client, Error, Target};
 
-    let fixture = Fixture::with_role(Role::Admin).await;
-    let client = Client::connect(Target::local(fixture.server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+    let fixture = Fixture::new().await;
+    let client = Client::connect(Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
     let (entered, ready) = tokio::sync::oneshot::channel();
     let (dropped, released) = tokio::sync::oneshot::channel();
     let uploading = client.clone();

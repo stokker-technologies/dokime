@@ -23,6 +23,7 @@ use crate::telemetry::{TelemetryFilter, TelemetrySample};
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::IdentifierPattern;
 use dokime_domain::model::identity::TemplateId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
@@ -55,7 +56,7 @@ pub struct TelemetrySelection {
     #[serde(default)]
     pub after_stream_cursors: BTreeMap<String, u64>,
     pub limit: Option<usize>,
-    pub streams: Vec<Identifier>,
+    pub streams: Vec<IdentifierPattern>,
     pub schema_versions: Vec<u32>,
     pub sources: Vec<String>,
     pub signals: Vec<String>,

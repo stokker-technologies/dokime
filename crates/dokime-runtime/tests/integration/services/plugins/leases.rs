@@ -229,7 +229,10 @@ fn reader_artifact(source: &str) -> InstalledPlugin {
 
 async fn stored(handle: &dokime_runtime::RuntimeHandle) -> usize {
     handle
-        .selected_telemetry(dokime_runtime::domains::evidence::TelemetrySelection { streams: vec![foreign_stream()], ..Default::default() })
+        .selected_telemetry(dokime_runtime::domains::evidence::TelemetrySelection {
+            streams: vec![foreign_stream().into()],
+            ..Default::default()
+        })
         .await
         .iter()
         .filter(|sample| sample.stream == foreign_stream())
@@ -447,7 +450,10 @@ async fn foreign_stream_refuses() {
     // own capture; a third row would be the reader re-publishing what it was
     // handed.
     let stored = handle
-        .selected_telemetry(dokime_runtime::domains::evidence::TelemetrySelection { streams: vec![foreign_stream()], ..Default::default() })
+        .selected_telemetry(dokime_runtime::domains::evidence::TelemetrySelection {
+            streams: vec![foreign_stream().into()],
+            ..Default::default()
+        })
         .await
         .into_iter()
         .filter(|sample| sample.stream == foreign_stream())

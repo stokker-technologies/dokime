@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 // Third Party Imports
 use tokio::sync::Notify;
@@ -27,10 +27,7 @@ use tonic::{
 use dokime_client::contracts;
 use dokime_domain::model;
 use dokime_runtime::domains::ExecutionProviderTarget;
-use dokime_server::grpc::{
-    Server,
-    access::{BearerGrant, Role},
-};
+use dokime_server::grpc::{Config, Server};
 use {
     dokime_domain::model::execution::result::CycleView, dokime_domain::model::execution::result::ExecutionStatus,
     dokime_runtime::ExecutionFixture, dokime_runtime::ExecutionFixtureContext, dokime_runtime::ExecutionFixtureFuture,
@@ -54,6 +51,18 @@ pub struct WireClient {
     pub encoding: usize,
 }
 
+pub struct SelectionAppend {
+    pub cycle_id: String,
+    pub plan: Option<model::planning::wire::SelectionPlan>,
+    pub context: Option<model::execution::wire::MutationContext>,
+}
+
+pub struct CaseSelection {
+    pub cycle_id: String,
+    pub case_id: String,
+    pub context: Option<model::execution::wire::MutationContext>,
+}
+
 pub struct WireBytes<C> {
     pub codec: C,
 }
@@ -65,6 +74,7 @@ pub struct WireStream<T> {
 }
 
 pub struct Gate {
+    pub calls: AtomicUsize,
     pub started: Notify,
     pub release: Notify,
     pub returned: AtomicBool,
@@ -94,6 +104,76 @@ impl<T: harmos::domain::Portable> WireMessage for T {
 
 /* === Implementations === */
 impl WireClient {
+    pub async fn start_first(
+        &self, request: impl tonic::IntoRequest<contracts::execution::GetCycle>,
+    ) -> Result<tonic::Response<model::execution::wire::RunReply>, tonic::Status> {
+        let (metadata, _, request) = request.into_request().into_parts();
+        let list = contracts::execution::ListExecutions { cycle_id: request.cycle_id, ..Default::default() };
+        let response =
+            self.unary::<contracts::execution::ListExecutions>(Request::from_parts(metadata.clone(), Default::default(), list)).await?;
+        let executions = response.into_inner().executions;
+        let execution = executions.first().ok_or_else(|| tonic::Status::not_found("execution not found"))?;
+        let start = contracts::execution::StartExecution {
+            execution_id: execution.execution_id.clone(),
+            mode: model::execution::wire::ExecutionMode::Automatic,
+        };
+        self.unary::<contracts::execution::StartExecution>(Request::from_parts(metadata, Default::default(), start)).await
+    }
+
+    pub async fn start_case(
+        &self, request: impl tonic::IntoRequest<CaseSelection>,
+    ) -> Result<tonic::Response<model::execution::wire::RunReply>, tonic::Status> {
+        let (metadata, _, request) = request.into_request().into_parts();
+        let list = contracts::execution::ListExecutions { cycle_id: request.cycle_id, ..Default::default() };
+        let response =
+            self.unary::<contracts::execution::ListExecutions>(Request::from_parts(metadata.clone(), Default::default(), list)).await?;
+        let executions = response.into_inner().executions;
+        let execution = executions
+            .iter()
+            .rev()
+            .find(|execution| execution.case_id == request.case_id)
+            .ok_or_else(|| tonic::Status::not_found("execution not found"))?;
+        let start = contracts::execution::StartExecution {
+            execution_id: execution.execution_id.clone(),
+            mode: model::execution::wire::ExecutionMode::Automatic,
+        };
+        self.unary::<contracts::execution::StartExecution>(Request::from_parts(metadata, Default::default(), start)).await
+    }
+
+    pub async fn append_selection(
+        &self, request: impl tonic::IntoRequest<SelectionAppend>,
+    ) -> Result<tonic::Response<model::execution::wire::AppendCasesReply>, tonic::Status> {
+        let (metadata, _, request) = request.into_request().into_parts();
+        let mut plan = request.plan.ok_or_else(|| tonic::Status::invalid_argument("selection plan is required"))?;
+        if plan.case_ids.is_empty() {
+            if plan.cycle_id.is_empty() {
+                plan.cycle_id.clone_from(&request.cycle_id);
+            } else if plan.cycle_id != request.cycle_id {
+                return Err(tonic::Status::invalid_argument("selection plan numbers a different cycle"));
+            }
+        }
+        let preview = if plan.case_ids.is_empty() {
+            let register = contracts::planning::RegisterSelection { plan: Some(plan), idempotency_key: uuid::Uuid::now_v7().to_string() };
+            let response = self
+                .unary::<contracts::planning::RegisterSelection>(Request::from_parts(metadata.clone(), Default::default(), register))
+                .await?
+                .into_inner();
+            response
+        } else {
+            let preview = contracts::planning::PreviewSelection { plan: Some(plan) };
+            self.unary::<contracts::planning::PreviewSelection>(Request::from_parts(metadata.clone(), Default::default(), preview))
+                .await?
+                .into_inner()
+        };
+        let executions = preview
+            .cases
+            .into_iter()
+            .map(|case| contracts::execution::ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: case.case_id })
+            .collect();
+        let append = contracts::execution::AppendExecutions { cycle_id: request.cycle_id, executions };
+        self.unary::<contracts::execution::AppendExecutions>(Request::from_parts(metadata, Default::default(), append)).await
+    }
+
     pub fn new(channel: Channel) -> Self {
         Self { channel, decoding: 4 * 1024 * 1024, encoding: u32::MAX as usize }
     }
@@ -314,7 +394,7 @@ impl Default for Gate {
 
 impl Gate {
     pub fn reporting(outcome: fn(&CycleView) -> ProviderCycleOutcome) -> Self {
-        Self { started: Notify::new(), release: Notify::new(), returned: AtomicBool::new(false), outcome }
+        Self { calls: AtomicUsize::new(0), started: Notify::new(), release: Notify::new(), returned: AtomicBool::new(false), outcome }
     }
 }
 
@@ -323,6 +403,7 @@ impl ExecutionFixture for Gate {
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a> {
         Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
             self.started.notify_one();
             let released = self.release.notified();
             tokio::pin!(released);
@@ -347,8 +428,8 @@ pub async fn runtime(root: &std::path::Path) -> Runtime {
     Runtime::start(config).await.unwrap()
 }
 
-pub fn grant(role: Role) -> BearerGrant {
-    BearerGrant::new("fixture".into(), role, TOKEN).unwrap()
+pub fn keyed() -> Config {
+    Config::remote("127.0.0.1:0".parse().unwrap(), None, Some(TOKEN)).unwrap()
 }
 
 pub fn auth<T>(message: T, token: &str) -> Request<T> {
@@ -456,13 +537,6 @@ pub fn accepted(reply: model::execution::wire::RunReply) -> model::execution::wi
             panic!("run rejected: {rejection:?}")
         }
     }
-}
-
-pub async fn lookup(client: &mut WireClient, id: &str, token: &str) -> Result<model::execution::wire::RunRequestReceipt, tonic::Status> {
-    client
-        .unary::<contracts::execution::GetRunRequest>(auth(contracts::execution::GetRunRequest { request_id: id.into() }, token))
-        .await
-        .map(|response| response.into_inner())
 }
 
 /* === Private Functions === */

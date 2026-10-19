@@ -21,11 +21,10 @@ use super::artifact;
 use dokime_domain::model;
 use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::BackendSelection;
-use dokime_server::grpc::{Config, Server, access::Role};
+use dokime_server::grpc::{Config, Server};
 use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime, dokime_runtime::RuntimeConfig};
 
 /* === Constants === */
-pub const TOKEN: &str = "rpc-test-token-012345678901234567890123456789";
 
 /* === Macros === */
 
@@ -52,10 +51,6 @@ pub struct Published {
 /* === Implementations === */
 impl Fixture {
     pub async fn new() -> Self {
-        Self::with_role(Role::Control).await
-    }
-
-    pub async fn with_role(role: Role) -> Self {
         // Runtime With A Calibration Record
         let root = tempfile::tempdir().unwrap();
         let artifacts = Arc::new(artifact::Provider::default());
@@ -73,15 +68,13 @@ impl Fixture {
         );
         runtime.handle().publish_product_record(calibration.into_draft("rpc.fixture")).await.unwrap();
 
-        // Authenticated Server And Session
-        let grant = dokime_server::grpc::access::BearerGrant::new("native-gui".into(), role, TOKEN).unwrap();
-        let config = Config::local().with_bearer_auth(vec![grant]).unwrap();
-        let server = Server::start(runtime.handle(), config).await.unwrap();
+        // Native Server And Session
+        let server = Server::start(runtime.handle(), Config::local()).await.unwrap();
         let session = ConnectionSession::default();
         session
             .connect(ConnectRequest {
                 target: ConnectionTarget::Local { endpoint: server.local_endpoint() },
-                credentials: ConnectionCredentials::Bearer { token: TOKEN.into(), remember: false },
+                credentials: ConnectionCredentials::None,
                 expected_backend_id: None,
             })
             .await

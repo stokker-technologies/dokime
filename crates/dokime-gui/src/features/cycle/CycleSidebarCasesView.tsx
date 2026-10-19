@@ -37,8 +37,6 @@
 
 // Third Party Imports
 
-/* === External Imports === */
-
 import { useNavigate } from "@tanstack/react-router";
 import {
   BellRing,
@@ -62,7 +60,7 @@ import {
 import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/* === Local Imports === */
+// Local Imports
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -73,9 +71,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { TestCyclePlan, TestExecution } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
-import type { TestCyclePlan, TestExecution } from "@/lib/types";
 import {
   buildCycleCases,
   buildCycleExecutionRows,
@@ -94,31 +92,7 @@ import {
   selectedCycleRow,
 } from "./cycle-workspace-model";
 
-/* === Types === */
-
-export type CycleSidebarState = {
-  data?: { plan: TestCyclePlan | null; executions: TestExecution[] };
-  isError: boolean;
-  error: unknown;
-  refetch?: () => unknown;
-};
-
-export type CycleSidebarActions = {
-  rerunCase: (caseId: string) => Promise<string | null | undefined>;
-  runCase: (executionId: string) => Promise<unknown>;
-  deleteCase: (caseId: string) => Promise<unknown>;
-};
-
-export type CycleSidebarCasesViewProps = {
-  detailQuery: CycleSidebarState;
-  actions?: CycleSidebarActions;
-  cycleId: string;
-  selection: CycleSelection;
-} & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
-
-type GlyphTone = "running" | "success" | "danger" | "warning" | "muted";
-
-type Glyph = { icon: LucideIcon; tone: GlyphTone; spin?: boolean; label: string };
+/* === Re-Exports === */
 
 /* === Constants === */
 
@@ -139,6 +113,32 @@ const TONE_CLASS: Record<GlyphTone, string> = {
 
 /** How long a touch must rest on a row before its menu opens. */
 const LONG_PRESS_MS = 500;
+
+/* === Types === */
+
+export type CycleSidebarState = {
+  data?: { plan: TestCyclePlan | null; executions: TestExecution[] };
+  isError: boolean;
+  error: unknown;
+  refetch?: () => unknown;
+};
+
+export type CycleSidebarActions = {
+  rerunCase: (caseId: string) => Promise<string | null | undefined>;
+  startExecution: (executionId: string) => Promise<unknown>;
+  deleteCase: (caseId: string) => Promise<unknown>;
+};
+
+export type CycleSidebarCasesViewProps = {
+  detailQuery: CycleSidebarState;
+  actions?: CycleSidebarActions;
+  cycleId: string;
+  selection: CycleSelection;
+} & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
+
+type GlyphTone = "running" | "success" | "danger" | "warning" | "muted";
+
+type Glyph = { icon: LucideIcon; tone: GlyphTone; spin?: boolean; label: string };
 
 /* === Components === */
 
@@ -315,12 +315,13 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
                 ) : (
                   rows.map((row) => (
                     <ExecutionTreeRow
+                      active={plan?.test_cycle.phase === "active"}
                       following={following && row.execution !== null && row.execution.test_execution_id === activeExecutionId}
                       key={row.key}
                       live={live}
                       onDelete={setPendingDelete}
                       onRerun={() =>
-                        report({ done: "Case Re-Run Started", failed: "Case Re-Run Failed" }, async () => {
+                        report({ done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" }, async () => {
                           const created = await liveActions(actions).rerunCase(row.case.caseId);
                           if (created) select({ executionId: created });
                         })
@@ -331,7 +332,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
                           if (!execution || !isPlannedExecution(execution.status)) {
                             throw new Error("No unstarted execution is available.");
                           }
-                          return liveActions(actions).runCase(execution.test_execution_id);
+                          return liveActions(actions).startExecution(execution.test_execution_id);
                         })
                       }
                       onSelect={() => select(cycleRowSelection(row))}
@@ -390,9 +391,8 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
   );
 }
 
-/* === Private Components === */
-
 function ExecutionTreeRow({
+  active,
   following,
   live,
   onDelete,
@@ -402,6 +402,7 @@ function ExecutionTreeRow({
   row,
   selected,
 }: {
+  active: boolean;
   following: boolean;
   live: boolean;
   onDelete: (row: CycleExecutionRow) => void;
@@ -419,7 +420,8 @@ function ExecutionTreeRow({
      execution is history, and acting on the case from it would be ambiguous. */
   const actions = row.case.actions;
   const reason = caseActionTooltip(row.case);
-  const allowed = (key: "delete" | "run" | "schedule_rerun") => actions === null || actions[key];
+  const deleteAllowed = actions === null || actions.delete;
+  const startAllowed = active && row.execution !== null && isPlannedExecution(row.execution.status);
   const glyph = rowGlyph(row);
   const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run Of #${row.rerunOf}`;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -462,11 +464,11 @@ function ExecutionTreeRow({
           <Button
             aria-label={`Run Again ${row.case.label}`}
             className="size-[var(--tree-action-width)]"
-            disabled={!allowed("schedule_rerun")}
+            disabled={!active}
             onClick={onRerun}
             size="icon-sm"
             tabIndex={-1}
-            title={allowed("schedule_rerun") ? "Run Again" : reason}
+            title={active ? "Append New Attempt" : "Only Active Cycles Accept New Attempts"}
             variant="ghost"
           >
             <RotateCcw />
@@ -494,15 +496,19 @@ function ExecutionTreeRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48" side="right">
-              <DropdownMenuItem disabled={!allowed("run")} onSelect={onRun} title={allowed("run") ? undefined : reason}>
+              <DropdownMenuItem
+                disabled={!startAllowed}
+                onSelect={onRun}
+                title={startAllowed ? undefined : "Select An Unstarted Execution In An Active Cycle"}
+              >
                 <Play />
-                Run Case
+                Start Execution
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                disabled={!allowed("delete")}
+                disabled={!deleteAllowed}
                 onSelect={() => onDelete(row)}
-                title={allowed("delete") ? undefined : reason}
+                title={deleteAllowed ? undefined : reason}
                 variant="destructive"
               >
                 <Trash2 />
@@ -552,6 +558,10 @@ function TreeNotice({ action, message, title }: { action?: { label: string; onCl
     </li>
   );
 }
+
+/* === Hooks === */
+
+/* === Public Functions === */
 
 /* === Private Functions === */
 
@@ -660,14 +670,6 @@ function cycleGlyph(status: CycleLifecycle): Glyph {
 function caseExecutionCount(rows: readonly CycleExecutionRow[], caseId: string): number {
   return rows.filter((row) => row.case.caseId === caseId && row.execution !== null).length;
 }
-
-/* === Re-Exports === */
-
-/* === Hooks === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 function liveActions(actions: CycleSidebarActions | undefined): CycleSidebarActions {
   if (!actions) throw new Error("Cycle commands require a live workspace.");

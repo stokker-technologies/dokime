@@ -29,8 +29,6 @@ from .models import (
     ExecutionCommandReceipt,
     Record,
     ResultSummary,
-    RunPhase,
-    RunStatus,
     Sample,
     UnsignedValue,
     Value,
@@ -173,30 +171,6 @@ def scope(item: Message) -> dict[str, Any]:
         descriptor.name: MessageToDict(value, preserving_proto_field_name=True) if isinstance(value, Message) else value
         for descriptor, value in item.ListFields()
     }
-
-
-def status(item: Message) -> RunStatus:
-    try:
-        phase = RunPhase(enum_name(item.phase))
-    except ValueError as error:
-        raise ProtocolError(f"unknown run phase {item.phase}") from error
-    return RunStatus(
-        id=item.request_id,
-        cycle_id=item.cycle_id,
-        phase=phase,
-        paused=item.paused,
-        stop_requested=item.stop_requested,
-        planned=item.planned_count,
-        prepared=item.prepared_count,
-        finished=item.finished_count,
-        failed=item.failed_count,
-        unstarted=item.unstarted_count,
-        claimed=item.claimed_count,
-        last_execution_id=item.last_claim.execution_id or None,
-        accepted_at=timestamp(item, "accepted_at"),
-        finished_at=timestamp(item, "finished_at"),
-        interruption=item.interruption if item.HasField("interruption") else None,
-    )
 
 
 def command_receipt(item: Message) -> ExecutionCommandReceipt:
