@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+mod operations;
 
 /* === Re-Exports === */
 
