@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/publish.py; sha256:dd1b72eba58fb76dbe3c51f851f0e3e6cb9865637bf6cb5dc38c0674ea6cf967
+# Rendered by stkr project update from templates/python/test/publish.py; sha256:c5950b3c7d8c484fe75991f031a47f191076083a2b0b31ef69df5976ff35ef28
 # ***
 #
 # Dokime
@@ -47,18 +47,12 @@ def commands(directory: Path, rust: bool, wheels: list[str], scratch: Path) -> l
             )
         )
         members = set(metadata["workspace_members"])
+        command = ["cargo", "publish", "--dry-run", "--locked"]
         for package in metadata["packages"]:
             if package["id"] in members and package.get("publish") != []:
-                commands.append(
-                    [
-                        "cargo",
-                        "publish",
-                        "--dry-run",
-                        "--locked",
-                        "--package",
-                        package["name"],
-                    ]
-                )
+                command.extend(["--package", package["name"]])
+        if "--package" in command:
+            commands.append(command)
     commands.extend(
         [
             "uv",
