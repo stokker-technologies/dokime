@@ -276,7 +276,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     ) : (
       <WorkspaceNotice
         action={{ label: "Go To Cycles", onClick: () => void navigate({ to: "/cycles" }) }}
-        message="This cycle is no longer loaded. A sealed cycle leaves the runtime when the next one starts; History keeps it."
+        message="This cycle could not be found on the connected backend. Return to Cycles or inspect its saved history."
         title="Cycle Not Found"
       />
     );

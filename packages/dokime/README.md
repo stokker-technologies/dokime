@@ -159,6 +159,9 @@ evidence. They seal their own cycle before waiting for the saved result, closing
 admission even if interruption raced with submission; a failed connection reports recovery identities without claiming
 cancellation succeeded. Matching first-party release artifacts and the tutorial
 dependency lock remain required before the beginner installation is available.
+The prompt script prints its admission confirmation only after the start reply
+arrives; its earlier execution UUID and request key remain the recovery identities
+when that reply is lost.
 
 ```python
 from dokime.client import DokimeClient

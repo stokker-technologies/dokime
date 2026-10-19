@@ -68,6 +68,7 @@ async def run(arguments: argparse.Namespace) -> int:
             request_key = str(uuid4())
             print(f"Execution: {execution.id} Request Key: {request_key} Mode: automatic", flush=True)
             await execution.start(request_key=request_key)
+            print(f"Request Accepted For Execution {execution.id}", flush=True)
 
             async with asyncio.timeout(60):
                 while True:

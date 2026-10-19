@@ -23,6 +23,7 @@
 //   b. library      suite expansion, the template dialog, two templates added
 //   c. cycle        the workspace: sidebar, run, prompts, focus, console, overflow
 //   c'. execution-stop  a copy: Stop Execution stops one, its siblings finish
+//   c''. containers  independent Active cycles, explicit sealing and export availability
 //   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
@@ -1784,6 +1785,99 @@ async function executionStopJourney(session, cycleId) {
   return copyId;
 }
 
+/** Completed executions seal independently; the operator closes their container. */
+async function containersJourney(session, cycleId) {
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
+  await cyclePhase(session, "Active");
+  await exportAvailability(session, false);
+  const select = await until("a finished execution row", () =>
+    session.find("css selector", "nav[aria-label=Navigation] li[data-level=case] button[data-tree-select]"),
+  );
+  await session.click(select);
+  const executionId = await until("a finished execution selected", async () => (await session.location()).searchParams.get("executionId"));
+  await exportAvailability(session, true);
+
+  // A Second Container Does Not Replace The First.
+  await session.goto("/cycles");
+  await session.clickNamed("button", "New Cycle");
+  const input = await until("new independent cycle", () => session.find("css selector", "#new-cycle-title"));
+  await session.type(input, "Independent Remote Cycle");
+  await session.clickNamed("button", "Create Cycle");
+  const independentId = await until("the independent cycle route", async () => {
+    const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
+    return match && match[1] !== cycleId ? match[1] : null;
+  });
+  await cyclePhase(session, "Active");
+  await exportAvailability(session, false);
+  assert.ok(hasText(await session.text(), "0 of 0 cases finished"), "A newly selected empty cycle must not inherit another cycle's cases");
+
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
+  await cyclePhase(session, "Active");
+  await session.clickNamed("button", "Seal Cycle");
+  const confirmation = await until("seal scope confirmation", () => session.find("css selector", "[role=dialog][data-state=open]"));
+  const description = await session.textOf(confirmation);
+  assert.ok(hasText(description, "closes this cycle permanently"), "Sealing must explain that admission closes permanently");
+  assert.ok(hasText(description, "Other cycles keep running"), "Sealing must state its cycle-local scope");
+  await session.key("Escape");
+  await until(
+    "seal cancelled without effect",
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog][data-state=open]').length")) === 0,
+  );
+  await cyclePhase(session, "Active");
+  await exportAvailability(session, false);
+
+  await sealContainer(session);
+  await exportAvailability(session, true);
+  assert.ok(!(await session.exists("button", "Start Cycle")), "A sealed cycle must not offer new run admission");
+  assert.ok(!(await session.exists("button", "Seal Cycle")), "A sealed cycle must show its final state rather than another seal command");
+  await session.goto(`/cycles/${cycleId}?executionId=${executionId}`);
+  await exportAvailability(session, true);
+  assert.equal(
+    (await session.location()).searchParams.get("executionId"),
+    executionId,
+    "Sealing must preserve the explicit execution selection",
+  );
+
+  // The Other Active Cycle Still Exists And Owns Its Own Seal.
+  await session.goto(`/cycles/${independentId}?view=cycle`);
+  await cyclePhase(session, "Active");
+  await exportAvailability(session, false);
+  await sealContainer(session);
+  await exportAvailability(session, true);
+}
+
+async function cyclePhase(session, phase) {
+  await until(`cycle phase ${phase}`, async () => hasText(await session.text(), `${phase} ·`));
+}
+
+async function exportAvailability(session, enabled) {
+  const state = await until(`evidence export ${enabled ? "enabled" : "disabled"}`, () =>
+    session.execute(
+      `
+    const button = [...document.querySelectorAll('button')].find((candidate) => candidate.innerText.trim() === 'Export Evidence');
+    if (!button || button.disabled === arguments[0]) return null;
+    return { disabled: button.disabled, title: button.title };
+  `,
+      [enabled],
+    ),
+  );
+  assert.equal(state.disabled, !enabled);
+  assert.equal(state.title, enabled ? "Download SQLite, Files And Saved Reports" : "Seal This Cycle Before Exporting");
+}
+
+async function sealContainer(session) {
+  await session.clickNamed("button", "Seal Cycle");
+  const confirm = await until("explicit seal button", () =>
+    session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Seal Cycle']"),
+  );
+  await session.click(confirm);
+  await until(
+    "seal confirmation closed",
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog][data-state=open]').length")) === 0,
+  );
+  await cyclePhase(session, "Sealed");
+}
+
 /** Cycles home after the run: the Recent row, the Archived view, and the filter. */
 async function cyclesHomeJourney(session, cycleTitle) {
   await session.goto("/cycles");
@@ -2520,15 +2614,16 @@ async function main() {
 
   if (cycleId) {
     await journey("cycle", () => cycleJourney(session, cycleId));
-    /* The report and touch journeys read the run's own cycle, which leaves the
-       runtime once its copy starts; History keeps it from then on. */
+    /* Report and touch read the original cycle; the copy owns an independent
+       container and keeps the original executions unchanged. */
     await journey("report", () => reportJourney(session, cycleId));
     await journey("touch", () => touchJourney(session, cycleId));
     await journey("execution-stop", () => executionStopJourney(session, cycleId));
+    await journey("containers", () => containersJourney(session, cycleId));
     await journey("cycles-home", () => cyclesHomeJourney(session, library.value.title));
     await journey("history", () => historyJourney(session));
   } else {
-    for (const name of ["cycle", "report", "touch", "execution-stop", "cycles-home", "history"]) {
+    for (const name of ["cycle", "report", "touch", "execution-stop", "containers", "cycles-home", "history"]) {
       failures.push({
         kind: "failure",
         name,
