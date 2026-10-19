@@ -304,7 +304,7 @@ async fn stopping_cycle_waits() {
 }
 
 #[tokio::test]
-async fn restart_closes_prompts() {
+async fn shutdown_preserves_prompts() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = started(prompt_config(root.path())).await;
     let cycle =
@@ -319,7 +319,7 @@ async fn restart_closes_prompts() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 
-    // The restart settles the cycle's question as a runtime expiry, once.
+    // Graceful Shutdown Seals The Cycle; Its Unanswered Prompt Stays Settled Across Restarts.
     for _ in 0..2 {
         let (mut owner, runtime) = started(prompt_config(root.path())).await;
         assert_eq!(runtime.pending_prompt_projection().await, vec![standalone.clone()]);
@@ -330,8 +330,32 @@ async fn restart_closes_prompts() {
         owner.shutdown().await.unwrap();
     }
     let (mut owner, runtime) = started(prompt_config(root.path())).await;
-    let settlements = settlement_records(&runtime, &id).await;
-    assert_eq!(settlements, vec![("prompt.response.expired".to_owned(), Value::from("runtime_restarted"))]);
+    // Sealed Cycle Records Remain In Native History After Leaving The Live Projection.
+    let at = runtime.storage().flush().await.unwrap();
+    let selection = harmos::storage::query::RecordSelection {
+        schema: dokime_runtime::storage::records::schema(),
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
+    let mut reader = runtime
+        .storage()
+        .read_records::<dokime_runtime::storage::records::RecordRow>(harmos::storage::RecordRead { at, selection, after: 0 })
+        .await
+        .unwrap();
+    let mut settlements = Vec::new();
+    while let Some(rows) = reader.next().await.unwrap() {
+        for row in rows {
+            let record = row.payload.entry().unwrap();
+            if record.details.get("prompt_id") == Some(&Value::from(id.as_str()))
+                && record.details.get("responder") == Some(&Value::from("runtime"))
+            {
+                settlements.push((record.record_type.to_string(), record.details["reason"].clone()));
+            }
+        }
+    }
+    assert_eq!(settlements, vec![("prompt.response.cancelled".to_owned(), Value::from("execution_stopped"))]);
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

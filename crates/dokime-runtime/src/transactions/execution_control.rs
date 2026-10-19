@@ -171,14 +171,16 @@ impl ControlExecution {
     fn stop(&self, state: &mut RuntimeState) {
         use dokime_domain::model::execution::result::{ExecutionStatus, ResultStatus, ResultSummary, StepStatus};
         let (records, settled) = self.drafts(state);
-        let request_id = Self::owning_request(state, &self.test_execution_id).map(|request| request.summary.request_id.clone());
+        let request = Self::owning_request(state, &self.test_execution_id);
+        let request_id = request.map(|request| request.summary.request_id.clone());
+        let prepared = request.is_some_and(|request| request.summary.prepared > 0);
         let execution = state.executions.get_mut(&self.test_execution_id).expect("checked execution");
         let cycle = state.cycles.get_mut(&execution.test_cycle_id).expect("checked cycle");
         if cycle.phase == dokime_domain::model::execution::result::CyclePhase::Active {
             cycle.continue_automatically = false;
             cycle.touch_at(self.occurred_at.clone());
         }
-        if execution.started_at.is_none() && execution.finished_at.is_none() {
+        if !prepared && execution.started_at.is_none() && execution.finished_at.is_none() {
             execution.status = ExecutionStatus::Cancelled;
             execution.finished_at = Some(self.occurred_at.clone());
             execution.result = Some(ResultSummary { passed: 0, failed: 0, blocked: 0, skipped: 1, status: ResultStatus::Cancelled });

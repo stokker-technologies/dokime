@@ -53,7 +53,7 @@ fn fixture() -> (RuntimeState, NoteAdmission) {
     let cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     let case_id = dokime_runtime::model::identity::new_id::<CaseId>();
     let cycle: CycleView = serde_json::from_value(serde_json::json!({
-        "test_cycle_id":cycle_id,"metadata":{"identifier":"fixture.cycle","label":"Fixture"},
+        "test_cycle_id":cycle_id,"metadata":{"identifier":"fixture.cycle","label":"Fixture"},"phase":"active",
         "created_at":dokime_runtime::model::time::now_utc(),"updated_at":dokime_runtime::model::time::now_utc(),
         "test_executions":[{
             "test_cycle_id": cycle_id,

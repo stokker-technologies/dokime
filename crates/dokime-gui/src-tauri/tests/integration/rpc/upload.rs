@@ -78,13 +78,22 @@ struct ActiveFixture {
 }
 impl dokime_runtime::ExecutionFixture for ActiveFixture {
     fn run_cycle<'a>(
-        &'a self, _context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
+        &'a self, context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a dokime_runtime::domains::ExecutionProviderTarget,
     ) -> dokime_runtime::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             use dokime_runtime::transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome};
-            self.release.notified().await;
             let execution = &cycle.test_executions[0];
+            context
+                .update_execution_phase(
+                    execution.scope.clone(),
+                    dokime_runtime::Identifier::new("rpc.artifact-upload.transfer").unwrap(),
+                    "Artifact Transfer".into(),
+                    "running".into(),
+                )
+                .await
+                .unwrap();
+            self.release.notified().await;
             Ok(ProviderCycleOutcome {
                 status: "passed".into(),
                 dependency_imports: vec![],

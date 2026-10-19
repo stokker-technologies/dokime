@@ -99,6 +99,9 @@ impl RuntimeHandle {
         if self.state_read().cycles[&cycle_id].phase == dokime_domain::model::execution::result::CyclePhase::Sealed {
             return Ok(());
         }
+        if execution.saved.is_none() && execution.finished_at.is_none() {
+            self.freeze_report_inputs(vec![id.clone()]).await?;
+        }
         self.commit_with_key(
             context.idempotency_key,
             crate::transactions::ControlExecution {
@@ -262,6 +265,14 @@ impl RuntimeHandle {
 
         // Close Admission Before Waiting For Any Provider Or Storage Work.
         let admission = self.plugin_admission.lock().await;
+        let unfinished = self
+            .state_read()
+            .executions
+            .values()
+            .filter(|execution| execution.test_cycle_id == test_cycle_id && execution.saved.is_none() && execution.finished_at.is_none())
+            .map(|execution| execution.test_execution_id.clone())
+            .collect();
+        self.freeze_report_inputs(unfinished).await?;
         let at = crate::model::time::now_utc();
         self.commit_with_key(
             context.idempotency_key,

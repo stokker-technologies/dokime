@@ -283,7 +283,8 @@ async fn inspection_separates_outputs() {
             .await
             .unwrap()
             .into_inner();
-        if final_detail.finished_at.is_some() {
+        if final_detail.summary.as_ref().is_some_and(|summary| summary.sealed) {
+            assert!(final_detail.finished_at.is_some());
             assert!(final_detail.controls.is_none());
             assert_eq!(final_detail.summary.unwrap().status, model::execution::wire::ExecutionStatus::Passed);
             assert_eq!(final_detail.result.unwrap().status, model::execution::wire::ResultStatus::Passed);

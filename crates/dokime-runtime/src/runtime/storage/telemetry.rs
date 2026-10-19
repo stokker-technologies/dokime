@@ -320,7 +320,11 @@ pub(crate) async fn register_schemas(storage: &Manager, contracts: &[crate::tele
     let mut last = None;
     for contract in contracts.iter().filter(|contract| !contract.foreign) {
         let codec = telemetry::codec(contract)?;
-        last = Some(storage.write_schema(codec.schema(), codec.graph()).await?);
+        let mutation = harmos::storage::MutationId {
+            window: storage.mutation_window()?.id,
+            key: Identifier::new(format!("{}.v{}", codec.schema().id, codec.schema().version)).map_err(crate::storage::Error::from)?,
+        };
+        last = Some(storage.write_schema_once(&mutation, codec.schema(), codec.graph()).await?);
     }
     if let Some(cursor) = last {
         storage.flush_until(&cursor).await?;

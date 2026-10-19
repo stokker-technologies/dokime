@@ -192,18 +192,22 @@ async fn execution_prompt_identity() {
     assert_eq!(cancelled.exit_code(), std::process::ExitCode::from(1), "cancelled evidence is sealed without claiming success");
     assert!(handle.prompt_response(&waiting_id).await.is_none());
     assert!(handle.prompt_settled_at(&waiting_id).await.is_some());
+    let state = handle.watch_state().latest();
+    let stopped = state.state().run_requests.values().find(|request| request.selected_execution_ids.contains(other.id())).unwrap();
+    assert!(stopped.summary.phase.terminal(), "a sealed Stop must settle its prepared request: {stopped:?}");
+    assert_eq!((stopped.summary.prepared, stopped.summary.finished), (1, 1));
+    drop(state);
     let values = model::values::wire::Value::from(Value::Object(BTreeMap::new()));
     assert!(other.respond_prompt(&waiting_id, "yes".into(), values, true).await.is_err());
     assert_eq!(execution.wait(None, None).await.unwrap().checkpoint, execution.checkpoint().await.ok());
 
-    // === Append Plain Parameters Without Parsing A Wire Selection === //
+    // === Materialize Plain Parameters And Append The Explicit Case === //
 
     let cycle_text = cycle.id().to_string();
     let command = [
         "dokime",
-        "cycle",
-        "append",
-        &cycle_text,
+        "plan",
+        "materialize",
         "--template",
         "fixture.suite.probe",
         "--parameters-json",
@@ -212,6 +216,19 @@ async fn execution_prompt_identity() {
         "--endpoint",
         &endpoint,
     ];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    let case_id = {
+        let state = handle.watch_state().latest();
+        state
+            .state()
+            .suites
+            .cases_for_suite(suite.metadata.identifier.as_str())
+            .find(|case| case.parameters.get("fixture.result") == Some(&Value::Text("manual-value".into())))
+            .unwrap()
+            .test_case_id
+            .to_string()
+    };
+    let command = ["dokime", "cycle", "append", &cycle_text, "--case-id", &case_id, "--id-only", "--endpoint", &endpoint];
     dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     let members = cycle.executions().await.unwrap();
     assert_eq!(members.len(), 3);
@@ -223,7 +240,8 @@ async fn execution_prompt_identity() {
     client.close_and_wait().await;
     server.shutdown().await.unwrap();
     drop(handle);
-    owner.shutdown().await.unwrap();
+    let shutdown = owner.shutdown().await;
+    assert!(shutdown.is_ok(), "shutdown: {shutdown:?}; requests: {:?}", owner.handle().watch_state().latest().state().run_requests);
 }
 
 #[tokio::test]

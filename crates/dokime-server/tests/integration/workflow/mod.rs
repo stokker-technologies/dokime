@@ -869,7 +869,9 @@ async fn run_cycle_targets() {
     let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let connection = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(connection);
-    let cycle_id = support::planned_cycle(&execution, authenticated(create()), selection_plan(&owner)).await.unwrap();
+    let mut definition = create();
+    definition.continue_automatically = true;
+    let cycle_id = support::planned_cycle(&execution, authenticated(definition), selection_plan(&owner)).await.unwrap();
     let diagnostics = {
         let snapshot = owner.handle().watch_state().latest();
         let entry = snapshot.state().suites.get("fixture.diagnostics").unwrap();
