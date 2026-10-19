@@ -2617,7 +2617,6 @@ async function createEmptyContainer(session, title) {
 
 async function ownedStartupJourney() {
   session = await startSession(work, undefined, evidence);
-  await session.clickNamed("button", "Start Local Backend");
   await session.connected();
   const status = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
@@ -2632,7 +2631,6 @@ async function ownedStartupJourney() {
   await closeSession();
   await until("owned backend drains on window close", async () => !(await listening(status.connection.endpoint)), 30000);
   session = await startSession(work, undefined, evidence);
-  await session.clickNamed("button", "Start Local Backend");
   await session.connected();
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   await cyclePhase(session, "Sealed");
