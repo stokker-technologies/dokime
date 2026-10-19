@@ -9,11 +9,13 @@
 
 /* === Modules === */
 pub mod connections;
+pub mod device;
 pub mod readiness;
 pub mod status;
 
 /* === Re-Exports === */
 pub use connections::ListConnections;
+pub use device::{ReadDevice, SetPower};
 pub use readiness::AskReadiness;
 pub use status::GetStatus;
 
@@ -45,6 +47,8 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 // The bench operations this plugin declares; each request is its operation.
 #[dokime_runtime::catalog]
 pub enum Operations {
+    ReadDevice(ReadDevice),
+    SetPower(SetPower),
     GetStatus(GetStatus),
     AskReadiness(AskReadiness),
     ListConnections(ListConnections),

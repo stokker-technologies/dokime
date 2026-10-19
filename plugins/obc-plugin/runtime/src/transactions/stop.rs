@@ -42,6 +42,7 @@ impl Transaction<Testbench> for Stop {
         Ok(())
     }
     fn apply(&self, state: &mut Testbench) {
+        state.device.stop();
         state.stopped = true;
     }
 }

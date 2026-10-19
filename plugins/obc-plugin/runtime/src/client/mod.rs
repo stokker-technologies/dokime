@@ -8,6 +8,8 @@
  */
 
 /* === Modules === */
+#[cfg(test)]
+mod tests;
 
 /* === Re-Exports === */
 
@@ -17,10 +19,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{
-    Error,
-    app::{Handle, State},
-};
+use crate::{Error, app::Handle, device::Device, transactions::SetPower};
 
 /* === Constants === */
 
@@ -31,7 +30,7 @@ use crate::{
 /* === Structs === */
 #[derive(Clone)]
 pub struct Client {
-    state: State,
+    handle: Handle,
 }
 
 /* === Enums === */
@@ -41,7 +40,7 @@ pub struct Client {
 /* === Implementations === */
 impl Client {
     pub fn new(handle: Handle) -> Self {
-        Self { state: handle.state.state() }
+        Self { handle }
     }
 
     pub async fn ensure_ready(&self) -> Result<(), Error> {
@@ -49,11 +48,20 @@ impl Client {
     }
 
     pub async fn stopped(&self) -> Result<bool, Error> {
-        Ok(self.state.read(|state| state.stopped).await?.value)
+        let state = self.handle.state.state();
+        let stopped = state.read(|state| state.stopped).await?;
+        Ok(stopped.value)
     }
 
-    pub fn state(&self) -> &State {
-        &self.state
+    pub async fn device(&self) -> Result<Device, Error> {
+        let state = self.handle.state.state();
+        let device = state.read(|state| state.device.clone()).await?;
+        Ok(device.value)
+    }
+
+    pub async fn set_power(&self, enabled: bool) -> Result<(), harmos::Error<Error>> {
+        self.handle.state.commit(SetPower { enabled }).await?;
+        Ok(())
     }
 }
 

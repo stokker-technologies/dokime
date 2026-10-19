@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+mod power;
 mod stop;
 
 /* === Re-Exports === */
+pub use power::SetPower;
 pub use stop::Stop;
 
 /* === Imports === */
@@ -33,6 +35,7 @@ use crate::{Error, Testbench};
 #[harmos::transactions(state = Testbench, error = Error)]
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum Transactions {
+    SetPower(SetPower),
     Stop(Stop),
 }
 

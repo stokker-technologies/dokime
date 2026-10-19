@@ -9,6 +9,7 @@
 
 /* === Modules === */
 pub mod connections;
+pub mod device;
 pub mod readiness;
 pub mod status;
 
@@ -32,6 +33,8 @@ pub mod status;
 /* === Enums === */
 #[dokime_runtime::catalog]
 pub enum Implemented {
+    DeviceReader(device::DeviceReader),
+    PowerControl(device::PowerControl),
     StatusProbe(status::StatusProbe),
     ReadinessProbe(readiness::ReadinessProbe),
     ConnectionListing(connections::ConnectionListing),

@@ -30,6 +30,15 @@ samples are produced while waiting. Declining fails the execution, and
 cancellation preserves its collected evidence through normal sealing. The
 charger suites retain their separate inspection forms.
 
+For manual remote control, `obc.device.read` accepts `{}` and reports
+`enabled`, `voltage_rms_v` and an optional `fault`. `obc.device.set_power`
+accepts `{"enabled": true}` or `{"enabled": false}` and returns the observed
+state after changing power. The manual device starts off and reports 230 V RMS
+when enabled. A stopped bench refuses changes; a latched fault refuses power-on.
+Shutdown powers it down. These operations control one demonstration device in
+the plugin's embedded runtime; charger executions continue to own separate
+devices. Manual operations are not recorded in execution evidence.
+
 ## Source Layout
 
 - `src/lib.rs`: the plugin owner, lifecycle, and complete catalogs.
