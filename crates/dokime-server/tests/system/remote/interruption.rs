@@ -574,9 +574,12 @@ async fn admitted(client: &Client, id: TestExecutionId) {
     let execution = client.execution(id);
     let waiting = async {
         loop {
-            let snapshot = execution.snapshot().await.unwrap();
-            if snapshot.controls.is_some() {
-                break;
+            // Python Prints Constructed Identities Before Append Is Confirmed.
+            match execution.snapshot().await {
+                Ok(snapshot) if snapshot.controls.is_some() => break,
+                Ok(_) => {}
+                Err(dokime_client::Error::Rpc(status)) if status.code() == dokime_client::RpcCode::NotFound => {}
+                Err(error) => panic!("execution admission probe failed: {error}"),
             }
             changes.message().await.unwrap().expect("runtime observation remains open until admission");
         }
