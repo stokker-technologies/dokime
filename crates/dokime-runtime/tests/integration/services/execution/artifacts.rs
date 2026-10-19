@@ -105,6 +105,46 @@ async fn export_zip(
     manifest
 }
 
+async fn required_file_failure(
+    runtime: &RuntimeHandle, subject: &dokime_domain::model::exports::EvidenceSubject, path: &Path, missing: bool,
+) {
+    let original = std::fs::read(path).unwrap();
+    assert!(!original.is_empty());
+    let backup = path.with_extension("held");
+    if missing {
+        std::fs::rename(path, &backup).unwrap();
+    } else {
+        let mut corrupt = original.clone();
+        corrupt[0] ^= 0x55;
+        std::fs::write(path, corrupt).unwrap();
+    }
+
+    let result = runtime.export_evidence(subject.clone()).await;
+    if missing {
+        std::fs::rename(&backup, path).unwrap();
+    } else {
+        std::fs::write(path, &original).unwrap();
+    }
+    let error = result.err().expect("missing or corrupt required bytes must refuse the complete archive");
+    assert!(
+        matches!(
+            error,
+            dokime_runtime::domains::exports::evidence::Error::Dependency(_)
+                | dokime_runtime::domains::exports::evidence::Error::Invalid(_)
+        ),
+        "unexpected export failure: {error}"
+    );
+    let cache = runtime.application_root().join("cache/exports");
+    assert_eq!(std::fs::read_dir(&cache).unwrap().count(), 0, "failed export must remove its private database and ZIP");
+
+    // A Repaired Download Can Retry Without Any New Execution Or Retained Admission Slot.
+    let bundle = runtime.export_evidence(subject.clone()).await.unwrap();
+    assert_eq!(bundle.metadata().subject.as_ref(), Some(subject));
+    drop(bundle);
+    assert_eq!(std::fs::read_dir(&cache).unwrap().count(), 0);
+    assert_eq!(std::fs::read(path).unwrap(), original);
+}
+
 /* === Tests === */
 #[tokio::test]
 async fn saved_evidence_export() {
@@ -158,6 +198,44 @@ async fn saved_evidence_export() {
     let historical_cycle = export_zip(&runtime, cycle_subject, &root.path().join("historical-cycle.zip")).await;
     assert_eq!(historical_cycle["executions"], manifest["executions"]);
     assert_eq!(historical_cycle["cycle_revision"], manifest["cycle_revision"]);
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn required_evidence_files() {
+    use dokime_domain::model::exports::EvidenceSubject;
+
+    let root = tempfile::tempdir().unwrap();
+    let (mut owner, runtime, cycle) = execute(root.path(), false).await;
+    let execution = &cycle.test_executions[0];
+    let subject = EvidenceSubject::Execution(execution.test_execution_id.to_string());
+    let destination = root.path().join("verified-execution.zip");
+    let manifest = export_zip(&runtime, subject.clone(), &destination).await;
+    let payloads = manifest["payloads"].as_array().unwrap();
+    let output = payloads
+        .iter()
+        .find(|entry| {
+            let relative = entry["relative_path"].as_str().unwrap_or_default();
+            relative.ends_with("/capture/chamber.log")
+        })
+        .expect("the exported chamber log retains its captured artifact path");
+    let path = runtime.storage_root().join("files").join(output["sha256"].as_str().unwrap());
+
+    required_file_failure(&runtime, &subject, &path, true).await;
+    required_file_failure(&runtime, &subject, &path, false).await;
+    runtime.seal_cycle(cycle.test_cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let subject = EvidenceSubject::Cycle(cycle.test_cycle_id.to_string());
+    let destination = root.path().join("verified-cycle.zip");
+    let manifest = export_zip(&runtime, subject.clone(), &destination).await;
+    let report = format!("reports/cycle-{}.html", cycle.test_cycle_id);
+    let output = manifest["payloads"].as_array().unwrap().iter().find(|entry| entry["path"] == report).unwrap();
+    let path = runtime.storage_root().join("files").join(output["sha256"].as_str().unwrap());
+
+    required_file_failure(&runtime, &subject, &path, true).await;
+    required_file_failure(&runtime, &subject, &path, false).await;
+    let saved = cycle_snapshot(&runtime, &cycle.test_cycle_id).await;
+    assert_eq!(saved.test_executions.len(), 1, "download retries must never append or rerun executions");
+    assert_eq!(saved.test_executions[0], *execution);
     owner.shutdown().await.unwrap();
 }
 
