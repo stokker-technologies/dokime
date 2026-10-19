@@ -199,7 +199,8 @@ impl Gate {
         let members = cycle.executions().await.map_err(|error| std::io::Error::other(error.to_string()))?;
         for member in members {
             let snapshot = member.snapshot().await.map_err(|error| std::io::Error::other(error.to_string()))?;
-            if snapshot.controls.is_some() {
+            let request_id = snapshot.controls.and_then(|controls| controls.request_id);
+            if request_id.is_some() {
                 return Ok(true);
             }
         }
@@ -575,11 +576,13 @@ async fn admitted(client: &Client, id: TestExecutionId) {
     let waiting = async {
         loop {
             // Python Prints Constructed Identities Before Append Is Confirmed.
-            match execution.snapshot().await {
-                Ok(snapshot) if snapshot.controls.is_some() => break,
-                Ok(_) => {}
-                Err(dokime_client::Error::Rpc(status)) if status.code() == dokime_client::RpcCode::NotFound => {}
+            let request_id = match execution.snapshot().await {
+                Ok(snapshot) => snapshot.controls.and_then(|controls| controls.request_id),
+                Err(dokime_client::Error::Rpc(status)) if status.code() == dokime_client::RpcCode::NotFound => None,
                 Err(error) => panic!("execution admission probe failed: {error}"),
+            };
+            if request_id.is_some() {
+                break;
             }
             changes.message().await.unwrap().expect("runtime observation remains open until admission");
         }
