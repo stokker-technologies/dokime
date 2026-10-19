@@ -2718,10 +2718,9 @@ async function main() {
   if (!windows && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new Error("Driving the native WebView needs a running display session.");
   }
-  const evidenceRoot = options.junit ? dirname(resolve(options.junit)) : reportsRoot;
-  await mkdir(evidenceRoot, { recursive: true });
-  // A lane keeps the evidence beside its JUnit report, which CI uploads with it.
-  evidence = await mkdtemp(join(evidenceRoot, "native-desktop-e2e-"));
+  // Retain Native Evidence In The Lane Output; JUnit May Use Disposable Scratch.
+  await mkdir(reportsRoot, { recursive: true });
+  evidence = await mkdtemp(join(reportsRoot, "native-desktop-e2e-"));
   work = await mkdtemp(join(tmpdir(), "dokime-native-desktop-"));
   process.stdout.write(`Evidence: ${evidence}\n`);
   if (releaseValidation && !windows) throw new Error("Installed release validation currently requires Windows.");
