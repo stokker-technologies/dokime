@@ -656,7 +656,7 @@ async fn inventory_matches_dispatch() {
         runtime.operations.call_encoded(operation, Vec::new()).await.unwrap();
         served.push((operation.to_owned(), timeout.as_millis() as u64));
     }
-    runtime.operations.call(SetPower { enabled: false }).await.unwrap();
+    runtime.operations.call_encoded(<SetPower as OperationDeclaration>::ID, SetPower { enabled: false }.encode_to_vec()).await.unwrap();
     served.push((<SetPower as OperationDeclaration>::ID.to_owned(), <SetPower as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
 
     // Demand drives the real host probe; two rows cover its retained reader

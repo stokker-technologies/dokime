@@ -144,7 +144,7 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
             json.dumps(
                 {
                     "status": summary.status,
-                    "phase": "stopped" if status.status == "cancelled" else "completed",
+                    "phase": {"passed": "completed", "failed": "failed", "cancelled": "stopped"}[status.status],
                     "values": [row.values["value"] for row in rows],
                     "records": [item.details["phase"] for item in authored],
                     "cases": int(cycle_document.get("case_count", "0")),

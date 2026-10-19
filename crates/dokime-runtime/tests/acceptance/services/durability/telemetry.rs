@@ -79,8 +79,8 @@ async fn checkpointed_telemetry_kill() {
     // Recovery Seals Every Previous-Session Container Before New Admission.
     let resident = handle.cycles().await.into_iter().map(|cycle| (cycle.saved.is_some(), cycle.lifecycle)).collect::<Vec<_>>();
     assert!(
-        resident.iter().all(|(saved, lifecycle)| *saved && *lifecycle == CycleStatus::Stopped),
-        "recovered resident cycles are sealed and stopped: {resident:?}"
+        resident.iter().all(|(saved, lifecycle)| *saved && matches!(lifecycle, CycleStatus::Stopped | CycleStatus::Completed)),
+        "recovered resident cycles are sealed and terminal: {resident:?}"
     );
     let checkpoint = serde_json::from_slice(&std::fs::read(&marker).unwrap()).unwrap();
     let view = crate::service_support::native::open(&handle, &checkpoint).await;

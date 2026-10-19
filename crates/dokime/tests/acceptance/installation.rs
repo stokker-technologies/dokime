@@ -42,7 +42,11 @@ fn installation(programs: &[&Path]) -> tempfile::TempDir {
     let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir().unwrap();
     for program in programs {
         let program = program.canonicalize().expect("the program under test exists");
-        std::fs::copy(&program, directory.path().join(program.file_name().unwrap())).unwrap();
+        let destination = directory.path().join(program.file_name().unwrap());
+        if let Err(error) = std::fs::hard_link(&program, &destination) {
+            assert_eq!(error.kind(), std::io::ErrorKind::CrossesDevices, "installation fixture link: {error}");
+            std::fs::copy(&program, destination).unwrap();
+        }
     }
     directory
 }
