@@ -15,10 +15,9 @@
  * order (`executionControlSet`); the group is absent when the execution offers
  * none. Eligibility is the runtime's: the execution's own `controls` say what
  * it admits while it runs, and its case's actions say whether it may start or
- * a re-run may be scheduled. Start admits a run of that one execution through
- * the same RunExecution path the sidebar's Run uses. Re-Run appends a new
- * execution through the case scheduling owner and keeps this attempt's
- * captured evidence; the new attempt becomes the selection.
+ * a new attempt may be appended. Start uses the shared StartExecution operation.
+ * Re-Run appends a new execution and keeps this attempt's captured evidence;
+ * the new attempt becomes the selection and waits for an explicit Start.
  */
 
 /* === External Imports === */
