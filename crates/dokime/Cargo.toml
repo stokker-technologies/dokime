@@ -17,8 +17,8 @@ version = { workspace = true }
 
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-client = { path = "../dokime-client" }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
+dokime-client = { version = "0.1.0", path = "../dokime-client" }
 
 # Git
 harmos = { workspace = true, features = ["plugin"] }
