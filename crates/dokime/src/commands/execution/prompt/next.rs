@@ -78,7 +78,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
         }
         tokio::select! {
             prompt = read => prompt,
-            interrupted = tokio::signal::ctrl_c() => {
+            interrupted = super::super::recovery::interrupted(&args.execution_id, "Prompt", recovery.is_some()) => {
                 interrupted?;
                 if let Some(plan) = &recovery {
                     plan.recover(&client, &execution).await?;

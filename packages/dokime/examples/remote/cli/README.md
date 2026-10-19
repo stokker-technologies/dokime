@@ -95,8 +95,9 @@ the script stops instead of submitting another execution or answer. This path
 still requires native Windows system validation.
 
 The POSIX test and prompt scripts catch Ctrl+C and request a stop for their
-retained execution. They wait for its durable result, download
-`interrupted-execution.zip`, seal their newly created cycle and download
+retained execution and seal their newly created cycle, closing further
+admission before waiting for the durable result. They download
+`interrupted-execution.zip` and
 `interrupted-cycle.zip`. They return nonzero. Sealing also cancels any unrun
 members of that cycle; reserve a demonstration cycle for its script.
 

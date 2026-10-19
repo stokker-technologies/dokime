@@ -471,6 +471,8 @@ members. Existing files are refused before connection, and bundles use the
 shared verified atomic downloader. The interrupted command returns nonzero;
 successful ordinary waiting leaves the cycle Active. A failed connection does
 not confirm cancellation or a completed download; retain the original IDs.
+Waits report their execution identity and Ctrl+C behavior on stderr once the
+interrupt listener is ready; JSON and `--id-only` results stay on stdout.
 
 The [Remote CLI Workflows](packages/dokime/examples/remote/cli/README.md) include
 device, test and confirmation scripts for POSIX shell, PowerShell 7.3+ and

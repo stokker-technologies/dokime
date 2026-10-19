@@ -10,6 +10,7 @@
 // Execute Remote Examples Against The Built OBC Plugin
 
 /* === Modules === */
+mod interruption;
 
 /* === Re-Exports === */
 
@@ -19,6 +20,7 @@
 use std::{collections::BTreeMap, io::Read, path::Path};
 
 // Third Party Imports
+use rusqlite::OptionalExtension;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::process::Command;
@@ -59,10 +61,20 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
         }
         evidence(client, extension, workflow, &stdout, &directory).await;
     }
+    interruption::scripts(client, endpoint, &root.join("interruptions")).await;
 }
 
 /* === Private Functions === */
 async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> String {
+    let mut command = command(extension, workflow, endpoint, directory);
+    let output = command.output().await.unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{extension} {workflow} failed with {}\n{stdout}\n{stderr}", output.status);
+    stdout
+}
+
+fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> Command {
     let workspace = artifacts::workspace_root();
     let family = if extension == "py" { "python" } else { "cli" };
     let script = workspace.join(format!("packages/dokime/examples/remote/{family}/control-{workflow}.{extension}"));
@@ -90,11 +102,7 @@ async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Pa
         command.arg(flag).arg(destination);
     }
 
-    let output = command.output().await.unwrap();
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "{} failed with {}\n{stdout}\n{stderr}", script.display(), output.status);
-    stdout
+    command
 }
 
 fn launcher(extension: &str, script: &Path) -> Command {
@@ -184,12 +192,12 @@ async fn evidence(client: &Client, extension: &str, workflow: &str, stdout: &str
     assert_eq!(actual, executions);
 
     let path = directory.join("cycle.zip");
-    let samples = archive(&path, cycle_id, &executions, true);
+    let samples = archive(&path, cycle_id, &executions, true, "passed");
     for (index, id) in identities(stdout, "Execution: ").iter().enumerate() {
         let name = if workflow == "test" { format!("execution-{}.zip", index + 1) } else { "execution.zip".to_owned() };
         let path = directory.join(name);
         let selected = std::slice::from_ref(id);
-        let captured = archive(&path, cycle_id, selected, false);
+        let captured = archive(&path, cycle_id, selected, false, "passed");
         assert_eq!(captured[id], samples[id]);
     }
 
@@ -231,7 +239,7 @@ fn identities(stdout: &str, prefix: &str) -> Vec<String> {
         .collect()
 }
 
-fn archive(path: &Path, cycle: &str, executions: &[String], sealed: bool) -> BTreeMap<String, u64> {
+fn archive(path: &Path, cycle: &str, executions: &[String], sealed: bool, status: &str) -> BTreeMap<String, u64> {
     let file = std::fs::File::open(path).unwrap();
     let mut zip = zip::ZipArchive::new(file).unwrap();
     let entry = zip.by_name("manifest.json").unwrap();
@@ -263,29 +271,43 @@ fn archive(path: &Path, cycle: &str, executions: &[String], sealed: bool) -> BTr
     let actual: Vec<String> = statement.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
     assert_eq!(actual, executions);
 
-    executions.iter().map(|id| (id.clone(), captured(&database, cycle, id))).collect()
+    executions.iter().map(|id| (id.clone(), captured(&database, cycle, id, status))).collect()
 }
 
-fn captured(database: &rusqlite::Connection, cycle: &str, id: &str) -> u64 {
+fn captured(database: &rusqlite::Connection, cycle: &str, id: &str, expected: &str) -> u64 {
     let status: String =
         database.query_row("SELECT status FROM executions WHERE execution_id=?1 AND cycle_id=?2", [id, cycle], |row| row.get(0)).unwrap();
-    assert_eq!(status, "passed");
+    assert_eq!(status, expected);
 
-    let (table, count): (String, i64) = database
+    let stream: Option<(String, i64)> = database
         .query_row("SELECT table_name,sample_count FROM streams WHERE execution_id=?1 AND stream_id='obc.pulse'", [id], |row| {
             Ok((row.get(0)?, row.get(1)?))
         })
+        .optional()
         .unwrap();
-    assert!(count > 0);
-    assert!(table.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'));
-    let query = format!("SELECT count(*) FROM {table}");
-    let physical: i64 = database.query_row(&query, [], |row| row.get(0)).unwrap();
-    assert_eq!(physical, count);
+    let count = match stream {
+        Some((table, count)) => {
+            assert!(table.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'));
+            let query = format!("SELECT count(*) FROM {table}");
+            let physical: i64 = database.query_row(&query, [], |row| row.get(0)).unwrap();
+            assert_eq!(physical, count);
+            count
+        }
+        None => 0,
+    };
+    if expected == "passed" {
+        assert!(count > 0);
+    }
+
     for kind in ["obc.run.started", "obc.run.completed"] {
         let records: i64 = database
             .query_row("SELECT count(*) FROM records WHERE execution_id=?1 AND record_type=?2", [id, kind], |row| row.get(0))
             .unwrap();
-        assert_eq!(records, 1);
+        if expected == "passed" {
+            assert_eq!(records, 1);
+        } else {
+            assert!(records <= 1);
+        }
     }
     u64::try_from(count).unwrap()
 }

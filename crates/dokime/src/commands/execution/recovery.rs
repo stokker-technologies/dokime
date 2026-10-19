@@ -16,7 +16,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::path::PathBuf;
+use std::{
+    future::{Future, poll_fn},
+    path::PathBuf,
+};
 
 // Third Party Imports
 
@@ -122,6 +125,21 @@ impl Plan {
 }
 
 /* === Public Functions === */
+pub(crate) async fn interrupted(execution: &str, subject: &str, recovery: bool) -> std::io::Result<()> {
+    let interrupt = tokio::signal::ctrl_c();
+    tokio::pin!(interrupt);
+    let mut announced = false;
+    poll_fn(|context| {
+        let outcome = interrupt.as_mut().poll(context);
+        if outcome.is_pending() && !announced {
+            let action = if recovery { "Stop It And Save Evidence" } else { "Stop Waiting" };
+            eprintln!("Waiting For {subject} In Execution {execution}. Press Ctrl+C To {action}.");
+            announced = true;
+        }
+        outcome
+    })
+    .await
+}
 
 /* === Private Functions === */
 

@@ -134,17 +134,18 @@ async def run(arguments: argparse.Namespace) -> int:
             if cycle_id is None:
                 print("Cycle Creation Was Not Confirmed; Inspect The Host Before Creating Another", file=sys.stderr, flush=True)
                 raise
+            if execution is not None and await execution.checkpoint() is None:
+                await execution.stop()
+            # Close Admission Before Waiting On An Interrupted Submission.
+            cycle = await client.cycle(cycle_id)
+            await cycle.seal()
             if execution is not None:
-                if await execution.checkpoint() is None:
-                    await execution.stop()
                 outcome = await execution.wait()
                 print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
                 if execution.id not in exported and destination is not None:
                     await execution.export(destination, overwrite=arguments.overwrite)
 
         # Only This Script's Newly Created Cycle Is Sealed.
-        cycle = await client.cycle(cycle_id)
-        await cycle.seal()
         saved_cycle = await cycle.export(directory / "cycle.zip", overwrite=arguments.overwrite)
         print(f"Cycle Evidence: {saved_cycle.path} SHA-256: {saved_cycle.sha256}", flush=True)
         return 130

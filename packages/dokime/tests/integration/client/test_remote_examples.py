@@ -44,7 +44,7 @@ EXECUTION = "00000000-0000-0000-0000-000000000002"
 # === Public Functions === #
 
 
-def test_device_response_directory_refuses_existing_data_before_connection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_output_preflight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     run = runpy.run_path(str(EXAMPLES / "control-device.py"))["run"]
     existing = tmp_path / "before.json"
     existing.write_text("original", encoding="utf-8")
@@ -59,9 +59,7 @@ def test_device_response_directory_refuses_existing_data_before_connection(tmp_p
 
 
 @pytest.mark.parametrize("conflict", [False, True])
-def test_device_response_files_capture_each_reply_without_repeating_calls(
-    conflict: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_response_files(conflict: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     run = runpy.run_path(str(EXAMPLES / "control-device.py"))["run"]
     off = {"enabled": False, "voltage_rms_v": 0.0}
     on = {"enabled": True, "voltage_rms_v": 230.0}
@@ -109,7 +107,7 @@ def test_device_response_files_capture_each_reply_without_repeating_calls(
 
 @pytest.mark.parametrize("script", ["control-test", "control-prompt"])
 @pytest.mark.parametrize("disconnected", [False, True])
-def test_interrupted_submission_stops_own_execution_without_retry(
+def test_interrupted_submission(
     script: str, disconnected: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     run = runpy.run_path(str(EXAMPLES / f"{script}.py"))["run"]
@@ -123,6 +121,12 @@ def test_interrupted_submission_stops_own_execution_without_retry(
         wait=AsyncMock(return_value=SimpleNamespace(status="cancelled")),
         export=AsyncMock(return_value=saved),
     )
+    cleanup = MagicMock()
+    cleanup.attach_mock(execution.stop, "stop")
+    cleanup.attach_mock(cycle.seal, "seal")
+    cleanup.attach_mock(execution.wait, "wait")
+    cleanup.attach_mock(execution.export, "execution_export")
+    cleanup.attach_mock(cycle.export, "cycle_export")
     client = SimpleNamespace(
         create_cycle=AsyncMock(return_value=CYCLE),
         append_cases=AsyncMock(return_value=(execution,)),
@@ -151,6 +155,7 @@ def test_interrupted_submission_stops_own_execution_without_retry(
         execution.export.assert_not_awaited()
         cycle.seal.assert_not_awaited()
         cycle.export.assert_not_awaited()
+        assert [event[0] for event in cleanup.mock_calls] == ["stop"]
     else:
         assert asyncio.run(run(arguments)) == 130
         execution.wait.assert_awaited_once()
@@ -158,6 +163,7 @@ def test_interrupted_submission_stops_own_execution_without_retry(
         execution.export.assert_awaited_once_with(tmp_path / filename, overwrite=False)
         cycle.seal.assert_awaited_once()
         cycle.export.assert_awaited_once_with(tmp_path / "cycle.zip", overwrite=False)
+        assert [event[0] for event in cleanup.mock_calls] == ["stop", "seal", "wait", "execution_export", "cycle_export"]
 
     execution.stop.assert_awaited_once()
     execution.start.assert_awaited_once()

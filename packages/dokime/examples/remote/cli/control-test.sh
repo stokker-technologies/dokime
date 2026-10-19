@@ -47,10 +47,12 @@ cancel() {
     fi
     if [ -n "$execution" ]; then
         "$dokime" execution stop "$execution" "$@" || printf 'Stop Was Not Confirmed; Checking For A Durable Outcome\n' >&2
+    fi
+    "$dokime" cycle seal "$cycle" "$@"
+    if [ -n "$execution" ]; then
         wait_saved "$@"
         "$dokime" execution export "$execution" --output "$directory/interrupted-execution.zip" "$@"
     fi
-    "$dokime" cycle seal "$cycle" "$@"
     "$dokime" cycle export "$cycle" --output "$directory/interrupted-cycle.zip" "$@"
     exit 130
 }

@@ -107,6 +107,10 @@ tonic = { workspace = true, features = ["channel"] }
 # Testing
 criterion = { workspace = true }
 
+# UI
+anstream = { workspace = true }
+portable-pty = { workspace = true }
+
 # Storage
 rusqlite = { workspace = true }
 

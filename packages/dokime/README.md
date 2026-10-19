@@ -155,7 +155,8 @@ names. It refuses an existing directory before connecting and never overwrites
 a response file. A local write failure can follow a successful device command;
 read the current device state before resending an unconfirmed operation.
 The test and prompt scripts request cancellation on Ctrl+C and save collected
-evidence; a failed connection reports recovery identities without claiming
+evidence. They seal their own cycle before waiting for the saved result, closing
+admission even if interruption raced with submission; a failed connection reports recovery identities without claiming
 cancellation succeeded. Matching first-party release artifacts and the tutorial
 dependency lock remain required before the beginner installation is available.
 

@@ -2165,6 +2165,7 @@ dependencies = [
 name = "dokime-server"
 version = "0.1.0"
 dependencies = [
+ "anstream",
  "anyhow",
  "async-trait",
  "clap",
@@ -2179,6 +2180,7 @@ dependencies = [
  "harmos",
  "harmos-packaging",
  "harmos-sdk",
+ "portable-pty",
  "prost",
  "prost-types",
  "rand",
