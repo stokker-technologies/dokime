@@ -51,8 +51,12 @@ distribution under `target/package/dev/any/python/`. Extract the examples ZIP
 into a new folder named `remote-demo` on the remote PC. It contains this guide,
 `cli/`, `python/`, `wheels/` and `.env.example`. Preserve the folder layout:
 the Python environment uses the candidate wheel under `wheels/`.
-On Windows, `cli/bootstrap.bat` (or `cli/bootstrap.ps1`) installs PowerShell
-7.6.7, mise and uv without elevation. Follow the
+On Windows, set `$INSTALL_DOKIME = $false` in `cli/bootstrap.ps1` for this
+unreleased candidate, then run `cli/bootstrap.bat` (or `cli/bootstrap.ps1`)
+to install PowerShell 7.6.7, mise and uv without elevation. The default
+`INSTALL_DOKIME=true` setup uses cargo-binstall to install the exact published
+Dokime CLI; this walkthrough instead uses the matching candidate installer.
+Follow the
 [Windows bootstrap instructions](cli/README.md#bootstrap-windows-tools),
 then open a new terminal. These are optional client-tool prerequisites;
 the native Dokime installation itself does not need mise.

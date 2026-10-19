@@ -5,15 +5,20 @@ $ErrorActionPreference = 'Stop'
 
 # Tool Versions
 $POWERSHELL_VERSION = '7.6.7'
+$DOKIME_VERSION = '0.1.0'
 $POWERSHELL_HASHES = @{
     x64 = 'd2f952ebdbf24386cb8923553aa58e41a846db35a6155ea04c58142a4b16dbb7'
     arm64 = '119bd9221254ef3637523cb1990797618f5fd68848b57de40f12b561d743149e'
 }
 
+# Installation Options
+$INSTALL_DOKIME = $true
+
 # Official Installation Guidance
 # https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows
 # https://mise.jdx.dev/installing-mise.html#windows
 # https://mise.jdx.dev/shell-setup.html
+# https://github.com/cargo-bins/cargo-binstall
 
 function Add-UserPath([string]$Directory) {
     # Preserve Unexpanded Variables And Existing User Entries
@@ -130,6 +135,29 @@ try {
         [IO.File]::WriteAllText($ProfilePath, $ProfileText, [Text.UTF8Encoding]::new($true))
     }
 
+    # Install The Published CLI From Its Own Prebuilt Asset Without A Rust Toolchain
+    if ($INSTALL_DOKIME) {
+        $CliRoot = Join-Path $env:LOCALAPPDATA 'Programs\DokimeCLI'
+        $CliBin = Join-Path $CliRoot 'bin'
+        $Dokime = Join-Path $CliBin 'dokime.exe'
+        Push-Location -LiteralPath $env:USERPROFILE
+        try {
+            Invoke-Mise -Arguments @('use', '-g', 'aqua:cargo-bins/cargo-binstall')
+            $InstallCli = @('exec', 'aqua:cargo-bins/cargo-binstall', '--', 'cargo-binstall',
+                'dokime', '--version', "=$DOKIME_VERSION", '--root', $CliRoot, '--no-confirm',
+                '--strategies', 'crate-meta-data', '--disable-strategies', 'quick-install,compile')
+            Invoke-Mise -Arguments $InstallCli
+        } catch {
+            throw "Dokime $DOKIME_VERSION Installation Failed: $_. Its Registry Package And Official Windows Asset Must Be Published; No Source Build Was Attempted."
+        } finally {
+            Pop-Location
+        }
+        if (-not (Test-Path -LiteralPath $Dokime -PathType Leaf)) { throw 'cargo-binstall Did Not Install dokime.exe' }
+        & $Dokime --version
+        if ($LASTEXITCODE -ne 0) { throw 'The Installed Dokime CLI Did Not Start' }
+        Add-UserPath $CliBin
+    }
+
     # Notify Desktop Applications Even When Mise Was Already Installed
     if (-not ('DokimeBootstrap.EnvironmentChange' -as [type])) {
         Add-Type -Namespace DokimeBootstrap -Name EnvironmentChange -MemberDefinition @'
@@ -146,6 +174,13 @@ public static extern System.IntPtr SendMessageTimeout(System.IntPtr window, uint
     Write-Host '  pwsh --version'
     Write-Host '  mise doctor'
     Write-Host '  uv --version'
+    if ($INSTALL_DOKIME) {
+        Write-Host '  cargo-binstall --version'
+        Write-Host '  dokime --version'
+        Write-Host "Dokime CLI: $Dokime"
+    } else {
+        Write-Host 'Install The Matching Candidate Dokime Package Before Running CLI Scripts.'
+    }
     Write-Host "PowerShell: $Pwsh"
     Write-Host "Mise: $Mise"
     Write-Host "PowerShell Profile: $ProfilePath"

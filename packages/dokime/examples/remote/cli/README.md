@@ -9,6 +9,17 @@ interruption behavior still require platform validation.
 
 ## Bootstrap Windows Tools
 
+The default setup installs the released Dokime CLI through cargo-binstall.
+Edit `DOKIME_VERSION` at the top of `bootstrap.ps1` to select the exact release.
+Its crates.io package and official Windows binary must already be published;
+an unavailable release fails setup without compiling from source or fetching
+third-party builds.
+
+**For this candidate walkthrough**, set `$INSTALL_DOKIME = $false` first and
+install the matching candidate with the native installer described in the
+[shared guide](../README.md#install-dokime). This also provides a tools-only
+setup for Python users. Both launchers read that same editable option.
+
 From the extracted `cli/` directory, run the batch launcher in a normal,
 unelevated Command Prompt:
 
@@ -25,6 +36,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\bootstrap.ps1
 Both use `bootstrap.ps1`. It installs PowerShell **7.6.7** from Microsoft's
 official self-contained ZIP, verifies its pinned SHA-256, installs mise using
 its official Windows installer, then runs `mise use -g uv` and `mise reshim`.
+With `INSTALL_DOKIME` enabled, it installs cargo-binstall through
+`mise use -g aqua:cargo-bins/cargo-binstall`, then invokes the standalone
+`cargo-binstall dokime --version =<version>` with compilation and quick-install
+fallback disabled. Calling the standalone executable rather than Cargo's
+subcommand dispatcher means Rust and Cargo are unnecessary.
 It needs no administrator rights, WinGet, Git, existing `pwsh`, or repository
 checkout. The execution-policy option applies only to that process; it does not
 change the machine's policy or override organization-enforced Group Policy.
@@ -38,6 +54,10 @@ PowerShell directory and appends mise activation to PowerShell 7's
 `$PROFILE.CurrentUserAllHosts`, preserving the rest of that file. This loads
 project environment variables at the prompt; shims serve Command Prompt and
 editors. No `MISE_DATA_DIR` or other directory override is needed for defaults.
+The CLI installs under `%LOCALAPPDATA%\Programs\DokimeCLI\bin\`, which is added
+to user PATH after the installed `dokime.exe --version` succeeds. This installs
+the remote client; `dokime serve`, `dokime gui` and the host PC still require
+the matching desktop/server installation.
 
 Close and reopen your terminal and editor after setup, then verify:
 
@@ -47,6 +67,13 @@ mise doctor
 uv --version
 ```
 
+After the default CLI installation, also check:
+
+```powershell
+cargo-binstall --version
+dokime --version
+```
+
 If PowerShell refuses to load your profile under the default Restricted policy,
 Microsoft's usual personal-machine setting is
 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Review your organization's
@@ -54,12 +81,14 @@ policy before applying it. The bootstrap leaves this persistent choice to you.
 Use `mise exec -- <command>` when shell activation cannot be enabled.
 
 Re-running setup reuses the installed PowerShell version, lets the official mise
-installer retain or update mise, and updates the global uv selection. It does
-not automatically trust project configurations or install Dokime. To develop
-from a checkout, review its `mise.toml`, then run `mise trust` and `mise install`.
+installer retain or update mise, updates the global uv selection and ensures
+the selected CLI version is installed when enabled. It does not automatically
+trust project configurations. To develop from a checkout, review its
+`mise.toml`, then run `mise trust` and `mise install`.
 
 Use Windows PowerShell **5.1** on Windows 10 **1607 or newer**, or Windows 11,
-with x64 or ARM64 Windows and HTTPS access to GitHub, mise and uv's downloads.
+with x64 or ARM64 Windows and HTTPS access to GitHub, crates.io, mise and uv's
+downloads. The CLI also needs a published native asset for that architecture.
 TLS 1.2 is enabled for the bootstrap process so older PowerShell defaults do
 not prevent downloads; certificate validation remains enabled. Older Windows
 images may still need Windows updates, root certificates or runtime
@@ -70,6 +99,7 @@ extend OS support. The Dokime candidates in this walkthrough remain x86-64.
 The setup follows [Microsoft's ZIP installation guidance](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows#install-the-zip-package),
 [mise's Windows installer guidance](https://mise.jdx.dev/installing-mise.html#windows)
 and [mise's shell activation guidance](https://mise.jdx.dev/shell-setup.html).
+CLI installation follows [cargo-binstall's documented standalone usage](https://github.com/cargo-bins/cargo-binstall#unsupported-crates).
 See also [Microsoft's PowerShell execution policies](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies)
 and [supported Windows releases](https://learn.microsoft.com/dotnet/core/install/windows#supported-versions).
 
