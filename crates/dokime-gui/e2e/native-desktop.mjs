@@ -560,8 +560,19 @@ async function startSession(work, endpoint, evidence) {
   session.connected = () =>
     until("connected shell", () => session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"), 180000);
   session.load = async (url) => {
+    const previousOrigin = await session.execute("return performance.timeOrigin;");
     await session.request("POST", "/url", { url });
-    await until(`load ${url}`, async () => (await session.execute("return document.body.innerText.length")) > 20, 120000);
+    await until(
+      `load ${url}`,
+      () =>
+        session.execute(
+          `return performance.timeOrigin !== arguments[0]
+            && document.readyState === "complete"
+            && (document.body?.innerText.length ?? 0) > 20;`,
+          [previousOrigin],
+        ),
+      120000,
+    );
   };
   /**
    * Go to a route by loading it.
