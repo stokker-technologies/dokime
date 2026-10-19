@@ -42,6 +42,9 @@ pub(crate) struct Args {
     #[command(flatten)]
     connection: crate::connection::Args,
 
+    #[command(flatten)]
+    recovery: super::recovery::Args,
+
     #[arg(long, help = "Emit The Frozen Outcome And Exact Checkpoint As JSON.")]
     json: bool,
 }
@@ -55,16 +58,29 @@ pub(crate) struct Args {
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let id = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
+    let recovery = args.recovery.prepare(&id)?;
     let client = args.connection.connect().await?;
     let execution = client.execution(id);
     let timeout = args.wait_seconds.map(Duration::from_secs);
-    let result = tokio::select! {
-        outcome = execution.wait(timeout, None) => outcome.map_err(crate::Error::from),
-        interrupted = tokio::signal::ctrl_c() => {
-            interrupted?;
-            Err(crate::Error::Setup(format!("Stopped waiting for execution {}. Remote work may continue; reconnect using this identity.", args.execution_id)))
+    let result = async {
+        if let Some(plan) = &recovery {
+            plan.verify(&execution).await?;
         }
-    };
+        tokio::select! {
+            outcome = execution.wait(timeout, None) => outcome.map_err(crate::Error::from),
+            interrupted = tokio::signal::ctrl_c() => {
+                interrupted?;
+                if let Some(plan) = &recovery {
+                    plan.recover(&client, &execution).await?;
+                    let message = format!("Interrupted execution {}. Collected execution and cycle evidence were saved; no operation was retried.", args.execution_id);
+                    return Err(crate::Error::Setup(message));
+                }
+                let message = format!("Stopped waiting for execution {}. Remote work may continue; reconnect using this identity.", args.execution_id);
+                Err(crate::Error::Setup(message))
+            }
+        }
+    }
+    .await;
     client.close_and_wait().await;
     let outcome = result?;
 

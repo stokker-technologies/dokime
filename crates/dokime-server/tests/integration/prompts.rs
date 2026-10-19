@@ -83,6 +83,33 @@ async fn execution_prompt_identity() {
     dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     gate.started.notified().await;
 
+    // Recovery Must Name This Execution's Explicitly Owned Container.
+    let recovery_directory = root.path().join("recovery");
+    std::fs::create_dir(&recovery_directory).unwrap();
+    let recovery_path = recovery_directory.to_str().unwrap();
+    let cycle_text = cycle.id().to_string();
+    let foreign_cycle = TestCycleId::from_seed("foreign-recovery-cycle").to_string();
+    for leaf in [vec!["execution", "wait"], vec!["execution", "prompt", "next"]] {
+        let mut command = vec!["dokime"];
+        command.extend(leaf);
+        command.extend([
+            &first,
+            "--cancel-on-interrupt",
+            "--owned-cycle",
+            &foreign_cycle,
+            "--recovery-directory",
+            recovery_path,
+            "--endpoint",
+            &endpoint,
+        ]);
+        let refused = dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap_err();
+        assert_eq!(refused.exit_code(), std::process::ExitCode::from(2));
+        assert!(refused.to_string().contains("not explicitly owned cycle"));
+        assert_eq!(handle.watch_state().latest().state().cycles[cycle.id()].phase, model::execution::result::CyclePhase::Active);
+        assert!(execution.checkpoint().await.is_err(), "wrong-container recovery cannot stop this execution");
+        assert_eq!(std::fs::read_dir(&recovery_directory).unwrap().count(), 0);
+    }
+
     // === Read And Answer Only The Explicit Execution's Question === //
 
     let id = dokime_runtime::model::identity::new_id::<PromptId>();
@@ -118,9 +145,24 @@ async fn execution_prompt_identity() {
     // === Wait For The Durable Result Without Sealing The Container === //
 
     gate.release.notify_one();
-    let command = ["dokime", "execution", "wait", &first, "--wait-seconds", "5", "--endpoint", &endpoint];
+    let command = [
+        "dokime",
+        "execution",
+        "wait",
+        &first,
+        "--wait-seconds",
+        "5",
+        "--endpoint",
+        &endpoint,
+        "--cancel-on-interrupt",
+        "--owned-cycle",
+        &cycle_text,
+        "--recovery-directory",
+        recovery_path,
+    ];
     dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     assert_eq!(handle.watch_state().latest().state().cycles[cycle.id()].phase, model::execution::result::CyclePhase::Active);
+    assert_eq!(std::fs::read_dir(&recovery_directory).unwrap().count(), 0, "normal wait never seals or exports the owned cycle");
 
     // === Stop A Different Execution While Its Question Waits === //
 

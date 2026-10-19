@@ -188,10 +188,10 @@ fn read_key(path: Option<&Path>, environment: &BTreeMap<String, Zeroizing<String
         }
         None => environment_value("DOKIME_KEY", environment)?,
     };
-    if let Some(key) = &key {
-        if !(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()) {
-            return Err(crate::Error::Input("Remote key must contain 32–4096 visible ASCII characters.".into()));
-        }
+    if let Some(key) = &key
+        && (!(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()))
+    {
+        return Err(crate::Error::Input("Remote key must contain 32–4096 visible ASCII characters.".into()));
     }
     Ok(key)
 }

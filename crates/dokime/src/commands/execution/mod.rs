@@ -9,6 +9,7 @@
 
 /* === Modules === */
 mod prompt;
+mod recovery;
 mod run;
 mod stop;
 mod wait;

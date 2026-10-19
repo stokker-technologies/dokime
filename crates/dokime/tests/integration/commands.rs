@@ -44,6 +44,39 @@ use dokime_client::profiles::Store;
 /* === Tests === */
 
 #[tokio::test]
+async fn interrupt_recovery_input_boundaries() {
+    let execution = "00000000-0000-0000-0000-000000000001";
+    let cycle = "00000000-0000-0000-0000-000000000002";
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().to_str().unwrap();
+    for leaf in [vec!["execution", "wait"], vec!["execution", "prompt", "next"]] {
+        let mut command = vec!["dokime"];
+        command.extend(leaf);
+        command.push(execution);
+        for missing in [
+            vec!["--cancel-on-interrupt"],
+            vec!["--owned-cycle", cycle],
+            vec!["--recovery-directory", path],
+            vec!["--cancel-on-interrupt", "--owned-cycle", cycle],
+        ] {
+            let arguments = command.iter().copied().chain(missing);
+            assert!(Cli::try_parse_from(arguments).is_err(), "partial recovery choices must be refused");
+        }
+        let recovery = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+        let arguments = command.iter().copied().chain(recovery);
+        let parsed = Cli::try_parse_from(arguments).unwrap();
+        assert!(matches!(parsed.run().await, Err(Error::Client(_))), "complete choices pass offline validation before endpoint parsing");
+        let destination = directory.path().join(format!("execution-{execution}.zip"));
+        std::fs::write(&destination, b"previous evidence").unwrap();
+        let arguments = command.iter().copied().chain(recovery);
+        let parsed = Cli::try_parse_from(arguments).unwrap();
+        assert!(matches!(parsed.run().await, Err(Error::Download(_))), "output conflicts must be refused before endpoint parsing");
+        assert_eq!(std::fs::read(&destination).unwrap(), b"previous evidence");
+        std::fs::remove_file(destination).unwrap();
+    }
+}
+
+#[tokio::test]
 async fn json_files_connection() {
     assert!(Cli::try_parse_from(["dokime", "serve"]).is_ok());
     for arguments in [

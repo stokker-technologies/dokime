@@ -454,6 +454,24 @@ work running; request `execution stop EXECUTION_ID` explicitly, then wait and
 export the collected evidence. Retain the execution ID and request key after a
 disconnection; never submit another command just to discover whether it ran.
 
+Scripts can opt into cancellation and evidence recovery during that wait:
+
+```sh
+mkdir -p recovery
+dokime execution wait "$execution_id" --backend lab \
+  --cancel-on-interrupt --owned-cycle "$cycle_id" --recovery-directory recovery
+```
+
+The same three options work with `execution prompt next`. They verify that the
+execution belongs to the named cycle before mutation. Use `--owned-cycle` only
+for a cycle your script created and reserves for itself: on Ctrl+C, recovery
+requests an execution stop, seals that cycle and downloads
+`execution-<UUID>.zip` and `cycle-<UUID>.zip`. Sealing cancels its other pending
+members. Existing files are refused before connection, and bundles use the
+shared verified atomic downloader. The interrupted command returns nonzero;
+successful ordinary waiting leaves the cycle Active. A failed connection does
+not confirm cancellation or a completed download; retain the original IDs.
+
 `--parameters-json` supplies single values for `--template` as a plain JSON
 object. The default pulse has no prompt. To require its one confirmation:
 
