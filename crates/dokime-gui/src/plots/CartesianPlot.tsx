@@ -649,18 +649,18 @@ export const CartesianPlot = memo(function CartesianPlot({
     });
   }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale]);
 
-  if (displayError || !hasData) {
-    const placeholder = displayError
-      ? plotUnavailableText(displayError)
-      : hasTimeline
+  const placeholder = displayError
+    ? plotUnavailableText(displayError)
+    : !hasData
+      ? hasTimeline
         ? plotPlaceholderText(
             { stateLabel: stateLabel ?? "Unavailable", stateDetail },
             "The stream is active, but this signal is unavailable in the selected window.",
           )
-        : plotPlaceholderText({ stateLabel, stateDetail });
-    return <PlotPlaceholder actions={actions} description={description} title={title} {...placeholder} />;
-  }
+        : plotPlaceholderText({ stateLabel, stateDetail })
+      : null;
 
+  // Keep The Settings Action Mounted As Samples Arrive Or Disappear
   return (
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
       <div className="flex items-center justify-between gap-3">
@@ -671,35 +671,43 @@ export const CartesianPlot = memo(function CartesianPlot({
         </div>
         <div className="flex items-center gap-2">
           {actions}
-          <button
-            type="button"
-            aria-pressed={following}
-            className="plot-follow rounded-md border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
-            onClick={() => {
-              heldRangeRef.current = null;
-              setFollowing(true);
-              onViewportChangeRef.current?.(null);
-              const plot = plotRef.current;
-              if (plot && chartFrame) {
-                plot.setData(chartFrame.data, true);
-                if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
-              }
-            }}
-          >
-            {zoom ? "Reset Zoom" : "Follow"}
-          </button>
-          <span className="text-xs text-muted-foreground">
-            {renderedPointCount} points
-            {downsampledLabel(renderedSeries)}
-            {series.length > renderedSeries.length ? ` - ${renderedSeries.length} of ${series.length} series` : ""}
-            {unit ? ` - ${unit}` : ""}
-            {xScale === "log" || yScale === "log" ? " - log" : ""}
-            {badge ? ` - ${badge}` : ""}
-          </span>
+          {!placeholder ? (
+            <>
+              <button
+                type="button"
+                aria-pressed={following}
+                className="plot-follow rounded-md border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                onClick={() => {
+                  heldRangeRef.current = null;
+                  setFollowing(true);
+                  onViewportChangeRef.current?.(null);
+                  const plot = plotRef.current;
+                  if (plot && chartFrame) {
+                    plot.setData(chartFrame.data, true);
+                    if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
+                  }
+                }}
+              >
+                {zoom ? "Reset Zoom" : "Follow"}
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {renderedPointCount} points
+                {downsampledLabel(renderedSeries)}
+                {series.length > renderedSeries.length ? ` - ${renderedSeries.length} of ${series.length} series` : ""}
+                {unit ? ` - ${unit}` : ""}
+                {xScale === "log" || yScale === "log" ? " - log" : ""}
+                {badge ? ` - ${badge}` : ""}
+              </span>
+            </>
+          ) : null}
         </div>
       </div>
-      <div ref={rootRef} className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
-      {legend && legendRows ? (
+      {placeholder ? (
+        <PlotPlaceholder {...placeholder} />
+      ) : (
+        <div ref={rootRef} className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
+      )}
+      {!placeholder && legend && legendRows ? (
         <StatsSummaryTable
           legend={{
             columns: legendColumns,

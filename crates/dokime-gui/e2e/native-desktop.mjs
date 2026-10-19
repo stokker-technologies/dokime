@@ -560,8 +560,19 @@ async function startSession(work, endpoint, evidence) {
   session.connected = () =>
     until("connected shell", () => session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"), 180000);
   session.load = async (url) => {
+    const previousOrigin = await session.execute("return performance.timeOrigin;");
     await session.request("POST", "/url", { url });
-    await until(`load ${url}`, async () => (await session.execute("return document.body.innerText.length")) > 20, 120000);
+    await until(
+      `load ${url}`,
+      () =>
+        session.execute(
+          `return performance.timeOrigin !== arguments[0]
+            && document.readyState === "complete"
+            && (document.body?.innerText.length ?? 0) > 20;`,
+          [previousOrigin],
+        ),
+      120000,
+    );
   };
   /**
    * Go to a route by loading it.
@@ -1521,20 +1532,15 @@ async function cycleJourney(session, cycleId) {
   assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
   assert.match(await sidebarText(session), /Re-Run Of #\d+/, "The new row must name its previous execution");
   /* Plot Settings Persist In The Native Frozen Document. */
-  /* The evidence pane mounts the re-run's own document a moment after the
-     selection moves, which unmounts a dialog opened from the one before it;
-     the gear is pressed again until the dialog it opens is still there. */
+  await session.clickCss("button[aria-label^='Plot settings for ']");
   const settingsText = await until(
     "plot settings dialog",
     () =>
       session.execute(`
         const dialog = document.querySelector('[role=dialog][data-state=open]');
-        if (dialog) return dialog.innerText;
-        document.querySelector("button[aria-label^='Plot settings for ']")?.click();
-        return null;
+        return dialog?.innerText;
       `),
     30000,
-    1000,
   );
   assert.match(settingsText, /Display Points|Reduction/);
   const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
@@ -1556,19 +1562,14 @@ async function cycleJourney(session, cycleId) {
   }
   await session.goto("/cycles");
   await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`);
-  /* The remounted document can again unmount a dialog opened before it
-     settles, so the gear is pressed until an open dialog shows its budget. */
+  await session.clickCss("button[aria-label^='Plot settings for ']");
   const persistedPoints = await until(
     "persisted display point budget",
     () =>
       session.execute(`
-        const input = document.querySelector('[role=dialog][data-state=open] input[type=number]');
-        if (input) return input.value;
-        document.querySelector("button[aria-label^='Plot settings for ']")?.click();
-        return null;
+        return document.querySelector('[role=dialog][data-state=open] input[type=number]')?.value;
       `),
     30000,
-    1000,
   );
   assert.equal(persistedPoints, "2500", "The backend must retain the plot budget after remounting");
   await session.clickNamed("button", "Cancel");
@@ -2227,7 +2228,8 @@ async function journey(name, run) {
     if (session && !session.closed) {
       try {
         const shot = await session.screenshot(`failure-${name}`);
-        await writeFile(join(evidence, `failure-${name}.txt`), await session.text().catch(() => session.lastBody ?? ""));
+        const failureBody = await session.text().catch(() => session.lastBody ?? "");
+        await writeFile(join(evidence, `failure-${name}.txt`), `${failure.stack ?? failure.message}\n\n${failureBody}`);
         /* What the application asked the shell to do, and how long each call
            took: a journey that waits on something that never answers says so
            here and nowhere else. */
