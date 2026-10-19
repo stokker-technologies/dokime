@@ -295,12 +295,12 @@ async fn evidence(client: &Client, extension: &str, workflow: &str, stdout: &str
     assert_eq!(actual, executions);
 
     let path = directory.join("cycle.zip");
-    let samples = archive(&path, cycle_id, &executions, true, "passed");
+    let samples = archive(&path, cycle_id, &executions, CyclePhase::Sealed, "passed");
     for (index, id) in identities(stdout, "Execution: ").iter().enumerate() {
         let name = if workflow == "test" { format!("execution-{}.zip", index + 1) } else { "execution.zip".to_owned() };
         let path = directory.join(name);
         let selected = std::slice::from_ref(id);
-        let captured = archive(&path, cycle_id, selected, false, "passed");
+        let captured = archive(&path, cycle_id, selected, CyclePhase::Active, "passed");
         assert_eq!(captured[id], samples[id]);
     }
 
@@ -366,7 +366,7 @@ fn identities(stdout: &str, prefix: &str) -> Vec<String> {
         .collect()
 }
 
-fn archive(path: &Path, cycle: &str, executions: &[String], sealed: bool, status: &str) -> BTreeMap<String, u64> {
+fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, status: &str) -> BTreeMap<String, u64> {
     let file = std::fs::File::open(path).unwrap();
     let mut zip = zip::ZipArchive::new(file).unwrap();
     let entry = zip.by_name("manifest.json").unwrap();
@@ -391,8 +391,13 @@ fn archive(path: &Path, cycle: &str, executions: &[String], sealed: bool, status
     std::io::copy(&mut entry, &mut output).unwrap();
     drop(output);
     let database = rusqlite::Connection::open_with_flags(&database_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-    let phase: String = database.query_row("SELECT phase FROM cycles WHERE cycle_id=?1", [cycle], |row| row.get(0)).unwrap();
-    assert_eq!(phase, if sealed { "sealed" } else { "active" });
+    let stored: String = database.query_row("SELECT phase FROM cycles WHERE cycle_id=?1", [cycle], |row| row.get(0)).unwrap();
+    let expected = match phase {
+        CyclePhase::Active => "active",
+        CyclePhase::Sealing => "sealing",
+        CyclePhase::Sealed => "sealed",
+    };
+    assert_eq!(stored, expected, "cycle context in {}", path.display());
 
     let mut statement = database.prepare("SELECT execution_id FROM executions ORDER BY execution_id").unwrap();
     let actual: Vec<String> = statement.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();

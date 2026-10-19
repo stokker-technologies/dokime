@@ -330,13 +330,15 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
     assert_eq!(members.len(), 1, "interruption cannot retry append or Start");
     let execution = &members[0];
     let outcome = execution.wait(None, None).await.unwrap();
+    let context = execution.context_at(outcome.checkpoint.as_ref().unwrap()).await.unwrap();
+    let phase = context.cycle.unwrap().cycle.unwrap().phase;
     assert_eq!(outcome.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
     let execution_id = execution.id().to_string();
     let executions = vec![execution_id.clone()];
     let (execution_file, cycle_file) = recovered(extension, workflow, &directory, &cycles[0], &execution_id);
-    let samples = super::archive(&execution_file, &cycles[0], &executions, true, "cancelled");
+    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
     assert_eq!(samples[&execution_id], 0, "the independent execution keeps Start queued");
-    super::archive(&cycle_file, &cycles[0], &executions, true, "cancelled");
+    super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
 }
 
 async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str, workflow: &str) {
@@ -356,12 +358,14 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
     let id = TestExecutionId::from_uuid(&executions[0]).unwrap();
     let execution = client.execution(id);
     let saved = execution.wait(None, None).await.unwrap();
+    let context = execution.context_at(saved.checkpoint.as_ref().unwrap()).await.unwrap();
+    let phase = context.cycle.unwrap().cycle.unwrap().phase;
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
 
     let (execution_file, cycle_file) = recovered(extension, workflow, &directory, &cycles[0], &executions[0]);
-    let samples = super::archive(&execution_file, &cycles[0], &executions, true, "cancelled");
+    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
     assert_eq!(samples[&executions[0]], 0, "the independent prompt kept this execution queued");
-    super::archive(&cycle_file, &cycles[0], &executions, true, "cancelled");
+    super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
     assert!(!outcome.text.contains("Drained Evidence:"), "a cancelled queued capture cannot claim final observation");
 }
 
@@ -415,14 +419,17 @@ async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
     assert_eq!(cycles.len(), 1);
     assert_eq!(executions.len(), 1);
     let id = TestExecutionId::from_uuid(&executions[0]).unwrap();
-    let saved = client.execution(id).wait(None, None).await.unwrap();
+    let execution = client.execution(id);
+    let saved = execution.wait(None, None).await.unwrap();
+    let context = execution.context_at(saved.checkpoint.as_ref().unwrap()).await.unwrap();
+    let phase = context.cycle.unwrap().cycle.unwrap().phase;
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
 
     let execution_file = directory.join("execution-1.zip");
-    let samples = super::archive(&execution_file, &cycles[0], &executions, true, "cancelled");
+    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
     assert!(samples[&executions[0]] > 0 && samples[&executions[0]] < 64, "the saved bundle must retain a partial capture");
     let cycle_file = directory.join("cycle.zip");
-    let cycle_samples = super::archive(&cycle_file, &cycles[0], &executions, true, "cancelled");
+    let cycle_samples = super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
     assert_eq!(samples, cycle_samples);
     assert!(!outcome.text.contains("Drained Evidence:"), "an interrupted listener cannot claim a completed final drain");
 }
