@@ -126,7 +126,9 @@ def generate(
             if target.exists() and not target.is_file():
                 raise ValueError(f"generated destination is not a file: {relative}")
         obsolete = [
-            path for path in (destination / "_wire").rglob("*") if path.is_file() and path.relative_to(destination) not in generated
+            path
+            for path in (destination / "_wire").rglob("*")
+            if path.is_file() and "__pycache__" not in path.parts and path.relative_to(destination) not in generated
         ]
         if check:
             stale = [
@@ -135,7 +137,9 @@ def generate(
                 if not (destination / relative).is_file() or (destination / relative).read_bytes() != data
             ]
             if stale or obsolete:
-                raise ValueError("Python contracts are stale; regenerate from the selected Cargo build")
+                changed = sorted({*stale, *(path.relative_to(destination) for path in obsolete)})
+                paths = ", ".join(path.as_posix() for path in changed)
+                raise ValueError(f"Python contracts are stale; regenerate from the selected Cargo build: {paths}")
         else:
             for relative, data in generated.items():
                 target = destination / relative
