@@ -709,6 +709,15 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
     let mut planning = client.clone();
     let mut execution = client.clone();
     let cycle_id = create_cycle(&mut planning, &mut execution, plan, "obc.charger.steady.reports", 9).await;
+    execution
+        .execution_update_cycle_policy(contracts::execution::UpdateCyclePolicy {
+            cycle_id: cycle_id.clone(),
+            continue_automatically: true,
+            continue_on_failure: false,
+            context: None,
+        })
+        .await
+        .unwrap();
     run_cycle(&mut execution, &cycle_id).await;
 
     // Answer Every Case, Then Explicitly Seal The Completed Container.
