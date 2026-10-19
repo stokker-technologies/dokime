@@ -9,6 +9,7 @@
 
 /* === Modules === */
 mod listeners;
+mod prompts;
 mod saved;
 
 /* === Re-Exports === */

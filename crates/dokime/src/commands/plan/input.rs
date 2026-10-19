@@ -36,10 +36,18 @@ use dokime_domain::model::planning::wire::SelectionPlan;
 #[derive(Debug, clap::Args)]
 #[group(id = "plan_input")]
 pub(crate) struct Args {
-    #[arg(long, conflicts_with_all = ["template", "case_ids", "selections", "max_cases"], help = "Read The Canonical Request JSON Without Flag Overrides.")]
+    #[arg(long, conflicts_with_all = ["template", "case_ids", "selections", "max_cases", "parameters_json"], help = "Read The Canonical Request JSON Without Flag Overrides.")]
     pub(crate) input_file: Option<PathBuf>,
     #[arg(long, conflicts_with = "case_ids", help = "Template ID As `<Suite ID>.<Segment>`; Omitted Parameters Use Backend Defaults.")]
     template: Option<String>,
+
+    #[arg(
+        long,
+        requires = "template",
+        conflicts_with = "selections",
+        help = "Single Parameter Values For --template As A Plain JSON Object."
+    )]
+    parameters_json: Option<String>,
     #[arg(long = "case-id", conflicts_with = "selections", help = "Registered Case ID; Repeat To Preserve Order And Repeated Attempts.")]
     case_ids: Vec<String>,
     #[arg(long = "selection-json", help = "RegisteredSelection JSON Naming Its Template ID; Repeat For Ordered Selections.")]
@@ -70,10 +78,11 @@ impl Args {
             })
             .collect::<crate::Result<Vec<_>>>()?;
         if let Some(template) = self.template {
+            let parameters = parameters(self.parameters_json.as_deref())?;
             selections.push(RegisteredSelection {
                 suite_id: dokime_client::template_suite(&template).unwrap_or_default().to_owned(),
                 template_id: template,
-                parameters: Vec::new(),
+                parameters,
                 files: Vec::new(),
             });
         }
@@ -163,5 +172,25 @@ pub(super) async fn print(client: &dokime_client::Client, reply: &PreviewSelecti
 }
 
 /* === Private Functions === */
+fn parameters(input: Option<&str>) -> crate::Result<Vec<dokime_domain::model::planning::wire::RegisteredSelectionParametersEntry>> {
+    use dokime_domain::model::planning::wire::{RegisteredSelectionParametersEntry, SelectionValues};
+    use dokime_domain::model::values::{Value, wire};
+
+    let Some(input) = input else { return Ok(Vec::new()) };
+    if input.len() > 1024 * 1024 {
+        return Err(crate::Error::Input("template parameters exceed 1 MiB".into()));
+    }
+    let json: serde_json::Value = serde_json::from_str(input).map_err(|error| crate::Error::Input(error.to_string()))?;
+    let serde_json::Value::Object(entries) = json else {
+        return Err(crate::Error::Input("template parameters must be a JSON object".into()));
+    };
+    let mut parameters = Vec::with_capacity(entries.len());
+    for (key, value) in entries {
+        let value = Value::from_plain_json(value).map_err(|error| crate::Error::Input(error.to_string()))?;
+        parameters
+            .push(RegisteredSelectionParametersEntry { key, value: Some(SelectionValues { values: vec![wire::Value::from(value)] }) });
+    }
+    Ok(parameters)
+}
 
 /* === Tests === */

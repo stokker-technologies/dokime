@@ -43,6 +43,9 @@ pub(crate) struct Args {
     connection: crate::connection::Args,
     #[arg(long, help = "Emit The Append Reply As JSON.")]
     json: bool,
+
+    #[arg(long, conflicts_with = "json", help = "Print Each Execution UUID Created By This Append On Its Own Line.")]
+    id_only: bool,
 }
 
 /* === Enums === */
@@ -72,10 +75,20 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     .await;
     client.close_and_wait().await;
     let reply = result?;
-    if args.json {
-        println!("{}", serde_json::json!({ "cycle_id": cycle_id, "observed_cursor": reply.observed_cursor }));
+    if args.id_only {
+        for id in reply.execution_ids {
+            println!("{id}");
+        }
+    } else if args.json {
+        println!(
+            "{}",
+            serde_json::json!({ "cycle_id": cycle_id, "observed_cursor": reply.observed_cursor, "execution_ids": reply.execution_ids })
+        );
     } else {
         println!("Appended Cases To Cycle {cycle_id}");
+        for id in reply.execution_ids {
+            println!("Execution {id}");
+        }
     }
     Ok(())
 }

@@ -261,15 +261,15 @@ class DokimeClient:
         suite: str,
         template: str,
         parameters: Mapping[str, Value] | None = None,
-    ) -> None:
+    ) -> tuple[TestExecutionHandle, ...]:
         """Append the cases a suite template generates to an existing cycle.
 
-        Suite and template are named by their IDs; omitted parameters use the
-        registered defaults. Case labels continue the cycle's numbering.
+        Return the ordered execution handles created by this append. Suite and
+        template are named by their IDs; omitted parameters use registered defaults.
         """
         _identity(cycle_id)
         plan = await self._selection(suite, template, parameters)
-        await self._append(cycle_id, plan)
+        return await self._append(cycle_id, plan)
 
     async def new_cycle(
         self,
@@ -316,7 +316,7 @@ class DokimeClient:
             ],
         }
 
-    async def _append(self, cycle_id: str, plan: dict[str, Any]) -> None:
+    async def _append(self, cycle_id: str, plan: dict[str, Any]) -> tuple[TestExecutionHandle, ...]:
         backend = await self.connect()
         await self._transport.verify(backend, live=True)
         appended = await self._transport.unary(
@@ -330,6 +330,18 @@ class DokimeClient:
             ),
         )
         _cursor(backend, appended)
+        seen = set()
+        handles = []
+        for execution_id in appended.execution_ids:
+            try:
+                _identity(execution_id)
+            except ValueError as error:
+                raise ProtocolError("appended execution identity is invalid") from error
+            if execution_id in seen:
+                raise ProtocolError("append reply repeats an execution identity")
+            seen.add(execution_id)
+            handles.append(TestExecutionHandle(execution_id, self._transport, backend))
+        return tuple(handles)
 
     async def cycle(self, cycle_id: str) -> Cycle:
         """Resolve a live cycle on the current backend."""

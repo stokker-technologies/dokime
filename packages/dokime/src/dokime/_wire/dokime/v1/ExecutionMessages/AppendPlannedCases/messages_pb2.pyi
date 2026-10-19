@@ -17,10 +17,12 @@ class Row1(_message.Message):
     def __init__(self, cycle_id: _Optional[str] = ..., plan: _Optional[_Union[Row3, _Mapping]] = ..., context: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("observed_cursor",)
+    __slots__ = ("observed_cursor", "execution_ids")
     OBSERVED_CURSOR_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_IDS_FIELD_NUMBER: _ClassVar[int]
     observed_cursor: Row5
-    def __init__(self, observed_cursor: _Optional[_Union[Row5, _Mapping]] = ...) -> None: ...
+    execution_ids: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, observed_cursor: _Optional[_Union[Row5, _Mapping]] = ..., execution_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Row3(_message.Message):
     __slots__ = ("selections", "max_cases", "case_ids", "cycle_id")

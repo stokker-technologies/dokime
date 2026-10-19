@@ -340,6 +340,7 @@ class BackendFixture:
             "AppendPlannedCases",
             direction="response",
             path="",
+            execution_ids=[EXECUTION_ID],
             observed_cursor=_message(
                 "Evidence",
                 "ListRecords",
@@ -534,6 +535,7 @@ class BackendFixture:
             "GetExecution",
             direction="response",
             path="",
+            cycle_id=CYCLE_ID,
             summary=_message(
                 "Execution",
                 "GetExecution",
@@ -655,7 +657,7 @@ class BackendFixture:
             await context.abort(grpc.StatusCode.FAILED_PRECONDITION, "execution is finished")
         return _message(
             "Execution",
-            "AppendPlannedCases",
+            method,
             direction="response",
             path="",
             observed_cursor=_message(
@@ -672,7 +674,7 @@ class BackendFixture:
         self.rerun_calls.append(request.case_id)
         return _message(
             "Execution",
-            "AppendPlannedCases",
+            "ScheduleCaseRerun",
             direction="response",
             path="",
             observed_cursor=_message(

@@ -35,7 +35,9 @@ use dokime_domain::model::identity::TestCycleId;
 
 /* === Implementations === */
 impl RuntimeHandle {
-    pub async fn append_cycle_cases(&self, test_cycle_id: TestCycleId, cases: Vec<TestCase>, context: CommandContext) -> Result<(), Error> {
+    pub async fn append_cycle_cases(
+        &self, test_cycle_id: TestCycleId, cases: Vec<TestCase>, context: CommandContext,
+    ) -> Result<Vec<dokime_domain::model::identity::TestExecutionId>, Error> {
         let sources = {
             let state = self.state_read();
             cases.iter().filter_map(|case| state.suites.suite_for_case(case)).map(|entry| entry.source.clone()).collect::<Vec<_>>()
@@ -56,10 +58,11 @@ impl RuntimeHandle {
             cases,
             occurred_at: crate::model::time::now_utc(),
         };
+        let execution_ids = transaction.execution_ids();
         self.commit_with_key(context.idempotency_key, transaction).await?;
         self.execution_storage.save_cycle(test_cycle_id.clone()).await?;
         self.reconcile_sampling().await;
-        Ok(())
+        Ok(execution_ids)
     }
 }
 

@@ -17,9 +17,9 @@ import asyncio
 import pytest
 
 # Local Imports
-from dokime.client import ProtocolError, _wire
+from dokime.client import ProtocolError, RpcError, _wire
 
-from .backend import CYCLE_ID
+from .backend import CYCLE_ID, EXECUTION_ID
 from .capture_backend import serve
 
 # Type Checking Imports
@@ -85,6 +85,51 @@ def test_prompt_level() -> None:
                 assert prompt.id == PROMPT_ID
                 assert prompt.title == "Inspect Charging State"
                 assert prompt.level == expected
+
+    asyncio.run(scenario())
+
+
+def test_execution_prompt_scope() -> None:
+    async def scenario() -> None:
+        async with serve() as (backend, client):
+            # Read Only The Selected Execution's Question.
+            own = {
+                "prompt_id": PROMPT_ID,
+                "kind": {"Confirmation": {}},
+                "definition": {
+                    "prompt_type": "obc.checks.pulse.confirm",
+                    "schema_version": 1,
+                    "archetype": {"Confirmation": {}},
+                    "title": "Start Simulated Pulse",
+                    "level": {"Info": {}},
+                    "actions": [{"id": "yes", "label": "Yes"}, {"id": "no", "label": "No"}],
+                },
+                "values": _wire.encode({}),
+                "scope": {"cycle_id": CYCLE_ID, "execution_id": EXECUTION_ID},
+                "created_at": {"seconds": 1_760_000_000, "nanos": 0},
+            }
+            foreign_id = "0199d6a4-6f1e-7c3a-9a51-2b7c4e8f1d21"
+            foreign = {**own, "prompt_id": foreign_id, "scope": {"cycle_id": CYCLE_ID, "execution_id": foreign_id}}
+            backend.pending.extend([own, foreign])
+            execution = await client.execution(EXECUTION_ID)
+            (prompt,) = [item async for item in execution.pending_prompts()]
+            assert prompt.id == PROMPT_ID
+
+            # A Foreign Identity Cannot Reach Respond.
+            with pytest.raises(ValueError, match="another execution"):
+                await execution.prompt(foreign_id)
+            with pytest.raises(ValueError, match="another execution"):
+                await execution.respond(foreign_id, action="yes")
+            assert backend.response_calls == []
+
+            # Inspect The Committed Response After A Duplicate Is Refused.
+            await execution.respond(PROMPT_ID, action="yes")
+            assert (await execution.prompt(PROMPT_ID))["response"]["action"] == "yes"
+            assert [item async for item in execution.pending_prompts()] == []
+            with pytest.raises(RpcError):
+                await execution.respond(PROMPT_ID, action="no")
+            assert backend.prompt_responses[PROMPT_ID]["action"] == "yes"
+            assert backend.created == backend.run_calls == 0
 
     asyncio.run(scenario())
 

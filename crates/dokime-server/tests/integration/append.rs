@@ -121,15 +121,17 @@ async fn append_cases_control() {
             if rejection.code == "empty_cycle"
     ));
 
-    execution
+    let appended = execution
         .unary::<contracts::execution::AppendPlannedCases>(auth(
             contracts::execution::AppendPlannedCases { cycle_id: cycle_id.clone(), plan: Some(plan(selection(&suite, 0))), context: None },
             CONTROL_TOKEN,
         ))
         .await
-        .unwrap();
+        .unwrap()
+        .into_inner();
     let before = cases(&execution, &cycle_id).await;
     assert_eq!(before.len(), 1);
+    assert_eq!(appended.execution_ids, [before[0].latest_execution_id.clone().unwrap()]);
 
     let request =
         contracts::execution::AppendPlannedCases { cycle_id: cycle_id.clone(), plan: Some(plan(selection(&suite, 1))), context: None };
@@ -142,6 +144,8 @@ async fn append_cases_control() {
 
     let after = cases(&execution, &cycle_id).await;
     assert_eq!(after.len(), 2);
+    assert_eq!(reply.execution_ids, [after[1].latest_execution_id.clone().unwrap()]);
+    assert_ne!(reply.execution_ids, appended.execution_ids);
     assert_eq!(after[0].case_id, before[0].case_id);
     assert_eq!(after[0].template_id, before[0].template_id);
     assert_ne!(after[1].template_id, before[0].template_id);

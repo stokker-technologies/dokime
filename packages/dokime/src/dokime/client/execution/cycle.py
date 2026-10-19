@@ -11,10 +11,8 @@
 # === Imports === #
 
 # Standard Library Imports
-import hashlib
-import json
 import math
-from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import aclosing
 from pathlib import Path
 from typing import Any
@@ -25,7 +23,7 @@ from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
 # Local Imports
-from .. import _wire
+from .. import _wire, prompts
 from .._transport import Transport, _cursor
 from ..errors import (
     ProtocolError,
@@ -236,93 +234,15 @@ class Cycle:
         await self._transport.verify(self._backend, live=True)
         return await download_report(self._transport, self.id, Path(destination), identifier)
 
-    async def pending_prompts(self) -> AsyncIterator[Prompt]:
+    async def pending_prompts(self) -> AsyncGenerator[Prompt]:
         """List this cycle's pending interactions; never auto-accept a prompt."""
-        request = _wire.request("Prompts", "ListPending", cycle_id=self.id, limit=100)
-        selection = json.dumps([self.id, None], separators=(",", ":")).encode()
-        stream = "prompts.pending:" + hashlib.sha256(selection).hexdigest()
-        while True:
-            await self._transport.verify(self._backend, live=True)
-            page = await self._transport.unary("Prompts", "ListPending", request)
-            _cursor(self._backend, page, "cursor")
-            if (
-                len(page.prompts) > request.limit
-                or page.cursor.stream != stream
-                or request.HasField("cursor")
-                and not _wire.equal(request.cursor, page.cursor)
-            ):
-                raise ProtocolError("pending prompt page changed cursor or exceeded limit")
-            previous = request.after_prompt_id
-            for identity in page.prompts:
-                try:
-                    _identity(identity.prompt_id)
-                except ValueError as error:
-                    raise ProtocolError("pending prompt identity is invalid") from error
-                if identity.prompt_id <= previous or not identity.HasField("scope") or identity.scope.cycle_id != self.id:
-                    raise ProtocolError("pending prompt identity does not advance within cycle")
-                previous = identity.prompt_id
-            if page.HasField("next_after_prompt_id") and (not page.prompts or page.next_after_prompt_id != previous):
-                raise ProtocolError("pending prompt continuation is invalid")
-            for identity in page.prompts:
-                view = await self._prompt(identity.prompt_id)
-                item = view.prompt
-                if (
-                    not _wire.equal(item.scope, identity.scope)
-                    or not _wire.equal(item.created_at, identity.created_at)
-                    or not identity.HasField("definition")
-                    or (
-                        item.definition.prompt_type,
-                        item.definition.schema_version,
-                        item.definition.title,
-                    )
-                    != (
-                        identity.definition.prompt_type,
-                        identity.definition.schema_version,
-                        identity.definition.title,
-                    )
-                ):
-                    raise ProtocolError("prompt view differs from listed request")
-                if view.HasField("response"):
-                    continue
-                level = _wire.enum_name(item.definition.level)
-                if level == "unspecified":
-                    level = "info"
-                yield Prompt(
-                    item.prompt_id,
-                    item.definition.prompt_type,
-                    item.definition.title,
-                    item.definition.message if item.definition.HasField("message") else None,
-                    tuple(action.id for action in item.definition.actions),
-                    tuple(field.metadata.identifier for field in item.definition.fields),
-                    _wire.fields(item.values),
-                    level=level,
-                )
-            if not page.HasField("next_after_prompt_id"):
-                return
-            request.after_prompt_id = previous
-            _wire.copy(request.cursor, page.cursor)
+        scope = prompts.Scope(self._transport, self._backend, self.id)
+        async with aclosing(scope.pending()) as pending:
+            async for prompt in pending:
+                yield prompt
 
     async def _prompt(self, prompt_id: str):
-        _identity(prompt_id)
-        await self._transport.verify(self._backend, live=True)
-        view = await self._transport.unary(
-            "Prompts",
-            "GetPrompt",
-            _wire.request("Prompts", "GetPrompt", prompt_id=prompt_id),
-        )
-        _cursor(self._backend, view)
-        if (
-            not view.HasField("prompt")
-            or view.prompt.prompt_id != prompt_id
-            or not view.prompt.HasField("definition")
-            or not view.prompt.definition.prompt_type
-            or view.HasField("response")
-            and view.response.prompt_id != prompt_id
-        ):
-            raise ProtocolError("prompt view differs from admitted identity")
-        if not view.prompt.HasField("scope") or view.prompt.scope.cycle_id != self.id:
-            raise ValueError("prompt belongs to another cycle")
-        return view
+        return await prompts.Scope(self._transport, self._backend, self.id).read(prompt_id)
 
     async def respond(
         self,
@@ -333,32 +253,8 @@ class Cycle:
         accepted: bool = True,
     ) -> None:
         """Respond once. After an ambiguous error, inspect the prompt; do not retry blindly."""
-        encoded = _wire.encode(dict(values or {}))
-        await self._prompt(prompt_id)
-        await self._transport.verify(self._backend, live=True)
-        receipt = await self._transport.unary(
-            "Prompts",
-            "Respond",
-            _wire.request(
-                "Prompts",
-                "Respond",
-                prompt_id=prompt_id,
-                action=action,
-                values=encoded,
-                accepted=accepted,
-            ),
-        )
-        _cursor(self._backend, receipt)
-        try:
-            _identity(receipt.command_id)
-        except ValueError as error:
-            raise ProtocolError("prompt receipt command identity is invalid") from error
-        if (
-            receipt.prompt_id != prompt_id
-            or not receipt.committed_revision
-            or receipt.observed_cursor.position < receipt.committed_revision
-        ):
-            raise ProtocolError("prompt receipt differs from submitted response")
+        scope = prompts.Scope(self._transport, self._backend, self.id)
+        await scope.respond(prompt_id, action=action, values=values, accepted=accepted)
 
     async def records(
         self,

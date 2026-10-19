@@ -208,7 +208,7 @@ impl Operation for Append {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::AppendPlannedCases, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::AppendCasesReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let id = cycle_id(&request.cycle_id)?;
         let mut plan = request.plan.take();
@@ -221,8 +221,12 @@ impl Operation for Append {
         }
         let snapshot = self.runtime.watch_state().latest();
         let plan = planning::resolve(snapshot.state(), plan, &dokime_runtime::model::identity::new_id::<CommandId>())?;
-        self.runtime.append_cycle_cases(id, plan.cases, context).await.map_err(status)?;
-        Ok((observed(&self.runtime)).into())
+        let ids = self.runtime.append_cycle_cases(id, plan.cases, context).await.map_err(status)?;
+        Ok(dokime_domain::model::execution::wire::AppendCasesReply {
+            observed_cursor: observed(&self.runtime).observed_cursor,
+            execution_ids: ids.into_iter().map(|id| id.to_string()).collect(),
+        }
+        .into())
     }
 }
 

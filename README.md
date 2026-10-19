@@ -435,6 +435,44 @@ A cycle is always created explicitly and empty; `cycle append` adds the cases a
 plan generates to an existing cycle and never creates one. An omitted
 `--identifier` is derived by the backend.
 
+For a linear script, `--id-only` prints the created cycle UUID or the ordered
+execution UUIDs from that exact append. It never infers new executions by
+comparing a cycle before and after a concurrent mutation. This pulse template
+produces one execution:
+
+```sh
+cycle_id=$(dokime cycle create --label "Remote Pulse" --backend lab --id-only)
+execution_id=$(dokime cycle append "$cycle_id" --template obc.checks.pulse --backend lab --id-only)
+dokime execution run "$execution_id" --request-key pulse-1 --backend lab
+dokime execution wait "$execution_id" --wait-seconds 60 --backend lab
+dokime execution export "$execution_id" --output pulse.zip --backend lab
+```
+
+`execution wait` waits for the durable saved result and returns nonzero for a
+failed, blocked or cancelled execution. Interrupting that wait leaves remote
+work running; request `execution stop EXECUTION_ID` explicitly, then wait and
+export the collected evidence. Retain the execution ID and request key after a
+disconnection; never submit another command just to discover whether it ran.
+
+`--parameters-json` supplies single values for `--template` as a plain JSON
+object. The default pulse has no prompt. To require its one confirmation:
+
+```sh
+execution_id=$(dokime cycle append "$cycle_id" --template obc.checks.pulse \
+  --parameters-json '{"require_confirmation":true}' --backend lab --id-only)
+dokime execution run "$execution_id" --request-key pulse-confirm-1 --backend lab
+prompt_id=$(dokime execution prompt next "$execution_id" --wait-seconds 60 --backend lab --id-only)
+dokime execution prompt show "$execution_id" "$prompt_id" --backend lab
+dokime execution prompt answer "$execution_id" "$prompt_id" --action yes --backend lab
+dokime execution wait "$execution_id" --wait-seconds 60 --backend lab
+```
+
+Prompt reads and answers require the matching execution and prompt UUIDs.
+The server refuses stale or duplicate answers. After an ambiguous response,
+inspect `prompt show` before deciding what to do; answers are never retried
+automatically. Actions `cancel` and `abort` submit a cancelled response.
+When finished, use `cycle seal CYCLE_ID` before `cycle export CYCLE_ID`.
+
 Preview leaves registration unchanged. `plan register` materializes cases
 without a cycle; append them by ID with `cycle append CYCLE_ID --case-id CASE_ID`. Registration returns case IDs; retain its
 key and repeat the same request to recover registration after an uncertain

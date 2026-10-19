@@ -63,7 +63,8 @@ def test_explicit_cycle() -> None:
             assert request.continue_on_failure
 
             # Append Planned Cases
-            await client.append_cases(cycle_id, suite=SUITE_ID, template=TEMPLATE, parameters={"flag": True})
+            (execution,) = await client.append_cases(cycle_id, suite=SUITE_ID, template=TEMPLATE, parameters={"flag": True})
+            assert execution.id == EXECUTION_ID
             assert server.created == server.append_calls == 1
             assert _wire.decode(server.overrides["flag"].values[0]) is True
 

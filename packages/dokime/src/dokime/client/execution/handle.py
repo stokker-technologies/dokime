@@ -14,7 +14,7 @@
 # Standard Library Imports
 import asyncio
 import unicodedata
-from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,7 +26,7 @@ from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
 # Local Imports
-from .. import _wire
+from .. import _wire, prompts
 from .._transport import Transport, _cursor
 from ..errors import ExecutionSubmissionUncertain, ProtocolError, RpcError, RunRejected
 from ..exports import export_evidence
@@ -36,9 +36,11 @@ from ..models import (
     Backend,
     CommandAction,
     ExecutionCommandReceipt,
+    Prompt,
     Record,
     ResultSummary,
     Sample,
+    Value,
 )
 from .listeners import read_records, read_samples
 from .request import RunRequest, _identity, _interval
@@ -91,6 +93,33 @@ class TestExecutionHandle:
         """An owned current-runtime snapshot, verified against the original epoch."""
         detail = await self._snapshot()
         return MessageToDict(detail, preserving_proto_field_name=True)
+
+    async def _prompt_scope(self) -> prompts.Scope:
+        detail = await self._snapshot()
+        try:
+            return prompts.Scope(self._transport, self._backend, detail.cycle_id, self.id)
+        except ValueError as error:
+            raise ProtocolError("execution has an invalid cycle identity") from error
+
+    async def pending_prompts(self) -> AsyncGenerator[Prompt]:
+        """List only this execution's pending prompts through the native prompt owner."""
+        scope = await self._prompt_scope()
+        async with aclosing(scope.pending()) as pending:
+            async for prompt in pending:
+                yield prompt
+
+    async def prompt(self, prompt_id: str) -> dict[str, Any]:
+        """Inspect an admitted prompt and any response, requiring this execution's identity."""
+        _identity(prompt_id)
+        scope = await self._prompt_scope()
+        view = await scope.read(prompt_id)
+        return MessageToDict(view, preserving_proto_field_name=True)
+
+    async def respond(self, prompt_id: str, *, action: str, values: Mapping[str, Value] | None = None, accepted: bool = True) -> None:
+        """Answer once. After an ambiguous error inspect prompt(); never retry blindly."""
+        _identity(prompt_id)
+        scope = await self._prompt_scope()
+        await scope.respond(prompt_id, action=action, values=values, accepted=accepted)
 
     async def _snapshot(self) -> Message:
         await self._transport.verify(self._backend, live=True)

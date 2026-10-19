@@ -80,6 +80,21 @@ pub struct AppendCycle {
 /* === Traits === */
 
 /* === Implementations === */
+impl AppendCycle {
+    pub(crate) fn execution_ids(&self) -> Vec<dokime_domain::model::identity::TestExecutionId> {
+        self.cases
+            .iter()
+            .enumerate()
+            .map(|(ordinal, case)| {
+                dokime_domain::model::identity::TestExecutionId::from_seed(format!(
+                    "cycle:{}:case:{}:admission:{}:ordinal:{ordinal}",
+                    self.test_cycle_id, case.test_case_id, self.admission_identifier
+                ))
+            })
+            .collect()
+    }
+}
+
 impl Transaction<RuntimeState> for RegisterCases {
     type Error = String;
 
@@ -188,29 +203,22 @@ fn prepare_append_cycle(state: &RuntimeState, append: &AppendCycle) -> Result<Cy
     let mut cycle = state.cycle_view(&append.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
     state.suites.validate_cases(cases).map_err(conflict)?;
     append_cases(&mut cycle, cases.clone(), append.occurred_at.clone()).map_err(conflict)?;
-    materialize_cycle_executions(state, &mut cycle, cases, &append.settings, append.admission_identifier.as_str())?;
+    materialize_cycle_executions(state, &mut cycle, append)?;
     state.validate_cycle_view(&cycle).map_err(conflict)?;
     Ok(cycle)
 }
 
-fn materialize_cycle_executions(
-    state: &RuntimeState, cycle: &mut CycleView, selected_cases: &[TestCase], settings: &BTreeMap<String, BTreeMap<String, Value>>,
-    admission_identifier: &str,
-) -> Result<(), Error> {
-    for (ordinal, case) in selected_cases.iter().enumerate() {
+fn materialize_cycle_executions(state: &RuntimeState, cycle: &mut CycleView, append: &AppendCycle) -> Result<(), Error> {
+    for (case, id) in append.cases.iter().zip(append.execution_ids()) {
         let source = state.suites.suite_for_case(case).map(|suite| suite.source.as_str());
         let plugin = source.and_then(|source| state.execution_identity(source));
-        let id = dokime_domain::model::identity::TestExecutionId::from_seed(format!(
-            "cycle:{}:case:{}:admission:{}:ordinal:{ordinal}",
-            cycle.test_cycle_id, case.test_case_id, admission_identifier
-        ));
         let mut execution = super::provider::materialize_execution(
             state,
             cycle,
             case,
             id,
             plugin,
-            source.and_then(|source| settings.get(source)).cloned().unwrap_or_default(),
+            source.and_then(|source| append.settings.get(source)).cloned().unwrap_or_default(),
         )?;
         execution.status = dokime_domain::model::execution::result::ExecutionStatus::Skipped;
         cycle.test_executions.push(execution);

@@ -60,6 +60,14 @@ pub struct CreateCycleReply {
     pub observed_cursor: Option<Cursor>,
 }
 
+// Ordered Identities From This Append, Independent Of Concurrent Appends.
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct AppendCasesReply {
+    pub observed_cursor: Option<Cursor>,
+    pub execution_ids: Vec<String>,
+}
+
 // Server-side selection and ordering for the live cycle list.
 //
 // `text` matches a cycle's label, description and identifier

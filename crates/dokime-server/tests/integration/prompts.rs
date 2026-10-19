@@ -14,8 +14,10 @@
 /* === Imports === */
 // Standard Library Imports
 use std::collections::BTreeMap;
+use std::sync::Arc;
 // Third Party Imports
 use crate::support::wire::WireMessage;
+use clap::Parser;
 use prost::Message;
 // Local Imports
 use super::*;
@@ -45,6 +47,137 @@ use {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+#[tokio::test]
+async fn execution_prompt_identity() {
+    // === Admit One Execution And Keep Its Provider Running === //
+
+    let root = tempfile::tempdir().unwrap();
+    let gate = Arc::new(Gate::default());
+    let definition = dokime_runtime::domains::prompts::ConfirmationPrompt::new("fixture.confirm", "Start Capture").definition();
+    let config = prompt_config(root.path(), definition.clone());
+    let mut owner = Runtime::with_execution_fixture(config, "fixture", gate.clone()).await.unwrap();
+    let handle = owner.handle();
+    let mut suite = support::fixture_suite(&["passed"]);
+    suite.test_case_templates[0].metadata.identifier = Identifier::new("fixture.suite.probe").unwrap();
+    suite.test_case_templates[0].prompt_definitions.push(definition);
+    support::register_fixture_execution(&handle, suite.clone()).await;
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let endpoint = server.local_endpoint();
+    let target = dokime_client::Target::local(endpoint.clone()).unwrap();
+    let client = dokime_client::Client::connect(target, None, None).await.unwrap();
+    let cycle = client.create_cycle(create()).await.unwrap();
+    let selection = model::planning::wire::RegisteredSelection {
+        suite_id: suite.metadata.identifier.to_string(),
+        template_id: suite.test_case_templates[0].test_case_template_id.to_string(),
+        ..Default::default()
+    };
+    let plan = model::planning::wire::SelectionPlan { selections: vec![selection], ..Default::default() };
+    let first = cycle.append_cases(plan.clone()).await.unwrap().execution_ids.remove(0);
+    let sibling = cycle.append_cases(plan).await.unwrap().execution_ids.remove(0);
+    assert_ne!(first, sibling);
+    let execution_id = dokime_runtime::TestExecutionId::from_uuid(&first).unwrap();
+    let execution = client.execution(execution_id.clone());
+    let other = client.execution(dokime_runtime::TestExecutionId::from_uuid(&sibling).unwrap());
+    let command = ["dokime", "execution", "run", &first, "--request-key", "prompt-control", "--endpoint", &endpoint];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    gate.started.notified().await;
+
+    // === Read And Answer Only The Explicit Execution's Question === //
+
+    let id = dokime_runtime::model::identity::new_id::<PromptId>();
+    handle
+        .request_prompt(PromptRequest {
+            prompt_id: id.clone(),
+            prompt_type: Identifier::new("fixture.confirm").unwrap(),
+            values: BTreeMap::new(),
+            scope: RecordScope::default().with_cycle(cycle.id().clone()).with_test_execution(execution_id),
+        })
+        .await
+        .unwrap();
+    let pending = execution.pending_prompts().await.unwrap();
+    assert_eq!(pending.message().await.unwrap().unwrap().prompt_id, id.to_string());
+    assert!(pending.message().await.unwrap().is_none());
+    pending.close().await;
+    let foreign = other.prompt(&id).await.unwrap_err();
+    assert!(matches!(foreign, dokime_client::Error::Rpc(status) if status.code() == Code::InvalidArgument));
+    let values = model::values::wire::Value::from(Value::Object(BTreeMap::new()));
+    assert!(other.respond_prompt(&id, "yes".into(), values, true).await.is_err());
+    assert!(handle.prompt_response(&id).await.is_none());
+    let id_text = id.to_string();
+    let command = ["dokime", "execution", "prompt", "next", &first, "--wait-seconds", "5", "--id-only", "--endpoint", &endpoint];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    let command = ["dokime", "execution", "prompt", "show", &first, &id_text, "--endpoint", &endpoint];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    let command = ["dokime", "execution", "prompt", "answer", &first, &id_text, "--action", "yes", "--endpoint", &endpoint];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    assert_eq!(handle.prompt_response(&id).await.unwrap().action, "yes");
+    assert!(dokime::Cli::try_parse_from(command).unwrap().run().await.is_err(), "a duplicate answer cannot replace the committed response");
+    assert!(execution.prompt(&id).await.unwrap().response.is_some());
+
+    // === Wait For The Durable Result Without Sealing The Container === //
+
+    gate.release.notify_one();
+    let command = ["dokime", "execution", "wait", &first, "--wait-seconds", "5", "--endpoint", &endpoint];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    assert_eq!(handle.watch_state().latest().state().cycles[cycle.id()].phase, model::execution::result::CyclePhase::Active);
+
+    // === Stop A Different Execution While Its Question Waits === //
+
+    let command = ["dokime", "execution", "run", &sibling, "--request-key", "prompt-stop", "--endpoint", &endpoint];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    gate.started.notified().await;
+    let waiting_id = dokime_runtime::model::identity::new_id::<PromptId>();
+    let other_id = dokime_runtime::TestExecutionId::from_uuid(&sibling).unwrap();
+    handle
+        .request_prompt(PromptRequest {
+            prompt_id: waiting_id.clone(),
+            prompt_type: Identifier::new("fixture.confirm").unwrap(),
+            values: BTreeMap::new(),
+            scope: RecordScope::default().with_cycle(cycle.id().clone()).with_test_execution(other_id),
+        })
+        .await
+        .unwrap();
+    let command = ["dokime", "execution", "stop", &sibling, "--endpoint", &endpoint];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    let command = ["dokime", "execution", "wait", &sibling, "--wait-seconds", "5", "--endpoint", &endpoint];
+    let cancelled = dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap_err();
+    assert_eq!(cancelled.exit_code(), std::process::ExitCode::from(1), "cancelled evidence is sealed without claiming success");
+    assert!(handle.prompt_response(&waiting_id).await.is_none());
+    assert!(handle.prompt_settled_at(&waiting_id).await.is_some());
+    let values = model::values::wire::Value::from(Value::Object(BTreeMap::new()));
+    assert!(other.respond_prompt(&waiting_id, "yes".into(), values, true).await.is_err());
+    assert_eq!(execution.wait(None, None).await.unwrap().checkpoint, execution.checkpoint().await.ok());
+
+    // === Append Plain Parameters Without Parsing A Wire Selection === //
+
+    let cycle_text = cycle.id().to_string();
+    let command = [
+        "dokime",
+        "cycle",
+        "append",
+        &cycle_text,
+        "--template",
+        "fixture.suite.probe",
+        "--parameters-json",
+        "{\"fixture.result\":\"manual-value\"}",
+        "--id-only",
+        "--endpoint",
+        &endpoint,
+    ];
+    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    let members = cycle.executions().await.unwrap();
+    assert_eq!(members.len(), 3);
+    let prepared = members.iter().find(|member| member.id().as_str() != first && member.id().as_str() != sibling).unwrap();
+    let state = handle.watch_state().latest();
+    let prepared = &state.state().executions[prepared.id()];
+    assert_eq!(prepared.snapshot.case().parameters["fixture.result"], Value::Text("manual-value".into()));
+    drop(state);
+    client.close_and_wait().await;
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
 
 #[tokio::test]
 async fn prompt_answers_identity() {
@@ -391,6 +524,10 @@ async fn settled_prompt_refused() {
 }
 
 async fn prompt_runtime(root: &std::path::Path, definition: dokime_runtime::domains::prompts::PromptDefinition) -> Runtime {
+    Runtime::start(prompt_config(root, definition)).await.unwrap()
+}
+
+fn prompt_config(root: &std::path::Path, definition: dokime_runtime::domains::prompts::PromptDefinition) -> dokime_runtime::RuntimeConfig {
     let mut declarations = harmos::sidecar::Registrar::new();
     declarations
         .register(
@@ -399,10 +536,9 @@ async fn prompt_runtime(root: &std::path::Path, definition: dokime_runtime::doma
             &[definition],
         )
         .unwrap();
-    let config = crate::support::budgets::runtime_config(root, support::metadata("grpc.prompts", "Questions"))
+    crate::support::budgets::runtime_config(root, support::metadata("grpc.prompts", "Questions"))
         .with_declared_plugin("prompt.fixture", "1.0.0", "Questions", declarations)
-        .unwrap();
-    Runtime::start(config).await.unwrap()
+        .unwrap()
 }
 
 /* === Tests === */

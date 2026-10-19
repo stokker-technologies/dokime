@@ -115,7 +115,9 @@ def test_export_refusal(tmp_path: Path, fault: str) -> None:
     elif fault == "identity":
         frames[0].payload.Metadata.field_0.subject.Execution.field_0 = str(UUID(int=2))
     elif fault == "size":
-        frames[0].payload.Metadata.field_0.size_bytes = BACKEND.max_evidence_bytes + 1
+        maximum = BACKEND.max_evidence_bytes
+        assert maximum is not None
+        frames[0].payload.Metadata.field_0.size_bytes = maximum + 1
     elif fault == "trailing":
         frames.append(frames[1])
     elif fault == "completion":

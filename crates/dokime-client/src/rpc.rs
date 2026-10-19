@@ -310,7 +310,7 @@ impl Client {
 
     pub async fn execution_append_planned_cases(
         &self, message: contracts::execution::AppendPlannedCases,
-    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+    ) -> Result<dokime_domain::model::execution::wire::AppendCasesReply> {
         let reply = self.unary::<contracts::execution::AppendPlannedCases>(contracts::execution::AppendPlannedCases::PATH, message).await?;
         super::transport::value(reply)
     }

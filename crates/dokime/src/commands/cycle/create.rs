@@ -53,6 +53,9 @@ pub(crate) struct Args {
     wait_seconds: Option<u64>,
     #[arg(long, help = "Emit Creation, Admission, And Optional Receipt As JSON Lines.")]
     json: bool,
+
+    #[arg(long, conflicts_with_all = ["json", "request_key"], help = "Print Only The Created Cycle UUID For Scripts.")]
+    id_only: bool,
 }
 
 /* === Enums === */
@@ -97,7 +100,12 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let result = async {
         let cycle = client.create_cycle(request).await?;
         // Expose Recovery Identity Before Starting Work.
-        created(&mut std::io::stdout(), cycle.id().as_str(), args.request_key.as_deref(), args.json)?;
+        if args.id_only {
+            println!("{}", cycle.id());
+            std::io::stdout().flush()?;
+        } else {
+            created(&mut std::io::stdout(), cycle.id().as_str(), args.request_key.as_deref(), args.json)?;
+        }
         if !args.case_ids.is_empty() {
             cycle
                 .append_cases(SelectionPlan { selections: Vec::new(), max_cases: 0, case_ids: args.case_ids, cycle_id: String::new() })

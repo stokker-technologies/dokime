@@ -1,2 +1,2 @@
 // Generated From Canonical Harmos Descriptors. Do Not Edit.
-export const descriptorSha256 = "e1c80b76be9d9cbb5885efe8d1179bb88dcd66fc3411fc73b2f59f9bf22c3971";
+export const descriptorSha256 = "c3f66aa32479c6c7143ede38f1c2f0daf1e6073fe4d8310c80aab64a855ad6eb";

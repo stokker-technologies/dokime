@@ -296,7 +296,7 @@ impl TestCycleHandle {
 
     pub async fn append_cases(
         &self, plan: dokime_domain::model::planning::wire::SelectionPlan,
-    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+    ) -> Result<dokime_domain::model::execution::wire::AppendCasesReply> {
         self.client.verify(true).await?;
         let reply = self
             .client
@@ -305,7 +305,14 @@ impl TestCycleHandle {
                 contract::AppendPlannedCases { cycle_id: self.id.to_string(), plan: Some(plan), context: None },
             )
             .await?;
-        validate_observed_epoch(&self.client.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
+        validate_observed_cursor(&self.client.backend().epoch, reply.observed_cursor.as_ref())?;
+        let mut seen = HashSet::new();
+        for execution in &reply.execution_ids {
+            TestExecutionId::from_uuid(execution).map_err(|_| invalid("appended execution identity is invalid"))?;
+            if !seen.insert(execution) {
+                return Err(invalid("append reply repeats an execution identity"));
+            }
+        }
         super::transport::value(reply)
     }
 }

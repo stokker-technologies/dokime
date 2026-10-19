@@ -62,14 +62,19 @@ cases continue the cycle's numbering:
 ```python
 async with DokimeClient(endpoint, key_file="remote.key") as client:
     cycle_id = await client.create_cycle(label="Campaign 1", description="Bench A")
-    await client.append_cases(
+    (execution,) = await client.append_cases(
         cycle_id,
-        suite="mini.charger.steady",
-        template="mini.charger.steady.measurement",
-        parameters={"ac_voltage_v": 230.0},
+        suite="obc.checks",
+        template="obc.checks.pulse",
+        parameters={"sample_count": 8},
     )
     cycle = await client.cycle(cycle_id)
 ```
+
+`append_cases` returns the ordered handles created by that exact mutation,
+including when another client appends concurrently. Keep their IDs for recovery.
+Call `await execution.start(request_key="pulse-1")` explicitly; appending never
+runs the device.
 
 `new_cycle(suite=..., template=..., label=...)` composes both for scripts and
 validates the selection before creating anything. Neither call is idempotent:
@@ -112,6 +117,29 @@ successful terminal transport status before atomic publication. Existing files
 require `overwrite=True`; failure preserves the old destination and removes the
 partial file. Cancelling export never cancels execution. A download retry starts
 from the beginning and never reruns device operations.
+
+## Confirmation Prompts
+
+The default `obc.checks.pulse` has no prompt. Append it with
+`parameters={"require_confirmation": True}` to ask one confirmation before
+sampling. After starting that execution, discover and answer its own prompt:
+
+```python
+async with asyncio.timeout(60):
+    while not (pending := [item async for item in execution.pending_prompts()]):
+        await asyncio.sleep(0.2)
+prompt = pending[0]
+print(prompt.title, prompt.message, prompt.actions)
+await execution.respond(prompt.id, action="yes")
+outcome = await execution.wait(timeout=60)
+```
+
+Import `asyncio` for this wait. `execution.prompt(prompt_id)` inspects the admitted
+question and any committed response. Reads and responses require this execution's
+identity; a prompt from a sibling execution is refused. After an ambiguous error,
+inspect the question before deciding whether to submit again. Duplicate or stale
+answers are refused by the server. To cancel the prompt, pass `action="cancel",
+accepted=False`; stopping the execution also settles its pending prompts.
 
 ## Remote Control And Listening
 
