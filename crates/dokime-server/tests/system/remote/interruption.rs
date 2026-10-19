@@ -262,8 +262,8 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
         key: "require_confirmation".into(),
         value: Some(SelectionValues { values: vec![Value::Bool(true).into()] }),
     }];
-    let selection =
-        RegisteredSelection { suite_id: "obc.checks".into(), template_id: "obc.checks.pulse".into(), parameters, files: Vec::new() };
+    let (_, template) = client.template("obc.checks.pulse").await.unwrap();
+    let selection = RegisteredSelection { suite_id: "obc.checks".into(), template_id: template.template_id, parameters, files: Vec::new() };
     let materialized = client.materialize_template(MaterializeTemplate { selection: Some(selection) }).await.unwrap();
     assert_eq!(materialized.cases.len(), 1);
     let metadata = Metadata {
