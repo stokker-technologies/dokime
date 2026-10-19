@@ -163,6 +163,14 @@ The prompt script prints its admission confirmation only after the start reply
 arrives; its earlier execution UUID and request key remain the recovery identities
 when that reply is lost.
 
+Repository Python Build stages these canonical scripts and the CLI guide in its
+platform artifact. Python Package consumes those staged files and produces
+`target/package/<platform>/examples/dokime-remote-examples.zip`, alongside the
+client distributions, without rebuilding. It includes only the explicit public
+example inventory; local `.env`, key files and collected evidence are excluded.
+The archive does not establish a verified release combination or supply the
+still-required beginner guide and published-wheel dependency lock.
+
 ```python
 from dokime.client import DokimeClient
 

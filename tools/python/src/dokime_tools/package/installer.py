@@ -27,6 +27,7 @@ from dokime_tools.build.frontend import ROOT
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.package import examples
 from dokime_tools.package.staging import stage_file
 
 # Type Checking Imports
@@ -173,7 +174,7 @@ def collect_development(root: Path = ROOT, *, bundles: Path) -> None:
 
 
 def package_wheel(root: Path = ROOT) -> None:
-    """Gather The Built Client Wheel Beside The Other Packages Of This Platform."""
+    """Gather Built Client Distributions And Remote Examples Without Rebuilding."""
     wheels = sorted((root / "target/wheels").glob("dokime-*"))
     if not wheels:
         raise ValueError("packaging requires the built client wheel; run `mise run build` first")
@@ -183,6 +184,8 @@ def package_wheel(root: Path = ROOT) -> None:
     for wheel in wheels:
         stage_file(wheel, destination / wheel.name)
         print(f"Packaged {(destination / wheel.name).relative_to(root).as_posix()}")
+
+    examples.package(root, PLATFORM)
 
 
 def collect(root: Path = ROOT, *, signed: bool, bundles: Path) -> None:

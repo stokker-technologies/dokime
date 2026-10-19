@@ -15,10 +15,11 @@
 OBC plugin bundle from the archive's compiler output, and exports the locked Cargo source closure
 and starter wheelhouse for the generated-project story. `typescript` runs protoc-gen-es over the
 dokime-server contract export, verifies the tracked GUI client, stages the generated message
-modules and builds the live frontend. `python` verifies the tracked client and builds the wheel
-into `target/wheels`. `stamp` names and hashes the fixtures the lanes consume. Every staged file
-lives under `dist/build/<platform>` or `target/wheels`, the paths a lane runner downloads; each
-step records its files under `target/build/<profile>/` so later steps never compile again.
+modules and builds the live frontend. `python` verifies the tracked client, builds its distributions
+into `target/wheels` and stages the canonical remote examples. `stamp` names and hashes the fixtures
+the lanes consume. Every staged file lives under `dist/build/<platform>` or `target/wheels`, the
+paths a lane runner downloads; each step records its files under `target/build/<profile>/` so later
+steps never compile again.
 """
 
 # === Imports === #
@@ -33,7 +34,7 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from dokime_tools.build import dependencies, frontend, outputs, wheel
-from dokime_tools.package import fixtures
+from dokime_tools.package import examples, fixtures
 from dokime_tools.package.staging import clear_output, stage_file, sync_output
 from dokime_tools.prepare import bindings, generated
 from dokime_tools.test import archive, policy
@@ -89,9 +90,11 @@ def typescript(profile: str) -> list[str]:
 
 
 def python(profile: str) -> list[str]:
-    """Require Current Tracked Client Code And Build The Wheel Offline."""
+    """Require Current Client Code, Build Distributions Offline And Stage The Canonical Examples."""
     bindings.generate(_messages(profile), check=True)
-    return _relative([wheel.build(ROOT, profile)])
+    distributions = wheel.build(ROOT, profile)
+    staged = examples.stage(ROOT, STAGED / "examples/remote")
+    return _relative([*distributions, *staged])
 
 
 def stamp(profile: str) -> None:
