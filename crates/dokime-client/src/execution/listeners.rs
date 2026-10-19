@@ -298,8 +298,9 @@ fn validate_samples(
     let selected = |identifier: &str| patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(identifier));
     let mut seen = std::collections::HashSet::new();
     let mut advanced = false;
+    // Native Cursor Keys Identify Scoped Tracks, Not Filterable Stream Names.
     for entry in &page.through_stream_cursors {
-        if entry.key.is_empty() || !seen.insert(entry.key.as_str()) || !selected(&entry.key) {
+        if entry.key.is_empty() || !seen.insert(entry.key.as_str()) {
             return Err(invalid("telemetry cursor selection is invalid"));
         }
         match positions.get(&entry.key) {
@@ -349,6 +350,7 @@ mod tests {
     #[test]
     fn sample_identifier_selection() {
         let scope = record_scope(&TestExecutionId::from_seed("sample selection"));
+        let cursor = format!("dokime.tel|-|{}|obc.run.samples", scope.execution_id.as_deref().unwrap());
         let page = dokime_domain::model::telemetry::wire::TelemetrySamplesReply {
             samples: vec![dokime_domain::model::telemetry::wire::TelemetrySample {
                 sample_id: "sample-3".into(),
@@ -363,7 +365,7 @@ mod tests {
                 summary: None,
                 metadata: None,
             }],
-            through_stream_cursors: vec![TelemetrySamplesReplyThroughStreamCursorsEntry { key: "obc.run.samples".into(), value: 3 }],
+            through_stream_cursors: vec![TelemetrySamplesReplyThroughStreamCursorsEntry { key: cursor.clone(), value: 3 }],
             complete: true,
         };
         let positions = HashMap::new();
@@ -373,7 +375,7 @@ mod tests {
         for filters in [vec!["OBC.*".into()], vec!["obc.run.sample".into()], vec!["run.*".into()]] {
             assert!(validate_samples(&scope, &filters, &positions, &page).is_err());
         }
-        let positions = HashMap::from([("obc.run.samples".into(), 4)]);
+        let positions = HashMap::from([(cursor, 4)]);
         assert!(validate_samples(&scope, &["*".into()], &positions, &page).is_err());
 
         let mut foreign = page;
