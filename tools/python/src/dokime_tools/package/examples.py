@@ -39,6 +39,8 @@ FILES = (
     ".env.example",
     "README.md",
     "cli/README.md",
+    "cli/bootstrap.ps1",
+    "cli/bootstrap.bat",
     "cli/control-device.sh",
     "cli/control-test.sh",
     "cli/control-prompt.sh",

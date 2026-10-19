@@ -15,9 +15,12 @@ tutorial environment.
 ## Prepare The Environment
 
 Use CPython `>=3.13,<3.16` on Windows or Linux x86-64. Python 3.13 is the
-baseline used below. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-using its official installer or your normal package manager, then open a new
-terminal and check:
+baseline used below. On Windows, run [`../cli/bootstrap.bat`](../cli/bootstrap.bat)
+to install PowerShell 7.6.7, mise and uv for your user; see the
+[Windows setup guidance](../cli/README.md#bootstrap-windows-tools).
+On Linux, install [uv](https://docs.astral.sh/uv/getting-started/installation/)
+using its official installer or your normal package manager. Open a new
+terminal after setup and check:
 
 ```sh
 uv --version

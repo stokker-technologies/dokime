@@ -7,6 +7,72 @@ the matching CLI and host plugin, configure the host and transfer credentials.
 A matching published release combination is not claimed; native execution and
 interruption behavior still require platform validation.
 
+## Bootstrap Windows Tools
+
+From the extracted `cli/` directory, run the batch launcher in a normal,
+unelevated Command Prompt:
+
+```bat
+bootstrap.bat
+```
+
+Or start the same setup from built-in Windows PowerShell:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\bootstrap.ps1
+```
+
+Both use `bootstrap.ps1`. It installs PowerShell **7.6.7** from Microsoft's
+official self-contained ZIP, verifies its pinned SHA-256, installs mise using
+its official Windows installer, then runs `mise use -g uv` and `mise reshim`.
+It needs no administrator rights, WinGet, Git, existing `pwsh`, or repository
+checkout. The execution-policy option applies only to that process; it does not
+change the machine's policy or override organization-enforced Group Policy.
+
+PowerShell lives under `%LOCALAPPDATA%\Programs\PowerShell\7.6.7-<architecture>\`.
+Mise and `mise-shim.exe` stay together under `%USERPROFILE%\.local\bin\`.
+The installer adds mise's bin and shims directories to your **user PATH**,
+preserving existing entries. Shims default to `%LOCALAPPDATA%\mise\shims`;
+existing mise directory overrides are respected. The script also adds the
+PowerShell directory and appends mise activation to PowerShell 7's
+`$PROFILE.CurrentUserAllHosts`, preserving the rest of that file. This loads
+project environment variables at the prompt; shims serve Command Prompt and
+editors. No `MISE_DATA_DIR` or other directory override is needed for defaults.
+
+Close and reopen your terminal and editor after setup, then verify:
+
+```powershell
+pwsh --version
+mise doctor
+uv --version
+```
+
+If PowerShell refuses to load your profile under the default Restricted policy,
+Microsoft's usual personal-machine setting is
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Review your organization's
+policy before applying it. The bootstrap leaves this persistent choice to you.
+Use `mise exec -- <command>` when shell activation cannot be enabled.
+
+Re-running setup reuses the installed PowerShell version, lets the official mise
+installer retain or update mise, and updates the global uv selection. It does
+not automatically trust project configurations or install Dokime. To develop
+from a checkout, review its `mise.toml`, then run `mise trust` and `mise install`.
+
+Use Windows PowerShell **5.1** on Windows 10 **1607 or newer**, or Windows 11,
+with x64 or ARM64 Windows and HTTPS access to GitHub, mise and uv's downloads.
+TLS 1.2 is enabled for the bootstrap process so older PowerShell defaults do
+not prevent downloads; certificate validation remains enabled. Older Windows
+images may still need Windows updates, root certificates or runtime
+prerequisites that a user-level script cannot install. Microsoft's current
+Windows 10 support is edition/lifecycle dependent; this bootstrap does not
+extend OS support. The Dokime candidates in this walkthrough remain x86-64.
+
+The setup follows [Microsoft's ZIP installation guidance](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows#install-the-zip-package),
+[mise's Windows installer guidance](https://mise.jdx.dev/installing-mise.html#windows)
+and [mise's shell activation guidance](https://mise.jdx.dev/shell-setup.html).
+See also [Microsoft's PowerShell execution policies](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies)
+and [supported Windows releases](https://learn.microsoft.com/dotnet/core/install/windows#supported-versions).
+
 ## Configure A Script
 
 Install Dokime on `PATH`, restart the host after admitting the matching OBC
