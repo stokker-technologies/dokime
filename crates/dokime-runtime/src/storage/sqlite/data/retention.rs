@@ -95,7 +95,7 @@ impl State {
                 // File And Evidence Saves Still Reclaim Rows Released By Old Pins.
                 let changed: bool = transaction.query_row(
                     "SELECT EXISTS(SELECT 1 FROM storage_data_entries
-                     INDEXED BY storage_data_live_object_position WHERE kind='object'
+                     INDEXED BY storage_data_live_object_position_covering WHERE kind='object'
                      AND retired_at IS NULL AND schema_id=?1 AND position>?2 AND position<=?3)",
                     params![schema,position(after),position(through.sequence)],
                     |row| row.get(0),
@@ -105,17 +105,17 @@ impl State {
                 // The Newer-Key Index Stops At The Policy's Keep Count.
                 let mut statement = transaction.prepare(
                     "SELECT entries.position FROM storage_data_entries AS entries
-                     INDEXED BY storage_data_live_object_key WHERE entries.kind='object'
+                     INDEXED BY storage_data_live_object_key_covering WHERE entries.kind='object'
                      AND entries.schema_id=?1 AND entries.position<=?2 AND entries.retired_at IS NULL
                      AND (?6=0 OR EXISTS(SELECT 1 FROM storage_object_releases AS released
                          WHERE released.schema_id=entries.schema_id AND released.item=entries.item
                          AND entries.position<=released.through))
                      AND entries.item IN (SELECT changed.item FROM storage_data_entries AS changed
-                         INDEXED BY storage_data_live_object_position WHERE changed.kind='object'
+                         INDEXED BY storage_data_live_object_position_covering WHERE changed.kind='object'
                          AND changed.retired_at IS NULL AND changed.schema_id=?1
                          AND changed.position>?5 AND changed.position<=?2)
                      AND (SELECT COUNT(*) FROM (SELECT 1 FROM storage_data_entries AS newer
-                         INDEXED BY storage_data_live_object_key
+                         INDEXED BY storage_data_live_object_key_covering
                          WHERE newer.kind='object' AND newer.schema_id=entries.schema_id
                          AND newer.item=entries.item AND newer.position>entries.position
                          AND newer.position<=?2 AND newer.retired_at IS NULL LIMIT ?3)) >= ?3

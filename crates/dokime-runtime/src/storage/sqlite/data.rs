@@ -65,12 +65,14 @@ CREATE TABLE IF NOT EXISTS storage_file_stages (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS storage_data_kind_position ON storage_data_entries(kind, position);
 CREATE INDEX IF NOT EXISTS storage_data_object ON storage_data_entries(kind, schema_id, item, position);
-CREATE INDEX IF NOT EXISTS storage_data_live_object_position
-    ON storage_data_entries(schema_id, position, item)
+CREATE INDEX IF NOT EXISTS storage_data_live_object_position_covering
+    ON storage_data_entries(schema_id, position, item, kind, retired_at)
     WHERE kind='object' AND retired_at IS NULL;
-CREATE INDEX IF NOT EXISTS storage_data_live_object_key
-    ON storage_data_entries(schema_id, item, position)
+CREATE INDEX IF NOT EXISTS storage_data_live_object_key_covering
+    ON storage_data_entries(schema_id, item, position, kind, retired_at)
     WHERE kind='object' AND retired_at IS NULL;
+DROP INDEX IF EXISTS storage_data_live_object_position;
+DROP INDEX IF EXISTS storage_data_live_object_key;
 CREATE INDEX IF NOT EXISTS storage_data_retired_object_position
     ON storage_data_entries(position, retired_at)
     WHERE kind='object' AND retired_at IS NOT NULL;
