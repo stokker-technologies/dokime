@@ -107,6 +107,9 @@ tonic = { workspace = true, features = ["channel"] }
 # Testing
 criterion = { workspace = true }
 
+# Storage
+rusqlite = { workspace = true }
+
 [[bench]]
 name = "system-server"
 path = "benches/system/main.rs"

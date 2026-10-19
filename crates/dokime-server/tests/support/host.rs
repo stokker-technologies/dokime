@@ -102,6 +102,10 @@ impl Host {
         dokime_client::Client::connect(dokime_client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
     }
 
+    pub fn endpoint(&self) -> &str {
+        &self.endpoint
+    }
+
     pub async fn stop(mut self, signal: bool) {
         if signal {
             let pid = self.child.id().unwrap().to_string();

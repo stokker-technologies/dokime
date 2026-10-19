@@ -43,6 +43,13 @@ pub fn obc_plugin_bundle() -> PathBuf {
     artifact("plugins/obc-plugin.dokime")
 }
 
+pub fn workspace_root() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .find(|directory| directory.join("Cargo.lock").is_file())
+        .expect("the workspace root holds Cargo.lock")
+}
+
 /* === Private Functions === */
 fn artifact(relative: &str) -> PathBuf {
     let path = build_root().join(relative);
@@ -51,12 +58,7 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .find(|directory| directory.join("Cargo.lock").is_file())
-        .expect("the workspace root holds Cargo.lock")
-        .join("dist/build")
-        .join(PLATFORM)
+    workspace_root().join("dist/build").join(PLATFORM)
 }
 
 /* === Tests === */

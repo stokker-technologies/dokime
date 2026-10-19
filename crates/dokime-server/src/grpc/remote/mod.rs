@@ -245,7 +245,7 @@ impl Controller {
 /* === Public Functions === */
 
 pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Result<Arc<Controller>, Error> {
-    let path = PathBuf::from(runtime.application_settings().application_root).join("remote").join("access.json");
+    let path = runtime.application_settings().application_root.join("remote").join("access.json");
     let read_path = path.clone();
     let document = tokio::task::spawn_blocking(move || store::read(&read_path)).await??;
     let controller =

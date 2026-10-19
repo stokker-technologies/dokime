@@ -372,6 +372,8 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
 
     let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
     assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
+    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
+    execution.cycle(id).seal().await.unwrap();
     let summary = execution
         .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
         .await
@@ -697,7 +699,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
     let cycle_id = create_cycle(&mut planning, &mut execution, plan, "obc.charger.steady.reports", 9).await;
     run_cycle(&mut execution, &cycle_id).await;
 
-    // Answer Every Case, Then Observe The Durable Cycle Seal.
+    // Answer Every Case, Then Explicitly Seal The Completed Container.
     let prompts = client.clone();
     on_change(changes, async || {
         let pending = prompts
@@ -718,9 +720,11 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
         }
         let cycle = execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap();
         assert_ne!(cycle.status, model::execution::wire::CycleStatus::Failed);
-        cycle.sealed.then_some(())
+        (cycle.status == model::execution::wire::CycleStatus::Completed).then_some(())
     })
     .await;
+    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
+    execution.cycle(id).seal().await.unwrap();
     let executions = execution
         .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
         .await
@@ -880,7 +884,9 @@ async fn plugin_host_walkthrough() {
     assert!(final_text.contains("record=prompt_answered action=continue accepted=true"));
     assert!(final_text.contains("Charger resources released"));
 
-    // The Cycle Seals And Serves Its Report
+    // The Explicitly Sealed Cycle Serves Its Report
+    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
+    execution.cycle(id).seal().await.unwrap();
     on_change(&mut changes, async || {
         execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap().sealed.then_some(())
     })
@@ -913,6 +919,9 @@ async fn plugin_host_walkthrough() {
 
     steady_sweep(&client, &mut changes).await;
     steady_reports(&client, &mut changes).await;
+
+    // Scene: The Actual Remote Scripts Control The Built Plugin And Export Saved Evidence
+    super::remote::scripts(&client, host.endpoint(), &root.path().join("remote scripts")).await;
 
     // Scene: The Host Stops Cleanly With Its Watch Still Open
     drop(report);

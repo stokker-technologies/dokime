@@ -472,6 +472,11 @@ shared verified atomic downloader. The interrupted command returns nonzero;
 successful ordinary waiting leaves the cycle Active. A failed connection does
 not confirm cancellation or a completed download; retain the original IDs.
 
+The [Remote CLI Workflows](packages/dokime/examples/remote/cli/README.md) include
+device, test and confirmation scripts for POSIX shell, PowerShell 7.3+ and
+Command Prompt. They require the matching CLI and simulated OBC plugin;
+the matching first-party release combination is still pending.
+
 `--parameters-json` supplies single values for `--template` as a plain JSON
 object. The default pulse has no prompt. To require its one confirmation:
 

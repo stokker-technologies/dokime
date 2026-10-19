@@ -2183,6 +2183,7 @@ dependencies = [
  "prost-types",
  "rand",
  "rcgen",
+ "rusqlite",
  "rustls",
  "serde",
  "serde_json",

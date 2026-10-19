@@ -86,6 +86,14 @@ prompt UUIDs. It waits, saves `execution.zip`, seals its cycle and saves
 
 ## Interruption And Recovery
 
+Windows test and prompt scripts pass `--cancel-on-interrupt`, `--owned-cycle`
+and `--recovery-directory` to the native execution/prompt waits. The native CLI
+verifies exact cycle membership before requesting cancellation, seals that
+script-owned cycle and downloads verified `execution-<UUID>.zip` and
+`cycle-<UUID>.zip` files under `recovery/`. An interrupted wait returns nonzero;
+the script stops instead of submitting another execution or answer. This path
+still requires native Windows system validation.
+
 The POSIX test and prompt scripts catch Ctrl+C and request a stop for their
 retained execution. They wait for its durable result, download
 `interrupted-execution.zip`, seal their newly created cycle and download
@@ -102,6 +110,48 @@ beginning without rerunning device operations. Existing files remain intact.
 The bundles contain `manifest.json`, `evidence.sqlite`, captured `files/` and
 saved `reports/`. Download before shutting down the host; later retrieval
 requires restarting or reconnecting to its server.
+
+## Windows Commands
+
+Install the matching native Dokime CLI on `PATH`. Batch scripts need only
+`cmd.exe` and Dokime; they do not launch Python or PowerShell. The `.ps1` scripts
+require PowerShell 7.3 or newer and set Standard native argument passing to
+preserve inline JSON quotes. See Microsoft's
+[native argument parsing reference](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing).
+
+Run PowerShell scripts from PowerShell 7, with a new output directory for each
+workflow:
+
+```powershell
+$Connection = @('--endpoint', 'https://lab-host.example:8765',
+    '--ca', '..\server.pem', '--env-file', '..\.env')
+$env:DOKIME_RESPONSE_DIRECTORY = 'device-responses-ps'
+.\control-device.ps1 @Connection
+$env:DOKIME_OUTPUT_DIRECTORY = 'test-evidence-ps'
+.\control-test.ps1 @Connection
+$env:DOKIME_OUTPUT_DIRECTORY = 'prompt-evidence-ps'
+.\control-prompt.ps1 @Connection
+```
+
+Use these commands from Command Prompt:
+
+```bat
+set "DOKIME_RESPONSE_DIRECTORY=device-responses-cmd"
+control-device.bat --endpoint https://lab-host.example:8765 --ca ..\server.pem --env-file ..\.env
+set "DOKIME_OUTPUT_DIRECTORY=test-evidence-cmd"
+control-test.bat --endpoint https://lab-host.example:8765 --ca ..\server.pem --env-file ..\.env
+set "DOKIME_OUTPUT_DIRECTORY=prompt-evidence-cmd"
+control-prompt.bat --endpoint https://lab-host.example:8765 --ca ..\server.pem --env-file ..\.env
+```
+
+Windows scripts reserve a new directory before connecting and refuse an
+existing one. Batch test/prompt scripts keep `cycle.id`, execution `.id` files
+and `prompt.id` where applicable, so the confirmed identities survive shell
+exit. Their request key is `remote-<execution UUID>`, also printed before
+submission. A durable nonpassing outcome still downloads evidence and returns
+nonzero; an operational failure stops the workflow without retrying mutations.
+
+## Institute Plugins
 
 For an institute plugin, keep this lifecycle and replace the operation IDs,
 template and parameters with its discovered contracts. Do not assume its
