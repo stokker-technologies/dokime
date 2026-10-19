@@ -10,7 +10,7 @@ phase shifts, and latched faults; each execution owns its device.
 
 | Suite | Procedure | SDK Behavior |
 | --- | --- | --- |
-| Bench Signal Check | Verify a deterministic pulse before connecting the charger | Typed streams, criteria, optional scoped system capture |
+| Bench Signal Check | Verify a deterministic pulse before connecting the charger | Typed streams, criteria, optional confirmation and scoped system capture |
 | Charger Power-Up | Confirm the connection, energize the supply, inspect inrush | Connection listener, typed operations, operator prompts, traceability, artifacts |
 | Steady Charging | Observe input voltage and current while charging | Independent periodic and event observers, captured evidence, parameter expansion |
 | Overcurrent Protection | Increase the simulated load until protection trips | Ordered load inputs, fault records, evidence-based criteria |
@@ -23,6 +23,13 @@ the `obc-plugin.ripple` analysis gives any plotted trace its peak-to-peak ripple
 the process system observer publishes monitoring data. Explicit subscriptions
 capture host observations for an execution.
 
+The remote demonstration uses `obc.checks.pulse`. It runs without a prompt by
+default. Set `require_confirmation` to `true` for one Yes/No confirmation before
+capture begins; the request identifies its execution and prompt. No pulse
+samples are produced while waiting. Declining fails the execution, and
+cancellation preserves its collected evidence through normal sealing. The
+charger suites retain their separate inspection forms.
+
 ## Source Layout
 
 - `src/lib.rs`: the plugin owner, lifecycle, and complete catalogs.
@@ -32,7 +39,7 @@ capture host observations for an execution.
 - `src/suites/`: the `Suites` catalog and one self-contained folder per suite, each template file declaring its own parameters; `src/suites/common/` holds the shared measurement shape, bench parameter rules, host system section and verdict helpers.
 - `src/prompts/` and `src/settings.rs`: operator checkpoints and bench configuration.
 - `runtime/`: the embedded Harmos bench application and deterministic device model.
-- `tests/suites/`: public lifecycle, cancellation, observer shutdown, and evidence checks.
+- `tests/integration/`: in-process lifecycle, confirmation, observer shutdown, and evidence checks.
 - `tests/acceptance/`: the built executable's inventory and live dispatch.
 
 All charger streams and records use the `obc.charger` namespace. `obc.pulse`
@@ -43,7 +50,7 @@ host identity are captured as traceability, not configured as template inputs.
 ## Build And Validate
 
 ```sh
-mise run build:plugins:dev
+mise run build --profile dev
 mise run test:integration:rust
 mise run test:acceptance:rust
 ```
@@ -55,7 +62,7 @@ and native desktop scenarios build and install this same bundle.
 For a focused plugin check:
 
 ```sh
-mise exec -- cargo nextest run --locked -p obc-plugin -p obc-runtime --profile integration
+mise exec -- cargo check --locked -p obc-plugin --all-targets
 ```
 
 The plugin stops execution observers before cleanup, settles its embedded

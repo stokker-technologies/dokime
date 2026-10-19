@@ -13,7 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 // Third Party Imports
 
@@ -68,6 +68,7 @@ pub struct Pulse;
 
 #[derive(Default)]
 pub struct PulseResources {
+    armed: AtomicBool,
     produced: AtomicU64,
 }
 
@@ -110,13 +111,32 @@ pub struct PulseParameters {
         description = "Demonstrates a step-scoped hold on the sidecar's global system stream."
     )]
     pub capture_system: bool,
+
+    #[parameter(
+        label = "Require Confirmation",
+        default = false,
+        description = "Ask one confirmation before simulated pulse capture begins."
+    )]
+    pub require_confirmation: bool,
 }
+
+#[dokime_runtime::prompt(
+    id = "obc.checks.pulse.confirm",
+    label = "Start Simulated Pulse",
+    description = "Confirm that you want to start simulated pulse capture for this execution."
+)]
+pub struct ConfirmPulse;
 
 /* === Enums === */
 #[dokime_runtime::catalog]
 pub enum Records {
     RunStarted(RunStarted),
     RunCompleted(RunCompleted),
+}
+
+#[dokime_runtime::catalog]
+pub enum Prompts {
+    ConfirmPulse(ConfirmPulse),
 }
 
 #[dokime_runtime::catalog]
@@ -134,6 +154,7 @@ pub enum ObserverStreams {
     attributes(path = "OBC/Pulse"),
     // What this template's steps publish, as the types that declare them.
     records = Records,
+    prompts = Prompts,
     // The host around the bench, drawn by the closing system section.
     subscribes = SystemInputs,
     // The inputs this template is given, as the type that declares them.
@@ -170,7 +191,16 @@ impl Pulse {
         description = "The first phase: say the run has begun.\nThe host advances its checklist on the step's id, which the engine reports before it calls this. What the step itself does is emit the record this template declared."
     )]
     async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
+        // === Confirm Capture === //
+
+        if ctx.parameters().require_confirmation && !ctx.ask(ConfirmPulse).await? {
+            return Err(Error::ConfirmationDeclined);
+        }
+
+        // === Start Signal Capture === //
+
         ctx.publish(RunStarted {}).await;
+        ctx.resources().armed.store(true, Ordering::Release);
 
         Ok(())
     }
@@ -222,6 +252,9 @@ impl Pulse {
 
     #[dokime_runtime::observer(interval_ms = SAMPLE_INTERVAL_MS, streams = ObserverStreams)]
     async fn pulse(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
+        if !ctx.resources().armed.load(Ordering::Acquire) {
+            return Ok(());
+        }
         let index = ctx.resources().produced.fetch_add(1, Ordering::AcqRel);
         ctx.publish(PulseRow { sample_index: index as i64, value: pulse_value(index) }).await;
 

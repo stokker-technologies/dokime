@@ -722,6 +722,7 @@ async fn samples_keep_context() {
         ("sample_count", Value::Integer(3)),
         ("tolerance", Value::from(obc_plugin::DEFAULT_TOLERANCE)),
         ("capture_system", Value::from(false)),
+        ("require_confirmation", Value::from(false)),
     ]);
     let tokens = ["native-a", "native-b"].map(|seed| dokime_runtime::TestExecutionId::from_seed(seed).to_string());
     let runs = tokens.iter().map(|token| bench.start(token, &parameters)).collect::<Vec<_>>();

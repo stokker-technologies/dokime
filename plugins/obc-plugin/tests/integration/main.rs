@@ -157,7 +157,7 @@ fn default_case_phases() {
     assert_eq!(template.test_case_template_id, Pulse::template_id());
     assert_eq!(
         template.parameters.iter().map(|parameter| parameter.metadata.identifier.as_str()).collect::<Vec<_>>(),
-        vec!["sample_count", "tolerance", "capture_system"]
+        vec!["sample_count", "tolerance", "capture_system", "require_confirmation"]
     );
     // The sidecar names one of these phase ids in every drain reply.
     assert_eq!(
@@ -206,4 +206,27 @@ async fn pulse_leases_unmeasured() {
         .await
         .unwrap();
     assert!(!refused.passed(), "an unmeasured global stream is refused");
+}
+
+#[tokio::test]
+async fn pulse_confirmation() {
+    use dokime_runtime::plugin::testing::Harness;
+    for (action, passed) in [(None, true), (Some("yes"), true), (Some("no"), false), (Some("cancel"), false)] {
+        let mut harness = Harness::template("obc.checks.pulse").parameter("sample_count", 2);
+        if let Some(action) = action {
+            harness = harness.parameter("require_confirmation", true).answer(
+                "obc.checks.pulse.confirm",
+                action,
+                std::iter::empty::<(&str, dokime_runtime::Value)>(),
+            );
+        }
+        let report = harness.run::<obc_plugin::suites::Suites>().await.unwrap();
+        assert_eq!(report.passed(), passed, "action {action:?}: {}", report.diagnostics());
+        let samples = report.samples::<obc_plugin::PulseRow>();
+        if passed {
+            assert!(samples.len() >= 2);
+        } else {
+            assert!(samples.is_empty(), "capture stays disarmed until confirmation succeeds");
+        }
+    }
 }

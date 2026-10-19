@@ -29,6 +29,9 @@
 /* === Enums === */
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("the operator declined pulse capture")]
+    ConfirmationDeclined,
+
     #[error("pulse sample {index} carries no numeric `{column}`")]
     Unmeasured { index: usize, column: &'static str },
     #[error("missing criterion evidence `{0}`")]
