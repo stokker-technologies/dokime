@@ -148,7 +148,7 @@ def stage_resources(root: Path = ROOT, *, directory: Path, profile: str) -> None
 
 def package_wheel(root: Path = ROOT, *, profile: str) -> None:
     """Gather Built Client Distributions And Remote Examples Without Rebuilding."""
-    wheels = sorted((paths.output(root, "build", profile, "any") / "python").glob("dokime-*"))
+    wheels = sorted((paths.output(root, "build", profile, "any") / "python").glob("dokime_client-*"))
     if not wheels:
         raise ValueError("packaging requires the built client wheel; run `mise run build` first")
     destination = paths.output(root, "package", profile, "any") / "python"

@@ -126,7 +126,7 @@ def files(profile: str) -> list[Path]:
     required = [native / "bin" / f"{name}{suffix}" for name in EXECUTABLES]
     required += [native / "plugins/obc-plugin.dokime", native / "product/compiler.json", native / "web/index.html"]
     wheel_directory = independent / "python"
-    wheels = list(wheel_directory.glob("dokime-*.whl"))
+    wheels = list(wheel_directory.glob("dokime_client-*.whl"))
     complete = all(path.is_file() for path in required)
     if len(wheels) != 1 or not complete:
         raise ValueError(f"tests require matching {profile} Product outputs; run `mise run build --profile {profile}` first")

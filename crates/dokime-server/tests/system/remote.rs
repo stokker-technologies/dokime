@@ -93,7 +93,7 @@ fn command(extension: &str, workflow: &str, endpoint: &str, directory: &Path) ->
 fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory: &Path, parameters: &[(&str, &str)]) -> Command {
     let workspace = artifacts::workspace_root();
     let family = if extension == "py" { "python" } else { "cli" };
-    let script = workspace.join(format!("packages/dokime/examples/remote/{family}/control-{workflow}.{extension}"));
+    let script = workspace.join(format!("packages/dokime-client/examples/remote/{family}/control-{workflow}.{extension}"));
     let binary = artifacts::host_binary().with_file_name(if cfg!(windows) { "dokime.exe" } else { "dokime" });
     assert!(binary.is_file(), "the Build archive must contain {}", binary.display());
     std::fs::create_dir_all(directory).unwrap();

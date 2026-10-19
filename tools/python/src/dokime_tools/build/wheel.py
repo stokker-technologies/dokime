@@ -18,6 +18,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..package.staging import clear_output
 from . import paths
 
 # Type Checking Imports
@@ -43,21 +44,31 @@ def build(root: Path, profile: str) -> list[Path]:
         raise ValueError("prepare the locked repository-root Python environment before building the wheel")
 
     output = paths.output(root, "build", profile, "any") / "python"
+    clear_output(output)
     output.mkdir(parents=True, exist_ok=True)
-    for stale in output.glob("dokime-*"):
-        stale.unlink()
 
-    command = ["uv", "build", "--no-build-isolation", "--offline", "--python", str(python), "--package", "dokime", "--out-dir", str(output)]
+    command = [
+        "uv",
+        "build",
+        "--no-build-isolation",
+        "--offline",
+        "--python",
+        str(python),
+        "--package",
+        "dokime-client",
+        "--out-dir",
+        str(output),
+    ]
     if profile != "release":
         command += ["--wheel"]
     subprocess.run(command, cwd=root, check=True, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
-    wheels = sorted(output.glob("dokime-*.whl"))
+    wheels = sorted(output.glob("dokime_client-*.whl"))
     if len(wheels) != 1:
         raise ValueError(f"expected one dokime wheel in {output}, found {len(wheels)}")
     if profile != "release":
         return wheels
-    sources = sorted(output.glob("dokime-*.tar.gz"))
+    sources = sorted(output.glob("dokime_client-*.tar.gz"))
     if len(sources) != 1:
         raise ValueError(f"expected one dokime source distribution in {output}, found {len(sources)}")
     return [*wheels, *sources]

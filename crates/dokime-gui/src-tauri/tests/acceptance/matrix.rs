@@ -212,7 +212,7 @@ fn trace(root: &Path, stage: &str) {
 fn python(root: &Path) -> Command {
     let interpreter = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
     let mut command = Command::new(root.join(interpreter));
-    command.current_dir(root).arg(root.join("packages/dokime/tests/acceptance/client/execution_matrix.py"));
+    command.current_dir(root).arg(root.join("packages/dokime-client/tests/acceptance/client/execution_matrix.py"));
     command
 }
 

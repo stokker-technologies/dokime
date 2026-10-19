@@ -136,7 +136,7 @@ mean three separate cases. Expansion is declared explicitly.
 ## Quick Start
 
 For an installed host and a second PC, follow the
-[candidate-artifact OBC walkthrough](packages/dokime/examples/remote/README.md).
+[candidate-artifact OBC walkthrough](packages/dokime-client/examples/remote/README.md).
 It uses matching CI installers, plugin and examples without a source checkout;
 a matching published release combination remains separate.
 
@@ -490,14 +490,14 @@ Batch recovery applies while these native commands are observing an interrupt;
 it cannot reliably cover connection setup or gaps between commands. A lost
 Create reply leaves the cycle identity unknown and requires manual inspection.
 
-The [Remote CLI Workflows](packages/dokime/examples/remote/cli/README.md) include
+The [Remote CLI Workflows](packages/dokime-client/examples/remote/cli/README.md) include
 device, test and confirmation scripts for POSIX shell, PowerShell 7.3+ and
 Command Prompt. Edit their connection, execution, observation and file globals,
 then run without arguments. Their names, grouping and meanings match the
-[Python examples](packages/dokime/examples/remote/python/control-test.py).
+[Python examples](packages/dokime-client/examples/remote/python/control-test.py).
 The scripts require the matching CLI and simulated OBC plugin; a matching
 first-party release combination and native workflow validation remain pending.
-The [candidate walkthrough](packages/dokime/examples/remote/README.md) explains
+The [candidate walkthrough](packages/dokime-client/examples/remote/README.md) explains
 how to obtain one matching CI artifact set and use its bundled Python wheel.
 
 `--parameters-json` supplies single template parameter values as a plain
@@ -795,7 +795,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 
 ## Documentation
 
-- [Remote OBC Walkthrough](packages/dokime/examples/remote/README.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
+- [Remote OBC Walkthrough](packages/dokime-client/examples/remote/README.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
 - [OBC Plugin](plugins/obc-plugin/) — the charger simulation and complete test templates.
 - [Plugin Starter](crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Runtime And Plugin SDK](crates/dokime-runtime/src/lib.rs) — public authoring APIs and module documentation.

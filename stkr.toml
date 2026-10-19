@@ -17,7 +17,11 @@ exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
 
 [languages.python]
 roots = ["tools/python", "packages"]
-generated = ["packages/dokime/src/dokime/_wire", "packages/dokime/src/dokime/operation.py", "packages/dokime/src/dokime/dynamic.py"]
+generated = [
+  "packages/dokime-client/src/dokime_client/_wire",
+  "packages/dokime-client/src/dokime_client/operation.py",
+  "packages/dokime-client/src/dokime_client/dynamic.py",
+]
 
 [languages.typescript]
 roots = ["crates/dokime-gui"]
@@ -85,7 +89,7 @@ dokime-starter-check = "crates/cargo-dokime/templates"
 # Audit native source and the dedicated project policy skeleton.
 include = ["**/*.rs", "**/*.py", "stkr.toml"]
 # Generated RPC output is owned and checked by the binding generators.
-exclude = ["packages/dokime/src/dokime/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
+exclude = ["packages/dokime-client/src/dokime_client/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 
 [barrels]
 # Deliberate public façades, not accidental re-export files: the authoring

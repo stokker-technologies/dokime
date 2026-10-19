@@ -67,7 +67,7 @@ FILES = (
 
 def stage(root: Path, destination: Path, *, wheel: Path) -> list[Path]:
     """Stage The Tutorial And Its Exact Locked Candidate Wheel."""
-    package_root = root / "packages/dokime"
+    package_root = root / "packages/dokime-client"
     source_root = package_root / "examples/remote"
     sources = [package_root / relative if relative == "LICENSE-APACHE" else source_root / relative for relative in FILES]
     for source in sources:
@@ -120,7 +120,7 @@ def _regular(path: Path) -> None:
 def _candidate(project: Path) -> Path:
     _regular(project / "pyproject.toml")
     manifest = tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))
-    source = manifest.get("tool", {}).get("uv", {}).get("sources", {}).get("dokime", {})
+    source = manifest.get("tool", {}).get("uv", {}).get("sources", {}).get("dokime-client", {})
     path = source.get("path")
     if not isinstance(path, str) or path != f"../wheels/{Path(path).name}" or "\\" in path:
         raise ValueError("the tutorial requires one portable bundled Dokime wheel source")
@@ -134,17 +134,17 @@ def _environment(project: Path, wheel: Path) -> None:
     if candidate.name != wheel.name:
         raise ValueError("the candidate wheel differs from the tutorial source")
     name, version, _build, _tags = parse_wheel_filename(wheel.name)
-    if name != "dokime":
+    if name != "dokime-client":
         raise ValueError("the candidate must be a Dokime wheel")
 
     manifest = tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))
     declaration = manifest.get("project", {})
-    if declaration.get("dependencies") != [f"dokime=={version}"]:
+    if declaration.get("dependencies") != [f"dokime-client=={version}"]:
         raise ValueError("the tutorial must pin its bundled Dokime version")
     lock = tomllib.loads((project / "uv.lock").read_text(encoding="utf-8"))
     if SpecifierSet(declaration.get("requires-python", "")) != SpecifierSet(lock.get("requires-python", "")):
         raise ValueError("the tutorial Python requirement differs from its lock")
-    packages = [package for package in lock.get("package", []) if package.get("name") == "dokime"]
+    packages = [package for package in lock.get("package", []) if package.get("name") == "dokime-client"]
     if len(packages) != 1:
         raise ValueError("the tutorial lock must name exactly one Dokime candidate")
     package = packages[0]
