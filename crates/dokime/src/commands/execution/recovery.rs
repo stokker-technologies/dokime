@@ -65,10 +65,11 @@ impl Args {
 
     pub(crate) fn prepare_append(&self, cycle: &TestCycleId, executions: &[TestExecutionId]) -> crate::Result<Option<Plan>> {
         let plan = self.prepare_many(executions)?;
-        if let Some(plan) = &plan {
-            if plan.cycle != *cycle {
-                return Err(crate::Error::Input("append recovery requires its target cycle to equal --owned-cycle".into()));
-            }
+        if let Some(plan) = &plan
+            && plan.cycle != *cycle
+        {
+            let message = "append recovery requires its target cycle to equal --owned-cycle".to_owned();
+            return Err(crate::Error::Input(message));
         }
         Ok(plan)
     }
@@ -78,21 +79,26 @@ impl Args {
             return Ok(None);
         }
         let (true, Some(cycle), Some(directory)) = (self.cancel_on_interrupt, &self.owned_cycle, &self.recovery_directory) else {
-            return Err(crate::Error::Input(
-                "interrupt recovery requires --cancel-on-interrupt, --owned-cycle and --recovery-directory".into(),
-            ));
+            let message = "interrupt recovery requires --cancel-on-interrupt, --owned-cycle and --recovery-directory".to_owned();
+            return Err(crate::Error::Input(message));
         };
-        let cycle = TestCycleId::from_uuid(cycle).map_err(|error| crate::Error::Input(error.to_string()))?;
+        let cycle = TestCycleId::from_uuid(cycle).map_err(|error| {
+            let message = error.to_string();
+            crate::Error::Input(message)
+        })?;
+
         let mut executions = Vec::with_capacity(selected.len());
         let mut seen = std::collections::HashSet::new();
         for execution in selected {
             if !seen.insert(execution) {
-                return Err(crate::Error::Input("recovery repeats an execution identity".into()));
+                let message = "recovery repeats an execution identity".to_owned();
+                return Err(crate::Error::Input(message));
             }
             let output = directory.join(format!("execution-{execution}.zip"));
             dokime_client::validate_download_destination(&output, false)?;
             executions.push((execution.clone(), output));
         }
+
         let cycle_output = directory.join(format!("cycle-{cycle}.zip"));
         dokime_client::validate_download_destination(&cycle_output, false)?;
         Ok(Some(Plan { cycle, executions, cycle_output }))
@@ -119,14 +125,13 @@ impl Plan {
 
         // A Stop Reply May Be Lost, Or Admission May Still Be Settling.
         // The Owned Cycle's Durable Seal Closes Admission And Settles Both Cases.
-        match execution.checkpoint().await {
-            Ok(_) => {}
-            Err(dokime_client::Error::Rpc(status)) if status.code() == dokime_client::RpcCode::NotFound => {
-                if let Err(error) = execution.stop().await {
-                    eprintln!("Execution Stop Was Not Confirmed: {error}. Resolving Through The Owned Cycle Seal.");
-                }
-            }
+        let stop_failure = match execution.checkpoint().await {
+            Ok(_) => None,
+            Err(dokime_client::Error::Rpc(status)) if status.code() == dokime_client::RpcCode::NotFound => execution.stop().await.err(),
             Err(error) => return Err(error.into()),
+        };
+        if let Some(error) = stop_failure {
+            eprintln!("Execution Stop Was Not Confirmed: {error}. Resolving Through The Owned Cycle Seal.");
         }
         self.recover_append(client).await
     }
@@ -139,7 +144,8 @@ impl Plan {
         let members = cycle.executions().await?;
         let mut failure = None;
         for (id, output) in &self.executions {
-            let Some(execution) = members.iter().find(|member| member.id() == id) else {
+            let matches_id = |member: &&TestExecutionHandle| member.id() == id;
+            let Some(execution) = members.iter().find(matches_id) else {
                 eprintln!("Execution {id} Was Not Registered In Owned Cycle {}; No Mutation Was Retried.", self.cycle);
                 continue;
             };
@@ -150,10 +156,12 @@ impl Plan {
                 Ok::<_, crate::Error>(())
             }
             .await;
-            if let Err(error) = result {
-                eprintln!("Execution {id} Evidence Recovery Failed: {error}");
-                failure.get_or_insert(error);
-            }
+            let error = match result {
+                Ok(()) => continue,
+                Err(error) => error,
+            };
+            eprintln!("Execution {id} Evidence Recovery Failed: {error}");
+            failure.get_or_insert(error);
         }
         match cycle.export(self.cycle_output.clone(), false).await {
             Ok(saved) => eprintln!("Cycle Evidence Saved To {} (SHA-256 {})", saved.path.display(), saved.sha256),

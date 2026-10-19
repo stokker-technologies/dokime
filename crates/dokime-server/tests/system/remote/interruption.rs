@@ -546,10 +546,9 @@ fn read_terminal(
             }
             triggered = true;
         }
-        if triggered && text.contains("Cancellation Requested") {
-            if let Some(gate) = &gate {
-                gate.released.cancel();
-            }
+        let cancellation_requested = triggered && text.contains("Cancellation Requested");
+        if cancellation_requested && let Some(gate) = &gate {
+            gate.released.cancel();
         }
         if !continued && text.contains("Terminate batch job") {
             writer.write_all(b"N\r")?;

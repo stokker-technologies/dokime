@@ -29,8 +29,9 @@ use dokime_domain::model::{evidence::wire::RecordPage, execution::ExecutionMode,
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type RecordCallback<'a> = &'a mut (dyn FnMut(&RecordPage) -> Result<()> + Send);
-pub type SampleCallback<'a> = &'a mut (dyn FnMut(&TelemetrySamplesReply) -> Result<()> + Send);
+type Callback<'a, T> = &'a mut (dyn FnMut(&T) -> Result<()> + Send);
+pub type RecordCallback<'a> = Callback<'a, RecordPage>;
+pub type SampleCallback<'a> = Callback<'a, TelemetrySamplesReply>;
 
 /* === Structs === */
 // Listener Selection Affects Observation Only, Never Captured Evidence.
@@ -90,8 +91,18 @@ impl TestExecutionHandle {
         options.validate()?;
         let operation = async {
             self.start(options.mode).await?;
-            let records = options.record_types.map(|filters| self.records(filters, true, options.interval)).transpose()?;
-            let samples = options.streams.map(|filters| self.samples(filters, true, options.page_size, options.interval)).transpose()?;
+            let records = if let Some(filters) = options.record_types {
+                let listener = self.records(filters, true, options.interval)?;
+                Some(listener)
+            } else {
+                None
+            };
+            let samples = if let Some(filters) = options.streams {
+                let listener = self.samples(filters, true, options.page_size, options.interval)?;
+                Some(listener)
+            } else {
+                None
+            };
             let record_reader = drain(records.as_ref(), callbacks.records.take());
             let sample_reader = drain(samples.as_ref(), callbacks.samples.take());
             let result = tokio::try_join!(self.wait(None, options.interval), record_reader, sample_reader);
@@ -113,9 +124,7 @@ impl TestExecutionHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn drain<T: Send + 'static>(
-    reader: Option<&ResponseStream<T>>, mut callback: Option<&mut (dyn FnMut(&T) -> Result<()> + Send)>,
-) -> Result<()> {
+async fn drain<T: Send + 'static>(reader: Option<&ResponseStream<T>>, mut callback: Option<Callback<'_, T>>) -> Result<()> {
     let Some(reader) = reader else { return Ok(()) };
     while let Some(page) = reader.message().await? {
         let Some(callback) = callback.as_mut() else { continue };

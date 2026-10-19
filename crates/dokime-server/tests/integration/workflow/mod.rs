@@ -928,7 +928,7 @@ async fn run_cycle_targets() {
 }
 
 fn run(id: &str) -> contracts::execution::GetCycle {
-    contracts::execution::GetCycle { cycle_id: id.into(), ..Default::default() }
+    contracts::execution::GetCycle { cycle_id: id.into() }
 }
 
 /* === Tests === */

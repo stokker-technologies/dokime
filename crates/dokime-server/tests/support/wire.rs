@@ -154,11 +154,9 @@ impl WireClient {
         }
         let preview = if plan.case_ids.is_empty() {
             let register = contracts::planning::RegisterSelection { plan: Some(plan), idempotency_key: uuid::Uuid::now_v7().to_string() };
-            let response = self
-                .unary::<contracts::planning::RegisterSelection>(Request::from_parts(metadata.clone(), Default::default(), register))
-                .await?
-                .into_inner();
-            response
+            let request = Request::from_parts(metadata.clone(), Default::default(), register);
+            let response = self.unary::<contracts::planning::RegisterSelection>(request).await?;
+            response.into_inner()
         } else {
             let preview = contracts::planning::PreviewSelection { plan: Some(plan) };
             self.unary::<contracts::planning::PreviewSelection>(Request::from_parts(metadata.clone(), Default::default(), preview))
