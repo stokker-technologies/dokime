@@ -25,7 +25,7 @@ from packaging.utils import parse_wheel_filename
 # Local Imports
 from dokime_tools import temporary
 from dokime_tools.build import paths
-from dokime_tools.package.run import assemble
+from dokime_tools.package.run import assemble, definitions
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
@@ -101,19 +101,32 @@ def package(root: Path, profile: str) -> None:
     wheel = _candidate(source / "python")
     _environment(source / "python", wheel)
     built = paths.output(root, "build", profile, "any") / "python"
-    distributions = sorted(built.glob("dokime_client-*"))
-    wheels = [path for path in distributions if path.suffix == ".whl"]
+    wheels = sorted(built.glob("dokime_client-*.whl"))
     if len(wheels) != 1:
         raise ValueError("packaging requires exactly one matching built client wheel")
     _environment(source / "python", wheels[0])
+    distributions = [wheels[0]]
+    if profile == "release":
+        version = parse_wheel_filename(wheels[0].name)[1]
+        distribution = built / f"dokime_client-{version}.tar.gz"
+        _regular(distribution)
+        distributions.append(distribution)
 
     destination = paths.output(root, "package", profile, "any") / "python"
-    with temporary.directory() as staging:
-        for distribution in distributions:
-            _regular(distribution)
-            stage_file(distribution, staging / distribution.name)
-        assemble(root, "python", profile, "any", staging)
-        paths.replace(root, staging, destination, origin=staging)
+    names = [path.name for path in distributions]
+    names += [item["output"] for item in definitions(root, profile, "any") if item["language"] == "python"]
+    with temporary.directory() as scratch:
+        assembled = scratch / "assembled"
+        assembled.mkdir()
+        assemble(root, "python", profile, "any", assembled)
+
+        # Select Public Distributions And Declared Bundles
+        selected = scratch / "selected"
+        for name in names:
+            source = assembled / name
+            _regular(source)
+            stage_file(source, selected / name)
+        paths.replace(root, selected, destination, origin=scratch)
     print(f"Packaged {destination.relative_to(root).as_posix()}")
 
 

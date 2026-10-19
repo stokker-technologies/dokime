@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:5bd5695cd7a6c1f5e54655c712c72e8d443f96934758040340c10a82e16831d5
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:d7da358aa0be8eea9f09535a37633ed4167629e790f8d58ec48331b1288dcfdb
 name: CI
 "on":
   push:
@@ -464,7 +464,7 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
   build_python_any_release:
     name: Build / Product / Python / Release (any)
     runs-on:
@@ -561,7 +561,7 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:cargo-bins/cargo-binstall,sccache,aqua:rhysd/actionlint,taplo,protoc
   build_product_dev:
     name: Build / Product / Dev
     runs-on: >-

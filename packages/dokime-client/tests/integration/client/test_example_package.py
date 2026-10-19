@@ -51,8 +51,12 @@ def test_candidate_archive(tmp_path: Path) -> None:
     # Package Reads Only Frozen Build Inputs, Including The Original Wheel Bytes
     shutil.rmtree(source)
     (destination / "local.key").write_bytes(b"private")
+    (wheel.parent / "private.key").write_bytes(b"private")
+    (wheel.parent / "dokime_client-private.key").write_bytes(b"private")
     examples.package(root, "dev")
     output = root / "target/package/dev/any/python/dokime-remote-examples-0.1.0.zip"
+    assert {path.name for path in output.parent.iterdir()} == {WHEEL, output.name}
+    assert (output.parent / WHEEL).read_bytes() == original
     with zipfile.ZipFile(output) as archive:
         assert set(archive.namelist()) == {f"remote/{relative}" for relative in expected}
         assert archive.read(f"remote/wheels/{WHEEL}") == original

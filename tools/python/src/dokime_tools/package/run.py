@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/package/run.py; sha256:ae04890097332d22c32f90e1066ad42bfbcf0cbce45e5fd60373a05cdac8d04c
+# Rendered by stkr project update from templates/python/package/run.py; sha256:5d940ea62f1ff29dd2323b1d7694c91368504360dbac2a6f496c3d83514c70ae
 # ***
 #
 # Dokime
@@ -101,6 +101,21 @@ def regular(root: Path, relative: str) -> Path:
 
 def assemble(directory: Path, language: str, profile: str, target: str, staging: Path) -> None:
     build = paths.output(directory, "build", profile, target)
+    if language in {"python", "typescript"}:
+        source = build / {"python": "python", "typescript": "web"}[language]
+        canonical = policy.config(directory).get("languages", {}).get("python", {}).get("build_target") == "any"
+        if (target != "any" or language == "python" and canonical) and not source.is_dir():
+            raise policy.ToolError(f"missing Product Build input: {source}")
+        for entry in source.rglob("*"):
+            if entry.is_symlink():
+                raise policy.ToolError("linked package input")
+            if not entry.is_file():
+                continue
+            relative = entry.relative_to(source)
+            original = regular(source, relative.as_posix())
+            destination = staging / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(original, destination)
     for item in definitions(directory, profile, target):
         if item["language"] != language:
             continue
@@ -207,6 +222,11 @@ def main() -> None:
     target = options.target or paths.target()
     language = "rust" if options.language == "native" else options.language
     products = definitions(directory, options.profile, target)
+    canonical = policy.config(directory).get("languages", {}).get("python", {}).get("build_target") == "any"
+    if target == "any" and not any(item["language"] == language for item in products) and not (language == "python" and canonical):
+        with temporary.directory() as staging:
+            paths.replace(directory, staging, destination / language, origin=staging)
+        return
     if any(item["language"] == language for item in products):
         with temporary.directory() as staging:
             assemble(directory, language, options.profile, target, staging)
