@@ -19,6 +19,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use futures_util::{StreamExt, stream::FuturesOrdered};
 use harmos::{operations::Context, storage::StorageCursor};
 
 // Local Imports
@@ -39,6 +40,9 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::reports::wire::MaterializedReport;
 
 /* === Constants === */
+
+// Members This Process No Longer Retains Re-Query Their Evidence, At Most This Many At Once.
+const ACTIVE_MEMBER_QUERIES: usize = 4;
 
 /* === Macros === */
 
@@ -79,12 +83,19 @@ async fn sealed(
         return Ok(MaterializedReport { report });
     }
     let mut members = Vec::with_capacity(finalization.executions.len());
+    let mut pending = FuturesOrdered::new();
     for execution in finalization.executions.iter() {
-        if !at.covers(&execution.source.evidence_through)? {
-            return Err(invalid("sealed member evidence exceeds cycle report boundary"));
+        if pending.len() == ACTIVE_MEMBER_QUERIES
+            && let Some(member) = pending.next().await
+        {
+            members.push(member?);
         }
-        members.push(crate::report::materialize::sealed_member(ctx, storage, settings, execution, progress).await?);
+        pending.push_back(sealed_member(ctx, resources, storage, settings, execution, at, progress));
     }
+    while let Some(member) = pending.next().await {
+        members.push(member?);
+    }
+    drop(pending);
     progress.phase("Rendering");
     let prepared = crate::report::cycle::CycleReport::prepare(storage, finalization.snapshot, members, progress).await?;
     progress.phase("Publishing Report");
@@ -137,7 +148,7 @@ async fn current(
             },
         };
         let member = if let Some(seal) = &seal {
-            sealed_member(ctx, storage, settings, seal, at, progress).await?
+            sealed_member(ctx, resources, storage, settings, seal, at, progress).await?
         } else {
             progress.phase("Capturing Evidence");
             let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
@@ -152,7 +163,7 @@ async fn current(
             let _guard = gate.lock().await;
             // Finalization May Publish This Member's Final Report While The Gate Was Awaited.
             if let Some(seal) = resources.execution_storage.published_seal(&execution.test_execution_id).await {
-                members.push(sealed_member(ctx, storage, settings, &seal, at, progress).await?);
+                members.push(sealed_member(ctx, resources, storage, settings, &seal, at, progress).await?);
                 continue;
             }
             let inspection = match resources.execution_storage.retained_report_view(&execution.test_execution_id).await {
@@ -185,11 +196,16 @@ async fn current(
     Ok(MaterializedReport { report })
 }
 
+// A Member Sealed By This Process Reuses Its Materialized Report Input; Others Re-Query Their Evidence.
 async fn sealed_member(
-    ctx: &Context<'_>, storage: &Manager, settings: &StorageSettings, seal: &ExecutionSeal, at: &StorageCursor, progress: &Operation,
+    ctx: &Context<'_>, resources: &Resources, storage: &Manager, settings: &StorageSettings, seal: &ExecutionSeal, at: &StorageCursor,
+    progress: &Operation,
 ) -> Result<CapturedExecutionReportInput> {
     if !at.covers(&seal.source.evidence_through)? {
         return Err(invalid("sealed member evidence exceeds cycle report boundary"));
+    }
+    if let Some(input) = resources.execution_storage.retained_member_input(seal).await {
+        return Ok((*input).clone());
     }
     crate::report::materialize::sealed_member(ctx, storage, settings, seal, progress).await
 }
