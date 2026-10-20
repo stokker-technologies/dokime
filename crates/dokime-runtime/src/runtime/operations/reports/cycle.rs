@@ -25,12 +25,16 @@ use harmos::{operations::Context, storage::StorageCursor};
 use super::Resources;
 use crate::{
     app::Dokime,
+    config::StorageSettings,
+    report::CapturedExecutionReportInput,
     runtime::Error,
     runtime::Result,
     runtime::progress::Operation,
     runtime::storage::{cycle::CycleSnapshot, cycle_finalization},
+    storage::Manager,
 };
 use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::saved::ExecutionSeal;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::reports::wire::MaterializedReport;
 
@@ -127,16 +131,13 @@ async fn current(
     for execution in source.test_executions.iter().filter(|execution| execution.status != ExecutionStatus::Pending) {
         let seal = match &execution.saved {
             Some(seal) => Some(seal.clone()),
-            None => match resources.execution_storage.final_seal(&execution.test_execution_id).await {
+            None => match resources.execution_storage.published_seal(&execution.test_execution_id).await {
                 Some(seal) => Some(seal),
                 None => resources.execution_storage.durable_seal(&execution.test_execution_id).await?,
             },
         };
         let member = if let Some(seal) = &seal {
-            if !at.covers(&seal.source.evidence_through)? {
-                return Err(invalid("sealed member evidence exceeds cycle report boundary"));
-            }
-            crate::report::materialize::sealed_member(ctx, storage, settings, seal, progress).await?
+            sealed_member(ctx, storage, settings, seal, at, progress).await?
         } else {
             progress.phase("Capturing Evidence");
             let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
@@ -149,6 +150,11 @@ async fn current(
             }
             let gate = resources.execution_storage.materialization_gate(&execution.test_execution_id).await?;
             let _guard = gate.lock().await;
+            // Finalization May Publish This Member's Final Report While The Gate Was Awaited.
+            if let Some(seal) = resources.execution_storage.published_seal(&execution.test_execution_id).await {
+                members.push(sealed_member(ctx, storage, settings, &seal, at, progress).await?);
+                continue;
+            }
             let inspection = match resources.execution_storage.retained_report_view(&execution.test_execution_id).await {
                 Some(inspection) => inspection,
                 None => {
@@ -177,6 +183,15 @@ async fn current(
     let report = prepared.finish(ctx).await?;
     storage.flush_until(&report.position).await?;
     Ok(MaterializedReport { report })
+}
+
+async fn sealed_member(
+    ctx: &Context<'_>, storage: &Manager, settings: &StorageSettings, seal: &ExecutionSeal, at: &StorageCursor, progress: &Operation,
+) -> Result<CapturedExecutionReportInput> {
+    if !at.covers(&seal.source.evidence_through)? {
+        return Err(invalid("sealed member evidence exceeds cycle report boundary"));
+    }
+    crate::report::materialize::sealed_member(ctx, storage, settings, seal, progress).await
 }
 
 fn invalid(reason: &str) -> Error {

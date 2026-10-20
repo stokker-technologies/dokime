@@ -234,6 +234,13 @@ impl ExecutionStorage {
         acquisition.execution.saved.clone()
     }
 
+    // The Final Seal, Or The Seal Of A Final Report Published Ahead Of It.
+    pub(crate) async fn published_seal(&self, id: &TestExecutionId) -> Option<dokime_domain::model::execution::saved::ExecutionSeal> {
+        let owner = self.acquisition(id).await?;
+        let acquisition = owner.lock().await;
+        acquisition.execution.saved.clone().or_else(|| acquisition.published.as_ref().map(|published| (*published.seal).clone()))
+    }
+
     pub(crate) async fn acquisition(&self, id: &TestExecutionId) -> Option<Arc<Mutex<Acquisition>>> {
         self.active.lock().await.get(id).cloned()
     }
