@@ -27,6 +27,7 @@ import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPl
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
+import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 import { type PlotDisplaySettings, usePlotSettingsEditor } from "@/plots/plot-settings";
 import type { PlotViewportMode } from "@/plots/types";
@@ -89,7 +90,8 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
       viewportMode={viewportMode}
     />
   ));
-  if (!showGroupHeaders) {
+  // A lone plot titled like its group already names it: one title is enough.
+  if (!showGroupHeaders || groupRepeatsPlotTitle(title, documentPlots)) {
     return <>{cards}</>;
   }
 

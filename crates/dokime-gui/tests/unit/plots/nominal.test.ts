@@ -30,6 +30,7 @@ import {
 } from "@/lib/statistics";
 import type { PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
 import { formatCursorX } from "@/plots/axis";
+import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
   type HistogramColumn,
@@ -40,7 +41,7 @@ import {
 import { histogramBars } from "@/plots/histogram-bins";
 import { applyPlotMessages, emptyLivePlotState, type LivePlotState } from "@/plots/live-frames";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
-import { lttbIndices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices } from "@/plots/reduce";
+import { lttbIndices, m4Indices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices, windowIndices } from "@/plots/reduce";
 import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Re-Exports === */
@@ -279,6 +280,66 @@ test("Empty Snapshot", () => {
 
   // An Append That Repeats The Revision Is Still Dropped
   assert.equal(applyPlotMessages(state, [streamMessage("append", 0, empty)], "auto").droppedBatches, 1);
+});
+
+test("Window Resampling", () => {
+  /* A 50 Hz sine sampled at 1 kHz for 60 s, drawn 800 CSS px wide. */
+  const rate = 1_000;
+  const x = Array.from({ length: 60 * rate }, (_, index) => index / rate);
+  const sine = x.map((t) => Math.sin(2 * Math.PI * 50 * t));
+  const columns = 800;
+
+  // The Whole Run Is Cut To Four Samples Per Pixel Column, Ends Included
+  const whole = windowIndices(x, [sine], null, columns);
+  assert.ok(whole);
+  assert.ok(whole.length <= 4 * columns + 2);
+  assert.equal(whole[0], 0);
+  assert.equal(whole.at(-1), x.length - 1);
+  assertAscending(whole);
+
+  // A 15 s Zoom Resamples The Window Itself And Keeps The Envelope Of Every Column
+  const zoom = { min: 20, max: 35 };
+  const zoomed = windowIndices(x, [sine], zoom, columns);
+  assert.ok(zoomed);
+  assertAscending(zoomed);
+  const inside = zoomed.filter((index) => x[index] >= zoom.min && x[index] <= zoom.max);
+  assert.ok(inside.length > 3 * columns, "the window gets the whole budget, not a slice of the run's");
+  const span = (zoom.max - zoom.min) / columns;
+  for (let column = 0; column < columns; column += 10) {
+    const from = zoom.min + column * span;
+    const to = from + span;
+    const truth = sine.filter((_, index) => x[index] >= from && x[index] < to);
+    const kept = inside.filter((index) => x[index] >= from && x[index] < to).map((index) => sine[index]);
+    assert.equal(Math.max(...kept), Math.max(...truth), `column ${column} keeps its peak`);
+    assert.equal(Math.min(...kept), Math.min(...truth), `column ${column} keeps its trough`);
+  }
+  // The Line Reaches Both Frame Edges And A Reset Still Fits The Whole Run
+  assert.ok(zoomed.includes(Math.round(zoom.min * rate) - 1));
+  assert.ok(zoomed.includes(Math.round(zoom.max * rate) + 1));
+  assert.equal(zoomed[0], 0);
+  assert.equal(zoomed.at(-1), x.length - 1);
+
+  // A Window Within The Budget Draws Every Sample, A Short Run Is Never Reduced
+  const second = windowIndices(x, [sine], { min: 10, max: 11 }, columns);
+  assert.ok(second);
+  for (let index = 10 * rate; index <= 11 * rate; index += 1) assert.ok(second.includes(index));
+  assert.equal(windowIndices(x.slice(0, 3_000), [sine.slice(0, 3_000)], null, columns), null);
+
+  // M4 Keeps First, Lowest, Highest And Last Per Bucket And Skips Gaps
+  assert.deepEqual(m4Indices([0, 1, 2, 3, 4, 5], [3, 9, null, 1, 4, 5], 0, 6, 1), [0, 1, 3, 5]);
+  assert.deepEqual(m4Indices([0, 1, 2], [null, null, null], 0, 3, 1), []);
+
+  // Traces On One Axis Are Resampled Together
+  const cosine = x.map((t) => Math.cos(2 * Math.PI * 50 * t));
+  const both = windowIndices(x, [sine, cosine], zoom, columns);
+  assert.ok(both);
+  assert.ok(zoomed.every((index) => both.includes(index)));
+
+  // A Group Titled Like Its Only Plot Prints The Title Once
+  const plot = { title: "AC Voltage" } as Parameters<typeof groupRepeatsPlotTitle>[1][number];
+  assert.equal(groupRepeatsPlotTitle("AC Voltage", [plot]), true);
+  assert.equal(groupRepeatsPlotTitle("Mains", [plot]), false);
+  assert.equal(groupRepeatsPlotTitle("AC Voltage", [plot, plot]), false);
 });
 
 test("Frame Retention", () => {

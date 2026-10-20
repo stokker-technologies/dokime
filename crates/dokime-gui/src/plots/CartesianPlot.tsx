@@ -33,6 +33,7 @@ import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
+import { windowIndices } from "@/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
 import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
@@ -132,6 +133,18 @@ export type PlotViewportRange = {
   max: number;
 };
 
+/**
+ * What the canvas currently draws from the full frame: the frame itself, the
+ * x range it was reduced for (`null` for the whole extent), and whether the
+ * reduction kept every sample, in which case it serves any range.
+ */
+type DrawnWindow = {
+  source: uPlot.AlignedData | null;
+  aligned: boolean;
+  range: PlotViewportRange | null;
+  everySample: boolean;
+};
+
 type UPlotConstructor = typeof uPlot;
 
 /* === State === */
@@ -191,6 +204,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const referenceBandsRef = useRef<DocumentReferenceBand[]>(referenceBands);
   const intervalRangesRef = useRef<IntervalRange[]>([]);
   const dataSignatureRef = useRef<string | null>(null);
+  const drawnRef = useRef<DrawnWindow>({ source: null, aligned: true, range: null, everySample: true });
   const resetKeyRef = useRef<string | undefined>(resetKey);
   const viewportModeRef = useRef<PlotViewportMode>(viewportMode);
   const resizeFrameRef = useRef<number | null>(null);
@@ -209,7 +223,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const backendCartesian = useMemo(() => usableCartesianFrame(cartesian, renderedSeries, series), [cartesian, renderedSeries, series]);
   const chartFrame = useMemo(() => (backendCartesian ? chartFrameFromCartesian(backendCartesian) : null), [backendCartesian]);
   const seriesKey = useMemo(
-    () => renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}`).join("|"),
+    () => renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}:${item.downsampled ? 1 : 0}`).join("|"),
     [renderedSeries, series],
   );
   const colorsKey = colors.join("|");
@@ -331,6 +345,25 @@ export const CartesianPlot = memo(function CartesianPlot({
       mode: faceted ? 2 : 1,
       pxAlign: 0,
       hooks: {
+        // Every zoom, pan or follow step resamples the visible window from
+        // the full frame, so a zoom never stretches a reduction made for the
+        // whole run.
+        setScale: [
+          (plot, key) => {
+            if (key !== "x") return;
+            const { min, max } = plot.scales.x;
+            if (min == null || max == null) return;
+            const range = { min, max };
+            if (windowServes(drawnRef.current, range)) return;
+            queueMicrotask(() => {
+              if (plotRef.current !== plot) return;
+              plot.setData(drawnData(drawnRef.current, range, plot.over.clientWidth), false);
+              plot.setScale("x", range);
+              const heldY = heldRangeRef.current?.y;
+              if (heldY) plot.setScale("y", heldY);
+            });
+          },
+        ],
         setSelect: [
           (plot) => {
             const held = heldViewport(plot.select, { width: plot.over.clientWidth, height: plot.over.clientHeight }, (position, axis) =>
@@ -446,6 +479,10 @@ export const CartesianPlot = memo(function CartesianPlot({
               ]
             : undefined,
           label: item.label,
+          // A reduced report frame reduces each trace on its own, so the
+          // shared x leaves holes no sample ever had; only a full frame's
+          // gaps are real.
+          spanGaps: item.downsampled === true,
           value: seriesLegendValue(item.format ?? yFormat),
           pxAlign: 0,
           stroke: resolvedSeriesColors[index] ?? fallbackSeriesColor,
@@ -465,7 +502,8 @@ export const CartesianPlot = memo(function CartesianPlot({
     // the boundary. This card reports the failure and stays alone in it.
     let plot: uPlot;
     try {
-      plot = new uPlotConstructor(options, chartFrame.data, root);
+      drawnRef.current = { source: chartFrame.data, aligned: !faceted, range: null, everySample: true };
+      plot = new uPlotConstructor(options, drawnData(drawnRef.current, null, measuredChartWidth(root)), root);
     } catch (error) {
       setPlotLoadError(plotFailureMessage(error));
       return;
@@ -476,7 +514,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       onViewportChangeRef.current?.(null);
     }
     if (heldRangeRef.current) {
-      applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () => setLiveXScale(plot, liveXRange, xScale, timeAxis));
+      applyHeldViewport(plot, heldRangeRef.current, drawnData(drawnRef.current, null, plot.over.clientWidth), () =>
+        setLiveXScale(plot, liveXRange, xScale, timeAxis),
+      );
     }
     renderedSeries.forEach((item, index) => {
       if (hiddenTracesRef.current.has(item.key)) plot.setSeries(index + 1, { show: false });
@@ -653,11 +693,13 @@ export const CartesianPlot = memo(function CartesianPlot({
     }
     updateFrameRef.current = window.requestAnimationFrame(() => {
       updateFrameRef.current = null;
+      drawnRef.current.source = chartFrame.data;
+      const fullRange = () => drawnData(drawnRef.current, null, plot.over.clientWidth);
       const resetChanged = resetKeyRef.current !== resetKey;
       const viewportModeChanged = viewportModeRef.current !== viewportMode;
       try {
         if (heldRangeRef.current && !resetChanged && !viewportModeChanged) {
-          applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () => {
+          applyHeldViewport(plot, heldRangeRef.current, fullRange(), () => {
             if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
           });
           dataSignatureRef.current = dataSignature;
@@ -670,10 +712,10 @@ export const CartesianPlot = memo(function CartesianPlot({
           return;
         }
         if (viewportMode === "live") {
-          plot.setData(chartFrame.data, false);
+          plot.setData(fullRange(), false);
           setLiveXScale(plot, liveXRange, xScale, timeAxis);
         } else {
-          plot.setData(chartFrame.data, true);
+          plot.setData(fullRange(), true);
         }
       } catch (error) {
         setPlotLoadError(plotFailureMessage(error));
@@ -719,7 +761,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                   onViewportChangeRef.current?.(null);
                   const plot = plotRef.current;
                   if (plot && chartFrame) {
-                    plot.setData(chartFrame.data, true);
+                    plot.setData(drawnData(drawnRef.current, null, plot.over.clientWidth), true);
                     if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
                   }
                 }}
@@ -971,6 +1013,40 @@ function isUsableSpan(min: number, max: number): boolean {
   }
   const scale = Math.max(Math.abs(min), Math.abs(max), Number.MIN_VALUE);
   return max - min > scale * 1e-9;
+}
+
+/**
+ * The data the canvas draws for the x `range` (`null` for the whole extent),
+ * reduced to four samples per pixel column of a `columns`-wide plot and
+ * recorded as what is now drawn. A faceted frame is drawn whole.
+ */
+function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number): uPlot.AlignedData {
+  const source = drawn.source ?? ([[]] as unknown as uPlot.AlignedData);
+  drawn.range = range;
+  if (!drawn.aligned) {
+    drawn.everySample = true;
+    return source;
+  }
+
+  const [x, ...traces] = source as unknown as [number[], ...(number | null | undefined)[][]];
+  const indices = windowIndices(x, traces, range, columns);
+  drawn.everySample = indices === null;
+  if (!indices) return source;
+
+  return [indices.map((index) => x[index]), ...traces.map((trace) => indices.map((index) => trace[index] ?? null))] as uPlot.AlignedData;
+}
+
+/** Whether what is drawn already resolves the visible x `range`. */
+function windowServes(drawn: DrawnWindow, range: PlotViewportRange): boolean {
+  if (drawn.everySample) return true;
+  const drawnRange = drawn.range;
+  if (drawnRange) {
+    const tolerance = Math.max(Math.abs(range.max - range.min), Number.MIN_VALUE) * 1e-9;
+    return Math.abs(drawnRange.min - range.min) <= tolerance && Math.abs(drawnRange.max - range.max) <= tolerance;
+  }
+  // The whole-extent reduction serves only a view of the whole extent.
+  const x = (drawn.source?.[0] ?? []) as number[];
+  return x.length === 0 || (range.min <= x[0] && range.max >= x[x.length - 1]);
 }
 
 function plotFailureMessage(error: unknown): string {
