@@ -48,7 +48,16 @@ export type SeriesLegendRow = SeriesLegendTrace & {
 
 export type SeriesStatistic = (typeof SERIES_STATISTICS)[number][0];
 
-export type SeriesLegendColumn = { id: "trace" | "xCursor" | "yCursor" | SeriesStatistic; header: string };
+/**
+ * One legend column: `header` is the full name, `title` and `unit` the two
+ * lines the table prints it on so a unit never clips the name.
+ */
+export type SeriesLegendColumn = {
+  id: "trace" | "xCursor" | "yCursor" | SeriesStatistic;
+  header: string;
+  title: string;
+  unit: string | null;
+};
 
 /** What happened to a plot's summary request on its stream. */
 export type SummaryRequestEvent = "requested" | "delivered" | "failed" | "ended";
@@ -83,16 +92,24 @@ export const SERIES_STATISTICS = [
  * column's header.
  */
 export function seriesLegendColumns(unit?: string | null): SeriesLegendColumn[] {
-  const withUnit = (title: string) => (unit ? `${title} (${unit})` : title);
+  const plain = (id: SeriesLegendColumn["id"], title: string): SeriesLegendColumn => ({ id, header: title, title, unit: null });
+  const withUnit = (id: SeriesLegendColumn["id"], title: string): SeriesLegendColumn =>
+    unit ? { id, header: `${title} (${unit})`, title, unit } : plain(id, title);
   return [
-    { id: "trace", header: "Trace" },
-    { id: "xCursor", header: "X Cursor" },
-    { id: "yCursor", header: withUnit("Y Cursor") },
-    ...SERIES_STATISTICS.map(([id, title]) => ({
-      id,
-      header: id === "count" ? title : withUnit(title),
-    })),
+    plain("trace", "Trace"),
+    plain("xCursor", "X Cursor"),
+    withUnit("yCursor", "Y Cursor"),
+    ...SERIES_STATISTICS.map(([id, title]) => (id === "count" ? plain(id, title) : withUnit(id, title))),
   ];
+}
+
+/**
+ * A legend value column's fixed width. It depends on the column alone, never
+ * on its unit (which wraps under the name), so every statistics table on a
+ * page lines its columns up; the x cursor holds a full date and clock.
+ */
+export function seriesLegendColumnWidth(id: SeriesLegendColumn["id"]): string {
+  return id === "xCursor" ? "w-52" : "w-24";
 }
 
 /**

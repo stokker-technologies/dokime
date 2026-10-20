@@ -16,7 +16,7 @@ import { useMemo } from "react";
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import type { SeriesLegendColumn, SeriesLegendRow, StatsSummary, StatsSummaryRow } from "@/lib/statistics";
-import { formatStatValue, statsSummaryCells } from "@/lib/statistics";
+import { formatStatValue, seriesLegendColumnWidth, statsSummaryCells } from "@/lib/statistics";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -87,12 +87,13 @@ function legendRowKey(row: SeriesLegendRow): string {
 
 function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLegendRow> {
   const legend = dataTableColumns<SeriesLegendRow>();
-  return columns.map(({ header, id }) => {
+  return columns.map(({ header, id, title, unit }) => {
+    const heading = () => <LegendHeader title={title} unit={unit} />;
     if (id === "trace") {
       return legend.accessor("label", {
         cell: ({ row }) => <TraceCell row={row.original} />,
         enableSorting: false,
-        header,
+        header: heading,
         id,
         meta: { label: header, primary: true },
       });
@@ -101,10 +102,9 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
     return legend.accessor(read, {
       cell: ({ getValue, row }) => <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>{getValue()}</span>,
       enableSorting: false,
-      header,
+      header: heading,
       id,
-      // The x cursor holds a full date and clock to the millisecond.
-      meta: { align: "end", label: header, truncate: true, width: id === "xCursor" ? "w-52" : "w-24" },
+      meta: { align: "end", label: header, truncate: true, width: seriesLegendColumnWidth(id) },
     });
   }) as DataTableColumns<SeriesLegendRow>;
 }
@@ -155,6 +155,20 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
       onRowClick={onToggle ? (row) => onToggle(row.key) : undefined}
       stickyHeader={false}
     />
+  );
+}
+
+/**
+ * A legend header on two lines: the name, then its unit. Every header keeps
+ * the second line, blank without a unit, so the names share one baseline and
+ * the columns keep one width whatever the unit is.
+ */
+function LegendHeader({ title, unit }: { title: string; unit: string | null }) {
+  return (
+    <span className="grid leading-tight">
+      <span>{title}</span>
+      <span className="font-normal whitespace-normal text-muted-foreground [overflow-wrap:anywhere]">{unit ? `(${unit})` : "\u00a0"}</span>
+    </span>
   );
 }
 

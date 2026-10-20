@@ -22,6 +22,7 @@ import {
   nearestDrawnPoint,
   type SeriesSummary,
   seriesLegendColumns,
+  seriesLegendColumnWidth,
   seriesLegendRows,
   statsSummaryCells,
   summaryInFlight,
@@ -448,6 +449,29 @@ test("Series Legend", () => {
     seriesLegendColumns(null).map((column) => column.id),
     ["trace", "xCursor", "yCursor", "count", "min", "max", "mean", "median", "std", "rms"],
   );
+
+  // Headers Print The Name And The Unit On Two Lines, So A Long Unit Never Clips The Name
+  const ohms = seriesLegendColumns("M\u03a9");
+  assert.deepEqual(
+    ohms.map((column) => [column.title, column.unit]),
+    [
+      ["Trace", null],
+      ["X Cursor", null],
+      ["Y Cursor", "M\u03a9"],
+      ["Count", null],
+      ["Min", "M\u03a9"],
+      ["Max", "M\u03a9"],
+      ["Mean", "M\u03a9"],
+      ["Median", "M\u03a9"],
+      ["Std", "M\u03a9"],
+      ["Rms", "M\u03a9"],
+    ],
+  );
+  // Widths Depend On The Column Alone, So Every Table On A Page Lines Up Whatever Its Unit
+  const widths = (unit: string | null) => seriesLegendColumns(unit).map((column) => seriesLegendColumnWidth(column.id));
+  assert.deepEqual(widths("dBm"), widths(null));
+  assert.deepEqual(widths("M\u03a9"), widths("V"));
+  assert.deepEqual(widths(null).slice(1), ["w-52", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24"]);
 
   // Rows Follow Trace Order And Read Each Trace's Own Backend Summary
   const rows = seriesLegendRows({ hidden: new Set(), summaries: SUMMARIES, traces: TRACES });
