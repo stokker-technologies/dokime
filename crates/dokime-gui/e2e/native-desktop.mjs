@@ -445,6 +445,8 @@ async function startSession(work, endpoint, evidence) {
       return session.execute(
         `const element = arguments[0];
          if (element.disabled) throw new Error('Control is disabled');
+         const modal = [...document.querySelectorAll('[role=dialog][data-state=open], [role=alertdialog][data-state=open]')].at(-1);
+         if (modal && !modal.contains(element)) throw new Error('An open modal prevents this control from being clicked');
          element.scrollIntoView({block: 'center', inline: 'center'});
          element.focus();
          element.click();`,
@@ -1672,7 +1674,8 @@ async function cycleJourney(session, cycleId) {
     30000,
   );
   assert.equal(persistedPoints.value, "2500", "The backend must retain the plot budget after remounting");
-  await session.clickNamed("button", "Cancel");
+  const cancelPlotSettings = await session.find("xpath", "//*[@role='dialog' and @data-state='open']//button[normalize-space(.)='Cancel']");
+  await session.click(cancelPlotSettings);
 
   await runUntil(
     session,
@@ -1683,6 +1686,12 @@ async function cycleJourney(session, cycleId) {
     },
     300000,
   );
+  const rerunOutcome = await session.execute(
+    `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((row) => row.dataset.executionId === arguments[0])?.innerText ?? '';`,
+    [rerunId],
+  );
+  assert.match(rerunOutcome, /\bPassed\b/, "Closing plot settings must leave the prompting re-run able to pass");
   await session.execute(
     `
     const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')];

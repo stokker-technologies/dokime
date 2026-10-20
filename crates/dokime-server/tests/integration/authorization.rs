@@ -22,18 +22,26 @@ use super::*;
 use dokime_domain::model;
 
 /* === Constants === */
+const NATIVE_ONLY_METHODS: [&str; 6] = [
+    "/dokime.v1.Media/Screenshot",
+    "/dokime.v1.Media/Photo",
+    "/dokime.v1.Media/AudioRecording",
+    "/dokime.v1.Media/ScreenRecording",
+    "/dokime.v1.Media/CameraRecording",
+    "/dokime.v1.Files/FileWatch",
+];
+
 const STREAMING_CASES: &[Case] = &[
     Case {
         path: "/dokime.v1.Content/UploadArtifact",
         call: |stream, token| {
             Box::pin(async move {
-                WireClient::new(stream)
-                    .upload::<contracts::content::UploadArtifact>(credentialed(
-                        tokio_stream::iter(Vec::<model::content::wire::UploadArtifactFrame>::new()),
-                        token,
-                    ))
-                    .await
-                    .err()
+                let entries = Vec::<model::content::wire::UploadArtifactFrame>::new();
+                let frames = tokio_stream::iter(entries);
+                let request = credentialed(frames, token);
+                let client = WireClient::new(stream);
+                let response = client.upload::<contracts::content::UploadArtifact>(request).await;
+                response.err()
             })
         },
     },
@@ -41,13 +49,12 @@ const STREAMING_CASES: &[Case] = &[
         path: "/dokime.v1.Plugins/Stage",
         call: |stream, token| {
             Box::pin(async move {
-                WireClient::new(stream)
-                    .upload::<contracts::plugins::Stage>(credentialed(
-                        tokio_stream::iter(Vec::<model::plugins::wire::StagePluginFrame>::new()),
-                        token,
-                    ))
-                    .await
-                    .err()
+                let entries = Vec::<model::plugins::wire::StagePluginFrame>::new();
+                let frames = tokio_stream::iter(entries);
+                let request = credentialed(frames, token);
+                let client = WireClient::new(stream);
+                let response = client.upload::<contracts::plugins::Stage>(request).await;
+                response.err()
             })
         },
     },
@@ -199,6 +206,7 @@ matrix! {
         maximum_bytes: None,
     };
     "/dokime.v1.Health/ListHealth", unary, contracts::notes::ListHealth;
+    "/dokime.v1.History/BrowseCycles", unary, contracts::history::BrowseCycles;
     "/dokime.v1.History/BrowseExecutions", unary, contracts::history::BrowseExecutions;
     "/dokime.v1.History/DeleteExecution", unary, contracts::history::DeleteExecution;
     "/dokime.v1.History/DownloadCheckpointArtifact", download, contracts::history::DownloadCheckpointArtifact;
@@ -312,15 +320,40 @@ where
         .unwrap();
         let mut client = tonic::client::Grpc::new(channel);
         client.ready().await.unwrap();
-        client
-            .unary(
-                credentialed(harmos::operations::Response::new(O::default()), token),
-                tonic::codegen::http::uri::PathAndQuery::from_static(path),
-                codec,
-            )
-            .await
-            .err()
+        let declaration = O::default();
+        let envelope = harmos::operations::Response::new(declaration);
+        let request = credentialed(envelope, token);
+        let route = tonic::codegen::http::uri::PathAndQuery::from_static(path);
+        let response = client.unary(request, route, codec).await;
+        response.err()
     })
+}
+
+fn assert_case_admission(case: &Case, local_only: bool, refusal: Option<Status>) {
+    if local_only {
+        let refusal = refusal.unwrap_or_else(|| panic!("{} admitted a native-only call", case.path));
+        assert_eq!(refusal.code(), Code::PermissionDenied, "{}", case.path);
+        return;
+    }
+    let Some(refusal) = refusal else {
+        return;
+    };
+    assert_ne!(refusal.code(), Code::Unauthenticated, "{}", case.path);
+    assert_ne!(refusal.code(), Code::PermissionDenied, "{}", case.path);
+}
+
+async fn assert_key_refusals(channel: &Channel, authenticated: bool) {
+    if !authenticated {
+        return;
+    }
+    let missing_key_calls = cases().map(|case| (case, None));
+    let wrong_key = Some("wrong-key-012345678901234567890123456789");
+    let wrong_key_calls = cases().map(|case| (case, wrong_key));
+    for (case, rejected_key) in missing_key_calls.chain(wrong_key_calls) {
+        let result = (case.call)(channel.clone(), rejected_key).await;
+        let refusal = result.unwrap_or_else(|| panic!("{} admitted a call without its key", case.path));
+        assert_eq!(refusal.code(), Code::Unauthenticated, "{}", case.path);
+    }
 }
 
 #[test]
@@ -333,54 +366,43 @@ fn table_covers_serves() {
 
 #[tokio::test]
 async fn key_boundary_matrix() {
-    for authenticated in [true, false] {
-        let root = tempfile::tempdir().unwrap();
-        let mut owner = runtime(root.path()).await;
-        let token = authenticated.then_some(TOKEN);
-        let config = Config::remote("127.0.0.1:0".parse().unwrap(), None, token).unwrap();
-        let server = Server::start(owner.handle(), config).await.unwrap();
-        let channel = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
-        let methods: std::collections::BTreeMap<_, _> = dokime_server::grpc::methods().collect();
+    assert_remote_key_boundary(true).await;
+    assert_remote_key_boundary(false).await;
+}
 
-        // Every Method Requires Authentication Before Payload Decoding.
-        if authenticated {
-            for token in [None, Some("wrong-key-012345678901234567890123456789")] {
-                for case in cases() {
-                    let refusal = (case.call)(channel.clone(), token)
-                        .await
-                        .unwrap_or_else(|| panic!("{} admitted a call without its key", case.path));
-                    assert_eq!(refusal.code(), Code::Unauthenticated, "{}", case.path);
-                }
-            }
-        }
+async fn assert_remote_key_boundary(authenticated: bool) {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let token = authenticated.then_some(TOKEN);
+    let config = Config::remote("127.0.0.1:0".parse().unwrap(), None, token).unwrap();
+    let server = Server::start(owner.handle(), config).await.unwrap();
+    let channel = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
+    let methods: std::collections::BTreeMap<_, _> = dokime_server::grpc::methods().collect();
 
-        // One Valid Key Or Explicit Authentication-Off Grants All Remote Product Methods.
-        let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
-            .unary::<contracts::backend::GetAvailability>(credentialed(contracts::backend::GetAvailability {}, token))
-            .await
-            .unwrap()
-            .into_inner()
-            .methods
-            .into_iter()
-            .collect();
-        let expected: std::collections::BTreeSet<_> =
-            methods.iter().filter(|(_, local_only)| !**local_only).map(|(path, _)| (*path).to_owned()).collect();
-        assert_eq!(advertised, expected, "availability must exclude native-only and internal host providers");
+    // Every Method Requires Authentication Before Payload Decoding.
+    assert_key_refusals(&channel, authenticated).await;
 
-        for case in cases() {
-            let refusal = (case.call)(channel.clone(), token).await;
-            if methods[case.path] {
-                let refusal = refusal.unwrap_or_else(|| panic!("{} admitted a native-only call", case.path));
-                assert_eq!(refusal.code(), Code::PermissionDenied, "{}", case.path);
-            } else if let Some(refusal) = refusal {
-                assert_ne!(refusal.code(), Code::Unauthenticated, "{}", case.path);
-                assert_ne!(refusal.code(), Code::PermissionDenied, "{}", case.path);
-            }
-        }
+    // One Valid Key Or Explicit Authentication-Off Grants All Remote Product Methods.
+    let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
+        .unary::<contracts::backend::GetAvailability>(credentialed(contracts::backend::GetAvailability {}, token))
+        .await
+        .unwrap()
+        .into_inner()
+        .methods
+        .into_iter()
+        .collect();
+    let public_methods = methods.iter().filter(|(_, local_only)| !**local_only);
+    let public_paths = public_methods.map(|(path, _)| *path);
+    let expected: std::collections::BTreeSet<_> = public_paths.map(str::to_owned).collect();
+    assert_eq!(advertised, expected, "availability must exclude native-only and internal host providers");
 
-        server.shutdown().await.unwrap();
-        owner.shutdown().await.unwrap();
+    for case in cases() {
+        let refusal = (case.call)(channel.clone(), token).await;
+        assert_case_admission(case, methods[case.path], refusal);
     }
+
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
 }
 
 // TLS And A Valid Full-Control Key Do Not Confer Native Listener Trust.
@@ -392,32 +414,32 @@ async fn remote_refuses_local() {
     let key = generated.signing_key.serialize_pem().into_bytes();
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
-    let config =
-        Config::remote("127.0.0.1:0".parse().unwrap(), Some(TlsIdentity::from_pem(certificate.clone(), key)), Some(TOKEN)).unwrap();
+    let address = "127.0.0.1:0".parse().unwrap();
+    let identity = TlsIdentity::from_pem(certificate.clone(), key);
+    let config = Config::remote(address, Some(identity), Some(TOKEN)).unwrap();
     let server = Server::start(owner.handle(), config).await.unwrap();
-    let channel = Endpoint::from_shared(server.local_endpoint())
-        .unwrap()
-        .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&certificate)))
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
+    let uri = server.local_endpoint();
+    let endpoint = Endpoint::from_shared(uri).unwrap();
+    let trust = Certificate::from_pem(&certificate);
+    let tls = ClientTlsConfig::new().domain_name("localhost");
+    let tls = tls.ca_certificate(trust);
+    let endpoint = endpoint.tls_config(tls).unwrap();
+    let channel = endpoint.connect().await.unwrap();
 
     // Media Capture, File Watches And Host Paths Stay On The Loopback Listener
-    let local_only = [
-        "/dokime.v1.Media/Screenshot",
-        "/dokime.v1.Media/Photo",
-        "/dokime.v1.Media/AudioRecording",
-        "/dokime.v1.Media/ScreenRecording",
-        "/dokime.v1.Media/CameraRecording",
-        "/dokime.v1.Files/FileWatch",
-    ];
-    for case in cases().filter(|case| local_only.contains(&case.path)) {
+    let mut covered = 0;
+    let served = cases();
+    let native_cases = served.filter(|case| {
+        let path = case.path;
+        NATIVE_ONLY_METHODS.contains(&path)
+    });
+    for case in native_cases {
+        covered += 1;
         let refusal =
             (case.call)(channel.clone(), Some(TOKEN)).await.unwrap_or_else(|| panic!("{} admitted a native-only remote call", case.path));
         assert_eq!(refusal.code(), Code::PermissionDenied, "{}", case.path);
     }
-    assert_eq!(cases().filter(|case| local_only.contains(&case.path)).count(), local_only.len());
+    assert_eq!(covered, NATIVE_ONLY_METHODS.len());
 
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
