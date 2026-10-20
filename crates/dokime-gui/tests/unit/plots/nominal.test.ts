@@ -28,6 +28,7 @@ import {
   toggleTrace,
 } from "@/lib/statistics";
 import type { PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
+import { formatCursorX } from "@/plots/axis";
 import {
   HISTOGRAM_COUNT_LABEL,
   type HistogramColumn,
@@ -530,6 +531,26 @@ test("Series Legend", () => {
       ["", ""],
     ],
   );
+
+  // On A Time Axis The X Cursor Reads As The Local Date And Clock, To What One Pixel Resolves
+  const evening = new Date(2026, 9, 20, 22, 4, 12, 345).getTime() / 1000;
+  const timeAxis = { timeAxis: true, xFormat: null, xElapsedUnit: null, origin: {}, widthPx: 600 };
+  assert.equal(formatCursorX(evening, { ...timeAxis, span: 3_600 }), "10/20/26 10:04:12 PM");
+  assert.equal(formatCursorX(evening, { ...timeAxis, span: 15 }), "10/20/26 10:04:12.35 PM");
+  assert.equal(formatCursorX(evening, { ...timeAxis, span: 1 }), "10/20/26 10:04:12.345 PM");
+  assert.equal(formatCursorX(evening, { ...timeAxis, span: 120 }), "10/20/26 10:04:12.3 PM");
+  assert.equal(formatCursorX(new Date(2026, 9, 21, 0, 0, 5).getTime() / 1000, { ...timeAxis, span: 3_600 }), "10/21/26 12:00:05 AM");
+  // Elapsed And Numeric Axes Keep Their Own Readouts, Never A Date
+  assert.equal(formatCursorX(12.5, { ...timeAxis, xElapsedUnit: "s", span: 60 }), "12.5 s");
+  assert.equal(formatCursorX(3, { ...timeAxis, timeAxis: false, span: 6_000 }), "3");
+  const formatted = seriesLegendRows({
+    cursorPoints: [{ x: evening, y: 1 }, null],
+    formatX: (value) => formatCursorX(value, { ...timeAxis, span: 15 }),
+    hidden: new Set(),
+    summaries: SUMMARIES,
+    traces: TRACES,
+  });
+  assert.equal(formatted[0].xCursor, "10/20/26 10:04:12.35 PM");
 
   // The Table Dims Only While A Summary Request Is In Flight
   // A zoom or window change asks for new numbers: the old range's dim.

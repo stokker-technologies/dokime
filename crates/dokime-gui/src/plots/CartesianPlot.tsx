@@ -28,7 +28,7 @@ import type {
   ValueFormat,
 } from "@/lib/types";
 import { isNumber } from "@/lib/utils";
-import { formatElapsedTick, xValue } from "@/plots/axis";
+import { formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
@@ -113,6 +113,13 @@ type IntervalRange = {
   high: number;
 };
 
+/** Where the pointer sits on x, and what the visible window spans. */
+type PlotCursor = {
+  x: number;
+  span: number;
+  widthPx: number;
+};
+
 type ChartFrame = {
   data: uPlot.AlignedData;
   mode: PlotCartesianFrame["mode"];
@@ -168,7 +175,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const { zoom } = usePlotInteraction();
   const [hiddenTraces, setHiddenTraces] = useState<ReadonlySet<string>>(EMPTY_TRACES);
   const [traceColors, setTraceColors] = useState<string[]>([]);
-  const [cursorX, setCursorX] = useState<number | null>(null);
+  const [cursor, setCursor] = useState<PlotCursor | null>(null);
   const cursorFrameRef = useRef<number | null>(null);
   const hiddenTracesRef = useRef<ReadonlySet<string>>(hiddenTraces);
   hiddenTracesRef.current = hiddenTraces;
@@ -341,13 +348,17 @@ export const CartesianPlot = memo(function CartesianPlot({
           (plot) => {
             const left = plot.cursor.left;
             if (!tableLegend || left == null || left < 0) return;
-            const x = plot.posToVal(left, "x");
+            const next = {
+              x: plot.posToVal(left, "x"),
+              span: (plot.scales.x.max ?? 0) - (plot.scales.x.min ?? 0),
+              widthPx: plot.over.clientWidth,
+            };
             if (cursorFrameRef.current !== null) {
               window.cancelAnimationFrame(cursorFrameRef.current);
             }
             cursorFrameRef.current = window.requestAnimationFrame(() => {
               cursorFrameRef.current = null;
-              setCursorX(x);
+              setCursor(next);
             });
           },
         ],
@@ -575,9 +586,20 @@ export const CartesianPlot = memo(function CartesianPlot({
   const legendRows = useMemo(() => {
     if (!legend) return null;
     const frame = backendCartesian;
-    const cursorPoints = cursorX !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursorX)) : null;
+    const cursorPoints = cursor !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursor.x)) : null;
+    const firstPointSeconds = frame?.series[0]?.x[0];
+    const fallbackOrigin = Number.isFinite(firstPointSeconds) ? firstPointSeconds : null;
+    const axis = {
+      timeAxis,
+      xFormat,
+      xElapsedUnit,
+      origin: { runStart: runStartedAt ?? fallbackOrigin, cycleStart: cycleStartedAt ?? fallbackOrigin },
+      span: cursor?.span ?? 0,
+      widthPx: cursor?.widthPx ?? 0,
+    };
     return seriesLegendRows({
       cursorPoints,
+      formatX: (x) => formatCursorX(x, axis),
       hidden: hiddenTraces,
       summaries: legend.summaries,
       traces: renderedSeries.map((item, index) => ({
@@ -586,7 +608,21 @@ export const CartesianPlot = memo(function CartesianPlot({
         color: traceColors[index] ?? colors[series.indexOf(item)] ?? "currentColor",
       })),
     });
-  }, [backendCartesian, colors, cursorX, hiddenTraces, legend, renderedSeries, series, traceColors]);
+  }, [
+    backendCartesian,
+    colors,
+    cursor,
+    cycleStartedAt,
+    hiddenTraces,
+    legend,
+    renderedSeries,
+    runStartedAt,
+    series,
+    timeAxis,
+    traceColors,
+    xElapsedUnit,
+    xFormat,
+  ]);
   const legendColumns = useMemo(() => seriesLegendColumns(unit), [unit]);
 
   useEffect(() => {

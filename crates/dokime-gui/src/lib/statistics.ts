@@ -102,11 +102,14 @@ export function seriesLegendColumns(unit?: string | null): SeriesLegendColumn[] 
  */
 export function seriesLegendRows({
   cursorPoints,
+  formatX = formatSummaryValue,
   hidden,
   summaries,
   traces,
 }: {
   cursorPoints?: readonly ({ x: number; y: number } | null)[] | null;
+  /** Prints the x cursor as the plot's x axis does; a plain number otherwise. */
+  formatX?: (x: number) => string;
   hidden: ReadonlySet<string>;
   summaries: readonly SeriesSummary[];
   traces: readonly SeriesLegendTrace[];
@@ -121,7 +124,7 @@ export function seriesLegendRows({
     return {
       ...trace,
       hidden: hidden.has(trace.key),
-      xCursor: cursor ? formatSummaryValue(cursor.x) : "",
+      xCursor: cursor ? formatX(cursor.x) : "",
       yCursor: cursor ? formatSummaryValue(cursor.y) : "",
       cells,
     };

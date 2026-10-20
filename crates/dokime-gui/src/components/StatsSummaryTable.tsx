@@ -103,7 +103,8 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
       enableSorting: false,
       header,
       id,
-      meta: { align: "end", label: header, truncate: true, width: "w-24" },
+      // The x cursor holds a full date and clock to the millisecond.
+      meta: { align: "end", label: header, truncate: true, width: id === "xCursor" ? "w-52" : "w-24" },
     });
   }) as DataTableColumns<SeriesLegendRow>;
 }
