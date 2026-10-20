@@ -127,8 +127,6 @@ pub(crate) enum LeaseOutcome {
 /* === Implementations === */
 
 impl ExecutionState {
-    /// Whether samples arrived since a wait last reported them; reporting
-    /// them once keeps a waiter that does not consume them from spinning.
     pub(crate) fn announce_local_samples(&mut self) -> bool {
         let fresh = self.local_samples.len() > self.local_samples_announced;
         self.local_samples_announced = self.local_samples.len();

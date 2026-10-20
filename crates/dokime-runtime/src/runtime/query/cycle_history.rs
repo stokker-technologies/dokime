@@ -69,8 +69,6 @@ pub struct SavedCycleSummary {
 /* === Implementations === */
 
 impl RuntimeHandle {
-    /// Read a bounded page from one saved image without retaining the historical catalog.
-    /// The current typed storage interface repeats prefix scans on continuation.
     pub async fn browse_cycles(&self, query: CycleBrowseQuery) -> Result<CycleBrowsePage> {
         let saved = self.storage().cursor_saved();
         let missing_snapshot = query.after != 0 && query.at.is_none();

@@ -7,8 +7,6 @@
  * ***
  */
 
-//! SQLite Storage Backend And Snapshot Ownership.
-
 /* === Modules === */
 
 /* === Re-Exports === */

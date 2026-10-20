@@ -29,8 +29,6 @@ use super::*;
 
 /* === Structs === */
 
-/// Sealed cycle headers in ascending storage-position order, including empty cycles.
-/// Repeat the returned snapshot and continuation unchanged to traverse that image.
 #[harmos_domain::message]
 #[harmos_domain::operation(response = CycleBrowsePage, id = "dokime.history.browse_cycles", version = 1,
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,

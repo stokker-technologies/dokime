@@ -71,7 +71,6 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-/// One bounded page of saved sealed cycle headers, independent of execution discovery.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CycleBrowsePage {
