@@ -19,6 +19,17 @@ import type { JsonObject, PromptField, PromptRequest } from "./types";
 export type PromptValue = string | boolean | string[];
 export type PromptValues = Record<string, PromptValue>;
 
+/** A prompt whose answer is one yes-or-no decision, submitted by one action. */
+export type PromptDecision = {
+  /** The one boolean field, answered by the Yes and No buttons. */
+  field: PromptField;
+  /** The action Yes and No submit with. */
+  action: string;
+};
+
+/** The actions that withdraw rather than answer. */
+const WITHDRAWING_ACTIONS: ReadonlySet<string> = new Set(["cancel", "abort"]);
+
 /* === Public Functions === */
 
 export function promptFieldDefault(field: PromptField): PromptValue {
@@ -126,4 +137,22 @@ export function promptFieldError(field: PromptField, value: PromptValue | undefi
     }
   }
   return null;
+}
+
+/**
+ * The prompt's decision, when it is one: exactly one editable boolean field
+ * and exactly one answering action. Such a prompt is answered with No and Yes
+ * buttons, not a checkbox and Submit; several booleans, or none, keep their
+ * field controls and the prompt's own actions.
+ */
+export function promptDecision(prompt: Pick<PromptRequest, "actions" | "fields">): PromptDecision | null {
+  const booleans = prompt.fields.filter((field) => field.kind === "boolean" && !field.multiple);
+  const answering = prompt.actions.filter((action) => !WITHDRAWING_ACTIONS.has(action.id));
+  if (booleans.length !== 1 || booleans[0].readonly || answering.length !== 1) return null;
+  return { action: answering[0].id, field: booleans[0] };
+}
+
+/** Whether the action withdraws the prompt rather than answering it. */
+export function isWithdrawingAction(action: string): boolean {
+  return WITHDRAWING_ACTIONS.has(action);
 }

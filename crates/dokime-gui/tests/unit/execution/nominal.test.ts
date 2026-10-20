@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
+import { PromptPanel } from "@/components/PromptPanel";
 import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
 // Local Imports
 import {
@@ -48,7 +49,8 @@ import {
 import { durationText } from "@/features/cycle/use-elapsed";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";
 import { durationParts, formatDuration } from "@/lib/format";
-import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptRequest } from "@/lib/types";
+import { promptDecision } from "@/lib/prompts";
+import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptField, PromptRequest } from "@/lib/types";
 
 /* === Re-Exports === */
 
@@ -389,6 +391,68 @@ test("Prompt Queue", () => {
     { answer: "Confirm", at: "2026-10-13T08:03:00Z", promptId: "p2", question: "Confirm Wiring" },
     { answer: "Expired", at: "2026-10-13T08:05:00Z", promptId: "p3", question: "Too Late" },
   ]);
+});
+
+test("Prompt Decisions", () => {
+  const field = (name: string, kind: PromptField["kind"], patch: Partial<PromptField> = {}) =>
+    ({ kind, label: name, name, ...patch }) as PromptField;
+  const action = (id: string, emphasis = "primary") => ({ emphasis, id, label: id }) as PromptRequest["actions"][number];
+  const ask = (fields: PromptField[], actions = [action("cancel", "secondary"), action("submit")]) =>
+    ({
+      actions,
+      correlation_id: "p",
+      created_at: "2026-10-13T08:00:00Z",
+      fields,
+      kind: "form",
+      level: "info",
+      title: "Inspect The Charger",
+    }) as unknown as PromptRequest;
+
+  // Exactly One Boolean And One Answering Action Make The Prompt A Decision
+  const inspection = ask([field("passed", "boolean", { label: "Charger Inspection Passed" }), field("note", "text", { required: true })]);
+  assert.deepEqual(promptDecision(inspection), { action: "submit", field: inspection.fields[0] });
+  assert.equal(promptDecision(ask([field("a", "boolean"), field("b", "boolean")])), null);
+  assert.equal(promptDecision(ask([field("note", "text")])), null);
+  assert.equal(promptDecision(ask([field("a", "boolean")], [action("retry"), action("submit")])), null);
+
+  // A Decision Answers With No And Yes, Not A Checkbox, Cancel At The Far Left
+  const html = renderToStaticMarkup(
+    createElement(PromptPanel, { onAction: () => undefined, onValueChange: () => undefined, prompt: inspection, values: {} }),
+  );
+  assert.doesNotMatch(html, /role="checkbox"/);
+  assert.ok(html.indexOf(">cancel<") < html.indexOf(">No<") && html.indexOf(">No<") < html.indexOf(">Yes<"));
+
+  // An Untouched Field States No Error Before A Submit Attempt
+  assert.doesNotMatch(html, /Enter a value/);
+
+  // Several Booleans Keep Their Controls And Submit
+  const several = renderToStaticMarkup(
+    createElement(PromptPanel, {
+      onAction: () => undefined,
+      onValueChange: () => undefined,
+      prompt: ask([field("a", "boolean"), field("b", "boolean")]),
+      values: {},
+    }),
+  );
+  assert.match(several, /role="checkbox"/);
+  assert.match(several, />submit</);
+
+  // The Answered Row States A Decision As Yes Or No
+  assert.equal(
+    answeredPrompts([
+      {
+        details: { fields: [{ label: "Charger Inspection Passed", name: "passed" }], prompt_id: "d", title: "Inspect" },
+        record_type: "prompt.request.form",
+        timestamp: "2026-10-13T08:00:00Z",
+      },
+      {
+        details: { action: "submit", prompt_id: "d", values: { passed: false } },
+        record_type: "prompt.response.submitted",
+        timestamp: "2026-10-13T08:01:00Z",
+      },
+    ])[0].answer,
+    "Charger Inspection Passed: No",
+  );
 });
 
 test("Prompt Answering", () => {

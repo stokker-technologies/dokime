@@ -36,7 +36,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { stepRecordLabel } from "@/components/document/StepRecordsCard";
 import { PromptPanel } from "@/components/PromptPanel";
 import { Badge } from "@/components/ui/badge";
-import { type PromptValue, promptResponseValues } from "@/lib/prompts";
+import { type PromptValue, type PromptValues, promptResponseValues } from "@/lib/prompts";
 import { recordLevelLabel, recordLevelVariant } from "@/lib/record-display";
 import { absoluteTimestampLabel } from "@/lib/time-format";
 import type { HubRecord, PromptField, PromptRequest, StepExecutionRecord } from "@/lib/types";
@@ -152,11 +152,11 @@ function OpenPrompt({ prompt }: { prompt: PromptRequest }) {
   const responseMutation = usePromptResponseMutation();
   const [values, setValues] = usePromptValues(prompt);
 
-  const submit = (action: string) =>
+  const submit = (action: string, overrides?: PromptValues) =>
     responseMutation.mutate({
       action,
       correlationId: prompt.correlation_id,
-      values: promptResponseValues(prompt, values),
+      values: promptResponseValues(prompt, overrides ?? values),
     });
   const changeValue = (field: PromptField, value: PromptValue) => setValues((current) => ({ ...current, [field.name]: value }));
 
