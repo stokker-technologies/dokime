@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/logos/transparent-on-dark.svg">
+    <img src="branding/logos/transparent-on-light.svg" alt="Dokime logo" width="160">
+  </picture>
+</p>
+
 # Dokime
 
 **Run repeatable engineering tests. Keep the evidence.**
