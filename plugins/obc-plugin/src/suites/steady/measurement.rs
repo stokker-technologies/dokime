@@ -277,7 +277,11 @@ impl Steady {
         // sampler's own counter rather than awaited by type: `InputMeasurement` is one
         // shape serving four of this plugin's streams, so it names no home and
         // a subscription by type would not know which stream was meant.
-        while ctx.resources().produced.load(Ordering::Acquire) < wanted {
+        // Counted from this step's start: the observer also samples during
+        // initialization and between steps, and those rows carry no step
+        // attempt, so the criterion never sees them.
+        let started = ctx.resources().produced.load(Ordering::Acquire);
+        while ctx.resources().produced.load(Ordering::Acquire).saturating_sub(started) < wanted {
             tokio::time::sleep(STEADY_SAMPLE_POLL).await;
         }
         events.push(BenchEvent { event: "hold_reached".into(), elapsed_s: wanted as f64 * interval_s, voltage_rms_v: nominal(ctx)? }).await;
@@ -326,8 +330,11 @@ impl Steady {
 
     #[dokime_runtime::observer(interval_ms = 50, streams = ObserverStreams)]
     async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
-        let row = reading(ctx.resources())?;
+        // Count A Row Only Once Published, So The Stream Step Never Ends Ahead Of It.
+        let index = ctx.resources().produced.load(Ordering::Acquire);
+        let row = reading(ctx.resources(), index)?;
         ctx.stream::<InputMeasurement>().into::<Samples>().push(row).await;
+        ctx.resources().produced.store(index + 1, Ordering::Release);
 
         Ok(())
     }
@@ -337,8 +344,7 @@ impl Steady {
 
 /* === Private Functions === */
 
-fn reading(resources: &SteadyResources) -> Result<InputMeasurement, Error> {
-    let index = resources.produced.fetch_add(1, Ordering::AcqRel);
+fn reading(resources: &SteadyResources, index: u64) -> Result<InputMeasurement, Error> {
     let elapsed_s = 0.1 + index as f64 * resources.interval_s;
     let measured = resources.device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.sample(elapsed_s);
 

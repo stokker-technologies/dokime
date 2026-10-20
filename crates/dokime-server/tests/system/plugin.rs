@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+mod diagnosis;
 
 /* === Re-Exports === */
 
@@ -405,7 +406,10 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         .unwrap();
 
     let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
-    assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
+    if cycle.status != model::execution::wire::CycleStatus::Completed {
+        let diagnosis = diagnosis::execution(client, &execution_id, STEADY_STREAM_LOG).await;
+        assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed, "{diagnosis}");
+    }
     let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
     execution.cycle(id).seal().await.unwrap();
     let summary = execution
@@ -1022,7 +1026,10 @@ async fn plugin_host_walkthrough() {
         .unwrap();
 
     let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
-    assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
+    if cycle.status != model::execution::wire::CycleStatus::Completed {
+        let diagnosis = diagnosis::execution(&client, &execution_id, STARTUP_STREAM_LOG).await;
+        assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed, "{diagnosis}");
+    }
     let telemetry = client.clone();
     let telemetry = telemetry
         .telemetry_list_samples(contracts::telemetry::ListSamples {
