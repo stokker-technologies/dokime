@@ -1308,6 +1308,41 @@ async fn template_parameter_units() {
     assert_eq!(payload["test_cycle_plan"]["cases"][0]["parameters"]["ac_voltage_v"], 230.0);
 }
 
+// Criteria order by their step first, as the live execution numbers them.
+#[tokio::test]
+async fn criterion_step_order() {
+    use dokime_domain::model::execution::result::{CriterionResult, CriterionStatus, StepRecord, StepStatus};
+    let mut input = fixture_input("Criterion Order");
+    let step = |identifier: &str| StepRecord {
+        step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
+        metadata: metadata(identifier, identifier),
+        status: StepStatus::Passed,
+        started_at: None,
+        finished_at: None,
+        measurements: Vec::new(),
+        criteria: vec![CriterionResult {
+            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
+            metadata: metadata(&format!("{identifier}.criterion"), "Criterion"),
+            status: CriterionStatus::Passed,
+            observed: None,
+            message: None,
+        }],
+        detail: None,
+    };
+    input.cycle.test_executions[0].steps = vec![step("first"), step("second")];
+
+    let payload = parse(&render(&input).await);
+    let rows = payload["test_executions"][0]["steps"].as_array().unwrap();
+    let orders = |kind: &str| {
+        rows.iter()
+            .filter(|row| row["record_type"] == kind)
+            .map(|row| (row["method_name"].clone(), row["order"].clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(orders("step"), [("first".into(), 0.into()), ("second".into(), 1.into())]);
+    assert_eq!(orders("criterion"), [("first.criterion".into(), 0.into()), ("second.criterion".into(), 100.into())]);
+}
+
 #[tokio::test]
 async fn telemetry_index_endpoints() {
     use dokime_runtime::telemetry::TelemetrySample;

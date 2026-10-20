@@ -341,7 +341,9 @@ impl Serialize for Steps<'_, '_> {
         let mut rows = serializer.serialize_seq(None)?;
         for (order, step) in member.steps.iter().enumerate() {
             rows.serialize_element(&step_with_owner(report.header, owner(), step, order, None))?;
-            for (order, criterion) in step.criteria.iter().enumerate() {
+            // Criteria Order Within Their Step, As The Live Execution Numbers Them.
+            for (position, criterion) in step.criteria.iter().enumerate() {
+                let order = order.saturating_mul(100).saturating_add(position);
                 rows.serialize_element(&step_with_owner(report.header, owner(), step, order, Some(criterion)))?;
             }
         }
