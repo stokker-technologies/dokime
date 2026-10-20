@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:580c317a7ce128641ec34ecfc52b904287dfd20510669dad5c85c6fb9cf1c39c
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:4bb98cd4efffb0213d2ee64e305606d74ed7bc4a7adf6df4989f761178d4acdb
 # ***
 #
 # Dokime
@@ -23,11 +23,10 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
-from . import policy
-from ..build import paths
 from .. import temporary
+from ..build import paths
+from . import policy
 
 # Type Checking Imports
 

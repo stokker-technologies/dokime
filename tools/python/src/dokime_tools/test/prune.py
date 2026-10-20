@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/prune.py; sha256:7e666e7a6b9038b73eb5c62053d5d23b39c8e833745804eb494d6a4c5bfd9c30
+# Rendered by stkr project update from templates/python/test/prune.py; sha256:3bc838478d445294c4cbfb04fd6610fd717ac53a5a6c7045233f7a853316fd01
 # ***
 #
 # Dokime
@@ -20,7 +20,6 @@ import time
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from . import policy
 

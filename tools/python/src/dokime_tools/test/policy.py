@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/policy.py; sha256:a79ed478238729fab8d057b5cc689297cb937611ea661a189eace08e5e7f682f
+# Rendered by stkr project update from templates/python/test/policy.py; sha256:3c7abbc944e11dd1c94e3f4ce72a4f1b861789c12a7e9c24735f4233baf01204
 # ***
 #
 # Dokime
@@ -248,9 +248,8 @@ def lanes(directory: Path) -> list[tuple[str, str]]:
     expected = []
     for name in tasks:
         parts = name.split(":")
-        if len(parts) == 3 and parts[0] == "test":
-            if parts[1] in CATEGORIES and parts[2] in LANGUAGES:
-                expected.append((parts[1], parts[2]))
+        if len(parts) == 3 and parts[0] == "test" and parts[1] in CATEGORIES and parts[2] in LANGUAGES:
+            expected.append((parts[1], parts[2]))
     return sorted(expected, key=lambda lane: (CATEGORIES.index(lane[0]), lane[1]))
 
 

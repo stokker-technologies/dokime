@@ -26,7 +26,6 @@ uv = "0.13.0"
 # Rust Toolchain
 "aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
 "aqua:taiki-e/cargo-llvm-cov" = "0.9.1"
-"aqua:cargo-bins/cargo-binstall" = "1.26.0"
 sccache = "0.18.0"
 
 # Formatting And Linting
@@ -142,17 +141,31 @@ run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 [tasks.check]
 description = "Check Every Language And Conventions"
-depends = ["check:rust"]
+run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:python" }, { task = "check:typescript" }]
+
+[tasks."check:python"]
+description = "Check Python"
+run = [{ task = "format:python --check" }, { task = "lint:python" }]
+
+[tasks."check:repository"]
+description = "Check Repository Configuration And Conventions"
+run = [{ task = "format:toml --check" }, "actionlint"]
 
 [tasks."check:rust"]
 description = "Check Rust"
 # The runtime embeds the report viewer, so every feature proof needs it first.
 depends = ["prepare:report"]
 run = [
+  { task = "format:rust --check" },
+  { task = "lint:rust" },
   "cargo check --locked --workspace --all-targets --all-features",
   "cargo check --locked --workspace --lib --bins --no-default-features",
   "cargo check --locked -p dokime-domain --target wasm32-unknown-unknown",
 ]
+
+[tasks."check:typescript"]
+description = "Check TypeScript"
+run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 
 # === Build === #
 
@@ -363,6 +376,7 @@ description = "Test Unit Python"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language python --project packages/dokime-client"
+env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:unit:rust"]
 description = "Test Unit Rust"
@@ -439,6 +453,7 @@ run = [
   { task = "test" },
   { task = "package" },
   { task = "release:publish:dry" },
+  { task = "release:rehearse:candidate" },
 ]
 
 [tasks."ci:nightly"]
@@ -457,20 +472,24 @@ run = "{{vars.tools}} dokime_tools.release.run prepare"
 
 [tasks."release:publish"]
 description = "Publish A Tagged Release"
-run = [{ task = "release:publish:rust" }, { task = "release:publish:python" }, { task = "release:publish:assets" }]
+run = [
+  { task = "release:publish:assets" },
+  { task = "release:publish:rust" },
+  { task = "release:publish:python" },
+  { task = "release:publish:finalize" },
+]
 
 [tasks."release:publish:assets"]
-description = "Publish Signed Release Assets"
-run = [
-  "{{vars.tools}} dokime_tools.release.run stage",
-  "{{vars.tools}} dokime_tools.release.run validate",
-  "{{vars.tools}} dokime_tools.release.run publish",
-  "{{vars.tools}} dokime_tools.release.run finalize",
-]
+description = "Draft The Release With Its Signed Assets"
+run = "uv run --locked --project tools/python python -m dokime_tools.release.run publish"
 
 [tasks."release:publish:dry"]
 description = "Dry-Run Every Publication"
 run = "{{vars.tools}} dokime_tools.test.publish --rust --python packages/dokime-client"
+
+[tasks."release:publish:finalize"]
+description = "Publish The Drafted Release"
+run = "uv run --locked --project tools/python python -m dokime_tools.release.run finalize"
 
 [tasks."release:publish:python"]
 description = "Publish The Python Client"
@@ -478,7 +497,19 @@ run = "uv publish --trusted-publishing always target/package/release/any/python/
 
 [tasks."release:publish:rust"]
 description = "Publish Rust Crates"
-run = "cargo publish --locked --workspace"
+run = "uv run --locked --project tools/python python -m dokime_tools.release.run crates"
+
+[tasks."release:rehearse"]
+description = "Rehearse The Publication Chain On A Disposable Draft"
+run = "uv run --locked --project tools/python python -m dokime_tools.release.run rehearse"
+
+[tasks."release:rehearse:candidate"]
+description = "Rehearse Candidate Publication"
+run = "uv run --locked --project tools/python python -m dokime_tools.release.run rehearse-candidate"
+
+[tasks."release:stage"]
+description = "Stage Native Release Assets"
+run = "uv run --locked --project tools/python python -m dokime_tools.release.run stage"
 
 [tasks."release:verify"]
 description = "Verify Published Assets And Their Opted-In Installers"

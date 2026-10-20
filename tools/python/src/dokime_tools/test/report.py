@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/report.py; sha256:3515e2d38319b34626ff03bd3e91a2d34c1ba8b54a0c4ade21a8ee2a80d2c7c1
+# Rendered by stkr project update from templates/python/test/report.py; sha256:3cfd33f6b4417fcff4ac069bdf3fea5e2e73676601a8444abad39b4ba7cf15e2
 # ***
 #
 # Dokime
@@ -24,10 +24,9 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 # Third Party Imports
-
 # Local Imports
-from . import policy
 from ..build import paths
+from . import policy
 
 # Type Checking Imports
 

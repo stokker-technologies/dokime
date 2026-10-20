@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/pytest.py; sha256:7b0bea1328a5429454c3c40a78ebc33c852756da8ac01737791eb4a5818e5198
+# Rendered by stkr project update from templates/python/test/pytest.py; sha256:fe038900c53269c08c101e216ce5374a534263b62f4dccedcbb86978ac8dcfa5
 # ***
 #
 # Dokime
@@ -23,7 +23,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from . import policy
 

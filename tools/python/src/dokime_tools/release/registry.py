@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/registry.py; sha256:f12889fddd40972da5074ca1a4805820aa4cee61b11f59186535a709c6c86276
+# Rendered by stkr project update from templates/python/release/registry.py; sha256:ff66fc023bd84c33f79b930e0c5b4d1067e3bbf3f96c3318ab628c1c6c7c1f98
 # ***
 #
 # Dokime
@@ -12,12 +12,15 @@
 # === Imports === #
 
 # Standard Library Imports
+import email.utils
 import hashlib
 import io
 import json
 import os
 import re
+import subprocess
 import tarfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -28,15 +31,22 @@ from typing import Any
 # Third Party Imports
 # Local Imports
 # isort: split
-from . import policy
 from .. import temporary
 from ..package import run as packages
+from . import policy
 
 # Type Checking Imports
 
 # === Public Exports === #
 
 # === Constants === #
+
+# crates.io admits a short burst of new crates, then one per ten minutes.
+CRATES_INDEX = "https://index.crates.io"
+RATE_INTERVAL = 600
+RATE_BUDGET = 5400
+REHEARSAL = "rehearsal-"
+GITLAB_REHEARSAL = "rehearsal not rendered for GitLab: it has no draft releases, and release creation tags and package files persist"
 
 # === Types === #
 
@@ -60,6 +70,67 @@ class ProviderRedirect(urllib.request.HTTPRedirectHandler):
 
 
 # === Public Functions === #
+
+
+def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -> None:
+    """Publish Workspace Crates One At A Time In Dependency Order, Resuming Past Published Versions."""
+    packages = _publishable(directory)
+    deadline = clock() + RATE_BUDGET
+    for name in _publication_order(packages):
+        version = packages[name]["version"]
+        if _crate_published(name, version):
+            print(f"{name} {version}: already published")
+            continue
+        while True:
+            result = subprocess.run(
+                ["cargo", "publish", "--locked", "--package", name],
+                cwd=directory,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+            output = (result.stdout or "") + (result.stderr or "")
+            if result.returncode == 0:
+                print(f"{name} {version}: published")
+                break
+            if "already exists" in output:
+                print(f"{name} {version}: already published")
+                break
+            if "429" not in output and "Too Many Requests" not in output:
+                raise policy.ToolError(f"cargo publish {name} failed with exit code {result.returncode}: {output}")
+            wait = _retry_after(output)
+            if clock() + wait > deadline:
+                raise policy.ToolError(f"{name} {version}: crates.io rate limit outlasted the publication budget")
+            print(f"{name} {version}: rate limited; retrying in {wait}s")
+            sleep(wait)
+
+
+def rehearse_crates(directory: Path) -> None:
+    """Dry-Run The Unpublished Crates Together, In Publication Order, As The Real Leaf Would Publish Them."""
+    packages = _publishable(directory)
+    pending = []
+    for name in _publication_order(packages):
+        version = packages[name]["version"]
+        if _crate_published(name, version):
+            print(f"{name} {version}: already published; the real leaf skips it")
+        else:
+            pending.append(name)
+    if not pending:
+        return
+    # Each crate alone cannot resolve an unpublished sibling at the candidate version; one invocation stages them.
+    command = ["cargo", "publish", "--dry-run", "--locked"]
+    for name in pending:
+        command.extend(["--package", name])
+    policy.execute(directory, command)
+
+
+def rehearse_python(directory: Path) -> None:
+    """Validate The Release Python Packages The Real Leaf Uploads, Without Credentials Or Upload."""
+    selected = sorted(str(path.relative_to(directory)) for path in directory.glob("target/package/release/*/python/*") if path.is_file())
+    if not selected:
+        raise policy.ToolError("release:publish:python has no release Python packages to rehearse")
+    policy.execute(directory, ["uv", "publish", "--dry-run", "--trusted-publishing", "never", *selected])
 
 
 def request(
@@ -137,8 +208,16 @@ def request(
             url = f"{base}/projects/{urllib.parse.quote(str(project), safe='')}/{endpoint}"
     else:
         raise policy.ToolError("release.provider must be github or gitlab")
-    headers["Accept"] = "application/octet-stream" if binary else "application/json"
-    headers["Content-Type"] = "application/octet-stream" if binary else "application/json"
+    if provider == "github":
+        # Release assets return their bytes only for octet-stream; every other REST call, artifact archives
+        # included, accepts only the REST media type and answers 415 otherwise.
+        headers["Accept"] = (
+            "application/octet-stream" if binary and endpoint.startswith("releases/assets/") else "application/vnd.github+json"
+        )
+    else:
+        headers["Accept"] = "application/octet-stream" if binary else "application/json"
+    if data is not None:
+        headers["Content-Type"] = "application/octet-stream" if binary else "application/json"
     native = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.build_opener(ProviderRedirect()).open(native, timeout=60) as response:
@@ -386,6 +465,24 @@ def require_tag(directory: Path, settings: dict) -> None:
         raise policy.ToolError("release tag SHA differs from checkout")
 
 
+def require_candidate(directory: Path, settings: dict) -> None:
+    """The Protected Release Tag, Or Its release/<tag> Candidate Branch Before Any Tag Exists."""
+    tag = settings["tag"]
+    if settings["provider"] == "github":
+        ref = os.environ.get("GITHUB_REF")
+        branch = os.environ.get("GITHUB_EVENT_NAME") in {"push", "workflow_dispatch"} and ref == "refs/heads/release/" + tag
+        sha = os.environ.get("GITHUB_SHA")
+    else:
+        branch = os.environ.get("CI_PIPELINE_SOURCE") in {"push", "web"} and os.environ.get("CI_COMMIT_BRANCH") == "release/" + tag
+        sha = os.environ.get("CI_COMMIT_SHA")
+    if not branch:
+        require_tag(directory, settings)
+        return
+    actual = policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
+    if actual != sha:
+        raise policy.ToolError("candidate SHA differs from checkout")
+
+
 def check_route(directory: Path, settings: dict) -> None:
     if settings["provider"] == "github":
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
@@ -573,18 +670,7 @@ def publish(directory: Path, settings: dict, root: Path, manifest: dict) -> None
         if hashlib.sha256(data).hexdigest() != item["sha256"]:
             raise policy.ToolError("local release bytes changed during publication")
         if settings["provider"] == "github":
-            matches = [value for value in available if value["name"] == item["name"]]
-            if len(matches) > 1:
-                raise policy.ToolError("duplicate draft asset")
-            if matches:
-                endpoint = f"releases/assets/{matches[0]['id']}"
-                verify_download(settings, endpoint, item)
-            else:
-                endpoint = f"releases/{state['release_id']}/assets?name={urllib.parse.quote(item['name'], safe='')}"
-                uploaded = request(settings, endpoint, "POST", data, binary=True, upload=True)
-                value = json.loads(uploaded or b"{}")
-                endpoint = f"releases/assets/{value['id']}"
-                verify_download(settings, endpoint, item)
+            endpoint = _github_upload(settings, state["release_id"], available, item, data)
             link = {"name": item["name"], "url": endpoint}
         else:
             package = urllib.parse.quote(settings.get("package", manifest["product"]), safe="")
@@ -607,6 +693,100 @@ def publish(directory: Path, settings: dict, root: Path, manifest: dict) -> None
             "link": link,
         }
         policy.write_json(root / "published.json", state)
+
+
+def rehearsal_name(sha: str) -> str:
+    return REHEARSAL + sha[:12]
+
+
+def discard(settings: dict, name: str) -> int:
+    """Delete Every Draft Carrying The Rehearsal Name And Prove No Tag Object Exists For It."""
+    if not name.startswith(REHEARSAL):
+        raise policy.ToolError("discard deletes rehearsal drafts only")
+    removed = 0
+    for item in pages(settings, "releases"):
+        if item.get("tag_name") != name:
+            continue
+        if not item.get("draft"):
+            raise policy.ToolError(f"a published release carries the rehearsal name {name}; inspect it manually")
+        # A deletion answers 204 without a body.
+        request(settings, f"releases/{item['id']}", "DELETE")
+        if document(settings, f"releases/{item['id']}") is not None:
+            raise policy.ToolError(f"rehearsal draft {item['id']} survived deletion")
+        removed += 1
+    if document(settings, "git/ref/tags/" + urllib.parse.quote(name, safe="")) is not None:
+        raise policy.ToolError(f"a tag object named {name} exists; a rehearsal never creates tags")
+    return removed
+
+
+def rehearse(
+    directory: Path,
+    settings: dict,
+    root: Path,
+    manifest: dict,
+    leaves: list[str],
+    *,
+    signed: bool,
+    crates=rehearse_crates,
+    python=rehearse_python,
+) -> None:
+    """Drive The Publication Chain Against A Disposable Draft Pre-Release, Then Delete It."""
+    if settings["provider"] != "github":
+        raise policy.ToolError(GITLAB_REHEARSAL)
+    name = rehearsal_name(manifest["sha"])
+    if discard(settings, name):
+        print(f"{name}: deleted a stale rehearsal draft")
+    remote = document(
+        settings,
+        "releases",
+        "POST",
+        {
+            "tag_name": name,
+            "target_commitish": manifest["sha"],
+            "name": f"Rehearsal {manifest['tag']} ({name})",
+            "body": policy.inside(directory, settings["notes"]).read_text(),
+            "draft": True,
+            "prerelease": True,
+        },
+    )
+    try:
+        if not isinstance(remote, dict) or not remote.get("draft") or remote.get("tag_name") != name:
+            raise policy.ToolError("rehearsal draft was not created as a draft")
+        selected = files(root, manifest)
+        endpoints = {}
+        for leaf in leaves:
+            if leaf == "release:publish:assets":
+                for item in selected:
+                    data = policy.inside(root, item["path"]).read_bytes()
+                    if hashlib.sha256(data).hexdigest() != item["sha256"]:
+                        raise policy.ToolError("local release bytes changed during rehearsal")
+                    endpoints[item["name"]] = _github_upload(settings, remote["id"], [], item, data)
+            elif leaf == "release:publish:rust":
+                crates(directory)
+            elif leaf == "release:publish:python":
+                python(directory)
+            elif leaf == "release:publish:finalize":
+                if set(endpoints) != {item["name"] for item in selected}:
+                    raise policy.ToolError("rehearsal finalize requires every uploaded asset")
+                current = document(settings, f"releases/{remote['id']}")
+                if not isinstance(current, dict) or not current.get("draft") or current.get("tag_name") != name:
+                    raise policy.ToolError("rehearsal release is no longer a draft")
+                listed = {item["name"] for item in pages(settings, f"releases/{remote['id']}/assets")}
+                if listed != set(endpoints):
+                    raise policy.ToolError("rehearsal draft assets differ from the manifest")
+                for item in selected:
+                    verify_download(settings, endpoints[item["name"]], item)
+                if signed:
+                    verify_signatures(directory, settings, root, selected)
+                elif settings.get("signature_checks"):
+                    print("note: candidate packages are unsigned; signature checks run on the stable tag only")
+                if document(settings, "git/ref/tags/" + urllib.parse.quote(name, safe="")) is not None:
+                    raise policy.ToolError("a rehearsal must not create a tag object")
+            else:
+                print(f"note: {leaf} is project-authored and not rehearsed")
+    finally:
+        discard(settings, name)
+    print(f"{name}: rehearsal passed and its draft was deleted")
 
 
 def finalize(directory: Path, settings: dict, root: Path, manifest: dict) -> None:
@@ -748,5 +928,87 @@ def gitlab_merged_revision(proposal: dict) -> str | None:
 
 
 # === Private Functions === #
+
+
+def _publishable(directory: Path) -> dict:
+    """Publishable Workspace Members By Name."""
+    metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"], capture=True))
+    members = set(metadata["workspace_members"])
+    return {package["name"]: package for package in metadata["packages"] if package["id"] in members and package.get("publish") != []}
+
+
+def _github_upload(settings: dict, release: int, available: list, item: dict, data: bytes) -> str:
+    """Upload One Asset To A Draft Unless Present, Then Verify Its Remote Bytes."""
+    matches = [value for value in available if value["name"] == item["name"]]
+    if len(matches) > 1:
+        raise policy.ToolError("duplicate draft asset")
+    if matches:
+        endpoint = f"releases/assets/{matches[0]['id']}"
+    else:
+        uploaded = request(
+            settings, f"releases/{release}/assets?name={urllib.parse.quote(item['name'], safe='')}", "POST", data, binary=True, upload=True
+        )
+        endpoint = f"releases/assets/{json.loads(uploaded or b'{}')['id']}"
+    verify_download(settings, endpoint, item)
+    return endpoint
+
+
+def _publication_order(packages: dict) -> list[str]:
+    """Publishable Crates After Every Publishable Crate They Depend On, Ties By Name."""
+    requires = {
+        name: sorted(
+            {
+                dependency["name"]
+                for dependency in package["dependencies"]
+                if dependency.get("kind") != "dev" and dependency["name"] in packages and dependency["name"] != name
+            }
+        )
+        for name, package in packages.items()
+    }
+    order = []
+    visiting = set()
+
+    def visit(name: str) -> None:
+        if name in order:
+            return
+        if name in visiting:
+            raise policy.ToolError(f"publishable crates form a dependency cycle at {name}")
+        visiting.add(name)
+        for dependency in requires[name]:
+            visit(dependency)
+        visiting.discard(name)
+        order.append(name)
+
+    for name in sorted(packages):
+        visit(name)
+    return order
+
+
+def _crate_published(name: str, version: str) -> bool:
+    """Whether The Sparse Index Already Lists This Exact Crate Version."""
+    lower = name.lower()
+    prefix = {1: "1", 2: "2", 3: "3/" + lower[0]}.get(len(lower), f"{lower[0:2]}/{lower[2:4]}")
+    try:
+        with urllib.request.urlopen(f"{CRATES_INDEX}/{prefix}/{lower}", timeout=60) as response:
+            lines = response.read().decode("utf-8").splitlines()
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return False
+        raise policy.ToolError(f"crates.io index read failed: HTTP {error.code}") from error
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, FileNotFoundError):
+            return False
+        raise policy.ToolError(f"crates.io index read failed: {error.reason}") from error
+    return any(json.loads(line).get("vers") == version for line in lines if line.strip())
+
+
+def _retry_after(output: str) -> int:
+    """Seconds Until The Registry-Indicated Retry Time, Or The Published Interval."""
+    match = re.search(r"try again after ([A-Z][a-z]{2}, \d{1,2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT)", output)
+    if match is None:
+        return RATE_INTERVAL
+    retry = email.utils.parsedate_to_datetime(match.group(1)).timestamp()
+    return max(1, min(RATE_INTERVAL * 2, int(retry - time.time()) + 1))
+
 
 # === Entry Point === #

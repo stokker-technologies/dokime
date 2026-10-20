@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/publish.py; sha256:c5950b3c7d8c484fe75991f031a47f191076083a2b0b31ef69df5976ff35ef28
+# Rendered by stkr project update from templates/python/test/publish.py; sha256:a181dbfbf93c8429711355359912d86f53997ffdae96335b12854854b946b6da
 # ***
 #
 # Dokime
@@ -19,10 +19,9 @@ import subprocess
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
-from . import policy
 from .. import temporary
+from . import policy
 
 # Type Checking Imports
 
