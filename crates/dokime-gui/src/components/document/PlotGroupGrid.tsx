@@ -28,7 +28,7 @@ import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
-import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
 import { type PlotDisplaySettings, usePlotSettingsEditor } from "@/plots/plot-settings";
 import { type PromptMarker, promptMarkers } from "@/plots/prompt-markers";
 import type { PlotViewportMode } from "@/plots/types";
@@ -261,24 +261,28 @@ function livePlotSpec({
   });
 
   const label =
-    state.status === "loading"
-      ? "Loading Plot"
-      : state.status === "stale"
-        ? "Stream Stale"
-        : state.status === "reconnecting"
-          ? "Reconnecting"
-          : state.status === "error"
-            ? "Stream Error"
-            : spec.stateLabel;
+    state.status === "waiting"
+      ? plotWaitingLabel(state)
+      : state.status === "loading"
+        ? "Loading Plot"
+        : state.status === "stale"
+          ? "Stream Stale"
+          : state.status === "reconnecting"
+            ? "Reconnecting"
+            : state.status === "error"
+              ? "Stream Error"
+              : spec.stateLabel;
   const detail =
     state.status === "reconnecting" && state.payload
       ? "The last samples remain visible while the plot stream reopens."
       : (state.error ??
-        (state.status === "loading"
-          ? "Waiting for the first plot payload."
-          : state.status === "stale"
-            ? "The last samples remain visible while the plot stream reconnects."
-            : spec.stateDetail));
+        (state.status === "waiting"
+          ? "The plot is subscribed; its first frame is still being read."
+          : state.status === "loading"
+            ? "Waiting for the first plot payload."
+            : state.status === "stale"
+              ? "The last samples remain visible while the plot stream reconnects."
+              : spec.stateDetail));
   // Frame sizes and compaction counts are transport diagnostics, not plot
   // context; they stay out of what an operator reads under a title.
   return {

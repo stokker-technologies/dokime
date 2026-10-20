@@ -39,7 +39,7 @@ import {
   histogramAxisTitle,
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
-import { applyPlotMessages, emptyLivePlotState, type LivePlotState } from "@/plots/live-frames";
+import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotState, plotWaitingLabel } from "@/plots/live-frames";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { lttbIndices, m4Indices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices, windowIndices } from "@/plots/reduce";
@@ -385,6 +385,41 @@ test("Prompt Markers", () => {
     ["Prompt"],
   );
   assert.deepEqual(promptMarkers([]), []);
+});
+
+test("Waiting For Data", () => {
+  const opened = { voltage: { ...emptyLivePlotState(), status: "loading" as const } };
+
+  // The Watch's Acknowledgement Turns A Loading Plot Into A Quiet Wait, Never An Error
+  const acknowledged = applyPendingNotice(opened, "voltage", 1_000);
+  assert.equal(acknowledged.voltage.status, "waiting");
+  assert.equal(acknowledged.voltage.error, null);
+  assert.equal(plotWaitingLabel(acknowledged.voltage), "Waiting For Data \u00b7 0 s");
+
+  // Each Keepalive Counts From The First Notice, However Long The First Read Takes
+  const later = applyPendingNotice(acknowledged, "voltage", 46_000);
+  assert.equal(later.voltage.status, "waiting");
+  assert.equal(plotWaitingLabel(later.voltage), "Waiting For Data \u00b7 45 s");
+
+  // A Notice For A Plot This Watch Does Not Hold Changes Nothing
+  assert.equal(applyPendingNotice(later, "current", 50_000), later);
+
+  // A Server Error Frame Still Reports, And A Later Notice Does Not Hide It
+  const failed = {
+    voltage: applyPlotMessages(
+      later.voltage,
+      [{ ...streamMessage("error", 0, hostFrame([], [])), warnings: ["plot query unavailable"] }],
+      "auto",
+    ),
+  };
+  assert.equal(failed.voltage.status, "error");
+  assert.equal(applyPendingNotice(failed, "voltage", 60_000), failed);
+
+  // The First Frame Ends The Wait
+  const served = applyPlotMessages(later.voltage, [streamMessage("snapshot", 0, hostFrame([0, 1], [[1, 2]]))], "auto");
+  assert.equal(served.status, "live");
+  assert.equal(served.waitingSince, null);
+  assert.equal(applyPendingNotice({ voltage: served }, "voltage", 70_000).voltage, served);
 });
 
 test("Frame Retention", () => {
