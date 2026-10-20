@@ -71,7 +71,7 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
         candidate = json.dumps(str(built))
         tool = f'"cargo:cargo-dokime" = {{ path = {candidate} }}\n'
         overrides = f'[tasks.build.tools]\n{tool}\n[tasks."package:rust".tools]\n{tool}'
-        (plugin / "mise.local.toml").write_text(overrides, encoding="utf-8")
+        (plugin / "mise.local.toml").write_text(overrides, encoding="utf-8", newline="\n")
 
         # Replace The Published SDK Reference Only In This Disposable Consumer.
         manifest = plugin / "Cargo.toml"
@@ -85,7 +85,7 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
             raise ValueError("the generated starter must have one SDK dependency declaration")
         local = json.dumps(str(root / "crates/dokime-runtime"))
         lines[selected[0]] = f"dokime-runtime = {{ path = {local} }}\n"
-        manifest.write_text("".join(lines), encoding="utf-8")
+        manifest.write_text("".join(lines), encoding="utf-8", newline="\n")
 
         # Resolve Every Cargo Source Against The Exported Vendor Tree, With An Empty Cargo Home.
         sources = tomllib.loads((dependencies / "cargo-config.toml").read_text(encoding="utf-8"))["source"]
@@ -101,11 +101,11 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
         if not redirected:
             raise ValueError("the exported Cargo configuration must name its vendor directory")
         (plugin / ".cargo").mkdir()
-        (plugin / ".cargo/config.toml").write_text("\n\n".join(sections) + "\n", encoding="utf-8")
+        (plugin / ".cargo/config.toml").write_text("\n\n".join(sections) + "\n", encoding="utf-8", newline="\n")
         shutil.copyfile(root / "Cargo.lock", plugin / "Cargo.lock")
 
         # Rebind Python Sources To The Staged Wheels Without Moving Any Shipped Pin.
-        (plugin / "uv.toml").write_text("no-index = true\n", encoding="utf-8")
+        (plugin / "uv.toml").write_text("no-index = true\n", encoding="utf-8", newline="\n")
         environment.update(
             MISE_TRUSTED_CONFIG_PATHS=str(plugin),
             MISE_YES="1",
