@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
+import { AccessKeyDialog } from "@/features/settings/sections/AccessKeyDialog";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import type { Wire } from "@/lib/rpc/canonical";
@@ -333,71 +334,6 @@ function ListenerForm({ session, status, initial }: { session: ConnectedSession;
         />
       ) : null}
     </>
-  );
-}
-
-function AccessKeyDialog({
-  value,
-  busy,
-  saved,
-  saveError,
-  close,
-  save,
-  saveCertificate,
-}: {
-  value: string;
-  busy: boolean;
-  saved: boolean;
-  saveError: string | null;
-  close: () => void;
-  save: () => void;
-  saveCertificate: (() => void) | undefined;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) close();
-      }}
-    >
-      <DialogContent className="sm:max-w-lg" showCloseButton={!busy}>
-        <DialogHeader>
-          <DialogTitle>Save Your Access Key</DialogTitle>
-          <DialogDescription>
-            This is the only time the key is shown. It gives full control of this host. Copy it or save it as a key file before closing.
-          </DialogDescription>
-        </DialogHeader>
-        <Input aria-label="Generated Access Key" autoComplete="off" readOnly value={value} className="font-mono" />
-        {error || saveError ? <p role="alert">{error ?? saveError}</p> : null}
-        {saved || copied ? <p role="status">{saved ? "Key File Saved" : "Key Copied"}</p> : null}
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(value);
-                setCopied(true);
-              } catch {
-                setError("Copy failed; save the key file or select and copy the key.");
-              }
-            }}
-          >
-            {copied ? "Copied" : "Copy Key"}
-          </Button>
-          <Button variant="outline" disabled={busy} onClick={save}>
-            {busy ? "Saving…" : "Save Key File…"}
-          </Button>
-          <Button variant="outline" disabled={busy || !saveCertificate} onClick={saveCertificate}>
-            Save Public Certificate…
-          </Button>
-          <Button disabled={busy} onClick={close}>
-            I Have Saved The Key
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
