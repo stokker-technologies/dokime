@@ -50,7 +50,6 @@ import {
   LoaderCircle,
   type LucideIcon,
   Minus,
-  Pause,
   Play,
   RotateCcw,
   Square,
@@ -86,7 +85,6 @@ import {
   caseStatusLabel,
   cycleRowSelection,
   cycleState,
-  cycleStatusLabel,
   executionStatusLabel,
   finishedCaseCount,
   isFollowing,
@@ -285,7 +283,9 @@ export function CycleSidebarCasesView({
               >
                 {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
               </button>
-              <StatusGlyph glyph={cycleGlyph(plan.test_cycle.status)} />
+              <StatusGlyph
+                glyph={cycleGlyph(plan.test_cycle.phase, plan.test_cycle.status, inputNeeded !== undefined && inputNeeded.size > 0)}
+              />
               <button
                 className="min-w-0 truncate text-left text-sm font-medium"
                 data-tree-select
@@ -438,7 +438,7 @@ function ExecutionTreeRow({
   const reason = caseActionTooltip(row.case);
   const deleteAllowed = actions === null || actions.delete;
   const startAllowed = active && row.execution !== null && isPlannedExecution(row.execution.status);
-  const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Input Needed", tone: "warning" } : rowGlyph(row);
+  const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Waiting For Input", tone: "warning" } : rowGlyph(row);
   const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run Of #${row.rerunOf}`;
   const [menuOpen, setMenuOpen] = useState(false);
   const press = useLongPress(() => setMenuOpen(true));
@@ -660,25 +660,20 @@ function rowGlyph(row: CycleExecutionRow): Glyph {
   }
 }
 
-function cycleGlyph(status: CycleLifecycle): Glyph {
-  const label = cycleStatusLabel(status);
-  switch (status) {
-    case "running":
+/** The cycle's own state as a glyph: never an execution's outcome. */
+function cycleGlyph(phase: TestCyclePlan["test_cycle"]["phase"], status: CycleLifecycle, waiting: boolean): Glyph {
+  const { label } = cycleState(phase, status, waiting);
+  switch (label) {
+    case "Active · Running":
       return { icon: LoaderCircle, label, spin: true, tone: "running" };
-    case "stopping":
+    case "Active · Waiting":
+      return { icon: BellRing, label, tone: "warning" };
+    case "Sealing":
       return { icon: LoaderCircle, label, spin: true, tone: "warning" };
-    case "paused":
-      return { icon: Pause, label, tone: "warning" };
-    case "completed":
-      return { icon: Check, label, tone: "success" };
-    case "failed":
-      return { icon: X, label, tone: "danger" };
-    case "stopped":
-      return { icon: Square, label, tone: "muted" };
-    case "planned":
-      return { icon: Circle, label, tone: "muted" };
+    case "Sealed":
+      return { icon: Check, label, tone: "muted" };
     default:
-      return { icon: Minus, label, tone: "muted" };
+      return { icon: Circle, label, tone: "muted" };
   }
 }
 

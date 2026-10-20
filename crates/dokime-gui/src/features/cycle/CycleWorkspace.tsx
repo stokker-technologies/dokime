@@ -182,7 +182,12 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       );
   };
   /* Archive and Unarchive say what they did; neither changes the lifecycle. */
-  const archiveAction = (archived: boolean, terminal: boolean, commit: (next: boolean) => Promise<unknown>): ArchiveAction => ({
+  const archiveAction = (
+    archived: boolean,
+    allowed: boolean,
+    subject: "cycle" | "execution",
+    commit: (next: boolean) => Promise<unknown>,
+  ): ArchiveAction => ({
     archived,
     onToggle: () =>
       run(
@@ -191,7 +196,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           : { done: "Archived", failed: "The archive mark could not be set." },
         () => commit(!archived),
       ),
-    refusal: archiveRefusal(terminal),
+    refusal: archiveRefusal(allowed, subject),
   });
   const run = (report: { done: string; failed: string }, action: () => Promise<unknown>) => {
     action()
@@ -229,11 +234,15 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     const executionMenu: ExecutionMenu = {
       kind: "execution",
       archive: selectedRow.execution
-        ? archiveAction(Boolean(selectedRow.execution.archived), isTerminalExecutionStatus(selectedRow.execution.status), (archived) =>
-            commands.archiveExecution.mutateAsync({
-              archived,
-              executionId: selectedRow.execution?.test_execution_id ?? "",
-            }),
+        ? archiveAction(
+            Boolean(selectedRow.execution.archived),
+            isTerminalExecutionStatus(selectedRow.execution.status),
+            "execution",
+            (archived) =>
+              commands.archiveExecution.mutateAsync({
+                archived,
+                executionId: selectedRow.execution?.test_execution_id ?? "",
+              }),
           )
         : null,
       onOpenReport: selectedRow.execution ? () => openReport(selectedRow.execution?.test_execution_id ?? null) : null,
@@ -295,7 +304,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   }
 
   const cycleMenu: CycleMenu = {
-    archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleSealed(phase), (archived) =>
+    archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleSealed(phase), "cycle", (archived) =>
       commands.archiveCycle.mutateAsync(archived),
     ),
     followActive,

@@ -212,7 +212,7 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
       current_queue_item_id: active?.case_id ?? null,
       continue_automatically: summary.continueAutomatically,
       started_at: timestampIso(summary.startedAt),
-      finished_at: isFinishedCycle(summary.status) ? timestampIso(summary.updatedAt) : null,
+      finished_at: summary.phase?.HarmosVariant.case === "Sealed" ? timestampIso(summary.updatedAt) : null,
       duration_s: durationSeconds(summary.startedAt, summary.updatedAt),
       duration_delta_s: null,
       metadata: metadataJson(summary.metadata),
@@ -653,8 +653,4 @@ export function mapCriterionStatus(status: CriterionStatus | undefined): StepExe
     default:
       return "pending";
   }
-}
-
-export function isFinishedCycle(status: CycleStatus | undefined): boolean {
-  return ["Completed", "Failed", "Stopped"].includes(status?.HarmosVariant.case ?? "");
 }

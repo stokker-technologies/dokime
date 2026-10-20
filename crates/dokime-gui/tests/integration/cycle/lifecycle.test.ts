@@ -146,7 +146,11 @@ test("Container Seal Controls", () => {
     const state = cycleControlState({ phase: "active", running });
     assert.deepEqual(state.actions, ["Seal Cycle"]);
     const html = renderToStaticMarkup(
-      createElement(ControlCard, { actions: createElement("button", null, state.actions[0]), label: "Cycle Controls", state: state.line }),
+      createElement(ControlCard, {
+        actions: createElement("button", { type: "button" }, state.actions[0]),
+        label: "Cycle Controls",
+        state: state.line,
+      }),
     );
     assert.match(html, /Seal Cycle/);
     assert.equal((html.match(/<button/g) ?? []).length, 1);
@@ -159,6 +163,10 @@ test("Container Seal Controls", () => {
   );
 
   // Sealing And Sealed Offer Nothing
-  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), { actions: [], detail: null, line: "Sealing · saving evidence" });
+  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), {
+    actions: [],
+    detail: null,
+    line: "Sealing · saving evidence",
+  });
   assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], detail: null, line: "Sealed · evidence saved" });
 });

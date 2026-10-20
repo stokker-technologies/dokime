@@ -187,9 +187,10 @@ test("Node Menus", () => {
   assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
   assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive"]);
 
-  // Archiving Waits For A Terminal Run And Says So
-  assert.equal(archiveRefusal(true), undefined);
-  assert.match(archiveRefusal(false) ?? "", /once the run has ended/);
+  // Archiving Waits For A Sealed Cycle Or An Ended Run And Says So
+  assert.equal(archiveRefusal(true, "cycle"), undefined);
+  assert.match(archiveRefusal(false, "cycle") ?? "", /once the cycle is sealed/);
+  assert.match(archiveRefusal(false, "execution") ?? "", /once the run has ended/);
 
   // Download Report Waits Only For A Save In Progress
   assert.deepEqual(reportDownloadState(false), {

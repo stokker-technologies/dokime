@@ -329,9 +329,15 @@ export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): 
     : [["Re-Run"], ["Open Report", "Settings"], [archive]];
 }
 
-/** Why a node cannot be archived yet, or `undefined` once it can. */
-export function archiveRefusal(terminal: boolean): string | undefined {
-  return terminal ? undefined : "Archiving becomes available once the run has ended.";
+/**
+ * Why a node cannot be archived yet, or `undefined` once it can: a cycle
+ * once it is sealed, an execution once its attempt has ended.
+ */
+export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution"): string | undefined {
+  if (allowed) return undefined;
+  return subject === "cycle"
+    ? "Archiving becomes available once the cycle is sealed."
+    : "Archiving becomes available once the run has ended.";
 }
 
 /** Download Report waits only for a save already in progress. */
