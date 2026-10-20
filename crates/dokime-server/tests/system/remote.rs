@@ -375,7 +375,12 @@ fn identities(stdout: &str, prefix: &str) -> Vec<String> {
 }
 
 fn archive(path: &Path, cycle: &str, executions: &[String], phase: CyclePhase, status: &str) -> BTreeMap<String, u64> {
-    let file = std::fs::File::open(path).unwrap();
+    let file = std::fs::File::open(path).unwrap_or_else(|error| {
+        let present = std::fs::read_dir(path.parent().unwrap())
+            .map(|entries| entries.filter_map(|entry| Some(entry.ok()?.file_name())).collect::<Vec<_>>())
+            .unwrap_or_default();
+        panic!("evidence archive {}: {error}; its directory holds {present:?}", path.display())
+    });
     let mut zip = zip::ZipArchive::new(file).unwrap();
     let entry = zip.by_name("manifest.json").unwrap();
     let manifest: Value = serde_json::from_reader(entry).unwrap();

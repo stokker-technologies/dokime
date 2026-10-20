@@ -131,7 +131,8 @@ set "ExecutionId="
 set /p "ExecutionId=" < "%OUTPUT_DIRECTORY%\selected.id"
 if not defined ExecutionId exit /b 3
 echo Execution: %ExecutionId%
-echo %ExecutionId%>> "%OUTPUT_DIRECTORY%\executions.id"
+rem A Trailing Digit Before ">>" Would Name A Handle; Parentheses Keep It In The Text
+(echo %ExecutionId%)>> "%OUTPUT_DIRECTORY%\executions.id"
 exit /b 0
 
 :RecordFilter
