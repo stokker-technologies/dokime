@@ -92,13 +92,13 @@ export function PluginsSection() {
     [programs, settings.frame],
   );
 
-  async function handleFile(file: File): Promise<void> {
+  async function handleFile(file: File | null): Promise<void> {
     stageMutation.reset();
     consentMutation.reset();
-    setUploadingFilename(file.name);
+    setUploadingFilename(file?.name ?? null);
     try {
       const entry = await stageMutation.mutateAsync(file);
-      setStaged(entry);
+      if (entry) setStaged(entry);
     } catch {
       // Mutation error is rendered beside the drop zone.
     } finally {
@@ -171,6 +171,7 @@ export function PluginsSection() {
             error={errorMessage(stageMutation.error, "The plugin could not be inspected.")}
             filename={uploadingFilename}
             onFile={(file) => void handleFile(file)}
+            onPick={() => void handleFile(null)}
             progress={stageMutation.progress}
           />
         </section>

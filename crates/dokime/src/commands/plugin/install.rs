@@ -22,7 +22,6 @@ use std::time::Duration;
 // Third Party Imports
 use harmos::plugin::inventory::CarrierSection;
 use harmos_packaging::bundle::{Bundle, Limits};
-use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::disclosure::{EnvironmentReference, environment_references};
@@ -34,8 +33,6 @@ use dokime_domain::model::plugins::wire;
 
 /* === Constants === */
 
-// Staging streams the bundle in frames of this size.
-const CHUNK_BYTES: usize = 256 * 1024;
 const CONSENT_DEADLINE: Duration = Duration::from_secs(10);
 
 /* === Macros === */
@@ -84,7 +81,7 @@ pub(crate) async fn run(args: Args) -> Result<()> {
     // Stage It On The Backend
     let client = args.connection.connect().await?;
     let endpoint = args.connection.resolve()?.selection.target.endpoint().to_owned();
-    let staged = client.plugins_stage(frames(bytes, review.digest.clone())).await.map_err(|error| {
+    let staged = client.plugins_stage_bundle(bytes, review.digest.clone(), |_, _| {}).await.map_err(|error| {
         Error::Setup(format!(
             "staging failed: {error}. If the response was lost, inspect Plugins on {endpoint} before retrying; the stage may exist."
         ))
@@ -115,7 +112,7 @@ pub(crate) async fn run(args: Args) -> Result<()> {
 
 fn review(bytes: &[u8], limits: Limits) -> Result<Review> {
     let bundle = Bundle::inspect(bytes, limits).map_err(|error| Error::Input(format!("invalid plugin bundle: {error}")))?;
-    let digest = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let digest = dokime_client::plugin_bundle_digest(bytes);
     let references = environment_references(&bundle)?;
     // A guest declaration was already refused above; this only skips assets.
     let owners = bundle
@@ -129,19 +126,6 @@ fn review(bytes: &[u8], limits: Limits) -> Result<Review> {
         .collect();
 
     Ok(Review { bundle, digest, owners, references })
-}
-
-fn frames(bytes: Vec<u8>, sha256: String) -> impl tokio_stream::Stream<Item = wire::StagePluginFrame> + Send + 'static {
-    let header = wire::StagePluginFrameFrame::Header(wire::StagePluginHeader { size_bytes: bytes.len() as u64, sha256 });
-    let chunks = bytes
-        .chunks(CHUNK_BYTES)
-        .enumerate()
-        .map(|(index, data)| {
-            wire::StagePluginFrameFrame::Chunk(wire::StagePluginChunk { offset: (index * CHUNK_BYTES) as u64, data: data.to_vec() })
-        })
-        .collect::<Vec<_>>();
-    let frames = std::iter::once(header).chain(chunks).map(|frame| wire::StagePluginFrame { frame: Some(frame) });
-    tokio_stream::iter(frames)
 }
 
 fn verify(staged: &wire::PluginInstallation, review: &Review, endpoint: &str) -> Result<()> {

@@ -30,6 +30,7 @@ use dokime_domain::model;
 /* === Constants === */
 const ID: &str = "01900000-0000-7000-8000-000000000001";
 const SECRET_VALUE: &str = "fixture-secret-must-not-be-disclosed";
+const CHUNK_LIMIT_BYTES: u32 = 256 * 1024;
 
 /* === Macros === */
 macro_rules! operation {
@@ -117,7 +118,7 @@ operation!(Stage, v1::Stage, StreamInput<model::plugins::wire::StagePluginFrame>
     while let Some(frame) = input.recv().await {
         let Some(model::plugins::wire::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else { panic!("chunk required") };
         assert_eq!(chunk.offset, bytes.len() as u64);
-        assert!(chunk.data.len() <= 256 * 1024);
+        assert!(chunk.data.len() <= CHUNK_LIMIT_BYTES as usize, "every chunk fits the advertised chunk limit");
         bytes.extend_from_slice(&chunk.data);
     }
     assert_eq!(bytes, host.bytes);
@@ -185,7 +186,7 @@ operation!(Availability, backend::GetAvailability, (), _host, _request, _input, 
             max_request_bytes: 16 * 1024 * 1024,
             max_response_bytes: 16 * 1024 * 1024,
             max_content_bytes: Some(272 * 1024 * 1024),
-            max_chunk_bytes: Some(256 * 1024),
+            max_chunk_bytes: Some(CHUNK_LIMIT_BYTES),
             ..Default::default()
         }),
     }

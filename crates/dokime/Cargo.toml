@@ -52,7 +52,6 @@ tempfile = { workspace = true }
 
 # Async
 tokio = { workspace = true }
-tokio-stream = { workspace = true }
 
 # UI
 anstream = { workspace = true }

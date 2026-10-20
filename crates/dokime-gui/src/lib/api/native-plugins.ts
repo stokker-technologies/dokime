@@ -9,15 +9,19 @@
 
 /* Native plugin and admitted-artifact adapters for the original settings UI. */
 
+/* === External Imports === */
+
+import { Channel } from "@tauri-apps/api/core";
+
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import { commands } from "@/lib/desktop/commands";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { PluginEntry } from "@/lib/types/view-contracts";
-import type { NativeContentSession } from "./native-content";
-import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, safeNumber, sha256Hex, timestampIso } from "./native-values";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, safeNumber, timestampIso } from "./native-values";
 
 /* === Types === */
 
@@ -73,185 +77,54 @@ export async function setNativePluginEnabled(session: SessionIdentity, installId
   return mapPluginInstallation(await rpc.pluginsSetEnabled(session, { installId, enabled }));
 }
 
-/* === Plugin staging progress === */
+/* === Plugin staging === */
 
 /** Progress phases {@link stageNativePlugin} reports through `onProgress`, in order. */
-export type StagePluginProgress =
-  | { phase: "reading" }
-  | { phase: "hashing" }
-  | { phase: "opening" }
-  | { phase: "uploading"; sent: number; total: number }
-  | { phase: "finishing" };
+export type StagePluginProgress = { phase: "reading" } | { phase: "uploading"; sent: number; total: number } | { phase: "inspecting" };
 
 export interface StagePluginOptions {
   onProgress?(progress: StagePluginProgress): void;
-  /** Test-only override for the invoke stall bounds below; production never sets this. */
-  stallBoundsMs?: Partial<StageStallBoundsMs>;
 }
 
-interface StageStallBoundsMs {
-  open: number;
-  write: number;
-  finish: number;
-}
-
-/**
- * Bounds each staging phase on the client. The bridge forwards the whole
- * `Plugins.Stage` call under its 300 s operation deadline; nothing else bounds a
- * single open or write invoke, so one that never resolves — the failure this
- * module exists to diagnose — would spin "Inspecting …" forever.
- */
-const DEFAULT_STAGE_STALL_MS: StageStallBoundsMs = {
-  open: 30_000,
-  write: 30_000,
-  finish: 300_000,
-};
-
-/**
- * Bound on the cancel invoke itself. `cancel` is what every stall path above
- * falls back on; without its own bound, a stalled `rpc_stream_cancel`
- * would let the cleanup this module runs on the way out re-create the exact
- * hang it exists to end.
- */
-const STAGE_CANCEL_STALL_MS = 10_000;
-
-/** Render a byte count the way staging progress and its failure messages do: decimal megabytes. */
+/** Render a byte count the way staging progress reports it: decimal megabytes. */
 export function formatStagePluginBytes(bytes: number): string {
   const megabytes = Math.round((bytes / 1_000_000) * 10) / 10;
   return Number.isInteger(megabytes) ? `${megabytes} MB` : `${megabytes.toFixed(1)} MB`;
 }
 
-/** Stage an inert plugin archive; activation remains a separate consent command. */
-export async function stageNativePlugin(session: NativeContentSession, file: File, options: StagePluginOptions = {}): Promise<PluginEntry> {
-  const onProgress = options.onProgress;
-  const bounds = { ...DEFAULT_STAGE_STALL_MS, ...options.stallBoundsMs };
-
-  onProgress?.({ phase: "reading" });
-  const bytes = await withPhase("reading", () => readPluginBytes(file));
-
-  onProgress?.({ phase: "hashing" });
-  const digest = await withPhase("hashing", () => sha256Hex(bytes));
-
-  let stream: Awaited<ReturnType<typeof rpc.pluginsStage>> | undefined;
-  let release: (() => void) | undefined;
-  let cancelPromise: Promise<void> | undefined;
-  const cancel = async (): Promise<void> => {
-    if (!stream) return;
-    cancelPromise ??= withTimeout(stream.cancel(), STAGE_CANCEL_STALL_MS);
-    await cancelPromise;
-  };
-  try {
-    onProgress?.({ phase: "opening" });
-    // The open request is the first frame the bridge forwards to the
-    // server, which requires that first frame to be the header. Writing
-    // the header as a separate first `stream.write()` call instead would
-    // forward an empty frame first, which the server rejects.
-    stream = await withInvoke("opening", bounds.open, cancel, () =>
-      rpc.pluginsStage(session, {
-        frame: {
-          HarmosVariant: {
-            case: "Header",
-            value: { field0: { sizeBytes: BigInt(bytes.byteLength), sha256: digest } },
-          },
-        },
-      }),
-    );
-    release = session.own(() => void cancel().catch(() => undefined));
-
-    const total = bytes.byteLength;
-    const chunkCount = Math.ceil(total / NATIVE_PLUGIN_CHUNK_BYTES);
-    // 0-based: chunk N starts at byte offset N * NATIVE_PLUGIN_CHUNK_BYTES,
-    // so a chunk's number and its "sent" byte offset always agree, in both
-    // the progress event just before it and the failure message if it
-    // stalls or errors.
-    let chunkIndex = 0;
-    for (let offset = 0; offset < total; offset += NATIVE_PLUGIN_CHUNK_BYTES) {
-      const data = bytes.slice(offset, offset + NATIVE_PLUGIN_CHUNK_BYTES);
-      onProgress?.({ phase: "uploading", sent: offset, total });
-      const label = `uploading chunk ${chunkIndex} of ${chunkCount} (${formatStagePluginBytes(offset)} of ${formatStagePluginBytes(total)})`;
-      const openedStream = stream;
-      await withInvoke(label, bounds.write, cancel, () =>
-        openedStream.write({
-          frame: {
-            HarmosVariant: { case: "Chunk", value: { field0: { offset: BigInt(offset), data } } },
-          },
-        }),
-      );
-      chunkIndex += 1;
-    }
-    onProgress?.({ phase: "uploading", sent: total, total });
-
-    onProgress?.({ phase: "finishing" });
-    const openedStream = stream;
-    return mapPluginInstallation(await withInvoke("finishing", bounds.finish, cancel, () => openedStream.finish()));
-  } finally {
-    await cancel().catch(() => undefined);
-    release?.();
+/**
+ * Stage an inert plugin archive; activation remains a separate consent command.
+ *
+ * With no file, the shell picks the bundle natively, reads and hashes it once
+ * and streams it to the backend in negotiated-size frames; `null` means the
+ * operator cancelled the picker. A dropped file carries no path, so its bytes
+ * cross the bridge once as a raw body into that same native staging.
+ */
+export async function stageNativePlugin(
+  session: SessionIdentity,
+  file: File | null,
+  options: StagePluginOptions = {},
+): Promise<PluginEntry | null> {
+  const progress = new Channel<StagePluginProgress>((message) => options.onProgress?.(message));
+  let installId: string | null;
+  if (file) {
+    options.onProgress?.({ phase: "reading" });
+    installId = await commands.desktopPluginStageBytes(session.generation, await readPluginBytes(file), progress);
+  } else {
+    installId = await commands.desktopPluginStageFile(session.generation, progress);
   }
+  if (installId === null) return null;
+  if (!session.isCurrent()) throw new Error("The connection changed while the plugin was being staged.");
+  return getNativePlugin(session, installId);
 }
 
 const NATIVE_PLUGIN_BYTES = 272 * 1024 * 1024;
-const NATIVE_PLUGIN_CHUNK_BYTES = 256 * 1024;
 
-async function readPluginBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
+async function readPluginBytes(file: File): Promise<Uint8Array> {
   if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > NATIVE_PLUGIN_BYTES) {
     throw new NativeApiLimitError("Plugins.Stage", `plugin archive must be between 1 and ${NATIVE_PLUGIN_BYTES} bytes`);
   }
   return new Uint8Array(await file.arrayBuffer());
-}
-
-/** Marks a {@link withTimeout} rejection as the timeout winning, not `promise` itself failing. */
-class StallTimeout extends Error {}
-
-/**
- * Race `promise` against a timer, without ever letting the loser become an
- * unhandled rejection: if `promise` loses (the timeout fires first) and
- * later rejects anyway — once native cleanup unblocks whatever it was
- * waiting on — nothing else in this module is still awaiting it directly.
- */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  promise.catch(() => undefined);
-  let timer!: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => reject(new StallTimeout()), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
-/** Wrap a local (non-RPC) staging step so its failure names the phase it happened in. */
-async function withPhase<T>(label: string, run: () => Promise<T>): Promise<T> {
-  try {
-    return await run();
-  } catch (error) {
-    throw stagingFailure(label, error);
-  }
-}
-
-/**
- * Wrap a single bridge invoke (open, one write, or finish) with the stall
- * watchdog: past `timeoutMs` with no response, cancel the stream and fail
- * with a phase-tagged "stalled after N s" message instead of leaving the
- * caller's "Inspecting …" spinning forever.
- */
-async function withInvoke<T>(label: string, timeoutMs: number, cancel: () => Promise<void>, run: () => Promise<T>): Promise<T> {
-  try {
-    return await withTimeout(run(), timeoutMs);
-  } catch (error) {
-    await cancel().catch(() => undefined);
-    if (error instanceof StallTimeout) {
-      throw new Error(`plugin staging failed while ${label} stalled after ${timeoutMs / 1_000} s`);
-    }
-    throw stagingFailure(label, error);
-  }
-}
-
-/** Keep the size-limit precondition's own message untouched; wrap everything else with its phase. */
-function stagingFailure(label: string, error: unknown): Error {
-  if (error instanceof NativeApiLimitError) return error;
-  const message = error instanceof Error ? error.message : String(error);
-  const failure = new Error(`plugin staging failed while ${label}: ${message}`, { cause: error });
-  failure.name = "NativeStagePluginError";
-  return failure;
 }
 
 /* === Admitted Plugins === */

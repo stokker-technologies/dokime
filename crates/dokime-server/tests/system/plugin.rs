@@ -20,7 +20,6 @@ use std::{
     time::{Duration, Instant},
 };
 // Third Party Imports
-use sha2::{Digest, Sha256};
 // Local Imports
 use crate::support::{self, host::Host};
 use dokime_client::{Client, ResponseStream, contracts};
@@ -282,17 +281,8 @@ async fn installations(client: &Client) -> Vec<model::plugins::wire::PluginInsta
 }
 
 async fn install(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
-    use {model::plugins::wire::StagePluginFrame, model::plugins::wire::StagePluginFrameFrame as Frame};
-    let sha256 = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-    let mut frames = vec![StagePluginFrame {
-        frame: Some(Frame::Header(model::plugins::wire::StagePluginHeader { size_bytes: bytes.len() as u64, sha256: sha256.clone() })),
-    }];
-    for (index, chunk) in bytes.chunks(64 * 1024).enumerate() {
-        frames.push(StagePluginFrame {
-            frame: Some(Frame::Chunk(model::plugins::wire::StagePluginChunk { offset: (index * 64 * 1024) as u64, data: chunk.to_vec() })),
-        });
-    }
-    let staged = client.plugins_stage(tokio_stream::iter(frames)).await.unwrap();
+    let sha256 = dokime_client::plugin_bundle_digest(bytes);
+    let staged = client.plugins_stage_bundle(bytes.to_vec(), sha256.clone(), |_, _| {}).await.unwrap();
     client.plugins_consent(contracts::plugins::Consent { install_id: staged.install_id, expected_sha256: sha256 }).await.unwrap()
 }
 

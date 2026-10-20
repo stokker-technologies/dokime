@@ -220,8 +220,7 @@ impl Stage {
             return Err(reject(Status::invalid_argument("first stage frame must be a header")));
         };
         digest(&header.sha256).map_err(reject)?;
-        const LIMIT: u64 = 272 * 1024 * 1024;
-        if header.size_bytes == 0 || header.size_bytes > LIMIT {
+        if header.size_bytes == 0 || header.size_bytes > plugins_model::STAGE_ARCHIVE_MAX_BYTES {
             return Err(reject(Status::resource_exhausted("plugin archive size exceeds native limit")));
         }
         tracing::info!(declared_bytes = header.size_bytes, digest_prefix = &header.sha256[..8], "plugin stage header received",);
@@ -236,7 +235,7 @@ impl Stage {
             let Some(plugins_model::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else {
                 return Err(reject(Status::invalid_argument("only chunks may follow stage header")));
             };
-            if chunk.offset != bytes.len() as u64 || chunk.data.is_empty() || chunk.data.len() > 256 * 1024 {
+            if chunk.offset != bytes.len() as u64 || chunk.data.is_empty() || chunk.data.len() > self.resources.max_message_bytes {
                 return Err(reject(Status::invalid_argument("invalid stage chunk offset or size")));
             }
             if chunk.data.len() as u64 > size_bytes.saturating_sub(bytes.len() as u64) {

@@ -10,7 +10,7 @@
 /* === External Imports === */
 
 import { FileUp, Loader2 } from "lucide-react";
-import { useId, useState } from "react";
+import { useState } from "react";
 
 /* === Local Imports === */
 
@@ -26,14 +26,14 @@ type PluginDropZoneProps = {
   error: string | null;
   filename: string | null;
   onFile: (file: File) => void;
+  onPick: () => void;
   progress: StagePluginProgress | null;
 };
 
 /* === Components === */
 
-export function PluginDropZone({ disabled, error, filename, onFile, progress }: PluginDropZoneProps) {
+export function PluginDropZone({ disabled, error, filename, onFile, onPick, progress }: PluginDropZoneProps) {
   const brand = useBrand();
-  const inputId = useId();
   const [dragging, setDragging] = useState(false);
 
   return (
@@ -81,24 +81,9 @@ export function PluginDropZone({ disabled, error, filename, onFile, progress }: 
             <p className="font-medium">{disabled ? stagingLabel(progress, filename) : "Drop a plugin bundle here"}</p>
             <p className="text-sm text-muted-foreground">{brand.label} stages and inspects its frozen catalog without running the file.</p>
           </div>
-          <Button asChild aria-disabled={disabled} size="sm" variant="outline">
-            <label htmlFor={inputId}>Choose File</label>
+          <Button disabled={disabled} onClick={onPick} size="sm" type="button" variant="outline">
+            Choose File
           </Button>
-          <input
-            aria-label="Choose plugin bundle"
-            className="sr-only"
-            disabled={disabled}
-            id={inputId}
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              if (file) {
-                onFile(file);
-              }
-              event.currentTarget.value = "";
-            }}
-            accept=".dokime"
-            type="file"
-          />
         </div>
       </fieldset>
       {error ? (
@@ -119,13 +104,9 @@ function stagingLabel(progress: StagePluginProgress | null, filename: string | n
       return `Inspecting ${filename ?? "plugin"}…`;
     case "reading":
       return "Reading file…";
-    case "hashing":
-      return "Hashing…";
-    case "opening":
-      return "Opening upload…";
     case "uploading":
       return `Uploading ${formatStagePluginBytes(progress.sent)} of ${formatStagePluginBytes(progress.total)}`;
-    case "finishing":
+    case "inspecting":
       return "Inspecting on the host…";
   }
 }

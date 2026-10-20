@@ -1951,7 +1951,6 @@ dependencies = [
  "thiserror 2.0.21",
  "time",
  "tokio",
- "tokio-stream",
  "tonic",
  "tracing",
  "uuid",
