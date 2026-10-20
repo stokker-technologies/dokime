@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
-
+import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
 // Local Imports
 import {
   archiveRefusal,
@@ -36,7 +36,6 @@ import {
   rowOffersRunAgain,
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
-import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
 import {
   BUSY_RETRY_MAX_MS,
   DOCUMENT_FAILED_FALLBACK,
@@ -53,8 +52,9 @@ import {
   refuseLabel,
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
-import { archivedCycleGroups, type CycleRow, groupCycleRows } from "@/features/cycles-home/cycles-model";
+import { cycleSettingsReadOnly, SettingsFields } from "@/features/cycle/SettingsForm";
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
+import { archivedCycleGroups, type CycleRow, groupCycleRows } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { defaultCycleLabel } from "@/lib/time-format";
 import { reportFixturePayload } from "@/report/report-fixture";
@@ -144,20 +144,44 @@ test("Status Pill", () => {
   assert.match(markup, /w-full \[grid-area:1\/1\]/, "the visible pill fills the widest label's track");
 });
 
+test("Settings Dialogs", () => {
+  const render = (props: Parameters<typeof SettingsFields>[0]) => renderToStaticMarkup(createElement(SettingsFields, props));
+  const cycle = { continueAutomatically: true, description: "Bench run", title: "Test Cycle" };
+
+  // An Active Cycle Edits Its Title And Continuation; Its Description Was Written At Creation
+  const active = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("active", false), values: cycle });
+  assert.match(active, /Title/);
+  assert.match(active, /Continue Automatically/);
+  assert.doesNotMatch(active, /Continue after a failed case/);
+  assert.equal((active.match(/ disabled=""/g) ?? []).length, 1, "only the description is read-only");
+  assert.match(active, /Set when the cycle was created/);
+
+  // A Sealed Cycle Shows Its Settings Read-Only
+  const sealed = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("sealed", false), values: cycle });
+  assert.ok((sealed.match(/ disabled=""/g) ?? []).length >= 3, "title, description and continuation are all read-only");
+  assert.match(sealed, /role="switch"[^>]* disabled=""/);
+  assert.match(sealed, /Sealed cycles keep the settings they ran with/);
+
+  // An Execution's Settings Are Its Title Alone, The Same Form
+  const execution = render({ onChange: () => undefined, values: { title: "Charger Start-Up" } });
+  assert.match(execution, /Title/);
+  assert.doesNotMatch(execution, /Description|Continue Automatically/);
+});
+
 test("Node Menus", () => {
   // Cycle Menu Opens Its Report And Archives, With No Bundle, Folder Or Clearing
   const items: string[] = nodeMenuGroups("cycle", false).flat();
   assert.deepEqual(nodeMenuGroups("cycle", false), [
-    ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"],
-    ["Open Report"],
+    ["Copy Cycle", "Add Cases", "Follow Active"],
+    ["Open Report", "Settings"],
     ["Archive"],
   ]);
   for (const removed of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
     assert.ok(!items.includes(removed), removed);
   }
 
-  // Execution Menu Offers Re-Run, Open Report And Archive
-  assert.deepEqual(nodeMenuGroups("execution", false), [["Re-Run"], ["Open Report"], ["Archive"]]);
+  // Execution Menu Offers Re-Run, Open Report, Settings And Archive
+  assert.deepEqual(nodeMenuGroups("execution", false), [["Re-Run"], ["Open Report", "Settings"], ["Archive"]]);
 
   // An Archived Node Offers Unarchive In Place Of Archive
   assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
@@ -233,7 +257,9 @@ test("Execution Controls", () => {
   assert.deepEqual(executionControlState(input({})).actions, []);
 
   // The Running Step Reads By Its Label, Its Id Muted After It, Its Count Beside The Bar
-  const step = executionControlState(input({ controls: running, progress: { completed: 2, id: "publish", label: "Publish Evidence", total: 5 } }));
+  const step = executionControlState(
+    input({ controls: running, progress: { completed: 2, id: "publish", label: "Publish Evidence", total: 5 } }),
+  );
   assert.equal(step.line, "Publish Evidence");
   assert.equal(step.detail, "publish");
 

@@ -57,7 +57,8 @@ export type CycleMenu = {
   onCopyCycle: () => void;
   /** Opens the report the cycle has now: current or sealed. */
   onOpenReport: () => void;
-  onRuntimePolicy: () => void;
+  /** Opens the cycle's Settings: title, description, Continue Automatically. */
+  onSettings: () => void;
   onToggleFollowActive: () => void;
 };
 
@@ -73,6 +74,8 @@ export type ExecutionMenu = {
   onRerun: (() => void) | null;
   /** Why the runtime refuses the re-run, when it does. */
   rerunRefusal?: string;
+  /** Opens the execution's Settings; `null` for a case that has not run. */
+  onSettings: (() => void) | null;
 };
 
 /* === Components === */
@@ -135,6 +138,13 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
           Open Report
         </DropdownMenuItem>
       );
+    case "Settings":
+      return (
+        <DropdownMenuItem disabled={!menu.onSettings} onSelect={() => menu.onSettings?.()}>
+          <Settings2 />
+          Settings
+        </DropdownMenuItem>
+      );
     case "Re-Run":
       if (menu.kind !== "execution") return null;
       return (
@@ -162,13 +172,6 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         <DropdownMenuItem onSelect={menu.onAddCases}>
           <Plus />
           Add Cases
-        </DropdownMenuItem>
-      );
-    case "Runtime Policy":
-      return (
-        <DropdownMenuItem onSelect={menu.onRuntimePolicy}>
-          <Settings2 />
-          Runtime Policy
         </DropdownMenuItem>
       );
     case "Follow Active":

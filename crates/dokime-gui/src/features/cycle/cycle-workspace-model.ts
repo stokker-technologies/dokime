@@ -137,15 +137,7 @@ export type FollowState = {
 };
 
 /** One entry of a node's "…" menu. */
-export type NodeMenuItem =
-  | "Copy Cycle"
-  | "Add Cases"
-  | "Runtime Policy"
-  | "Follow Active"
-  | "Open Report"
-  | "Archive"
-  | "Unarchive"
-  | "Re-Run";
+export type NodeMenuItem = "Copy Cycle" | "Add Cases" | "Settings" | "Follow Active" | "Open Report" | "Archive" | "Unarchive" | "Re-Run";
 
 /** The page bar's Download Report button as it stands. */
 export type ReportDownloadState = {
@@ -333,8 +325,8 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
 export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
   const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
-    ? [["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"], ["Open Report"], [archive]]
-    : [["Re-Run"], ["Open Report"], [archive]];
+    ? [["Copy Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
+    : [["Re-Run"], ["Open Report", "Settings"], [archive]];
 }
 
 /** Why a node cannot be archived yet, or `undefined` once it can. */

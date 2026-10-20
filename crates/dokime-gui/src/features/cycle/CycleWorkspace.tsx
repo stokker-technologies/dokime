@@ -40,8 +40,6 @@ import { toast } from "sonner";
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import type { TestExecution } from "@/lib/types";
 import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -76,6 +74,7 @@ import { NodeActionCluster } from "./NodeActionCluster";
 import { NodeHeader } from "./NodeHeader";
 import type { ArchiveAction, CycleMenu, ExecutionMenu } from "./NodeMenu";
 import { answerablePrompts } from "./prompt-banner-model";
+import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
 
 /* === Types === */
 
@@ -103,7 +102,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const rerunCase = useRerunCase(cycleId);
   const followActive = useSelectionStore((state) => state.followActive);
   const setSelectionState = useSelectionStore((state) => state.setSelectionState);
-  const [policyOpen, setPolicyOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm>(null);
 
   const plan = detailQuery.data?.plan ?? null;
@@ -247,9 +246,28 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               })
           : null,
       rerunRefusal: plan.test_cycle.phase === "active" ? undefined : "Only Active Cycles Accept New Attempts",
+      onSettings: selectedRow.execution ? () => setSettingsOpen(true) : null,
     };
+    const execution = selectedRow.execution;
+    const executionSealed = caseSealed(executions, selectedRow.case.caseId);
     return (
       <div className="grid min-h-0">
+        {live && execution ? (
+          <SettingsDialog
+            description="The execution's own settings. Its title is its case's label; a sealed attempt keeps the label its report froze."
+            onOpenChange={setSettingsOpen}
+            onSubmit={async (values) => {
+              if (values.title !== selectedRow.case.label) {
+                await commands.renameExecution.mutateAsync({ executionId: execution.test_execution_id, label: values.title });
+              }
+              toast.success("Execution Settings Saved");
+            }}
+            open={settingsOpen}
+            readOnly={executionSealed ? { title: "Sealed: the report froze this label." } : {}}
+            title="Execution Settings"
+            values={{ title: selectedRow.case.label }}
+          />
+        ) : null}
         <ExecutionSections
           cycleId={cycleId}
           live={live}
@@ -292,7 +310,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         });
       }),
     onOpenReport: () => openReport(null),
-    onRuntimePolicy: () => setPolicyOpen(true),
+    onSettings: () => setSettingsOpen(true),
     onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
   };
   const control = cycleControlState({
@@ -378,17 +396,30 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         snapshot={runtimeQuery.data ?? null}
       />
 
-      <RuntimePolicyDialog
-        continueAutomatically={plan.test_cycle.continue_automatically}
-        onOpenChange={setPolicyOpen}
-        onSubmit={(continueAutomatically) =>
-          run({ done: "Runtime policy updated", failed: "The runtime policy could not be updated." }, async () => {
-            await commands.updatePolicy.mutateAsync({ continueAutomatically, continueOnFailure: plan.test_cycle.continue_on_failure });
-            setPolicyOpen(false);
-          })
-        }
-        open={live && policyOpen}
-      />
+      {live ? (
+        <SettingsDialog
+          description="The cycle's own settings. Continuation starts the next unstarted execution after one completes, whatever its verdict."
+          onOpenChange={setSettingsOpen}
+          onSubmit={async (values) => {
+            if (values.title !== plan.test_cycle.title) await commands.renameCycle.mutateAsync(values.title);
+            if (values.continueAutomatically !== undefined && values.continueAutomatically !== plan.test_cycle.continue_automatically) {
+              await commands.updatePolicy.mutateAsync({
+                continueAutomatically: values.continueAutomatically,
+                continueOnFailure: plan.test_cycle.continue_on_failure,
+              });
+            }
+            toast.success("Cycle Settings Saved");
+          }}
+          open={settingsOpen}
+          readOnly={cycleSettingsReadOnly(phase, Boolean(plan.test_cycle.archived))}
+          title="Cycle Settings"
+          values={{
+            continueAutomatically: plan.test_cycle.continue_automatically,
+            description: typeof plan.test_cycle.metadata.description === "string" ? plan.test_cycle.metadata.description : "",
+            title: plan.test_cycle.title,
+          }}
+        />
+      ) : null}
 
       <Dialog onOpenChange={(next) => !next && !commands.sealCycle.isPending && setConfirm(null)} open={live && confirm !== null}>
         <DialogContent>
@@ -434,47 +465,6 @@ function executionTitlePrefix(row: CycleExecutionRow): string {
 }
 
 /* === Private Components === */
-
-function RuntimePolicyDialog({
-  continueAutomatically,
-  onOpenChange,
-  onSubmit,
-  open,
-}: {
-  continueAutomatically: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (continueAutomatically: boolean) => void;
-  open: boolean;
-}) {
-  const [automatic, setAutomatic] = useState(continueAutomatically);
-
-  useEffect(() => {
-    if (open) setAutomatic(continueAutomatically);
-  }, [continueAutomatically, open]);
-
-  return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Runtime Policy</DialogTitle>
-          <DialogDescription>
-            After explicit Start, the server can continue through unstarted executions in order. Stop Execution halts continuation.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <Label htmlFor="cycle-continue-automatically">Continue Automatically</Label>
-          <Switch checked={automatic} id="cycle-continue-automatically" onCheckedChange={setAutomatic} />
-        </div>
-        <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} variant="outline">
-            Cancel
-          </Button>
-          <Button onClick={() => onSubmit(automatic)}>Save Policy</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /** Publishes the cycle viewer's page bar; mounted only while the cycle itself is shown. */
 function CyclePageChrome({ children }: { children: ReactNode }) {
