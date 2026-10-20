@@ -637,16 +637,22 @@ async function startSession(work, endpoint, evidence) {
 /** Size the native window until the WebView reports the exact target viewport. */
 async function sizeViewport(session, target) {
   let frame = { height: target.height, width: target.width };
+  const measurements = [];
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    await session.resize(frame.width, frame.height);
+    assert.ok(Number.isSafeInteger(frame.width) && frame.width > 0, `Invalid frame width after ${JSON.stringify(measurements)}`);
+    assert.ok(Number.isSafeInteger(frame.height) && frame.height > 0, `Invalid frame height after ${JSON.stringify(measurements)}`);
+    const resized = await session.resize(frame.width, frame.height);
     await delay(350);
     const [width, height] = await session.viewport();
+    measurements.push({ requested: frame, resized, viewport: { width, height } });
+    await writeFile(join(evidence, `viewport-${target.width}x${target.height}.json`), JSON.stringify({ target, measurements }, null, 2));
     if (width === target.width && height === target.height) return;
     frame = {
-      height: frame.height + (target.height - height),
-      width: frame.width + (target.width - width),
+      height: resized.height + (target.height - height),
+      width: resized.width + (target.width - width),
     };
   }
+  throw new Error(`The native window did not reach its required viewport: ${JSON.stringify({ target, measurements })}`);
 }
 
 /* The Save Picker Substitution */
