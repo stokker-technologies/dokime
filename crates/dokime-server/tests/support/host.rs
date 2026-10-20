@@ -114,12 +114,15 @@ impl Host {
     }
 
     pub async fn stop(mut self, signal: bool) {
+        // `Child::wait` closes stdin, which is itself a stop request: a signalled
+        // stop holds it open so the interrupt is the only request the host sees.
+        let stdin = self.child.stdin.take();
         if signal {
             let pid = self.child.id().unwrap().to_string();
             let status = Command::new("kill").args(["-INT", &pid]).status().await.unwrap();
             assert!(status.success());
         } else {
-            drop(self.child.stdin.take());
+            drop(stdin);
         }
         let status = self.child.wait().await.unwrap();
         let diagnostics = std::fs::read_to_string(&self.stderr).unwrap();
