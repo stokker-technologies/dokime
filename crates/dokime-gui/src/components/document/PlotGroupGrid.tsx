@@ -71,6 +71,8 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
 }: LivePlotGroupGridProps) {
   const plotPalette = usePlotPalette();
   const prompts = useMemo(() => promptMarkers(records), [records]);
+  // A lone plot titled like its group or section is already named above it.
+  const titleRepeated = groupRepeatsPlotTitle(title, documentPlots);
   if (!documentPlots.length) {
     return (
       <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 text-center text-muted-foreground">
@@ -90,14 +92,14 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
       position={position}
       prompts={prompts}
       resetKey={resetKey}
+      titleRepeated={titleRepeated}
       state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
       telemetry={telemetry}
       title={title}
       viewportMode={viewportMode}
     />
   ));
-  // A lone plot titled like its group already names it: one title is enough.
-  if (!showGroupHeaders || groupRepeatsPlotTitle(title, documentPlots)) {
+  if (!showGroupHeaders) {
     return <>{cards}</>;
   }
 
@@ -125,6 +127,7 @@ const LivePlotCard = memo(function LivePlotCard({
   position,
   prompts,
   resetKey,
+  titleRepeated,
   state,
   telemetry,
   title,
@@ -137,6 +140,7 @@ const LivePlotCard = memo(function LivePlotCard({
   position: number;
   prompts: PromptMarker[];
   resetKey?: string;
+  titleRepeated: boolean;
   state: LivePlotState;
   telemetry?: Record<string, TelemetryStream> | null;
   title: string;
@@ -153,8 +157,9 @@ const LivePlotCard = memo(function LivePlotCard({
       title,
     });
     // Prompt times are wall-clock instants: only a wall-time axis can place them.
-    return spec.timeAxis && !spec.xElapsedUnit ? { ...spec, promptMarkers: prompts } : spec;
-  }, [descriptor, parameters, plotPalette, position, prompts, state, telemetry, title]);
+    const marked = spec.timeAxis && !spec.xElapsedUnit ? { ...spec, promptMarkers: prompts } : spec;
+    return titleRepeated ? { ...marked, titleRepeated } : marked;
+  }, [descriptor, parameters, plotPalette, position, prompts, state, telemetry, title, titleRepeated]);
   const PlotSettingsButton = usePlotSettingsEditor();
   const actions =
     onPlotSettingsChange && PlotSettingsButton ? (

@@ -34,6 +34,8 @@ export type PlotCardSpec = {
   key: string;
   stream: string;
   title: string;
+  /** The heading above already prints this title; the card keeps it for assistive tech only. */
+  titleRepeated?: boolean;
   description?: string | null;
   series: PlotSeries[];
   cartesian?: PlotCartesianFrame | null;

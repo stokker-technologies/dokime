@@ -71,6 +71,8 @@ const PROMPT_CAP_PX = 4;
 
 type CartesianPlotProps = {
   title: string;
+  /** The heading above already prints the title, so the card shows it to assistive tech only. */
+  titleRepeated?: boolean;
   cartesian?: PlotCartesianFrame | null;
   description?: string | null;
   series: PlotSeries[];
@@ -163,6 +165,7 @@ let uPlotPromise: Promise<UPlotConstructor> | null = null;
 
 export const CartesianPlot = memo(function CartesianPlot({
   title,
+  titleRepeated = false,
   cartesian,
   description,
   series,
@@ -765,7 +768,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <strong className="block truncate">{title}</strong>
+          <strong className={titleRepeated ? "sr-only" : "block truncate"}>{title}</strong>
           {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
           {contextSummary ? <p className="mt-0.5 text-xs text-muted-foreground">{contextSummary}</p> : null}
         </div>
