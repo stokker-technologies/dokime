@@ -29,6 +29,8 @@ import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
+import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
+import { plotUnavailableText, STREAM_ERROR } from "@/plots/plot-placeholder";
 import { type PlotDisplaySettings, usePlotSettingsEditor } from "@/plots/plot-settings";
 import { type PromptMarker, promptMarkers } from "@/plots/prompt-markers";
 import type { PlotViewportMode } from "@/plots/types";
@@ -196,7 +198,7 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
       />
     );
   if (plot.analysis?.kind === "error") {
-    return <p role="alert">{plot.analysis.message}</p>;
+    return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
   }
   if (plot.plotType === "wifi_channel_occupancy") {
     return <WifiChannelOccupancyPlot plot={plot} />;
@@ -270,7 +272,7 @@ function livePlotSpec({
           : state.status === "reconnecting"
             ? "Reconnecting"
             : state.status === "error"
-              ? "Stream Error"
+              ? STREAM_ERROR
               : spec.stateLabel;
   const detail =
     state.status === "reconnecting" && state.payload

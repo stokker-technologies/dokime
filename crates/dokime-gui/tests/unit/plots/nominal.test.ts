@@ -40,7 +40,7 @@ import {
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotState, plotWaitingLabel } from "@/plots/live-frames";
-import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
+import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { lttbIndices, m4Indices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices, windowIndices } from "@/plots/reduce";
 import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
@@ -795,8 +795,15 @@ test("Plot Placeholders", () => {
   assert.equal(worded.detail, "No categorical samples are available.");
 
   // A Plot The Backend Could Not Produce Says So Instead Of Waiting
+  // It Reads As A Failure, Not A Wait: The Error Tone Tints The Full Plot Area
   assert.deepEqual(plotUnavailableText("Field voltage_v is not numeric."), {
     label: "Plot Unavailable",
     detail: "Field voltage_v is not numeric.",
+    tone: "error",
   });
+
+  // A Stream Error With Nothing Drawn Takes The Same Tone; Waiting And Reconnecting Stay Quiet
+  assert.equal(plotPlaceholderText({ stateLabel: STREAM_ERROR, stateDetail: "plot query unavailable" }).tone, "error");
+  assert.equal(stated.tone, undefined);
+  assert.equal(plotPlaceholderText({}).tone, undefined);
 });
