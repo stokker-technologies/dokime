@@ -73,6 +73,9 @@ async fn publish(handle: &RuntimeHandle) {
 async fn poison_capture(handle: &RuntimeHandle) {
     // Damage only this fixture's primary store. Projection refusal is healthy;
     // a physical persistence failure must instead close admission and readers.
+    // Save everything already admitted first, so a background save of earlier
+    // groups never meets the damage before the publication below does.
+    handle.storage().flush().await.unwrap();
     let primary = handle.storage_root().join("local.sqlite");
     let connection = rusqlite::Connection::open(primary).unwrap();
     connection.execute_batch("DROP TABLE storage_data_entries").unwrap();
