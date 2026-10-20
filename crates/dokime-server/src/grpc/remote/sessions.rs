@@ -125,7 +125,8 @@ impl SessionLog {
             Outcome::Admitted => (RemoteSessionOutcome::Admitted, None),
             Outcome::Rejected(reason) => (RemoteSessionOutcome::Rejected, Some(reason.to_owned())),
         };
-        let peer = peer.to_string();
+        // Refusals Group By Host, So Reconnecting From Fresh Ports Cannot Evict Admitted History.
+        let peer = if rejection.is_some() { peer.ip().to_string() } else { peer.to_string() };
         let mut state = self.lock();
         state.close_idle(now);
         state.dirty = true;
@@ -213,7 +214,7 @@ fn read(path: &Path) -> Result<Option<Document>, String> {
 fn write(path: &Path, document: &Document) -> Result<(), String> {
     let bytes = serde_json::to_vec(document).map_err(|error| error.to_string())?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        super::store::private_directory(parent).map_err(|error| error.to_string())?;
     }
     harmos::filesystem::publication::write(path, &bytes).map_err(|error| error.to_string())
 }
@@ -241,6 +242,10 @@ mod tests {
         let admitted = &page.sessions[1];
         assert_eq!((admitted.calls, admitted.connected_at, admitted.last_seen_at), (2, 1_000, 2_000));
         assert_eq!(admitted.disconnected_at, None);
+        log.record_at(peer(5001), "anonymous", Outcome::Rejected("invalid credentials"), 2_600);
+        let grouped = log.list_at(None, 20, 3_000).unwrap();
+        assert_eq!(grouped.sessions.len(), 2, "refusals from fresh ports share the host's session");
+        assert_eq!((grouped.sessions[0].peer_address.as_str(), grouped.sessions[0].calls), ("192.168.1.20", 2));
         let later = log.list_at(None, 20, 2_000 + IDLE_MILLIS).unwrap();
         assert_eq!(later.sessions[1].disconnected_at, Some(2_000));
         log.record_at(peer(5000), "access-key", Outcome::Admitted, 3_000 + IDLE_MILLIS);

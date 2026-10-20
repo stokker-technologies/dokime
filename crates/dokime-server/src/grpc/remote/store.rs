@@ -126,14 +126,7 @@ pub(super) fn read(path: &Path) -> Result<Document, super::Error> {
 
 pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error> {
     let parent = path.parent().ok_or(super::Error::Configuration("remote security path has no parent"))?;
-    let mut directory = std::fs::DirBuilder::new();
-    directory.recursive(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::DirBuilderExt;
-        directory.mode(0o700);
-    }
-    directory.create(parent).map_err(super::Error::RemoteStorage)?;
+    private_directory(parent).map_err(super::Error::RemoteStorage)?;
     let bytes =
         Zeroizing::new(serde_json::to_vec(document).map_err(|_| super::Error::Configuration("cannot encode remote security document"))?);
     if bytes.len() > MAXIMUM_BYTES {
@@ -166,6 +159,18 @@ pub(super) fn validate(settings: &RemoteListenerSettings) -> Result<SocketAddr, 
         }
     }
     Ok(address)
+}
+
+/// Creates the owner-only directory that holds remote security material and the session log.
+pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
+    let mut directory = std::fs::DirBuilder::new();
+    directory.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        directory.mode(0o700);
+    }
+    directory.create(path)
 }
 
 /// The identities this host answers to: the listen address when it is specific, the host name
