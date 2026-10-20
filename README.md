@@ -716,4 +716,4 @@ submitting changes.
 
 ## License
 
-Dokime is licensed under [Apache-2.0](LICENSE-APACHE).
+Dokime is licensed under [Apache-2.0](LICENSE).

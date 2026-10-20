@@ -93,7 +93,7 @@ exclude = ["packages/dokime/src/dokime/client/_generated/**", "crates/dokime-gui
 exclude = ["crates/dokime-runtime/src/prelude.rs", "crates/dokime-runtime/src/plugin/sidecar.rs"]
 
 [markdown]
-include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**"]
+include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", ".github/**"]
 
 # === Templates === #
 
