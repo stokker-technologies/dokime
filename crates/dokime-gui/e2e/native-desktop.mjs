@@ -636,6 +636,23 @@ async function startSession(work, endpoint, evidence) {
 
 /** Size the native window until the WebView reports the exact target viewport. */
 async function sizeViewport(session, target) {
+  await session.connected();
+  const restored = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    const invoke = globalThis.__TAURI_INTERNALS__.invoke;
+    invoke('plugin:window|is_maximized', {label: 'main'}).then(async (maximized) => {
+      if (maximized) await invoke('plugin:window|internal_toggle_maximize', {label: 'main'});
+      done({maximized});
+    }).catch((error) => done({error: String(error)}));
+  `);
+  assert.equal(restored.error, undefined, "The native titlebar action must restore the maximized window before sizing");
+  await until("the native window restored before sizing", () =>
+    session.executeAsync(`
+      const done = arguments[arguments.length - 1];
+      globalThis.__TAURI_INTERNALS__.invoke('plugin:window|is_maximized', {label: 'main'})
+        .then((value) => done(!value), () => done(false));
+    `),
+  );
   let frame = { height: target.height, width: target.width };
   const measurements = [];
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -645,7 +662,10 @@ async function sizeViewport(session, target) {
     await delay(350);
     const [width, height] = await session.viewport();
     measurements.push({ requested: frame, resized, viewport: { width, height } });
-    await writeFile(join(evidence, `viewport-${target.width}x${target.height}.json`), JSON.stringify({ target, measurements }, null, 2));
+    await writeFile(
+      join(evidence, `viewport-${target.width}x${target.height}.json`),
+      JSON.stringify({ target, restored, measurements }, null, 2),
+    );
     if (width === target.width && height === target.height) return;
     frame = {
       height: resized.height + (target.height - height),
@@ -2763,7 +2783,7 @@ async function restartJourney() {
   await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 60000);
   await setDensity(session, densities.desktop);
   const cycle = await libraryJourney(session);
-  await cycleJourney(session, cycle);
+  await cycleJourney(session, cycle.id);
   await session.screenshot("native-restart");
 }
 

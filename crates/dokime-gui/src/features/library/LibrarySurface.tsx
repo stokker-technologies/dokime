@@ -17,10 +17,11 @@ import { useMemo, useState } from "react";
 
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
-import { useAppendCyclesQuery, useTestSuitesQuery } from "@/components/suite-picker/server-state";
+import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useCyclesQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
@@ -70,8 +71,12 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const brand = useBrand();
   const navigate = useNavigate();
   const suitesQuery = useTestSuitesQuery();
-  const appendCyclesQuery = useAppendCyclesQuery();
-  const destination = appendCyclesQuery.data?.find((cycle) => cycle.cycleId === appendTo);
+  const cyclesQuery = useCyclesQuery();
+  const appendCycles = useMemo(
+    () => cyclesQuery.data?.filter((cycle) => cycle.phase?.HarmosVariant.case === "Active") ?? [],
+    [cyclesQuery.data],
+  );
+  const destination = appendCycles.find((cycle) => cycle.cycleId === appendTo);
   const destinationId = destination?.cycleId;
   const destinationLabel = destination?.metadata?.label || destinationId;
   const suites = suitesQuery.data ?? null;
@@ -85,10 +90,10 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
   const actions = useMemo(
     () =>
-      appendTo ? (
+      destinationId ? (
         <Button
           className="h-[var(--control-height)]"
-          onClick={() => void navigate({ params: { cycleId: appendTo }, to: "/cycles/$cycleId" })}
+          onClick={() => void navigate({ params: { cycleId: destinationId }, to: "/cycles/$cycleId" })}
           type="button"
           variant="outline"
         >
@@ -99,7 +104,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
           New Cycle
         </Button>
       ),
-    [appendTo, navigate],
+    [destinationId, navigate],
   );
 
   usePageChrome({ actions, title: "Library" });
@@ -117,19 +122,19 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         <select
           aria-label="Destination Cycle"
           className="h-[var(--control-height)] rounded-md border bg-background px-3"
-          disabled={appendCyclesQuery.isPending || appendCyclesQuery.isError}
+          disabled={cyclesQuery.isPending || cyclesQuery.isError}
           onChange={(event) => void navigate({ search: { appendTo: event.target.value || undefined }, to: "/library" })}
           value={destinationId ?? ""}
         >
           <option value="">Select An Active Cycle</option>
-          {appendCyclesQuery.data?.map((cycle) => (
+          {appendCycles.map((cycle) => (
             <option key={cycle.cycleId} value={cycle.cycleId}>
               {cycle.metadata?.label || cycle.cycleId} · {cycle.cycleId.slice(0, 8)}
             </option>
           ))}
         </select>
       </label>
-      {appendCyclesQuery.isError ? <p role="alert">Active cycles could not be read. Reconnect and try again.</p> : null}
+      {cyclesQuery.isError ? <p role="alert">Active cycles could not be read. Reconnect and try again.</p> : null}
       {destinationId ? (
         <p className="text-muted-foreground">
           Cases materialized here are added to <span className="text-foreground">{destinationLabel}</span>.
