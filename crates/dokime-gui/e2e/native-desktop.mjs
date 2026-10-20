@@ -173,8 +173,11 @@ const notes = [];
 const secrets = new Set();
 let savedKeyCount = 0;
 
-/** What the prompt banner and its counts showed before each prompt was answered. */
+/** What the prompt queue and its counts showed before each prompt was answered. */
 const promptSightings = [];
+
+/** What the cycle page said while an execution waited on input. */
+const cycleInputSightings = [];
 
 /** The journey whose WebView died, once one has: everything after it is moot. */
 let webviewGone = null;
@@ -945,45 +948,59 @@ async function settle(session) {
   ).catch(() => undefined);
 }
 
-/** Answer every prompt the open cycle is waiting on, through the banner or Control. */
+/**
+ * Answer every prompt the open cycle is waiting on, where it lives.
+ *
+ * A prompt has one home, the execution that asked it: the cycle page only
+ * names the executions waiting on input and links to them, so a link found
+ * there is followed first. The queue on the execution page holds the oldest
+ * prompt open under the Control card; a decision prompt answers with Yes.
+ */
 async function answerPendingPrompts(session) {
-  /* The banner is gone the moment a prompt is answered, so what it showed is
-     read here, before Respond, and asserted once the run is over. */
+  /* The cycle page answers nothing an execution asked: it names where. */
+  const cycleSighting = await session.execute(`
+    const needed = document.querySelector('[data-input-needed]');
+    if (!needed) return null;
+    return {
+      text: needed.innerText,
+      respond: [...document.querySelectorAll('button')].some((button) => button.innerText.trim() === 'Respond'),
+    };
+  `);
+  if (cycleSighting) {
+    cycleInputSightings.push(cycleSighting);
+    await session.execute(`
+      const link = [...document.querySelectorAll('[data-input-needed] button')].find((button) => /^Answer On #/.test(button.innerText.trim()));
+      link?.click();
+    `);
+    await delay(800);
+  }
+  /* The queue is gone the moment its last prompt is answered, so what it
+     showed is read here, before answering, and asserted once the run is over. */
   const sighting = await session.execute(`
-    const banner = document.querySelector('section[aria-label="Pending Prompts"]');
-    if (!banner) return null;
-    const cards = [...banner.querySelectorAll('li[data-prompt-level]')];
+    const queue = document.querySelector('ol[aria-label="Pending Prompts"]');
+    if (!queue) return null;
+    const cards = [...queue.querySelectorAll('li[data-prompt-level]')];
+    const control = document.querySelector('[data-execution-section="Control"]');
     return {
       cards: cards.map((card) => ({
         level: card.dataset.promptLevel,
+        state: card.dataset.promptState,
         text: card.innerText,
         top: card.getBoundingClientRect().top,
       })),
-      bannerTop: banner.getBoundingClientRect().top,
-      header: document.querySelector('[data-testid="cycle-prompt-count"]')?.innerText ?? null,
+      queueTop: queue.closest('section')?.getBoundingClientRect().top ?? queue.getBoundingClientRect().top,
+      controlBottom: control?.getBoundingClientRect().bottom ?? null,
+      header: queue.closest('section')?.querySelector('header')?.innerText ?? null,
       navigation:
         document.querySelector('[data-testid="navigation-prompt-count"]')?.innerText ?? null,
     };
   `);
   if (sighting) promptSightings.push(sighting);
-  const pending = await session.execute(`
-    const banner = document.querySelector('section[aria-label="Pending Prompts"]');
-    if (!banner) return 0;
-    const respond = [...banner.querySelectorAll('button')].filter(
-      (button) => button.innerText.trim() === 'Respond',
-    );
-    respond[0]?.click();
-    if (respond.length) return respond.length;
-    /* The execution page prints its prompt open in Control, with no Respond. */
-    return banner.querySelector('[aria-labelledby="active-prompt-title"]')
-      ? banner.querySelectorAll('li[data-prompt-level]').length
-      : 0;
-  `);
+  const pending = sighting?.cards.length ?? 0;
   if (!pending) return 0;
-  await delay(600);
   await session.execute(
     `const note = arguments[0];
-     const panel = document.querySelector('[aria-labelledby="active-prompt-title"]') ?? document.body;
+     const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]') ?? document.body;
      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
      for (const input of panel.querySelectorAll('input[type="text"], input[type="number"]')) {
        if (input.value) continue;
@@ -998,10 +1015,10 @@ async function answerPendingPrompts(session) {
   );
   await delay(400);
   const submitted = await session.execute(`
-    const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
+    const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]');
     if (!panel) return false;
     const submit = [...panel.querySelectorAll('button')].find((button) =>
-      /^(Submit|Confirm|Accept|Continue)$/.test(button.innerText.trim()),
+      /^(Yes|Submit|Confirm|Accept|Continue)$/.test(button.innerText.trim()),
     );
     if (!submit) return false;
     submit.click();
@@ -1293,16 +1310,10 @@ async function activeCycleJourney(session, otherTitle) {
 async function libraryJourney(session) {
   await session.goto("/library");
   await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
-  const destination = await until("the explicit destination selector", () =>
-    session.execute(`
-    const select = document.querySelector('select[aria-label="Destination Cycle"]');
-    return select && !select.disabled ? { value: select.value } : null;
-  `),
-  );
-  assert.equal(destination.value, "", "The Library must require an explicit destination even when other cycles are Active");
-  assert.ok(
-    hasText(await session.text(), "Select an Active cycle above, or create one, before adding cases."),
-    "The Library must explain how to select or create its destination",
+  assert.equal(
+    await session.execute("return document.querySelector('select[aria-label=\"Destination Cycle\"]');"),
+    null,
+    "The active cycle is shell state, not a Library control",
   );
 
   /* New Cycle opens a dialog titled by the moment it opened. */
@@ -1326,11 +1337,9 @@ async function libraryJourney(session) {
     async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     30000,
   );
-  await until(
-    "the created cycle selected as destination",
-    async () => (await session.execute("return document.querySelector('select[aria-label=\"Destination Cycle\"]')?.value;")) === appendTo,
+  await until("the created cycle active in the shell", async () =>
+    hasText((await session.execute("return document.querySelector('[data-testid=status-active-cycle]')?.innerText ?? '';")) ?? "", title),
   );
-  assert.ok(hasText(await session.text(), "Cases materialized here are added to"), "With an active cycle the Library must name it");
   assert.ok(await session.exists("button", "Open Cycle"), "With an active cycle the page bar action must become Open Cycle");
 
   await session.clickNamed("button", PROTECTION_SUITE);
@@ -1611,24 +1620,24 @@ async function cycleJourney(session, cycleId) {
     300000,
   );
 
-  /* The Startup Prompt Was A Warning Banner With Counts In Header And Navigation. */
+  /* The Startup Prompt Was Queued On Its Execution, Under Control, At Warning. */
   const startupSighting = promptSightings.find((seen) => seen.cards.some((card) => hasText(card.text, STARTUP_PROMPT)));
-  assert.ok(startupSighting, `The prompt banner must show "${STARTUP_PROMPT}" before it is answered`);
+  assert.ok(startupSighting, `The prompt queue must show "${STARTUP_PROMPT}" before it is answered`);
   const startupCard = startupSighting.cards.find((card) => hasText(card.text, STARTUP_PROMPT));
   assert.equal(startupCard.level, "warning", "The OBC plugin's startup prompt must render at its declared Warning level");
-  /* The cycle cockpit offers a card with its kind and Respond; the execution
-     page prints the prompt open, under its own "Run Paused" line. */
-  const inlinePrompt = /Run Paused/i.test(startupCard.text) && !/Respond/.test(startupCard.text);
   assert.ok(
-    inlinePrompt || (/Respond/.test(startupCard.text) && /Form/.test(startupCard.text)),
-    `A banner card must offer its kind and the Respond action, or the prompt must be open (got ${normalize(startupCard.text)})`,
+    startupCard.state === "open" && /Run Paused/i.test(startupCard.text) && !/Respond/.test(startupCard.text),
+    `The oldest prompt must be open in its execution's queue, with no Respond (got ${normalize(startupCard.text)})`,
   );
   assert.ok(
-    startupSighting.bannerTop < 400,
-    `The prompt banner must sit at the top of the workspace, not at ${startupSighting.bannerTop}px`,
+    startupSighting.controlBottom !== null && startupSighting.queueTop >= startupSighting.controlBottom,
+    `The prompt queue must sit directly under the Control card (queue ${startupSighting.queueTop}px, control ${startupSighting.controlBottom}px)`,
   );
-  if (!inlinePrompt) {
-    assert.match(startupSighting.header ?? "", /\d+ prompts? waiting/, "The cycle header must count the open prompts");
+  assert.match(startupSighting.header ?? "", /\d+ prompts? waiting/, "The prompt queue must count the open prompts");
+  /* The Cycle Page Names Where Input Is Needed And Answers Nothing Itself. */
+  for (const seen of cycleInputSightings) {
+    assert.match(seen.text, /Input needed on #\d+/, "The cycle page must name the execution waiting on input");
+    assert.ok(!seen.respond, "The cycle page must not offer Respond for an execution's prompt");
   }
   /* The navigation badge follows its own query, so any sighting of the open
      prompt may carry it; one must. */
@@ -1685,7 +1694,7 @@ async function cycleJourney(session, cycleId) {
   assert.ok(!(await session.exists("button", "Choose Attempt")), "Execution selection belongs to the list");
 
   /* A Re-Run Appends A New Row And Preserves The Earlier Evidence. */
-  await session.clickNamed("button", "Re-Run Case");
+  await session.clickNamed("button", "Re-Run");
   const rerunId = await until(
     "new re-run execution selected",
     async () => {
@@ -1856,7 +1865,7 @@ async function cycleJourney(session, cycleId) {
   await until("the cycle page", () => session.exists("button", "Cycle Actions"), 10000);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
-  for (const item of ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active", "Open Report", "Archive"]) {
+  for (const item of ["Copy Cycle", "Add Cases", "Follow Active", "Open Report", "Settings", "Archive"]) {
     assert.ok(hasText(items, item), `The overflow menu must offer ${item}`);
   }
   for (const item of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
@@ -1946,6 +1955,11 @@ async function executionStopJourney(session, cycleId) {
     "An unstarted execution the operator selected must stay selected while another runs",
   );
   assert.ok(hasText(await session.text(), "This case has not run yet"), "An unstarted execution shows its planned parameters");
+  /* An attempt that has not started is cancelled, not stopped: Stop belongs
+     to a running attempt alone. */
+  await until("Cancel Execution on the unstarted attempt", () => session.exists("button", "Cancel Execution"), 30000);
+  assert.ok(!(await session.exists("button", "Stop Execution")), "An unstarted execution must not offer Stop");
+  assert.ok(!hasText(await session.text(), "No step in progress"), "An unstarted execution states that it waits for Start");
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
   await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
   await session.execute(
@@ -1977,8 +1991,35 @@ async function executionStopJourney(session, cycleId) {
   assert.ok(/\b(Stopped|Interrupted)\b/.test(stoppedRow), `The stopped execution must keep its truthful outcome: ${stoppedRow}`);
   const rows = await sidebarText(session);
   assert.ok(/\b(Queued|Planned)\b/.test(rows), "Stop must preserve unstarted sibling attempts");
+
+  // === Cancel Skips One Unstarted Sibling And Leaves The Cycle Active === //
+
+  const cancelled = await session.execute(`
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => /\\b(Queued|Planned)\\b/.test(candidate.innerText));
+    if (!row) return null;
+    row.querySelector('button').click();
+    return row.dataset.executionId ?? null;
+  `);
+  assert.ok(cancelled, "An unstarted sibling must remain to cancel");
+  await until("Cancel Execution", () => session.exists("button", "Cancel Execution"), 30000);
+  await session.clickNamed("button", "Cancel Execution");
+  await until("the cancel acknowledgement", async () => /Execution Cancelled/.test(await toastText(session)), 20000);
+  const cancelledRow = await until("the cancelled row", () =>
+    session.execute(
+      `const text = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+        .find((row) => row.dataset.executionId === arguments[0])?.innerText ?? '';
+       return /\\b(Stopped|Skipped|Cancelled)\\b/.test(text) ? text : null;`,
+      [cancelled],
+    ),
+  );
+  assert.ok(cancelledRow, "The cancelled execution must be recorded as skipped");
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
   await cyclePhase(session, "Active");
+  assert.ok(
+    !hasText(await session.text(), "Active · Stopped"),
+    "Stopping or cancelling one execution must leave the cycle Active, not Stopped",
+  );
   return copyId;
 }
 
@@ -2043,8 +2084,9 @@ async function containersJourney(session, cycleId) {
   await exportAvailability(session, true);
 }
 
+/** The cycle's own state reads "Active · Idle" and the like while Active, then "Sealing" and "Sealed". */
 async function cyclePhase(session, phase) {
-  await until(`cycle phase ${phase}`, async () => hasText(await session.text(), `${phase} ·`));
+  await until(`cycle phase ${phase}`, async () => hasText(await session.text(), phase === "Active" ? "Active ·" : phase));
 }
 
 async function exportAvailability(session, enabled) {
@@ -2084,7 +2126,7 @@ async function cyclesHomeJourney(session, cycleTitle) {
       const text = await session.text();
       /* The stopped copy is the loaded cycle; it lands in whichever group its
          status selects (a stopped execution leaves it needing attention). */
-      return hasText(text, cycleTitle) && /Completed|Failed|Ready|Stopped|Blocked/.test(text) ? text : null;
+      return hasText(text, cycleTitle) && /Active · (Idle|Running|Waiting)|Sealing|Sealed/.test(text) ? text : null;
     },
     60000,
   );
@@ -2305,7 +2347,8 @@ async function remoteAccessJourney() {
   await connect(address, replacement.key, certificate, true);
   await session.goto(`/cycles/${activeCycle}?view=cycle`);
   await cyclePhase(session, "Active");
-  assert.ok(hasText(await session.text(), STARTUP_PROMPT), "the admitted operator prompt survives key and certificate rotation");
+  /* The cycle page names the execution waiting on input; the prompt itself is answered there. */
+  assert.ok(hasText(await session.text(), "Input needed on #"), "the cycle names the execution its surviving prompt waits on");
   const running = await caseRowText(session, STARTUP_TEMPLATE);
   assert.match(running, /\b(Running|Waiting)\b/, "rotation leaves the admitted execution running");
   await session.execute(
@@ -2314,6 +2357,7 @@ async function remoteAccessJourney() {
      row.querySelector('button[data-tree-select]').click();`,
     [STARTUP_TEMPLATE],
   );
+  await until("the surviving prompt on its execution", async () => hasText(await session.text(), STARTUP_PROMPT), 30000);
   await session.clickNamed("button", "Stop Execution");
   await until("rotation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
 
@@ -2496,6 +2540,8 @@ async function settingsJourney(session, notes) {
 async function reportJourney(session, cycleId) {
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   await until("cycle workspace", () => session.exists("button", "Cycle Actions"), 60000);
+  /* The report lists every planned member, run or not, as the live tree does. */
+  const liveMembers = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
   await installSaveTap(session);
   await session.clickNamed("button", "Download Report");
   /* The toast carries the backend's own words when the report fails, and a
@@ -2567,6 +2613,11 @@ async function reportJourney(session, cycleId) {
   const runControls = controls.filter((label) => /\bStart\b|Run Again|Pause|Stop\b/.test(label));
   assert.deepEqual(runControls, [], "A frozen report renders no run controls");
   assert.ok(hasText(report, "Records"), "The report renders its records section");
+  assert.equal(
+    (dom.match(/data-level="case"/g) ?? []).length,
+    liveMembers,
+    "The frozen report must list every planned execution the live cycle lists, pending ones included",
+  );
 }
 
 /**
