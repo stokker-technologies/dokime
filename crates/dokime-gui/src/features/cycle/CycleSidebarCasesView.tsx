@@ -83,6 +83,7 @@ import {
   caseActionTooltip,
   caseStatusLabel,
   cycleRowSelection,
+  cycleState,
   cycleStatusLabel,
   executionStatusLabel,
   finishedCaseCount,
@@ -254,7 +255,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
         {plan ? (
           <li
             aria-expanded={expanded}
-            aria-label={`${plan.test_cycle.title}, ${cycleStatusLabel(plan.test_cycle.status)}`}
+            aria-label={`${plan.test_cycle.title}, ${cycleState(plan.test_cycle.phase, plan.test_cycle.status, false).label}`}
             aria-level={1}
             aria-selected={cycleSelected}
             className="grid min-w-0 gap-px outline-none [&:focus-visible>div]:ring-2 [&:focus-visible>div]:ring-ring"

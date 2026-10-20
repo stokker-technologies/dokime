@@ -60,12 +60,11 @@ import {
   buildCycleExecutionRows,
   type CycleExecutionRow,
   type CycleSelection,
-  cycleStatusLabel,
-  cycleStatusVariant,
+  cycleState,
   finishedCaseCount,
   followSelection,
   isActiveExecutionStatus,
-  isCycleTerminal,
+  isCycleSealed,
   isTerminalExecutionStatus,
   progressStepLabel,
   selectedCycleRow,
@@ -111,6 +110,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const selectedRow = selectedCycleRow(rows, selection);
   const finished = finishedCaseCount(cases);
   const status = plan?.test_cycle.status ?? "planned";
+  const phase = plan?.test_cycle.phase ?? "active";
   const activeExecutionId =
     plan?.test_cycle.current_test_execution_id ?? executions.find((execution) => execution.status === "running")?.test_execution_id ?? null;
   const progress = useExecutionProgress(activeExecutionId);
@@ -120,13 +120,13 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     if (!live) return [];
     const statuses = new Map(executions.map((execution) => [execution.test_execution_id, execution.status]));
     return answerablePrompts(promptsQuery.data ?? [], {
-      cycleEnded: isCycleTerminal(status),
+      cycleEnded: phase !== "active",
       executionActive: (id) => {
         const executionStatus = statuses.get(id);
         return executionStatus !== undefined && isActiveExecutionStatus(executionStatus);
       },
     });
-  }, [executions, live, promptsQuery.data, status]);
+  }, [executions, live, phase, promptsQuery.data]);
   const activity = useMemo(() => {
     const activeRow = rows.find((row) => row.execution?.test_execution_id === progress?.testExecutionId);
     if (!progress || !activeRow) return null;
@@ -335,16 +335,15 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         identity={{
           status: {
             activity,
-            label: `${plan.test_cycle.phase === "active" ? "Active" : plan.test_cycle.phase === "sealing" ? "Sealing" : "Sealed"} · ${cycleStatusLabel(status)}`,
+            ...cycleState(phase, status, prompts.length > 0),
             progress: `${finished} of ${cases.length} cases finished`,
-            variant: cycleStatusVariant(status),
           },
           title: plan.test_cycle.title,
         }}
         live={live}
         onRename={plan.test_cycle.sealed || plan.test_cycle.archived ? undefined : (label) => commands.renameCycle.mutateAsync(label)}
         menu={{
-          archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleTerminal(status), (archived) =>
+          archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleSealed(phase), (archived) =>
             commands.archiveCycle.mutateAsync(archived),
           ),
           followActive,

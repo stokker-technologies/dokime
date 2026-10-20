@@ -24,8 +24,7 @@ import {
   buildCycleCases,
   buildCycleExecutionRows,
   type CycleSelection,
-  cycleStatusLabel,
-  cycleStatusVariant,
+  cycleState,
   finishedCaseCount,
   isUnstartedExecution,
   selectedCycleRow,
@@ -133,8 +132,7 @@ export function ReportCycleWorkspace({ source, selection }: ReportCycleWorkspace
         identity={{
           title: plan.test_cycle.title,
           status: {
-            label: cycleStatusLabel(plan.test_cycle.status),
-            variant: cycleStatusVariant(plan.test_cycle.status),
+            ...cycleState(plan.test_cycle.phase, plan.test_cycle.status, false),
             progress: `${finishedCaseCount(cases)} of ${cases.length} cases finished`,
             activity: null,
           },

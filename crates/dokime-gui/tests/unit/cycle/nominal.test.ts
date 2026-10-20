@@ -22,6 +22,7 @@ import {
   type CycleCase,
   type CycleSelection,
   cycleRowSelection,
+  cycleState,
   executionControlSet,
   followSelection,
   isCycleTerminal,
@@ -98,6 +99,25 @@ test("Active Containers Persist", () => {
     groups.find((group) => group.id === "recent")?.rows.map((row) => row.cycleId),
     ["history"],
   );
+});
+
+test("Cycle State", () => {
+  // Stopping One Execution Leaves Its Active Cycle Idle
+  assert.deepEqual(cycleState("active", "stopped", false), { label: "Active · Idle", variant: "outline" });
+  assert.equal(cycleState("active", "completed", false).label, "Active · Idle");
+  assert.equal(cycleState("active", "planned", false).label, "Active · Idle");
+
+  // Running Covers Every Lifecycle That Still Produces Evidence
+  for (const lifecycle of ["running", "paused", "stopping"] as const) {
+    assert.equal(cycleState("active", lifecycle, false).label, "Active · Running");
+  }
+
+  // An Answerable Prompt Means The Cycle Waits On The Operator
+  assert.equal(cycleState("active", "running", true).label, "Active · Waiting");
+
+  // The Closing Phases Name Only Themselves
+  assert.equal(cycleState("sealing", "stopping", true).label, "Sealing");
+  assert.equal(cycleState("sealed", "failed", false).label, "Sealed");
 });
 
 test("Node Menus", () => {

@@ -27,7 +27,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
 import { useRecordsQuery } from "@/features/cycle/server-state";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
@@ -45,7 +44,7 @@ import {
 } from "@/shell/status-bar-operations";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
-import { FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
+import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
 
 /* === Constants === */
 
@@ -66,7 +65,7 @@ const CONNECTION_LABEL = {
 export type StatusBarProps =
   | { live?: true }
   | {
-      frozen: { generatedAt: string | null; status: CycleLifecycle };
+      frozen: { generatedAt: string | null; status: FrozenCycleStatus };
       live: false;
     };
 

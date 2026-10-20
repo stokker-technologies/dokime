@@ -388,6 +388,34 @@ export function isCycleInFlight(status: CycleLifecycle): boolean {
   return status === "running" || status === "paused" || status === "stopping";
 }
 
+/** Every label `cycleState` gives, longest first; the Status column fits the first. */
+export const CYCLE_STATE_LABELS = ["Active · Waiting", "Active · Running", "Active · Idle", "Sealing", "Sealed"] as const;
+
+export type CycleState = {
+  label: (typeof CYCLE_STATE_LABELS)[number];
+  variant: "default" | "secondary" | "warning" | "outline";
+};
+
+/**
+ * The cycle's own state, as its pill and label say it.
+ *
+ * An Active cycle is Idle, Running or Waiting for an operator; Sealing and
+ * Sealed close it. An execution's outcome never reaches this label: a stopped
+ * or finished run leaves its Active cycle Idle.
+ */
+export function cycleState(phase: TestCycle["phase"], lifecycle: CycleLifecycle, waiting: boolean): CycleState {
+  if (phase === "sealing") return { label: "Sealing", variant: "warning" };
+  if (phase === "sealed") return { label: "Sealed", variant: "secondary" };
+  if (waiting) return { label: "Active · Waiting", variant: "warning" };
+  if (isCycleInFlight(lifecycle)) return { label: "Active · Running", variant: "default" };
+  return { label: "Active · Idle", variant: "outline" };
+}
+
+/** Whether the cycle has closed: prompts end with it, and only a sealed cycle archives. */
+export function isCycleSealed(phase: TestCycle["phase"]): boolean {
+  return phase === "sealed";
+}
+
 export function cycleStatusLabel(status: CycleLifecycle): string {
   switch (status) {
     case "planned":
