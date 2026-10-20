@@ -58,6 +58,8 @@ export type SettingsFieldsProps = {
   readOnly?: SettingsReadOnly;
   /** Marks the title invalid after a refused submit. */
   titleInvalid?: boolean;
+  /** The fields' id prefix, `new-cycle` gives `new-cycle-title`; unique when absent. */
+  idPrefix?: string;
 };
 
 export type SettingsDialogProps = {
@@ -75,8 +77,9 @@ export type SettingsDialogProps = {
 
 /* === Components === */
 
-export function SettingsFields({ onChange, readOnly = {}, titleInvalid = false, values }: SettingsFieldsProps) {
-  const id = useId();
+export function SettingsFields({ idPrefix, onChange, readOnly = {}, titleInvalid = false, values }: SettingsFieldsProps) {
+  const generated = useId();
+  const id = idPrefix ?? generated;
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">

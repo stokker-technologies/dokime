@@ -77,6 +77,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             <DialogDescription>The cycle starts empty. Add cases to it from the Library.</DialogDescription>
           </DialogHeader>
           <SettingsFields
+            idPrefix="new-cycle"
             onChange={(patch) => change(patch)}
             titleInvalid={error !== null && !form.title.trim()}
             values={{ continueAutomatically: form.continueAutomatically, description: form.description, title: form.title }}
