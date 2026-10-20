@@ -181,6 +181,7 @@ matrix! {
     "/dokime.v1.Execution/PauseExecution", unary, contracts::execution::PauseExecution;
     "/dokime.v1.Execution/ResumeExecution", unary, contracts::execution::ResumeExecution;
     "/dokime.v1.Execution/StopExecution", unary, contracts::execution::StopExecution;
+    "/dokime.v1.Execution/CancelExecution", unary, contracts::execution::CancelExecution;
     "/dokime.v1.Execution/SubmitExecutionCommand", unary, contracts::execution::SubmitExecutionCommand = contracts::execution::SubmitExecutionCommand {
         request_id: String::new(),
         command_id: String::new(),

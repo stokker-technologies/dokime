@@ -29,6 +29,7 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { deliverNativeArtifact } from "@/lib/api/native-delivery";
 import {
   appendNativeCaseAttempt,
+  cancelNativeTestExecution,
   deleteNativeTestCycleCases,
   fetchNativeTestCycleDetail,
   pauseNativeTestExecution,
@@ -201,6 +202,10 @@ export function useCycleCommands(cycleId: string) {
     }),
     stopExecution: useMutation({
       mutationFn: (executionId: string) => stopNativeTestExecution(session().identity, executionId),
+      onSettled: invalidateAll,
+    }),
+    cancelExecution: useMutation({
+      mutationFn: (executionId: string) => cancelNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
     startExecution: useMutation({

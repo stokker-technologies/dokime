@@ -140,6 +140,11 @@ export async function stopNativeTestExecution(session: SessionIdentity, executio
   await rpc.executionStopExecution(session, { executionId });
 }
 
+/** Skips One Unstarted Attempt; Cycle Continuation Is Unchanged */
+export async function cancelNativeTestExecution(session: SessionIdentity, executionId: string): Promise<void> {
+  await rpc.executionCancelExecution(session, { executionId });
+}
+
 export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
   await rpc.executionSealCycle(session, { cycleId });
 }
