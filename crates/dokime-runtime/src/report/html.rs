@@ -14,17 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    io::Write,
-    num::NonZeroUsize,
-    ops::Deref,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
-};
+use std::{cell::RefCell, collections::BTreeMap, io::Write, ops::Deref, sync::Arc};
 
 // Third Party Imports
 
@@ -53,7 +43,6 @@ use dokime_domain::model::identity::DocumentId;
 pub(super) struct HtmlReport {
     index: Index,
     source: Source,
-    counted: AtomicUsize,
 }
 
 /* === Enums === */
@@ -108,14 +97,14 @@ impl HtmlReport {
         }
         operation.progress(count as u64, count as u64);
         index.sort();
-        Ok(Self { index, source: Source::Saved { snapshot, documents, members }, counted: AtomicUsize::new(0) })
+        Ok(Self { index, source: Source::Saved { snapshot, documents, members } })
     }
 
     pub(super) fn from_capture(captured: Arc<CapturedExecutionReportInput>, evidence: Arc<CapturedSource>) -> Result<Self> {
         let mut index = Index::new();
         index.push_capture(&captured)?;
         index.sort();
-        Ok(Self { index, source: Source::Captured { input: captured, evidence }, counted: AtomicUsize::new(0) })
+        Ok(Self { index, source: Source::Captured { input: captured, evidence } })
     }
 
     fn read(&self, member: usize) -> Result<Member> {
@@ -156,29 +145,10 @@ impl HtmlReport {
         }
     }
 
-    pub(super) fn length(&self, maximum: NonZeroUsize) -> Result<usize> {
-        let counted = self.counted.load(Ordering::Relaxed);
-        if counted != 0 && counted <= maximum.get() {
-            return Ok(counted);
-        }
-        let mut count = super::output::Count::new(maximum);
-        match self.write(&mut count) {
-            Ok(()) => {
-                self.counted.store(count.len(), Ordering::Relaxed);
-                Ok(count.len())
-            }
-            Err(_) if count.exceeded() => Err(Error::Harmos(harmos::Error::ResourceExhausted { resource: "report output size" })),
-            Err(error) => Err(error),
-        }
-    }
-
-    pub(super) fn bytes(&self, length: usize) -> Result<Vec<u8>> {
-        let mut buffer = super::output::Buffer::new(length).map_err(|source| invalid(&source.to_string()))?;
-        self.write(&mut buffer)?;
-        let bytes = buffer.into_bytes();
-        if bytes.len() != length {
-            return Err(invalid("report output changed its counted size"));
-        }
+    // One Serialization Pass Yields The Published Bytes; Their Length And Digest Are Taken From Them.
+    pub(super) fn render(&self) -> Result<Vec<u8>> {
+        let mut bytes = Vec::with_capacity(super::asset::REPORT_APP_TEMPLATE.len());
+        self.write(&mut bytes)?;
         Ok(bytes)
     }
 
