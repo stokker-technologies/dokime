@@ -81,6 +81,17 @@ language = "python"
 hosts = ["target/build/{profile}/{target}/bin/dokime-server{exe}", "target/build/{profile}/{target}/plugins/obc-plugin.dokime"]
 
 [[conventions.testing.lanes]]
+category = "acceptance"
+language = "rust"
+products = ["python"]
+hosts = [
+  "target/build/{profile}/{target}/bin/dokime-server{exe}",
+  "target/build/{profile}/{target}/bin/dokime{exe}",
+  "target/build/{profile}/{target}/plugins/obc-plugin.dokime",
+  "target/build/{profile}/any/python/dokime_client-0.1.0-py3-none-any.whl",
+]
+
+[[conventions.testing.lanes]]
 category = "system"
 language = "rust"
 products = ["python"]
