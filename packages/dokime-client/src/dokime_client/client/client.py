@@ -238,7 +238,6 @@ class DokimeClient:
         label: str,
         description: str | None = None,
         identifier: str | None = None,
-        continue_on_failure: bool = False,
         continue_automatically: bool = False,
     ) -> Cycle:
         """Create An Empty Active Cycle And Return Its Bound Handle.
@@ -263,7 +262,6 @@ class DokimeClient:
                 "Execution",
                 "CreateCycle",
                 metadata=metadata,
-                continue_on_failure=continue_on_failure,
                 continue_automatically=continue_automatically,
             ),
         )

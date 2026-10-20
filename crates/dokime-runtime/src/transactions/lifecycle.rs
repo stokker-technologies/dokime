@@ -598,7 +598,6 @@ mod tests {
             execution_ids: vec![],
             records: Default::default(),
             continue_automatically: false,
-            continue_on_failure: false,
             result: None,
         };
         state.cycles.insert(id.clone(), source.clone());

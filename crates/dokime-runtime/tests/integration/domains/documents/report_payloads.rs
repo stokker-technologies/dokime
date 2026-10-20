@@ -106,7 +106,6 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
             test_executions: vec![execution],
             records: TestRecordSet::default(),
             continue_automatically: false,
-            continue_on_failure: false,
             result: None,
         },
         documents: BTreeMap::new(),
@@ -1144,7 +1143,7 @@ async fn latest_member_annotations() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     let members =
         cycle_snapshot(&runtime, &cycle_id).await.test_executions.iter().map(|member| member.test_execution_id.clone()).collect::<Vec<_>>();
     let note = runtime
@@ -1218,7 +1217,7 @@ async fn cycle_report_planned() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed", "passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     let members = cycle_snapshot(&runtime, &cycle_id).await.test_executions;
     let receipt = runtime
         .start_execution(

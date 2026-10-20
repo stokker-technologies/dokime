@@ -278,7 +278,7 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
         created_at: None,
         updated_at: None,
     };
-    let request = CreateCycle { metadata: Some(metadata), continue_automatically: false, continue_on_failure: false, context: None };
+    let request = CreateCycle { metadata: Some(metadata), continue_automatically: false, context: None };
     let cycle = client.create_cycle(request).await.unwrap();
     let binding = ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: materialized.cases[0].case_id.clone() };
     cycle.append(vec![binding]).await.unwrap();

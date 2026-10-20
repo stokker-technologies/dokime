@@ -84,7 +84,7 @@ async fn smoke_case(handle: &RuntimeHandle) -> TestCase {
 
 async fn start_smoke(handle: &RuntimeHandle, label: &str, members: usize) -> TestCycleId {
     let case = smoke_case(handle).await;
-    start_cases(handle, Metadata::new(Identifier::new(label).unwrap(), label, None), vec![case; members], false).await
+    start_cases(handle, Metadata::new(Identifier::new(label).unwrap(), label, None), vec![case; members]).await
 }
 
 async fn run(handle: &RuntimeHandle, cycle_id: &TestCycleId) -> CommandId {

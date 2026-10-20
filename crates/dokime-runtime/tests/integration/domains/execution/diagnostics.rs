@@ -76,7 +76,7 @@ async fn stored_provider_paths() {
     let (mut owner, handle) = booted_with_fixture(root.path(), Arc::new(DiagnosticExecutor { diagnostic })).await;
     let suite = fixture_suite(&["failed"]);
     register_python_suite(&handle, suite.clone()).await;
-    let cycle = start_cycle(&handle, suite, false).await;
+    let cycle = start_cycle(&handle, suite).await;
     let mut records = handle.subscribe_records();
     handle.start_next_execution(cycle.clone(), CommandContext::default()).await;
     wait_for_cycle_outcome(&handle, &cycle, ResultStatus::Failed).await;

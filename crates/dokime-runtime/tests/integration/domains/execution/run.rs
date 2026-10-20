@@ -45,7 +45,7 @@ async fn cycle_exposes_rows() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = plt400_suite();
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
 
     let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run.status, CommandStatus::Accepted);
@@ -77,7 +77,7 @@ async fn provider_lane_run() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = plt400_suite();
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     let mut records = runtime.subscribe_records();
     let tracking = |evidence: &dokime_runtime::domains::evidence::EvidenceSnapshot| {
         (
@@ -142,7 +142,7 @@ async fn provider_lane_run() {
         values: vec![ParameterExpr::Literal { value: Value::from("passed") }, ParameterExpr::Literal { value: Value::from("alternate") }],
     };
     register_python_suite(&runtime, repeated.clone()).await;
-    let repeated_id = start_cycle(&runtime, repeated, false).await;
+    let repeated_id = start_cycle(&runtime, repeated).await;
     // Starting It Retires The First Sealed Cycle And Its Live Record Visibility.
     let baseline = tracking(&runtime.evidence_snapshot().await.unwrap());
     let queued = cycle_snapshot(&runtime, &repeated_id).await;
@@ -171,7 +171,7 @@ async fn failing_panicking_failed() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("failed"))).await;
     let suite = plt400_suite();
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     let mut records = runtime.subscribe_records();
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
@@ -214,7 +214,7 @@ async fn failing_panicking_failed() {
     let (_owner, runtime) = booted_with_fixture(panicking_root.path(), Arc::new(PanickingExecutor)).await;
     let suite = plt400_suite();
     register_python_suite(&runtime, suite.clone()).await;
-    let panicking_id = start_cycle(&runtime, suite, false).await;
+    let panicking_id = start_cycle(&runtime, suite).await;
 
     let receipt = runtime.start_next_execution(panicking_id.clone(), CommandContext::default()).await;
     wait_for_cycle_outcome(&runtime, &panicking_id, ResultStatus::Failed).await;
@@ -246,7 +246,7 @@ async fn stop_holds_unwind() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = plt400_suite();
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
@@ -293,7 +293,7 @@ async fn stop_spares_sibling() {
         values: vec![ParameterExpr::Literal { value: Value::from("passed") }, ParameterExpr::Literal { value: Value::from("alternate") }],
     };
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
@@ -352,7 +352,7 @@ async fn cycle_spanning_group() {
     let first = plt400_suite();
     let second = plt400_diagnostics_suite();
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, first, false).await;
+    let test_cycle_id = start_cycle(&runtime, first).await;
     runtime
         .append_fixture_cases(
             test_cycle_id.clone(),
@@ -393,7 +393,7 @@ async fn fail_fast_failure() {
     let first = plt400_suite_with_result("failed");
     let second = plt400_diagnostics_suite();
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, first, false).await;
+    let test_cycle_id = start_cycle(&runtime, first).await;
     runtime
         .append_fixture_cases(
             test_cycle_id.clone(),

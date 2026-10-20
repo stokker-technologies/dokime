@@ -60,7 +60,7 @@ async fn cancel_skips_unstarted() {
     suite.test_case_templates[0].parameters[0].expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
     suite.test_case_templates[0].parameters[0].expression = ParameterExpr::Array { values: literals.to_vec() };
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     let planned = cycle_snapshot(&runtime, &test_cycle_id).await;
     let ids = planned.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect::<Vec<_>>();
     assert_eq!(ids.len(), 3);

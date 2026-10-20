@@ -245,7 +245,6 @@ mod tests {
                 execution_ids: ids.to_vec(),
                 records: Default::default(),
                 continue_automatically: true,
-                continue_on_failure: false,
                 result: None,
             },
         );

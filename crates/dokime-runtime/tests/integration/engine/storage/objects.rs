@@ -185,7 +185,6 @@ async fn cycles_reopen_producers() {
         ],
         records: Default::default(),
         continue_automatically: false,
-        continue_on_failure: false,
         result: None,
     };
     let row = dokime_runtime::storage::objects::cycle::Cycle::try_from(&expected).unwrap();

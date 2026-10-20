@@ -523,11 +523,10 @@ test("New Cycle Form", () => {
   const opened = new Date(2026, 9, 16, 14, 5);
   const form = initialNewCycleForm(opened);
 
-  // The Title Opens As The Moment The Dialog Opened, Continuing Past Failures
+  // The Title Opens As The Moment The Dialog Opened
   assert.equal(form.title, defaultCycleLabel(opened));
   assert.notEqual(form.title, defaultCycleLabel(new Date(2026, 9, 17, 9, 30)));
   assert.equal(form.description, "");
-  assert.equal(form.continueOnFailure, true);
   assert.equal(form.continueAutomatically, false);
   assert.equal(newCycleFormError(form), null);
 
@@ -535,19 +534,14 @@ test("New Cycle Form", () => {
   assert.equal(newCycleFormError({ ...form, title: "   " }), EMPTY_TITLE_ERROR);
 
   // The Request Trims Its Text And Omits A Blank Description
-  assert.deepEqual(newCycleRequest({ continueAutomatically: false, continueOnFailure: false, description: "  ", title: "  Bench A  " }), {
+  assert.deepEqual(newCycleRequest({ continueAutomatically: false, description: "  ", title: "  Bench A  " }), {
     continueAutomatically: false,
-    continueOnFailure: false,
     description: undefined,
     label: "Bench A",
   });
-  assert.deepEqual(
-    newCycleRequest({ continueAutomatically: true, continueOnFailure: true, description: " Night run ", title: "Bench B" }),
-    {
-      continueAutomatically: true,
-      continueOnFailure: true,
-      description: "Night run",
-      label: "Bench B",
-    },
-  );
+  assert.deepEqual(newCycleRequest({ continueAutomatically: true, description: " Night run ", title: "Bench B" }), {
+    continueAutomatically: true,
+    description: "Night run",
+    label: "Bench B",
+  });
 });

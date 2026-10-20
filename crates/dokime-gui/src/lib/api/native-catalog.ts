@@ -95,7 +95,6 @@ function mapSuite(definition: SuiteDefinition, identity?: SuiteIdentity): TestSu
     source: suiteIdentity.source,
     path: [name],
     tags: uniqueStrings(definition.tags),
-    continue_on_failure: false,
     members: definition.templates.map((template) => mapSuiteTemplate(template, name)),
     metadata: metadataJson(suiteIdentity.metadata),
   };
@@ -113,7 +112,6 @@ function mapSuiteTemplate(template: TemplateDefinition, suiteName: string): Suit
     description: template.metadata?.description ?? null,
     path: [suiteName, name],
     tags: uniqueStrings(template.tags),
-    continue_on_failure: template.continueOnFailure,
     parameter_definitions: template.parameters.map(mapParameter),
     file_definitions: template.files.map(mapFile),
     steps: template.steps.map((step, index) => ({

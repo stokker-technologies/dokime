@@ -221,8 +221,8 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     updatePolicy: useMutation({
-      mutationFn: ({ continueAutomatically, continueOnFailure }: { continueAutomatically: boolean; continueOnFailure: boolean }) =>
-        updateNativeTestCyclePolicy(session().identity, cycleId, continueAutomatically, continueOnFailure),
+      mutationFn: ({ continueAutomatically }: { continueAutomatically: boolean }) =>
+        updateNativeTestCyclePolicy(session().identity, cycleId, continueAutomatically),
       onSettled: invalidateAll,
     }),
   };

@@ -1310,7 +1310,7 @@ async function libraryJourney(session) {
   await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
   const title = await session.execute("return document.querySelector('#new-cycle-title').value");
   assert.ok(title.trim().length > 0, "New Cycle must prefill its title");
-  assert.ok(hasText(await session.text(), "Continue after a failed case"), "New Cycle must state its failure policy");
+  assert.ok(hasText(await session.text(), "Continue Automatically"), "New Cycle must state its continuation policy");
   await session.clickNamed("button", "Create Cycle");
   const appendTo = await until(
     "appendTo in the URL",

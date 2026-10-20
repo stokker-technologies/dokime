@@ -130,7 +130,6 @@ async fn report_save_receipt() {
             test_executions: vec![original_execution.clone()],
             records: Default::default(),
             continue_automatically: false,
-            continue_on_failure: false,
             result: None,
         },
         documents: BTreeMap::new(),
@@ -314,7 +313,7 @@ async fn report_opens_anytime() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let id = start_cycle(&runtime, suite, false).await;
+    let id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].test_execution_id.clone();
@@ -362,7 +361,7 @@ async fn report_download_serves() {
     let first = plt400_suite();
     let second = plt400_diagnostics_suite();
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
-    let id = start_cycle(&runtime, first, false).await;
+    let id = start_cycle(&runtime, first).await;
     runtime
         .append_fixture_cases(id.clone(), materialize_cases("provider:testdb:plt400.diagnostics", &second), CommandContext::default())
         .await
@@ -425,7 +424,7 @@ async fn open_report_repeatedly() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let id = start_cycle(&runtime, suite, false).await;
+    let id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].clone();
@@ -513,7 +512,7 @@ async fn cycle_report_reboot() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let id = start_cycle(&runtime, suite, false).await;
+    let id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let waiting = tokio::spawn({

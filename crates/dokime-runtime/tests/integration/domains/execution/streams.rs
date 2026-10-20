@@ -188,7 +188,6 @@ async fn live_rows_paths() {
         &handle,
         Metadata::new(Identifier::new("fixture.live.cycle").unwrap(), "Live Cycle", None),
         crate::service_support::suites::materialize_cases("fixture.embedded.checks", &Checks::definition().suite),
-        false,
     )
     .await;
     let admitted_owner = handle.watch_state().latest().state().plugin_owners["fixture.embedded"].clone();

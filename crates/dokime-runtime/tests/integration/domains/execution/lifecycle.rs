@@ -76,8 +76,8 @@ async fn cycle_container_lifecycle() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let first = start_cycle(&runtime, suite.clone(), false).await;
-    let second = start_cycle(&runtime, suite, false).await;
+    let first = start_cycle(&runtime, suite.clone()).await;
+    let second = start_cycle(&runtime, suite).await;
     assert_eq!(runtime.cycles().await.len(), 2);
 
     let run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
@@ -133,7 +133,7 @@ async fn rerun_fresh_started() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
@@ -188,7 +188,7 @@ async fn stop_archive_state() {
         )
         .await
         .unwrap();
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     let listed = |scope: ArchiveScope| {
         let snapshot = runtime.watch_state().latest();
         let filter = CycleFilter { archive: scope, ..CycleFilter::default() };
@@ -248,7 +248,7 @@ async fn rename_admission_seal() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     let ready = cycle_snapshot(&runtime, &test_cycle_id).await;
     let first = ready.test_executions[0].clone();
 
@@ -345,7 +345,7 @@ async fn stopped_telemetry_refused() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = plt400_suite();
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
 
     let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run.status, CommandStatus::Accepted);
@@ -377,7 +377,7 @@ async fn execution_stop_leaves_cycle_idle() {
         values: vec![ParameterExpr::Literal { value: Value::from("passed") }, ParameterExpr::Literal { value: Value::from("alternate") }],
     };
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run.status, CommandStatus::Accepted, "{run:?}");
     executor.wait_until_entered().await;
@@ -416,7 +416,7 @@ async fn pause_blocks_boundaries() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = plt400_suite();
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
 
     let pause_ready = runtime.pause_cycle(test_cycle_id.clone(), CommandContext::default()).await;
     let resume_ready = runtime.resume_cycle(test_cycle_id.clone(), CommandContext::default()).await;
@@ -465,7 +465,7 @@ async fn continuation_follows_seal() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
@@ -502,12 +502,12 @@ async fn queued_execution_identity() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let running = start_cycle(&runtime, suite.clone(), false).await;
-    runtime.update_cycle_policy(running.clone(), false, false, CommandContext::default()).await.unwrap();
+    let running = start_cycle(&runtime, suite.clone()).await;
+    runtime.update_cycle_policy(running.clone(), false, CommandContext::default()).await.unwrap();
     runtime.start_next_execution(running.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
 
-    let queued = start_cycle(&runtime, suite, false).await;
+    let queued = start_cycle(&runtime, suite).await;
     let members = cycle_snapshot(&runtime, &queued).await.test_executions;
     let id = members[0].test_execution_id.clone();
     let first = CommandContext { submitted_by: Some("native-listener".into()), ..Default::default() };
@@ -548,7 +548,7 @@ async fn continuation_failure_retained() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::case_parameter())).await;
     let suite = fixture_suite(&["failed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle = start_cycle(&runtime, suite, false).await;
+    let cycle = start_cycle(&runtime, suite).await;
     let before = cycle_snapshot(&runtime, &cycle).await;
     let first = before.test_executions[0].test_execution_id.clone();
     let receipt = runtime.start_execution(first, ExecutionMode::Automatic, CommandContext::default()).await;

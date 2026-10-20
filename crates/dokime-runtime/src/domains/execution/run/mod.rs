@@ -793,22 +793,8 @@ async fn run_sidecar_cycle(
     let mut executions = Vec::new();
     let mut failures = Vec::new();
     let mut cancelled = false;
-    let mut stop_after_failure = false;
     for execution in runnable_executions(cycle) {
         let case = execution.snapshot.case();
-        if stop_after_failure {
-            executions.push(execution_outcome(
-                case,
-                execution,
-                &target.source,
-                "skipped",
-                Vec::new(),
-                Some("not dispatched because an earlier case failed".to_owned()),
-                Vec::new(),
-                None,
-            ));
-            continue;
-        }
         if cancellation_requested(&context, cycle) {
             cancelled = true;
             executions.push(execution_outcome(
@@ -858,7 +844,6 @@ async fn run_sidecar_cycle(
             },
             Err(error) => return Err(error),
         };
-        stop_after_failure = !cycle.continue_on_failure && result.execution.status != "passed" && !stopped_alone;
         cancelled |= result.cancelled && !stopped_alone;
         failures.extend(result.execution.failures.iter().cloned());
         executions.push(result.execution);

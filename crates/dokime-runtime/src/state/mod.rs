@@ -211,7 +211,6 @@ impl RuntimeState {
             test_executions,
             records: cycle.records.clone(),
             continue_automatically: cycle.continue_automatically,
-            continue_on_failure: cycle.continue_on_failure,
             result: cycle.result.clone(),
         })
     }
@@ -311,7 +310,6 @@ impl RuntimeState {
                 execution_ids,
                 records: view.records,
                 continue_automatically: view.continue_automatically,
-                continue_on_failure: view.continue_on_failure,
                 result: view.result,
             },
         );

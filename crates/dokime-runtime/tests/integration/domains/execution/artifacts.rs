@@ -44,7 +44,7 @@ async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokim
     let provider = Smoke::new(Behaviour::new(777, 0, false).artifacts(abandoned));
     let (runtime, handle) = started(config(root).register(Arc::new(provider))).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap();
-    let cycle_id = start_cases(&handle, metadata("artifact.cycle", "Artifact Cycle"), materialize_cases(SUITE, &suite.suite), false).await;
+    let cycle_id = start_cases(&handle, metadata("artifact.cycle", "Artifact Cycle"), materialize_cases(SUITE, &suite.suite)).await;
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     wait_for_run_settled(&handle, &receipt.command_id).await;

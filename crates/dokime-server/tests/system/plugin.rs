@@ -742,7 +742,6 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
         .execution_update_cycle_policy(contracts::execution::UpdateCyclePolicy {
             cycle_id: cycle_id.clone(),
             continue_automatically: true,
-            continue_on_failure: false,
             context: None,
         })
         .await

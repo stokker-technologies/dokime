@@ -270,7 +270,7 @@ async fn admitted_execution(handle: &RuntimeHandle, index: usize) -> TestExecuti
         )
         .await
         .unwrap();
-    let id = start_cases(handle, metadata("lease.owner", "Lease Owner"), materialize_cases(&suite_id, &suite), false).await;
+    let id = start_cases(handle, metadata("lease.owner", "Lease Owner"), materialize_cases(&suite_id, &suite)).await;
     cycle_snapshot(handle, &id).await.test_executions[0].test_execution_id.clone()
 }
 

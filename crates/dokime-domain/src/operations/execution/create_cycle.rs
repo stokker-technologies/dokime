@@ -45,7 +45,6 @@ pub struct CreateCycle {
     pub metadata: Option<Metadata>,
 
     pub continue_automatically: bool,
-    pub continue_on_failure: bool,
     pub context: Option<MutationContext>,
 }
 

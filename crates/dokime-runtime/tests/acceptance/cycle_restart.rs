@@ -152,7 +152,7 @@ async fn cycle_restart_child() {
     let runtime = owner.handle();
     let suite = fixture_suite(&["passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
-    let id = start_cycle(&runtime, suite, false).await;
+    let id = start_cycle(&runtime, suite).await;
     let receipt = runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     crate::service_support::waits::wait_for_run_settled(&runtime, &receipt.command_id).await;

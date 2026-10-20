@@ -403,10 +403,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           onSubmit={async (values) => {
             if (values.title !== plan.test_cycle.title) await commands.renameCycle.mutateAsync(values.title);
             if (values.continueAutomatically !== undefined && values.continueAutomatically !== plan.test_cycle.continue_automatically) {
-              await commands.updatePolicy.mutateAsync({
-                continueAutomatically: values.continueAutomatically,
-                continueOnFailure: plan.test_cycle.continue_on_failure,
-              });
+              await commands.updatePolicy.mutateAsync({ continueAutomatically: values.continueAutomatically });
             }
             toast.success("Cycle Settings Saved");
           }}

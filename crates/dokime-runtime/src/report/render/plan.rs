@@ -45,7 +45,6 @@ pub(super) struct Cycle<'a> {
     pub(super) queue_count: usize,
     pub(super) current_test_execution_id: Option<&'a str>,
     pub(super) current_queue_item_id: Option<&'a str>,
-    pub(super) continue_on_failure: bool,
     pub(super) started_at: &'a Timestamp,
     pub(super) finished_at: Option<&'a Timestamp>,
     pub(super) duration_s: Option<()>,

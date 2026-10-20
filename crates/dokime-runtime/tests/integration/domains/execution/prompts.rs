@@ -273,8 +273,7 @@ async fn stopping_cycle_waits() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = started(prompt_config(root.path())).await;
     let cycle_id =
-        start_cases(&runtime, Metadata::new(Identifier::new("cycle.prompt.stop").unwrap(), "Prompt Stop Cycle", None), Vec::new(), false)
-            .await;
+        start_cases(&runtime, Metadata::new(Identifier::new("cycle.prompt.stop").unwrap(), "Prompt Stop Cycle", None), Vec::new()).await;
     let mut prompt = prompt_request();
     prompt.scope = RecordScope::default().with_cycle(cycle_id.clone());
 
@@ -305,8 +304,7 @@ async fn shutdown_preserves_prompts() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = started(prompt_config(root.path())).await;
     let cycle =
-        start_cases(&runtime, Metadata::new(Identifier::new("cycle.prompt.recovery").unwrap(), "Prompt Recovery", None), Vec::new(), false)
-            .await;
+        start_cases(&runtime, Metadata::new(Identifier::new("cycle.prompt.recovery").unwrap(), "Prompt Recovery", None), Vec::new()).await;
     let mut scoped = prompt_request();
     scoped.scope = RecordScope::default().with_cycle(cycle);
     let id = scoped.prompt_id.clone();
@@ -366,7 +364,7 @@ async fn cycle_stop_settles() {
     let (_owner, runtime) = inspection_runtime(root.path(), executor.clone()).await;
     let suite = inspection_suite(plt400_suite());
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
@@ -401,7 +399,7 @@ async fn execution_stop_settles() {
         values: vec![ParameterExpr::Literal { value: Value::from("passed") }, ParameterExpr::Literal { value: Value::from("alternate") }],
     };
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
@@ -433,7 +431,7 @@ async fn interruption_settles_prompts() {
     let (mut owner, runtime) = inspection_runtime(root.path(), executor.clone()).await;
     let suite = inspection_suite(plt400_suite());
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
@@ -693,7 +691,6 @@ async fn check_stopped_question(stop_cycle: bool) {
         &runtime,
         Metadata::new(Identifier::new("fixture.asking.cycle").unwrap(), "Asking Cycle", None),
         crate::service_support::suites::materialize_cases("fixture.asking.checks", &suite),
-        false,
     )
     .await;
     let receipt = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;

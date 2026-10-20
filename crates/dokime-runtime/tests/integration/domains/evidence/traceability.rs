@@ -44,7 +44,7 @@ async fn resource_records_absent() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
 
     register_custom_suite(&runtime, custom_suite()).await;
-    let test_cycle_id = start_cycle(&runtime, custom_suite(), false).await;
+    let test_cycle_id = start_cycle(&runtime, custom_suite()).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let execution = cycle.test_executions.first().unwrap();

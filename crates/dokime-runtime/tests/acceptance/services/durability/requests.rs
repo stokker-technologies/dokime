@@ -107,7 +107,7 @@ async fn run_child(root: PathBuf) {
     let (_runtime, handle) = booted_with_fixture(&root, executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
-    let cycle = start_cycle(&handle, suite, false).await;
+    let cycle = start_cycle(&handle, suite).await;
     let receipt = handle
         .start_next_execution(
             cycle,

@@ -253,7 +253,7 @@ async fn permanent_finalization_settles() {
         started_with_fixture(config(root.path()), Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed"), refuse.clone()))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
+    let test_cycle_id = start_cycle(&runtime, suite.clone()).await;
     let mut watch = runtime.watch_state();
     let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
@@ -352,7 +352,7 @@ async fn permanent_finalization_settles() {
     assert_eq!(original_cycle.execution_ids.len(), 1);
     let fresh_cycle = runtime
         .create_cycle(
-            CycleDefinition { metadata: original_cycle.metadata.clone(), continue_automatically: false, continue_on_failure: false },
+            CycleDefinition { metadata: original_cycle.metadata.clone(), continue_automatically: false },
             CommandContext::default(),
         )
         .await

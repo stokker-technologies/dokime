@@ -143,10 +143,8 @@ pub(crate) async fn planned_cycle(
 }
 
 pub async fn cycle_with_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>) -> TestCycleId {
-    let cycle_id = runtime
-        .create_cycle(CycleDefinition { metadata, continue_automatically: false, continue_on_failure: false }, CommandContext::default())
-        .await
-        .unwrap();
+    let cycle_id =
+        runtime.create_cycle(CycleDefinition { metadata, continue_automatically: false }, CommandContext::default()).await.unwrap();
     let executions = cases.iter().map(|case| (dokime_runtime::model::identity::new_id(), case.test_case_id.clone())).collect();
     runtime.register_cases(dokime_runtime::model::identity::new_id(), cases).await.unwrap();
     runtime.append_executions(cycle_id.clone(), executions).await.unwrap();
@@ -381,10 +379,6 @@ pub fn fixture_provider_outcome(cycle: &CycleView, emit_progress: bool) -> Provi
                 }]
             },
         });
-
-        if status != "passed" && !cycle.continue_on_failure {
-            break;
-        }
     }
 
     ProviderCycleOutcome {
@@ -469,7 +463,6 @@ fn named_case_template(identifier: &str, label: &str, index: usize, result: &str
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],
-        continue_on_failure: false,
         prompt_definitions: Vec::new(),
         subscriptions: Vec::new(),
         document: None,

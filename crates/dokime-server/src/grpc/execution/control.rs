@@ -158,14 +158,7 @@ impl Operation for Create {
         let metadata = canonical::decode_metadata(&metadata)?;
         let id = self
             .runtime
-            .create_cycle(
-                CycleDefinition {
-                    metadata,
-                    continue_automatically: request.continue_automatically,
-                    continue_on_failure: request.continue_on_failure,
-                },
-                context,
-            )
+            .create_cycle(CycleDefinition { metadata, continue_automatically: request.continue_automatically }, context)
             .await
             .map_err(status)?;
         Ok((dokime_domain::model::execution::wire::CreateCycleReply {
@@ -366,10 +359,7 @@ impl Operation for Policy {
         &mut self, context: Self::Context<'a>, request: &mut wire::UpdateCyclePolicy, _: &mut (),
     ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        self.runtime
-            .update_cycle_policy(cycle_id(&request.cycle_id)?, request.continue_automatically, request.continue_on_failure, context)
-            .await
-            .map_err(status)?;
+        self.runtime.update_cycle_policy(cycle_id(&request.cycle_id)?, request.continue_automatically, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
     }
 }

@@ -273,7 +273,7 @@ async fn execution_plots_samples() {
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle = start_cycle(&runtime, suite, false).await;
+    let cycle = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Running).await;
@@ -464,7 +464,7 @@ async fn record_query_absent() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     register_custom_suite(&runtime, custom_suite()).await;
-    let cycle_id = start_cycle(&runtime, custom_suite(), false).await;
+    let cycle_id = start_cycle(&runtime, custom_suite()).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     let scope = cycle.test_executions[0].scope.clone();

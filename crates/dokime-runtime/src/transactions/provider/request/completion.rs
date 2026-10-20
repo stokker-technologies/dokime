@@ -312,7 +312,6 @@ mod tests {
                 execution_ids: Vec::new(),
                 records: Default::default(),
                 continue_automatically: false,
-                continue_on_failure: false,
                 result: None,
             },
         );

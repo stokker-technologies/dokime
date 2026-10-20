@@ -157,7 +157,6 @@ impl ScopedFixture {
             document: None,
             phases: vec![],
             criteria: vec![],
-            continue_on_failure: false,
             prompt_definitions: vec![],
             subscriptions: vec![],
             attributes: Default::default(),

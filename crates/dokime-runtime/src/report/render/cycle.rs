@@ -270,7 +270,6 @@ impl Serialize for PlanRows<'_, '_> {
             queue_count: report.index.cases.len(),
             current_test_execution_id: None,
             current_queue_item_id: None,
-            continue_on_failure: input.cycle.continue_on_failure,
             started_at: input.cycle.created_at,
             finished_at: is_finished_cycle(input).then_some(input.generated_at),
             duration_s: None,

@@ -177,7 +177,6 @@ async fn empty_cycles_retain_history() {
         let definition = dokime_runtime::transactions::CycleDefinition {
             metadata: support::metadata("history.empty", label),
             continue_automatically: false,
-            continue_on_failure: false,
         };
         let id = handle.create_cycle(definition, Default::default()).await.unwrap();
         handle.seal_cycle(id.clone(), Default::default()).await.unwrap();
@@ -195,7 +194,6 @@ async fn empty_cycles_retain_history() {
     let definition = dokime_runtime::transactions::CycleDefinition {
         metadata: support::metadata("history.later", "Later Empty"),
         continue_automatically: false,
-        continue_on_failure: false,
     };
     let later = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     handle.seal_cycle(later.clone(), Default::default()).await.unwrap();

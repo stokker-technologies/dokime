@@ -33,7 +33,7 @@ use dokime_domain::operations::execution::CreateCycle;
 
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
-    #[arg(long, conflicts_with_all = ["identifier", "label", "description", "continue_automatically", "continue_on_failure"], help = "Read The Canonical CreateCycle JSON Without Flag Overrides.")]
+    #[arg(long, conflicts_with_all = ["identifier", "label", "description", "continue_automatically"], help = "Read The Canonical CreateCycle JSON Without Flag Overrides.")]
     input_file: Option<PathBuf>,
 
     #[arg(long, required_unless_present = "input_file", help = "Cycle Title.")]
@@ -46,8 +46,6 @@ pub(crate) struct Args {
     description: Option<String>,
 
     #[arg(long)]
-    continue_on_failure: bool,
-
     #[arg(long, help = "Let The Server Continue With The Next Unstarted Member After A Durable Seal.")]
     continue_automatically: bool,
 
@@ -86,7 +84,6 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                 updated_at: None,
             }),
             continue_automatically: args.continue_automatically,
-            continue_on_failure: args.continue_on_failure,
             context: None,
         },
     };

@@ -150,7 +150,7 @@ async fn stopped_report_boundary() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.ready.subscribe().wait_for(|ready| *ready).await.unwrap();
     assert_eq!(executor.queue.lock().unwrap().as_ref().unwrap().samples.len(), 1);

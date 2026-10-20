@@ -38,8 +38,7 @@ use dokime_domain::model::values::Value;
 const COMMON: &[&str] =
     &["label", "description", "tags", "attributes", "definition_identifier", "definition_created_at", "definition_updated_at"];
 const CASE: &[&str] = &["identifier", "template_identifier", "suite_identifier", "generation_index"];
-const CYCLE: &[&str] =
-    &["identifier", "session_identifier", "status", "created_at", "updated_at", "started_at", "continue_on_failure", "execution_count"];
+const CYCLE: &[&str] = &["identifier", "session_identifier", "status", "created_at", "updated_at", "started_at", "execution_count"];
 const EXECUTION: &[&str] = &[
     "identifier",
     "case_identifier",
@@ -103,7 +102,6 @@ pub(super) enum Row<'a> {
 
 pub(super) enum Field<'a> {
     Null,
-    Bool(bool),
     Unsigned(u64),
     Number(f64),
     Datetime(time::OffsetDateTime),
@@ -156,7 +154,6 @@ impl Row<'_> {
                 "created_at" => timestamp(Some(&cycle.created_at))?,
                 "updated_at" => timestamp(Some(&cycle.updated_at))?,
                 "started_at" => timestamp(cycle.started_at.as_ref())?,
-                "continue_on_failure" => Field::Bool(cycle.continue_on_failure),
                 "execution_count" => {
                     Field::Unsigned(u64::try_from(cycle.execution_ids.len()).map_err(|_| invalid("cycle membership count overflows"))?)
                 }
@@ -211,7 +208,6 @@ impl Field<'_> {
     pub(super) fn project(&self) -> Result<Value> {
         Ok(match self {
             Self::Null => Value::Null,
-            Self::Bool(value) => Value::Bool(*value),
             Self::Unsigned(value) => Value::Unsigned(*value),
             Self::Number(value) if value.is_finite() => Value::Number(*value),
             Self::Number(_) => return Err(invalid("aggregate number must be finite")),

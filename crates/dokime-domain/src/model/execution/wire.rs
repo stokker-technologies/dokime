@@ -187,7 +187,6 @@ pub struct CycleSummary {
     pub case_count: u64,
     pub execution_count: u64,
     pub continue_automatically: bool,
-    pub continue_on_failure: bool,
     pub observed_cursor: Option<Cursor>,
     pub created_at: Option<Timestamp>,
     pub started_at: Option<Timestamp>,

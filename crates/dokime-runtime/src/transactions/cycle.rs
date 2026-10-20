@@ -50,7 +50,6 @@ use dokime_domain::model::values::Value;
 pub struct UpdateCyclePolicy {
     pub test_cycle_id: TestCycleId,
     pub continue_automatically: bool,
-    pub continue_on_failure: bool,
     pub occurred_at: Timestamp,
 }
 
@@ -109,7 +108,6 @@ impl Transaction<RuntimeState> for UpdateCyclePolicy {
     fn apply(&self, state: &mut RuntimeState) {
         let cycle = state.cycles.get_mut(&self.test_cycle_id).expect("Harmos checked the cycle before applying its policy");
         cycle.continue_automatically = self.continue_automatically;
-        cycle.continue_on_failure = self.continue_on_failure;
         cycle.touch_at(self.occurred_at.clone());
     }
 }

@@ -221,11 +221,7 @@ fn planned() -> (RuntimeState, TestCycleId) {
 
 fn create_cycle(state: &mut RuntimeState, id: &TestCycleId, identifier: &str) {
     let create = dokime_runtime::transactions::CreateCycle {
-        definition: dokime_runtime::transactions::CycleDefinition {
-            metadata: metadata(identifier),
-            continue_automatically: false,
-            continue_on_failure: false,
-        },
+        definition: dokime_runtime::transactions::CycleDefinition { metadata: metadata(identifier), continue_automatically: false },
         test_cycle_id: id.clone(),
         occurred_at: dokime_runtime::model::time::now_utc(),
     };
@@ -1065,7 +1061,7 @@ fn bounded_cycle_admission() {
 fn copied_cycle_reusing() {
     let (mut state, source_id) = admitted();
     let mut source = state.cycle_view(&source_id).unwrap();
-    source.continue_on_failure = true;
+    source.continue_automatically = true;
     source.test_executions[0].output_parameters.insert(
         "huge".into(),
         MaterializedParameter { value: Value::from("x".repeat(9 * 1024 * 1024)), ..parameter(1, ParameterSource::Output) },
@@ -1102,7 +1098,7 @@ fn copied_cycle_reusing() {
     }
     assert!(target.result.is_none());
     assert!(target.started_at.is_none());
-    assert!(target.continue_on_failure);
+    assert!(target.continue_automatically);
     assert!(copy.check(&state).is_err());
 
     // What the plan carries is checked before anything is cloned: an oversized
