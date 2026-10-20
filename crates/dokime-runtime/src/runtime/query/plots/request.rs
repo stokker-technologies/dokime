@@ -55,9 +55,7 @@ pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_
         request.stream = stream.as_str().to_owned();
     }
 
-    crate::plot::normalize_histogram_value(&mut request);
-    crate::plot::normalize_analysis_fields(&mut request);
-    request
+    crate::plot::canonical_plot_query(request)
 }
 
 pub(super) fn request_record_types(request: &PlotPayloadRequest) -> Vec<Identifier> {

@@ -44,7 +44,7 @@ use dokime_runtime::runtime::query::PlotPayloadCursor;
 use dokime_runtime::runtime::query::PlotPayloadEnvelope;
 use dokime_runtime::runtime::query::PlotPayloadRequest;
 use dokime_runtime::runtime::query::PlotPayloadStreamKind;
-use dokime_runtime::runtime::query::plot_payload_request_for_descriptor;
+use dokime_runtime::runtime::query::declared_plot_request;
 
 /* === Constants === */
 
@@ -69,8 +69,9 @@ const GENERATED_AT_BYTES: usize = "0000-00-00T00:00:00.000000000Z".len();
 pub(crate) fn document_plot_definition(
     descriptor: &PlotDescriptor,
 ) -> Result<dokime_domain::model::documents::wire::DocumentPlotDefinition, Status> {
-    let request =
-        plot_payload_request_for_descriptor(descriptor, Some(descriptor.input.scope.clone()), None, descriptor.input.live_window_s, None);
+    // The declared request, not the mapped query: the live watch sends it back
+    // and the query maps it once, exactly as the report maps the descriptor.
+    let request = declared_plot_request(descriptor, Some(descriptor.input.scope.clone()), None, descriptor.input.live_window_s, None);
     Ok(dokime_domain::model::documents::wire::DocumentPlotDefinition {
         metadata: Some(canonical::metadata(&descriptor.metadata)?),
         request: Some(plot_request_wire(&request)?),

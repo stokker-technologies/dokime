@@ -474,6 +474,24 @@ mod tests {
         assert_eq!(ready, vec![Opening::Ready("a"), Opening::Ready("b")], "results ready at once need no keepalive");
     }
 
+    // A document hands the live view the histogram as declared, value on x,
+    // and the watch decodes that back unmapped: the query maps it once, as
+    // the report does, instead of mapping an already mapped request to nothing.
+    #[test]
+    fn histogram_definition_declared() {
+        use dokime_runtime::document::{DocumentSelection, Plot, plot_descriptor_for_definition, plot_input_for_definition};
+        let mut plot = Plot::histogram("Voltage Distribution");
+        plot.id("obc.startup.voltage_distribution");
+        plot.x(dokime_domain::model::expressions::telemetry("obc.startup", "voltage_v"));
+        let input = plot_input_for_definition(&plot, &[], 0, &DocumentSelection::default());
+        let descriptor = plot_descriptor_for_definition(input, plot.metadata.clone());
+
+        let definition = wire::document_plot_definition(&descriptor).unwrap();
+        let (decoded, _) = decode_plot_requests(vec![definition.request.unwrap()], "epoch").unwrap();
+        assert_eq!(decoded[0].x_expression, descriptor.input.x_expression, "the declared x reaches the live query");
+        assert!(decoded[0].y_expressions.is_empty() && decoded[0].y_keys.is_empty(), "nothing was mapped before the query");
+    }
+
     #[test]
     fn pending_frame_names_the_plot() {
         let request =

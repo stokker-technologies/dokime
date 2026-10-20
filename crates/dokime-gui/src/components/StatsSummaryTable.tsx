@@ -33,7 +33,14 @@ export type SeriesLegend = {
   onToggle?: (key: string) => void;
 };
 
-type StatsSummaryTableProps = { rows: StatsSummaryRow[]; legend?: undefined } | { legend: SeriesLegend; rows?: undefined };
+type StatsSummaryTableProps =
+  | {
+      rows: StatsSummaryRow[];
+      legend?: undefined;
+      /** `false` when the card around the statistics already names them. */
+      titled?: boolean;
+    }
+  | { legend: SeriesLegend; rows?: undefined; titled?: undefined };
 
 type DescribedRow = { count: number; label: string; stats: StatsSummary; unit?: string };
 
@@ -72,7 +79,11 @@ const COLUMNS: DataTableColumns<DescribedRow> = [
 /* === Components === */
 
 export function StatsSummaryTable(props: StatsSummaryTableProps) {
-  return props.legend ? <SeriesLegendTable legend={props.legend} /> : <DescribedStatsTable rows={props.rows} />;
+  return props.legend ? (
+    <SeriesLegendTable legend={props.legend} />
+  ) : (
+    <DescribedStatsTable rows={props.rows} titled={props.titled ?? true} />
+  );
 }
 
 /* === Private Functions === */
@@ -111,7 +122,7 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
 
 /* === Private Components === */
 
-function DescribedStatsTable({ rows }: { rows: StatsSummaryRow[] }) {
+function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled: boolean }) {
   const described = useMemo(
     () =>
       rows.map((row) => ({
@@ -124,7 +135,7 @@ function DescribedStatsTable({ rows }: { rows: StatsSummaryRow[] }) {
   );
 
   if (rows.length === 1) {
-    return <StatsSummaryGrid row={rows[0]} />;
+    return <StatsSummaryGrid row={rows[0]} titled={titled} />;
   }
 
   return (
@@ -189,7 +200,7 @@ function TraceCell({ row }: { row: SeriesLegendRow }) {
   );
 }
 
-function StatsSummaryGrid({ row }: { row: StatsSummaryRow }) {
+function StatsSummaryGrid({ row, titled }: { row: StatsSummaryRow; titled: boolean }) {
   const items = statsSummaryCells(row);
 
   return (
@@ -198,7 +209,7 @@ function StatsSummaryGrid({ row }: { row: StatsSummaryRow }) {
       className="grid min-w-0 max-w-full overflow-hidden gap-2 rounded-md bg-muted/20 p-3"
       data-testid="stats-summary-grid"
     >
-      <strong className="text-sm [overflow-wrap:anywhere]">{row.label}</strong>
+      {titled ? <strong className="text-sm [overflow-wrap:anywhere]">{row.label}</strong> : null}
       <dl className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,6.5rem),1fr))]">
         {items.map(([label, value]) => (
           <div className="min-w-0 rounded-md bg-muted/35 p-2" key={label}>
