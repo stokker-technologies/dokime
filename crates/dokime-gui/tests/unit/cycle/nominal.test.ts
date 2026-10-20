@@ -13,6 +13,8 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
 // Local Imports
@@ -21,6 +23,7 @@ import {
   buildCycleExecutionRows,
   type CycleCase,
   type CycleSelection,
+  CYCLE_STATE_LABELS,
   cycleRowSelection,
   cycleState,
   executionControlSet,
@@ -34,6 +37,7 @@ import {
   rowOffersRunAgain,
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
+import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
   BUSY_RETRY_MAX_MS,
   DOCUMENT_FAILED_FALLBACK,
@@ -118,6 +122,24 @@ test("Cycle State", () => {
   // The Closing Phases Name Only Themselves
   assert.equal(cycleState("sealing", "stopping", true).label, "Sealing");
   assert.equal(cycleState("sealed", "failed", false).label, "Sealed");
+});
+
+test("Status Pill", () => {
+  // The Longest State Label Renders Whole, On A Track Every Label Sizes
+  const longest = CYCLE_STATE_LABELS.reduce((wide, label) => (label.length > wide.length ? label : wide));
+  const markup = renderToStaticMarkup(createElement(CycleStatusPill, { label: longest, tone: "good" }));
+  const badges = [...markup.matchAll(/<span ([^>]*data-slot="badge"[^>]*)>([^<]*)<\/span>/g)];
+  const visible = badges.filter(([, attributes]) => !attributes.includes("aria-hidden"));
+  assert.deepEqual(
+    visible.map(([, , text]) => text),
+    [longest],
+    "the visible pill states the full label",
+  );
+  const sizers = [...markup.matchAll(/aria-hidden="true"[^>]*>([^<]*)</g)].map((match) => match[1]);
+  assert.deepEqual(sizers, [...CYCLE_STATE_LABELS], "every label sizes the shared track");
+  assert.doesNotMatch(markup, /pill-width|truncate|text-ellipsis/, "no fixed width or ellipsis can clip a label");
+  assert.match(markup, /inline-grid/);
+  assert.match(markup, /w-full \[grid-area:1\/1\]/, "the visible pill fills the widest label's track");
 });
 
 test("Node Menus", () => {

@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
   applyFrozenOrder,
   archivedCycleGroups,
@@ -37,6 +38,11 @@ import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { compactAgeLabel } from "@/lib/time-format";
 import { usePageChrome } from "@/shell/page-chrome";
+
+/* === Constants === */
+
+/** The Status track: the longest state label in `ch`, the pill's padding and the cell's. */
+const STATUS_COLUMN_WIDTH = "w-[calc(18ch+2*var(--pill-pad-x)+1.5rem)]";
 
 /* === Components === */
 
@@ -294,13 +300,9 @@ function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | nu
       meta: { label: "Attention", width: "w-32" },
     }),
     column.accessor("statusLabel", {
-      cell: ({ row }) => (
-        <Badge className={LIST_STATUS_PILL_CLASS} variant={badgeVariant(row.original.statusTone)}>
-          {row.original.statusLabel}
-        </Badge>
-      ),
+      cell: ({ row }) => <CycleStatusPill label={row.original.statusLabel} tone={row.original.statusTone} />,
       header: "Status",
-      meta: { filter: "facet", label: "Status", width: "w-36" },
+      meta: { filter: "facet", label: "Status", width: STATUS_COLUMN_WIDTH },
     }),
     column.accessor("finishedCount", {
       cell: ({ row }) => (
@@ -343,17 +345,4 @@ function instantsLabel(row: CycleRow): string | undefined {
 function relativeUpdatedLabel(updatedAtIso: string | null, now: number): string {
   const age = compactAgeLabel(updatedAtIso, now);
   return age === "-" ? age : `${age} Ago`;
-}
-
-function badgeVariant(tone: CycleRow["statusTone"]) {
-  switch (tone) {
-    case "good":
-      return "success" as const;
-    case "warn":
-      return "warning" as const;
-    case "bad":
-      return "destructive" as const;
-    default:
-      return "outline" as const;
-  }
 }
