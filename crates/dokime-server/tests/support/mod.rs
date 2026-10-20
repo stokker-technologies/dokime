@@ -278,6 +278,31 @@ pub async fn wait_for_cycle_lifecycle(runtime: &RuntimeHandle, test_cycle_id: &T
     snapshot.state().cycle_view(test_cycle_id).expect("the cycle stays live until it reaches the lifecycle")
 }
 
+// An Active cycle whose every member settled, idle again; its aggregate outcome is `result`.
+pub async fn wait_for_cycle_outcome(
+    runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, outcome: dokime_domain::model::execution::result::ResultStatus,
+) -> CycleView {
+    let snapshot = runtime
+        .watch_state()
+        .wait_until(|snapshot| {
+            let state = snapshot.state();
+            let live =
+                state.run_requests.values().any(|request| &request.summary.cycle_id == test_cycle_id && !request.summary.phase.terminal());
+            !live && state.cycle_view(test_cycle_id).is_some_and(|cycle| settled_view(&cycle, &outcome))
+        })
+        .await
+        .expect("the runtime state watch stays open");
+    snapshot.state().cycle_view(test_cycle_id).expect("the cycle stays live until it settles")
+}
+
+// The same settled Active cycle, as its wire summary states it.
+pub fn cycle_settled(cycle: &model::execution::wire::CycleSummary, outcome: model::execution::wire::ResultStatus) -> bool {
+    cycle.status == model::execution::wire::CycleStatus::Ready
+        && cycle.running_count == 0
+        && cycle.queued_count == 0
+        && cycle.result.as_ref().is_some_and(|result| result.status == outcome)
+}
+
 pub async fn on_state_change<T>(runtime: &RuntimeHandle, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
     let mut changes = runtime.watch_state();
     loop {
@@ -383,6 +408,15 @@ pub fn fixture_provider_outcome(cycle: &CycleView, emit_progress: bool) -> Provi
 }
 
 /* === Private Functions === */
+
+fn settled_view(cycle: &CycleView, outcome: &dokime_domain::model::execution::result::ResultStatus) -> bool {
+    let planned =
+        cycle.test_executions.iter().any(|execution| execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none());
+    cycle.phase == dokime_domain::model::execution::result::CyclePhase::Active
+        && cycle.lifecycle == CycleStatus::Ready
+        && !planned
+        && cycle.result.as_ref().is_some_and(|result| &result.status == outcome)
+}
 async fn register_fixture_registration(runtime: &RuntimeHandle, registration: TestSuiteDefinition) {
     runtime.set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([registration])).await.unwrap();
 }

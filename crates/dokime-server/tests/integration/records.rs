@@ -21,9 +21,9 @@ use tokio_stream::StreamExt as _;
 // Local Imports
 use super::*;
 use dokime_domain::model;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_runtime::host::ToolConnectionAcquired;
 use dokime_runtime::runtime::command::CommandContext;
-use {dokime_domain::model::execution::result::CycleStatus, dokime_domain::model::execution::result::ExecutionStatus};
 
 /* === Constants === */
 const SOURCE: &str = "fixture-bench";
@@ -159,7 +159,7 @@ async fn step_awaits_record() {
     expectation.listening.notified().await;
     handle.publish_record(connection("unit-a")).await.unwrap();
 
-    let ended = support::wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Completed).await;
+    let ended = support::wait_for_cycle_outcome(&handle, &cycle, dokime_domain::model::execution::result::ResultStatus::Passed).await;
     assert_eq!(ended.test_executions[0].status, ExecutionStatus::Passed);
     assert_eq!(expectation.heard.lock().unwrap().as_deref(), Some("unit-a"));
     drop(handle);
@@ -178,7 +178,7 @@ async fn record_wait_expires() {
     expectation.listening.notified().await;
     tokio::time::advance(Duration::from_secs(31)).await;
 
-    let ended = support::wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Failed).await;
+    let ended = support::wait_for_cycle_outcome(&handle, &cycle, dokime_domain::model::execution::result::ResultStatus::Failed).await;
     assert_eq!(ended.test_executions[0].status, ExecutionStatus::Failed);
     assert!(expectation.heard.lock().unwrap().is_none());
     drop(handle);

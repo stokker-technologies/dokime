@@ -314,14 +314,14 @@ async fn attempts(client: &mut WireClient, id: &str) -> Vec<model::execution::wi
 
 async fn completed(handle: &dokime_runtime::RuntimeHandle, client: &mut WireClient, id: &str) {
     support::on_state_change(handle, async || {
-        if client
-            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.into() }))
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &client
+                .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.into() }))
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None
