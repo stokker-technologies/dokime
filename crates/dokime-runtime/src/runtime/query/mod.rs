@@ -49,8 +49,8 @@ pub use plots::{
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
     PlotPayloadCursor, PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries,
     PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode, RuntimePlotStreamBatch, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
-    WifiChannelCount, WifiScan, matching_plot_payload_request, merge_plot_payload_cursor, plot_payload_request_for_descriptor,
-    plot_payload_stream_envelope_visible, plot_payload_stream_kind,
+    WifiChannelCount, WifiScan, declared_plot_request, matching_plot_payload_request, merge_plot_payload_cursor,
+    plot_payload_request_for_descriptor, plot_payload_stream_envelope_visible, plot_payload_stream_kind,
 };
 pub use projections::{RuntimeHealthFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeResourceFrame, RuntimeTraceabilityFrame};
 pub use records::RuntimeRecordFrame;

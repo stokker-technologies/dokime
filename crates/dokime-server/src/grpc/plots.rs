@@ -23,7 +23,7 @@ pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filte
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
-use futures_util::{StreamExt, stream};
+use futures_util::{Stream, StreamExt, stream};
 use harmos::domain::Portable;
 use harmos::{
     MemorySize,
@@ -49,6 +49,10 @@ use wire::{ensure_message_budget, envelope, stream_frame};
 const PLOT_STREAM_THROTTLE: Duration = Duration::from_millis(100);
 const PLOT_RETRY_FIRST: Duration = Duration::from_millis(250);
 const PLOT_RETRY_MAX: Duration = Duration::from_secs(5);
+/// How often a watch says it is alive while a plot still waits for its first frame.
+const PLOT_KEEPALIVE: Duration = Duration::from_secs(3);
+/// Initial subscriptions and snapshots read at once, so one slow plot does not queue the rest.
+const PLOT_INITIAL_CONCURRENCY: usize = 4;
 
 /* === Macros === */
 
@@ -74,6 +78,13 @@ struct Watch {
 }
 
 /* === Enums === */
+
+/// One step of a watch's opening phase: a result, or a keepalive while none is ready.
+#[derive(Debug, PartialEq)]
+enum Opening<T> {
+    Ready(T),
+    Keepalive,
+}
 
 /* === Traits === */
 
@@ -114,12 +125,38 @@ impl Resources {
 }
 
 impl Resources {
+    /// Reads one plot's snapshot, timing it so the first-frame cost is measurable.
+    async fn query_snapshot(
+        &self, current: &dokime_runtime::runtime::query::PlotPayloadRequest,
+    ) -> Result<Vec<dokime_runtime::runtime::query::PlotPayloadEnvelope>, dokime_runtime::runtime::Error> {
+        let started = Instant::now();
+        let result = self.runtime.query_plot_payloads(vec![current.clone()], RuntimePlotQueryMode::Snapshot).await;
+        tracing::debug!(
+            plot_id = current.plot_id.as_deref().unwrap_or(current.stream.as_str()),
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            ok = result.is_ok(),
+            "plot snapshot query"
+        );
+        result
+    }
+
     async fn snapshot(
         &self, output: &mut StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>,
         requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>, selections: &[String], epoch: &str,
         current: &dokime_runtime::runtime::query::PlotPayloadRequest,
     ) -> Result<bool, Status> {
-        let native = match self.runtime.query_plot_payloads(vec![current.clone()], RuntimePlotQueryMode::Snapshot).await {
+        let result = self.query_snapshot(current).await;
+        self.deliver_snapshot(output, requests, selections, epoch, current, result).await
+    }
+
+    /// Sends one plot's snapshot, or its error frame; `false` when the read was refused.
+    async fn deliver_snapshot(
+        &self, output: &mut StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>,
+        requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>, selections: &[String], epoch: &str,
+        current: &dokime_runtime::runtime::query::PlotPayloadRequest,
+        result: Result<Vec<dokime_runtime::runtime::query::PlotPayloadEnvelope>, dokime_runtime::runtime::Error>,
+    ) -> Result<bool, Status> {
+        let native = match result {
             Ok(native) => native,
             Err(error) => {
                 let response = self.produce(|| Ok(plot_error_frame(current, error.to_string())))?;
@@ -136,6 +173,18 @@ impl Resources {
             output.send_owned(response).await.map_err(failure)?;
         }
         Ok(true)
+    }
+
+    /// Tells the client each of `waiting` is subscribed and still reading.
+    async fn send_pending(
+        &self, output: &mut StreamOutput<dokime_domain::model::plots::wire::PlotStreamFrame>,
+        waiting: &[dokime_runtime::runtime::query::PlotPayloadRequest],
+    ) -> Result<(), Status> {
+        for current in waiting {
+            let response = self.produce(|| Ok(plot_pending_frame(current)))?;
+            output.send_owned(response).await.map_err(failure)?;
+        }
+        Ok(())
     }
 }
 
@@ -219,30 +268,59 @@ impl Operation for Watch {
         let runtime = &self.resources.runtime;
         let epoch = runtime.process_epoch().to_string();
         let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests), &epoch)?;
+        // Acknowledge At Once: Every Plot Hears It Is Subscribed Before Any Read Starts.
+        let opened = Instant::now();
+        let mut waiting = requests.iter().filter(|request| request.cursor.is_none()).cloned().collect::<Vec<_>>();
+        self.resources.send_pending(output, &requests).await?;
+
         // Subscribe Before Reading So A Racing Commit Advances The Same Native Watches.
         let mut states = runtime.watch_state();
         let mut watches = Vec::new();
-        for current in &requests {
-            match runtime.watch_plot_telemetry(std::slice::from_ref(current)).await {
-                Ok(current_watches) => watches.extend(current_watches),
-                Err(error) => {
-                    let response = self.resources.produce(|| Ok(plot_error_frame(current, error.to_string())))?;
+        let subscriptions = stream::iter(requests.clone())
+            .map(|current| async move {
+                let watched = runtime.watch_plot_telemetry(std::slice::from_ref(&current)).await;
+                (current, watched)
+            })
+            .buffered(PLOT_INITIAL_CONCURRENCY);
+        let mut subscribing = std::pin::pin!(with_keepalive(subscriptions, PLOT_KEEPALIVE));
+        while let Some(event) = subscribing.next().await {
+            match event {
+                Opening::Keepalive => self.resources.send_pending(output, &waiting).await?,
+                Opening::Ready((_, Ok(current_watches))) => watches.extend(current_watches),
+                Opening::Ready((current, Err(error))) => {
+                    let response = self.resources.produce(|| Ok(plot_error_frame(&current, error.to_string())))?;
                     output.send_owned(response).await.map_err(failure)?;
                 }
             }
         }
         let mut telemetry_watches = stream::select_all(watches);
+
+        // Read Every Initial Snapshot Concurrently, Keeping The Unserved Ones Alive.
         // A refused read is sent as its plot's error at once and retried with
         // backoff even while no new evidence arrives, so a contended plot
         // neither waits silently nor stays failed once capacity frees.
         let mut retry_delay = PLOT_RETRY_FIRST;
         let mut unserved = Vec::new();
-        let initial = requests.iter().filter(|request| request.cursor.is_none()).cloned().collect::<Vec<_>>();
-        for current in initial {
-            if !self.resources.snapshot(output, &mut requests, &selections, &epoch, &current).await? {
-                unserved.push(current);
+        let resources = &self.resources;
+        let snapshots = stream::iter(waiting.clone())
+            .map(|current| async move {
+                let result = resources.query_snapshot(&current).await;
+                (current, result)
+            })
+            .buffer_unordered(PLOT_INITIAL_CONCURRENCY);
+        let mut reading = std::pin::pin!(with_keepalive(snapshots, PLOT_KEEPALIVE));
+        while let Some(event) = reading.next().await {
+            match event {
+                Opening::Keepalive => self.resources.send_pending(output, &waiting).await?,
+                Opening::Ready((current, result)) => {
+                    waiting.retain(|request| request.plot_id != current.plot_id);
+                    if !self.resources.deliver_snapshot(output, &mut requests, &selections, &epoch, &current, result).await? {
+                        unserved.push(current);
+                    }
+                }
             }
         }
+        tracing::debug!(plots = requests.len(), elapsed_ms = opened.elapsed().as_millis() as u64, "plot watch opened");
         let mut last_flush = Instant::now() - PLOT_STREAM_THROTTLE;
         let mut next_flush = None::<Instant>;
         if !unserved.is_empty() {
@@ -323,6 +401,32 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 
 /* === Private Functions === */
 
+/// Interleaves `ready` with a keepalive every `every` that passes without a result; ends with `ready`.
+fn with_keepalive<S: Stream + Unpin>(ready: S, every: Duration) -> impl Stream<Item = Opening<S::Item>> {
+    stream::unfold((ready, Instant::now() + every), move |(mut ready, deadline)| async move {
+        tokio::select! {
+            biased;
+            item = ready.next() => item.map(|item| (Opening::Ready(item), (ready, Instant::now() + every))),
+            () = tokio::time::sleep_until(deadline) => Some((Opening::Keepalive, (ready, Instant::now() + every))),
+        }
+    })
+}
+
+/// A plot that is subscribed and still reading: an unspecified frame naming the plot, with nothing else.
+fn plot_pending_frame(request: &dokime_runtime::runtime::query::PlotPayloadRequest) -> dokime_domain::model::plots::wire::PlotStreamFrame {
+    dokime_domain::model::plots::wire::PlotStreamFrame {
+        kind: dokime_domain::model::plots::wire::PlotStreamKind::Unspecified,
+        envelope: Some(dokime_domain::model::plots::wire::PlotEnvelope {
+            plot_id: request.plot_id.clone().unwrap_or_else(|| request.stream.clone()),
+            revision: 0,
+            cursor: None,
+            payload: None,
+            diagnostics: None,
+            warnings: Vec::new(),
+        }),
+    }
+}
+
 fn plot_error_frame(
     request: &dokime_runtime::runtime::query::PlotPayloadRequest, message: String,
 ) -> dokime_domain::model::plots::wire::PlotStreamFrame {
@@ -349,3 +453,53 @@ fn failure(error: harmos::Error) -> Status {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A slow first read is preceded by a keepalive every interval, and the
+    // stream ends with its last result rather than ticking on.
+    #[tokio::test(start_paused = true)]
+    async fn keepalive_ordering() {
+        let every = Duration::from_secs(3);
+        let slow = Box::pin(stream::once(async {
+            tokio::time::sleep(Duration::from_secs(7)).await;
+            "first"
+        }));
+        let events = with_keepalive(slow, every).collect::<Vec<_>>().await;
+        assert_eq!(events, vec![Opening::Keepalive, Opening::Keepalive, Opening::Ready("first")]);
+
+        let ready = with_keepalive(stream::iter(["a", "b"]), every).collect::<Vec<_>>().await;
+        assert_eq!(ready, vec![Opening::Ready("a"), Opening::Ready("b")], "results ready at once need no keepalive");
+    }
+
+    // A document hands the live view the histogram as declared, value on x,
+    // and the watch decodes that back unmapped: the query maps it once, as
+    // the report does, instead of mapping an already mapped request to nothing.
+    #[test]
+    fn histogram_definition_declared() {
+        use dokime_runtime::document::{DocumentSelection, Plot, plot_descriptor_for_definition, plot_input_for_definition};
+        let mut plot = Plot::histogram("Voltage Distribution");
+        plot.id("obc.startup.voltage_distribution");
+        plot.x(dokime_domain::model::expressions::telemetry("obc.startup", "voltage_v"));
+        let input = plot_input_for_definition(&plot, &[], 0, &DocumentSelection::default());
+        let descriptor = plot_descriptor_for_definition(input, plot.metadata.clone());
+
+        let definition = wire::document_plot_definition(&descriptor).unwrap();
+        let (decoded, _) = decode_plot_requests(vec![definition.request.unwrap()], "epoch").unwrap();
+        assert_eq!(decoded[0].x_expression, descriptor.input.x_expression, "the declared x reaches the live query");
+        assert!(decoded[0].y_expressions.is_empty() && decoded[0].y_keys.is_empty(), "nothing was mapped before the query");
+    }
+
+    #[test]
+    fn pending_frame_names_the_plot() {
+        let request =
+            dokime_runtime::runtime::query::PlotPayloadRequest { plot_id: Some("power.voltage".to_owned()), ..Default::default() };
+        let frame = plot_pending_frame(&request);
+        assert_eq!(frame.kind, dokime_domain::model::plots::wire::PlotStreamKind::Unspecified);
+        let envelope = frame.envelope.unwrap();
+        assert_eq!(envelope.plot_id, "power.voltage");
+        assert!(envelope.payload.is_none() && envelope.warnings.is_empty());
+    }
+}

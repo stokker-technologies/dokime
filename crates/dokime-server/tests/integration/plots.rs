@@ -68,7 +68,7 @@ async fn plot_points_admission() {
     assert!((1..=10_000).contains(&points), "the window keeps its budget: {points}");
 
     let mut watch = open_watch(&client, 100_000).await;
-    let refused = watch.message().await.unwrap().unwrap();
+    let refused = data_frame(&mut watch).await;
     assert_eq!(refused.kind, model::plots::wire::PlotStreamKind::Error);
     let message = refused.envelope.as_ref().unwrap().warnings[0].clone();
     assert!(!message.contains("plot admission failed"), "the refusal is precise: {message}");
@@ -156,14 +156,24 @@ async fn sealed_window_all() {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut watch =
         client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: requests() }).await.unwrap().into_inner();
+    // The watch acknowledges every plot before any read, so none sits silent while the snapshots run.
+    let mut acknowledged = Vec::new();
     for _ in 0..2 {
         let frame = watch.message().await.unwrap().unwrap();
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Unspecified, "the acknowledgement precedes every snapshot");
+        let envelope = frame.envelope.unwrap();
+        assert!(envelope.payload.is_none(), "an acknowledgement carries no data");
+        acknowledged.push(envelope.plot_id);
+    }
+    assert_eq!(acknowledged, ["fixture.progress.first", "fixture.progress.second"]);
+    for _ in 0..2 {
+        let frame = data_frame(&mut watch).await;
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
         assert_eq!(served_points(&frame), STORED as usize, "a running execution opens with its window");
     }
     publish_scoped(&handle, &id, &scope, STORED, 1).await;
     for _ in 0..2 {
-        let frame = watch.message().await.unwrap().unwrap();
+        let frame = data_frame(&mut watch).await;
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Append);
         assert_eq!(served_points(&frame), 1, "a running execution follows with the new row");
     }
@@ -182,7 +192,7 @@ async fn sealed_window_all() {
     let mut watch =
         client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: requests() }).await.unwrap().into_inner();
     for _ in 0..2 {
-        let frame = watch.message().await.unwrap().unwrap();
+        let frame = data_frame(&mut watch).await;
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
         assert_eq!(served_points(&frame), STORED as usize + 1, "a sealed execution opens with its stored rows");
     }
@@ -227,7 +237,17 @@ fn request(max_points: u64) -> model::plots::wire::PlotRequest {
 
 async fn first_frame(client: &WireClient, max_points: u64) -> model::plots::wire::PlotStreamFrame {
     let mut stream = open_watch(client, max_points).await;
-    stream.message().await.unwrap().unwrap()
+    data_frame(&mut stream).await
+}
+
+/// The next frame that carries a plot's data or error, past the watch's acknowledgements and keepalives.
+async fn data_frame(watch: &mut WireStream<model::plots::wire::PlotStreamFrame>) -> model::plots::wire::PlotStreamFrame {
+    loop {
+        let frame = watch.message().await.unwrap().unwrap();
+        if frame.kind != model::plots::wire::PlotStreamKind::Unspecified {
+            return frame;
+        }
+    }
 }
 
 async fn open_watch(client: &WireClient, max_points: u64) -> WireStream<model::plots::wire::PlotStreamFrame> {
