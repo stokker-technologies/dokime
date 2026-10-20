@@ -16,6 +16,7 @@ import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/Executi
 import { type CycleState, cycleState } from "@/features/cycle/cycle-workspace-model";
 import { mapCycleStatus } from "@/lib/api/native-planning";
 import type { Wire } from "@/lib/rpc/canonical";
+import type { PromptRequest } from "@/lib/types";
 
 /* === Constants === */
 
@@ -80,6 +81,16 @@ export function cycleRows(cycles: CycleSummary[], attentionByCycleId: ReadonlyMa
       updatedAtMs: timestampMs(cycle),
     };
   });
+}
+
+/** How many open prompts wait in each cycle, keyed by cycle identifier. */
+export function promptCountsByCycle(prompts: readonly PromptRequest[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const prompt of prompts) {
+    const cycleId = prompt.scope?.test_cycle_id;
+    if (cycleId) counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /**

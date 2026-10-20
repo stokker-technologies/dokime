@@ -1192,6 +1192,82 @@ async function startupJourney(session, notes) {
 }
 
 /**
+ * The active cycle: shell state, changed only through its picker.
+ *
+ * The status bar names the active cycle and opens the picker. New Cycle there
+ * creates a cycle and makes it active; choosing a row makes that cycle active;
+ * the template dialog then names it with Change, and the case joins it.
+ */
+async function activeCycleJourney(session, otherTitle) {
+  const element = () =>
+    session.execute("return document.querySelector('[data-testid=status-active-cycle]')?.innerText.replace(/\\s+/g, ' ').trim() ?? null;");
+  const openPicker = async () => {
+    await session.clickCss("[data-testid=status-active-cycle]");
+    await until("active cycle picker", () => session.find("css selector", "[role=dialog] [data-testid=open-cycles]"), 30000);
+  };
+  const clickInDialog = (label) =>
+    until(`${label} in the open dialog`, () =>
+      session.execute(
+        `const dialog = [...document.querySelectorAll('[role=dialog][data-state=open]')].at(-1);
+         const button = dialog && [...dialog.querySelectorAll('button')].find((candidate) => candidate.innerText.includes(arguments[0]));
+         if (!button || button.disabled) return null;
+         button.click();
+         return true;`,
+        [label],
+      ),
+    );
+  const dialogsClosed = () =>
+    until("dialogs closed", async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0, 30000);
+
+  await session.goto("/library");
+  await until("suite rows", async () => hasText(await session.text(), STARTUP_SUITE), 60000);
+  assert.equal(
+    await session.execute("return document.querySelector('select[aria-label=\"Destination Cycle\"]');"),
+    null,
+    "The Library carries no destination control",
+  );
+
+  /* New Cycle in the picker creates a cycle and makes it active at once. */
+  await openPicker();
+  await clickInDialog("New Cycle");
+  await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
+  const title = (await session.execute("return document.querySelector('#new-cycle-title').value")).trim();
+  await session.clickNamed("button", "Create Cycle");
+  await dialogsClosed();
+  await until("the created cycle active", async () => hasText((await element()) ?? "", title), 60000);
+
+  /* Choosing a row makes that cycle active; choosing the new one again restores it. */
+  if (otherTitle) {
+    await openPicker();
+    await clickInDialog(otherTitle);
+    await dialogsClosed();
+    await until("the chosen cycle active", async () => hasText((await element()) ?? "", otherTitle), 30000);
+  }
+  await openPicker();
+  await clickInDialog(title);
+  await dialogsClosed();
+  await until("the new cycle active again", async () => hasText((await element()) ?? "", title), 30000);
+  assert.match((await element()) ?? "", /Active · Idle/, "The element states the cycle's own state");
+
+  /* The template dialog names the active cycle with Change, and the case joins it. */
+  await session.clickNamed("button", STARTUP_SUITE);
+  await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 30000);
+  await session.clickCss('[data-testid="suite-template-obc.charger.startup.sequence"] button');
+  const inline = await until("the dialog's active cycle", () =>
+    session.execute("return document.querySelector('[role=dialog] [data-testid=template-active-cycle]')?.innerText ?? null;"),
+  );
+  assert.ok(hasText(inline, title), `The template dialog must name the active cycle (got ${normalize(inline)})`);
+  assert.ok(hasText(inline, "Change"), "The template dialog must offer Change");
+  await clickInDialog("Next");
+  await dialogsClosed();
+  const added = await until("add announced", async () => {
+    const text = await toastText(session);
+    return /Added 1 case to /.test(text) ? text : null;
+  });
+  assert.ok(hasText(added, title), `The case must join the active cycle (got ${normalize(added)})`);
+}
+
+/**
  * Library: the only route by which cases enter a cycle.
  *
  * The cycle comes first, through New Cycle, and becomes the active cycle that
@@ -2930,6 +3006,7 @@ async function main() {
      a wrong count on Cycles is not a reason to certify nothing behind it. */
   const library = await journey("library", () => libraryJourney(session));
   const cycleId = library.value?.id;
+  await journey("active-cycle", () => activeCycleJourney(session, library.value?.title ?? null));
 
   if (cycleId) {
     await journey("cycle", () => cycleJourney(session, cycleId));

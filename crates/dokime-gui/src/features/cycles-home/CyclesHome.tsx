@@ -32,6 +32,7 @@ import {
   type CycleRow,
   cycleRows,
   groupCycleRows,
+  promptCountsByCycle,
 } from "@/features/cycles-home/cycles-model";
 import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
@@ -91,16 +92,7 @@ export function CyclesHome() {
   );
   usePageChrome({ actions, title: "Cycles" });
 
-  const attentionByCycleId = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const prompt of prompts.data ?? []) {
-      const cycleId = prompt.scope?.test_cycle_id;
-      if (cycleId) {
-        counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
-      }
-    }
-    return counts;
-  }, [prompts.data]);
+  const attentionByCycleId = useMemo(() => promptCountsByCycle(prompts.data ?? []), [prompts.data]);
 
   const rows = useMemo(() => cycleRows(cycles.data ?? [], attentionByCycleId), [attentionByCycleId, cycles.data]);
   const groups = useMemo(() => {
