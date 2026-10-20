@@ -27,6 +27,7 @@ use tonic::{Request, Status};
 
 // Local Imports
 use super::Error;
+use super::remote::sessions::{Outcome, SessionLog};
 
 /* === Constants === */
 
@@ -45,6 +46,7 @@ pub struct Principal {
 #[derive(Default)]
 pub(super) struct Listeners {
     policies: RwLock<BTreeMap<SocketAddr, (Policy, bool)>>,
+    sessions: Arc<SessionLog>,
 }
 
 /* === Enums === */
@@ -75,6 +77,11 @@ impl Principal {
 }
 
 impl Policy {
+    /// The recorded principal of an admitted remote call.
+    fn principal(&self) -> &'static str {
+        if matches!(self, Self::Key(_)) { "access-key" } else { "anonymous" }
+    }
+
     fn authenticate_values<'a>(&self, mut credentials: impl Iterator<Item = Option<&'a str>>) -> Result<Principal, Status> {
         if matches!(self, Self::TrustedLocal | Self::Open) {
             let subject = if matches!(self, Self::TrustedLocal) { "local" } else { "remote" };
@@ -129,9 +136,21 @@ impl Listeners {
         let address = tls.or(plain).ok_or_else(|| Status::unauthenticated("listener identity unavailable"))?;
         let (policy, local) = self.policy(address)?;
         let values = call.metadata().get_all("authorization");
-        let mut principal = policy.authenticate_values(values.iter().map(|value| value.to_str().ok()))?;
+        let authenticated = policy.authenticate_values(values.iter().map(|value| value.to_str().ok()));
+        // Native Callers Are Not Remote Sessions; Remote Refusals Are Recorded With Their Reason.
+        if let Some(peer) = call.peer().filter(|_| !local) {
+            match &authenticated {
+                Ok(_) => self.sessions.record(peer, policy.principal(), Outcome::Admitted),
+                Err(status) => self.sessions.record(peer, "anonymous", Outcome::Rejected(status.message())),
+            }
+        }
+        let mut principal = authenticated?;
         principal.local = local;
         Ok(principal)
+    }
+
+    pub(super) fn sessions(&self) -> Arc<SessionLog> {
+        self.sessions.clone()
     }
 }
 

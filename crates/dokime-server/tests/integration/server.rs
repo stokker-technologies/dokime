@@ -101,6 +101,69 @@ async fn remote_security_persistence() {
 }
 
 #[tokio::test]
+async fn remote_sessions_recorded() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let native = connect(&server).await;
+    let key = native.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner().access_key;
+    let settings = model::remote::RemoteListenerSettings {
+        enabled: true,
+        address: "127.0.0.1:0".into(),
+        tls_enabled: false,
+        authentication_enabled: true,
+        certificate_names: vec![],
+    };
+    let status = native
+        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings) })
+        .await
+        .unwrap()
+        .into_inner();
+    let remote = WireClient::connect(format!("http://{}", status.listening_address.unwrap())).await.unwrap();
+    let mut rejected = Request::new(contracts::backend::GetIdentity {});
+    rejected.metadata_mut().insert("authorization", "Bearer a-different-long-token-01234567890123456789".parse().unwrap());
+    assert_eq!(remote.unary::<contracts::backend::GetIdentity>(rejected).await.unwrap_err().code(), Code::Unauthenticated);
+    for _ in 0..2 {
+        let mut admitted = Request::new(contracts::backend::GetIdentity {});
+        admitted.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
+        remote.unary::<contracts::backend::GetIdentity>(admitted).await.unwrap();
+    }
+    native.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap();
+
+    let page = native
+        .unary::<contracts::remote::ListSessions>(contracts::remote::ListSessions { cursor: None, limit: 20 })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(page.sessions.len(), 2, "native calls are not remote sessions");
+    let admitted = &page.sessions[0];
+    assert_eq!((admitted.principal.as_str(), admitted.calls), ("access-key", 2));
+    assert_eq!(admitted.outcome, model::remote::RemoteSessionOutcome::Admitted);
+    let refused = &page.sessions[1];
+    assert_eq!((refused.principal.as_str(), refused.calls), ("anonymous", 1));
+    assert_eq!(refused.outcome, model::remote::RemoteSessionOutcome::Rejected);
+    assert_eq!(refused.rejection.as_deref(), Some("invalid credentials"));
+    assert!(page.next_cursor.is_none());
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+
+    // The Log Survives The Host Restart With Its Sessions Closed.
+    let mut owner = runtime(root.path()).await;
+    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let native = connect(&server).await;
+    let restored = native
+        .unary::<contracts::remote::ListSessions>(contracts::remote::ListSessions { cursor: None, limit: 1 })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(restored.sessions.len(), 1);
+    assert!(restored.sessions[0].disconnected_at.is_some());
+    assert_eq!(restored.next_cursor.as_deref(), Some(restored.sessions[0].id.as_str()));
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn listener_policy_isolation() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;

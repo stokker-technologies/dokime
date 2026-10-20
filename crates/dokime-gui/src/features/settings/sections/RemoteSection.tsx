@@ -30,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { AccessKeyDialog } from "@/features/settings/sections/AccessKeyDialog";
+import { RemoteSessionsCard } from "@/features/settings/sections/RemoteSessionsCard";
 import {
   certificateIssue,
   certificateNames,
@@ -308,6 +309,9 @@ function ListenerControls({ session, status }: { session: ConnectedSession; stat
           )}
         </SettingsRow>
       </SettingsCard>
+      {session.snapshot.connection.backend?.methods.includes("/dokime.v1.Remote/ListSessions") ? (
+        <RemoteSessionsCard session={session} />
+      ) : null}
       <Dialog
         open={rotating}
         onOpenChange={(open) => {

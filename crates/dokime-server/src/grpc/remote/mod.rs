@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod operations;
+pub(super) mod sessions;
 mod store;
 
 /* === Re-Exports === */
@@ -28,7 +29,7 @@ use zeroize::Zeroizing;
 
 // Local Imports
 use super::{Config, Error, Server, Service, TlsIdentity};
-use dokime_domain::model::remote::{GeneratedAccessKey, RemoteListenerSettings, RemoteListenerStatus};
+use dokime_domain::model::remote::{GeneratedAccessKey, RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
 use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
@@ -42,6 +43,7 @@ use dokime_runtime::RuntimeHandle;
 pub(super) struct Controller {
     service: Service,
     path: PathBuf,
+    sessions: Arc<sessions::SessionLog>,
     state: Mutex<State>,
 }
 
@@ -103,10 +105,16 @@ impl Controller {
     pub(super) async fn stop(&self) -> Result<(), Error> {
         let mut state = self.state.lock().await;
         state.closing = true;
+        let sessions = self.sessions.clone();
+        tokio::task::spawn_blocking(move || sessions.flush()).await?;
         if let Some(server) = state.server.take() {
             server.detach().await?;
         }
         Ok(())
+    }
+
+    fn sessions(&self, cursor: Option<&str>, limit: u32) -> Result<RemoteSessionPage, Error> {
+        self.sessions.list(cursor, limit).map_err(Error::Configuration)
     }
 
     async fn status(&self) -> RemoteListenerStatus {
@@ -257,12 +265,32 @@ pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Resul
     let path = runtime.application_settings().application_root.join("remote").join("access.json");
     let read_path = path.clone();
     let document = tokio::task::spawn_blocking(move || store::read(&read_path)).await??;
+    let sessions = service.sessions();
+    let log = sessions.clone();
+    let log_path = path.with_file_name("sessions.json");
+    tokio::task::spawn_blocking(move || log.attach(log_path)).await?;
+    spawn_session_flush(Arc::downgrade(&sessions));
     let controller =
-        Arc::new(Controller { service, path, state: Mutex::new(State { document, server: None, error: None, closing: false }) });
+        Arc::new(Controller { service, path, sessions, state: Mutex::new(State { document, server: None, error: None, closing: false }) });
     operations::register(runtime, controller.clone())?;
     Ok(controller)
 }
 
 /* === Private Functions === */
+
+// Calls Only Mark The Log; Writes Are Batched So Authentication Never Waits On Storage.
+fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            let Some(log) = sessions.upgrade() else { return };
+            if tokio::task::spawn_blocking(move || log.flush()).await.is_err() {
+                return;
+            }
+        }
+    });
+}
 
 /* === Tests === */
