@@ -1,11 +1,17 @@
+# Dokime
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="branding/logos/transparent-on-dark.svg">
-    <img src="branding/logos/transparent-on-light.svg" alt="Dokime logo" width="160">
+    <img src="branding/logos/transparent-on-light.svg" alt="Dokime logo" width="240">
   </picture>
 </p>
 
-# Dokime
+[![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml?query=branch%3Adev)
+[![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
+[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
+[![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases/latest)
+[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE)
 
 **Run repeatable engineering tests. Keep the evidence.**
 
@@ -771,6 +777,68 @@ boundary for report finalization. If publication fails, the recorded test
 verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
+
+## CLI Reference
+
+`dokime` connects to a backend; `cargo dokime` authors plugin bundles. Every
+command prints its full flags with `--help`. Commands that connect accept
+`--endpoint` or `--backend`, `--key-file` (or `DOKIME_KEY`), `--ca`,
+`--env-file` and `--timeout-seconds`; most accept `--json` for scripts.
+
+### Connection And Backends
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--expected-backend` |
+| `dokime auth login\|status\|logout` | Validate, save or remove local credentials. | `--key-file` |
+| `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--endpoint`, `--keyring`, `--profiles-file` |
+| `dokime serve` | Run the installed `dokime-server`; arguments after `--` pass through. | `--server` |
+| `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
+
+### Catalog And Plans
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime catalog list\|show` | Browse registered suites and their templates. | `--json` |
+| `dokime plan preview` | Preview cases without registering them. | `--template`, `--parameters-json` |
+| `dokime plan register` | Register cases with a caller-retained idempotency key. | `--template`, `--request-key`, `--max-cases` |
+| `dokime plan materialize` | Materialize template cases without creating executions. | `--template`, `--parameters-json`, `--id-only` |
+
+### Cycles And Executions
+
+Exercised by [control-test](packages/dokime-client/examples/remote/cli/control-test.sh)
+and [control-prompt](packages/dokime-client/examples/remote/cli/control-prompt.sh).
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime cycle create` | Create an empty active cycle. | `--label`, `--continue-automatically`, `--id-only` |
+| `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
+| `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
+| `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |
+| `dokime execution start\|run` | Start one execution; `run` also waits for its seal. | `--mode`, `--wait-seconds`, `--samples` |
+| `dokime execution wait\|stop` | Wait for a durable outcome or stop one execution. | `--wait-seconds` |
+| `dokime execution prompt next\|show\|answer` | Find, inspect and answer an execution's prompts. | `--action`, `--values-json` |
+| `dokime execution export` | Download a sealed execution's evidence. | `--output`, `--overwrite` |
+
+### Operations And Plugins
+
+Exercised by [control-device](packages/dokime-client/examples/remote/cli/control-device.sh).
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime operation list\|show` | Discover operations and their provider contracts. | `--json` |
+| `dokime operation call` | Call a provider and read its items and completion. | `--json`, `--input`, `--output` |
+| `dokime plugin install` | Stage a bundle, review it and authorize next-boot activation. | `--yes` |
+
+### Plugin Authoring
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `cargo dokime new` | Create a native plugin offline. | `--name` |
+| `cargo dokime build` | Compile a plugin and freeze it into a `.dokime` bundle. | `-p`, `--release`, `-o` |
+| `cargo dokime package` | Bundle a collected build without compiling. | `--build-json`, `-o` |
+| `cargo dokime dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
+| `cargo dokime inspect` | Verify a bundle and print its manifest as JSON. | |
 
 ## Cargo Features
 
