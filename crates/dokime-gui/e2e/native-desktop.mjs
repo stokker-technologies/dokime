@@ -1402,11 +1402,33 @@ async function cycleJourney(session, cycleId) {
   assert.ok(await session.exists("button", "Cycle Actions"), "The header must carry the overflow menu");
   assert.ok(!(await session.exists("button", "Start Cycle")), "Containers have no Start control");
   assert.ok(!(await session.exists("button", "Stop Cycle")), "Containers have one Seal action");
-  const started = [];
-  for (const fragment of [PROTECTION_TEMPLATE, STARTUP_TEMPLATE]) {
-    if (await startCaseFromItsRow(session, fragment)) started.push(fragment);
-  }
-  assert.equal(started.length, 2, "Both selected execution starts must be admitted");
+  /* Observe The Measuring Execution Before Admitting Its Work. */
+  await session.execute(
+    `
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => candidate.innerText.includes(arguments[0]));
+    if (!row) throw new Error('The measuring case is absent');
+    row.querySelector('button').click();
+  `,
+    [PROTECTION_TEMPLATE],
+  );
+  assert.ok(await startCaseFromItsRow(session, PROTECTION_TEMPLATE), "The measuring execution Start must be admitted");
+  listened = await until("live bridge reads from the selected measuring execution", () =>
+    session.execute(
+      `return globalThis.__dokimeStreamReads > arguments[0]
+        && globalThis.__dokimeStreams.some((stream) => !stream.done && stream.reads >= 2);`,
+      [beforeReads],
+    ),
+  );
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "The prompting execution Start must be admitted");
+
+  /* The Overview Offers Every Answerable Prompt; Execution Pages Keep Their Own. */
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await until(
+    "the cycle selection for operator prompts",
+    async () => (await session.location()).searchParams.get("view") === "cycle",
+    10000,
+  );
 
   /* Open Report while the cycle is in flight: no seal yet, so the runtime
      renders one from the run so far and the shell hands it to the opener
@@ -1448,16 +1470,6 @@ async function cycleJourney(session, cycleId) {
       "The admitted cycle never showed Running, Paused or Stopping, so Open Report could not be checked while it was in flight.",
     );
   }
-
-  /* Back to the measuring case for the streams the run is read through. */
-  await session.execute(
-    `
-    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
-      .find((candidate) => candidate.innerText.includes(arguments[0]));
-    row?.querySelector('button').click();
-  `,
-    [PROTECTION_TEMPLATE],
-  );
 
   await runUntil(
     session,
@@ -1724,10 +1736,17 @@ async function executionStopJourney(session, cycleId) {
   await openMenu(session, "Cycle Actions");
   await session.clickNamed("menuitem", "Copy Cycle");
   const copyId = await until(
-    "the copied cycle route",
+    "the copied cycle route and startup action",
     async () => {
       const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
-      return match && match[1] !== cycleId ? match[1] : null;
+      if (!match || match[1] === cycleId) return null;
+      const ready = await session.execute(
+        `const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+          .find((candidate) => candidate.innerText.includes(arguments[0]));
+        return Boolean(row?.querySelector('button[aria-label^="Actions For "]'));`,
+        [STARTUP_TEMPLATE],
+      );
+      return ready ? match[1] : null;
     },
     30000,
   );
@@ -1898,7 +1917,7 @@ async function sealContainer(session) {
   await session.click(confirm);
   await until(
     "seal confirmation closed",
-    async () => (await session.execute("return document.querySelectorAll('[role=dialog][data-state=open]').length")) === 0,
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
   );
   await cyclePhase(session, "Sealed");
 }
