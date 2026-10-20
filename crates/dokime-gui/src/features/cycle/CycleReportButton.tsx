@@ -7,8 +7,8 @@
  * ***
  */
 
-/* Download Report: the last control of the page bar's group on the cycle page
- * and on the execution page.
+/* Download Report: a labelled button beside Export Evidence, in the same
+ * style, in the action cluster of the cycle and the execution viewer.
  *
  * It saves through the native dialog the same report Open Report opens — one
  * rendered from the run so far, the sealed one, or the sealed one rendered
@@ -27,6 +27,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useCycleCommands } from "./cycle-queries";
 import { reportDownloadState } from "./cycle-workspace-model";
+
+/* === Constants === */
+
+/** One shape for the cluster's labelled buttons: the bar control height. */
+export const CLUSTER_BUTTON_CLASS = "h-[var(--bar-control-height)] px-3";
 
 /* === Types === */
 
@@ -58,16 +63,9 @@ export function CycleReportButton({ cycleId, executionId, label }: CycleReportBu
       );
   };
   return (
-    <Button
-      aria-label={state.label}
-      className="size-[var(--bar-control-height)]"
-      disabled={state.disabled}
-      onClick={save}
-      size="icon"
-      title={state.title}
-      variant="outline"
-    >
-      <Download />
+    <Button className={CLUSTER_BUTTON_CLASS} disabled={state.disabled} onClick={save} title={state.title} variant="outline">
+      <Download data-icon="inline-start" />
+      {downloadReport.isPending ? "Saving Report…" : state.label}
     </Button>
   );
 }

@@ -7,7 +7,7 @@
  * ***
  */
 
-/* The cycle document: what the cycle itself holds, under the cycle cockpit.
+/* The cycle document: what the cycle itself holds, under the viewer's lead blocks.
  *
  * Shown when the cycle is selected, or nothing is. Records, telemetry, notes,
  * health, artifacts and plots all arrive through `useDocumentSurface` and
@@ -22,11 +22,11 @@
 
 /* === External Imports === */
 
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
-import type { HubLiveState, RecordScope, TestCyclePlan } from "@/lib/types";
+import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan } from "@/lib/types";
 import { CycleEvidenceView } from "./CycleEvidenceView";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { evidencePaneState } from "./document-query-model";
@@ -41,11 +41,15 @@ export type CycleEvidencePaneProps = {
   snapshot: HubLiveState | null;
   /** False in the frozen report: no slider, no live plot window. */
   live?: boolean;
+  /** The header and Control card the cycle viewer composes above the document. */
+  lead?: ReactNode;
+  /** The prompts the cycle itself asked. */
+  prompts?: PromptRequest[];
 };
 
 /* === Components === */
 
-export function CycleEvidencePane({ cycleId, live = true, plan, snapshot }: CycleEvidencePaneProps) {
+export function CycleEvidencePane({ cycleId, lead, live = true, plan, prompts, snapshot }: CycleEvidencePaneProps) {
   const plotWindow = usePlotWindow();
   const scope = useMemo<RecordScope>(() => ({ test_cycle_id: cycleId }), [cycleId]);
   const documentQuery = useCycleDocumentQuery(cycleId, true);
@@ -77,6 +81,8 @@ export function CycleEvidencePane({ cycleId, live = true, plan, snapshot }: Cycl
       plotWindow={plotWindow}
       onRetry={() => void documentQuery.refetch()}
       documentView={DocumentView}
+      lead={lead}
+      prompts={prompts}
     />
   );
 }

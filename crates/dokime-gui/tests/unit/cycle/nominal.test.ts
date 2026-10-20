@@ -26,7 +26,6 @@ import {
   type CycleSelection,
   cycleRowSelection,
   cycleState,
-  executionControlSet,
   followSelection,
   isCycleTerminal,
   isFollowing,
@@ -37,6 +36,7 @@ import {
   rowOffersRunAgain,
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
+import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
 import {
   BUSY_RETRY_MAX_MS,
   DOCUMENT_FAILED_FALLBACK,
@@ -53,8 +53,8 @@ import {
   refuseLabel,
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
-import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import { archivedCycleGroups, type CycleRow, groupCycleRows } from "@/features/cycles-home/cycles-model";
+import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { defaultCycleLabel } from "@/lib/time-format";
 import { reportFixturePayload } from "@/report/report-fixture";
@@ -68,7 +68,9 @@ import { focusPresentation } from "@/shell/focus-mode";
 
 type Execution = Parameters<typeof buildCycleExecutionRows>[1][number];
 
-type RunControl = Parameters<typeof executionControlSet>[1];
+type ControlInput = Parameters<typeof executionControlState>[0];
+
+type RunControl = ControlInput["controls"];
 
 type FollowInput = Parameters<typeof followSelection>[0];
 
@@ -192,11 +194,15 @@ test("Node Menus", () => {
 });
 
 test("Execution Controls", () => {
-  // Unstarted Attempts Can Start Or Stop Without Dispatching
-  assert.deepEqual(executionControlSet("planned", null), ["Start", "Stop Execution"]);
-  assert.deepEqual(executionControlSet("created", null), ["Start", "Stop Execution"]);
-
-  // Start Leaves Once The Execution Runs Or Ends, In Start | Re-Run | Stop Order
+  const input = (patch: Partial<ControlInput>): ControlInput => ({
+    controls: null,
+    progress: null,
+    promptWaiting: false,
+    status: "running",
+    stepStatuses: [],
+    stopping: false,
+    ...patch,
+  });
   const running = {
     canPause: false,
     canResume: false,
@@ -206,11 +212,55 @@ test("Execution Controls", () => {
     requestId: "r",
     stopRequested: false,
   } as unknown as NonNullable<RunControl>;
-  assert.deepEqual(executionControlSet("running", running), ["Stop Execution"]);
-  assert.deepEqual(executionControlSet("running", { ...running, canPause: true }), ["Pause Execution", "Stop Execution"]);
-  assert.deepEqual(executionControlSet("passed", null), ["Re-Run"]);
-  assert.deepEqual(executionControlSet("failed", null), ["Re-Run"]);
-  assert.deepEqual(executionControlSet("running", null), []);
+
+  // An Unstarted Attempt Offers Start And Cancel, Never Stop
+  for (const status of ["planned", "created"] as const) {
+    const state = executionControlState(input({ status }));
+    assert.deepEqual(state.actions, ["Start", "Cancel"]);
+    assert.doesNotMatch(state.line, /No step in progress/);
+  }
+  assert.equal(executionControlState(input({ status: "planned" })).line, "Not started · waits for Start");
+
+  // Stop Shows Only While An Attempt Runs, After Pause When It Pauses
+  assert.deepEqual(executionControlState(input({ controls: running })).actions, ["Stop"]);
+  assert.deepEqual(executionControlState(input({ controls: { ...running, canPause: true } })).actions, ["Pause", "Stop"]);
+  assert.deepEqual(executionControlState(input({ controls: { ...running, canResume: true, paused: true } })), {
+    actions: ["Resume", "Stop"],
+    detail: null,
+    line: "Paused",
+    phase: "paused",
+  });
+  assert.deepEqual(executionControlState(input({})).actions, []);
+
+  // The Running Step Reads By Its Label, Its Id Muted After It, Its Count Beside The Bar
+  const step = executionControlState(input({ controls: running, progress: { completed: 2, id: "publish", label: "Publish Evidence", total: 5 } }));
+  assert.equal(step.line, "Publish Evidence");
+  assert.equal(step.detail, "publish");
+
+  // A Waiting Prompt Is Named, Not Shown, In Control
+  assert.equal(executionControlState(input({ controls: running, promptWaiting: true })).line, "Waits on the prompt below");
+
+  // Once The Last Step Settles The Attempt Finalizes And Offers Nothing
+  const settled = executionControlState(input({ controls: { ...running, canPause: true }, stepStatuses: ["passed", "passed"] }));
+  assert.deepEqual(settled, { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" });
+  assert.equal(
+    executionControlState(input({ controls: running, progress: { completed: 5, id: "s", label: "S", total: 5 } })).phase,
+    "finalizing",
+  );
+  assert.equal(executionControlState(input({ controls: running, status: "finalizing" })).phase, "finalizing");
+  assert.equal(executionControlState(input({ controls: running, status: "passed" })).phase, "finalizing");
+  assert.equal(executionControlState(input({ controls: running, stepStatuses: ["passed", "running"] })).phase, "running");
+
+  // A Stop In Flight Offers Nothing Further
+  assert.equal(executionControlState(input({ controls: running, stopping: true })).line, "Stopping · saving evidence");
+
+  // An Ended Attempt Offers Re-Run
+  assert.deepEqual(executionControlState(input({ status: "passed" })).actions, ["Re-Run"]);
+  assert.equal(executionControlState(input({ status: "failed" })).line, "Ended · Failed");
+
+  // The Cycle Names The Executions Waiting On Input
+  assert.equal(inputNeededLabel([1, 3]), "Input needed on #1, #3");
+  assert.equal(inputNeededLabel([]), null);
 });
 
 test("Label Editing", () => {

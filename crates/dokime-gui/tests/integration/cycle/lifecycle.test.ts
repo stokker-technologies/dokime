@@ -18,7 +18,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { CycleRunControls } from "@/features/cycle/CycleRunControls";
+import { ControlCard } from "@/features/cycle/ControlCard";
+import { cycleControlState } from "@/features/cycle/control-model";
 import {
   appendNativeCaseAttempt,
   sealNativeTestCycle,
@@ -31,8 +32,6 @@ import {
 /* === Constants === */
 
 const fixture = vi.hoisted(() => ({
-  phase: "active",
-  status: "completed",
   append: vi.fn(),
   start: vi.fn(),
   stop: vi.fn(),
@@ -62,14 +61,8 @@ vi.mock("@/lib/rpc/generated/client", () => ({
   executionSealCycle: fixture.seal,
 }));
 
-vi.mock("@/features/cycle/cycle-queries", () => ({
-  useCycleDetailQuery: () => ({ data: { plan: { test_cycle: { phase: fixture.phase, status: fixture.status } } } }),
-}));
-
 beforeEach(() => {
   vi.clearAllMocks();
-  fixture.phase = "active";
-  fixture.status = "completed";
 });
 
 test("Append Without Start", async () => {
@@ -148,19 +141,24 @@ test("Durable Stop Seal", async () => {
 });
 
 test("Container Seal Controls", () => {
-  for (const status of ["planned", "running", "paused", "completed", "failed", "stopped"]) {
-    fixture.status = status;
-    const html = renderToStaticMarkup(createElement(CycleRunControls, { cycleId: "cycle", onSeal: () => undefined }));
+  // An Active Cycle Offers Seal Cycle Alone, Whatever Its Members Did
+  for (const running of [null, { ordinal: 2, step: "Energize Charger", stepId: "energize" }]) {
+    const state = cycleControlState({ phase: "active", running });
+    assert.deepEqual(state.actions, ["Seal Cycle"]);
+    const html = renderToStaticMarkup(
+      createElement(ControlCard, { actions: createElement("button", null, state.actions[0]), label: "Cycle Controls", state: state.line }),
+    );
     assert.match(html, /Seal Cycle/);
     assert.equal((html.match(/<button/g) ?? []).length, 1);
     assert.doesNotMatch(html, /Start Cycle|Stop Cycle|Run Again|Pause Cycle|Resume Cycle/);
   }
-  fixture.phase = "sealing";
-  const sealing = renderToStaticMarkup(createElement(CycleRunControls, { cycleId: "cycle", onSeal: () => undefined }));
-  assert.match(sealing, /Sealing — Saving Evidence/);
-  assert.doesNotMatch(sealing, /<button/);
-  fixture.phase = "sealed";
-  const sealed = renderToStaticMarkup(createElement(CycleRunControls, { cycleId: "cycle", onSeal: () => undefined }));
-  assert.match(sealed, /Sealed/);
-  assert.doesNotMatch(sealed, /<button/);
+  assert.equal(cycleControlState({ phase: "active", running: null }).line, "Idle · no execution running");
+  assert.equal(
+    cycleControlState({ phase: "active", running: { ordinal: 2, step: "Energize Charger", stepId: "energize" } }).line,
+    "Execution 2 · Energize Charger",
+  );
+
+  // Sealing And Sealed Offer Nothing
+  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), { actions: [], detail: null, line: "Sealing · saving evidence" });
+  assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], detail: null, line: "Sealed · evidence saved" });
 });
