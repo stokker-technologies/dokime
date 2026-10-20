@@ -111,6 +111,13 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
     values.extend(parameters.iter().map(|(name, value)| (*name, (*value).to_owned())));
     let source = configure(&source, extension, &values);
     let configured = directory.join(script.file_name().unwrap());
+    if extension == "bat" {
+        assert!(
+            source.split_inclusive('\n').all(|line| line.ends_with("\r\n")),
+            "{} must reach cmd.exe with CRLF line endings",
+            configured.display()
+        );
+    }
     std::fs::write(&configured, source).unwrap();
     let mut command = launcher(extension, &configured);
     let mut paths = vec![binary.parent().unwrap().to_owned()];
@@ -125,6 +132,8 @@ fn configured_command(extension: &str, workflow: &str, endpoint: &str, directory
 }
 
 fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String {
+    // cmd.exe Seeks Labels By Byte Offset And Misses Them In LF-Only Batch Files.
+    let newline = if extension == "bat" { "\r\n" } else { "\n" };
     source
         .lines()
         .map(|line| {
@@ -168,9 +177,8 @@ fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String
             }
             line.to_owned()
         })
-        .collect::<Vec<_>>()
-        .join("\n")
-        + "\n"
+        .map(|line| line + newline)
+        .collect()
 }
 
 fn launcher(extension: &str, script: &Path) -> Command {
