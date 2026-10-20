@@ -143,7 +143,10 @@ async fn current(
             if !at.covers(boundary)? {
                 return Err(invalid("pending member evidence exceeds cycle report boundary"));
             }
-            resources.execution_storage.acquire(&source, execution).await?;
+            // A Finalizing Member Keeps Its Owner, Which Already Refuses New Producers.
+            if resources.execution_storage.acquisition(&execution.test_execution_id).await.is_none() {
+                resources.execution_storage.acquire(&source, execution).await?;
+            }
             let gate = resources.execution_storage.materialization_gate(&execution.test_execution_id).await?;
             let _guard = gate.lock().await;
             let inspection = match resources.execution_storage.retained_report_view(&execution.test_execution_id).await {

@@ -28,6 +28,8 @@ use dokime_runtime::Value;
 
 /* === Constants === */
 const STARTUP_SUITE: &str = "obc.charger.startup";
+const PROTECTION_SUITE: &str = "obc.charger.protection";
+const PROTECTION_TEMPLATE: &str = "obc.charger.protection.overcurrent";
 const STARTUP_TEMPLATE: &str = "obc.charger.startup.sequence";
 const STARTUP_SAMPLES: &str = "obc.charger.startup.samples";
 const STARTUP_STREAM_LOG: &str = "obc.charger.startup/stream.log";
@@ -242,6 +244,26 @@ async fn list_file(content: &mut Client, execution_id: &str, relative_path: &str
 fn value_object(fields: impl IntoIterator<Item = (&'static str, model::values::wire::Value)>) -> model::values::wire::Value {
     let values = fields.into_iter().map(|(key, value)| (key.to_owned(), value.to_core().unwrap())).collect();
     model::values::wire::Value::from(&Value::Object(values))
+}
+
+async fn report_bytes(report: ResponseStream<model::reports::wire::ReportHtmlFrame>) -> Vec<u8> {
+    let mut html = Vec::new();
+    while let Some(frame) = report.message().await.unwrap() {
+        match frame.payload.expect("report payload") {
+            model::reports::wire::ReportHtmlFramePayload::Report(_) => {}
+            model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => html.extend_from_slice(&chunk.data),
+            model::reports::wire::ReportHtmlFramePayload::Complete(done) => {
+                assert_eq!(done.size_bytes, html.len() as u64);
+                return html;
+            }
+        }
+    }
+    panic!("the report stream ends before it completes");
+}
+
+async fn cycle_report(client: &Client, cycle_id: &str) -> Vec<u8> {
+    let request = contracts::reports::DownloadCycleReport { cycle_id: cycle_id.to_owned(), identifier: "cycle.summary".into() };
+    report_bytes(client.reports_download_cycle_report(request).await.unwrap()).await
 }
 
 async fn serves_startup(client: &Client) -> bool {
@@ -756,6 +778,124 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
 }
 
 /* === Tests === */
+// Open Report While The Cycle Runs, Over The Built Plugin: a cycle report opens
+// on every request from the measuring member's settlement, through the
+// prompting member's admission, to its pending question, and both reports open
+// while that question waits without answering it.
+#[tokio::test]
+async fn open_report_while_cycle_runs() {
+    const BOUND: Duration = Duration::from_secs(20);
+    let root = tempfile::tempdir().unwrap();
+    let bundle = support::artifacts::obc_plugin_bundle();
+    let mut host = Host::launch_in(&root.path().join("host"), Some(&bundle)).await;
+    let client = host.connect().await;
+    assert_eq!(host.command(serde_json::json!({"command": "reload", "path": bundle})).await["event"], "reloaded");
+    let mut changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+
+    // One Cycle: A Measuring Member, Then A Prompting One Queued Behind It
+    let (mut catalog, mut planning, mut execution) = (client.clone(), client.clone(), client.clone());
+    let mut plans = Vec::new();
+    for (suite_id, template_id) in [(PROTECTION_SUITE, PROTECTION_TEMPLATE), (STARTUP_SUITE, STARTUP_TEMPLATE)] {
+        let template = suite(&mut catalog, suite_id)
+            .await
+            .templates
+            .into_iter()
+            .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == template_id))
+            .unwrap_or_else(|| panic!("{template_id} is registered"));
+        plans.push(selection(suite_id, &template.template_id, []));
+    }
+    let prompting = plans.pop().unwrap();
+    let cycle_id = create_cycle(&mut planning, &mut execution, plans.pop().unwrap(), "native.charger.open-report", 1).await;
+    let registered = execution
+        .planning_register_selection(contracts::planning::RegisterSelection {
+            plan: Some(prompting),
+            idempotency_key: uuid::Uuid::now_v7().to_string(),
+        })
+        .await
+        .unwrap();
+    let executions = registered
+        .cases
+        .into_iter()
+        .map(|case| contracts::execution::ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: case.case_id })
+        .collect();
+    execution.execution_append_executions(contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions }).await.unwrap();
+    let members = execution
+        .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
+        .await
+        .unwrap()
+        .executions;
+    for member in &members {
+        let reply = execution
+            .execution_start_execution(contracts::execution::StartExecution {
+                execution_id: member.execution_id.clone(),
+                mode: model::execution::wire::ExecutionMode::Automatic,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))), "{reply:?}");
+    }
+
+    // Back-To-Back Requests Cover The Measuring Member's Seal, The Next Admission And The Question
+    on_change(&mut changes, async || {
+        let page = execution
+            .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
+            .await
+            .unwrap();
+        let measuring = page.executions.iter().find(|member| member.execution_id == members[0].execution_id)?;
+        (measuring.status == model::execution::wire::ExecutionStatus::Passed).then_some(())
+    })
+    .await;
+    let prompts = client.clone();
+    let mut opened = 0;
+    let pending = loop {
+        let html = tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id))
+            .await
+            .unwrap_or_else(|_| panic!("cycle report {opened} did not open within {BOUND:?} while the cycle ran"));
+        assert!(!html.is_empty());
+        opened += 1;
+        let page = prompts
+            .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
+            .await
+            .unwrap();
+        if let Some(pending) = page.prompts.into_iter().next() {
+            break pending;
+        }
+    };
+
+    // Both Reports Open While The Question Waits, And It Still Waits
+    let execution_id = pending.scope.as_ref().and_then(|scope| scope.execution_id.clone()).expect("execution scope");
+    let cycle_html =
+        tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id)).await.expect("the cycle report opens while the prompt waits");
+    assert!(!cycle_html.is_empty());
+    let execution_report = async {
+        let request = contracts::reports::DownloadExecutionReport { execution_id: execution_id.clone() };
+        report_bytes(client.reports_download_execution_report(request).await.unwrap()).await
+    };
+    let execution_html = tokio::time::timeout(BOUND, execution_report).await.expect("the execution report opens while the prompt waits");
+    assert!(!execution_html.is_empty());
+    let still = prompts
+        .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
+        .await
+        .unwrap();
+    assert!(still.prompts.iter().any(|prompt| prompt.prompt_id == pending.prompt_id), "opening a report leaves the prompt pending");
+
+    // Answering The Question Completes The Cycle
+    prompts
+        .prompts_respond(contracts::prompts::Respond {
+            prompt_id: pending.prompt_id,
+            action: "submit".into(),
+            values: Some(value_object([("operator_note", text("open-report")), ("accepted", boolean(true))])),
+            accepted: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
+    assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
+    drop(changes);
+    host.stop(false).await;
+}
+
 // The Plugin-And-Host Walkthrough Over The Built Bundle, One Scene At A Time:
 // a development session serves its selected bundle from the first reload, reloads keep or refuse
 // bytes, a startup suite runs through its prompt, evidence and sealed report, a
