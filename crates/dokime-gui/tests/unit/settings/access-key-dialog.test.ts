@@ -20,6 +20,7 @@ import { test } from "vitest";
 // Local Imports
 import { Dialog, DialogFooter, dialogContentClass } from "@/components/ui/dialog";
 import { AccessKeyPanel } from "@/features/settings/sections/AccessKeyDialog";
+import { cn } from "@/lib/utils";
 
 /* === Re-Exports === */
 
@@ -56,6 +57,15 @@ test("dialog content keeps one shrinkable track so wide children cannot widen it
   assert.match(dialogContentClass, /\bgrid-cols-\[minmax\(0,1fr\)\]/);
   assert.match(dialogContentClass, /\bw-full\b/);
   assert.match(dialogContentClass, /\bmax-w-\[calc\(100%-2rem\)\]/);
+});
+
+test("a dialog's own breakpoint width replaces the default one", () => {
+  for (const width of ["sm:max-w-3xl", "sm:max-w-5xl"]) {
+    const merged = cn(dialogContentClass, width).split(" ");
+    assert.ok(merged.includes(width), width);
+    assert.ok(!merged.includes("sm:max-w-sm"), width);
+  }
+  assert.ok(cn(dialogContentClass, "max-w-5xl").split(" ").includes("sm:max-w-sm"), "an unprefixed width loses from sm up");
 });
 
 test("dialog footers wrap their actions instead of overflowing", () => {
