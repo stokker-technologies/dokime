@@ -67,20 +67,9 @@ pub struct SoakParameters {
     pub hold_samples: u64,
     #[parameter(label = "Heater port", default = "/dev/ttyUSB0")]
     pub heater_port: String,
-    #[parameter(
-        label = "Seconds to wait for the unit",
-        unit = "s",
-        default = 0.5,
-        min = 0.0
-    )]
+    #[parameter(label = "Seconds to wait for the unit", unit = "s", default = 0.5, min = 0.0)]
     pub connect_budget_s: f64,
-    #[parameter(
-        label = "Highest host CPU load allowed",
-        unit = "%",
-        default = 100.0,
-        min = 0.0,
-        max = 100.0
-    )]
+    #[parameter(label = "Highest host CPU load allowed", unit = "%", default = 100.0, min = 0.0, max = 100.0)]
     pub host_cpu_limit: f64,
     #[parameter(label = "Ask the operator to sign off", default = false)]
     pub attended: bool,
@@ -217,14 +206,8 @@ impl Hold {
         document
     }
 
-    async fn initialize(
-        _: &SoakParameters,
-        ctx: &mut InitializationContext<'_>,
-    ) -> Result<(Self, SoakResources), Error> {
-        let template = Self {
-            unit: None,
-            note: None,
-        };
+    async fn initialize(_: &SoakParameters, ctx: &mut InitializationContext<'_>) -> Result<(Self, SoakResources), Error> {
+        let template = Self { unit: None, note: None };
 
         let port = ctx.parameters().heater_port.clone();
         // Every context logs, including the ones handed out by shared
@@ -233,17 +216,11 @@ impl Hold {
         dokime_runtime::info!(ctx, "opening the heater on {port}");
         let heater = Heater::open(port);
 
-        let shared = SoakResources {
-            heater: tokio::sync::Mutex::new(heater.await?),
-            holding: AtomicBool::new(false),
-        };
+        let shared = SoakResources { heater: tokio::sync::Mutex::new(heater.await?), holding: AtomicBool::new(false) };
         Ok((template, shared))
     }
 
-    async fn traceability(
-        &self,
-        ctx: &TraceabilityContext<'_>,
-    ) -> Result<Vec<TraceabilitySection>, Error> {
+    async fn traceability(&self, ctx: &TraceabilityContext<'_>) -> Result<Vec<TraceabilitySection>, Error> {
         let identity = ctx.resources().heater.lock().await.identity().await?;
         // What the bench is, read off the same operation that reads what it is
         // at: the reply is all a template knows about the process serving it.
@@ -251,23 +228,13 @@ impl Hold {
 
         // Device Under Test
         let mut dut = TraceabilitySection::new("dut", "Device under test");
-        dut.row(TraceabilityRow::text(
-            "serial_number",
-            "Serial number",
-            identity.serial,
-        ));
-        dut.row(TraceabilityRow::text(
-            "firmware",
-            "Firmware",
-            identity.firmware,
-        ));
+        dut.row(TraceabilityRow::text("serial_number", "Serial number", identity.serial));
+        dut.row(TraceabilityRow::text("firmware", "Firmware", identity.firmware));
 
         // Bench
         let mut bench_section = TraceabilitySection::new("bench", "Bench");
         bench_section.row(TraceabilityRow::text("sensor", "Sensor", bench.sensor));
-        bench_section.row(
-            TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c).unit("°C"),
-        );
+        bench_section.row(TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c).unit("°C"));
 
         Ok(vec![dut, bench_section])
     }
@@ -278,12 +245,7 @@ impl Hold {
     )]
     async fn connected(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let budget = Duration::from_secs_f64(ctx.parameters().connect_budget_s);
-        match ctx
-            .listen::<ToolConnectionAcquired>()
-            .timeout(budget)
-            .next()
-            .await
-        {
+        match ctx.listen::<ToolConnectionAcquired>().timeout(budget).next().await {
             Some(Ok(connected)) => {
                 dokime_runtime::info!(ctx, "unit {} is on the bench", connected.resource_id);
                 self.unit = Some(connected.resource_id);
@@ -297,23 +259,13 @@ impl Hold {
         Ok(())
     }
 
-    #[step(
-        label = "Reach Target",
-        description = "Drives the chamber until it is inside the band."
-    )]
+    #[step(label = "Reach Target", description = "Drives the chamber until it is inside the band.")]
     async fn reach(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let SoakParameters {
-            target_c, band_c, ..
-        } = *ctx.parameters();
+        let SoakParameters { target_c, band_c, .. } = *ctx.parameters();
 
         // === Set The Target === //
 
-        ctx.resources()
-            .heater
-            .lock()
-            .await
-            .set_target(target_c)
-            .await?;
+        ctx.resources().heater.lock().await.set_target(target_c).await?;
         dokime_runtime::info!(ctx, "heater set to {target_c:.1} °C");
 
         // === Wait For The Band === //
@@ -375,20 +327,12 @@ impl Hold {
         // One verb publishes both kinds of evidence, and the declaration decides
         // which this is: `HoldReached` is a record, `SoakRow` is a measurement,
         // and neither call site repeats where it goes.
-        ctx.publish(HoldReached {
-            samples: wanted,
-            celsius,
-            unit: self.unit.clone(),
-        })
-        .await;
+        ctx.publish(HoldReached { samples: wanted, celsius, unit: self.unit.clone() }).await;
 
         Ok(())
     }
 
-    #[step(
-        label = "Operator Check",
-        description = "Asks the operator to sign off, on a bench that has one."
-    )]
+    #[step(label = "Operator Check", description = "Asks the operator to sign off, on a bench that has one.")]
     async fn check(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         // === Skip An Unattended Bench === //
 
@@ -426,9 +370,7 @@ impl Hold {
         description = "Did the chamber stay in band for the whole hold?\nA criterion reads captured evidence and nothing else: the handles are released before it runs, so what it did not measure during the steps it cannot go and look at now."
     )]
     fn in_band(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        let SoakParameters {
-            target_c, band_c, ..
-        } = *ctx.parameters();
+        let SoakParameters { target_c, band_c, .. } = *ctx.parameters();
         let mut held = 0;
         for row in ctx.samples::<SoakRow>() {
             // The ramp is not the hold, and the observer said which is which.

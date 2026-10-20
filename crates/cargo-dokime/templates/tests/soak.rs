@@ -42,10 +42,7 @@ use {{crate}}::domain::operations::ReadChamber;
 /* === Private Functions === */
 fn chamber() -> impl Fn(ReadChamber) -> ChamberReading + Send + Sync + 'static {
     let sensor = Sensor::open("/dev/ttyUSB0", 22.0);
-    move |_| ChamberReading {
-        celsius: sensor.read_celsius().expect("the simulated sensor reads"),
-        sensor: sensor.describe(),
-    }
+    move |_| ChamberReading { celsius: sensor.read_celsius().expect("the simulated sensor reads"), sensor: sensor.describe() }
 }
 
 #[tokio::test]
@@ -66,11 +63,7 @@ async fn soak_holds_band() {
         // Without this the harness would answer the checkpoint with the form's
         // own defaults, which is what an unattended run wants; a test that cares
         // what the operator said says so.
-        .answer(
-            "{{owner}}.soak.checkpoint",
-            "submit",
-            [("note", "chamber steady")],
-        )
+        .answer("{{owner}}.soak.checkpoint", "submit", [("note", "chamber steady")])
         .run::<{{crate}}::suites::Suites>()
         .await
         .expect("the soak runs");
@@ -83,24 +76,16 @@ async fn soak_holds_band() {
     let samples = report.samples::<{{crate}}::suites::soak::SoakRow>();
     assert!(samples.len() >= 3);
 
-    let log = String::from_utf8(report.artifact("heater.log").bytes.clone())
-        .expect("the chamber log is text");
+    let log = String::from_utf8(report.artifact("heater.log").bytes.clone()).expect("the chamber log is text");
     assert_eq!(log.lines().count(), 3, "one line per held sample: {log}");
 
     // Read back through the same declaration the step published through, so the
     // assertion is about a field rather than about a detail map.
     let held = report.records::<{{crate}}::suites::soak::HoldReached>();
     let [held] = held.as_slice() else {
-        panic!(
-            "the hold records what it measured, once: {:?}",
-            report.record_types().collect::<Vec<_>>()
-        );
+        panic!("the hold records what it measured, once: {:?}", report.record_types().collect::<Vec<_>>());
     };
-    assert_eq!(
-        held.unit.as_deref(),
-        Some("sim-chamber-1"),
-        "the awaited record named the unit this run tested"
-    );
+    assert_eq!(held.unit.as_deref(), Some("sim-chamber-1"), "the awaited record named the unit this run tested");
     assert_eq!(held.samples, 3);
 }
 
@@ -130,10 +115,7 @@ fn soak_document_wraps() {
     use dokime_runtime::document::{DocumentCardBody, DocumentNode};
 
     let declaration = <{{crate}}::suites::soak::Hold as DeclaredTemplate>::declaration();
-    let document = declaration
-        .document
-        .as_ref()
-        .expect("the soak template authors its document");
+    let document = declaration.document.as_ref().expect("the soak template authors its document");
 
     assert_eq!(document.document_id.to_string(), "default");
     assert_eq!(
