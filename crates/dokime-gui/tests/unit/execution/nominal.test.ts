@@ -13,12 +13,15 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
-
+import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
 // Local Imports
 import {
   executionDocumentSections,
   executionPagePrompts,
+  executionParameterColumns,
   executionParameterRows,
   executionSectionOf,
 } from "@/features/cycle/execution-sections-model";
@@ -41,6 +44,7 @@ import {
   type ScopedPrompt,
 } from "@/features/cycle/prompt-banner-model";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";
+import { durationParts, formatDuration } from "@/lib/format";
 import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptRequest } from "@/lib/types";
 
 /* === Re-Exports === */
@@ -124,13 +128,64 @@ test("Parameter Rows", () => {
   ] as Pick<ParameterDefinition, "name" | "label" | "unit">[];
   const rows = executionParameterRows({ extra: true, current: 16, voltage: 230 }, definitions);
   assert.deepEqual(rows, [
-    { key: "voltage", label: "Supply Voltage", value: 230, unit: "V" },
-    { key: "current", label: "current", value: 16, unit: null },
-    { key: "extra", label: "extra", value: true, unit: null },
+    { key: "voltage", label: "Supply Voltage", value: 230, text: "230", unit: "V" },
+    { key: "current", label: "current", value: 16, text: "16", unit: null },
+    { key: "extra", label: "extra", value: true, text: "True", unit: null },
   ]);
 
   // A Case Without Parameters Has No Rows
   assert.deepEqual(executionParameterRows(null, []), []);
+
+  // Durations Read With The Precision Their Value Needs, In The Unit Column
+  const durations = executionParameterRows({ dwell_s: 90, outage_s: [0.05, 0.1, 0.2], sample_interval_s: 0.001, soak: 600 }, [
+    { name: "soak", label: "Soak Time", unit: "s" },
+  ]);
+  assert.deepEqual(
+    durations.map((row) => [row.label, row.text, row.unit]),
+    [
+      ["Soak Time", "10", "min"],
+      ["dwell_s", "1 min 30", "s"],
+      ["outage_s", "50, 100, 200", "ms"],
+      ["sample_interval_s", "1", "ms"],
+    ],
+  );
+
+  // Both Halves Share The Figure And Unit Widths Of The Longest Entry
+  assert.deepEqual(executionParameterColumns(durations), { value: 12, unit: 3 });
+  assert.deepEqual(executionParameterColumns([]), { value: 1, unit: 0 });
+
+  // The Grid Prints Label, Right-Aligned Figure And Dimmed Unit On One Column Template
+  const html = renderToStaticMarkup(createElement(ExecutionParameters, { rows: durations }));
+  assert.match(html, /--parameter-value:12ch/);
+  assert.match(html, /--parameter-unit:3ch/);
+  assert.match(
+    html,
+    /<dt[^>]*title="soak"[^>]*>Soak Time<\/dt><dd class="[^"]*text-right[^"]*">10<\/dd><dd class="text-muted-foreground">min<\/dd>/,
+  );
+  assert.doesNotMatch(html, /truncate/, "a label wraps, it is never clipped");
+});
+
+test("Duration Formatting", () => {
+  // One Helper Prints Every Duration With The Precision Its Value Needs
+  const cases: Array<[number, string]> = [
+    [0, "0 s"],
+    [0.000_25, "250 µs"],
+    [0.001, "1 ms"],
+    [0.05, "50 ms"],
+    [0.2, "200 ms"],
+    [0.9996, "1 s"],
+    [2.5, "2.5 s"],
+    [12.34, "12.3 s"],
+    [59.7, "1 min"],
+    [80, "1 min 20 s"],
+    [3_600, "1 h"],
+    [3_900, "1 h 5 min"],
+    [-0.5, "-500 ms"],
+  ];
+  for (const [seconds, label] of cases) assert.equal(formatDuration(seconds), label, `${seconds} s`);
+  assert.equal(formatDuration(null), null);
+  assert.equal(formatDuration(Number.NaN), null);
+  assert.deepEqual(durationParts(80), { figure: "1 min 20", unit: "s" });
 });
 
 test("Operator Notes", () => {
