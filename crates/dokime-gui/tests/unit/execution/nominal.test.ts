@@ -36,10 +36,12 @@ import {
 } from "@/features/cycle/operator-notes-model";
 import {
   answerablePrompts,
+  answeredPrompts,
   highestPromptLevel,
   orderPendingPrompts,
   pendingPromptCountLabel,
   promptLevelTone,
+  queuePrompts,
   type RankedPrompt,
   type ScopedPrompt,
 } from "@/features/cycle/prompt-banner-model";
@@ -106,7 +108,7 @@ test("Page Sections", () => {
   // A Section The Document Leaves Out Stays Out
   assert.deepEqual(executionDocumentSections(cards("steps", "records")), ["steps-criteria", "records"]);
 
-  // The Execution Page Answers Its Own Prompts And The Cycle's, Not Another Execution's
+  // A Prompt Has One Home: The Execution That Asked It, Or The Cycle When No Execution Owns It
   const prompts = [
     { correlation_id: "own", scope: { test_execution_id: "e1" } },
     { correlation_id: "other", scope: { test_execution_id: "e2" } },
@@ -115,7 +117,11 @@ test("Page Sections", () => {
   ] as unknown as PromptRequest[];
   assert.deepEqual(
     executionPagePrompts(prompts, "e1").map((item) => item.correlation_id),
-    ["own", "cycle", "unscoped"],
+    ["own"],
+  );
+  assert.deepEqual(
+    executionPagePrompts(prompts, null).map((item) => item.correlation_id),
+    ["cycle", "unscoped"],
   );
 });
 
@@ -325,6 +331,52 @@ test("Prompt Ordering", () => {
     pending.map((item) => item.correlation_id),
     ["info", "error"],
   );
+});
+
+test("Prompt Queue", () => {
+  // The Queue Answers In The Order The Run Asked, Whatever The Level
+  const queued = queuePrompts([
+    prompt("error-new", "error", "2026-10-13T08:10:00Z"),
+    prompt("info-old", "info", "2026-10-13T08:00:00Z"),
+    prompt("b-same", "warning", "2026-10-13T08:05:00Z"),
+    prompt("a-same", "warning", "2026-10-13T08:05:00Z"),
+  ]);
+  assert.deepEqual(
+    queued.map((item) => item.correlation_id),
+    ["info-old", "a-same", "b-same", "error-new"],
+  );
+
+  // Answered Prompts Read Back From Their Records: Question, Answer, Time
+  const records = [
+    {
+      details: { fields: [{ label: "Measured Voltage", name: "voltage" }], prompt_id: "p1", title: "Read The Meter" },
+      record_type: "prompt.request.form",
+      timestamp: "2026-10-13T08:00:00Z",
+    },
+    {
+      details: { action: "submit", prompt_id: "p1", values: { voltage: 230 } },
+      record_type: "prompt.response.submitted",
+      timestamp: "2026-10-13T08:01:00Z",
+    },
+    {
+      details: { prompt_id: "p2", title: "Confirm Wiring" },
+      record_type: "prompt.request.confirmation",
+      timestamp: "2026-10-13T08:02:00Z",
+    },
+    {
+      details: { action: "confirm", prompt_id: "p2", values: {} },
+      record_type: "prompt.response.submitted",
+      timestamp: "2026-10-13T08:03:00Z",
+    },
+    { details: { prompt_id: "p3", title: "Too Late" }, record_type: "prompt.request.form", timestamp: "2026-10-13T08:04:00Z" },
+    { details: { prompt_id: "p3" }, record_type: "prompt.response.expired", timestamp: "2026-10-13T08:05:00Z" },
+    { details: { prompt_id: "p4", title: "Still Open" }, record_type: "prompt.request.form", timestamp: "2026-10-13T08:06:00Z" },
+  ];
+  assert.deepEqual(answeredPrompts(records), [
+    { answer: "Measured Voltage: 230", at: "2026-10-13T08:01:00Z", promptId: "p1", question: "Read The Meter" },
+    { answer: "Confirm", at: "2026-10-13T08:03:00Z", promptId: "p2", question: "Confirm Wiring" },
+    { answer: "Expired", at: "2026-10-13T08:05:00Z", promptId: "p3", question: "Too Late" },
+  ]);
 });
 
 test("Prompt Answering", () => {

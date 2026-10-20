@@ -33,8 +33,9 @@
 
 /* === External Imports === */
 
+import { useMemo } from "react";
 import { CycleSidebarCasesView } from "./CycleSidebarCasesView";
-import { useCycleCommands, useCycleDetailQuery, useRerunCase } from "./cycle-queries";
+import { useCycleCommands, useCycleDetailQuery, useCyclePendingPromptsQuery, useRerunCase } from "./cycle-queries";
 /* === Local Imports === */
 import type { CycleSelection } from "./cycle-workspace-model";
 
@@ -49,10 +50,16 @@ export function CycleSidebarCases(props: CycleSidebarCasesProps) {
   const detailQuery = useCycleDetailQuery(props.cycleId);
   const commands = useCycleCommands(props.cycleId);
   const rerunCase = useRerunCase(props.cycleId);
+  const prompts = useCyclePendingPromptsQuery(props.cycleId).data;
+  const inputNeeded = useMemo(
+    () => new Set((prompts ?? []).flatMap((prompt) => (prompt.scope?.test_execution_id ? [prompt.scope.test_execution_id] : []))),
+    [prompts],
+  );
   return (
     <CycleSidebarCasesView
       {...props}
       detailQuery={detailQuery}
+      inputNeeded={inputNeeded}
       actions={{
         rerunCase: rerunCase.rerun,
         startExecution: (id) => commands.startExecution.mutateAsync(id),

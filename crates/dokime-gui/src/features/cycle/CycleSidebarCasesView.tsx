@@ -24,7 +24,9 @@
  * the cycle itself (`view: "cycle"`); a row selects its execution, or its case
  * while the runtime has none. The rows read the same query the workspace
  * reads, so the tree and the document never disagree. The running execution
- * carries a marker while Follow Active is following it.
+ * carries a marker while Follow Active is following it, and an execution whose
+ * prompt waits for an answer shows the input-needed glyph: the prompt itself
+ * is answered on that execution's page.
  *
  * With `live={false}` the same tree is the frozen report's outline: the same
  * grid and glyphs, no menus and no commands, and selection is handed back to
@@ -135,6 +137,8 @@ export type CycleSidebarCasesViewProps = {
   actions?: CycleSidebarActions;
   cycleId: string;
   selection: CycleSelection;
+  /** The executions a pending prompt waits on. */
+  inputNeeded?: ReadonlySet<string>;
 } & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
 
 type GlyphTone = "running" | "success" | "danger" | "warning" | "muted";
@@ -143,7 +147,15 @@ type Glyph = { icon: LucideIcon; tone: GlyphTone; spin?: boolean; label: string 
 
 /* === Components === */
 
-export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = true, onSelect, selection }: CycleSidebarCasesViewProps) {
+export function CycleSidebarCasesView({
+  cycleId,
+  detailQuery,
+  actions,
+  inputNeeded,
+  live = true,
+  onSelect,
+  selection,
+}: CycleSidebarCasesViewProps) {
   const navigate = useNavigate();
   const followActive = useSelectionStore((state) => state.followActive);
   const [pendingDelete, setPendingDelete] = useState<CycleExecutionRow | null>(null);
@@ -318,6 +330,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
                     <ExecutionTreeRow
                       active={plan?.test_cycle.phase === "active"}
                       following={following && row.execution !== null && row.execution.test_execution_id === activeExecutionId}
+                      inputNeeded={row.execution !== null && inputNeeded?.has(row.execution.test_execution_id) === true}
                       key={row.key}
                       live={live}
                       onDelete={setPendingDelete}
@@ -395,6 +408,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
 function ExecutionTreeRow({
   active,
   following,
+  inputNeeded,
   live,
   onDelete,
   onRerun,
@@ -405,6 +419,7 @@ function ExecutionTreeRow({
 }: {
   active: boolean;
   following: boolean;
+  inputNeeded: boolean;
   live: boolean;
   onDelete: (row: CycleExecutionRow) => void;
   onRerun: () => void;
@@ -423,7 +438,7 @@ function ExecutionTreeRow({
   const reason = caseActionTooltip(row.case);
   const deleteAllowed = actions === null || actions.delete;
   const startAllowed = active && row.execution !== null && isPlannedExecution(row.execution.status);
-  const glyph = rowGlyph(row);
+  const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Input Needed", tone: "warning" } : rowGlyph(row);
   const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run Of #${row.rerunOf}`;
   const [menuOpen, setMenuOpen] = useState(false);
   const press = useLongPress(() => setMenuOpen(true));

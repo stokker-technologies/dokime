@@ -118,12 +118,13 @@ export function executionParameterColumns(rows: readonly Pick<ExecutionParameter
   };
 }
 
-/** The prompts the execution page answers: its own, and the cycle's that no execution owns. */
+/**
+ * The prompts a page answers. A prompt has one home, the node that asked it:
+ * an execution's page answers its own prompts, and the cycle's page — `null`
+ * — the prompts no execution owns.
+ */
 export function executionPagePrompts<T extends Pick<PromptRequest, "scope">>(prompts: readonly T[], executionId: string | null): T[] {
-  return prompts.filter((prompt) => {
-    const owner = prompt.scope?.test_execution_id;
-    return !owner || owner === executionId;
-  });
+  return prompts.filter((prompt) => (prompt.scope?.test_execution_id ?? null) === executionId);
 }
 
 /* === Private Functions === */
