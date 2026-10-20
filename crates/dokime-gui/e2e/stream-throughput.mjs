@@ -50,7 +50,7 @@ const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/doki
 const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
 const origin = process.platform === "win32" ? "http://tauri.localhost" : "tauri://localhost";
 const STREAM = "mini.charger.startup.samples";
-const TEMPLATE = "Power Up the Charger";
+const TEMPLATE = "Start-Up Sequence";
 const STEP_S = 0.001;
 const { values: options } = parseArgs({
   options: {

@@ -112,13 +112,13 @@ const densities = {
 };
 
 /** The suites and templates the OBC charger plugin registers, by rendered label. */
-const PROTECTION_SUITE = "Overcurrent Protection";
+const PROTECTION_SUITE = "Charger Protection";
 
 const PROTECTION_TEMPLATE = "Overcurrent Protection";
 
-const STARTUP_SUITE = "Charger Power-Up";
+const STARTUP_SUITE = "Charger Start-Up";
 
-const STARTUP_TEMPLATE = "Power Up the Charger";
+const STARTUP_TEMPLATE = "Start-Up Sequence";
 
 /** A cartesian list parameter, so chips and expressions have somewhere to go. */
 const LIST_PARAMETER = "load_steps";

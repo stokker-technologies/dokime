@@ -181,19 +181,19 @@ pub enum Streams {
 
 /* === Implementations === */
 
-#[dokime_runtime::template(id = TEMPLATE, label = "Power-Loss Recovery", tags = ["device", "recovery"],
+#[dokime_runtime::template(id = TEMPLATE, label = "Power Recovery", tags = ["device", "recovery"],
     requires = Required,
     subscribes = SystemInputs,
     records = Records,
     streams = Streams,
-    parameters = Parameters, description = "Lose Charger power, clear the latched fault, and verify a controlled restart.")]
+    parameters = Parameters, description = "Remove the Charger's power, clear the latched fault, and verify a controlled restart.")]
 impl PowerLoss {
     async fn initialize(supply: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         readiness::ready(ctx).await?;
         Ok(Self { device: Device::initialize(supply.supply()).map_err(Error::Device)?, recovered: false, cycles: 0, published: 0 })
     }
     fn document() -> Document {
-        let mut document = measurement::document(<Samples as dokime_runtime::StreamSpec>::ID, "Power-Loss Recovery");
+        let mut document = measurement::document(<Samples as dokime_runtime::StreamSpec>::ID, "Power Recovery");
         document.section(system::section(TEMPLATE));
         document
     }

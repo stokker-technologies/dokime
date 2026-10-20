@@ -2,7 +2,7 @@
 
 OBC is Dokime's maintained demo and validation plugin. It tests an onboard
 charger on a deterministic simulated AC testbench: connect the unit, energize
-the supply, inspect startup, measure charging input, trip overcurrent protection,
+the supply, inspect start-up, measure charging input, trip overcurrent protection,
 and recover from power loss. The model produces AC input waveforms, inrush,
 phase shifts, and latched faults; each execution owns its device.
 
@@ -10,11 +10,11 @@ phase shifts, and latched faults; each execution owns its device.
 
 | Suite | Procedure | SDK Behavior |
 | --- | --- | --- |
-| Bench Signal Check | Verify a deterministic pulse before connecting the charger | Typed streams, criteria, optional confirmation and scoped system capture |
-| Charger Power-Up | Confirm the connection, energize the supply, inspect inrush | Connection listener, typed operations, operator prompts, traceability, artifacts |
-| Steady Charging | Observe input voltage and current while charging | Independent periodic and event observers, captured evidence, parameter expansion |
-| Overcurrent Protection | Increase the simulated load until protection trips | Ordered load inputs, fault records, evidence-based criteria |
-| Power-Loss Recovery | Interrupt the supply, clear the fault, restart | Paired input lists, multiple steps, cleanup and recovery evidence |
+| OBC Checks | Verify a deterministic pulse before connecting the charger | Typed streams, criteria, optional confirmation and scoped system capture |
+| Charger Start-Up | Confirm the connection, energize the supply, inspect inrush | Connection listener, typed operations, operator prompts, traceability, artifacts |
+| Charger Steady State | Observe input voltage and current while charging | Independent periodic and event observers, captured evidence, parameter expansion |
+| Charger Protection | Increase the simulated load until protection trips | Ordered load inputs, fault records, evidence-based criteria |
+| Charger Recovery | Interrupt the supply, clear the fault, restart | Paired input lists, multiple steps, cleanup and recovery evidence |
 
 The process listener remembers connected bench resources across executions.
 Templates ask the plugin's operations for readiness and connections, without
@@ -54,7 +54,7 @@ devices. Manual operations are not recorded in execution evidence.
 - `tests/acceptance/`: the built executable's inventory and live dispatch.
 
 All charger streams and records use the `obc.charger` namespace. `obc.pulse`
-is the bench signal check, and `obc-plugin.system` is process monitoring.
+is the OBC Checks pulse, and `obc-plugin.system` is process monitoring.
 `images_directory` optionally supplies a startup reference image. Operator and
 host identity are captured as traceability, not configured as template inputs.
 
