@@ -21,7 +21,6 @@ use harmos::{
     operations::Context,
     storage::query::transform::{
         FieldPath, Transform,
-        downsample::{Algorithm, Downsample},
         sort::{Sort, SortKey},
     },
 };
@@ -31,7 +30,6 @@ use super::{invalid, statistics, telemetry};
 use crate::document::PlotType;
 use crate::execution::context::captured::source::CapturedSource;
 use crate::expressions::DataSource;
-use crate::plot::DownsampleTechnique;
 use crate::plot::PlotAnalysis;
 use crate::plot::PlotPayload;
 use crate::plot::PlotPayloadContext;
@@ -43,6 +41,10 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
+
+// A Frozen Report Keeps Each Series Whole Up To The Plot Cap, So The Viewer Can
+// Zoom Into Captured Detail; It Reduces Per Visible Window When It Renders.
+const SERIES_POINTS: usize = crate::config::MAX_PLOT_POINTS as usize;
 
 /* === Macros === */
 
@@ -91,7 +93,7 @@ pub(in crate::report) async fn materialize(
                     .and_then(|versions| versions.values().next());
                 crate::report::analysis::materialize(ctx, &request, &samples, projected, contract).await?
             } else {
-                crate::plot::build_plot_payload(&samples, records, request, source.captured_at.as_str(), &context)
+                full(&samples, records, &request, source.captured_at.as_str(), &context)
             }
         }
     };
@@ -165,39 +167,16 @@ async fn optimized(
     for key in &request.y_keys {
         let statistics = statistics::collect(read, at, scope, contract, key, x.clone()).await?;
         // Missing Values Preserve Existing Gap Semantics Through The Raw Path.
-        if statistics.count != statistics.rows && request.plot_type != Some(PlotType::Histogram) {
+        // Above The Cap The Most Recent Window Is Kept, In Sample Order Like The Raw Path.
+        if (statistics.count != statistics.rows && request.plot_type != Some(PlotType::Histogram)) || statistics.rows > SERIES_POINTS {
             let samples = telemetry::read(ctx, settings, at, scope, contract, vec![]).await?;
-            return Ok(crate::plot::build_plot_payload(&samples, records, request.clone(), source.captured_at.as_str(), context));
+            return Ok(full(&samples, records, request, source.captured_at.as_str(), context));
         }
-        let maximum = request.max_points.unwrap_or(crate::document::DEFAULT_PLOT_MAX_POINTS);
-        let mut transforms =
-            vec![Transform::Sort(Sort { keys: vec![SortKey { field: x.clone(), descending: false, nulls_first: false }] })];
-        if maximum > 0 {
-            let algorithm = match request.technique {
-                DownsampleTechnique::Raw => Algorithm::Decimate,
-                DownsampleTechnique::MinMax if maximum >= 2 => Algorithm::Extrema,
-                DownsampleTechnique::Lttb if maximum >= 3 => Algorithm::Lttb,
-                DownsampleTechnique::Auto | DownsampleTechnique::Unspecified
-                    if maximum >= 3 && statistics.count <= maximum.saturating_mul(4) =>
-                {
-                    Algorithm::Lttb
-                }
-                DownsampleTechnique::Auto | DownsampleTechnique::Unspecified if maximum >= 2 => Algorithm::Extrema,
-                _ => Algorithm::Decimate,
-            };
-            // Histogram Bins And Statistics Are Independent Full-Data Queries.
-            // Its Display Trace May Use Decimation Even When Values Are Missing.
-            let algorithm = if request.plot_type == Some(PlotType::Histogram) { Algorithm::Decimate } else { algorithm };
-            transforms.push(Transform::Downsample(Downsample {
-                max_rows: maximum,
-                algorithm,
-                value: Some(statistics::field(key)),
-                axis: Some(x.clone()),
-            }));
-        }
+        let transforms = vec![Transform::Sort(Sort { keys: vec![SortKey { field: x.clone(), descending: false, nulls_first: false }] })];
         let samples = telemetry::read(ctx, settings, at, scope, contract, transforms).await?;
         let mut single = request.clone();
         single.y_keys = vec![key.clone()];
+        single.max_points = Some(0);
         let one = crate::plot::build_plot_payload(&samples, records, single, source.captured_at.as_str(), context);
         for mut series in one.series {
             series.raw_points = statistics.count;
@@ -211,7 +190,9 @@ async fn optimized(
             histograms.push(statistics::histogram(read, at, scope, contract, key, request.histogram.bins, &statistics).await?);
         }
     }
+    let budget = std::mem::take(&mut payload.max_points);
     payload = crate::plot::finish_plot_payload(payload, request);
+    payload.max_points = budget;
     payload.summaries = summaries;
     for series in &mut payload.series {
         series.downsampled = series.points.len() < series.raw_points;
@@ -220,6 +201,28 @@ async fn optimized(
         payload.analysis = Some(PlotAnalysis::Histogram { series: histograms });
     }
     Ok(payload)
+}
+
+// Every Series Whole, Or Its Most Recent `SERIES_POINTS` When Longer; `raw_points`
+// Keeps The Captured Count, So `downsampled` Says When A Window Was Cut.
+fn full(
+    samples: &[crate::telemetry::TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, generated_at: &str,
+    context: &PlotPayloadContext,
+) -> PlotPayload {
+    let mut payload = crate::plot::project_plot_payload(samples, records, request, generated_at, context);
+    for series in &mut payload.series {
+        series.raw_points = series.raw_points.max(series.points.len());
+        let cut = series.points.len().saturating_sub(SERIES_POINTS);
+        series.points.drain(..cut);
+    }
+    // The Display Budget Stays Stated; The Viewer Reduces To It Per Visible Window.
+    let budget = std::mem::take(&mut payload.max_points);
+    let mut payload = crate::plot::finish_plot_payload(payload, request);
+    payload.max_points = budget;
+    for series in &mut payload.series {
+        series.downsampled = series.points.len() < series.raw_points;
+    }
+    payload
 }
 
 /* === Tests === */
