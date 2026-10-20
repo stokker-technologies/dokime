@@ -159,11 +159,16 @@ impl Controller {
                 if settings == candidate.settings && state.error.is_none() && state.server.is_some() == settings.enabled {
                     return Ok(GeneratedAccessKey { access_key: String::new(), listener: Some(state.status()) });
                 }
+                let mut settings = settings;
                 if let Some(identity) = &candidate.identity {
                     if identity.names != settings.certificate_names {
                         return Err(Error::Configuration("certificate identities changed; explicitly regenerate the certificate first"));
                     }
-                } else if !settings.certificate_names.is_empty() {
+                } else if settings.tls_enabled || !settings.certificate_names.is_empty() {
+                    // TLS Never Waits On Typed Names; The Host's Own Identities Seed The Certificate.
+                    if settings.certificate_names.is_empty() {
+                        settings.certificate_names = store::host_names(store::validate(&settings)?);
+                    }
                     candidate.identity = Some(store::Identity::generate(settings.certificate_names.clone())?);
                 }
                 candidate.settings = settings;
@@ -178,7 +183,10 @@ impl Controller {
             }
             Change::Certificate(names) => {
                 candidate.settings.certificate_names = names;
-                store::validate(&candidate.settings)?;
+                let address = store::validate(&candidate.settings)?;
+                if candidate.settings.certificate_names.is_empty() {
+                    candidate.settings.certificate_names = store::host_names(address);
+                }
                 candidate.identity = Some(store::Identity::generate(candidate.settings.certificate_names.clone())?);
             }
         }
