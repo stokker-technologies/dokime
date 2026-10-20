@@ -82,7 +82,8 @@ export function StepRecordList({
   return (
     <ol className="grid gap-2">
       {visibleRecords.map((record, index) => {
-        const duration = formatDuration(record.duration_s);
+        // Only a measured duration is printed: a pending or running step has none yet.
+        const duration = record.status === "pending" || record.status === "running" ? null : formatDuration(record.duration_s);
         return (
           <DocumentEmbeddedBlock
             as="li"
@@ -90,11 +91,7 @@ export function StepRecordList({
             key={`${record.test_execution_id}:${record.record_type}:${record.step_id}:${record.order}:${record.started_at}`}
           >
             <span className="grid size-7 shrink-0 place-items-center rounded-md border bg-muted/40 text-xs font-semibold tabular-nums text-muted-foreground">
-              {record.status === "running" ? (
-                <LoaderCircle className="animate-spin" size={14} />
-              ) : (
-                String(index + 1).padStart(orderWidth, "0")
-              )}
+              {String(index + 1).padStart(orderWidth, "0")}
             </span>
             <div className="min-w-0">
               <span className="block min-w-0 font-medium leading-tight [overflow-wrap:break-word]">
@@ -103,7 +100,8 @@ export function StepRecordList({
               {duration ? <span className="mt-0.5 block text-[0.72rem] leading-tight text-muted-foreground">{duration}</span> : null}
               {record.detail ? <StepFailure detail={record.detail} /> : null}
             </div>
-            <Badge className="justify-self-end text-[0.72rem] capitalize" variant={stepBadgeVariant(record.status)}>
+            <Badge className="justify-self-end gap-1 text-[0.72rem] capitalize" variant={stepBadgeVariant(record.status)}>
+              {record.status === "running" ? <LoaderCircle aria-hidden className="animate-spin" size={10} /> : null}
               {record.status}
             </Badge>
           </DocumentEmbeddedBlock>

@@ -45,6 +45,7 @@ import {
   type RankedPrompt,
   type ScopedPrompt,
 } from "@/features/cycle/prompt-banner-model";
+import { durationText } from "@/features/cycle/use-elapsed";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";
 import { durationParts, formatDuration } from "@/lib/format";
 import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptRequest } from "@/lib/types";
@@ -192,6 +193,17 @@ test("Duration Formatting", () => {
   assert.equal(formatDuration(null), null);
   assert.equal(formatDuration(Number.NaN), null);
   assert.deepEqual(durationParts(80), { figure: "1 min 20", unit: "s" });
+});
+
+test("Step Durations", () => {
+  // A Pending Step Has No Duration, A Running One Ticks Live, An Ended One Is Measured
+  assert.equal(durationText({ duration_s: 0, status: "pending" }, true, null), "");
+  assert.equal(durationText({ duration_s: 0.1, status: "running" }, true, 12.7), "12 s");
+  assert.equal(durationText({ duration_s: 2.5, status: "passed" }, true, null), "2.5 s");
+
+  // A File Never Ticks: Running And Pending Stay Empty, Measured Ones Print
+  assert.equal(durationText({ duration_s: 0.1, status: "running" }, false, 12.7), "");
+  assert.equal(durationText({ duration_s: 80, status: "failed" }, false, null), "1 min 20 s");
 });
 
 test("Operator Notes", () => {
