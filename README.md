@@ -7,6 +7,12 @@
 
 # Dokime
 
+[![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml?query=branch%3Adev)
+[![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
+[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
+[![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases/latest)
+[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE)
+
 **Run repeatable engineering tests. Keep the evidence.**
 
 Dokime turns hardware and software test procedures into operator workflows,
