@@ -322,6 +322,7 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
     let outcome = process.await.unwrap();
     proxy.close().await;
     assert!(outcome.triggered && !outcome.success, "{name} was not interrupted:\n{}", outcome.text);
+    let outcome_text = outcome.text.clone();
     let cycles = super::identities(&outcome.text, "Cycle: ");
     assert_eq!(cycles.len(), 1, "{}", outcome.text);
     let cycle_id = TestCycleId::from_uuid(&cycles[0]).unwrap();
@@ -337,6 +338,7 @@ async fn mutation_interruption(client: &Client, endpoint: &str, root: &Path, ext
     let execution_id = execution.id().to_string();
     let executions = vec![execution_id.clone()];
     let (execution_file, cycle_file) = recovered(extension, workflow, &directory, &cycles[0], &execution_id);
+    recovery_saved(&execution_file, &outcome_text);
     let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
     assert_eq!(samples[&execution_id], 0, "the independent execution keeps Start queued");
     super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
@@ -364,6 +366,7 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
 
     let (execution_file, cycle_file) = recovered(extension, workflow, &directory, &cycles[0], &executions[0]);
+    recovery_saved(&execution_file, &outcome.text);
     let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
     assert_eq!(samples[&executions[0]], 0, "the independent prompt kept this execution queued");
     super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
@@ -433,6 +436,11 @@ async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
     let cycle_samples = super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled");
     assert_eq!(samples, cycle_samples);
     assert!(!outcome.text.contains("Drained Evidence:"), "an interrupted listener cannot claim a completed final drain");
+}
+
+// The Script Output Explains A Recovery That Saved No Execution Evidence.
+fn recovery_saved(file: &Path, output: &str) {
+    assert!(file.is_file(), "the interrupted script saved no {}:\n{output}", file.display());
 }
 
 fn recovered(extension: &str, workflow: &str, directory: &Path, cycle: &str, execution: &str) -> (PathBuf, PathBuf) {
