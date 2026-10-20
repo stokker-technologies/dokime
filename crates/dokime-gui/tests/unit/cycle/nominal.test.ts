@@ -21,9 +21,9 @@ import { test } from "vitest";
 import {
   archiveRefusal,
   buildCycleExecutionRows,
+  CYCLE_STATE_LABELS,
   type CycleCase,
   type CycleSelection,
-  CYCLE_STATE_LABELS,
   cycleRowSelection,
   cycleState,
   executionControlSet,
@@ -37,7 +37,6 @@ import {
   rowOffersRunAgain,
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
-import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
   BUSY_RETRY_MAX_MS,
   DOCUMENT_FAILED_FALLBACK,
@@ -54,6 +53,7 @@ import {
   refuseLabel,
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
+import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import { archivedCycleGroups, type CycleRow, groupCycleRows } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { defaultCycleLabel } from "@/lib/time-format";
