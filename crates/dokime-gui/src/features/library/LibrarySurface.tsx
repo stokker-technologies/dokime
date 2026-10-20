@@ -11,7 +11,7 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
@@ -75,9 +75,13 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const { choose, cycles: openCycles } = active;
   const destinationId = active.cycle?.cycleId;
   /* Add Cases arrives naming its cycle: that cycle becomes the active one, as
-     the picker would make it, once the open cycles confirm it is open. */
+     the picker would make it, once the open cycles confirm it is open. Each
+     arrival applies once, so a later pick is never reverted by a refetch. */
+  const applied = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (appendTo && openCycles.some((cycle) => cycle.cycleId === appendTo)) choose(appendTo);
+    if (!appendTo || applied.current === appendTo || !openCycles.some((cycle) => cycle.cycleId === appendTo)) return;
+    applied.current = appendTo;
+    choose(appendTo);
   }, [appendTo, choose, openCycles]);
   const suites = suitesQuery.data ?? null;
   const pluginsQuery = useInstalledPluginsQuery();

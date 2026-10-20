@@ -1230,8 +1230,10 @@ async function activeCycleJourney(session, otherTitle) {
   /* New Cycle in the picker creates a cycle and makes it active at once. */
   await openPicker();
   await clickInDialog("New Cycle");
-  await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
-  const title = (await session.execute("return document.querySelector('#new-cycle-title').value")).trim();
+  const titleField = await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
+  /* A title of its own, so no row or toast can match the library journey's cycle. */
+  const title = `Active Cycle Journey ${Date.now()}`;
+  await session.type(titleField, title);
   await session.clickNamed("button", "Create Cycle");
   await dialogsClosed();
   await until("the created cycle active", async () => hasText((await element()) ?? "", title), 60000);
@@ -1253,11 +1255,24 @@ async function activeCycleJourney(session, otherTitle) {
   await session.clickNamed("button", STARTUP_SUITE);
   await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 30000);
   await session.clickCss('[data-testid="suite-template-obc.charger.startup.sequence"] button');
-  const inline = await until("the dialog's active cycle", () =>
-    session.execute("return document.querySelector('[role=dialog] [data-testid=template-active-cycle]')?.innerText ?? null;"),
-  );
-  assert.ok(hasText(inline, title), `The template dialog must name the active cycle (got ${normalize(inline)})`);
-  assert.ok(hasText(inline, "Change"), "The template dialog must offer Change");
+  const inline = () =>
+    session.execute("return document.querySelector('[role=dialog] [data-testid=template-active-cycle]')?.innerText ?? null;");
+  const named = (expected) => until(`the dialog naming ${expected}`, async () => hasText((await inline()) ?? "", expected), 30000);
+  await named(title);
+  assert.ok(hasText((await inline()) ?? "", "Change"), "The template dialog must offer Change");
+
+  /* Change opens the same picker over the dialog, and the choice applies in place. */
+  for (const chosen of otherTitle ? [otherTitle, title] : [title]) {
+    await clickInDialog("Change");
+    await until("picker over the dialog", () => session.find("css selector", "[role=dialog] [data-testid=open-cycles]"), 30000);
+    await clickInDialog(chosen);
+    await until(
+      "picker closed",
+      async () => (await session.execute("return document.querySelectorAll('[data-testid=open-cycles]').length")) === 0,
+      30000,
+    );
+    await named(chosen);
+  }
   await clickInDialog("Next");
   await dialogsClosed();
   const added = await until("add announced", async () => {

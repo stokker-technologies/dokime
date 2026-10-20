@@ -42,8 +42,10 @@ import { usePageChrome } from "@/shell/page-chrome";
 
 /* === Constants === */
 
-/** The Status track: the longest state label in `ch`, the pill's padding and the cell's. */
-const STATUS_COLUMN_WIDTH = "w-[calc(18ch+2*var(--pill-pad-x)+1.5rem)]";
+/* The Status track, in the pill's own type size so it follows every density:
+   room for the longest state label (16 characters at under 0.7em each), the
+   pill's padding and the cell's. */
+const STATUS_COLUMN_WIDTH = "w-[calc(var(--pill-text)_*_11_+_2_*_var(--pill-pad-x)_+_1.5rem)]";
 
 /* === Components === */
 

@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 // Local Imports
 import { cycleRows, promptCountsByCycle } from "@/features/cycles-home/cycles-model";
@@ -50,8 +50,9 @@ export type ActiveCycleState = {
  *
  * The store keeps the operator's choice across navigation and restarts; the
  * cycle list decides whether it still stands. A choice that has sealed or
- * disappeared is cleared once the list has loaded, so the shell falls back
- * to the picker instead of naming a cycle that can no longer receive cases.
+ * disappeared resolves to no active cycle, so the shell falls back to the
+ * picker instead of naming a cycle that can no longer receive cases. The id
+ * itself stays stored: a cycle created a moment ago is not yet listed.
  */
 export function useActiveCycle(): ActiveCycleState {
   const cyclesQuery = useCyclesQuery();
@@ -63,11 +64,6 @@ export function useActiveCycle(): ActiveCycleState {
     [cyclesQuery.data, prompts.data],
   );
   const cycle = resolveActiveCycle(storedId, cycles);
-  const stale = cyclesQuery.isSuccess && storedId !== null && cycle === null;
-
-  useEffect(() => {
-    if (stale) setUiState({ activeCycleId: null });
-  }, [setUiState, stale]);
 
   const choose = useCallback((cycleId: string | null) => setUiState({ activeCycleId: cycleId }), [setUiState]);
   const openPicker = useCallback(() => setUiState({ activeCyclePickerOpen: true }), [setUiState]);
