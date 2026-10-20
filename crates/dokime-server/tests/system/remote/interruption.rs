@@ -47,6 +47,8 @@ use dokime_domain::operations::{
 };
 
 /* === Constants === */
+// Every scenario's script waits at most 60 s on its own; past this the script is stuck.
+const SCRIPT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
 
 /* === Macros === */
 
@@ -349,8 +351,16 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
     let command = super::configured_command(extension, workflow, endpoint, &directory, &[("EXECUTION_COUNT", "1")]);
     let command = command.as_std();
     let command = terminal_command(command, extension == "bat");
+    // The CLI announces a wait once its interrupt handler is armed. A Ctrl+C sent
+    // earlier can land between two commands or on one with no handler yet, so
+    // nothing cancels the execution; Python handles it anywhere in its process.
+    let armed = match (extension, workflow) {
+        ("py", _) => "Execution: ",
+        (_, "prompt") => "Waiting For Prompt: ",
+        _ => "Waiting For Saved Outcome: ",
+    };
     let selected = client.clone();
-    let outcome = tokio::task::spawn_blocking(move || run(command, "Execution: ", Action::Interrupt(selected))).await.unwrap();
+    let outcome = tokio::task::spawn_blocking(move || run(command, armed, Action::Interrupt(selected))).await.unwrap();
     assert!(outcome.triggered, "the script exited before the selected interrupt boundary:\n{}", outcome.text);
     assert!(!outcome.success, "interruption must return nonzero:\n{}", outcome.text);
 
@@ -499,11 +509,24 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
         }
         result
     });
+    // A Stuck Script Fails With Its Terminal Text Instead Of Hanging The Lane.
+    let (finished, exited) = std::sync::mpsc::channel::<()>();
+    let mut stuck = process.child.clone_killer();
+    let watchdog = std::thread::spawn(move || {
+        let expired = exited.recv_timeout(SCRIPT_DEADLINE).is_err();
+        if expired {
+            let _ = stuck.kill();
+        }
+        expired
+    });
     let status = process.child.wait().unwrap();
     process.reaped = true;
+    let _ = finished.send(());
+    let expired = watchdog.join().unwrap();
     drop(pair.master);
 
     let (text, triggered) = read.join().unwrap().unwrap();
+    assert!(!expired, "the remote script did not exit within {SCRIPT_DEADLINE:?}:\n{text}");
     Outcome { success: status.success(), triggered, text }
 }
 
