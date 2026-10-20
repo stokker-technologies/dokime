@@ -56,6 +56,11 @@ fn execution_lifecycle_parser() {
     assert!(Cli::try_parse_from(run.into_iter().chain(["--request-key", "obsolete"])).is_err());
     assert!(Cli::try_parse_from(["dokime", "plan", "materialize", "--template", "obc.check", "--id-only"]).is_ok());
     assert!(Cli::try_parse_from(["dokime", "cycle", "append", execution, "--case-id", execution, "--id-only"]).is_ok());
+    let append = ["dokime", "cycle", "append", execution, "--case-id", execution, "--id-file", "ids.txt"];
+    assert!(Cli::try_parse_from(append).is_ok());
+    let next = ["dokime", "execution", "prompt", "next", execution, "--id-only", "--id-file", "ids.txt"];
+    assert!(Cli::try_parse_from(next).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "cycle", "create", "--label", "Test", "--id-file", "ids.txt"]).is_err());
 }
 
 #[tokio::test]

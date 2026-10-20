@@ -65,6 +65,9 @@ pub(crate) struct Args {
 
     #[arg(long, conflicts_with = "json", help = "Print Each Execution UUID Created By This Append On Its Own Line.")]
     id_only: bool,
+
+    #[command(flatten)]
+    id_file: crate::commands::id_file::Args,
 }
 
 /* === Enums === */
@@ -99,6 +102,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
         execution_ids.push(execution);
     }
     let recovery = args.recovery.prepare_append(&id, &execution_ids)?;
+    let id_file = args.id_file.open()?;
     let cycle_id = request.cycle_id;
     // Retain Exact Retry Identities If The Admission Reply Is Lost.
     eprintln!(
@@ -122,6 +126,9 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     }}.await;
     client.close_and_wait().await;
     let reply = result?;
+    if let Some(file) = id_file {
+        file.write(&reply.execution_ids)?;
+    }
     if args.id_only {
         for id in reply.execution_ids {
             println!("{id}");

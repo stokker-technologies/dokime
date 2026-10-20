@@ -183,6 +183,9 @@ Ctrl+C stops waiting; read state before resending an unconfirmed command.
 The test script materializes `TEMPLATE` with `sample_count`, checks all output
 destinations, creates a cycle and appends every attempt without starting work.
 It prints exact cycle and execution UUIDs captured with `--id-only`.
+PowerShell reads append and prompt UUIDs from a temporary `--id-file` instead,
+because it terminates a captured native command on Ctrl+C before its recovery
+finishes.
 These cycles use `continue_automatically=false`. Explicit execution Stop
 durably sets that policy to false; a later explicit Start runs only the selected
 attempt until the user explicitly re-enables the policy.

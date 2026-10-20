@@ -35,6 +35,14 @@ function Invoke-Dokime {
     if ($Status -ne 0) { throw "Dokime Returned Exit Code $Status; No Mutation Was Retried" }
 }
 
+# PowerShell Kills A Captured Native Command On Ctrl+C, Losing Its Recovery,
+# So Recovery-Armed Commands Run Uncaptured And Hand Identities Over A File
+$IdFile = [System.IO.Path]::GetTempFileName()
+function Read-Ids {
+    if (-not (Test-Path -LiteralPath $script:IdFile)) { return @() }
+    @(Get-Content -LiteralPath $script:IdFile | Where-Object { $_ })
+}
+
 $CycleId = ''
 $ExecutionId = ''
 $Result = 0
@@ -69,16 +77,18 @@ try {
     [Console]::Out.WriteLine("Cycle: $CycleId")
     $RecoveryArguments = @('--cancel-on-interrupt', '--owned-cycle', $CycleId, '--recovery-directory', $Recovery)
 
-    $Created = @(Invoke-Dokime -Command (@('cycle', 'append', $CycleId, '--case-id', [string]$Cases[0], '--id-only') + $RecoveryArguments))
+    Invoke-Dokime -Command (@('cycle', 'append', $CycleId, '--case-id', [string]$Cases[0], '--id-only', '--id-file', $IdFile) + $RecoveryArguments)
+    $Created = @(Read-Ids)
     if ($Created.Count -ne 1) { throw 'Append Did Not Return One Execution Identity' }
     $ExecutionId = [guid]::Parse([string]$Created[0]).ToString()
     [Console]::Out.WriteLine("Execution: $ExecutionId")
 
     # Start Without Blocking So The Script Can Answer Its Prompt
     Invoke-Dokime -Command (@('execution', 'start', $ExecutionId) + $RecoveryArguments)
-    $Pending = @(Invoke-Dokime -Command @('execution', 'prompt', 'next', $ExecutionId,
-        '--wait-seconds', "$WAIT_SECONDS", '--id-only', '--cancel-on-interrupt',
-        '--owned-cycle', $CycleId, '--recovery-directory', $Recovery))
+    Invoke-Dokime -Command @('execution', 'prompt', 'next', $ExecutionId,
+        '--wait-seconds', "$WAIT_SECONDS", '--id-only', '--id-file', $IdFile, '--cancel-on-interrupt',
+        '--owned-cycle', $CycleId, '--recovery-directory', $Recovery)
+    $Pending = @(Read-Ids)
     if ($Pending.Count -ne 1) { throw 'Prompt Discovery Did Not Return One Identity' }
     $PromptId = [guid]::Parse([string]$Pending[0]).ToString()
     [Console]::Out.WriteLine("Prompt: $PromptId Execution: $ExecutionId")
@@ -100,6 +110,11 @@ try {
     # Cover Shell Interruption Between Native Commands
     if (-not $Completed -and -not $OperationalFailure -and $CycleId) {
         try {
+            # An Append Confirmed Just Before Ctrl+C Left Its Identity In The File
+            $Confirmed = @(Read-Ids)
+            if (-not $ExecutionId -and $Confirmed.Count -eq 1) {
+                $ExecutionId = [guid]::Parse([string]$Confirmed[0]).ToString()
+            }
             [Console]::Error.WriteLine("Cancellation Requested For Script-Owned Cycle: $CycleId")
             if ($ExecutionId) {
                 try { Invoke-Dokime -Command @('execution', 'stop', $ExecutionId) }
@@ -120,7 +135,9 @@ try {
         } catch {
             [Console]::Error.WriteLine("Recovery Was Not Confirmed: $_. Retain Cycle: $CycleId Execution: $ExecutionId")
         }
+        Remove-Item -LiteralPath $IdFile -ErrorAction SilentlyContinue
         exit 130
     }
+    Remove-Item -LiteralPath $IdFile -ErrorAction SilentlyContinue
 }
 exit $Result

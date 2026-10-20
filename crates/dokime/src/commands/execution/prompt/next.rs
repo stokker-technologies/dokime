@@ -51,6 +51,9 @@ pub(crate) struct Args {
 
     #[arg(long, conflicts_with = "json", help = "Print Only The Pending Prompt UUID For Scripts.")]
     id_only: bool,
+
+    #[command(flatten)]
+    id_file: crate::commands::id_file::Args,
 }
 
 /* === Enums === */
@@ -64,6 +67,7 @@ pub(crate) struct Args {
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let id = TestExecutionId::from_uuid(&args.execution_id).map_err(|error| crate::Error::Input(error.to_string()))?;
     let recovery = args.recovery.prepare(&id)?;
+    let id_file = args.id_file.open()?;
     let client = args.connection.connect().await?;
     let execution = client.execution(id);
     let read = async {
@@ -77,6 +81,9 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let result = super::super::recovery::observe(&client, &execution, recovery.as_ref(), "Prompt", read).await;
     client.close_and_wait().await;
     let prompt = result?;
+    if let Some(file) = id_file {
+        file.write([&prompt.prompt_id])?;
+    }
 
     if args.id_only {
         println!("{}", prompt.prompt_id);

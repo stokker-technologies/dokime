@@ -491,6 +491,10 @@ Sealing cancels its unstarted members; other cycles and the shared server remain
 available. Existing recovery files are refused before connection. A lost
 connection cannot confirm cancellation or a completed download; retain the
 original identities and inspect them before resubmitting.
+PowerShell terminates a native command whose output it captures when Ctrl+C
+arrives, before recovery can finish. Run recovery-armed commands uncaptured and
+read their UUIDs from `--id-file <path>`, which `cycle append` and prompt `next`
+truncate before connecting and fill with one confirmed UUID per line.
 Batch recovery applies while these native commands are observing an interrupt;
 it cannot reliably cover connection setup or gaps between commands. A lost
 Create reply leaves the cycle identity unknown and requires manual inspection.
