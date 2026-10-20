@@ -1801,6 +1801,9 @@ async fn settlement_duplicate_idle() {
     tokio::time::advance(Duration::from_secs(20)).await;
     assert_eq!(workflow.deliver_captured(&record, SOURCE, &[captured(execution())]), 0);
     tokio::time::advance(Duration::from_secs(20)).await;
+    // Advancing Only Expires The Settlement Poll; Let It Observe The Deadline
+    // Before Draining, Or The Drain's Own Settle Can Win The Race.
+    tokio::time::sleep(Duration::from_millis(10)).await;
     let replies = drain_until_terminal(&workflow, token, None).await;
     tokio::time::resume();
     let terminal = outcome(&replies).0;
