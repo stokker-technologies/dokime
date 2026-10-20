@@ -45,6 +45,7 @@ export function TimeSeriesPlot({
       description={plot.description}
       contextSummary={plot.contextSummary}
       markers={plot.markers}
+      promptMarkers={plot.promptMarkers}
       referenceBands={plot.referenceBands}
       referenceLines={plot.referenceLines}
       actions={actions}

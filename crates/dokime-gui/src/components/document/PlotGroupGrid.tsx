@@ -14,7 +14,7 @@ import { memo, type ReactNode, useMemo } from "react";
 /* === Local Imports === */
 
 import { documentPlotGroupDescription, documentPlotSpec, type PlotCardSpec } from "@/lib/document-plots";
-import type { DocumentViewPlot, JsonObject, TelemetryStream } from "@/lib/types";
+import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "@/lib/types";
 import { AnalysisResult } from "@/plots/AnalysisResult";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
@@ -30,6 +30,7 @@ import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 import { type PlotDisplaySettings, usePlotSettingsEditor } from "@/plots/plot-settings";
+import { type PromptMarker, promptMarkers } from "@/plots/prompt-markers";
 import type { PlotViewportMode } from "@/plots/types";
 import { usePlotPalette } from "@/plots/use-plot-palette";
 
@@ -43,6 +44,8 @@ type LivePlotGroupGridProps = {
   /** Present only on the live surface; the sealed report reads what it persisted. */
   onPlotSettingsChange?: PlotSettingsChange;
   parameters?: JsonObject | null;
+  /** The shown scope's records; its prompts mark every time-series plot. */
+  records?: readonly HubRecord[];
   telemetry?: Record<string, TelemetryStream> | null;
   resetKey?: string;
   showGroupHeaders?: boolean;
@@ -59,6 +62,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   liveStates = EMPTY_LIVE_PLOT_STATES,
   onPlotSettingsChange,
   parameters,
+  records = EMPTY_RECORDS,
   resetKey,
   showGroupHeaders = true,
   telemetry,
@@ -66,6 +70,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   viewportMode = "live",
 }: LivePlotGroupGridProps) {
   const plotPalette = usePlotPalette();
+  const prompts = useMemo(() => promptMarkers(records), [records]);
   if (!documentPlots.length) {
     return (
       <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 text-center text-muted-foreground">
@@ -83,6 +88,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
       parameters={parameters}
       plotPalette={plotPalette}
       position={position}
+      prompts={prompts}
       resetKey={resetKey}
       state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
       telemetry={telemetry}
@@ -108,6 +114,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
 });
 
 const EMPTY_LIVE_PLOT_STATES: LivePlotStateMap = {};
+const EMPTY_RECORDS: readonly HubRecord[] = [];
 const EMPTY_LIVE_PLOT_STATE = emptyLivePlotState();
 
 const LivePlotCard = memo(function LivePlotCard({
@@ -116,6 +123,7 @@ const LivePlotCard = memo(function LivePlotCard({
   parameters,
   plotPalette,
   position,
+  prompts,
   resetKey,
   state,
   telemetry,
@@ -127,25 +135,26 @@ const LivePlotCard = memo(function LivePlotCard({
   parameters?: JsonObject | null;
   plotPalette: readonly string[];
   position: number;
+  prompts: PromptMarker[];
   resetKey?: string;
   state: LivePlotState;
   telemetry?: Record<string, TelemetryStream> | null;
   title: string;
   viewportMode: PlotViewportMode;
 }) {
-  const plot = useMemo(
-    () =>
-      livePlotSpec({
-        descriptor,
-        parameters,
-        plotPalette,
-        position,
-        state,
-        telemetry,
-        title,
-      }),
-    [descriptor, parameters, plotPalette, position, state, telemetry, title],
-  );
+  const plot = useMemo(() => {
+    const spec = livePlotSpec({
+      descriptor,
+      parameters,
+      plotPalette,
+      position,
+      state,
+      telemetry,
+      title,
+    });
+    // Prompt times are wall-clock instants: only a wall-time axis can place them.
+    return spec.timeAxis && !spec.xElapsedUnit ? { ...spec, promptMarkers: prompts } : spec;
+  }, [descriptor, parameters, plotPalette, position, prompts, state, telemetry, title]);
   const PlotSettingsButton = usePlotSettingsEditor();
   const actions =
     onPlotSettingsChange && PlotSettingsButton ? (

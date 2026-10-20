@@ -26,6 +26,7 @@ import type {
   ValueFormat,
 } from "@/lib/types";
 import type { HistogramAxes } from "@/plots/histogram-axes";
+import type { PromptMarker } from "@/plots/prompt-markers";
 
 /* === Types === */
 
@@ -39,6 +40,8 @@ export type PlotCardSpec = {
   analysis?: PlotAnalysis | null;
   computed?: EvidenceAnalysisResult | null;
   markers: PlotMarker[];
+  /** When the execution asked and the operator answered; time series only. */
+  promptMarkers?: PromptMarker[];
   plotType: DocumentPlotType;
   style: DocumentPlotStyle;
   xScale: DocumentAxisScale;

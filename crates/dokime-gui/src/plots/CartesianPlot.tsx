@@ -33,6 +33,7 @@ import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
+import { type PromptMarker, promptMarkerLabel } from "@/plots/prompt-markers";
 import { windowIndices } from "@/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
 import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
@@ -60,6 +61,11 @@ const POINT_MARK_RENDER_LIMIT = 600;
 const DENSE_POINT_MARK_SIZE = 3;
 const DEFAULT_POINT_MARK_SIZE = 5;
 const EMPTY_TRACES: ReadonlySet<string> = new Set();
+const NO_PROMPTS: PromptMarker[] = [];
+/* How near the pointer must come to a prompt marker, in CSS pixels, to read it. */
+const PROMPT_HOVER_PX = 5;
+/* The cap glyph drawn atop each prompt marker, in CSS pixels. */
+const PROMPT_CAP_PX = 4;
 
 /* === Types === */
 
@@ -69,6 +75,8 @@ type CartesianPlotProps = {
   description?: string | null;
   series: PlotSeries[];
   markers?: PlotMarker[];
+  /** Prompt lifecycle moments, drawn as quiet vertical lines the header can hide. */
+  promptMarkers?: PromptMarker[];
   referenceLines?: DocumentReferenceLine[];
   referenceBands?: DocumentReferenceBand[];
   style?: DocumentPlotStyle;
@@ -159,6 +167,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   description,
   series,
   markers = [],
+  promptMarkers = NO_PROMPTS,
   referenceLines = [],
   referenceBands = [],
   style = "line",
@@ -200,6 +209,10 @@ export const CartesianPlot = memo(function CartesianPlot({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
   const markersRef = useRef<PlotMarker[]>(markers);
+  const [showPrompts, setShowPrompts] = useState(true);
+  const [hoveredPrompt, setHoveredPrompt] = useState<{ marker: PromptMarker; left: number } | null>(null);
+  const shownPrompts = showPrompts ? promptMarkers : NO_PROMPTS;
+  const promptsRef = useRef<PromptMarker[]>(shownPrompts);
   const referenceLinesRef = useRef<DocumentReferenceLine[]>(referenceLines);
   const referenceBandsRef = useRef<DocumentReferenceBand[]>(referenceBands);
   const intervalRangesRef = useRef<IntervalRange[]>([]);
@@ -380,6 +393,13 @@ export const CartesianPlot = memo(function CartesianPlot({
         setCursor: [
           (plot) => {
             const left = plot.cursor.left;
+            const prompt = left != null && left >= 0 ? nearestPrompt(plot, promptsRef.current, left) : null;
+            setHoveredPrompt((current) => {
+              if (!prompt) return current ? null : current;
+              const offset = plot.over.getBoundingClientRect().left - root.getBoundingClientRect().left;
+              const next = { marker: prompt.marker, left: offset + prompt.left };
+              return current?.marker === next.marker && current.left === next.left ? current : next;
+            });
             if (!tableLegend || left == null || left < 0) return;
             const next = {
               x: plot.posToVal(left, "x"),
@@ -404,6 +424,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           (plot) => {
             drawIntervalRanges(plot, intervalRangesRef.current, resolvedSeriesColors[0] ?? fallbackSeriesColor);
             drawMarkers(plot, markersRef.current, root, themeColors.foreground);
+            drawPromptMarkers(plot, promptsRef.current, themeColors.mutedForeground);
             drawReferenceLines(plot, referenceLinesRef.current, root, themeColors.foreground);
           },
         ],
@@ -667,6 +688,7 @@ export const CartesianPlot = memo(function CartesianPlot({
 
   useEffect(() => {
     markersRef.current = markers;
+    promptsRef.current = shownPrompts;
     referenceLinesRef.current = referenceLines;
     referenceBandsRef.current = referenceBands;
     intervalRangesRef.current = intervalRanges;
@@ -680,7 +702,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         plot.redraw(true, true);
       }
     });
-  }, [intervalRanges, markers, referenceBands, referenceLines]);
+  }, [intervalRanges, markers, referenceBands, referenceLines, shownPrompts]);
 
   useEffect(() => {
     const plot = plotRef.current;
@@ -751,6 +773,20 @@ export const CartesianPlot = memo(function CartesianPlot({
           {actions}
           {!placeholder ? (
             <>
+              {promptMarkers.length ? (
+                <button
+                  type="button"
+                  aria-pressed={showPrompts}
+                  className="plot-prompts rounded-md border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-[pressed=false]:text-muted-foreground"
+                  onClick={() => {
+                    setShowPrompts((current) => !current);
+                    setHoveredPrompt(null);
+                  }}
+                  title="Show when the operator was asked and answered"
+                >
+                  Prompts
+                </button>
+              ) : null}
               <button
                 type="button"
                 aria-pressed={following}
@@ -783,7 +819,21 @@ export const CartesianPlot = memo(function CartesianPlot({
       {placeholder ? (
         <PlotPlaceholder {...placeholder} />
       ) : (
-        <div ref={rootRef} className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
+        <div className="relative min-w-0 max-w-full">
+          <div
+            ref={rootRef}
+            className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden"
+          />
+          {hoveredPrompt && showPrompts ? (
+            <div
+              className="pointer-events-none absolute top-1 z-10 max-w-64 -translate-x-1/2 truncate rounded-md border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm"
+              role="tooltip"
+              style={{ left: `${hoveredPrompt.left}px` }}
+            >
+              {promptMarkerLabel(hoveredPrompt.marker)}
+            </div>
+          ) : null}
+        </div>
       )}
       {!placeholder && legend && legendRows ? (
         <StatsSummaryTable
@@ -1305,6 +1355,62 @@ function drawMarkers(plot: uPlot, markers: PlotMarker[], element: Element, fallb
     ctx.stroke();
   });
   ctx.restore();
+}
+
+/**
+ * Prompt markers: a vertical line per moment, quieter than declared markers.
+ * An asked prompt is dashed under a hollow cap, an answer solid under a
+ * filled one, both in the muted axis colour.
+ */
+function drawPromptMarkers(plot: uPlot, markers: PromptMarker[], color: string) {
+  if (!markers.length) {
+    return;
+  }
+  const { ctx, bbox } = plot;
+  const ratio = plotPixelRatio();
+  const cap = PROMPT_CAP_PX * ratio;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = ratio;
+  ctx.globalAlpha *= 0.7;
+  markers.forEach((marker) => {
+    const left = Math.round(plot.valToPos(marker.x, "x", true)) + 0.5;
+    if (!Number.isFinite(left) || left < bbox.left || left > bbox.left + bbox.width) {
+      return;
+    }
+    const asked = marker.kind === "asked";
+    ctx.setLineDash(asked ? [3 * ratio, 3 * ratio] : []);
+    ctx.beginPath();
+    ctx.moveTo(left, bbox.top + cap);
+    ctx.lineTo(left, bbox.top + bbox.height);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(left - cap, bbox.top);
+    ctx.lineTo(left + cap, bbox.top);
+    ctx.lineTo(left, bbox.top + cap);
+    ctx.closePath();
+    if (asked) ctx.stroke();
+    else ctx.fill();
+  });
+  ctx.restore();
+}
+
+/** The prompt marker within reach of the pointer at `left` (CSS pixels over the plot), if any. */
+function nearestPrompt(plot: uPlot, markers: PromptMarker[], left: number): { marker: PromptMarker; left: number } | null {
+  let best: { marker: PromptMarker; left: number } | null = null;
+  let distance = PROMPT_HOVER_PX + 1;
+  for (const marker of markers) {
+    const position = plot.valToPos(marker.x, "x");
+    const gap = Math.abs(position - left);
+    if (Number.isFinite(position) && gap < distance) {
+      best = { marker, left: position };
+      distance = gap;
+    }
+  }
+  return best;
 }
 
 function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element: Element, fallbackColor: string) {

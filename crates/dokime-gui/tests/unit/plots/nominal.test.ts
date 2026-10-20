@@ -28,7 +28,7 @@ import {
   summaryInFlight,
   toggleTrace,
 } from "@/lib/statistics";
-import type { PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
+import type { HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
 import { formatCursorX } from "@/plots/axis";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
@@ -41,6 +41,7 @@ import {
 import { histogramBars } from "@/plots/histogram-bins";
 import { applyPlotMessages, emptyLivePlotState, type LivePlotState } from "@/plots/live-frames";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
+import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { lttbIndices, m4Indices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices, windowIndices } from "@/plots/reduce";
 import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
@@ -340,6 +341,50 @@ test("Window Resampling", () => {
   assert.equal(groupRepeatsPlotTitle("AC Voltage", [plot]), true);
   assert.equal(groupRepeatsPlotTitle("Mains", [plot]), false);
   assert.equal(groupRepeatsPlotTitle("AC Voltage", [plot, plot]), false);
+});
+
+test("Prompt Markers", () => {
+  const record = (record_type: string, timestamp: string, details: Record<string, unknown>, message?: string) =>
+    ({
+      details,
+      display: { icon: "clock", tone: "neutral" },
+      level: "info",
+      message,
+      record_id: `${record_type}-${timestamp}`,
+      record_type,
+      source: "runtime",
+      timestamp,
+    }) as unknown as HubRecord;
+  const records = [
+    record("prompt.response.submitted", "2026-10-20T20:04:30Z", { prompt_id: "p-1" }, "Prompt response submitted."),
+    record("prompt.request.confirmation", "2026-10-20T20:04:12Z", { prompt_id: "p-1", title: "Connect The Load" }, "Connect The Load"),
+    record("prompt.request.form", "2026-10-20T20:05:00Z", { prompt_id: "p-2", title: "Enter Serial" }),
+    record("prompt.response.cancelled", "2026-10-20T20:05:10Z", { prompt_id: "p-2" }),
+    record("prompt.request.choice", "not a time", { prompt_id: "p-3", title: "Pick" }),
+    record("step.started", "2026-10-20T20:04:00Z", {}),
+  ];
+
+  // Requests Mark When A Prompt Was Asked And Submissions When It Was Answered, In Time Order
+  const markers = promptMarkers(records);
+  assert.deepEqual(
+    markers.map((marker) => [marker.kind, marker.x, marker.title]),
+    [
+      ["asked", Date.parse("2026-10-20T20:04:12Z") / 1000, "Connect The Load"],
+      ["answered", Date.parse("2026-10-20T20:04:30Z") / 1000, "Connect The Load"],
+      ["asked", Date.parse("2026-10-20T20:05:00Z") / 1000, "Enter Serial"],
+    ],
+  );
+
+  // The Hover Names The Moment And The Prompt's Title
+  assert.equal(promptMarkerLabel(markers[0]), "Prompt asked: Connect The Load");
+  assert.equal(promptMarkerLabel(markers[1]), "Prompt answered: Connect The Load");
+
+  // An Answer Whose Request Is Out Of Scope Still Marks, Under A Generic Title
+  assert.deepEqual(
+    promptMarkers([records[0]]).map((marker) => marker.title),
+    ["Prompt"],
+  );
+  assert.deepEqual(promptMarkers([]), []);
 });
 
 test("Frame Retention", () => {
