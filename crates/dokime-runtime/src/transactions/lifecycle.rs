@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use harmos::state::Transaction;
@@ -159,12 +160,12 @@ impl Transaction<RuntimeState> for BeginCycleSeal {
         commit_settled_prompts(state, settled);
         let cycle = state.cycles.get_mut(&self.test_cycle_id).expect("checked cycle");
         cycle.phase = CyclePhase::Sealing;
-        cycle.lifecycle = match cycle.lifecycle {
-            CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping => CycleStatus::Stopping,
-            CycleStatus::Ready => CycleStatus::Stopped,
-            settled => settled,
-        };
+        let idle = !matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping);
+        if !idle {
+            cycle.lifecycle = CycleStatus::Stopping;
+        }
         cycle.touch_at(self.at.clone());
+        let ran = closed_members_ran(cycle, &state.executions);
         for id in &cycle.execution_ids {
             let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
             if execution.status != ExecutionStatus::Skipped || execution.finished_at.is_some() {
@@ -193,6 +194,9 @@ impl Transaction<RuntimeState> for BeginCycleSeal {
             }
         }
         cycle.result = Some(crate::transactions::provider_finish::summarize(cycle.execution_ids.iter().map(|id| &state.executions[id])));
+        if idle {
+            cycle.lifecycle = closed_outcome(ran, cycle.result.as_ref());
+        }
     }
 }
 
@@ -467,16 +471,19 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
                 // Every Member Was Already Durable Before This Frozen Intent.
                 continue;
             }
-            let mut changed =
-                matches!(cycle.lifecycle, CycleStatus::Ready | CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping);
+            let mut interrupted = matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping);
             for id in &cycle.execution_ids {
                 let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
-                changed |= interrupt_execution(execution, &self.at);
+                interrupted |= interrupt_execution(execution, &self.at);
             }
-            if changed {
+            if interrupted {
                 cycle.lifecycle = CycleStatus::Stopped;
                 cycle.result =
                     Some(crate::transactions::provider_finish::summarize(cycle.execution_ids.iter().map(|id| &state.executions[id])));
+                cycle.touch_at(self.at.clone());
+            } else if cycle.lifecycle == CycleStatus::Ready {
+                // An Idle Cycle Closes On What Its Members Already Settled.
+                cycle.lifecycle = closed_lifecycle(cycle, &state.executions);
                 cycle.touch_at(self.at.clone());
             }
         }
@@ -491,7 +498,28 @@ pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Di
     dokime_domain::model::diagnostics::Diagnostic::of("step runner ended without a completion receipt").redacted()
 }
 
+/// The truthful outcome a closing cycle settles on: its members' aggregate once any ran, Stopped otherwise.
+pub(crate) fn closed_lifecycle(
+    cycle: &dokime_domain::model::execution::result::TestCycle, executions: &BTreeMap<TestExecutionId, TestExecution>,
+) -> CycleStatus {
+    closed_outcome(closed_members_ran(cycle, executions), cycle.result.as_ref())
+}
+
 /* === Private Functions === */
+
+fn closed_members_ran(
+    cycle: &dokime_domain::model::execution::result::TestCycle, executions: &BTreeMap<TestExecutionId, TestExecution>,
+) -> bool {
+    cycle.execution_ids.iter().any(|id| executions.get(id).is_some_and(|execution| execution.started_at.is_some()))
+}
+
+fn closed_outcome(ran: bool, result: Option<&dokime_domain::model::execution::result::ResultSummary>) -> CycleStatus {
+    match crate::transactions::provider_finish::lifecycle_for(result) {
+        CycleStatus::Ready => CycleStatus::Stopped,
+        _ if !ran => CycleStatus::Stopped,
+        outcome => outcome,
+    }
+}
 
 fn interrupt_execution(execution: &mut TestExecution, at: &Timestamp) -> bool {
     if !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)

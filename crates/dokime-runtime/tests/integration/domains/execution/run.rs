@@ -61,7 +61,7 @@ async fn cycle_exposes_rows() {
         .await
         .len();
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
 
     assert_eq!(running.test_executions.len(), 1);
     assert_eq!(running.test_executions[0].status, ExecutionStatus::Running);
@@ -92,7 +92,7 @@ async fn provider_lane_run() {
     assert_wall_clock(&created);
 
     let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     wait_for_subscription_record(&mut records, "provider.execution.completed").await;
     for execution in &cycle.test_executions {
         crate::service_support::native::checkpoint(&runtime, &execution.test_execution_id).await;
@@ -116,7 +116,8 @@ async fn provider_lane_run() {
     }
 
     assert_eq!(receipt.status, CommandStatus::Accepted);
-    assert_eq!(cycle.lifecycle, CycleStatus::Completed);
+    assert_eq!(cycle.lifecycle, CycleStatus::Ready);
+    assert_eq!(cycle.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Passed));
     assert_eq!(cycle.test_executions.len(), 1);
     assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Passed);
     assert_eq!(cycle.result.as_ref().unwrap().status, ResultStatus::Passed);
@@ -148,7 +149,7 @@ async fn provider_lane_run() {
     assert_eq!(queued.cases().count(), 2);
 
     let receipt = runtime.start_next_execution(repeated_id.clone(), CommandContext::default()).await;
-    let repeated_cycle = wait_for_cycle_lifecycle(&runtime, &repeated_id, CycleStatus::Completed).await;
+    let repeated_cycle = wait_for_cycle_outcome(&runtime, &repeated_id, ResultStatus::Passed).await;
     // Completion Precedes Durable Capture; Read After Those Writers Settle.
     for execution in &repeated_cycle.test_executions {
         crate::service_support::native::checkpoint(&runtime, &execution.test_execution_id).await;
@@ -174,7 +175,7 @@ async fn failing_panicking_failed() {
     let mut records = runtime.subscribe_records();
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Failed).await;
     runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &test_cycle_id).await;
     wait_for_subscription_record(&mut records, "provider.execution.failed").await;
@@ -216,7 +217,7 @@ async fn failing_panicking_failed() {
     let panicking_id = start_cycle(&runtime, suite, false).await;
 
     let receipt = runtime.start_next_execution(panicking_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &panicking_id, CycleStatus::Failed).await;
+    wait_for_cycle_outcome(&runtime, &panicking_id, ResultStatus::Failed).await;
     runtime.seal_cycle(panicking_id.clone(), CommandContext::default()).await.unwrap();
     let panicking_cycle = cycle_snapshot(&runtime, &panicking_id).await;
     let overview = runtime.runtime_overview().await.expect("runtime overview query succeeds");
@@ -313,7 +314,7 @@ async fn stop_spares_sibling() {
     assert!(stop.is_ok(), "{stop:?}");
     assert!(repeated.is_ok(), "repeated Stop resolves the durable execution seal");
     assert_eq!(during.phase, dokime_domain::model::execution::result::CyclePhase::Active);
-    assert_eq!(during.lifecycle, CycleStatus::Stopped);
+    assert_eq!(during.lifecycle, CycleStatus::Ready, "an execution stop leaves its Active cycle idle");
     assert!(!during.continue_automatically);
     assert!(during.saved.is_none());
     assert_eq!(during.test_executions.len(), 2);
@@ -364,7 +365,7 @@ async fn cycle_spanning_group() {
     let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{:?}", receipt.rejection);
 
-    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     assert_eq!(cycle.cases().count(), 2);
     assert_eq!(cycle.test_executions.len(), 2);
     let suites = cycle
@@ -405,7 +406,7 @@ async fn fail_fast_failure() {
     let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{:?}", receipt.rejection);
 
-    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Failed).await;
     assert_eq!(cycle.test_executions.len(), 2);
     assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Failed);
     assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Skipped);

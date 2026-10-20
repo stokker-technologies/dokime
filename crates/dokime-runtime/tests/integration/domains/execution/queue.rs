@@ -60,7 +60,8 @@ async fn container_request_outcomes() {
     assert_eq!(receipt.summary.phase, RunPhase::Completed);
     assert_eq!((receipt.summary.planned, receipt.summary.failed), (1, 0));
     let cycle = cycle_snapshot(&runtime, &cycle).await;
-    assert_eq!(cycle.lifecycle, CycleStatus::Failed);
+    assert_eq!(cycle.lifecycle, CycleStatus::Ready);
+    assert_eq!(cycle.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Failed));
     assert_eq!(cycle.test_executions[0], original);
     assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Passed);
 }
@@ -93,8 +94,8 @@ async fn container_request_order() {
     for request in [&first_run, &other_run, &last_run] {
         crate::service_support::waits::wait_for_run_settled(&runtime, &request.command_id).await;
     }
-    wait_for_cycle_lifecycle(&runtime, &first, CycleStatus::Completed).await;
-    wait_for_cycle_lifecycle(&runtime, &other, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &first, ResultStatus::Passed).await;
+    wait_for_cycle_outcome(&runtime, &other, ResultStatus::Passed).await;
     let first = cycle_snapshot(&runtime, &first).await;
     let other = cycle_snapshot(&runtime, &other).await;
     let members = &first.test_executions;
@@ -156,7 +157,7 @@ async fn container_seal_isolation() {
     assert_eq!(cycle_snapshot(&runtime, &other).await.phase, CyclePhase::Active);
     executor.release();
     crate::service_support::waits::wait_for_run_settled(&runtime, &other_run.command_id).await;
-    wait_for_cycle_lifecycle(&runtime, &other, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &other, ResultStatus::Passed).await;
     let other = cycle_snapshot(&runtime, &other).await;
     assert!(other.test_executions.iter().all(|execution| execution.status == ExecutionStatus::Passed));
     assert_eq!(other.phase, CyclePhase::Active);
@@ -182,7 +183,7 @@ async fn unavailable_sidecar_context() {
     assert_eq!(receipt.correlation_id, Some(correlation_id));
     assert!(receipt.idempotency_key.is_none());
     assert!(receipt.rejection.is_none());
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Failed).await;
 }
 
 #[tokio::test]
@@ -194,7 +195,7 @@ async fn append_retains_active() {
     let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Failed).await;
 
     let appended = materialized_case("provider:testdb:plt400.ract", Some(&suite), "append.after_failure", "Append After Failure", "passed");
     let append = runtime.append_fixture_cases(test_cycle_id.clone(), vec![appended.clone()], CommandContext::default()).await;
@@ -218,7 +219,7 @@ async fn duplicate_case_executions() {
     let test_cycle_id = start_cycle(&runtime, suite, true).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let original = completed.test_executions[0].clone();
     let original_case = completed.cases().next().unwrap().clone();
     let original_case_id = original_case.test_case_id.clone();
@@ -240,7 +241,8 @@ async fn duplicate_case_executions() {
     let rerun = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &rerun.command_id).await;
     let completed = cycle_snapshot(&runtime, &test_cycle_id).await;
-    assert_eq!(completed.lifecycle, CycleStatus::Completed);
+    assert_eq!(completed.lifecycle, CycleStatus::Ready);
+    assert_eq!(completed.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Passed));
     assert_eq!(completed.test_executions.len(), 2);
     assert_eq!(completed.test_executions[0], original);
     assert_eq!(completed.test_executions[1].test_execution_id, appended.test_execution_id);
@@ -260,7 +262,7 @@ async fn run_queued_results() {
 
     runtime.start_next_execution(stop_on_failure.clone(), CommandContext::default()).await;
     runtime.start_next_execution(continue_on_failure.clone(), CommandContext::default()).await;
-    let stopped = wait_for_cycle_lifecycle(&runtime, &stop_on_failure, CycleStatus::Failed).await;
+    let stopped = wait_for_cycle_outcome(&runtime, &stop_on_failure, ResultStatus::Failed).await;
     let mut changes = runtime.watch_state();
     let continued = changes
         .wait_until(|snapshot| {
@@ -313,7 +315,7 @@ async fn later_cases_start() {
     assert!(second_execution.started_at.is_none());
 
     executor.release();
-    let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let first_started_at = completed.test_executions[0].started_at.as_ref().expect("first execution started");
     let second_started_at = completed.test_executions[1].started_at.as_ref().expect("second execution started");
 
@@ -368,7 +370,7 @@ async fn running_queued_counts() {
 
     // Settled Executions Have Nothing Running Or Waiting And All Passed.
     executor.release();
-    let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     for execution in &completed.test_executions {
         crate::service_support::native::checkpoint(&runtime, &execution.test_execution_id).await;
     }
@@ -400,9 +402,7 @@ async fn execution_retry_receipt() {
     let other = CommandContext { submitted_by: Some("another-listener".into()), ..Default::default() };
     let duplicate = runtime.start_execution(execution_id.clone(), mode, other).await;
     assert_eq!(duplicate.command_id, accepted.command_id);
-    let mut watch = runtime.watch_state();
-    let snapshot = watch.wait_until(|snapshot| snapshot.state().cycles[&cycle_id].lifecycle == CycleStatus::Completed).await.unwrap();
-    let cycle = snapshot.state().cycle_view(&cycle_id).unwrap();
+    let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     assert_eq!(cycle.test_executions.len(), 3);
     // The cycle fold follows execution sealing; the durable receipt also waits
     // for the final cycle row to be published.

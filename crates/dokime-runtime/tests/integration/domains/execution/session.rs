@@ -382,7 +382,8 @@ async fn provider_failure_releases() {
     probe.released.send_replace(true);
     wait_for_run_settled(&handle, &receipt.command_id).await;
     let failed = cycle_snapshot(&handle, &cycle_id).await;
-    assert_eq!(failed.lifecycle, CycleStatus::Failed);
+    assert_eq!(failed.lifecycle, CycleStatus::Ready, "a failed request leaves its Active cycle idle");
+    assert_eq!(failed.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Blocked));
     // The provider failed inside its open step, so the host interrupts it.
     assert_eq!(failed.test_executions[0].status, ExecutionStatus::Interrupted);
     assert!(*probe.cancellation.borrow(), "failure cleanup cancels the provider");

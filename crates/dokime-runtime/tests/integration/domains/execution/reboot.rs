@@ -44,7 +44,7 @@ async fn native_history_index() {
     register_python_suite(&handle, suite.clone()).await;
     let cycle_id = start_cycle(&handle, suite, false).await;
     handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     let execution_id = cycle.test_executions[0].test_execution_id.clone();
     let checkpoint = crate::service_support::native::checkpoint(&handle, &execution_id).await;
     drop(handle);

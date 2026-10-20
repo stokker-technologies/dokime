@@ -157,7 +157,7 @@ async fn cycle_restart_child() {
     assert_eq!(receipt.status, CommandStatus::Accepted);
     crate::service_support::waits::wait_for_run_settled(&runtime, &receipt.command_id).await;
     // The Start Receipt Covers One Execution; Ordered Continuation Finishes The Cycle.
-    let completed = crate::service_support::waits::wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    let completed = crate::service_support::waits::wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     assert_eq!(completed.test_executions.len(), 2);
     assert!(completed.test_executions.iter().all(|execution| execution.saved.is_some()));
     runtime.seal_cycle(id, CommandContext::default()).await.unwrap();

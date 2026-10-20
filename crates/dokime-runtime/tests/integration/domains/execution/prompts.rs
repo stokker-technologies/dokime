@@ -421,7 +421,7 @@ async fn execution_stop_settles() {
     assert!(runtime.prompt_settled_at(&id).await.is_some(), "the execution stop settles its open prompt");
     assert_eq!(cycle_pending(&runtime, &test_cycle_id).await, 0);
     assert_late_answer_refused(&runtime, &id).await;
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopped).await;
+    wait_for_cycle_idle(&runtime, &test_cycle_id, ResultStatus::Cancelled).await;
 }
 
 #[tokio::test]
@@ -714,7 +714,11 @@ async fn check_stopped_question(stop_cycle: bool) {
 
     // === The Run Ends Stopped, Not Failed === //
 
-    let ended = wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Stopped).await;
+    let ended = if stop_cycle {
+        wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Stopped).await
+    } else {
+        wait_for_cycle_idle(&runtime, &cycle, ResultStatus::Cancelled).await
+    };
     assert_eq!(
         ended.test_executions[0].status,
         ExecutionStatus::Cancelled,

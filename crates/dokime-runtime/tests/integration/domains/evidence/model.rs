@@ -52,7 +52,7 @@ async fn definitions_survive_completion() {
     let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
 
     assert_eq!(receipt.status, CommandStatus::Accepted);
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
 
     let evidence = runtime.evidence_snapshot().await.unwrap();
     assert!(evidence.records.iter().any(|record| record.record_type == custom_record.record_type));
@@ -95,7 +95,7 @@ async fn tracking_derives_kpis() {
     let test_cycle_id = start_cycle(&runtime, custom_suite(), false).await;
     let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
 
     let evidence = runtime.evidence_snapshot().await.unwrap();
     let record_types = evidence.records.iter().map(|record| record.record_type.as_str()).collect::<Vec<_>>();

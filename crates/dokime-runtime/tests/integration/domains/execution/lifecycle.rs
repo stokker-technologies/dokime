@@ -136,7 +136,7 @@ async fn rerun_fresh_started() {
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let test_case_id = completed.cases().next().unwrap().test_case_id.clone();
     let first_started_at = completed.test_executions[0].started_at.clone().expect("first execution should have a start timestamp");
 
@@ -145,7 +145,7 @@ async fn rerun_fresh_started() {
     assert!(restart.is_ok());
 
     runtime.start_case_execution(test_cycle_id.clone(), test_case_id, CommandContext::default()).await;
-    let restarted = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let restarted = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let restarted_execution = &restarted.test_executions[1];
     let restarted_at = restarted_execution.started_at.clone().expect("restarted execution should have a fresh start timestamp");
 
@@ -309,7 +309,7 @@ async fn rename_admission_seal() {
 
     // The Sealed Execution Keeps The Label It Ran Under
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
     let checkpoint = crate::service_support::native::checkpoint(&runtime, &first.test_execution_id).await;
     let sealed = crate::service_support::native::open(&runtime, &checkpoint).await;
@@ -358,10 +358,55 @@ async fn stopped_telemetry_refused() {
     publish_tracking_sample(&runtime, &running).await;
     let after = runtime.evidence_snapshot().await.unwrap().telemetry.len();
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopped).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Cancelled).await;
 
     assert!(stop.is_ok());
     assert_eq!(after, before);
+}
+
+#[tokio::test]
+async fn execution_stop_leaves_cycle_idle() {
+    // === Run The First Of Two Executions === //
+
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let mut suite = plt400_suite();
+    suite.test_case_templates[0].parameters[0].expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
+    suite.test_case_templates[0].parameters[0].expression = ParameterExpr::Array {
+        values: vec![ParameterExpr::Literal { value: Value::from("passed") }, ParameterExpr::Literal { value: Value::from("alternate") }],
+    };
+    register_python_suite(&runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(run.status, CommandStatus::Accepted, "{run:?}");
+    executor.wait_until_entered().await;
+    let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
+    assert_eq!(running.test_executions.len(), 2);
+
+    // === Stop That Execution Alone === //
+
+    let stopped = running.test_executions[0].test_execution_id.clone();
+    runtime.stop_execution(stopped.clone(), CommandContext::default()).await.unwrap();
+    executor.release();
+
+    // === The Cycle Stays Active And Idle === //
+
+    let idle = wait_for_cycle_idle(&runtime, &test_cycle_id, ResultStatus::Cancelled).await;
+    assert_eq!(idle.phase, dokime_domain::model::execution::result::CyclePhase::Active);
+    assert_eq!(idle.lifecycle, CycleStatus::Ready, "an execution stop never becomes the cycle's state");
+    let execution = |id: &TestExecutionId| idle.test_executions.iter().find(|execution| &execution.test_execution_id == id).unwrap();
+    assert_eq!(execution(&stopped).status, ExecutionStatus::Cancelled);
+    let sibling = idle.test_executions.iter().find(|execution| execution.test_execution_id != stopped).unwrap();
+    assert!(sibling.started_at.is_none(), "the sibling has not run yet");
+
+    // === The Sibling Still Starts === //
+
+    let next = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(next.status, CommandStatus::Accepted, "{next:?}");
+    let settled = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Cancelled).await;
+    let sibling = settled.test_executions.iter().find(|execution| execution.test_execution_id == sibling.test_execution_id).unwrap();
+    assert!(sibling.finished_at.is_some(), "the sibling ran in the same Active cycle");
 }
 
 #[tokio::test]
@@ -404,7 +449,7 @@ async fn pause_blocks_boundaries() {
     wait_for_record_type(&runtime, "test.execution.resumed").await;
     paused_wait.await;
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     wait_for_record_type(&runtime, "test.execution.completed").await;
     wait_for_record_type(&runtime, "test.cycle.completed").await;
 
@@ -443,7 +488,7 @@ async fn continuation_follows_seal() {
     assert!(runtime.run_request(&receipt.command_id).await.unwrap().unwrap().summary.phase.terminal());
 
     executor.release();
-    let completed = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     assert!(completed.test_executions.iter().all(|execution| execution.saved.is_some()));
     assert_eq!(completed.phase, dokime_domain::model::execution::result::CyclePhase::Active);
     assert!(completed.saved.is_none());

@@ -46,7 +46,7 @@ async fn resource_records_absent() {
     register_custom_suite(&runtime, custom_suite()).await;
     let test_cycle_id = start_cycle(&runtime, custom_suite(), false).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let execution = cycle.test_executions.first().unwrap();
     let execution_scope = execution.scope.clone();
 

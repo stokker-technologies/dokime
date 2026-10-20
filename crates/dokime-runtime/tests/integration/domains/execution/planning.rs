@@ -91,7 +91,7 @@ async fn empty_cycle_grows() {
     // Run: The Appended Cases Complete
     let accepted = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(accepted.status, CommandStatus::Accepted, "{accepted:?}");
-    let completed = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     assert_eq!(completed.test_executions.len(), 1);
     assert_eq!(completed.test_executions[0].status, ExecutionStatus::Passed);
 }

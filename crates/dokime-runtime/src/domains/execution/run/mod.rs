@@ -46,6 +46,7 @@ use crate::transport::{
 };
 use artifacts::DiscardedArtifact;
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::result::CyclePhase;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
@@ -697,7 +698,7 @@ async fn execute_case(
         }
         if !cancelled
             && (session.refused().await
-                || cancellation_requested(context, cycle).await
+                || cancellation_requested(context, cycle)
                 || context.execution_stop_requested(&execution.test_execution_id))
         {
             cancelled = true;
@@ -734,7 +735,7 @@ async fn execute_case(
     // A run can wind down before the watch loop sees its stop, for instance
     // when the stop settled the question it was waiting on. It still ended
     // because it was stopped.
-    if !cancelled && (cancellation_requested(context, cycle).await || context.execution_stop_requested(&execution.test_execution_id)) {
+    if !cancelled && (cancellation_requested(context, cycle) || context.execution_stop_requested(&execution.test_execution_id)) {
         cancelled = true;
     }
     let Some(answered) = answered else {
@@ -808,7 +809,7 @@ async fn run_sidecar_cycle(
             ));
             continue;
         }
-        if cancellation_requested(&context, cycle).await {
+        if cancellation_requested(&context, cycle) {
             cancelled = true;
             executions.push(execution_outcome(
                 case,
@@ -1104,15 +1105,10 @@ async fn update_phase(
         .map_err(|error| failure("sidecar_phase", format!("sidecar phase update was rejected: {error}")))
 }
 
-async fn cancellation_requested(context: &ExecutionFixtureContext, cycle: &CycleView) -> bool {
+// An Execution Stop Reaches The Provider Through Its Request; Only Closing The Cycle Stops The Whole Run.
+fn cancellation_requested(context: &ExecutionFixtureContext, cycle: &CycleView) -> bool {
     context.is_cancelled()
-        || matches!(
-            context.cycle_lifecycle(&cycle.test_cycle_id).await,
-            Some(
-                dokime_domain::model::execution::result::CycleStatus::Stopping
-                    | dokime_domain::model::execution::result::CycleStatus::Stopped
-            )
-        )
+        || context.runtime.state_read().cycles.get(&cycle.test_cycle_id).is_none_or(|cycle| cycle.phase != CyclePhase::Active)
 }
 
 fn runnable_executions(cycle: &CycleView) -> impl Iterator<Item = &TestExecution> {

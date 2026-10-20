@@ -331,7 +331,7 @@ async fn report_opens_anytime() {
 
     // Sealed: The Exact Bytes Finalization Published
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &id).await;
     let seal = cycle.saved.clone().unwrap();
@@ -403,7 +403,7 @@ async fn report_download_serves() {
 
     // Finalized: Both Downloads Serve The Sealed Artifacts
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &id).await;
     let cycle_seal = cycle.saved.clone().expect("the completed cycle is sealed");
@@ -464,7 +464,7 @@ async fn open_report_repeatedly() {
     assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
 
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     owner.shutdown().await.unwrap();
 }
 
@@ -519,13 +519,13 @@ async fn cycle_report_reboot() {
     let waiting = tokio::spawn({
         let runtime = runtime.clone();
         let id = id.clone();
-        async move { wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await }
+        async move { wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await }
     });
     tokio::task::yield_now().await;
     waiting.abort();
     assert!(waiting.await.unwrap_err().is_cancelled());
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &id).await;
     let original = cycle.saved.as_ref().unwrap().clone();

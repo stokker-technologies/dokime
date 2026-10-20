@@ -309,7 +309,7 @@ async fn execution_plots_samples() {
     assert_eq!(envelopes[0].payload.series[0].raw_points, 2);
     assert_eq!(envelopes[0].payload.series[0].points.len(), 2);
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &cycle, ResultStatus::Passed).await;
     let error =
         runtime.update_plot_settings(&cycle, &execution_id, &document_id, &plot_id, Some(50), DownsampleTechnique::Auto).await.unwrap_err();
     assert_eq!(error.code(), Some("document_closed"));
@@ -466,7 +466,7 @@ async fn record_query_absent() {
     register_custom_suite(&runtime, custom_suite()).await;
     let cycle_id = start_cycle(&runtime, custom_suite(), false).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     let scope = cycle.test_executions[0].scope.clone();
 
     for (suite, matches) in [("custom.suite", true), ("other.suite", false)] {
