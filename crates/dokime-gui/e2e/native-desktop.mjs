@@ -865,7 +865,7 @@ async function drainSavedDocuments(session) {
   }
   /* Cleared only once every document is on disk, so a transfer that fails
      leaves the document on the page to try again rather than losing it. */
-  if (documents.length) await session.execute("globalThis.__dokimeSavedDocuments = [];");
+  if (documents.length) await session.execute("globalThis.__dokimeSavedDocuments.splice(0, arguments[0]);", [documents.length]);
   return written;
 }
 
@@ -2125,6 +2125,7 @@ async function remoteAccessJourney() {
     await session.clickNamed("button", "Save Key File…");
     await until("saved key acknowledgement", async () => hasText(await session.text(), "Key File Saved"));
     await session.clickNamed("button", "Save Public Certificate…");
+    await until("saved public certificate acknowledgement", async () => hasText(await session.text(), "Certificate Saved"));
     const documents = await drainSavedDocuments(session);
     const key = documents.find((document) => document.kind === "remote_key")?.path;
     const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
@@ -2196,6 +2197,7 @@ async function remoteAccessJourney() {
   await confirm("Regenerate Certificate…", "Certificate Regenerated");
   address = await endpoint();
   await session.clickNamed("button", "Save Certificate…");
+  await until("saved regenerated certificate acknowledgement", async () => hasText(await session.text(), "Certificate Saved"));
   const documents = await drainSavedDocuments(session);
   const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
   assert.ok(certificate, "the regenerated public certificate is saved");
