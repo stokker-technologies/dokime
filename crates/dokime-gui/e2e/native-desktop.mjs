@@ -1139,7 +1139,7 @@ async function startupJourney(session, notes) {
   for (const heading of ["Cycles", "Needs Attention", "Active", "Recent"]) {
     assert.ok(hasText(body, heading), `Cycles home must render "${heading}"`);
   }
-  for (const empty of ["Nothing Is Waiting On You", "No Cycle Is Running", "No Cycles Loaded Yet"]) {
+  for (const empty of ["Nothing Is Waiting On You", "No Active Cycles", "No Cycles Loaded Yet"]) {
     assert.ok(hasText(body, empty), `An empty group must state "${empty}"`);
   }
   assert.ok(await session.exists("button", "New Cycle"), "Cycles home must offer New Cycle");
@@ -1157,7 +1157,17 @@ async function startupJourney(session, notes) {
 async function libraryJourney(session) {
   await session.goto("/library");
   await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
-  assert.ok(hasText(await session.text(), "No cycle is active"), "Without an active cycle the Library must say so");
+  const destination = await until("the explicit destination selector", () =>
+    session.execute(`
+    const select = document.querySelector('select[aria-label="Destination Cycle"]');
+    return select && !select.disabled ? { value: select.value } : null;
+  `),
+  );
+  assert.equal(destination.value, "", "The Library must require an explicit destination even when other cycles are Active");
+  assert.ok(
+    hasText(await session.text(), "Select an Active cycle above, or create one, before adding cases."),
+    "The Library must explain how to select or create its destination",
+  );
 
   /* New Cycle opens a dialog titled by the moment it opened. */
   await session.clickNamed("button", "New Cycle");
@@ -1179,6 +1189,10 @@ async function libraryJourney(session) {
     "new cycle dialog closed",
     async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     30000,
+  );
+  await until(
+    "the created cycle selected as destination",
+    async () => (await session.execute("return document.querySelector('select[aria-label=\"Destination Cycle\"]')?.value;")) === appendTo,
   );
   assert.ok(hasText(await session.text(), "Cases materialized here are added to"), "With an active cycle the Library must name it");
   assert.ok(await session.exists("button", "Open Cycle"), "With an active cycle the page bar action must become Open Cycle");
@@ -1723,22 +1737,21 @@ async function executionStopJourney(session, cycleId) {
   /* Selecting a queued execution while another runs must stay there: Follow
      Active only moves a selection that is following. The queued attempt shows
      its planned parameters. Selecting the cycle node selects the cycle. */
-  const queued = await session.execute(`
+  const unstarted = await session.execute(`
     const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
-      .find((candidate) => /\\bQueued\\b/.test(candidate.innerText));
+      .find((candidate) => /\\b(Queued|Planned)\\b/.test(candidate.innerText));
     if (!row) return null;
     row.querySelector('button').click();
     return row.dataset.executionId ?? null;
   `);
-  if (queued) {
-    await delay(3000);
-    assert.equal(
-      (await session.location()).searchParams.get("executionId"),
-      queued,
-      "A queued execution the operator selected must stay selected while another runs",
-    );
-    assert.ok(hasText(await session.text(), "This case has not run yet"), "A queued execution shows its planned parameters");
-  }
+  assert.ok(unstarted, "The copied cycle must offer an unstarted sibling for explicit selection");
+  await delay(3000);
+  assert.equal(
+    (await session.location()).searchParams.get("executionId"),
+    unstarted,
+    "An unstarted execution the operator selected must stay selected while another runs",
+  );
+  assert.ok(hasText(await session.text(), "This case has not run yet"), "An unstarted execution shows its planned parameters");
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
   await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
   await session.execute(
