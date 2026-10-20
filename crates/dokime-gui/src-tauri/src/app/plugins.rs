@@ -34,6 +34,8 @@ use dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES;
 pub const GENERATION_HEADER: &str = "dokime-plugin-generation";
 pub const PROGRESS_HEADER: &str = "dokime-plugin-progress";
 const STAGE_DEADLINE: Duration = Duration::from_secs(300);
+// Each progress message re-renders the webview; bound how often one is sent.
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
 /* === Macros === */
 
@@ -120,14 +122,20 @@ async fn stage(lease: &SessionLease, bytes: Vec<u8>, progress: Channel<StageProg
     };
     let (bytes, sha256) = tauri::async_runtime::spawn_blocking(hashing).await.map_err(text)?;
 
-    // Stream Large Frames Over The Shared Client
+    // Stream The Advertised Chunk Size Over The Shared Client
     let frame_limit = NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit");
     let client = lease.client().with_frame_limit(frame_limit).with_timeout(STAGE_DEADLINE);
+    let mut reported: Option<Instant> = None;
     let report = move |sent: u64, total: u64| {
-        let _ = progress.send(StageProgress::Uploading { sent, total });
         if sent == total {
             let _ = progress.send(StageProgress::Inspecting);
+            return;
         }
+        if reported.is_some_and(|last| last.elapsed() < PROGRESS_INTERVAL) {
+            return;
+        }
+        reported = Some(Instant::now());
+        let _ = progress.send(StageProgress::Uploading { sent, total });
     };
     let staging = client.plugins_stage_bundle(bytes, sha256, report);
     let staged = lease.guard(staging).await.map_err(|error| format!("{error:?}"))?;
