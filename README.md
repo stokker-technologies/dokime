@@ -1,11 +1,11 @@
+# Dokime
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="branding/logos/transparent-on-dark.svg">
-    <img src="branding/logos/transparent-on-light.svg" alt="Dokime logo" width="160">
+    <img src="branding/logos/transparent-on-light.svg" alt="Dokime logo" width="240">
   </picture>
 </p>
-
-# Dokime
 
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml?query=branch%3Adev)
 [![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
