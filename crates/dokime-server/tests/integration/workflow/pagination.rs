@@ -22,6 +22,9 @@ use dokime_domain::model;
 
 /* === Constants === */
 const PREPARATION_CASES: usize = 48;
+// Two Full Pages And A Partial One; Shutdown Seals A Durable Report Per Case.
+const PAGE_LIMIT: u32 = 4;
+const PAGED_CASES: u64 = 2 * PAGE_LIMIT as u64 + 1;
 
 /* === Macros === */
 
@@ -48,20 +51,22 @@ async fn large_cycles_order() {
     let parameter = &mut suite.test_case_templates[0].parameters[0];
     parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
     parameter.value_type = dokime_runtime::ValueType::Integer;
-    parameter.expression = dokime_runtime::definition::ParameterExpr::Range { start: 0, stop: 256, step: 1 };
+    parameter.expression = dokime_runtime::definition::ParameterExpr::Range { start: 0, stop: PAGED_CASES as i64 - 1, step: 1 };
     support::register_fixture_execution(&owner.handle(), suite).await;
     let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
     let summary =
         client.unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() }).await.unwrap().into_inner();
-    assert_eq!(summary.case_count, 257);
-    assert_eq!(summary.execution_count, 257);
-    let mut request = contracts::execution::ListCases { cycle_id: id.clone(), limit: 73, ..Default::default() };
+    assert_eq!(summary.case_count, PAGED_CASES);
+    assert_eq!(summary.execution_count, PAGED_CASES);
+    let mut request = contracts::execution::ListCases { cycle_id: id.clone(), limit: PAGE_LIMIT, ..Default::default() };
     let mut cases = Vec::new();
+    let mut pages = 0;
     loop {
         let page = client.unary::<contracts::execution::ListCases>(request.clone()).await.unwrap().into_inner();
-        assert!(page.cases.len() <= 73);
+        pages += 1;
+        assert!(page.cases.len() <= PAGE_LIMIT as usize);
         cases.extend(page.cases);
         let Some(next) = page.next_after_case_id else {
             break;
@@ -69,7 +74,8 @@ async fn large_cycles_order() {
         request.after_case_id = next;
         request.cursor = page.cursor;
     }
-    assert_eq!(cases.len(), 257);
+    assert_eq!(cases.len() as u64, PAGED_CASES);
+    assert_eq!(pages, PAGED_CASES.div_ceil(PAGE_LIMIT as u64));
     let native = owner.handle().watch_state().latest();
     let native_cycle = native.state().cycle_views().find(|cycle| cycle.test_cycle_id.as_str() == id).unwrap();
     for (ordinal, (case, native)) in cases.iter().zip(native_cycle.cases()).enumerate() {
@@ -101,20 +107,21 @@ async fn large_cycles_order() {
             .code(),
         Code::InvalidArgument
     );
-    // A single-case cycle is enough to advance the observed cursor. The first
-    // cycle still crosses the 256-case boundary through every RPC projection.
+    // A single-case cycle is enough to advance the observed cursor.
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
     client.unary::<contracts::execution::CreateCycle>(create()).await.unwrap();
     assert_eq!(client.unary::<contracts::execution::ListCases>(request).await.unwrap_err().code(), Code::Aborted);
     let list = client.unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles::default()).await.unwrap().into_inner();
     let large = list.cycles.iter().find(|cycle| cycle.cycle_id == id).unwrap();
-    assert_eq!(large.case_count, 257);
-    assert_eq!(large.execution_count, 257);
-    let mut request = contracts::execution::ListExecutions { cycle_id: id.clone(), limit: 73, ..Default::default() };
+    assert_eq!(large.case_count, PAGED_CASES);
+    assert_eq!(large.execution_count, PAGED_CASES);
+    let mut request = contracts::execution::ListExecutions { cycle_id: id.clone(), limit: PAGE_LIMIT, ..Default::default() };
     let mut attempts = Vec::new();
+    let mut pages = 0;
     loop {
         let page = client.unary::<contracts::execution::ListExecutions>(request.clone()).await.unwrap().into_inner();
-        assert!(page.executions.len() <= 73);
+        pages += 1;
+        assert!(page.executions.len() <= PAGE_LIMIT as usize);
         attempts.extend(page.executions);
         let Some(next) = page.next_after_execution_id else {
             break;
@@ -122,7 +129,8 @@ async fn large_cycles_order() {
         request.after_execution_id = next;
         request.cursor = page.cursor;
     }
-    assert_eq!(attempts.len(), 257);
+    assert_eq!(attempts.len() as u64, PAGED_CASES);
+    assert_eq!(pages, PAGED_CASES.div_ceil(PAGE_LIMIT as u64));
     for (ordinal, (execution, native)) in attempts.iter().zip(&native_cycle.test_executions).enumerate() {
         assert_eq!(execution.ordinal, ordinal as u64);
         assert_eq!(execution.execution_id, native.test_execution_id.as_str());
