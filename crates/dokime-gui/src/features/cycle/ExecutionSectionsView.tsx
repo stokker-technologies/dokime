@@ -46,6 +46,7 @@ import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJs
 import { Button } from "@/components/ui/button";
 import { parseTimestampMs } from "@/lib/time-format";
 import type { DocumentViewCard, PromptRequest, TestCyclePlan, TestExecution } from "@/lib/types";
+import { PageShell } from "@/shell/PageShell";
 import { type CycleExecutionRow, cycleRowStatus, isActiveExecutionStatus } from "./cycle-workspace-model";
 import {
   DocumentViewPresentation,
@@ -77,6 +78,10 @@ export type ExecutionSectionsViewProps = {
   onRename: ((label: string) => Promise<unknown>) | null;
   /** Returns to the cycle viewer from the breadcrumb. */
   onSelectCycle?: () => void;
+  /** The page bar's breadcrumb, `Cycle › Execution 2`. */
+  trail: string[];
+  /** The page bar's action cluster; none in a file. */
+  pageActions?: ReactNode;
   started: TestExecution | null;
   surface: DocumentSurface;
   pane: ReturnType<typeof evidencePaneState>;
@@ -105,6 +110,8 @@ export function ExecutionSectionsView({
   label,
   onRename,
   onSelectCycle,
+  trail,
+  pageActions,
   started,
   surface,
   pane,
@@ -134,120 +141,113 @@ export function ExecutionSectionsView({
     : "";
   return (
     <div className="grid min-h-0">
-      <div className="min-h-0 overflow-y-auto px-[var(--shell-inset)] py-4">
-        <div className="grid min-w-0 gap-4">
-          <NodeHeader
-            breadcrumb={[{ label: plan?.test_cycle.title ?? "Cycle", onSelect: onSelectCycle }, { label: `Execution ${row.ordinal}` }]}
-            description={template?.description ? <MarkdownText text={template.description} /> : null}
-            live={live}
-            onRename={onRename}
-            prefix={titlePrefix}
-            progress={[stepProgress(view.stepRecords), executionDuration].filter(Boolean).join(" · ") || null}
-            status={cycleRowStatus({ ...row, execution: started ?? row.execution })}
-            subject="Execution"
-            title={label}
-          />
+      <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={trail}>
+        <NodeHeader
+          breadcrumb={[{ label: plan?.test_cycle.title ?? "Cycle", onSelect: onSelectCycle }, { label: `Execution ${row.ordinal}` }]}
+          description={template?.description ? <MarkdownText text={template.description} /> : null}
+          live={live}
+          onRename={onRename}
+          prefix={titlePrefix}
+          progress={[stepProgress(view.stepRecords), executionDuration].filter(Boolean).join(" · ") || null}
+          status={cycleRowStatus({ ...row, execution: started ?? row.execution })}
+          subject="Execution"
+          title={label}
+        />
 
-          {control}
-          <PromptQueue prompts={prompts} records={view.records} steps={view.stepRecords} />
+        {control}
+        <PromptQueue prompts={prompts} records={view.records} steps={view.stepRecords} />
 
+        <ExecutionSectionCard
+          description={started ? null : UNSTARTED_NOTICE}
+          empty={parameterRows.length ? null : "This case has no parameters."}
+          title="Parameters"
+        >
+          {parameterRows.length ? <ExecutionParameters rows={parameterRows} /> : null}
+        </ExecutionSectionCard>
+
+        {!started ? null : pane.kind === "failed" ? (
           <ExecutionSectionCard
-            description={started ? null : UNSTARTED_NOTICE}
-            empty={parameterRows.length ? null : "This case has no parameters."}
-            title="Parameters"
-          >
-            {parameterRows.length ? <ExecutionParameters rows={parameterRows} /> : null}
-          </ExecutionSectionCard>
+            action={
+              <Button onClick={onRetry} size="sm" variant="outline">
+                Try Again
+              </Button>
+            }
+            empty={pane.message}
+            title="Evidence Unavailable"
+          />
+        ) : pane.kind === "busy" ? (
+          <ExecutionSectionCard empty={BUSY_NOTICE} title="Loading" />
+        ) : pane.kind === "loading" ? (
+          <ExecutionSectionCard empty="Reading the document for this execution." title="Loading" />
+        ) : (
+          <>
+            {pane.staleReason ? <p className="text-xs text-muted-foreground">Showing the last evidence read. {pane.staleReason}</p> : null}
+            {present.has("steps-criteria") ? (
+              <ExecutionSectionCard
+                empty={view.stepRecords.length || view.criterionRecords.length ? null : "No steps or criteria recorded yet."}
+                title="Steps & Criteria"
+              >
+                {view.stepRecords.length || view.criterionRecords.length ? (
+                  <ExecutionStepsCriteria criteria={view.criterionRecords} live={live} steps={view.stepRecords} />
+                ) : null}
+              </ExecutionSectionCard>
+            ) : null}
 
-          {!started ? null : pane.kind === "failed" ? (
-            <ExecutionSectionCard
-              action={
-                <Button onClick={onRetry} size="sm" variant="outline">
-                  Try Again
-                </Button>
-              }
-              empty={pane.message}
-              title="Evidence Unavailable"
-            />
-          ) : pane.kind === "busy" ? (
-            <ExecutionSectionCard empty={BUSY_NOTICE} title="Loading" />
-          ) : pane.kind === "loading" ? (
-            <ExecutionSectionCard empty="Reading the document for this execution." title="Loading" />
-          ) : (
-            <>
-              {pane.staleReason ? (
-                <p className="text-xs text-muted-foreground">Showing the last evidence read. {pane.staleReason}</p>
-              ) : null}
-              {present.has("steps-criteria") ? (
-                <ExecutionSectionCard
-                  empty={view.stepRecords.length || view.criterionRecords.length ? null : "No steps or criteria recorded yet."}
-                  title="Steps & Criteria"
-                >
-                  {view.stepRecords.length || view.criterionRecords.length ? (
-                    <ExecutionStepsCriteria criteria={view.criterionRecords} live={live} steps={view.stepRecords} />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
+            {present.has("notes") ? (
+              <ExecutionSectionCard empty={notesContent || view.notes.length ? null : "No operator notes recorded."} title="Operator Notes">
+                {notesContent || view.notes.length ? (notesContent ?? <FrozenOperatorNotes notes={view.notes} />) : null}
+              </ExecutionSectionCard>
+            ) : null}
 
-              {present.has("notes") ? (
-                <ExecutionSectionCard
-                  empty={notesContent || view.notes.length ? null : "No operator notes recorded."}
-                  title="Operator Notes"
-                >
-                  {notesContent || view.notes.length ? (notesContent ?? <FrozenOperatorNotes notes={view.notes} />) : null}
-                </ExecutionSectionCard>
-              ) : null}
+            {present.has("media") && (live || shared.mediaArtifacts.length) ? (
+              <ExecutionSectionCard empty={shared.mediaArtifacts.length ? null : "No media recorded."} title="Media">
+                {mediaContent ??
+                  (shared.mediaArtifacts.length ? <MediaGalleryView artifacts={shared.mediaArtifacts} emptyMessage="" /> : null)}
+              </ExecutionSectionCard>
+            ) : null}
 
-              {present.has("media") && (live || shared.mediaArtifacts.length) ? (
-                <ExecutionSectionCard empty={shared.mediaArtifacts.length ? null : "No media recorded."} title="Media">
-                  {mediaContent ??
-                    (shared.mediaArtifacts.length ? <MediaGalleryView artifacts={shared.mediaArtifacts} emptyMessage="" /> : null)}
-                </ExecutionSectionCard>
-              ) : null}
+            {present.has("artifacts") && (live || shared.artifacts.length) ? (
+              <ExecutionSectionCard empty={shared.artifacts.length ? null : "No artifacts recorded."} title="Artifacts">
+                {shared.artifacts.length ? (artifactsContent ?? <ArtifactTreeView artifacts={shared.artifacts} emptyMessage="" />) : null}
+              </ExecutionSectionCard>
+            ) : null}
 
-              {present.has("artifacts") && (live || shared.artifacts.length) ? (
-                <ExecutionSectionCard empty={shared.artifacts.length ? null : "No artifacts recorded."} title="Artifacts">
-                  {shared.artifacts.length ? (artifactsContent ?? <ArtifactTreeView artifacts={shared.artifacts} emptyMessage="" />) : null}
-                </ExecutionSectionCard>
-              ) : null}
+            {present.has("report") || live ? (
+              <ExecutionSectionCard
+                action={
+                  documentHasWindowedCards(reportSections) ? (
+                    <PlotWindowControl elapsedUnit={documentWindowElapsedUnit(reportSections)} live={live} window={plotWindow} />
+                  ) : null
+                }
+                empty={present.has("report") ? null : "This execution's document authors no report content."}
+                title="Report"
+              >
+                {present.has("report") ? (
+                  <DocumentContent cardChrome={reportCardChrome} cardFilter={isReportCard} surface={surface} />
+                ) : null}
+              </ExecutionSectionCard>
+            ) : null}
 
-              {present.has("report") || live ? (
-                <ExecutionSectionCard
-                  action={
-                    documentHasWindowedCards(reportSections) ? (
-                      <PlotWindowControl elapsedUnit={documentWindowElapsedUnit(reportSections)} live={live} window={plotWindow} />
-                    ) : null
-                  }
-                  empty={present.has("report") ? null : "This execution's document authors no report content."}
-                  title="Report"
-                >
-                  {present.has("report") ? (
-                    <DocumentContent cardChrome={reportCardChrome} cardFilter={isReportCard} surface={surface} />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
+            <RecordsSection live={live} records={view.records} />
 
-              <RecordsSection live={live} records={view.records} />
+            {present.has("traceability") ? (
+              <ExecutionSectionCard
+                action={<TraceabilityJsonDialog exportName={shared.traceabilityExportName} traceability={view.traceability} />}
+                empty={
+                  view.traceability?.groups.length || view.traceability?.warnings.length ? null : "No traceability information available."
+                }
+                title="Traceability"
+              >
+                {view.traceability?.groups.length || view.traceability?.warnings.length ? (
+                  <TraceabilityDocumentContent traceability={view.traceability} />
+                ) : null}
+              </ExecutionSectionCard>
+            ) : null}
 
-              {present.has("traceability") ? (
-                <ExecutionSectionCard
-                  action={<TraceabilityJsonDialog exportName={shared.traceabilityExportName} traceability={view.traceability} />}
-                  empty={
-                    view.traceability?.groups.length || view.traceability?.warnings.length ? null : "No traceability information available."
-                  }
-                  title="Traceability"
-                >
-                  {view.traceability?.groups.length || view.traceability?.warnings.length ? (
-                    <TraceabilityDocumentContent traceability={view.traceability} />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
-
-              <FrozenDocumentConsole surface={surface} />
-            </>
-          )}
-        </div>
-      </div>
+            <FrozenDocumentConsole surface={surface} />
+          </>
+        )}
+      </PageShell>
     </div>
   );
 }

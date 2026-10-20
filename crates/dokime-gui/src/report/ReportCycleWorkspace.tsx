@@ -122,6 +122,7 @@ export function ReportCycleWorkspace({ onSelect, selection, source }: ReportCycl
         label={row.case.label}
         onRename={null}
         onSelectCycle={() => onSelect({ view: "cycle" })}
+        trail={["Cycle", `Execution ${row.ordinal}`]}
         started={started}
         surface={surface}
         pane={pane}
@@ -146,6 +147,7 @@ export function ReportCycleWorkspace({ onSelect, selection, source }: ReportCycl
       pane={pane}
       plotWindow={plotWindow}
       surface={surface}
+      trail={["Cycle"]}
     />
   );
 }

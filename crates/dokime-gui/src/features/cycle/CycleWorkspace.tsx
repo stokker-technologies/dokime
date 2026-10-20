@@ -32,7 +32,7 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import { LockKeyhole } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
@@ -41,7 +41,6 @@ import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { TestExecution } from "@/lib/types";
-import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
 import { ControlCard } from "./ControlCard";
 import { CycleEvidencePane } from "./CycleEvidencePane";
@@ -344,18 +343,19 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
 
   return (
     <div className="grid min-h-0">
-      {live ? (
-        <CyclePageChrome>
-          <NodeActionCluster
-            cycleId={cycleId}
-            menu={cycleMenu}
-            primary={seal}
-            subject={{ executionId: null, label: plan.test_cycle.title, sealed: phase === "sealed" }}
-          />
-        </CyclePageChrome>
-      ) : null}
       <CycleEvidencePane
         cycleId={cycleId}
+        pageActions={
+          live ? (
+            <NodeActionCluster
+              cycleId={cycleId}
+              menu={cycleMenu}
+              primary={seal}
+              subject={{ executionId: null, label: plan.test_cycle.title, sealed: phase === "sealed" }}
+            />
+          ) : null
+        }
+        trail={["Cycle"]}
         lead={
           <>
             <NodeHeader
@@ -471,12 +471,6 @@ function executionTitlePrefix(row: CycleExecutionRow): string {
 }
 
 /* === Private Components === */
-
-/** Publishes the cycle viewer's page bar; mounted only while the cycle itself is shown. */
-function CyclePageChrome({ children }: { children: ReactNode }) {
-  usePageChrome({ actions: children, title: "Cycle" });
-  return null;
-}
 
 function WorkspaceNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (

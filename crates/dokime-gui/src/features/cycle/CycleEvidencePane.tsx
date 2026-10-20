@@ -45,11 +45,14 @@ export type CycleEvidencePaneProps = {
   lead?: ReactNode;
   /** The prompts the cycle itself asked. */
   prompts?: PromptRequest[];
+  /** The page bar's breadcrumb and action cluster. */
+  trail: string[];
+  pageActions?: ReactNode;
 };
 
 /* === Components === */
 
-export function CycleEvidencePane({ cycleId, lead, live = true, plan, prompts, snapshot }: CycleEvidencePaneProps) {
+export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, plan, prompts, snapshot, trail }: CycleEvidencePaneProps) {
   const plotWindow = usePlotWindow();
   const scope = useMemo<RecordScope>(() => ({ test_cycle_id: cycleId }), [cycleId]);
   const documentQuery = useCycleDocumentQuery(cycleId, true);
@@ -82,7 +85,9 @@ export function CycleEvidencePane({ cycleId, lead, live = true, plan, prompts, s
       onRetry={() => void documentQuery.refetch()}
       documentView={DocumentView}
       lead={lead}
+      pageActions={pageActions}
       prompts={prompts}
+      trail={trail}
     />
   );
 }

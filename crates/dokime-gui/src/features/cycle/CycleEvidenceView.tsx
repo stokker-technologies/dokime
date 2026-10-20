@@ -28,6 +28,7 @@ import type { ComponentType, ReactNode } from "react";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { Button } from "@/components/ui/button";
 import type { DocumentViewCard, PromptRequest } from "@/lib/types";
+import { PageShell } from "@/shell/PageShell";
 import {
   DocumentViewPresentation,
   type DocumentViewProps,
@@ -53,6 +54,10 @@ export type CycleEvidenceViewProps = {
   lead?: ReactNode;
   /** The prompts the cycle itself asked, which no execution owns; none in a file. */
   prompts?: PromptRequest[];
+  /** The page bar's breadcrumb. */
+  trail: string[];
+  /** The page bar's action cluster; none in a file. */
+  pageActions?: ReactNode;
 };
 
 /* === Components === */
@@ -66,11 +71,13 @@ export function CycleEvidenceView({
   documentView: DocumentContent = DocumentViewPresentation,
   lead,
   prompts = [],
+  trail,
+  pageActions,
 }: CycleEvidenceViewProps) {
   const cycleRecords = surface.view.records.filter((record) => !record.scope?.test_execution_id);
   return (
     <div className="grid min-h-0">
-      <div className="grid min-h-0 content-start gap-4 overflow-y-auto px-[var(--shell-inset)] py-4">
+      <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={trail}>
         {lead}
         <PromptQueue prompts={prompts} records={cycleRecords} />
         {pane.kind === "failed" ? (
@@ -97,7 +104,7 @@ export function CycleEvidenceView({
             <FrozenDocumentConsole surface={surface} />
           </div>
         )}
-      </div>
+      </PageShell>
     </div>
   );
 }

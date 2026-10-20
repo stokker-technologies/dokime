@@ -31,7 +31,6 @@ import { OperatorNotesContent } from "@/components/document/OperatorNotesContent
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
 import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
-import { usePageChrome } from "@/shell/page-chrome";
 import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { evidencePaneState } from "./document-query-model";
@@ -150,7 +149,6 @@ export function ExecutionSections({
       subject={reportSubject}
     />
   ) : null;
-  usePageChrome({ actions: pageActions, title: "Execution" });
 
   return (
     <ExecutionSectionsView
@@ -161,6 +159,8 @@ export function ExecutionSections({
       label={label}
       onRename={onRename}
       onSelectCycle={onSelectCycle}
+      pageActions={pageActions}
+      trail={["Cycle", `Execution ${row.ordinal}`]}
       started={started}
       surface={surface}
       pane={pane}
