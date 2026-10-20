@@ -1049,27 +1049,44 @@ function defect(name, reason) {
  * run that never began.
  */
 async function startCaseFromItsRow(session, fragment) {
-  const before = await caseRowText(session, fragment);
-  const trigger = await session.execute(
-    `const fragment = arguments[0];
+  const target = await until(
+    `the actionable ${fragment} execution`,
+    () =>
+      session.execute(
+        `const fragment = arguments[0];
      const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')].find(
-       (candidate) => candidate.innerText.includes(fragment),
+       (candidate) => candidate.innerText.includes(fragment) && candidate.querySelector('button[aria-label^="Actions For "]'),
      );
-     if (!row) throw new Error('No case row holds ' + fragment);
-     return row.querySelector('button[aria-label^="Actions For "]').getAttribute('aria-label');`,
-    [fragment],
+     if (!row?.dataset.executionId) return null;
+     return {
+       before: row.innerText,
+       executionId: row.dataset.executionId,
+       trigger: row.querySelector('button[aria-label^="Actions For "]').getAttribute('aria-label'),
+     };`,
+        [fragment],
+      ),
+    20000,
   );
   /* A row menu is a modal layer: the next row is unreachable until it is gone. */
   await closeAnyMenu(session);
-  await session.clickNamed("button", trigger);
+  await session.clickNamed("button", target.trigger);
   await until("the row menu", () => session.find("css selector", "[role=menu]"), 15000);
   await session.clickNamed("menuitem", "Start Execution");
   await closeAnyMenu(session);
   return until(
     `the ${fragment} case to start`,
     async () => {
-      const row = await caseRowText(session, fragment);
-      return row !== before || /Running|Waiting|Finalizing|Passed|Failed/.test(row) || /Execution Started/.test(await toastText(session));
+      const row = await session.execute(
+        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+          .find((candidate) => candidate.dataset.executionId === arguments[0])?.innerText ?? '';`,
+        [target.executionId],
+      );
+      return (
+        Boolean(row) &&
+        (row !== target.before ||
+          /Running|Waiting|Finalizing|Passed|Failed/.test(row) ||
+          /Execution Started/.test(await toastText(session)))
+      );
     },
     20000,
   ).catch(() => false);
@@ -1345,7 +1362,17 @@ async function libraryJourney(session) {
 
   await session.clickNamed("button", "Open Cycle");
   await until("cycle workspace", async () => (await session.location()).pathname === `/cycles/${appendTo}`, 30000);
-  return { id: appendTo, title: title.trim() };
+  const measuringExecutionId = await until(
+    "the materialized measuring execution identity",
+    () =>
+      session.execute(
+        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((row) => row.innerText.includes(arguments[0]))?.dataset.executionId ?? null;`,
+        [PROTECTION_TEMPLATE],
+      ),
+    30000,
+  );
+  return { id: appendTo, title: title.trim(), measuringExecutionId };
 }
 
 /**
@@ -1582,7 +1609,16 @@ async function cycleJourney(session, cycleId) {
   await session.clickNamed("button", "Start");
   await until("the new attempt admission", async () => /Execution Started/.test(await toastText(session)), 30000);
   /* Plot Settings Persist In The Native Frozen Document. */
-  await session.clickCss("button[aria-label^='Plot settings for ']");
+  const plotId = await until(
+    "the plot identity to configure",
+    () =>
+      session.execute(`
+    return document.querySelector('button[aria-label^="Plot settings for "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
+  `),
+    30000,
+  );
+  const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot settings for ']`;
+  await session.clickCss(settingsSelector);
   const settingsText = await until(
     "plot settings dialog",
     () =>
@@ -1612,16 +1648,30 @@ async function cycleJourney(session, cycleId) {
   }
   await session.goto("/cycles");
   await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`);
-  await session.clickCss("button[aria-label^='Plot settings for ']");
+  await until(
+    "the same plot frame after remounting",
+    () =>
+      session.execute(
+        `
+    const frame = [...document.querySelectorAll('[data-live-mounted="true"][data-plot-id]')]
+      .find((node) => node.dataset.plotId === arguments[0]);
+    return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot settings for "]'));
+  `,
+        [plotId],
+      ),
+    30000,
+  );
+  await session.clickCss(settingsSelector);
   const persistedPoints = await until(
     "persisted display point budget",
     () =>
       session.execute(`
-        return document.querySelector('[role=dialog][data-state=open] input[type=number]')?.value;
+        const input = document.querySelector('[role=dialog][data-state=open] input[type=number]');
+        return input ? {value: input.value} : null;
       `),
     30000,
   );
-  assert.equal(persistedPoints, "2500", "The backend must retain the plot budget after remounting");
+  assert.equal(persistedPoints.value, "2500", "The backend must retain the plot budget after remounting");
   await session.clickNamed("button", "Cancel");
 
   await runUntil(
@@ -1741,9 +1791,8 @@ async function executionStopJourney(session, cycleId) {
       const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
       if (!match || match[1] === cycleId) return null;
       const ready = await session.execute(
-        `const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
-          .find((candidate) => candidate.innerText.includes(arguments[0]));
-        return Boolean(row?.querySelector('button[aria-label^="Actions For "]'));`,
+        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+          .some((candidate) => candidate.innerText.includes(arguments[0]) && candidate.querySelector('button[aria-label^="Actions For "]'));`,
         [STARTUP_TEMPLATE],
       );
       return ready ? match[1] : null;
@@ -1768,7 +1817,7 @@ async function executionStopJourney(session, cycleId) {
         if (!row) return null;
         const label = row.querySelector('button');
         label.click();
-        return label.innerText.split('\\n')[0];
+        return row.dataset.executionId ?? null;
       `,
         [STARTUP_TEMPLATE],
       );
@@ -1802,10 +1851,10 @@ async function executionStopJourney(session, cycleId) {
   await session.execute(
     `
     const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
-      .find((candidate) => /\\b(Running|Waiting)\\b/.test(candidate.innerText) && candidate.innerText.includes(arguments[0]));
+      .find((candidate) => candidate.dataset.executionId === arguments[0]);
     row?.querySelector('button').click();
   `,
-    [STARTUP_TEMPLATE],
+    [running],
   );
   assert.ok(!(await session.exists("button", "Stop Cycle")), "The execution page carries the execution's controls, not the cycle's");
   assert.ok(!(await session.exists("button", "Stop")), "No unscoped Stop may sit beside a selected execution");
@@ -1820,7 +1869,11 @@ async function executionStopJourney(session, cycleId) {
 
   // === Stop Seals Only The Selected Execution And Preserves Unstarted Siblings === //
 
-  const stoppedRow = await caseRowText(session, running);
+  const stoppedRow = await session.execute(
+    `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((row) => row.dataset.executionId === arguments[0])?.innerText ?? '';`,
+    [running],
+  );
   assert.ok(/\b(Stopped|Interrupted)\b/.test(stoppedRow), `The stopped execution must keep its truthful outcome: ${stoppedRow}`);
   const rows = await sidebarText(session);
   assert.ok(/\b(Queued|Planned)\b/.test(rows), "Stop must preserve unstarted sibling attempts");
@@ -1966,7 +2019,7 @@ async function cyclesHomeJourney(session, cycleTitle) {
 }
 
 /** History: the recorded executions behind the run, and the Back chevron. */
-async function historyJourney(session, cycleId, cycleTitle) {
+async function historyJourney(session, cycleId, cycleTitle, executionId) {
   await session.goto("/history");
   /* The empty table is one placeholder row too, so a row counts once it opens
      something: its primary cell is the control an operator clicks. */
@@ -1978,30 +2031,22 @@ async function historyJourney(session, cycleId, cycleTitle) {
   assert.ok(hasText(await session.text(), "History"), "The page bar must name History");
   await session.click(opener);
   await until("history detail", async () => (await session.location()).pathname === `/history/${cycleId}`, 30000);
-  await until("inspectable checkpoint", async () => hasText(await session.text(), "Inspect checkpoint"), 60000);
-  /* Each case also carries a pre-dispatch placeholder execution with no
-     evidence behind it, so the checkpoint to inspect is a finished one. */
-  await session.execute(`
-    /* The outcome sits beside the button on the entry's own row rather than in
-       a landmark of its own, so the search walks up from each button until the
-       nearest ancestor that states an outcome, and never addresses a class.
-       The word boundaries are escaped because this is a template literal,
-       where an unescaped backslash-b is a backspace character rather than a
-       boundary: the regex then silently matched nothing. */
-    const stated = (button) => {
-      let node = button.parentElement;
-      for (let depth = 0; node && depth < 5; depth += 1) {
-        if (/\\b(passed|failed)\\b/i.test(node.innerText)) return true;
-        node = node.parentElement;
-      }
-      return false;
-    };
-    const inspect = [...document.querySelectorAll('main button')]
-      .filter((button) => button.innerText.trim() === 'Inspect checkpoint' && !button.disabled)
-      .find(stated);
-    if (!inspect) throw new Error('No finished execution in this history detail');
-    inspect.click();
-  `);
+  const checkpoint = await until(
+    "the executed measuring checkpoint",
+    () =>
+      session.execute(
+        `
+    const identity = [...document.querySelectorAll('main p')].find((node) => node.textContent.trim() === arguments[0]);
+    const entry = identity?.closest('section');
+    if (!entry || !/\\b(passed|failed)\\b/i.test(entry.innerText)) return null;
+    return [...entry.querySelectorAll('button')]
+      .find((button) => button.innerText.trim() === 'Inspect checkpoint' && !button.disabled) ?? null;
+  `,
+        [executionId],
+      ),
+    60000,
+  );
+  await session.click(checkpoint);
   await until("captured execution", async () => hasText(await session.text(), "Recorded Steps"), 60000);
   const captured = await session.text();
   assert.ok(hasText(captured, "Recorded status"), "The checkpoint must state its recorded status");
@@ -2021,12 +2066,12 @@ async function historyJourney(session, cycleId, cycleTitle) {
   await session.clickNamed("button", "Context");
   await until("captured context", async () => hasText(await session.text(), "Notes At Capture"));
 
-  await session.clickNamed("button", "Back");
+  await session.clickNamed("button", "History Library");
   await until("back to history", async () => (await session.location()).pathname === "/history", 20000);
 }
 
 /** Remote Access Uses Mounted Controls And Real TLS CLI Calls. */
-async function remoteAccessJourney(cycleId) {
+async function remoteAccessJourney() {
   const input = (label) =>
     until(label, () => session.find("xpath", `//input[@id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`));
   const toggle = async (label, checked) => {
@@ -2137,14 +2182,7 @@ async function remoteAccessJourney(cycleId) {
   await connect(address, original.key, original.certificate, true);
 
   // Keep An Admitted Execution Waiting For Its Operator Throughout Rotation.
-  assert.ok(cycleId, "remote rotation requires the materialized native cycle");
-  await session.goto(`/cycles/${cycleId}?view=cycle`);
-  await openMenu(session, "Cycle Actions");
-  await session.clickNamed("menuitem", "Copy Cycle");
-  const activeCycle = await until("remote rotation cycle", async () => {
-    const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
-    return match && match[1] !== cycleId ? match[1] : null;
-  });
+  const activeCycle = (await libraryJourney(session)).id;
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "the native GUI admits the rotation execution");
   await until("operator prompt before rotation", async () => hasText(await session.text(), STARTUP_PROMPT), 60000);
   await session.goto("/settings/remote");
@@ -2891,7 +2929,7 @@ async function main() {
     await journey("execution-stop", () => executionStopJourney(session, cycleId));
     await journey("containers", () => containersJourney(session, cycleId));
     await journey("cycles-home", () => cyclesHomeJourney(session, library.value.title));
-    await journey("history", () => historyJourney(session, cycleId, library.value.title));
+    await journey("history", () => historyJourney(session, cycleId, library.value.title, library.value.measuringExecutionId));
   } else {
     for (const name of ["cycle", "report", "touch", "execution-stop", "containers", "cycles-home", "history"]) {
       failures.push({
@@ -2903,7 +2941,7 @@ async function main() {
   }
 
   await journey("settings", () => settingsJourney(session, notes));
-  await journey("remote-access", () => remoteAccessJourney(cycleId));
+  await journey("remote-access", remoteAccessJourney);
 
   /* The ownership contract the redesign did not change: a shell attached to a
      backend it does not own must leave that backend running. */
