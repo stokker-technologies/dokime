@@ -1266,6 +1266,48 @@ async fn cycle_report_planned() {
     owner.shutdown().await.unwrap();
 }
 
+// A report template carries its parameter definitions, so parameters read by label and unit.
+#[tokio::test]
+async fn template_parameter_units() {
+    use dokime_domain::model::values::{MeasurementUnit, UnitFamily, ValueType};
+    let mut input = fixture_input("Parameter Units");
+    let mut suite = fixture_suite(&["passed"]);
+    let template = &mut suite.test_case_templates[0];
+    let mut voltage = template.parameters[0].clone();
+    voltage.parameter_id = dokime_runtime::model::identity::new_id();
+    voltage.metadata = metadata("ac_voltage_v", "AC Voltage");
+    voltage.value_type = ValueType::Number;
+    voltage.unit = Some(MeasurementUnit { metadata: metadata("volt", "Volt"), family: UnitFamily::Voltage, symbol: "V".into() });
+    voltage.expression = dokime_runtime::definition::ParameterExpr::Literal { value: Value::from(230.0) };
+    template.parameters.push(voltage.clone());
+    let execution = &mut input.cycle.test_executions[0];
+    let mut case = execution.snapshot.case().clone();
+    case.test_case_template_id = template.test_case_template_id.clone();
+    case.parameters.insert("ac_voltage_v".into(), Value::from(230.0));
+    execution.snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
+        &case,
+        Some(&suite),
+        Default::default(),
+        None,
+        Default::default(),
+    )
+    .unwrap();
+
+    let payload = parse(&render(&input).await);
+    let templates = payload["test_cycle_plan"]["templates"].as_array().unwrap();
+    assert_eq!(templates.len(), 1);
+    let parameters = templates[0]["parameters"].as_array().unwrap();
+    let voltage_row = parameters.iter().find(|row| row["name"] == "ac_voltage_v").expect("the voltage definition is listed");
+    assert_eq!(voltage_row["label"], "AC Voltage");
+    assert_eq!(voltage_row["unit"], "V");
+    assert_eq!(voltage_row["value_type"], "number");
+    assert_eq!(voltage_row["parameter_id"], voltage.parameter_id.as_str());
+    let result_row = parameters.iter().find(|row| row["name"] == "fixture.result").expect("the result definition is listed");
+    assert_eq!(result_row["label"], "Fixture Result");
+    assert!(result_row["unit"].is_null());
+    assert_eq!(payload["test_cycle_plan"]["cases"][0]["parameters"]["ac_voltage_v"], 230.0);
+}
+
 #[tokio::test]
 async fn telemetry_index_endpoints() {
     use dokime_runtime::telemetry::TelemetrySample;

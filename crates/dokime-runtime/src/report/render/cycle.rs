@@ -139,7 +139,7 @@ impl Serialize for Rows<'_, '_> {
                         name: &case.metadata.label,
                         description: None,
                         source_file: None,
-                        parameters: &[],
+                        parameters: plan::Parameters(&case.definitions),
                         files: &[],
                         steps: &[],
                         measurements: &[],

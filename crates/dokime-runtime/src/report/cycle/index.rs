@@ -21,6 +21,7 @@ use harmos::MemorySize;
 
 // Local Imports
 use crate::{report::saved::CapturedExecutionReportInput, runtime::Error, runtime::Result};
+use dokime_domain::model::definition::parameters::ParameterDefinition;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::ResultSummary;
@@ -50,6 +51,7 @@ pub(crate) struct Case {
     pub template: TemplateId,
     pub metadata: Metadata,
     pub parameters: BTreeMap<String, Value>,
+    pub definitions: Vec<ParameterDefinition>,
     pub latest_id: TestExecutionId,
     pub status: ExecutionStatus,
     pub planned: bool,
@@ -202,6 +204,7 @@ impl MemorySize for Index {
                             .saturating_add(case.template.memory_size().saturating_sub(std::mem::size_of::<TemplateId>()))
                             .saturating_add(case.metadata.memory_size().saturating_sub(std::mem::size_of::<Metadata>()))
                             .saturating_add(case.parameters.memory_size().saturating_sub(std::mem::size_of::<BTreeMap<String, Value>>()))
+                            .saturating_add(case.definitions.memory_size().saturating_sub(std::mem::size_of::<Vec<ParameterDefinition>>()))
                             .saturating_add(case.latest_id.memory_size().saturating_sub(std::mem::size_of::<TestExecutionId>()))
                     })
                     .fold(0usize, usize::saturating_add),
@@ -316,6 +319,7 @@ impl Index {
             template: case.test_case_template_id.clone(),
             metadata: case.metadata.clone(),
             parameters: case.parameters.clone(),
+            definitions: execution.snapshot.parameter_definitions().to_vec(),
             latest_id: execution.test_execution_id.clone(),
             status: execution.status.clone(),
             planned,
