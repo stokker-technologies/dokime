@@ -1210,6 +1210,62 @@ async fn latest_member_annotations() {
     owner.shutdown().await.unwrap();
 }
 
+// A current cycle report lists every planned member in cycle order; a sealed one
+// lists the members sealing cancelled.
+#[tokio::test]
+async fn cycle_report_planned() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+    let suite = fixture_suite(&["passed", "passed", "passed"]);
+    register_custom_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let members = cycle_snapshot(&runtime, &cycle_id).await.test_executions;
+    let receipt = runtime
+        .start_execution(
+            members[0].test_execution_id.clone(),
+            dokime_domain::model::execution::ExecutionMode::Automatic,
+            CommandContext::default(),
+        )
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    crate::service_support::native::checkpoint(&runtime, &members[0].test_execution_id).await;
+
+    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    assert_eq!(report.origin, dokime_runtime::ReportOrigin::Current);
+    let payload = parse(std::str::from_utf8(&report.html).unwrap());
+    let executions = payload["test_executions"].as_array().unwrap();
+    assert_eq!(
+        executions.iter().map(|row| row["test_execution_id"].as_str().unwrap()).collect::<Vec<_>>(),
+        members.iter().map(|member| member.test_execution_id.as_str()).collect::<Vec<_>>()
+    );
+    assert_eq!(executions.iter().map(|row| row["attempt_index"].as_u64().unwrap()).collect::<Vec<_>>(), [0, 1, 2]);
+    assert_eq!(executions.iter().map(|row| row["status"].as_str().unwrap()).collect::<Vec<_>>(), ["passed", "planned", "planned"]);
+    for row in &executions[1..] {
+        assert_eq!(row["parameters"]["fixture.result"], "passed", "a planned member carries its parameters: {row}");
+        assert!(row["started_at"].is_null());
+    }
+    let cases = payload["test_cycle_plan"]["cases"].as_array().unwrap();
+    assert_eq!(
+        cases.iter().map(|case| case["case_id"].as_str().unwrap()).collect::<Vec<_>>(),
+        members.iter().map(|member| member.test_case_id.as_str()).collect::<Vec<_>>()
+    );
+    assert!(cases.iter().all(|case| case["parameters"]["fixture.result"] == "passed"));
+    let queue = payload["test_cycle_plan"]["queue"].as_array().unwrap();
+    assert_eq!(queue.iter().map(|item| item["status"].as_str().unwrap()).collect::<Vec<_>>(), ["passed", "queued", "queued"]);
+    // Planned Members Carry No Evidence Of Their Own.
+    assert_eq!(payload["case_runs"].as_array().unwrap().len(), 1);
+
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let sealed = cycle_snapshot(&runtime, &cycle_id).await;
+    let payload = crate::service_support::reports::payload(runtime.storage(), &sealed.saved.as_ref().unwrap().report).await;
+    let executions = payload["test_executions"].as_array().unwrap();
+    assert_eq!(executions.iter().map(|row| row["status"].as_str().unwrap()).collect::<Vec<_>>(), ["passed", "stopped", "stopped"]);
+    assert_eq!(executions.iter().map(|row| row["attempt_index"].as_u64().unwrap()).collect::<Vec<_>>(), [0, 1, 2]);
+    assert_eq!(payload["test_cycle_plan"]["cases"].as_array().unwrap().len(), 3);
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 #[tokio::test]
 async fn telemetry_index_endpoints() {
     use dokime_runtime::telemetry::TelemetrySample;

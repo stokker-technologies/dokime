@@ -27,6 +27,7 @@ use crate::{
     app::Dokime,
     config::StorageSettings,
     report::CapturedExecutionReportInput,
+    report::cycle::CycleMember,
     runtime::Error,
     runtime::Result,
     runtime::progress::Operation,
@@ -34,6 +35,7 @@ use crate::{
     storage::Manager,
 };
 use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::saved::ExecutionSeal;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::reports::wire::MaterializedReport;
@@ -83,7 +85,8 @@ async fn sealed(
         if !at.covers(&execution.source.evidence_through)? {
             return Err(invalid("sealed member evidence exceeds cycle report boundary"));
         }
-        members.push(crate::report::materialize::sealed_member(ctx, storage, settings, execution, progress).await?);
+        let member = crate::report::materialize::sealed_member(ctx, storage, settings, execution, progress).await?;
+        members.push(CycleMember::Captured(Box::new(member)));
     }
     progress.phase("Rendering");
     let prepared = crate::report::cycle::CycleReport::prepare(storage, finalization.snapshot, members, progress).await?;
@@ -94,7 +97,8 @@ async fn sealed(
     Ok(MaterializedReport { report })
 }
 
-// An Active Cycle Renders Every Started Member At Its Own Persisted Boundary.
+// An Active Cycle Renders Every Started Member At Its Own Persisted Boundary
+// And Lists Every Unstarted Member As Planned, Keeping Cycle Order.
 async fn current(
     ctx: &Context<'_>, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation,
 ) -> Result<MaterializedReport> {
@@ -128,7 +132,11 @@ async fn current(
         header.session_id = Some(session);
     }
     let mut members = Vec::new();
-    for execution in source.test_executions.iter().filter(|execution| execution.status != ExecutionStatus::Pending) {
+    for execution in source.test_executions.iter() {
+        if unstarted(execution) {
+            members.push(CycleMember::Planned(Box::new(execution.clone())));
+            continue;
+        }
         let seal = match &execution.saved {
             Some(seal) => Some(seal.clone()),
             None => match resources.execution_storage.published_seal(&execution.test_execution_id).await {
@@ -152,7 +160,7 @@ async fn current(
             let _guard = gate.lock().await;
             // Finalization May Publish This Member's Final Report While The Gate Was Awaited.
             if let Some(seal) = resources.execution_storage.published_seal(&execution.test_execution_id).await {
-                members.push(sealed_member(ctx, storage, settings, &seal, at, progress).await?);
+                members.push(CycleMember::Captured(Box::new(sealed_member(ctx, storage, settings, &seal, at, progress).await?)));
                 continue;
             }
             let inspection = match resources.execution_storage.retained_report_view(&execution.test_execution_id).await {
@@ -170,9 +178,13 @@ async fn current(
             }
             crate::report::materialize::execution(ctx, settings, &inspection, false, progress).await?
         };
-        members.push(member);
+        members.push(CycleMember::Captured(Box::new(member)));
     }
-    let appearance = match members.first() {
+    let captured = members.iter().find_map(|member| match member {
+        CycleMember::Captured(captured) => Some(captured),
+        CycleMember::Planned(_) => None,
+    });
+    let appearance = match captured {
         Some(member) => member.context.appearance.clone(),
         None => resources.execution_storage.report_appearance().await?,
     };
@@ -192,6 +204,15 @@ async fn sealed_member(
         return Err(invalid("sealed member evidence exceeds cycle report boundary"));
     }
     crate::report::materialize::sealed_member(ctx, storage, settings, seal, progress).await
+}
+
+// Nothing Dispatched It: Queued, Or Planned As The Runtime Spells It (An Unsealed Skip Never Started).
+fn unstarted(execution: &TestExecution) -> bool {
+    match execution.status {
+        ExecutionStatus::Pending => true,
+        ExecutionStatus::Skipped => execution.started_at.is_none() && execution.finished_at.is_none() && execution.saved.is_none(),
+        _ => false,
+    }
 }
 
 fn invalid(reason: &str) -> Error {

@@ -52,6 +52,7 @@ pub(crate) struct Case {
     pub parameters: BTreeMap<String, Value>,
     pub latest_id: TestExecutionId,
     pub status: ExecutionStatus,
+    pub planned: bool,
 }
 
 #[derive(Clone)]
@@ -67,6 +68,7 @@ pub(crate) struct Member {
     pub scope: RecordScope,
     pub steps: Vec<StepRecord>,
     pub generated_at: Timestamp,
+    pub planned: bool,
 }
 
 #[derive(Clone)]
@@ -134,7 +136,7 @@ impl MemorySize for Member {
 impl Annotation {}
 
 impl Member {
-    fn new(execution: &TestExecution, generated_at: &Timestamp) -> Self {
+    fn new(execution: &TestExecution, generated_at: &Timestamp, planned: bool) -> Self {
         let input = execution.snapshot.parameters();
         let output = &execution.output_parameters;
         let parameters = input
@@ -155,6 +157,7 @@ impl Member {
             scope: execution.scope.clone(),
             steps: execution.steps.clone(),
             generated_at: generated_at.clone(),
+            planned,
         }
     }
 }
@@ -250,25 +253,7 @@ impl Index {
     pub(crate) fn push_capture(&mut self, captured: &CapturedExecutionReportInput) -> Result<()> {
         let input = &captured.input;
         let execution = &input.cycle.test_executions[0];
-        let case = execution.snapshot.case();
-        if let Some(index) = self.seen.get(&case.test_case_id).copied() {
-            self.cases[index].count += 1;
-            self.cases[index].latest_id = execution.test_execution_id.clone();
-            self.cases[index].status = execution.status.clone();
-        } else {
-            self.cases.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
-            self.seen.insert(case.test_case_id.clone(), self.cases.len());
-            self.cases.push(Case {
-                count: 1,
-                first_template: self.templates.insert(case.test_case_template_id.clone()),
-                id: case.test_case_id.clone(),
-                template: case.test_case_template_id.clone(),
-                metadata: case.metadata.clone(),
-                parameters: case.parameters.clone(),
-                latest_id: execution.test_execution_id.clone(),
-                status: execution.status.clone(),
-            });
-        }
+        self.push_case(execution, false)?;
         self.samples.try_reserve_exact(input.telemetry.len()).map_err(|source| Error::Operation(source.to_string()))?;
         for (sample, value) in input.telemetry.iter().enumerate() {
             self.samples.push(Sample {
@@ -302,11 +287,44 @@ impl Index {
                 at: item.observed_at.clone(),
             });
         }
-        self.executions.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
-        self.executions.push(Member::new(execution, &input.generated_at));
+        self.push_execution(execution, &input.generated_at, false)?;
         self.counts.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
         self.counts.push([input.artifact_links.len(), input.records.len(), crate::report::document::document_warnings(input).count()]);
         self.members += 1;
+        Ok(())
+    }
+    // A Planned Member Is A Cycle Row With Its Parameters And No Captured Evidence.
+    pub(crate) fn push_planned(&mut self, execution: &TestExecution, generated_at: &Timestamp) -> Result<()> {
+        self.push_case(execution, true)?;
+        self.push_execution(execution, generated_at, true)
+    }
+    fn push_case(&mut self, execution: &TestExecution, planned: bool) -> Result<()> {
+        let case = execution.snapshot.case();
+        if let Some(index) = self.seen.get(&case.test_case_id).copied() {
+            self.cases[index].count += 1;
+            self.cases[index].latest_id = execution.test_execution_id.clone();
+            self.cases[index].status = execution.status.clone();
+            self.cases[index].planned = planned;
+            return Ok(());
+        }
+        self.cases.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
+        self.seen.insert(case.test_case_id.clone(), self.cases.len());
+        self.cases.push(Case {
+            count: 1,
+            first_template: self.templates.insert(case.test_case_template_id.clone()),
+            id: case.test_case_id.clone(),
+            template: case.test_case_template_id.clone(),
+            metadata: case.metadata.clone(),
+            parameters: case.parameters.clone(),
+            latest_id: execution.test_execution_id.clone(),
+            status: execution.status.clone(),
+            planned,
+        });
+        Ok(())
+    }
+    fn push_execution(&mut self, execution: &TestExecution, generated_at: &Timestamp, planned: bool) -> Result<()> {
+        self.executions.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
+        self.executions.push(Member::new(execution, generated_at, planned));
         Ok(())
     }
     pub(crate) fn sort(&mut self) {
