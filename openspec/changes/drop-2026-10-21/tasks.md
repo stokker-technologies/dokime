@@ -36,8 +36,8 @@
 - [x] 19. Persist a visible destination cycle indicator and switcher. Proof: `native-desktop.mjs / active-cycle`; `cycle/nominal.test.ts / Active Containers Persist`.
 - [x] 20. Verify README CLI reference against actual commands and shipped examples. Proof: `CLI help audit` (37 built command paths); `test_remote_examples.py` (8 tests); shipped shell command/flag audit.
 - [x] 21. Complete seal/report persistence improvements and measure materialization. Proof: `domains::documents::reports` (5 tests), `domains::execution::storage::execution_save_sealing`; `report_materializes_execution/{0.5s,2s}/{1,2,4}` (10 samples each).
-- [ ] 22. Verify initial plot acknowledgement/keepalive, concurrency and waiting state.
-- [ ] 23. Show finalization immediately and preserve subsecond duration values.
+- [x] 22. Verify initial plot acknowledgement/keepalive, concurrency and waiting state. Proof: `grpc::plots::tests::keepalive_ordering`, `pending_frame_names_the_plot`; `plots::sealed_window_all`, `plot_points_admission`, `batched_stream_queries`; `plots/nominal.test.ts / Waiting For Data`.
+- [x] 23. Show finalization immediately and preserve subsecond duration values. Proof: `cycle/nominal.test.ts / Execution Controls`; `execution/nominal.test.ts / Duration Formatting, Step Durations`; `domains::execution::storage::execution_save_sealing`.
 - [ ] 24. Remove continue-after-failure, share viewer settings and prevent duplicate continuation.
 - [ ] 25. Harmonize suite/template labels.
 - [ ] 26. Verify active-cycle picker and shell destination behavior.
