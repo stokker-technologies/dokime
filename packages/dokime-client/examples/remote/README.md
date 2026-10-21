@@ -205,10 +205,12 @@ state, powers it off and reads zero volts. Optional response files contain the
 five replies. This manual device is separate from each execution's simulation;
 manual commands are not logged as execution evidence.
 
-`control-test` materializes cases, appends independent attempts to a new cycle,
-then runs them sequentially. Its default configuration produces two attempts
-of eight pulse samples each. It prints live records and samples, waits for the
-durable outcomes and final listener drain, and downloads `execution-1.zip`,
+`control-test` checks evidence destinations, materializes one case, appends two
+independent attempts to a new cycle, then spells out each run and export in order.
+Its default configuration produces two attempts of eight pulse samples each.
+The client waits for the durable outcomes and final listener drain; Python
+prints the returned records and samples after each run, while the CLI prints them
+live. The script downloads `execution-1.zip`,
 `execution-2.zip` and `cycle.zip` into `test-evidence/`.
 
 `control-prompt` creates a separate confirmation attempt, starts it without

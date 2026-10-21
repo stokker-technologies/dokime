@@ -514,7 +514,7 @@ it cannot reliably cover connection setup or gaps between commands. A lost
 Create reply leaves the cycle identity unknown and requires manual inspection.
 
 The [Remote CLI Workflows](packages/dokime-client/examples/remote/cli/README.md) include
-device, test and confirmation scripts for POSIX shell, PowerShell 7.3+ and
+linear device, test and confirmation exercises for POSIX shell, PowerShell 7.3+ and
 Command Prompt. Edit their connection, execution, observation and file globals,
 then run without arguments. Their names, grouping and meanings match the
 [Python examples](packages/dokime-client/examples/remote/python/control-test.py).
