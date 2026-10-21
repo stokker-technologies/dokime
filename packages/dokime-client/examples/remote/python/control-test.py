@@ -58,18 +58,17 @@ OVERWRITE = False
 # === Public Functions === #
 
 
-async def print_record(record: Record) -> None:
-    print(f"Record: {record.type} #{record.sequence}", flush=True)
-
-
-async def print_sample(sample: Sample) -> None:
-    print(f"Sample: {sample.stream} #{sample.sequence} {sample.values}", flush=True)
-
-
 async def run() -> int:
-    if EXECUTION_COUNT < 1 or WAIT_SECONDS <= 0:
-        raise ValueError("execution count and wait deadline must be positive")
+    # The Story Spells Out Two Attempts; Keep One To Study A Single Run.
+    if EXECUTION_COUNT not in (1, 2) or WAIT_SECONDS <= 0:
+        raise ValueError("EXECUTION_COUNT must be 1 or 2 and WAIT_SECONDS must be positive")
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    if (OUTPUT_DIRECTORY / "execution-1.zip").exists() and not OVERWRITE:
+        raise FileExistsError("execution-1.zip exists; choose another output directory or enable OVERWRITE")
+    if EXECUTION_COUNT == 2 and (OUTPUT_DIRECTORY / "execution-2.zip").exists() and not OVERWRITE:
+        raise FileExistsError("execution-2.zip exists; choose another output directory or enable OVERWRITE")
+    if (OUTPUT_DIRECTORY / "cycle.zip").exists() and not OVERWRITE:
+        raise FileExistsError("cycle.zip exists; choose another output directory or enable OVERWRITE")
 
     async with DokimeClient(ENDPOINT, ca_certificate=CA_CERTIFICATE, key_file=KEY_FILE, env_file=ENV_FILE) as client:
         cycle: Cycle | None = None
@@ -77,60 +76,96 @@ async def run() -> int:
         exported: set[str] = set()
         destination: Path | None = None
         try:
-            # Materialize Cases And Construct Independent Attempts
+            # Materialize One Immutable Case; Each Execution Gets Its Own UUID.
             template = await client.template(TEMPLATE)
-            cases = await template.materialize(parameters={"sample_count": SAMPLE_COUNT})
-            executions = []
-            for test_case in cases * EXECUTION_COUNT:
-                executions.append(Execution(test_case))
+            (test_case,) = await template.materialize(parameters={"sample_count": SAMPLE_COUNT})
+            first = Execution(test_case)
+            second = Execution(test_case)
 
-            # Reserve Evidence Destinations Before Starting Any Device Work
-            filenames = [f"execution-{index}.zip" for index in range(1, len(executions) + 1)] + ["cycle.zip"]
-            for name in filenames:
-                path = OUTPUT_DIRECTORY / name
-                if path.exists() and not OVERWRITE:
-                    raise FileExistsError(f"{path} exists; choose another output directory or enable OVERWRITE")
-
-            # Create The Cycle And Append Without Starting
+            # Append Both Attempts Without Starting Hardware.
             cycle = await client.create_cycle(label=CYCLE_LABEL, continue_automatically=False)
             print(f"Cycle: {cycle.id}", flush=True)
-            for selected in executions:
-                print(f"Execution: {selected.id}", flush=True)
-            await cycle.append(executions)
-
-            # Run Sequentially, Drain Callbacks And Save Each Bundle
+            print(f"Execution: {first.id}", flush=True)
+            if EXECUTION_COUNT == 2:
+                print(f"Execution: {second.id}", flush=True)
+                await cycle.append([first, second])
+            else:
+                await cycle.append([first])
             successful = True
-            for index, execution in enumerate(executions, start=1):
-                destination = OUTPUT_DIRECTORY / f"execution-{index}.zip"
-                records_by_type: Counter[str] = Counter()
-                samples_by_stream: Counter[str] = Counter()
 
-                async def record_received(record: Record, counts: Counter[str] = records_by_type) -> None:
-                    counts[record.type] += 1
-                    await print_record(record)
+            # Run Attempt 1; The Client Waits For Its Saved Outcome And Drains Observations.
+            execution = first
+            destination = OUTPUT_DIRECTORY / "execution-1.zip"
+            records: asyncio.Queue[Record] = asyncio.Queue()
+            samples: asyncio.Queue[Sample] = asyncio.Queue()
+            outcome = await first.run(
+                record_types=RECORD_TYPES,
+                streams=STREAMS,
+                on_record=records.put,
+                on_sample=samples.put,
+                timeout=WAIT_SECONDS,
+            )
 
-                async def sample_received(sample: Sample, counts: Counter[str] = samples_by_stream) -> None:
-                    counts[sample.stream] += 1
-                    await print_sample(sample)
+            # Print The Returned Observations In Order Within Each Reader.
+            records_by_type: Counter[str] = Counter()
+            samples_by_stream: Counter[str] = Counter()
+            for _ in range(records.qsize()):
+                record = records.get_nowait()
+                records_by_type[record.type] += 1
+                print(f"Record: {record.type} #{record.sequence}", flush=True)
+            for _ in range(samples.qsize()):
+                sample = samples.get_nowait()
+                samples_by_stream[sample.stream] += 1
+                print(f"Sample: {sample.stream} #{sample.sequence} {sample.values}", flush=True)
+            print(f"Saved Outcome: {outcome.status} Execution: {first.id}", flush=True)
+            drained = {
+                "execution_id": first.id,
+                "status": outcome.status,
+                "records_by_type": dict(records_by_type),
+                "samples_by_stream": dict(samples_by_stream),
+            }
+            print("Drained Evidence:", json.dumps(drained, sort_keys=True), flush=True)
+            successful = successful and outcome.status == "passed"
+            saved = await first.export(OUTPUT_DIRECTORY / "execution-1.zip", overwrite=OVERWRITE)
+            exported.add(first.id)
+            print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
 
-                outcome = await execution.run(
+            if EXECUTION_COUNT == 2:
+                # Run Attempt 2; The Client Waits For Its Saved Outcome And Drains Observations.
+                execution = second
+                destination = OUTPUT_DIRECTORY / "execution-2.zip"
+                records = asyncio.Queue()
+                samples = asyncio.Queue()
+                outcome = await second.run(
                     record_types=RECORD_TYPES,
                     streams=STREAMS,
-                    on_record=record_received,
-                    on_sample=sample_received,
+                    on_record=records.put,
+                    on_sample=samples.put,
                     timeout=WAIT_SECONDS,
                 )
-                print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
+
+                # Print The Returned Observations In Order Within Each Reader.
+                records_by_type = Counter()
+                samples_by_stream = Counter()
+                for _ in range(records.qsize()):
+                    record = records.get_nowait()
+                    records_by_type[record.type] += 1
+                    print(f"Record: {record.type} #{record.sequence}", flush=True)
+                for _ in range(samples.qsize()):
+                    sample = samples.get_nowait()
+                    samples_by_stream[sample.stream] += 1
+                    print(f"Sample: {sample.stream} #{sample.sequence} {sample.values}", flush=True)
+                print(f"Saved Outcome: {outcome.status} Execution: {second.id}", flush=True)
                 drained = {
-                    "execution_id": execution.id,
+                    "execution_id": second.id,
                     "status": outcome.status,
                     "records_by_type": dict(records_by_type),
                     "samples_by_stream": dict(samples_by_stream),
                 }
                 print("Drained Evidence:", json.dumps(drained, sort_keys=True), flush=True)
                 successful = successful and outcome.status == "passed"
-                saved = await execution.export(destination, overwrite=OVERWRITE)
-                exported.add(execution.id)
+                saved = await second.export(OUTPUT_DIRECTORY / "execution-2.zip", overwrite=OVERWRITE)
+                exported.add(second.id)
                 print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
 
             # Seal The Container And Save Its Complete Bundle
@@ -158,20 +193,17 @@ async def run() -> int:
             return 130
 
 
-def main() -> int:
-    try:
-        return asyncio.run(run())
-    except KeyboardInterrupt:
-        print("Recovery Was Not Confirmed; Retain The Printed Cycle And Execution Identities", file=sys.stderr)
-        return 130
-    except (DokimeError, OSError, ValueError, TimeoutError, ExceptionGroup) as error:
-        print(f"Workflow Incomplete: {error}. Inspect The Printed Identities Before Resubmitting", file=sys.stderr)
-        return 1
-
-
 # === Private Functions === #
 
 # === Entry Point === #
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        status = asyncio.run(run())
+        raise SystemExit(status)
+    except KeyboardInterrupt:
+        print("Recovery Was Not Confirmed; Retain The Printed Cycle And Execution Identities", file=sys.stderr)
+        raise SystemExit(130)
+    except (DokimeError, OSError, ValueError, TimeoutError, ExceptionGroup) as error:
+        print(f"Workflow Incomplete: {error}. Inspect The Printed Identities Before Resubmitting", file=sys.stderr)
+        raise SystemExit(1)

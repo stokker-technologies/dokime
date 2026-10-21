@@ -2,6 +2,8 @@
 
 ## Crate Layout And Catalogs
 
+- [x] 77. Rewrite the remote examples as linear learning exercises with explicit repeated calls.
+
 - [x] 76. Reject duplicate suite, template and record stream identifiers across a plugin's catalogs at compile time.
 
 - [x] 75. Make dokime the entry library and dokime-cli the CLI; migrate shipped interfaces, plugins, fixtures, templates, tooling and guidance.

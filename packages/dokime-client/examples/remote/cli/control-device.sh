@@ -11,34 +11,50 @@ ENV_FILE=""
 # Response Files
 RESPONSE_DIRECTORY=""
 
-# Connect With The Explicit Parameters
-cli() {
-    set -- "$@" --endpoint "$ENDPOINT"
-    if [ -n "$CA_CERTIFICATE" ]; then set -- "$@" --ca "$CA_CERTIFICATE"; fi
-    if [ -n "$KEY_FILE" ]; then set -- "$@" --key-file "$KEY_FILE"; fi
-    if [ -n "$ENV_FILE" ]; then set -- "$@" --env-file "$ENV_FILE"; fi
-    dokime "$@"
-}
+# Select Credentials Once; Each Call Below Shows Its Remote Command.
+set -- --endpoint "$ENDPOINT"
+if [ -n "$CA_CERTIFICATE" ]; then set -- "$@" --ca "$CA_CERTIFICATE"; fi
+if [ -n "$KEY_FILE" ]; then set -- "$@" --key-file "$KEY_FILE"; fi
+if [ -n "$ENV_FILE" ]; then set -- "$@" --env-file "$ENV_FILE"; fi
 
-# Reserve All Response Files Before Device Work
+# Reserve Reply Files Before Connecting; Manual Control Is Not Execution Evidence.
 if [ -n "$RESPONSE_DIRECTORY" ]; then mkdir "$RESPONSE_DIRECTORY"; fi
 trap 'printf "Stopped Waiting; Read Device State Before Resending An Unconfirmed Command\n" >&2; exit 130' INT TERM
 
-# Discover Device Operations
-cli operation list
+# Discover The Operation IDs Offered By The Installed Plugin.
+dokime operation list "$@"
 
-# Read, Power On And Observe
-call() {
-    if [ -n "$RESPONSE_DIRECTORY" ]; then
-        cli operation call "$1" --json "$2" --output "$RESPONSE_DIRECTORY/$3.json"
-    else
-        cli operation call "$1" --json "$2"
-    fi
-}
-call obc.device.read '{}' before
-call obc.device.set_power '{"enabled":true}' power-on
-call obc.device.read '{}' running
+# Read The Manual Device Before Changing Power.
+if [ -n "$RESPONSE_DIRECTORY" ]; then
+    dokime operation call obc.device.read --json '{}' --output "$RESPONSE_DIRECTORY/before.json" "$@"
+else
+    dokime operation call obc.device.read --json '{}' "$@"
+fi
 
-# Power Off And Verify
-call obc.device.set_power '{"enabled":false}' power-off
-call obc.device.read '{}' after
+# Enable The Manual Device.
+if [ -n "$RESPONSE_DIRECTORY" ]; then
+    dokime operation call obc.device.set_power --json '{"enabled":true}' --output "$RESPONSE_DIRECTORY/power-on.json" "$@"
+else
+    dokime operation call obc.device.set_power --json '{"enabled":true}' "$@"
+fi
+
+# Read Back The Powered State: 230 V RMS.
+if [ -n "$RESPONSE_DIRECTORY" ]; then
+    dokime operation call obc.device.read --json '{}' --output "$RESPONSE_DIRECTORY/running.json" "$@"
+else
+    dokime operation call obc.device.read --json '{}' "$@"
+fi
+
+# Disable The Manual Device.
+if [ -n "$RESPONSE_DIRECTORY" ]; then
+    dokime operation call obc.device.set_power --json '{"enabled":false}' --output "$RESPONSE_DIRECTORY/power-off.json" "$@"
+else
+    dokime operation call obc.device.set_power --json '{"enabled":false}' "$@"
+fi
+
+# Read Back The Powered-Off State: Zero Volts.
+if [ -n "$RESPONSE_DIRECTORY" ]; then
+    dokime operation call obc.device.read --json '{}' --output "$RESPONSE_DIRECTORY/after.json" "$@"
+else
+    dokime operation call obc.device.read --json '{}' "$@"
+fi

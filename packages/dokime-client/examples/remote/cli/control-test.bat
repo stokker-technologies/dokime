@@ -37,122 +37,91 @@ set "Export="
 if "%OVERWRITE%"=="true" set "Export=--overwrite"
 if not exist "%OUTPUT_DIRECTORY%\recovery" mkdir "%OUTPUT_DIRECTORY%\recovery"
 if errorlevel 1 goto Failed
+if not "%EXECUTION_COUNT%"=="1" if not "%EXECUTION_COUNT%"=="2" exit /b 2
 
-if %EXECUTION_COUNT% LSS 1 exit /b 2
-
-rem Materialize Cases Before Constructing Independent Attempts
-dokime plan materialize --template "%TEMPLATE%" --parameters-json "{\"sample_count\":%SAMPLE_COUNT%}" --id-only %CONNECTION% > "%OUTPUT_DIRECTORY%\cases.id"
-if errorlevel 1 goto Failed
-set "Index=0"
-for /l %%A in (1,1,%EXECUTION_COUNT%) do (
-    for /f "usebackq delims=" %%C in ("%OUTPUT_DIRECTORY%\cases.id") do (
-        call :PlannedDestination
-        if errorlevel 1 goto Failed
-    )
+rem Preserve Each Evidence Destination Before Device Work
+if not "%OVERWRITE%"=="true" if exist "%OUTPUT_DIRECTORY%\execution-1.zip" (
+    echo Evidence File Exists: %OUTPUT_DIRECTORY%\execution-1.zip 1>&2
+    exit /b 2
 )
-if "%Index%"=="0" goto Failed
-call :Preflight "%OUTPUT_DIRECTORY%\cycle.zip"
+if "%EXECUTION_COUNT%"=="2" if not "%OVERWRITE%"=="true" if exist "%OUTPUT_DIRECTORY%\execution-2.zip" (
+    echo Evidence File Exists: %OUTPUT_DIRECTORY%\execution-2.zip 1>&2
+    exit /b 2
+)
+if not "%OVERWRITE%"=="true" if exist "%OUTPUT_DIRECTORY%\cycle.zip" (
+    echo Evidence File Exists: %OUTPUT_DIRECTORY%\cycle.zip 1>&2
+    exit /b 2
+)
+
+rem Materialize One Immutable Case; Each Attempt Reuses Its Case ID
+dokime plan materialize --template "%TEMPLATE%" --parameters-json "{\"sample_count\":%SAMPLE_COUNT%}" --id-only ^
+    %CONNECTION% > "%OUTPUT_DIRECTORY%\cases.id"
 if errorlevel 1 goto Failed
+set "CaseId="
+set "ExtraCase="
+(
+    set /p "CaseId="
+    set /p "ExtraCase="
+) < "%OUTPUT_DIRECTORY%\cases.id"
+if not defined CaseId goto Failed
+if defined ExtraCase goto Failed
+echo Case: %CaseId%
 
 dokime cycle create --label "%CYCLE_LABEL%" --id-only %CONNECTION% > "%OUTPUT_DIRECTORY%\cycle.id"
 if errorlevel 1 goto Failed
 set /p "CycleId=" < "%OUTPUT_DIRECTORY%\cycle.id"
 if not defined CycleId goto Failed
 echo Cycle: %CycleId%
-set RECOVERY=--cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery"
 
-rem Append Every Attempt Without Starting
-type nul > "%OUTPUT_DIRECTORY%\executions.id"
-for /l %%A in (1,1,%EXECUTION_COUNT%) do (
-    for /f "usebackq delims=" %%C in ("%OUTPUT_DIRECTORY%\cases.id") do (
-        call :Append %%C
-        if errorlevel 1 goto Failed
-    )
-)
+rem Append Both Attempts Without Starting Hardware
+dokime cycle append "%CycleId%" --case-id "%CaseId%" --id-only --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION% > "%OUTPUT_DIRECTORY%\execution-1.id"
+if errorlevel 1 goto Failed
+set "FirstId="
+set /p "FirstId=" < "%OUTPUT_DIRECTORY%\execution-1.id"
+if not defined FirstId goto Failed
+echo Execution: %FirstId%
+if "%EXECUTION_COUNT%"=="1" goto RunFirst
+dokime cycle append "%CycleId%" --case-id "%CaseId%" --id-only --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION% > "%OUTPUT_DIRECTORY%\execution-2.id"
+if errorlevel 1 goto Failed
+set "SecondId="
+set /p "SecondId=" < "%OUTPUT_DIRECTORY%\execution-2.id"
+if not defined SecondId goto Failed
+echo Execution: %SecondId%
 
-rem Run Sequentially And Drain Requested Listeners Before Export
-set "Observation="
-set "FilterRemainder=%RECORD_TYPES%"
+:RunFirst
+rem Run Attempt 1; Wait For The Saved Outcome And Listener Drain
+set "ExecutionId=%FirstId%"
+dokime execution run "%FirstId%" --records --samples --record-type %RECORD_TYPES% --stream %STREAMS% ^
+    --wait-seconds %WAIT_SECONDS% --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+if errorlevel 2 goto Failed
+if errorlevel 1 set "Result=1"
+dokime execution export "%FirstId%" --output "%OUTPUT_DIRECTORY%\execution-1.zip" %Export% --cancel-on-interrupt ^
+    --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+if errorlevel 1 goto Failed
 
-:RecordFilters
-if not defined FilterRemainder goto StreamFilters
-set "NextFilters="
-for /f "tokens=2,*" %%F in ("x %FilterRemainder%") do (
-    call :RecordFilter %%F
-    set "NextFilters=%%G"
-)
-set "FilterRemainder=%NextFilters%"
-goto RecordFilters
+if "%EXECUTION_COUNT%"=="1" goto SealCycle
+rem Run Attempt 2; Wait For The Saved Outcome And Listener Drain
+set "ExecutionId=%SecondId%"
+dokime execution run "%SecondId%" --records --samples --record-type %RECORD_TYPES% --stream %STREAMS% ^
+    --wait-seconds %WAIT_SECONDS% --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+if errorlevel 2 goto Failed
+if errorlevel 1 set "Result=1"
+dokime execution export "%SecondId%" --output "%OUTPUT_DIRECTORY%\execution-2.zip" %Export% --cancel-on-interrupt ^
+    --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+if errorlevel 1 goto Failed
 
-:StreamFilters
-set "FilterRemainder=%STREAMS%"
 
-:NextStreamFilter
-if not defined FilterRemainder goto RunExecutions
-set "NextFilters="
-for /f "tokens=2,*" %%F in ("x %FilterRemainder%") do (
-    call :StreamFilter %%F
-    set "NextFilters=%%G"
-)
-set "FilterRemainder=%NextFilters%"
-goto NextStreamFilter
-
-:RunExecutions
-set "Index=0"
-for /f "usebackq delims=" %%E in ("%OUTPUT_DIRECTORY%\executions.id") do (
-    call :Run %%E
-    if errorlevel 2 goto Failed
-)
-
-rem Seal The Container And Save Its Complete Bundle
+:SealCycle
+rem Seal The Cycle And Download All Members Into cycle.zip
 dokime cycle seal "%CycleId%" %CONNECTION%
 if errorlevel 1 goto Failed
 dokime cycle export "%CycleId%" --output "%OUTPUT_DIRECTORY%\cycle.zip" %Export% %CONNECTION%
 if errorlevel 1 goto Failed
 exit /b %Result%
-
-:Preflight
-if "%OVERWRITE%"=="true" exit /b 0
-if exist "%~1" (
-    echo Evidence File Exists: %~1 1>&2
-    exit /b 2
-)
-exit /b 0
-
-:PlannedDestination
-set /a Index+=1
-call :Preflight "%OUTPUT_DIRECTORY%\execution-%Index%.zip"
-exit /b %ERRORLEVEL%
-
-:Append
-dokime cycle append "%CycleId%" --case-id "%1" --id-only %RECOVERY% %CONNECTION% > "%OUTPUT_DIRECTORY%\selected.id"
-if errorlevel 1 exit /b 3
-set "ExecutionId="
-set /p "ExecutionId=" < "%OUTPUT_DIRECTORY%\selected.id"
-if not defined ExecutionId exit /b 3
-echo Execution: %ExecutionId%
-rem A Trailing Digit Before ">>" Would Name A Handle; Parentheses Keep It In The Text
-(echo %ExecutionId%)>> "%OUTPUT_DIRECTORY%\executions.id"
-exit /b 0
-
-:RecordFilter
-set Observation=%Observation% --record-type %1
-exit /b 0
-
-:StreamFilter
-set Observation=%Observation% --stream %1
-exit /b 0
-
-:Run
-set "ExecutionId=%1"
-set /a Index+=1
-dokime execution run "%ExecutionId%" --records --samples --wait-seconds %WAIT_SECONDS% %Observation% --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
-if errorlevel 2 exit /b 3
-if errorlevel 1 set "Result=1"
-dokime execution export "%ExecutionId%" --output "%OUTPUT_DIRECTORY%\execution-%Index%.zip" %Export% %RECOVERY% %CONNECTION%
-if errorlevel 1 exit /b 3
-exit /b 0
-
 
 :Failed
 set "Status=%ERRORLEVEL%"

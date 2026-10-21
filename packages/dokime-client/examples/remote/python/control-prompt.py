@@ -57,10 +57,10 @@ async def run() -> int:
     if ANSWER not in ("yes", "no") or WAIT_SECONDS <= 0:
         raise ValueError("ANSWER must be yes or no and WAIT_SECONDS must be positive")
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    for name in ("execution.zip", "cycle.zip"):
-        path = OUTPUT_DIRECTORY / name
-        if path.exists() and not OVERWRITE:
-            raise FileExistsError(f"{path} exists; choose another output directory or enable OVERWRITE")
+    if (OUTPUT_DIRECTORY / "execution.zip").exists() and not OVERWRITE:
+        raise FileExistsError("execution.zip exists; choose another output directory or enable OVERWRITE")
+    if (OUTPUT_DIRECTORY / "cycle.zip").exists() and not OVERWRITE:
+        raise FileExistsError("cycle.zip exists; choose another output directory or enable OVERWRITE")
 
     async with DokimeClient(ENDPOINT, ca_certificate=CA_CERTIFICATE, key_file=KEY_FILE, env_file=ENV_FILE) as client:
         cycle: Cycle | None = None
@@ -79,6 +79,8 @@ async def run() -> int:
 
             # Start Without Blocking So The Script Can Answer Its Prompt
             await execution.start()
+            # Python Lists Pending Prompts But Offers No Blocking Next-Prompt Call.
+            # This One Bounded Wait Ends At A Prompt, A Saved Seal Or The Deadline.
             async with asyncio.timeout(WAIT_SECONDS):
                 while True:
                     async with aclosing(execution.pending_prompts()) as reader:
@@ -94,12 +96,14 @@ async def run() -> int:
 
             # Inspect And Answer This Exact Execution's Prompt Once
             print(f"Prompt: {prompt.id} Execution: {execution.id}", flush=True)
-            print("Question:", json.dumps(await execution.prompt(prompt.id)), flush=True)
+            question = await execution.prompt(prompt.id)
+            print("Question:", json.dumps(question), flush=True)
             print(f"Answer: {ANSWER}", flush=True)
             await execution.respond(prompt.id, action=ANSWER)
             outcome = await execution.wait(timeout=WAIT_SECONDS)
             print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
-            await execution.export(OUTPUT_DIRECTORY / "execution.zip", overwrite=OVERWRITE)
+            saved = await execution.export(OUTPUT_DIRECTORY / "execution.zip", overwrite=OVERWRITE)
+            print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
             exported = True
             await cycle.seal()
             saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
@@ -125,20 +129,17 @@ async def run() -> int:
             return 130
 
 
-def main() -> int:
-    try:
-        return asyncio.run(run())
-    except KeyboardInterrupt:
-        print("Recovery Was Not Confirmed; Retain The Printed Cycle And Execution Identities", file=sys.stderr)
-        return 130
-    except (DokimeError, OSError, ValueError, TimeoutError) as error:
-        print(f"Workflow Incomplete: {error}. Inspect The Printed Execution And Prompt Before Resubmitting", file=sys.stderr)
-        return 1
-
-
 # === Private Functions === #
 
 # === Entry Point === #
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        status = asyncio.run(run())
+        raise SystemExit(status)
+    except KeyboardInterrupt:
+        print("Recovery Was Not Confirmed; Retain The Printed Cycle And Execution Identities", file=sys.stderr)
+        raise SystemExit(130)
+    except (DokimeError, OSError, ValueError, TimeoutError) as error:
+        print(f"Workflow Incomplete: {error}. Inspect The Printed Execution And Prompt Before Resubmitting", file=sys.stderr)
+        raise SystemExit(1)

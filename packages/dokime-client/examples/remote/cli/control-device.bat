@@ -17,39 +17,61 @@ if defined CA_CERTIFICATE set CONNECTION=%CONNECTION% --ca "%CA_CERTIFICATE%"
 if defined KEY_FILE set CONNECTION=%CONNECTION% --key-file "%KEY_FILE%"
 if defined ENV_FILE set CONNECTION=%CONNECTION% --env-file "%ENV_FILE%"
 
-rem Reserve All Response Files Before Device Work
-if not defined RESPONSE_DIRECTORY goto Discover
-if exist "%RESPONSE_DIRECTORY%" (
-    echo Response Directory Exists; Existing Data Is Preserved 1>&2
-    exit /b 2
+rem Reserve Reply Files Before Connecting; Manual Control Is Not Execution Evidence
+if defined RESPONSE_DIRECTORY (
+    if exist "%RESPONSE_DIRECTORY%" (
+        echo Response Directory Exists; Existing Data Is Preserved 1>&2
+        exit /b 2
+    )
+    mkdir "%RESPONSE_DIRECTORY%"
+    if errorlevel 1 goto Failed
 )
-mkdir "%RESPONSE_DIRECTORY%"
-if errorlevel 1 goto Failed
 
-:Discover
+rem Discover The Operation IDs Offered By The Installed Plugin
 dokime operation list %CONNECTION%
 if errorlevel 1 goto Failed
 
-rem Read, Power On, Observe, Power Off And Verify
-call :Operation obc.device.read "{}" before
-if errorlevel 1 goto Failed
-call :Operation obc.device.set_power "{\"enabled\":true}" power-on
-if errorlevel 1 goto Failed
-call :Operation obc.device.read "{}" running
-if errorlevel 1 goto Failed
-call :Operation obc.device.set_power "{\"enabled\":false}" power-off
-if errorlevel 1 goto Failed
-call :Operation obc.device.read "{}" after
-if errorlevel 1 goto Failed
-exit /b 0
-
-:Operation
+rem Read The Manual Device Before Changing Power
 if defined RESPONSE_DIRECTORY (
-    dokime operation call %1 --json %2 --output "%RESPONSE_DIRECTORY%\%3.json" %CONNECTION%
+    dokime operation call obc.device.read --json "{}" --output "%RESPONSE_DIRECTORY%\before.json" %CONNECTION%
 ) else (
-    dokime operation call %1 --json %2 %CONNECTION%
+    dokime operation call obc.device.read --json "{}" %CONNECTION%
 )
-exit /b %ERRORLEVEL%
+if errorlevel 1 goto Failed
+
+rem Enable The Manual Device
+if defined RESPONSE_DIRECTORY (
+    dokime operation call obc.device.set_power --json "{\"enabled\":true}" --output "%RESPONSE_DIRECTORY%\power-on.json" %CONNECTION%
+) else (
+    dokime operation call obc.device.set_power --json "{\"enabled\":true}" %CONNECTION%
+)
+if errorlevel 1 goto Failed
+
+rem Read Back The Powered State: 230 V RMS
+if defined RESPONSE_DIRECTORY (
+    dokime operation call obc.device.read --json "{}" --output "%RESPONSE_DIRECTORY%\running.json" %CONNECTION%
+) else (
+    dokime operation call obc.device.read --json "{}" %CONNECTION%
+)
+if errorlevel 1 goto Failed
+
+rem Disable The Manual Device
+if defined RESPONSE_DIRECTORY (
+    dokime operation call obc.device.set_power --json "{\"enabled\":false}" --output "%RESPONSE_DIRECTORY%\power-off.json" %CONNECTION%
+) else (
+    dokime operation call obc.device.set_power --json "{\"enabled\":false}" %CONNECTION%
+)
+if errorlevel 1 goto Failed
+
+rem Read Back The Powered-Off State: Zero Volts
+if defined RESPONSE_DIRECTORY (
+    dokime operation call obc.device.read --json "{}" --output "%RESPONSE_DIRECTORY%\after.json" %CONNECTION%
+) else (
+    dokime operation call obc.device.read --json "{}" %CONNECTION%
+)
+if errorlevel 1 goto Failed
+
+exit /b 0
 
 :Failed
 echo Device Workflow Incomplete; Read Device State Before Resending. No Command Was Retried 1>&2

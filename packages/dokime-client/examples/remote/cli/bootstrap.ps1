@@ -20,33 +20,6 @@ $INSTALL_DOKIME = $true
 # https://mise.jdx.dev/shell-setup.html
 # https://github.com/cargo-bins/cargo-binstall
 
-function Add-UserPath([string]$Directory) {
-    # Preserve Unexpanded Variables And Existing User Entries
-    $EnvironmentKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
-    try {
-        $RawPath = [string]$EnvironmentKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-        $Entries = @($RawPath -split ';' | Where-Object { $_ })
-        $Present = @($Entries | ForEach-Object {
-            [Environment]::ExpandEnvironmentVariables($_).Trim('"').TrimEnd('\')
-        })
-        if ($Present -notcontains $Directory.TrimEnd('\')) {
-            $NewPath = (@($Directory) + $Entries) -join ';'
-            $EnvironmentKey.SetValue('Path', $NewPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
-        }
-    } finally {
-        $EnvironmentKey.Dispose()
-    }
-    $ProcessEntries = @($env:Path -split ';' | Where-Object {
-        $_ -and $_.Trim('"').TrimEnd('\') -ne $Directory.TrimEnd('\')
-    })
-    $env:Path = (@($Directory) + $ProcessEntries) -join ';'
-}
-
-function Invoke-Mise([string[]]$Arguments) {
-    & $script:Mise @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "mise Failed With Exit Code $LASTEXITCODE" }
-}
-
 # Check Native Windows Prerequisites Before Changing Anything
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
     throw 'Run This Bootstrap On Windows; Use The Official Tool Installers On Other Platforms'
@@ -68,10 +41,9 @@ switch ($Architecture) {
 # Use TLS 1.2 On Older Windows PowerShell Images Without Changing Certificate Trust
 $PreviousProtocol = [Net.ServicePointManager]::SecurityProtocol
 $PreviousProgress = $ProgressPreference
-$PreviousInstallerEnvironment = @{}
-foreach ($Name in @('MISE_INSTALL_PATH', 'MISE_INSTALL_MODIFY_PATH', 'MISE_INSTALL_SHIMS_PATH')) {
-    $PreviousInstallerEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
-}
+$PreviousInstallPath = [Environment]::GetEnvironmentVariable('MISE_INSTALL_PATH', 'Process')
+$PreviousModifyPath = [Environment]::GetEnvironmentVariable('MISE_INSTALL_MODIFY_PATH', 'Process')
+$PreviousShimsPath = [Environment]::GetEnvironmentVariable('MISE_INSTALL_SHIMS_PATH', 'Process')
 $Work = Join-Path ([IO.Path]::GetTempPath()) ('dokime-bootstrap-' + [guid]::NewGuid().ToString('N'))
 
 try {
@@ -100,7 +72,25 @@ try {
     if ($LASTEXITCODE -ne 0 -or $InstalledVersion -ne $POWERSHELL_VERSION) {
         throw "PowerShell Did Not Start As $POWERSHELL_VERSION; Check OS Prerequisites And $PowerShellDirectory"
     }
-    Add-UserPath $PowerShellDirectory
+    # Preserve Unexpanded Variables And Existing User Entries
+    $EnvironmentKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
+    try {
+        $RawPath = [string]$EnvironmentKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        $Entries = @($RawPath -split ';' | Where-Object { $_ })
+        $Present = @($Entries | ForEach-Object {
+            [Environment]::ExpandEnvironmentVariables($_).Trim('"').TrimEnd('\')
+        })
+        if ($Present -notcontains $PowerShellDirectory.TrimEnd('\')) {
+            $NewPath = (@($PowerShellDirectory) + $Entries) -join ';'
+            $EnvironmentKey.SetValue('Path', $NewPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+        }
+    } finally {
+        $EnvironmentKey.Dispose()
+    }
+    $ProcessEntries = @($env:Path -split ';' | Where-Object {
+        $_ -and $_.Trim('"').TrimEnd('\') -ne $PowerShellDirectory.TrimEnd('\')
+    })
+    $env:Path = (@($PowerShellDirectory) + $ProcessEntries) -join ';'
 
     # The Official Windows Installer Verifies Mise And Installs Its Companion Shim
     # It Supports PowerShell 5.1, Preserves User PATH And Broadcasts Environment Changes.
@@ -116,9 +106,12 @@ try {
     # Install uv Globally Without Trusting Or Installing Any Local Project
     Push-Location -LiteralPath $env:USERPROFILE
     try {
-        Invoke-Mise -Arguments @('use', '-g', 'uv')
-        Invoke-Mise -Arguments @('reshim')
-        Invoke-Mise -Arguments @('exec', 'uv', '--', 'uv', '--version')
+        & $Mise use -g uv
+        if ($LASTEXITCODE -ne 0) { throw "mise Returned Exit Code $LASTEXITCODE" }
+        & $Mise reshim
+        if ($LASTEXITCODE -ne 0) { throw "mise Returned Exit Code $LASTEXITCODE" }
+        & $Mise exec uv -- uv --version
+        if ($LASTEXITCODE -ne 0) { throw "mise Returned Exit Code $LASTEXITCODE" }
     } finally {
         Pop-Location
     }
@@ -142,11 +135,10 @@ try {
         $Dokime = Join-Path $CliBin 'dokime.exe'
         Push-Location -LiteralPath $env:USERPROFILE
         try {
-            Invoke-Mise -Arguments @('use', '-g', 'aqua:cargo-bins/cargo-binstall')
-            $InstallCli = @('exec', 'aqua:cargo-bins/cargo-binstall', '--', 'cargo-binstall',
-                'dokime', '--version', "=$DOKIME_VERSION", '--root', $CliRoot, '--no-confirm',
-                '--strategies', 'crate-meta-data', '--disable-strategies', 'quick-install,compile')
-            Invoke-Mise -Arguments $InstallCli
+            & $Mise use -g aqua:cargo-bins/cargo-binstall
+            if ($LASTEXITCODE -ne 0) { throw "mise Returned Exit Code $LASTEXITCODE" }
+            & $Mise exec aqua:cargo-bins/cargo-binstall -- cargo-binstall dokime --version "=$DOKIME_VERSION" --root $CliRoot --no-confirm --strategies crate-meta-data --disable-strategies 'quick-install,compile'
+            if ($LASTEXITCODE -ne 0) { throw "mise Returned Exit Code $LASTEXITCODE" }
         } catch {
             throw "Dokime $DOKIME_VERSION Installation Failed: $_. Its Registry Package And Official Windows Asset Must Be Published; No Source Build Was Attempted."
         } finally {
@@ -155,7 +147,25 @@ try {
         if (-not (Test-Path -LiteralPath $Dokime -PathType Leaf)) { throw 'cargo-binstall Did Not Install dokime.exe' }
         & $Dokime --version
         if ($LASTEXITCODE -ne 0) { throw 'The Installed Dokime CLI Did Not Start' }
-        Add-UserPath $CliBin
+        # Preserve Unexpanded Variables And Existing User Entries
+        $EnvironmentKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
+        try {
+            $RawPath = [string]$EnvironmentKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            $Entries = @($RawPath -split ';' | Where-Object { $_ })
+            $Present = @($Entries | ForEach-Object {
+                [Environment]::ExpandEnvironmentVariables($_).Trim('"').TrimEnd('\')
+            })
+            if ($Present -notcontains $CliBin.TrimEnd('\')) {
+                $NewPath = (@($CliBin) + $Entries) -join ';'
+                $EnvironmentKey.SetValue('Path', $NewPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+            }
+        } finally {
+            $EnvironmentKey.Dispose()
+        }
+        $ProcessEntries = @($env:Path -split ';' | Where-Object {
+            $_ -and $_.Trim('"').TrimEnd('\') -ne $CliBin.TrimEnd('\')
+        })
+        $env:Path = (@($CliBin) + $ProcessEntries) -join ';'
     }
 
     # Notify Desktop Applications Even When Mise Was Already Installed
@@ -190,8 +200,8 @@ public static extern System.IntPtr SendMessageTimeout(System.IntPtr window, uint
 } finally {
     [Net.ServicePointManager]::SecurityProtocol = $PreviousProtocol
     $ProgressPreference = $PreviousProgress
-    foreach ($Name in $PreviousInstallerEnvironment.Keys) {
-        [Environment]::SetEnvironmentVariable($Name, $PreviousInstallerEnvironment[$Name], 'Process')
-    }
+    [Environment]::SetEnvironmentVariable('MISE_INSTALL_PATH', $PreviousInstallPath, 'Process')
+    [Environment]::SetEnvironmentVariable('MISE_INSTALL_MODIFY_PATH', $PreviousModifyPath, 'Process')
+    [Environment]::SetEnvironmentVariable('MISE_INSTALL_SHIMS_PATH', $PreviousShimsPath, 'Process')
     if (Test-Path -LiteralPath $Work) { Remove-Item -LiteralPath $Work -Recurse -Force }
 }

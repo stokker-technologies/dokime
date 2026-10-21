@@ -1,7 +1,7 @@
 # Run The Remote Examples With Python
 
 Use the three editable Python scripts to control the simulated OBC, run two
-attempts with live listeners, and answer a confirmation. Begin with the
+attempts with record and sample readers, and answer a confirmation. Begin with the
 [shared walkthrough](../README.md) to obtain the matching candidate artifacts,
 install/configure the host plugin and transfer the public certificate and key.
 
@@ -116,22 +116,27 @@ OUTPUT_DIRECTORY = Path("test-evidence")
 OVERWRITE = False
 ```
 
-`EXECUTION_COUNT` repeats every materialized case that many times.
+The story spells out two attempts of one materialized case. Set `EXECUTION_COUNT`
+to `1` to study only the first attempt or leave it at `2`; add explicit calls
+and evidence destinations to teach additional attempts.
 `WAIT_SECONDS` is each Run's positive deadline. Filters are case-sensitive
 whole-identifier globs: `*` matches any sequence, `?` one character, and
 alternatives in a tuple are OR. An empty tuple observes all records or streams
-for its supplied callback. Filters affect observation, not captured evidence.
+for its supplied reader. Filters affect observation, not captured evidence.
 
 ```sh
 uv run --locked control-test.py
 ```
 
-The first phase materializes immutable cases, constructs attempts with stable
-execution UUIDs, checks evidence destinations, creates a cycle and appends all
-attempts without starting hardware. The second phase awaits each
-`execution.run(...)` sequentially. It prints `Record:` and `Sample:` callbacks,
-then `Saved Outcome:` and `Drained Evidence:` after the durable result and
-completion of both listeners.
+Read the script from top to bottom. Its only coroutine, `run()`, lets Python
+await the client calls; there are no workflow helpers. It checks evidence
+destinations, materializes one immutable case, constructs two attempts with
+separate execution UUIDs, creates a cycle and appends without starting hardware.
+The first explicit `first.run(...)` blocks until the saved outcome and reader
+drain. Client callbacks put records and samples into queues; the script then
+prints each returned item, `Saved Outcome:` and `Drained Evidence:`, and saves
+that attempt. The second explicit `second.run(...)` repeats those calls for the
+other attempt. Data-reading loops print observations, never dispatch steps.
 
 The script saves `test-evidence/execution-1.zip`,
 `test-evidence/execution-2.zip` and the explicitly sealed
@@ -157,8 +162,9 @@ uv run --locked control-prompt.py
 
 The script materializes one case with `require_confirmation=True`, appends
 its attempt and explicitly Starts it without blocking. It waits for that
-execution's pending prompt, prints its question and answers the exact prompt
-UUID once. Sampling begins after confirmation. It then waits, saves
+execution's pending prompt through one commented, bounded wait because the
+Python client only lists pending prompts. It prints its question and answers
+the exact prompt UUID once. Sampling begins after confirmation. It then waits, saves
 `prompt-evidence/execution.zip`, seals its cycle and saves
 `prompt-evidence/cycle.zip`.
 
@@ -176,7 +182,7 @@ shared server remain available. Retain printed UUIDs if the connection fails or
 recovery is interrupted. A lost cycle-creation reply leaves its identity
 unknown; inspect the host before creating another container.
 
-A normal client disconnect, callback failure or local timeout does not itself
+A normal client disconnect, reader failure or local timeout does not itself
 stop admitted work. The example reports failure without retrying mutations.
 To fetch evidence again, attach to the retained execution/cycle and export;
 do not rerun the example to recover a download.
@@ -196,7 +202,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
 | `server.pem` or `remote.key` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A credential/certificate is refused | Follow the shared [connection troubleshooting](../README.md#troubleshooting), including process-key precedence and certificate identity. |
-| There is no live callback output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
+| There is no record or sample output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
 | Previous evidence blocks a run | Select a new output directory or explicitly enable overwrite; preserve prior bundles. |
 
 For a different institute plugin, follow its installation/settings instructions

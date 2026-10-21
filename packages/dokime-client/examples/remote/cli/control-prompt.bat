@@ -32,73 +32,80 @@ set "Export="
 if "%OVERWRITE%"=="true" set "Export=--overwrite"
 if not exist "%OUTPUT_DIRECTORY%\recovery" mkdir "%OUTPUT_DIRECTORY%\recovery"
 if errorlevel 1 goto Failed
-
 if not "%ANSWER%"=="yes" if not "%ANSWER%"=="no" exit /b 2
-call :Preflight "%OUTPUT_DIRECTORY%\execution.zip"
-if errorlevel 1 goto Failed
-call :Preflight "%OUTPUT_DIRECTORY%\cycle.zip"
-if errorlevel 1 goto Failed
 
-rem Materialize The Confirmation Case And Append Its Attempt
-dokime plan materialize --template "%TEMPLATE%" --parameters-json "{\"require_confirmation\":true}" --id-only %CONNECTION% > "%OUTPUT_DIRECTORY%\cases.id"
+rem Preserve Each Evidence Destination Before Device Work
+if not "%OVERWRITE%"=="true" if exist "%OUTPUT_DIRECTORY%\execution.zip" (
+    echo Evidence File Exists: %OUTPUT_DIRECTORY%\execution.zip 1>&2
+    exit /b 2
+)
+if not "%OVERWRITE%"=="true" if exist "%OUTPUT_DIRECTORY%\cycle.zip" (
+    echo Evidence File Exists: %OUTPUT_DIRECTORY%\cycle.zip 1>&2
+    exit /b 2
+)
+
+rem Materialize One Immutable Case; Each Attempt Reuses Its Case ID
+dokime plan materialize --template "%TEMPLATE%" --parameters-json "{\"require_confirmation\":true}" --id-only ^
+    %CONNECTION% > "%OUTPUT_DIRECTORY%\cases.id"
 if errorlevel 1 goto Failed
 set "CaseId="
-set "CaseCount=0"
-for /f "usebackq delims=" %%C in ("%OUTPUT_DIRECTORY%\cases.id") do call :SelectCase %%C
-if not "%CaseCount%"=="1" goto Failed
+set "ExtraCase="
+(
+    set /p "CaseId="
+    set /p "ExtraCase="
+) < "%OUTPUT_DIRECTORY%\cases.id"
+if not defined CaseId goto Failed
+if defined ExtraCase goto Failed
+echo Case: %CaseId%
 
 dokime cycle create --label "%CYCLE_LABEL%" --id-only %CONNECTION% > "%OUTPUT_DIRECTORY%\cycle.id"
 if errorlevel 1 goto Failed
 set /p "CycleId=" < "%OUTPUT_DIRECTORY%\cycle.id"
 if not defined CycleId goto Failed
 echo Cycle: %CycleId%
-set RECOVERY=--cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery"
 
-dokime cycle append "%CycleId%" --case-id "%CaseId%" --id-only %RECOVERY% %CONNECTION% > "%OUTPUT_DIRECTORY%\execution.id"
+rem Append One Attempt; Its UUID Scopes The Prompt And Evidence
+dokime cycle append "%CycleId%" --case-id "%CaseId%" --id-only --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION% > "%OUTPUT_DIRECTORY%\execution.id"
 if errorlevel 1 goto Failed
+set "ExecutionId="
 set /p "ExecutionId=" < "%OUTPUT_DIRECTORY%\execution.id"
 if not defined ExecutionId goto Failed
 echo Execution: %ExecutionId%
 
-rem Start Without Blocking So The Script Can Answer Its Prompt
-dokime execution start "%ExecutionId%" %RECOVERY% %CONNECTION%
+rem Start Without Blocking, Then Wait For This Execution's Next Prompt
+dokime execution start "%ExecutionId%" --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
 if errorlevel 1 goto Failed
-dokime execution prompt next "%ExecutionId%" --wait-seconds %WAIT_SECONDS% --id-only --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION% > "%OUTPUT_DIRECTORY%\prompt.id"
+dokime execution prompt next "%ExecutionId%" --wait-seconds %WAIT_SECONDS% --id-only --cancel-on-interrupt ^
+    --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION% > "%OUTPUT_DIRECTORY%\prompt.id"
 if errorlevel 1 goto Failed
 set "PromptId="
 set /p "PromptId=" < "%OUTPUT_DIRECTORY%\prompt.id"
 if not defined PromptId goto Failed
 echo Prompt: %PromptId% Execution: %ExecutionId%
-dokime execution prompt show "%ExecutionId%" "%PromptId%" %RECOVERY% %CONNECTION%
-if errorlevel 1 goto Failed
-dokime execution prompt answer "%ExecutionId%" "%PromptId%" --action "%ANSWER%" %RECOVERY% %CONNECTION%
-if errorlevel 1 goto Failed
-dokime execution wait "%ExecutionId%" --wait-seconds %WAIT_SECONDS% --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
-if errorlevel 2 goto Failed
-if errorlevel 1 set "Result=1"
-dokime execution export "%ExecutionId%" --output "%OUTPUT_DIRECTORY%\execution.zip" %Export% %RECOVERY% %CONNECTION%
+dokime execution prompt show "%ExecutionId%" "%PromptId%" --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
 if errorlevel 1 goto Failed
 
-rem Seal The Container And Save Its Complete Bundle
+rem Answer Once; Wait For The Durable Result Before Downloading
+dokime execution prompt answer "%ExecutionId%" "%PromptId%" --action "%ANSWER%" --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+if errorlevel 1 goto Failed
+dokime execution wait "%ExecutionId%" --wait-seconds %WAIT_SECONDS% --cancel-on-interrupt --owned-cycle "%CycleId%" ^
+    --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+if errorlevel 2 goto Failed
+if errorlevel 1 set "Result=1"
+dokime execution export "%ExecutionId%" --output "%OUTPUT_DIRECTORY%\execution.zip" %Export% --cancel-on-interrupt ^
+    --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+if errorlevel 1 goto Failed
+
+rem Seal The Cycle And Download All Members Into cycle.zip
 dokime cycle seal "%CycleId%" %CONNECTION%
 if errorlevel 1 goto Failed
 dokime cycle export "%CycleId%" --output "%OUTPUT_DIRECTORY%\cycle.zip" %Export% %CONNECTION%
 if errorlevel 1 goto Failed
 exit /b %Result%
-
-:Preflight
-if "%OVERWRITE%"=="true" exit /b 0
-if exist "%~1" (
-    echo Evidence File Exists: %~1 1>&2
-    exit /b 2
-)
-exit /b 0
-
-:SelectCase
-set "CaseId=%1"
-set /a CaseCount+=1
-exit /b 0
-
 
 :Failed
 set "Status=%ERRORLEVEL%"

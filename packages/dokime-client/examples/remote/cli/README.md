@@ -33,8 +33,9 @@ Or start the same setup from built-in Windows PowerShell:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\bootstrap.ps1
 ```
 
-Both use `bootstrap.ps1`. It installs PowerShell **7.6.7** from Microsoft's
-official self-contained ZIP, verifies its pinned SHA-256, installs mise using
+Both use `bootstrap.ps1`, whose installation commands and PATH updates are
+written in order without helper functions. It installs PowerShell **7.6.7** from
+Microsoft's official self-contained ZIP, verifies its pinned SHA-256, installs mise using
 its official Windows installer, then runs `mise use -g uv` and `mise reshim`.
 With `INSTALL_DOKIME` enabled, it installs cargo-binstall through
 `mise use -g aqua:cargo-bins/cargo-binstall`, then invokes the standalone
@@ -131,11 +132,10 @@ precedence over an explicitly selected `ENV_FILE`. Copy
 and clear `KEY_FILE`. No parent-directory search occurs. Keep credentials private.
 
 POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
-`set "NAME=value"`. POSIX filter lists are space-separated strings, PowerShell
-filter lists are arrays, and batch lists contain individually quoted values.
-Quote globs such as `obc.run.*`. Each matching filter is an alternative; empty
-filter lists observe all records or streams.
-`EXECUTION_COUNT` repeats every materialized case that many times;
+`set "NAME=value"`. Each test call shows one record filter and
+one stream filter. Quote globs such as `obc.run.*`; add explicit
+`--record-type` or `--stream` arguments to teach additional selections.
+`EXECUTION_COUNT` selects one or both of the two explicitly written attempts;
 `SAMPLE_COUNT` controls samples per pulse. `WAIT_SECONDS` is the positive
 deadline for each blocking wait. `ANSWER` is `yes` or `no`.
 
@@ -180,8 +180,12 @@ Ctrl+C stops waiting; read state before resending an unconfirmed command.
 
 ## Run Independent Attempts
 
-The test script materializes `TEMPLATE` with `sample_count`, checks all output
-destinations, creates a cycle and appends every attempt without starting work.
+Read each script from top to bottom: every `dokime` call shows the command
+and arguments, with no workflow functions or loops over steps. The test script
+checks output destinations, materializes one `TEMPLATE` case with `sample_count`,
+creates a cycle and explicitly appends two independent attempts without starting
+work. Use `EXECUTION_COUNT=1` to study only the first attempt; larger stories
+need additional explicit calls and evidence destinations.
 It prints exact cycle and execution UUIDs captured with `--id-only`.
 PowerShell reads append and prompt UUIDs from a temporary `--id-file` instead,
 because it terminates a captured native command on Ctrl+C before its recovery
@@ -193,7 +197,7 @@ attempt until the user explicitly re-enables the policy.
 Each execution then runs sequentially through the blocking `execution run`
 command. Record and stream filters select live observations; the command returns
 after the durable outcome and final listener drain. The script saves
-`execution-1.zip`, `execution-2.zip` and further numbered bundles as configured.
+`execution-1.zip` and `execution-2.zip` after their respective runs.
 It seals its cycle explicitly and saves `cycle.zip`. A nonpassing durable outcome
 still saves evidence and returns nonzero. A failed connection stops the workflow
 without retrying mutations.
@@ -201,8 +205,9 @@ without retrying mutations.
 ## Answer One Confirmation
 
 The prompt script materializes one case with `require_confirmation=true`,
-appends its attempt and explicitly calls `execution start`. It discovers,
-displays and answers the pending confirmation using both the execution and
+appends its attempt and explicitly calls `execution start`. The blocking
+`execution prompt next` discovers its prompt; the following calls display and
+answer the pending confirmation using both the execution and
 prompt UUIDs. Sampling begins after confirmation. The script waits for the
 durable result, saves `execution.zip`, seals its cycle and saves `cycle.zip`.
 
