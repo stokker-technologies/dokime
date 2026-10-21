@@ -1,8 +1,8 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:8641afde9322a62c3734b68cdc6988f8cc065ee9529960293aff40ba4b8f8f3f
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:49356b1bfa0c89deeee55d141473e7d71b3f3877d02dc95a7390ccc53cfb24a7
 Package / Rust (linux):
   stage: Package
   tags:
-  - saas-linux-medium-amd64
+  - $STKR_RUNNER_LINUX_LARGE
   timeout: 30 minutes
   needs:
   - job: Check / Repository
@@ -15,6 +15,9 @@ Package / Rust (linux):
     artifacts: false
   - job: Build / Product (linux)
     artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - tar --zstd -xf "target/ci/build-product-$PROFILE-linux.tar.zst"
   - mise run package:rust --profile $PROFILE
@@ -46,10 +49,17 @@ Package / Rust (linux):
   variables:
     MISE_ENABLE_TOOLS: >-
       python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+  before_script:
+  - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - mise trust --yes
+  - mise install --yes
 Package / Rust (windows):
   stage: Package
   tags:
-  - saas-windows-medium-amd64
+  - $STKR_RUNNER_WINDOWS_LARGE
   timeout: 30 minutes
   needs:
   - job: Check / Repository
@@ -62,6 +72,9 @@ Package / Rust (windows):
     artifacts: false
   - job: Build / Product (windows)
     artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - tar --zstd -xf "target/ci/build-product-$env:PROFILE-windows.tar.zst"
   - mise run package:rust --profile $env:PROFILE
@@ -78,6 +91,10 @@ Package / Rust (windows):
     default:
     - interruptible
   before_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
   - mise trust --yes
   - mise install --yes
   cache:

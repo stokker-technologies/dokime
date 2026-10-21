@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:2a6d7187bba4701a3f7d5f467e8d0f09cf7924c8bf52602fce2089dc98aacace
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:f7f2864c737c9571fff406721adc97cf2e86c11a79d6e27a52cdceef80382a8b
 # ***
 #
 # {{package}}
@@ -71,7 +71,7 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         "--workspace",
         "--tests",
         "--cargo-profile",
-        profile,
+        "release-tests" if profile == "release" else profile,
         "--cargo-message-format",
         "json",
         "--archive-file",

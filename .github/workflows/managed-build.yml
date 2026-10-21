@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build.yml; sha256:00b36989b1ef14c1542b25ac4688bd0e9b19c1483dea4139a54ffee0e9f79394
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build.yml; sha256:fcffa477e116bdbeb374651b5700f0355a7c032068c3fb2d334a3f3373a88e39
 name: Build
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   build_python_any:
     name: Product / Python (any)
-    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
+    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
     timeout-minutes: ${{ fromJSON(inputs.budgets).build_python_any }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -34,8 +34,12 @@ jobs:
         path: |-
           .cache/cargo/registry/
           .cache/cargo/git/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-main
     - name: Cache / Pnpm
       id: pnpm
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -43,15 +47,21 @@ jobs:
         path: .cache/pnpm/
         key: >-
           ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-${{ github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-main
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-main
     - name: Resolve Mise Directory
       if: runner.os == 'Windows'
       shell: pwsh
@@ -62,18 +72,24 @@ jobs:
       if: runner.os != 'Windows'
       shell: bash
       run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    - name: Cache / Tools
       id: tools
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ${{ env.MISE_DATA_DIR }}
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-main
     - run: sudo apt-get update
     - run: >-
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils rpm
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+        xvfb xdotool desktop-file-utils xdg-utils rpm
+    - run: Xvfb :99 -screen 0 1920x1080x24 -noreset >/dev/null 2>&1 &
     - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
@@ -106,21 +122,24 @@ jobs:
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.pnpm.outputs.cache-hit != 'true'
       with:
         path: .cache/pnpm/
         key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
         key: ${{ steps.uv.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.tools.outputs.cache-hit != 'true'
       with:
         path: ${{ env.MISE_DATA_DIR }}
@@ -130,7 +149,9 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      SCCACHE_GHA_RW_MODE: >-
+        ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
       SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,npm:@fission-ai/openspec,taplo,protoc,aqua:cargo-bins/cargo-binstall

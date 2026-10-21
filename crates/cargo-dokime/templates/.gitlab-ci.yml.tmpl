@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:b57b713d7ba372da7acb26b449143ee3ba68abb474a2e653a1722cf4004e93e4
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:c489503d249b90412a038a25538deff6d8c6b41126dbfd421d13128a0e1c7a01
 stages:
 - Check
 - Build
@@ -25,6 +25,12 @@ variables:
   CARGO_HOME: $CI_PROJECT_DIR/.cache/cargo
   npm_config_store_dir: $CI_PROJECT_DIR/.cache/pnpm
   UV_CACHE_DIR: $CI_PROJECT_DIR/.cache/uv
+  STKR_RUNNER_LINUX_SMALL: saas-linux-medium-amd64
+  STKR_RUNNER_LINUX_LARGE: saas-linux-medium-amd64
+  STKR_RUNNER_WINDOWS_SMALL: saas-windows-medium-amd64
+  STKR_RUNNER_WINDOWS_LARGE: saas-windows-medium-amd64
+  STKR_RUNNER_NIGHTLY_SMALL: saas-linux-medium-amd64
+  STKR_RUNNER_NIGHTLY_COVERAGE: saas-linux-medium-amd64
 workflow:
   rules:
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/

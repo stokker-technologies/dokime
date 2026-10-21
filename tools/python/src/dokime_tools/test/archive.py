@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:437776439fcf7e9e8fb6bd5586da35f4a177de78f35d82380c9323846926d26c
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:23c0aac11ff3c2e8b6e384f714af4b90271dcb4e76abadcc56a3c5a34b622e96
 # ***
 #
 # Dokime
@@ -71,7 +71,7 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         "--workspace",
         "--tests",
         "--cargo-profile",
-        profile,
+        "release-tests" if profile == "release" else profile,
         "--cargo-message-format",
         "json",
         "--archive-file",

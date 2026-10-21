@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check.yml; sha256:a3b82606f194d97cd173399038e52615861f3b53bf8ec61bf795d5bd80297d51
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check.yml; sha256:174e5c6459c60bb0a059e6135a056bf627bbe0e04936b60e173c523f6bd5e3db
 name: Check
 "on":
   workflow_call:
@@ -32,8 +32,12 @@ jobs:
         path: |-
           .cache/cargo/registry/
           .cache/cargo/git/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-main
     - name: Resolve Mise Directory
       if: runner.os == 'Windows'
       shell: pwsh
@@ -44,11 +48,17 @@ jobs:
       if: runner.os != 'Windows'
       shell: bash
       run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    - name: Cache / Tools
       id: tools
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ${{ env.MISE_DATA_DIR }}
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-main
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         RUSTC_WRAPPER: ""
@@ -62,7 +72,8 @@ jobs:
     - run: mise run check:repository
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.tools.outputs.cache-hit != 'true'
       with:
         path: ${{ env.MISE_DATA_DIR }}
@@ -72,10 +83,12 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      SCCACHE_GHA_RW_MODE: >-
+        ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
       SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
-        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo,git-cliff
+        python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo,git-cliff
   check_python:
     name: Python
     runs-on: ${{ fromJSON(inputs.runners).linux.small }}
@@ -91,8 +104,12 @@ jobs:
         path: |-
           .cache/cargo/registry/
           .cache/cargo/git/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-main
     - name: Resolve Mise Directory
       if: runner.os == 'Windows'
       shell: pwsh
@@ -103,11 +120,17 @@ jobs:
       if: runner.os != 'Windows'
       shell: bash
       run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    - name: Cache / Tools
       id: tools
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ${{ env.MISE_DATA_DIR }}
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-main
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         RUSTC_WRAPPER: ""
@@ -121,7 +144,8 @@ jobs:
     - run: mise run check:python
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.tools.outputs.cache-hit != 'true'
       with:
         path: ${{ env.MISE_DATA_DIR }}
@@ -131,7 +155,9 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      SCCACHE_GHA_RW_MODE: >-
+        ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
       SCCACHE_GHA_VERSION: linux
       MISE_ENABLE_TOOLS: >-
         python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff

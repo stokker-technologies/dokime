@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/package/run.py; sha256:78aff504d840d9c5ff2ab9b847ba3532d76df4863bc7ddea325a04bdf7b70551
+# Rendered by stkr project update from templates/python/package/run.py; sha256:a77a49bc835069dada03cea90986e6287ca2131628750bec6ac9b6389a2b32a7
 # ***
 #
 # Dokime
@@ -14,6 +14,7 @@
 # Standard Library Imports
 import argparse
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -182,7 +183,9 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
             with temporary.directory() as install:
                 if installer == "mise":
                     tool = f"{provider}:{repository}[asset_pattern={item['output']},bin={item['binary']}]@{version}"
-                    subprocess.run(["mise", "install-into", tool, str(install)], cwd=install, check=True)
+                    environment = os.environ.copy()
+                    environment.pop("MISE_ENABLE_TOOLS", None)
+                    subprocess.run(["mise", "install-into", tool, str(install)], cwd=install, env=environment, check=True)
                     matches = list(install.rglob(item["binary"]))
                 else:
                     command = [

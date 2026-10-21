@@ -1,10 +1,13 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/build.yml; sha256:dcac402c34d3cb34e5868f39ca5d0e6160d1259314625d308d9d3858fba92b84
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/build.yml; sha256:1d75cb84318383fd612a311c0e36bc94e52c6e86e7765bbcc9d07628399e6518
 Build / Product (linux):
   stage: Build
   tags:
-  - saas-linux-medium-amd64
+  - $STKR_RUNNER_LINUX_LARGE
   timeout: 30 minutes
-  needs: []
+  needs:
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - >-
     mise exec -- uv run --locked --project tools/python python -m
@@ -81,20 +84,34 @@ Build / Product (linux):
     - target/ci/build-product-$PROFILE-linux.tar.zst
   after_script:
   - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - >-
     mise exec -- uv run --locked --project tools/python python -m
     project_tools.test.prune prune
   variables:
     COMPILER_CACHE_POLICY: pull
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+  before_script:
+  - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - mise trust --yes
+  - mise install --yes
 Build / Tests (linux):
   stage: Build
   tags:
-  - saas-linux-medium-amd64
+  - $STKR_RUNNER_LINUX_LARGE
   timeout: 30 minutes
   needs:
   - job: Build / Product (linux)
     artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - >-
     mise exec -- uv run --locked --project tools/python python -m
@@ -172,18 +189,32 @@ Build / Tests (linux):
     - target/ci/build-tests-$PROFILE-linux.tar.zst
   after_script:
   - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - >-
     mise exec -- uv run --locked --project tools/python python -m
     project_tools.test.prune prune
   variables:
     COMPILER_CACHE_POLICY: pull
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+  before_script:
+  - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - mise trust --yes
+  - mise install --yes
 Build / Product (windows):
   stage: Build
   tags:
-  - saas-windows-medium-amd64
+  - $STKR_RUNNER_WINDOWS_LARGE
   timeout: 30 minutes
-  needs: []
+  needs:
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - >-
     mise exec -- uv run --locked --project tools/python python -m
@@ -259,24 +290,35 @@ Build / Product (windows):
     default:
     - interruptible
   before_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
   - mise trust --yes
   - mise install --yes
   after_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
   - >-
     mise exec -- uv run --locked --project tools/python python -m
     project_tools.test.prune prune
   variables:
     COMPILER_CACHE_POLICY: pull
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
 Build / Tests (windows):
   stage: Build
   tags:
-  - saas-windows-medium-amd64
+  - $STKR_RUNNER_WINDOWS_LARGE
   timeout: 30 minutes
   needs:
   - job: Build / Product (windows)
     artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - >-
     mise exec -- uv run --locked --project tools/python python -m
@@ -353,13 +395,21 @@ Build / Tests (windows):
     default:
     - interruptible
   before_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
   - mise trust --yes
   - mise install --yes
   after_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
   - >-
     mise exec -- uv run --locked --project tools/python python -m
     project_tools.test.prune prune
   variables:
     COMPILER_CACHE_POLICY: pull
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
