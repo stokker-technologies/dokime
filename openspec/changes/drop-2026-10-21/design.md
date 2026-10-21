@@ -92,3 +92,19 @@ Plugin release discovery uses a bounded version-1 JSON manifest with `package`, 
 ## Source Order
 
 Replace Organization Pack assets/generation/loading and lock its pure manifest/policy contracts. Replace the obsolete GitLab-only account/updater flow with origin-scoped authentication, provider resolution and exact-candidate verification/install; plugin releases stage through the existing host lifecycle.
+
+## Shared Secret Storage (absorbed from the shared-secret-storage change)
+
+## Shared Secret Storage Extension
+
+The host owns freely managed named secrets with stable names, labels and optional descriptions. All plugins can look up a shared name; missing, replaced or deleted names have clear future-lookup semantics, while already fetched copies cannot be revoked. Retain existing declared-requirement preflight where available, without per-plugin ACLs or approval machinery. UI shows the connected target host, masked values and known usage without claiming exhaustive dynamic-use discovery or blocking deletion.
+
+Selected-secret export/import uses a password-encrypted authenticated format from an established library, bounded parsing, previewed conflicts and explicit replace/skip choices. Wrong passwords and tampering produce no writes. Import publishes the complete validated selection atomically; values stay in secure host storage and durable listing metadata contains no raw values. Secret operations, diagnostics, reports and evidence exports must remain redacted. Shared plugin names never expose app-owned OAuth/session tokens or release-signing keys.
+
+Rename Dokime-owned credential declarations, operations/IDs/catalogs, modules, fields, client surfaces, settings, FTP references, examples and errors to secret terminology; retain foreign/protocol-required names. Inventory existing persisted keys, preference bindings and consumers before migration, preserve stored values, and remove superseded internal paths. Any Harmos-owned naming defect is reported with an exact owner/file/line/change rather than renamed blindly. Source inventory spans model/credentials, domains/credentials, settings operations, runtime config/preferences/admission, server handlers, plugin/harness access, client credential persistence, GUI native authentication types and the new host Secret Storage card. Ownership is assigned before these edits; the project remains implementing through the combined extensions.
+
+Existing runtime keyring entries use service `dokime` and `<plugin_id>.<setting_id>` keys; adopt known preference and FTP references while preserving unknown physical entries. Remote connection, app OAuth and listener security stores remain separate. Shared catalog reads resolve immutable secure slots through one catalog snapshot; writes stage fresh slots before atomically publishing the complete catalog generation. Deletion removes future visibility before physical cleanup. Export/import must authenticate the complete bounded encrypted stream through EOF before preview or mutation. Live plugin lookup is asynchronous; declared requirement preflight remains separate. Correct execution preparation to resolve declared references from plugin preferences rather than test parameters, and redact secret-operation Debug/tracing explicitly. Human-approved secure-storage policy: require OS keyring storage for new shared-secret writes and imports; preserve existing plaintext LocalFile data for explicit secure adoption without deleting or rewriting it silently.
+
+## Source Order
+
+Implement shared-secret declarations, secure catalog/storage, preservation and encrypted-transfer operations before their server/client/UI consumers.
