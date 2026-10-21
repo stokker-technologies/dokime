@@ -35,6 +35,10 @@ proto = true
 
 # === Repository === #
 
+[tools]
+# Tauri updater verification checks the detached signatures with minisign.
+include = ["minisign"]
+
 [housekeeping]
 max_workspaces = 5
 
