@@ -99,8 +99,8 @@ windows = { workspace = true, features = ["Win32_System_Com"] }
 
 [dev-dependencies]
 # Local
-dokime = { workspace = true, features = ["host", "fft", "plugin"] }
-dokime-server = { version = "0.1.0", path = "../../dokime-server" }
+dokime = { path = "../../dokime", features = ["host", "fft", "plugin"] }
+dokime-server = { path = "../../dokime-server" }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
