@@ -19,6 +19,7 @@
 // Local Imports
 use super::*;
 use dokime_domain::model;
+use tracing_subscriber::layer::SubscriberExt;
 use {
     dokime_runtime::Identifier, dokime_runtime::Timestamp, dokime_runtime::Value, dokime_runtime::telemetry::TelemetryBatch,
     dokime_runtime::telemetry::TelemetrySample,
@@ -35,11 +36,46 @@ const STORED: u64 = 300;
 
 /* === Structs === */
 
+/// The plot ids of each batched stream query the watch logs, in order.
+#[derive(Clone, Default)]
+struct QueryLog(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl QueryLog {
+    fn take(&self) -> Vec<String> {
+        std::mem::take(&mut *self.0.lock().unwrap())
+    }
+}
+
+impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for QueryLog {
+    fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
+        struct Fields {
+            message: String,
+            plot_ids: Option<String>,
+        }
+        impl tracing::field::Visit for Fields {
+            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+                match field.name() {
+                    "message" => self.message = format!("{value:?}"),
+                    "plot_ids" => self.plot_ids = Some(format!("{value:?}")),
+                    _ => {}
+                }
+            }
+        }
+        let mut fields = Fields { message: String::new(), plot_ids: None };
+        event.record(&mut fields);
+        if fields.message == "plot stream query"
+            && let Some(plot_ids) = fields.plot_ids
+        {
+            self.0.lock().unwrap().push(plot_ids);
+        }
+    }
+}
 
 /* === Public Functions === */
 // A 10,000-point window is served; the 100,000-point cap is refused with
@@ -196,6 +232,55 @@ async fn sealed_window_all() {
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
         assert_eq!(served_points(&frame), STORED as usize + 1, "a sealed execution opens with its stored rows");
     }
+    drop(watch);
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A watch over several plots reads every plot whose stream advanced in one
+// query per tick, and leaves a plot on an idle stream unread.
+#[tokio::test]
+async fn batched_stream_queries() {
+    let queries = QueryLog::default();
+    let _subscriber = tracing::subscriber::set_default(tracing_subscriber::registry().with(queries.clone()));
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    support::register_fixture_progress_and_idle_execution(&handle, support::fixture_suite(&["passed"])).await;
+    let id = Identifier::new("fixture.progress").unwrap();
+    publish(&handle, &id, 0, 10).await;
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+
+    let progress = ["fixture.progress.a", "fixture.progress.b", "fixture.progress.c"];
+    let mut requests =
+        progress.map(|plot_id| model::plots::wire::PlotRequest { plot_id: Some(plot_id.into()), ..request(10_000) }).to_vec();
+    requests.push(model::plots::wire::PlotRequest {
+        plot_id: Some("fixture.idle.plot".into()),
+        stream: "fixture.idle".into(),
+        ..request(10_000)
+    });
+    let mut watch = client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests }).await.unwrap().into_inner();
+    for _ in 0..4 {
+        let frame = data_frame(&mut watch).await;
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
+    }
+
+    // One Row On The Progress Stream Is One Batched Query Of Its Three Plots
+    publish(&handle, &id, 10, 1).await;
+    let mut appended = Vec::new();
+    for _ in 0..3 {
+        let frame = data_frame(&mut watch).await;
+        assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Append);
+        appended.push(frame.envelope.unwrap().plot_id);
+    }
+    appended.sort();
+    assert_eq!(appended, progress);
+    let logged = queries.take();
+    assert_eq!(logged.len(), 1, "one query per tick for every advanced plot: {logged:?}");
+    assert_eq!(logged[0], progress.join(","), "the idle plot is not queried");
+
     drop(watch);
     server.shutdown().await.unwrap();
     drop(handle);

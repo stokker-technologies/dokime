@@ -199,6 +199,17 @@ pub async fn register_fixture_progress_execution(runtime: &RuntimeHandle, suite:
     register_fixture_registration(runtime, fixture_progress_registration(suite)).await;
 }
 
+/// The progress fixture plus a second, idle stream of the same shape, so a
+/// plot can watch a stream that never receives rows.
+pub async fn register_fixture_progress_and_idle_execution(runtime: &RuntimeHandle, suite: TestSuite) {
+    let mut registration = fixture_progress_registration(suite);
+    let mut idle = fixture_progress_contract();
+    idle.stream = Identifier::new("fixture.idle").unwrap();
+    idle.metadata = metadata("fixture.idle", "Fixture Idle");
+    registration.telemetry_contracts.push(idle);
+    register_fixture_registration(runtime, registration).await;
+}
+
 pub fn fixture_suite(results: &[&str]) -> TestSuite {
     TestSuite {
         metadata: metadata("fixture.suite", "Fixture Suite"),
