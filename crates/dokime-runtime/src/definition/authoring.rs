@@ -160,6 +160,11 @@ pub trait DeclaredTemplate {
 }
 
 pub trait DeclaredSuite {
+    const ID: &'static str;
+
+    #[cfg(feature = "native")]
+    const TEMPLATE_IDENTIFIERS: &'static [crate::catalog::Node<&'static str>];
+
     #[cfg(feature = "native")]
     const OPERATIONS: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>];
 

@@ -74,6 +74,7 @@ An accessible directory with `All` or `New` arms immediately, even when empty an
 - Read captured ordinary settings with `ctx.setting::<T>("id")?`. Steps and runtime plugin contexts read declared secrets synchronously with `ctx.secret("id")?`; its redacted `Secret` exposes the value only through `.expose()`. Criteria have settings access but no secret accessor. Static catalog methods have neither runtime settings nor secret access.
 - Host startup loads dotenv and resolves declared owner-scoped references; do not copy the host environment into a plugin or read it when declaring catalogs.
 - Contracts are written by the declarations, not by hand: `#[dokime::record]` and `#[dokime::stream]` build a strict contract from the struct's fields, and naming the type on a template's attribute is what binds it to that template. The `declared`/`strict`/`for_template` constructors remain for the host's own catalogs and for tests about the contract shape itself.
+- Typed catalogs reject duplicate suite and template public identifiers across a plugin's suites and duplicate record or stream identifiers within each declared catalog at compile time, including nested catalogs; template UUID collisions remain checked at runtime because `DeclaredTemplate::template_id()` is not const.
 - The runtime installs a plugin's full contribution set atomically and rejects duplicate suite, template, record, and telemetry identifiers.
 
 

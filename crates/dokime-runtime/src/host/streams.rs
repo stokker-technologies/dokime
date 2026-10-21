@@ -176,7 +176,7 @@ mod tests {
                 let projected = row.into_row();
                 assert_eq!(projected.get(field), Some(&list.unwrap_or(Value::Null)));
                 assert_eq!(projected.get("timestamp"), Some(&timestamp));
-                #[cfg(feature = "native")]
+                #[cfg(feature = "storage")]
                 {
                     let mut stored = crate::storage::telemetry::decode_values(&validator, &bytes).expect("project stored host payload");
                     dokime_domain::model::telemetry::host::contracts::project_host_values(stream, &mut stored)

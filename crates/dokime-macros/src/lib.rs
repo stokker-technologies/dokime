@@ -93,7 +93,7 @@ pub fn observer(attribute: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn catalog(attribute: TokenStream, item: TokenStream) -> TokenStream {
-    facade::harmos_attribute("catalog", attribute.into(), item.into()).into()
+    catalog::catalog(attribute.into(), item.into()).into()
 }
 
 #[proc_macro_attribute]

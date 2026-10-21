@@ -21,6 +21,8 @@ pub(crate) mod catalog_lifecycle {
     struct CountedSuite;
 
     impl DeclaredSuite for CountedSuite {
+        const ID: &'static str = "counted";
+        const TEMPLATE_IDENTIFIERS: &'static [dokime_runtime::catalog::Node<&'static str>] = &[];
         const OPERATIONS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::harmos::operations::WireDeclaration>] = &[];
         const STREAMS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::catalog::Publication>] = &[];
 

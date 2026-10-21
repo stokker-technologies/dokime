@@ -89,6 +89,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     // step that files it, and reaches the registration through the same closed
     // template set the stream contracts do.
     let records = crate::catalog::argument(&arguments, "records")?;
+    let records_check = crate::catalog::assert_unique(&records, "RecordIdentifiers");
     let records = quote!(definition.record_contracts = <#records as #sdk::catalog::Catalog<#sdk::catalog::Records>>::ENTRIES
         .iter().map(|contract| contract()).collect(););
     let template_records = quote! {
@@ -120,6 +121,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         #block
 
         #identities
+        #records_check
 
         #[automatically_derived]
         impl #suite {
@@ -159,6 +161,10 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 
         #[automatically_derived]
         impl #sdk::definition::DeclaredSuite for #suite {
+            const ID: &'static str = #identifier;
+            const TEMPLATE_IDENTIFIERS: &'static [#sdk::catalog::Node<&'static str>] =
+                <#templates as #sdk::catalog::IdentifierCatalog<#sdk::catalog::TemplateIdentifierNodes>>::IDENTIFIERS;
+
             const OPERATIONS: &'static [#sdk::catalog::Node<#sdk::__harmos::operations::WireDeclaration>] =
                 &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateOperations>>::ENTRIES;
             const STREAMS: &'static [#sdk::catalog::Node<#sdk::catalog::Publication>] =

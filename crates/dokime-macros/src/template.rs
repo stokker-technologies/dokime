@@ -252,8 +252,11 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     };
     let phases = steps.iter().map(|step| &step.declaration);
     let streams = crate::catalog::argument(&arguments, "streams")?;
+    let streams_check = crate::catalog::assert_unique(&streams, "StreamIdentifiers");
+    let record_catalog = crate::catalog::argument(&arguments, "records")?;
+    let records_check = crate::catalog::assert_unique(&record_catalog, "RecordIdentifiers");
     let contracts = stream_contracts(&observers, &streams);
-    let records = record_contracts(&crate::catalog::argument(&arguments, "records")?, &observers);
+    let records = record_contracts(&record_catalog, &observers);
     let graceful_stop = arguments.value("graceful_stop");
     let requested = crate::catalog::argument(&arguments, "subscribes")?;
     let duplicate_holds = refuse_double_holds(&block, &requested)?;
@@ -323,6 +326,9 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 
     Ok(quote! {
         #block
+
+        #streams_check
+        #records_check
 
         #[automatically_derived]
         impl #template {

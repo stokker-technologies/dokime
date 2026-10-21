@@ -179,6 +179,10 @@ fn same_path(left: &std::path::Path, right: &str) -> bool {
 }
 
 fn compile(source: &str) -> (std::process::Output, std::path::PathBuf) {
+    compile_configured(source, None)
+}
+
+fn compile_configured(source: &str, configuration: Option<&str>) -> (std::process::Output, std::path::PathBuf) {
     let sdk = sdk_artifact();
     let dependencies = sdk.library.parent().unwrap();
     assert!(dependencies.is_dir(), "Cargo dependency directory missing");
@@ -186,6 +190,9 @@ fn compile(source: &str) -> (std::process::Output, std::path::PathBuf) {
     std::fs::create_dir_all(&directory).unwrap();
     let output = directory.join(std::path::Path::new(source).file_stem().unwrap());
     let mut rustc = std::process::Command::new("rustc");
+    if let Some(configuration) = configuration {
+        rustc.args(["--cfg", configuration]);
+    }
     // These inspection fixtures have empty mains; retain their uncalled
     // sidecar declarations instead of letting MSVC discard the metadata.
     #[cfg(target_env = "msvc")]
@@ -357,6 +364,29 @@ fn declaration_of(source: &str) -> sdk::harmos::plugin::inventory::Declaration {
 /* === Tests === */
 
 #[test]
+fn catalog_identifiers_are_unique() {
+    for (configuration, identifier) in [
+        ("duplicate_suites", "checks"),
+        ("duplicate_templates", "checks.probe"),
+        ("duplicate_records", "checks.record"),
+        ("duplicate_streams", "checks.samples"),
+    ] {
+        let (built, _) = compile_configured("fixtures/catalog_identifiers.rs", Some(configuration));
+        let diagnostics = String::from_utf8_lossy(&built.stderr);
+        assert!(!built.status.success(), "{configuration} compiled");
+        // Rust 1.99 supports the single-str panic format in const evaluation,
+        // so diagnostics must name the actual duplicate, even for const ids.
+        assert!(diagnostics.contains(&format!("evaluation panicked: {identifier}")), "{diagnostics}");
+        assert!(diagnostics.contains("assert_unique"), "{diagnostics}");
+        assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
+    }
+
+    let (built, output) = compile("fixtures/catalog_identifiers.rs");
+    assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
+    std::fs::remove_file(output).unwrap();
+}
+
+#[test]
 fn alias_inventory_declared() {
     let declaration = declaration_of("integration/renamed_sdk.rs");
     assert_eq!(declaration.id, "renamed");
@@ -462,8 +492,8 @@ fn foreign_stream_unpublished() {
     for unsatisfied in [
         "the trait bound `GatewayRssi: Publishable` is not satisfied",
         "the trait bound `GatewayRssi: OwnedStream` is not satisfied",
-        "the trait bound `dokime_runtime::host::System: Publishable` is not satisfied",
-        "the trait bound `dokime_runtime::host::System: OwnedStream` is not satisfied",
+        "the trait bound `dokime::host::System: Publishable` is not satisfied",
+        "the trait bound `dokime::host::System: OwnedStream` is not satisfied",
     ] {
         assert!(diagnostics.contains(unsatisfied), "{diagnostics}");
     }
@@ -478,9 +508,9 @@ fn undeclared_call_refused() {
     let diagnostics = String::from_utf8_lossy(&built.stderr);
     // The plugin serves the operation; the template never said it would call it,
     // so the refusal is on the call and names the catalog to add it to.
-    assert!(diagnostics.contains("ProbeRequired: dokime_runtime::catalog::Contains<GetCurrent>"), "{diagnostics}");
+    assert!(diagnostics.contains("ProbeRequired: dokime::catalog::Contains<GetCurrent>"), "{diagnostics}");
     assert_eq!(
-        diagnostics.matches("ProbeRequired: dokime_runtime::catalog::Contains<GetVoltage>").count(),
+        diagnostics.matches("ProbeRequired: dokime::catalog::Contains<GetVoltage>").count(),
         0,
         "a declared request is not refused: {diagnostics}"
     );

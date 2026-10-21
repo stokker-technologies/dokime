@@ -1,6 +1,8 @@
 # Feature Drop Tasks
 
-## Crate Layout
+## Crate Layout And Catalogs
+
+- [x] 76. Reject duplicate suite, template and record stream identifiers across a plugin's catalogs at compile time.
 
 - [x] 75. Make dokime the entry library and dokime-cli the CLI; migrate shipped interfaces, plugins, fixtures, templates, tooling and guidance.
 - [x] Resolve terminal ownership at `crates/dokime/src/terminal/`: keep shared output in the entry library for the shipped presentation consumers.

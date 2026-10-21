@@ -38,7 +38,7 @@ struct Contributed {
     suites: Option<Type>,
     evidence: Option<Type>,
     listeners: Option<Type>,
-    records: bool,
+    records: Option<Type>,
 }
 
 struct RequiredEntry {
@@ -94,6 +94,16 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let arguments = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute)?;
     let contributed = contributed(&arguments)?;
     let mut generated = Vec::new();
+    if let Some(suites) = &contributed.suites {
+        generated.push(crate::catalog::assert_unique(&quote!(#suites), "SuiteIdentifiers"));
+        generated.push(crate::catalog::assert_unique(&quote!(#suites), "SuiteTemplateIdentifiers"));
+    }
+    if let Some(streams) = &contributed.evidence {
+        generated.push(crate::catalog::assert_unique(&quote!(#streams), "StreamIdentifiers"));
+    }
+    if let Some(records) = &contributed.records {
+        generated.push(crate::catalog::assert_unique(&quote!(#records), "RecordIdentifiers"));
+    }
     let mut forwarded = vec![streams(&contributed, &block.self_ty)];
     for argument in arguments {
         match &argument {
@@ -220,7 +230,7 @@ fn contributed(arguments: &Punctuated<Meta, Token![,]>) -> Result<Contributed, E
                 "Suites" => contributed.suites = generics.first().cloned(),
                 "Evidence" => contributed.evidence = generics.first().cloned(),
                 "Records" => {
-                    contributed.records = true;
+                    contributed.records = generics.first().cloned();
                     contributed.listeners = generics.get(1).cloned();
                 }
                 _ => {}
@@ -290,7 +300,7 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
         hosted.push(syn::parse_quote!(#sdk::operations::files::WatchFile));
         hosted.push(syn::parse_quote!(#sdk::operations::files::AwaitFileWatchArmed));
     }
-    if contributed.records {
+    if contributed.records.is_some() {
         hosted.push(syn::parse_quote!(#sdk::records::RecordPublication));
     }
     hosted

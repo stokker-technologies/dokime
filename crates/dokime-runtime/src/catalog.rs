@@ -92,6 +92,18 @@ pub struct Templates;
 #[cfg(feature = "native")]
 pub struct TemplateIdentifiers;
 
+#[cfg(feature = "native")]
+pub struct TemplateIdentifierNodes;
+
+#[cfg(feature = "native")]
+pub struct SuiteTemplateIdentifiers;
+
+pub struct SuiteIdentifiers;
+
+pub struct RecordIdentifiers;
+
+pub struct StreamIdentifiers;
+
 pub struct Suites;
 
 #[cfg(feature = "native")]
@@ -140,7 +152,15 @@ pub struct ListenerEntry {
 
 /* === Traits === */
 
+pub trait IdentifierCatalog<V: Visitor<Entry = Node<&'static str>>> {
+    const IDENTIFIERS: &'static [Node<&'static str>];
+}
+
 /* === Implementations === */
+
+impl<V: Visitor<Entry = Node<&'static str>>> IdentifierCatalog<V> for () {
+    const IDENTIFIERS: &'static [Node<&'static str>] = &[];
+}
 
 #[cfg(feature = "native")]
 impl Visitor for Streams {
@@ -240,6 +260,50 @@ impl Visitor for TemplateIdentifiers {
 #[cfg(feature = "native")]
 impl<T: DeclaredTemplate> Member<T> for TemplateIdentifiers {
     const ENTRY: Self::Entry = T::IDENTIFIER;
+}
+
+#[cfg(feature = "native")]
+impl Visitor for TemplateIdentifierNodes {
+    type Entry = Node<&'static str>;
+}
+
+#[cfg(feature = "native")]
+impl<T: DeclaredTemplate> Member<T> for TemplateIdentifierNodes {
+    const ENTRY: Self::Entry = Node::Leaf(T::IDENTIFIER);
+}
+
+#[cfg(feature = "native")]
+impl Visitor for SuiteTemplateIdentifiers {
+    type Entry = Node<&'static str>;
+}
+
+#[cfg(feature = "native")]
+impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteTemplateIdentifiers {
+    const ENTRY: Self::Entry = Node::Nested(T::TEMPLATE_IDENTIFIERS);
+}
+
+impl Visitor for SuiteIdentifiers {
+    type Entry = Node<&'static str>;
+}
+
+impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteIdentifiers {
+    const ENTRY: Self::Entry = Node::Leaf(T::ID);
+}
+
+impl Visitor for RecordIdentifiers {
+    type Entry = Node<&'static str>;
+}
+
+impl<T: DeclaredRecord> Member<T> for RecordIdentifiers {
+    const ENTRY: Self::Entry = Node::Leaf(T::RECORD_TYPE);
+}
+
+impl Visitor for StreamIdentifiers {
+    type Entry = Node<&'static str>;
+}
+
+impl<T: TelemetryStream> Member<T> for StreamIdentifiers {
+    const ENTRY: Self::Entry = Node::Leaf(T::ID);
 }
 
 #[cfg(feature = "native")]
@@ -429,6 +493,20 @@ pub const fn distinct_publications(declared: &[Publication]) -> usize {
         index += 1;
     }
     distinct
+}
+
+pub const fn assert_unique(identifiers: &[&str]) {
+    let mut index = 0;
+    while index < identifiers.len() {
+        let mut earlier = 0;
+        while earlier < index {
+            if same(identifiers[earlier], identifiers[index]) {
+                panic!("{}", identifiers[index]);
+            }
+            earlier += 1;
+        }
+        index += 1;
+    }
 }
 
 #[cfg(feature = "native")]
