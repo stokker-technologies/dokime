@@ -48,6 +48,11 @@ def build(profile: str) -> None:
 
     # Compile Test Targets Through The Shared Archive Owner.
     built = archive.build(ROOT, profile, ["--features", features])
+    metadata = built.with_name("metadata.json")
+    with metadata.open("w", encoding="utf-8") as written:
+        command = ["cargo", "metadata", "--locked", "--format-version", "1", "--features", features]
+        subprocess.run(command, cwd=ROOT, stdout=written, check=True)
+    staged.append(metadata)
     subprocess.run(
         [
             "cargo",
@@ -66,11 +71,6 @@ def build(profile: str) -> None:
         cwd=ROOT,
         check=True,
     )
-    metadata = built.with_name("metadata.json")
-    with metadata.open("w", encoding="utf-8") as written:
-        command = ["cargo", "metadata", "--locked", "--format-version", "1", "--features", features]
-        subprocess.run(command, cwd=ROOT, stdout=written, check=True)
-    staged.append(metadata)
     # Compile The Starter Here; Ordinary Stories Consume Already Built Inputs.
     with temporary.directory() as directory:
         dependencies.cargo(ROOT, directory)
