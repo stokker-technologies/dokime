@@ -19,7 +19,7 @@ import sys
 # Local Imports
 from dokime_tools import temporary
 from dokime_tools.build import dependencies, frontend, paths, product, starter
-from dokime_tools.package.staging import sync_output
+from dokime_tools.package.staging import clear_output, stage_file, sync_output
 from dokime_tools.test import archive, policy
 
 # Type Checking Imports
@@ -48,6 +48,19 @@ def build(profile: str) -> None:
 
     # Compile Test Targets Through The Shared Archive Owner.
     built = archive.build(ROOT, profile, ["--features", features])
+
+    # Carry Client Inputs In The Tests Archive.
+    modules = output / "fixtures/generated/typescript"
+    sync_output(output / "generated/typescript", modules)
+    module_files = [path for path in modules.rglob("*") if path.is_file()]
+    staged.extend(module_files)
+    wheels = paths.output(ROOT, "build", profile, "any") / "python"
+    clear_output(output / "fixtures/python")
+    for wheel in wheels.glob("dokime_client-*.whl"):
+        destination = output / "fixtures/python" / wheel.name
+        stage_file(wheel, destination)
+        staged.append(destination)
+
     metadata = built.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
         command = ["cargo", "metadata", "--locked", "--format-version", "1", "--features", features]

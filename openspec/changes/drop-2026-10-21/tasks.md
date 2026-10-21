@@ -77,6 +77,8 @@
 
 ## Consolidation And Acceptance
 
+- [x] Stage generated TypeScript modules and the Python client wheel in the Tests export; resolve Python and TypeScript lanes from those fixtures and prove unit/integration without Product exports, desktop system with both exports, and repository check.
+
 - [ ] 50. Adopt all outstanding source slices and regenerate every affected client/binding from the combined tree.
 - [ ] 51. Account for source, tests, configuration, examples, README and superseded paths; declare source readiness only after all writers hand off.
 - [ ] 52. Run relevant local gates, development build, required native system walkthrough and affected lanes; repair every required failure.

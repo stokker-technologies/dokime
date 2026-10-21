@@ -246,7 +246,7 @@ env = { CARGO_INCREMENTAL = "0" }
 description = "Test Unit Python"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language python --project packages/dokime-client"
+run = "{{vars.tools}} dokime_tools.test.client --profile {{usage.profile}} --category unit"
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:unit:rust"]
@@ -260,7 +260,7 @@ description = "Test Unit TypeScript"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}} --producer tests",
   "{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run tests/unit --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
 ]
 env = { CARGO_INCREMENTAL = "0" }
@@ -279,7 +279,7 @@ env = { CARGO_INCREMENTAL = "0" }
 description = "Test Integration Python"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime-client"
+run = "{{vars.tools}} dokime_tools.test.client --profile {{usage.profile}} --category integration"
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:integration:rust"]
@@ -293,7 +293,7 @@ description = "Test Integration TypeScript"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}} --producer tests",
   "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run tests/integration --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
 ]
 env = { CARGO_INCREMENTAL = "0" }
@@ -350,7 +350,10 @@ env = { CARGO_INCREMENTAL = "0" }
 description = "Test System TypeScript"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --profile {{usage.profile}} --junit {junit}"
+run = [
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}} --producer tests",
+  "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --profile {{usage.profile}} --junit {junit}",
+]
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:generated"]
