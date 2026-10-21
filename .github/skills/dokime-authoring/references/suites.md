@@ -1,206 +1,43 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/suites.md; sha256:8a4f8653110c75668414f814005c860043f60a6ccaadc2fadc4ccd6161dafd6e -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/suites.md; sha256:dffc531e5aa7619aaf6eb02c0fa3c106c5a9b44d17d2057736566f43e24a9b54 -->
 
 # Dokime Suite
 
-Plugin ownership belongs to `dokime-authoring`; document composition belongs to `dokime-authoring`. Read current SDK source for exact signatures. Global guidance owns validation cadence.
-
 ## Suite Authoring
 
-- Declare a `#[dokime::catalog] pub enum Suites` in `suites/mod.rs`, one typed tuple variant per suite. Contribute it with `contributions(dokime::Suites<suites::Suites>)` on `#[dokime::plugin]` and serve it with `dokime::execution::serve::<Self, suites::Suites>(table)` in `bind_operations`. Omit empty catalogs.
-- Declare suites with `#[dokime::suite]` and templates with `#[dokime::template]`. A suite owns its complete template collection.
-- A template's `id` is required and is its public reference: `<suite id>.<segment>`, the segment `[a-z][a-z0-9_]*` (`obc.charger.steady.measurement`). The macro refuses a malformed literal on its line; the suite refuses, while the plugin compiles, a template outside its prefix or two templates with one id. The CLI, the clients and the catalog name templates by this id; the registered UUID (`template_id = …` pins it) is storage and wire identity only, never shown or accepted from users.
-- Put every authored template in its own Rust file under the owning suite module. Keep the suite declaration in `mod.rs` and list its templates on it, `templates = Templates`, re-exporting public template types as needed.
-- Steps act through `&mut StepContext`; criteria judge through `&CriterionContext`; observers publish through `&mut ObserverContext`, the attempt's own handles and the call the engine made.
-- One `Environment` per execution carries what the run was given — its inputs decoded into the template's own `#[dokime::parameters]` struct, settings, secrets, the caller that reaches operations through the host, the attempt's own handles, the artifact grant, the stream grant — and every stage reads it the same way. `InitializationContext`, `TraceabilityContext`, `StepContext`, `ObserverContext` and `CleanupContext` are stage aliases over one `Context`; only a step may `prompt` and `listen`, a step or a template observer may `publish` and reach `stream::<Row>()`, and only cleanup has `reason()`. `initialize` returns the template's own state together with the handles shared with observers, for example `Result<(Self, Resources), Error>`; handles used only by steps are plain template fields. Traceability, steps, observers and cleanup reach the shared handles through `ctx.resources()`. The macro refuses a separate `resources` method. All five stages also reach `ctx.document()`, adding to what the template's `document()` declared; a criterion reaches no document at all, deciding only from what the run already produced.
-- **A template never names the plugin.** It declares the operations it calls — `requires = Required` on `#[dokime::template]`, a `#[dokime::catalog]` of operation types, the way it already declares `subscribes = Inputs` and `records = Records` — and `ctx.call::<Operation>(request)` is the only road to the plugin from any stage. The dependency runs plugin → suites → templates → operation contracts, so a suite can be served by any plugin that provides or requires what its templates call. There is no `plugin = …` argument and no `ctx.plugin()` on a template stage.
-- `ctx.call::<ReadChamber>(ReadChamber {}).await?` is a Harmos child call routed by the host under the operation's declared policy; it carries the run's `ExecutionScope { execution, stage, route }` in the call context, from which the serving operation derives idempotency keys (`ExecutionScope::serving::<Self>(ctx)`). Requests are operation structs, including empty requests such as `ReadChamber {}`; use `()` only where the declared contract uses it, such as a unit response. In the harness, `.answering::<ReadChamber, _>(|request| Ok(reply))` answers the same call in process. `ctx.host()` exposes the Harmos `Host` surface: `ctx.host().call(op)` and `ctx.host().submit(op)` take a declaration that is its own request, and a submitted instance is cancelled when its handle drops unsettled unless detached. `ctx.host()` is not checked against `requires` at compile time; the host refuses an undeclared operation at run time, so prefer `ctx.call` where it suffices.
-- Two step built-ins answer on `ctx.host()` without being listed in `requires`. `RunProcess` (`dokime::operations::process`) runs a system process inside the plugin process: its working directory is the execution's artifact folder (`DOKIME_ARTIFACTS_DIR`), its environment carries `DOKIME_EXECUTION_ID`, `DOKIME_CYCLE_ID`, `DOKIME_TEMPLATE_ID`, `DOKIME_PLUGIN_ID`, `DOKIME_STEP_ID` and `DOKIME_ATTEMPT` and never the plugin's host connection, stdout lines reach the execution log at info and stderr at warning unless redirected into a produced artifact, and every exit is recorded as `process.exited`. Called, it runs to its exit; submitted, `cancel` sends SIGTERM, waits `grace_ms` (default 2000) and kills, TerminateProcess on Windows. `WatchFile` (`dokime::operations::files`) is the host's file watch over one local or FTP file: Stream captures only what is written after it starts into `artifact` (or `<output>/<file name>`), Mirror and the snapshots copy the whole file, and on Stream its `matchers` turn each captured line into a row of a declared stream through named capture groups and its `markers` file a declared record per matching line, both inside the operation. It settles with `{ artifacts, gaps }` when its `maximum_seconds` bound elapses or the execution seals; cancelling it seals what it captured. The harness and `Caller::local` serve both in process, `WatchFile` over a local file.
+Declare suites with `#[dokime::suite]` and templates with `#[dokime::template]`. A suite owns its template collection; each template owns its parameters and lifecycle state.
+
+Name template identifiers `<suite>.<segment>`, with lowercase segments matching `[a-z][a-z0-9_]*`. Labels use Title Case and tags use lowercase. Name capability catalogs `Required`, `Subscriptions`, `Streams` and `Prompts`.
 
 ```rust
-let exit = ctx
-    .host()
-    .call(
-        RunProcess::new("flash-tool")
-            .args(["--port", port])
-            .stdout(Output::Artifact("logs/flash.log".into())),
-    )
-    .await?
-    .into_owned(); // ProcessExit { exit_code, duration_ms, cancelled }
-
-let watch = ctx
-    .host()
-    .submit(WatchFile {
-        execution_id: None,
-        source: Some(FileWatchSource {
-            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: log })),
-        }),
-        output: "device".into(),
-        artifact: Some("device/charger.log".into()),
-        policy: FileWatchPolicy::Stream,
-        selection: FileWatchSelection::All,
-        wait_for_source_seconds: None,
-        poll_interval_ms: Some(100),
-        maximum_seconds: Some(30),
-        maximum_bytes: None,
-        matchers: vec![LineMatcher::publishing::<ChargerLog>(
-            r"t=(?P<elapsed_s>[\d.]+) input_power_w=(?P<input_power_w>[\d.]+)",
-        )],
-        markers: vec![LineMarker::new(r"FAULT (?P<code>\w+)", Fault::RECORD_TYPE)],
-    })
-    .await?;
-let baseline = watch.armed().await?; // Established even when baseline.baseline is empty.
-// … the work the log describes …
-let captured = watch.join().await?.into_owned(); // WatchFileOutcome { artifacts, gaps }
+#[dokime::template(
+    id = "soak.hold",
+    label = "Hold Temperature",
+    parameters = HoldParameters,
+    requires = Required,
+    subscribes = Subscriptions,
+    streams = Streams,
+    prompts = Prompts,
+)]
 ```
 
-Await `watch.armed()` before starting a producer; `submit` confirms admission and keeps its ordinary semantics. The streaming `FileWatch` API emits `Armed { baseline }` after successful initial setup has established the baseline, including an empty list. `maximum_seconds` starts at arming, independently of the source wait deadline. `selection` is independent of capture policy: `All` is the default; `Latest` chooses the baseline file with greatest modification time, breaking ties by ascending relative path, and follows that path through rotation without switching to later arrivals; `New` ignores baseline paths and captures files first discovered afterward from byte zero. Replacements retain distinct artifacts such as `device.segment2.log`, preserving the original extension; file limits count simultaneous tracked files, while byte limits include retained segments.
+A template declares operation requirements without naming a plugin. Its serving plugin provides or requires those contracts. Declare each prompt, record and stream once; catalogs refer to the declared types.
 
-Set `wait_for_source_seconds: Some(30)` to wait for an absent local root or file, or an absent matching FTP file beneath an accessible FTP root. Waiting ends at its deadline or cancellation. Strict missing-source errors remain the default; permission and invalid-path errors fail immediately. FTP directory reply 550 cannot distinguish absence from denied access, so an unavailable FTP root fails immediately with the required setup action. A refused FTP REST resume emits a `ResumeUnsupported` gap: extraction with matchers or markers fails and seals captured evidence; an artifact-only watch explicitly falls back to whole-file mirroring. The harness supports the same readiness and local capture semantics; FTP requires a hosted runtime.
+## Lifecycle
 
-An accessible directory with `All` or `New` arms immediately, even when empty and source waiting was enabled. `Latest` without waiting can arm with an empty baseline: that watch selects no file and never switches to later arrivals. Opt-in waiting delays `Latest` arming until its first nonempty baseline. The single-file operation waits for its named file. Detected copy truncation also seals a retained segment before restarting at byte zero. FTP listings have no stable file identity: a same-size overwrite or a replacement that grows between polls cannot reliably be distinguished from append; this is no real-device compatibility guarantee.
+Use the vocabulary in this order: initialize, traceability, steps, criteria, observers, cleanup, document. Observers run concurrently with steps; this vocabulary order does not serialize them after criteria.
 
-- Anything a step leaves running is cancelled when the step ends: a handle dropped unsettled cancels its instance at once, and a detached instance, or one still held past its step, is cancelled by the step-end sweep with a `test.step.handle_cancelled { step, kind, name }` warning, `kind` being `process`, `watch` or `operation`.
-- Two compile-time checks stand behind `requires = Required`. A `ctx.call` on an operation the template did not list is refused on the line the call is written. And serving a suite asserts, for every template, that each required operation is either named in the plugin's `requires(...)` or provided by the plugin itself with Private visibility, so an operation the plugin cannot reach is refused at build time rather than at run time.
-- `#[dokime::message]`, `#[dokime::record(...)]` and `#[dokime::row]` are domain-specific declarations over one shared Harmos message implementation. Their codecs/schema are shared; record and row wrappers add their product evidence traits and handles. Preserve `#[record(...)]` and `#[row(...)]` field annotations. The separate `TelemetryRow` derive is retired; the runtime trait remains available through `dokime::telemetry`.
-- A record is a type, declared once, in the file of whatever publishes it: `#[dokime::record(id, label, severity)]` on a struct beside the step that files it, named once in `records = Records` on that template's attribute. The struct's fields are the contract's fields, so there is no `records()` method, no hand-built `RecordContract` and no string-id constant. A suite names a record only when every template it owns publishes it; `dokime::Records<Records, Listeners>` on the plugin's `contributions(...)` names the ones a plugin publishes with no run behind them.
-- A prompt is a type, declared once with `#[dokime::prompt(id, label, description, submit, cancel, level)]` on a template-local struct or a shared struct in `domain/model/prompts/`; author runtime text explicitly with `description`. Rustdoc follows the shared `[docs] allow_unstable` policy. `level = warning` (the record severity scale: `debug`, `info`, `warning`, `error`; default `info`) is declared per prompt type, not per asking: it colours the operator's banner and the request record. The hand-built `FormPrompt` and `ConfirmationPrompt` take `.level(RecordSeverity::Warning)`. The struct's fields are the form's fields — kind resolved from the type through `dokime::prompts::PromptFieldValue`, `Option<T>` optional, `Vec<T>` multiple, `#[prompt(label, description, default, min, max, min_length, max_length, pattern, min_items, max_items)]` for the rest, a field's runtime text written explicitly with `description` — and the struct is what the answer decodes into; a unit struct is a confirmation answering `bool`. Name it in `prompts = Prompts` on the template attribute and ask it with `ctx.ask::<SoakCheckpoint>()`. A runtime default goes through the derived builder, `ctx.prompt(SoakCheckpoint::prompt().default("note", seen))`. The hand-built `FormPrompt`/`TextPrompt`/`NumberPrompt`/`ConfirmationPrompt`/`ChoicePrompt` builders are the programmatic path, declared as `prompts = [checkpoint()]` and asked with `ctx.prompt(checkpoint())`; do not write a function that only restates a shape a struct could declare.
-- Declare a stream once with `#[dokime::stream(id = "device.samples", label = "Samples", window = 4096)]` on a named struct; `description = "…"`, like every other argument here, forwards whole to Harmos, which owns the shared metadata contract; author runtime text explicitly with `description`, independently of the shared rustdoc policy. It supplies the shared protobuf/Postcard message codecs and schema, metadata, execution traits, and document column handles, which compare straight into document filters (`SampleRow::column_voltage_v().gt(0.5)`); derive Clone explicitly when the authored consumer needs it. Do not stack `message`, `record` or `row` on that stream. `#[row(label, description, tags(...), attributes(...), role, unit, format)]` annotates its fields, each forwarded to Harmos the same way, runtime text written explicitly with `description`: Harmos owns generic metadata and Dokime owns format and supported evidence roles. For one shape serving multiple streams, use `#[dokime::row]` on Shape (with `#[derive(Clone)]` when needed) and `#[dokime::stream(id, label, window, row = Shape)]` on each unit struct. `foreign` declares a typed read-only field subset of another plugin’s stream; name at least one field, and never publish it. Register streams explicitly in `streams = Streams`; an observer declares its output streams with `streams = Streams`. The plugin serving the suite registers every stream, record and prompt its templates declare; nothing is repeated on `#[dokime::plugin]`, and two templates sharing a stream, record or prompt declare it identically. Publication and listening remain typed.
-- `ctx.publish(value)` is the one verb for both: a `#[dokime::record]` struct is a record and a `#[dokime::stream]` row is a measurement, and the declaration decides which without the call repeating it. `ctx.sample` and `ctx.emit` are gone. A publication whose severity this occurrence decides says so at the call — `ctx.publish(Measured { … }.severity(RecordSeverity::Error))`. A handle held open across the work is `ctx.stream::<Row>().open()`; it carries the context's lifetime and not its borrow, so pushing a row and logging a line do not compete for one `&mut`. It is infallible, because the stream is the home the row declared. One shape serving several streams declares no home and names its stream at the call with `ctx.stream::<Row>().into::<Stream>()`.
-- `ctx.listen::<T>()` is the one way a step waits, for a declared record type or for a row type whose stream was declared. It answers a standard stream and the adapters are `tokio_stream::StreamExt`'s, re-exported through `dokime::prelude`: `.filter(…)`, `.next()`, `.take(n)`, `.collect()`, `.timeout(d)`. Waiting on its own observer is `ctx.listen::<Row>().take(n)` — an exact number of rows rather than a length of time, so what the run measured does not depend on how quickly it got going — and every row an execution produces goes through one funnel, whether an observer measured it or a step pushed it.
-- Where a subscription starts follows from what it listens to. A stream is a stream of measurements and has no "before" to reach, so a subscription sees what is measured after it is taken. An execution's record inbox is a bounded queue the host handed that run, so it starts where the run started and a record filed before the step reached its await still satisfies it; an ordinary record a step published itself is passed over, because answering a step with its own words would settle the question it asked somebody else. `.timeout(d)` yields `Result<T, Elapsed>` per item and its `Elapsed` carries into the template's own error through `#[from]`.
-- Plugin event observation uses the same observer mechanism as periodic rows, with `records = Records` on the observer and no separate catalog. A plugin observer may publish no rows and only events. Template-local event observation is the same `#[dokime::observer]` associated function as periodic rows, with `records = Records` and `ctx: &mut ObserverContext<'_>`; its lifecycle belongs to the execution and it declares emitted records on the template.
-- A criterion reads its evidence typed. `ctx.records::<Measured>()` answers the records of that type the run published, in order, refusing one of that type that does not carry what it declared. `ctx.samples::<C>()` answers the rows of one stream as the shape that stream declared — an own row type, a stream type, `host::System` — so a criterion reads `row.celsius` rather than digging a `Value` out of a map. It is infallible: a row the declared shape cannot read is narrated and passed over. It answers `dokime::evidence::Samples<Row>`, which reads as a slice of rows (`iter`, `len`, `last`, `for row in …`) and turns one numeric field into a Harmos series: `ctx.samples::<Samples>().column(|row| row.voltage_rms_v)` is a `dokime::evidence::Series`, so the criterion reads `.median()`, `.percentile(95.0)`, `.std()`, `.all_below(limit)` or `.all_within(min, max)` off it, or `.aggregate(Aggregate::Rms)` through the `Aggregates` trait. A column skips non-finite values the way every aggregate does, so `.count()` is how many values were measured.
-- The aggregate vocabulary is Harmos's and Dokime only names it: `dokime::evidence::{Aggregate, Aggregates, Series, Summary}` re-export `harmos::Aggregate` (`Count`, `Sum`, `Mean`, `Median`, `Min`, `Max`, `Rms`, `Std`, `Percentile(u8)`, wire names `count` … `p95`) and `harmos::signal`. `Std` is the population deviation and percentiles interpolate between ranks. Never hand-roll a mean, a deviation or a quantile in a criterion, a host path or a plugin.
-- `subscribes = Inputs` names the global streams the host leases for every execution of this template, by type. Cadence belongs to the stream's one producer, never to the requester, so nothing here states an interval and every run leasing the same stream shares one running instance and one tick. A stream no installed plugin publishes is refused at admission. A step that wants the same stream only while it is doing something takes `ctx.lease::<C>()` instead, and the hold ends where the guard does.
-- Import the execution grants from `dokime::execution`, suite and template declarations from `dokime::definition`, and the plugin lifecycle from `dokime::Plugin` and `dokime::plugin`.
-- Read captured ordinary settings with `ctx.setting::<T>("id")?`. Steps and runtime plugin contexts read declared secrets synchronously with `ctx.secret("id")?`; its redacted `Secret` exposes the value only through `.expose()`. Criteria have settings access but no secret accessor. Static catalog methods have neither runtime settings nor secret access.
-- Host startup loads dotenv and resolves declared owner-scoped references; do not copy the host environment into a plugin or read it when declaring catalogs.
-- Contracts are written by the declarations, not by hand: `#[dokime::record]` and `#[dokime::stream]` build a strict contract from the struct's fields, and naming the type on a template's attribute is what binds it to that template. The `declared`/`strict`/`for_template` constructors remain for the host's own catalogs and for tests about the contract shape itself.
-- Typed catalogs reject duplicate suite and template public identifiers across a plugin's suites and duplicate record or stream identifiers within each declared catalog at compile time, including nested catalogs; template UUID collisions remain checked at runtime because `DeclaredTemplate::template_id()` is not const.
-- The runtime installs a plugin's full contribution set atomically and rejects duplicate suite, template, record, and telemetry identifiers.
+| Stage | Capabilities |
+| --- | --- |
+| initialize | Log, artifact grant, document additions; yields template state and shared handles. |
+| traceability | Log, artifact grant, document additions; captures traceability using shared handles. |
+| steps | Log, prompt, listen, publish, stream, artifact grant, document additions. |
+| criteria | Log and captured evidence for decisions; no prompt, listen, publish, artifact grant or document mutation. |
+| observers | Log, publish, stream, artifact grant, document additions; read shared handles only, never template state. |
+| cleanup | Log, artifact grant, document additions; termination reason and shared handles for restoration. |
+| document | Declared sections, cards and plots over captured evidence. |
 
-
-## Step Bodies
-
-A step is the procedure an operator reads, so its body reads top to bottom as
-that procedure: one linear function, split into phases with short Title Case comments where useful.
-
-```rust
-#[dokime::step(label = "Move the Tool")]
-async fn move_tool(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-    // Load Control Points
-
-    let job = ListControlPoints { point_type: PointType::Control };
-    let points = ctx.call::<ListControlPoints>(job).await?.points;
-    dokime::info!(ctx, "loaded {} control points", points.len());
-
-    // Prompt Operator / Move Tool
-
-    let accepted = ctx.ask::<MoveToolCheckpoint>().await?;
-    if !accepted {
-        dokime::warn!(ctx, "operator declined the move");
-        return Ok(());
-    }
-    ctx.resources().arm.lock().await.move_to(&points).await?;
-    dokime::info!(ctx, "tool moved through {} points", points.len());
-
-    Ok(())
-}
-```
-
-- A short Title Case phase comment names what the phase does for the operator —
-  `// Load Control Points`, `// Prompt Operator / Move Tool` — when it helps navigation.
-  Section markers belong to the company skeleton, not individual phases.
-- Each phase ends by saying what it learned: a `dokime::info!(ctx, …)`/`dokime::debug!(ctx, …)` line,
-  a `ctx.publish`, or an artifact write. The execution log then reads as the
-  same list of phases the source does.
-- Keep the happy path shallow and readable; no universal indentation cap is required.
-  `?`, `let … else`, and an early `return Ok(())` end the step; a `match` on a
-  `listen` result is fine, a loop inside a `match` inside an `if` is not. A
-  phase that needs a loop keeps the loop body to a few lines.
-- Do not extract thin helpers solely to name a phase. Extract shared behavior,
-  cohesive responsibilities or meaningful invariant owners regardless of call count.
-  Template helper methods belong in a separate inherent `impl` in `Implementations`;
-  free helper functions belong in `Private Functions`.
-- The same phase comments apply to `initialize`, `traceability` and `cleanup`
-  when useful. A criterion is one read over captured evidence.
-- Log through the `dokime::trace!(ctx, …)` … `dokime::error!(ctx, …)` macros,
-  never `tracing::*` nor the bare context methods inside a template: only the
-  context reaches the execution log, and the macros carry the format string.
-
-
-## Template File Style
-
-A template file is one Rust file in the suite module. The selected company skeleton owns item order and the closed `/* === Name === */` section markers described by `stkr-rust`; retain every marker, even empty. Place template items in their corresponding sections without imposing another order:
-
-- `Type Aliases`: an optional `type Context<'a> = StepContext<'a, Template, Resources, Parameters>;` when the full context type is spelled more than once.
-- `Structs`: the template's own state and step-only handles as plain fields, parameters, template-local prompts and stream rows. Prompts may instead be shared in `domain/model/prompts/`; fields define forms and unit structs define confirmations.
-- `Enums`: non-empty catalogs such as `Required`, `Subscriptions`, `Streams` and `Prompts`. Group operation variants under short Title Case comments when useful, and name each variant after the operation type it wraps.
-- `Implementations`: the `#[dokime::template(...)]` impl with `initialize`, `traceability`, steps in execution order, criteria, `cleanup` and `document`, plus a separate inherent impl for helper methods. Free helper functions belong in `Private Functions`.
-
-Declarations:
-
-- `#[parameter(label = "Title Case", unit = "s", default = 30, min = 1, max = 60)]` on every parameter, one blank line between fields. The label is what the operator reads; the unit is a symbol.
-- A stream row groups its fields under short Title Case comment lines (`// Reconnection Timing`, `// Measurement`), gives every physical column `#[row(unit = "…")]`, and types a measurement that can be missing as `Option<T>`; never a sentinel value.
-- `#[dokime::template]` carries `id = "<suite>.<segment>"`, a `label` whose hierarchy reads `"Area / Name"` (each materialized case is labelled `<label> #<n>`, numbered per template within its cycle, so never encode parameter values in it), a `description` written as full sentences for the operator, lowercase `tags`, and the four catalog bindings by name.
-- A prompt's `description` tells the operator what to do and when to continue, in full sentences.
-
-Bodies:
-
-- Every operation call builds its request first and passes it by name: `let operation = StartMeasurement { … };` then `ctx.call::<StartMeasurement>(operation).await?;`, with the reply bound as `let result = …`. Fields are listed one per line.
-- Use short Title Case phase comments as described under Step Bodies, including inside loops when useful (`// Move To Reference Angles`, `// Emit Result`).
-- Iterate with `ctx.progress("Label", range)` so the cockpit shows the loop's progress.
-- A measurement that may legitimately fail inside a loop is matched: the `Ok` arm yields `Some(value)`, the `Err` arm warns through `dokime::warn!(ctx, format!(…))` and yields `None`, and the row is published either way.
-- Rows and records are published with `ctx.publish(row).await`, the one infallible verb.
-- Log through `dokime::trace!(ctx, …)` … `dokime::error!(ctx, …)`, format arguments inline; never the bare `ctx.info(…)` methods.
-- A criterion's label states the rule the way an operator would (`"Reconnection Time < 30s"`). Its body reads the evidence once, returns `Ok(false)` when there is none, then applies one iterator predicate or one aggregate over a `.column(…)` series.
-- `cleanup` logs the reason from `ctx.reason()` and restores the bench through operations, in the reverse order of what the steps changed.
-- `traceability` builds each section by statements (`let mut dut = TraceabilitySection::new(…); dut.row(…);`) with short Title Case comments where useful and returns the sections in order.
-- `document` builds each section by statements too (`let mut signals = Section::new("Soak"); signals.plot(temperature);`): the label derives the section id as it does a plot's, and `signals.id(…)` overrides it only when something else addresses the section by id.
+Keep handles used only by steps in template state. Return observer-shared handles beside that state during initialize.
 
 ## Layout
 
-```text
-plugins/<name>/
-  Cargo.toml
-  src/lib.rs                      the plugin owner and its contributions
-  src/domain/model/<domain>/      messages, rows, prompts and settings it declares
-  src/domain/operations/mod.rs    the `Operations` catalog it provides
-  src/operations/<domain>/        the handlers, one folder per domain, same names
-  src/listeners/  src/observers/  handlers beside their feature
-  src/suites/mod.rs               only the `Suites` catalog
-  src/suites/<suite>/             one self-contained folder per suite
-  src/suites/common/              code several suites share
-```
-
-`domain/` is kind first, domain second: each kind's `mod.rs` is that kind's
-catalog, and a domain carries one name across kinds and in `src/operations/`.
-Operation request declarations live in `domain/operations/<domain>/` and the
-`domain::operations::Operations` catalog names them. Separate resource-bound
-handlers live in `operations/<domain>/`; `operations::Implemented` binds them.
-No loose files sit at
-the suites root, and a template declares its own `#[dokime::parameters]` struct
-in its file. Records stay declared beside the step that publishes them.
-
-Create only populated feature modules. Shared declarations belong to a shared
-domain owner when multiple consumers need them; runtime assembly stays with
-the application runtime. The maintained `plugins/obc-plugin` depends on its
-nested `runtime/` package (`obc-runtime`), rather than prescribing a universal
-three-crate directory layout. Keep stream
-producers and listeners beside their feature, with suite-only observation inside
-that suite.
-
-- Concern modules exist only when the integration contributes that domain.
-- Generate a `cargo dokime new` starter for the worked example of a complete suite: one template that owns its data, opens its handles in `initialize`, returns its state together with shared observer resources, states traceability, declares the record it publishes beside the step that files it, listens for a host record by type, holds on its own observer by listening for its own row type, prompts, and decides two criteria. Use `plugins/obc-plugin` for the maintained onboard charger demonstrator and its embedded testbench runtime. Runtime boundary fixtures belong under `crates/dokime-runtime/tests/fixtures` when present; they exercise host plumbing rather than teaching product suite structure.
-- Use `snake_case` for Rust module folders/files and `PascalCase` for types.
-- Keep assets next to the domain that declares them.
-
-
-## Execution And Lifecycle
-
-- Every authored runnable suite executes through the plugin that contributed it: each template is served as a `<template>.run` operation that pumps evidence to the host and a `<template>.signal` operation through which the host cancels, commands and delivers records.
-- Sidecar crashes and supervised process restarts do not unload the active catalog. Plugin install/update/remove/enable/disable changes become active only after a full Dokime app restart; do not reintroduce live catalog replacement.
-- Admission freezes resolved parameters, definitions, settings and secret references, and provider source/content digest in the immutable execution snapshot. Later plugin or settings changes cannot retarget admitted work or alter its inputs.
-- `Invalidated` is a distinct terminal outcome. Preserve collected results and evidence when an admitted execution becomes invalidated; do not turn invalidation into failure, cancellation, or an invented completion.
-- Preserve replay-safe prompt, telemetry, record, and artifact identities.
-- Use `dokime-authoring` for lifecycle, operations, publications, and supervision.
+Keep `suites/mod.rs` as the suite catalog and module declarations. Put each template in `suites/<suite>/<template>.rs`, with its suite declaration in `suites/<suite>/mod.rs`. Suite names carry no product prefix. Retain the repository skeleton and its section markers without an additional item-order rule.
