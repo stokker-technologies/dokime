@@ -4,6 +4,7 @@
 
 - [x] 75. Make dokime the entry library and dokime-cli the CLI; migrate shipped interfaces, plugins, fixtures, templates, tooling and guidance.
 - [x] Resolve terminal ownership at `crates/dokime/src/terminal/`: keep shared output in the entry library for the shipped presentation consumers.
+- [x] Repair the candidate-wheel tutorial lock, add explicit relock authoring, prove dev Python Build/Package and compare the release wheel, and restore the editable tooling binding with prepare.
 
 ## Agreed Inventory
 
