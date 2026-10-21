@@ -23,6 +23,7 @@
 import { formatValue } from "@/lib/dashboard";
 import { durationParts } from "@/lib/format";
 import type { DocumentViewCard, JsonObject, ParameterDefinition, PromptRequest } from "@/lib/types";
+import { numericValue } from "@/lib/utils";
 
 /* === Types === */
 
@@ -153,8 +154,9 @@ function durationScale(key: string, declaredUnit: string | null): number | null 
 }
 
 function durationFigure(value: unknown, scale: number): Pick<ExecutionParameterRow, "text" | "unit"> | null {
-  const values = Array.isArray(value) ? value : [value];
-  if (!values.length || !values.every((item): item is number => typeof item === "number" && Number.isFinite(item))) return null;
+  /* Native numbers arrive wrapped (`numericValue` unwraps them), plain ones as numbers. */
+  const values = (Array.isArray(value) ? value : [value]).map(numericValue);
+  if (!values.length || !values.every((item): item is number => item !== null && Number.isFinite(item))) return null;
   const parts = values.map((item) => durationParts(item * scale));
   const unit = parts[0].unit;
   return parts.every((part) => part.unit === unit)

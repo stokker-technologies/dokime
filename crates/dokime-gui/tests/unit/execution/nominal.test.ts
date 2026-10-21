@@ -159,6 +159,19 @@ test("Parameter Rows", () => {
     ],
   );
 
+  // A Native Number Is A Duration Too, Not The Raw Seconds Figure
+  const native = (decimal: string) => ({ __dokime_native_number__: true, decimal });
+  assert.deepEqual(
+    executionParameterRows({ interval: native("0.001"), observe: native("120") }, [
+      { name: "interval", label: "Simulation Sample Interval", unit: "s" },
+      { name: "observe", label: "Observation Duration", unit: "s" },
+    ]).map((row) => [row.text, row.unit]),
+    [
+      ["1", "ms"],
+      ["2", "min"],
+    ],
+  );
+
   // Both Halves Share The Figure And Unit Widths Of The Longest Entry
   assert.deepEqual(executionParameterColumns(durations), { value: 12, unit: 3 });
   assert.deepEqual(executionParameterColumns([]), { value: 1, unit: 0 });
