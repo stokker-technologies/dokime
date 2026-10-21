@@ -78,8 +78,9 @@ impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for QueryLog {
 }
 
 /* === Public Functions === */
-// A 10,000-point window is served; the 100,000-point cap is refused with
-// InvalidArgument naming what the plot can take, and that maximum is served.
+// A 10,000-point window is served; the 100,000-point cap does not fit one
+// message, so the server reads the plot again under what fits, says so in a
+// warning, and keeps following it.
 #[tokio::test]
 async fn plot_points_admission() {
     let root = tempfile::tempdir().unwrap();
@@ -104,37 +105,37 @@ async fn plot_points_admission() {
     assert!((1..=10_000).contains(&points), "the window keeps its budget: {points}");
 
     let mut watch = open_watch(&client, 100_000).await;
-    let refused = data_frame(&mut watch).await;
-    assert_eq!(refused.kind, model::plots::wire::PlotStreamKind::Error);
-    let message = refused.envelope.as_ref().unwrap().warnings[0].clone();
-    assert!(!message.contains("plot admission failed"), "the refusal is precise: {message}");
-    let maximum = maximum_points(&message);
-    assert!((10_000..100_000).contains(&maximum), "the refusal names a maximum between the window and the cap: {message}");
-    // The bound is measured on the plot's payload, so the unary query names
-    // the same maximum over the same rows.
+    let reduced = data_frame(&mut watch).await;
+    assert_eq!(
+        reduced.kind,
+        model::plots::wire::PlotStreamKind::Snapshot,
+        "{:?}",
+        reduced.envelope.as_ref().map(|envelope| &envelope.warnings)
+    );
+    let warning = reduced.envelope.as_ref().unwrap().warnings.iter().find(|warning| warning.contains("do not fit one message")).cloned();
+    let warning = warning.expect("the reduced snapshot says why it holds fewer points");
+    let maximum = maximum_points(&warning);
+    assert!((10_000..100_000).contains(&maximum), "the reduction lands between the window and the cap: {warning}");
+    assert!((1..=maximum).contains(&served_points(&reduced)), "the reduced snapshot keeps its budget");
+    // The plot stays in the watch under its reduced budget: a later row reaches it.
+    publish(&handle, &id, ROWS, 1).await;
+    let followed = data_frame(&mut watch).await;
+    assert_ne!(
+        followed.kind,
+        model::plots::wire::PlotStreamKind::Error,
+        "{:?}",
+        followed.envelope.as_ref().map(|envelope| &envelope.warnings)
+    );
+    drop(watch);
+    // The unary query reduces the same plot to the same budget.
     let unary = client
         .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(100_000)] })
         .await
-        .unwrap_err();
-    assert_eq!(unary.code(), Code::InvalidArgument, "{unary:?}");
-    assert_eq!(maximum_points(unary.message()), maximum);
-    // A refused plot leaves the watch: a later row reaches it as nothing, not
-    // as an append that would hide the missing window.
-    publish(&handle, &id, ROWS, 1).await;
-    // TODO(source-hook): end a refused plot watch with a terminal frame so silence is observable without a wall-clock window.
-    assert!(
-        tokio::time::timeout(std::time::Duration::from_secs(2), watch.message()).await.is_err(),
-        "a refused plot is not served appends"
-    );
-    drop(watch);
-
-    let largest = first_frame(&client, maximum as u64).await;
-    assert_eq!(
-        largest.kind,
-        model::plots::wire::PlotStreamKind::Snapshot,
-        "the named maximum is served: {:?}",
-        largest.envelope.as_ref().map(|envelope| &envelope.warnings)
-    );
+        .unwrap()
+        .into_inner();
+    let envelope = &unary.envelopes[0];
+    let warning = envelope.warnings.iter().find(|warning| warning.contains("do not fit one message")).expect("the unary reply warns too");
+    assert_eq!(maximum_points(warning), maximum);
 
     let beyond = client
         .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(100_001)] })

@@ -42,7 +42,7 @@ use dokime_runtime::{
         plot_payload_stream_envelope_visible, plot_payload_stream_kind,
     },
 };
-use wire::{ensure_message_budget, envelope, stream_frame};
+use wire::{FrameError, ensure_message_budget, envelope, stream_frame};
 
 /* === Constants === */
 
@@ -101,26 +101,30 @@ impl Resources {
 }
 
 impl Resources {
+    // `None` when the plot's points do not fit one message: its stored request
+    // now asks for as many as fit, and the caller reads it again.
     fn frame(
         &self, requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
         current: &dokime_runtime::runtime::query::PlotPayloadRequest, kind: dokime_runtime::runtime::query::PlotPayloadStreamKind,
         value: dokime_runtime::runtime::query::PlotPayloadEnvelope, epoch: &str, selection: &str,
-    ) -> Result<Response<dokime_domain::model::plots::wire::PlotStreamFrame>, Status> {
+    ) -> Result<Option<Response<dokime_domain::model::plots::wire::PlotStreamFrame>>, Status> {
         let mut advanced = requests.clone();
         merge_plot_payload_cursor(&mut advanced, &value);
-        let served = stream_frame(kind, value, epoch, selection, self.maximum).and_then(|frame| self.produce(|| Ok(frame)));
-        match served {
+        let served = stream_frame(kind, value, epoch, selection, self.maximum)
+            .and_then(|frame| self.produce(|| Ok(frame)).map_err(FrameError::Status));
+        let error = match served {
             Ok(response) => {
                 *requests = advanced;
-                Ok(response)
+                return Ok(Some(response));
             }
-            Err(error) => {
-                if error.code() == tonic::Code::InvalidArgument {
-                    requests.retain(|request| request.plot_id != current.plot_id);
-                }
-                self.produce(|| Ok(plot_error_frame(current, error.message().to_owned())))
-            }
+            Err(FrameError::TooManyPoints { maximum }) if reduce(requests, current, maximum) => return Ok(None),
+            Err(FrameError::TooManyPoints { .. }) => Status::invalid_argument("plot points do not fit one message"),
+            Err(FrameError::Status(error)) => error,
+        };
+        if error.code() == tonic::Code::InvalidArgument {
+            requests.retain(|request| request.plot_id != current.plot_id);
         }
+        self.produce(|| Ok(plot_error_frame(current, error.message().to_owned()))).map(Some)
     }
 }
 
@@ -168,11 +172,37 @@ impl Resources {
             let selection = selection_for_plot(requests, selections, &value.plot_id)
                 .ok_or_else(|| Status::internal("plot response does not match a request"))?
                 .to_owned();
-            let response =
-                self.frame(requests, current, dokime_runtime::runtime::query::PlotPayloadStreamKind::Snapshot, value, epoch, &selection)?;
-            output.send_owned(response).await.map_err(failure)?;
+            let kind = dokime_runtime::runtime::query::PlotPayloadStreamKind::Snapshot;
+            let mut response = self.frame(requests, current, kind, value, epoch, &selection)?;
+            if response.is_none() {
+                response = self.reduced_snapshot(requests, current, epoch, &selection).await?;
+            }
+            output.send_owned(response.ok_or_else(|| Status::internal("reduced plot did not settle"))?).await.map_err(failure)?;
         }
         Ok(true)
+    }
+
+    // Reads a plot again under the point budget its last frame exceeded, once.
+    async fn reduced_snapshot(
+        &self, requests: &mut Vec<dokime_runtime::runtime::query::PlotPayloadRequest>,
+        original: &dokime_runtime::runtime::query::PlotPayloadRequest, epoch: &str, selection: &str,
+    ) -> Result<Option<Response<dokime_domain::model::plots::wire::PlotStreamFrame>>, Status> {
+        let Some(current) = requests.iter().find(|request| request.plot_id == original.plot_id).cloned() else {
+            return Ok(None);
+        };
+        let kind = dokime_runtime::runtime::query::PlotPayloadStreamKind::Snapshot;
+        let native = match self.query_snapshot(&current).await {
+            Ok(native) => native,
+            Err(error) => return self.produce(|| Ok(plot_error_frame(&current, error.to_string()))).map(Some),
+        };
+        let Some(mut value) = native.into_iter().next() else {
+            return Ok(None);
+        };
+        value.warnings.push(reduction_warning(original, &current));
+        match self.frame(requests, &current, kind, value, epoch, selection)? {
+            Some(response) => Ok(Some(response)),
+            None => self.produce(|| Ok(plot_error_frame(&current, "plot points do not fit one message".to_owned()))).map(Some),
+        }
     }
 
     /// Tells the client each of `waiting` is subscribed and still reading.
@@ -239,16 +269,43 @@ impl Operation for Snapshots {
             .query_plot_payloads(requests, RuntimePlotQueryMode::Snapshot)
             .await
             .map_err(|error| Status::unavailable(format!("plot query unavailable: {error}")))?;
-        self.resources.produce(|| {
-            let envelopes = native
-                .into_iter()
-                .map(|value| {
-                    let selection = selection_for_plot(&selection_requests, &selections, &value.plot_id)
-                        .ok_or_else(|| Status::internal("plot response does not match a request"))?;
-                    envelope(value, &epoch, selection, self.resources.maximum)
-                })
-                .collect::<Result<Vec<_>, Status>>()?;
-            Ok(dokime_domain::model::plots::wire::PlotSnapshotsReply { envelopes })
+        let mut envelopes = Vec::with_capacity(native.len());
+        for value in native {
+            let selection = selection_for_plot(&selection_requests, &selections, &value.plot_id)
+                .ok_or_else(|| Status::internal("plot response does not match a request"))?
+                .to_owned();
+            envelopes.push(self.fitted_envelope(&selection_requests, value, &epoch, &selection).await?);
+        }
+        self.resources.produce(|| Ok(dokime_domain::model::plots::wire::PlotSnapshotsReply { envelopes }))
+    }
+}
+
+impl Snapshots {
+    // One plot's envelope, read again once under the point budget it exceeded.
+    async fn fitted_envelope(
+        &self, requests: &[dokime_runtime::runtime::query::PlotPayloadRequest], value: dokime_runtime::runtime::query::PlotPayloadEnvelope,
+        epoch: &str, selection: &str,
+    ) -> Result<dokime_domain::model::plots::wire::PlotEnvelope, Status> {
+        let plot_id = value.plot_id.clone();
+        let maximum = match envelope(value, epoch, selection, self.resources.maximum) {
+            Ok(envelope) => return Ok(envelope),
+            Err(FrameError::Status(error)) => return Err(error),
+            Err(FrameError::TooManyPoints { maximum }) => maximum,
+        };
+        let original =
+            matching_plot_payload_request(requests, &plot_id).ok_or_else(|| Status::internal("plot response does not match a request"))?;
+        let mut current = original.clone();
+        current.max_points = Some(maximum);
+        let native = self
+            .resources
+            .query_snapshot(&current)
+            .await
+            .map_err(|error| Status::unavailable(format!("plot query unavailable: {error}")))?;
+        let mut value = native.into_iter().next().ok_or_else(|| Status::internal("reduced plot returned no envelope"))?;
+        value.warnings.push(reduction_warning(original, &current));
+        envelope(value, epoch, selection, self.resources.maximum).map_err(|error| match error {
+            FrameError::Status(error) => error,
+            FrameError::TooManyPoints { .. } => Status::invalid_argument(format!("plot {plot_id} points do not fit one message")),
         })
     }
 }
@@ -380,9 +437,15 @@ impl Operation for Watch {
                                     let selection = selection_for_plot(&requests, &selections, &value.plot_id)
                                         .ok_or_else(|| Status::internal("plot response does not match a request"))?
                                         .to_owned();
-                                    let response =
-                                        self.resources.frame(&mut requests, &current, plot_payload_stream_kind(mode), value, &epoch, &selection)?;
-                                    output.send_owned(response).await.map_err(failure)?;
+                                    let kind = plot_payload_stream_kind(mode);
+                                    match self.resources.frame(&mut requests, &current, kind, value, &epoch, &selection)? {
+                                        Some(response) => output.send_owned(response).await.map_err(failure)?,
+                                        // Read again on the next tick under the budget that fits.
+                                        None => {
+                                            dirty.insert(plot_key(&current));
+                                            refused = true;
+                                        }
+                                    }
                                 }
                             }
                             Err(error) => {
@@ -422,6 +485,32 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
+// Lower a plot's stored point budget to what fits; `false` when it already asks for no more.
+fn reduce(
+    requests: &mut [dokime_runtime::runtime::query::PlotPayloadRequest], current: &dokime_runtime::runtime::query::PlotPayloadRequest,
+    maximum: usize,
+) -> bool {
+    let Some(request) = requests.iter_mut().find(|request| request.plot_id == current.plot_id) else {
+        return false;
+    };
+    if request.max_points.is_some_and(|points| points != 0 && points <= maximum) {
+        return false;
+    }
+    request.max_points = Some(maximum);
+    true
+}
+
+fn reduction_warning(
+    original: &dokime_runtime::runtime::query::PlotPayloadRequest, reduced: &dokime_runtime::runtime::query::PlotPayloadRequest,
+) -> String {
+    let requested = match original.max_points {
+        Some(0) => "every sample".to_owned(),
+        Some(points) => format!("{points} points"),
+        None => "the default points".to_owned(),
+    };
+    format!("{requested} do not fit one message; showing at most {} points", reduced.max_points.unwrap_or_default())
+}
 
 /// The plot a request names, the key its frames and dirty marks share.
 fn plot_key(request: &dokime_runtime::runtime::query::PlotPayloadRequest) -> String {

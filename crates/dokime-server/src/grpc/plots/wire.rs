@@ -60,9 +60,22 @@ const GENERATED_AT_BYTES: usize = "0000-00-00T00:00:00.000000000Z".len();
 
 /* === Enums === */
 
+// Why a plot frame was not built: a transport failure, or a point budget the
+// caller can retry under.
+pub(super) enum FrameError {
+    Status(Status),
+    TooManyPoints { maximum: usize },
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
+impl From<Status> for FrameError {
+    fn from(status: Status) -> Self {
+        Self::Status(status)
+    }
+}
 
 /* === Public Functions === */
 
@@ -82,7 +95,7 @@ pub(crate) fn document_plot_definition(
 
 pub(super) fn envelope(
     value: PlotPayloadEnvelope, epoch: &str, selection: &str, limit: usize,
-) -> Result<dokime_domain::model::plots::wire::PlotEnvelope, Status> {
+) -> Result<dokime_domain::model::plots::wire::PlotEnvelope, FrameError> {
     let envelope = dokime_domain::model::plots::wire::PlotEnvelope {
         plot_id: value.plot_id,
         revision: value.revision,
@@ -97,7 +110,7 @@ pub(super) fn envelope(
 
 pub(super) fn stream_frame(
     kind: PlotPayloadStreamKind, value: PlotPayloadEnvelope, epoch: &str, selection: &str, limit: usize,
-) -> Result<dokime_domain::model::plots::wire::PlotStreamFrame, Status> {
+) -> Result<dokime_domain::model::plots::wire::PlotStreamFrame, FrameError> {
     Ok(dokime_domain::model::plots::wire::PlotStreamFrame {
         kind: plot_stream_kind(kind),
         envelope: Some(envelope(value, epoch, selection, limit)?),
@@ -168,17 +181,17 @@ fn optional_format(
     value.map(canonical::format)
 }
 
-fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit: usize) -> Result<(), Status> {
+fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit: usize) -> Result<(), FrameError> {
     let encoded_budget = limit.saturating_sub(MESSAGE_HEADROOM_BYTES);
     let decoded_budget = super::super::config::output_stream_bytes(limit).saturating_sub(DECODED_HEADROOM_BYTES);
-    let encoded = envelope.wire_len()?;
+    let encoded = envelope.wire_len().map_err(Status::from)?;
     let decoded = envelope.memory_size();
     if encoded <= encoded_budget && decoded <= decoded_budget {
         return Ok(());
     }
     let exhausted = || Status::resource_exhausted("plot response exceeds transport limit");
     let Some(payload) = &envelope.payload else {
-        return Err(exhausted());
+        return Err(exhausted().into());
     };
     let count = payload.series.iter().map(|series| series.points.len()).sum::<usize>();
     // Points and the cartesian frame aligned with them grow together; the
@@ -202,15 +215,15 @@ fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit
         })
     };
     let (Some(by_encoding), Some(by_decoding)) =
-        (fits(encoded, bare.wire_len()?, encoded_budget), fits(decoded, bare.memory_size(), decoded_budget))
+        (fits(encoded, bare.wire_len().map_err(Status::from)?, encoded_budget), fits(decoded, bare.memory_size(), decoded_budget))
     else {
-        return Err(exhausted());
+        return Err(exhausted().into());
     };
     let maximum = by_encoding.min(by_decoding);
-    Err(Status::invalid_argument(format!(
-        "plot {} cannot take {} points in one {limit}-byte message; at most {maximum} points fit",
-        envelope.plot_id, payload.max_points
-    )))
+    if maximum == 0 || (payload.max_points != 0 && maximum as u64 >= payload.max_points) {
+        return Err(exhausted().into());
+    }
+    Err(FrameError::TooManyPoints { maximum })
 }
 
 fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime_domain::model::plots::wire::PlotRequest, Status> {
