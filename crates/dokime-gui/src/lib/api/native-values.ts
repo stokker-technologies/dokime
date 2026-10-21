@@ -40,7 +40,7 @@ type NativeElapsedUnit = Wire<NativeElapsed>;
 
 /** The native planning contract rejects selections above this bound. */
 export const NATIVE_CASE_LIMIT = 1_000;
-export const NATIVE_PAGE_SIZE = 100;
+export const NATIVE_PAGE_SIZE = 500;
 export const NATIVE_MAX_PAGES = 100;
 /** Keep aggregate reads below the bridge's in-flight call limit. */
 export const NATIVE_MAX_CONCURRENT_READS = 4;
