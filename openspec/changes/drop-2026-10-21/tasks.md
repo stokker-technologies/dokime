@@ -62,24 +62,6 @@
 - [ ] 60. Prove watcher acceptance through meaningful deterministic tests and migrate hosted/harness/server/client bindings, authoring guidance, examples and README.
 - [x] 61. Resolve the FTP missing-root versus permission-denied ambiguity without silently narrowing absent-source waiting.
 
-## Organization Pack Extension
-
-- [ ] 62. Replace branding-pack layout/naming with organization/organization.toml across assets, generators, imports, UI, commands, examples and guidance; preserve compiled identity and restart activation.
-- [ ] 63. Preserve installed legacy pack data through safe migration or explicit import guidance; retain the last valid organization/update configuration on invalid input with a visible error.
-- [ ] 64. Implement one disabled/manual/automatic-check update policy with direct manifest, GitHub Releases and GitLab Releases sources; installation stays explicit and signing trust stays compiled.
-- [ ] 65. Add named GitLab hosts/projects/OAuth connections and authenticated sources with host/account/client-scoped credentials, origin-safe forwarding and no secrets in packs.
-- [ ] 66. Implement the version-1 plugin release feed contract in design.md, organization-declared sources/links and authoritative backend target identity; check advertised package/version against inspected bytes, enforce host compatibility/target/digest and reuse Dokime staging/consent/install/restart. Missing feed and target source blocks source completion.
-- [ ] 67. Migrate all updater/organization consumers, generated bindings, tests, README and shipped examples; remove superseded GitLab-only updater coupling.
-- [ ] 68. Validate switching, disabled-network behavior, public/auth/missing sources, target selection, signature rejection, invalid-pack retention, credential separation and plugin lifecycle with focused tests and native acceptance.
-## Shared Secret Storage Extension
-
-- [ ] 69. Inventory secret persistence/keyring keys, plugin bindings and deployed consumers; lock safe adoption and disjoint ownership before the naming cutover.
-- [ ] 70. Replace Dokime-owned credential terminology across public declarations, operation IDs, modules, fields, settings, FTP, clients, GUI, tests, examples and guidance; preserve foreign APIs and stored values.
-- [ ] 71. Add host-owned shared named-secret lookup for all plugins with clear missing/deleted/replaced behavior and existing requirement preflight, without plugin ACLs or org-pack bindings.
-- [ ] 72. Add Secret Storage UI with target-host attribution, freely managed names/labels/descriptions, masked values and honest known-usage indication.
-- [ ] 73. Add bounded password-encrypted authenticated selected-secret export/import, conflict preview and explicit replace/skip with atomic validated import and no writes on password/tamper failure.
-- [ ] 74. Verify multi-plugin lookup, lifecycle changes, host attribution, encryption/conflicts/limits/tamper/traversal/atomicity, redaction, namespace separation, plugin settings/FTP and regenerated client coherence.
-
 ## Consolidation And Acceptance
 
 - [ ] 50. Adopt all outstanding source slices and regenerate every affected client/binding from the combined tree.
