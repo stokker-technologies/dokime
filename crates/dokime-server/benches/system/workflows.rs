@@ -356,7 +356,7 @@ fn note(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session: 
     group.sampling_mode(SamplingMode::Flat).sample_size(SAMPLES);
     let (mut cycle_id, mut execution_id) = executor.block_on(note_fixture(session));
     let mut notes = 0;
-    group.bench_function(BenchmarkId::from_parameter("idle"), |bencher| {
+    group.bench_function(BenchmarkId::new("idle_rows", 100_000), |bencher| {
         bencher.iter_custom(|iterations| {
             executor.block_on(async {
                 let mut elapsed = Duration::ZERO;
@@ -371,7 +371,7 @@ fn note(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session: 
             })
         });
     });
-    group.bench_function(BenchmarkId::from_parameter("during_cycle_report"), |bencher| {
+    group.bench_function(BenchmarkId::new("during_cycle_report_rows", 100_000), |bencher| {
         bencher.iter_custom(|iterations| {
             executor.block_on(async {
                 let mut elapsed = Duration::ZERO;
@@ -433,7 +433,11 @@ fn plot_stream(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, se
         session.complete(&cycle_id).await;
         (cycle_id, members[0].clone())
     });
-    group.bench_function(BenchmarkId::from_parameter("first_frame"), |bencher| {
+    let initial = executor.block_on(first_frame(&session.client, &cycle_id, &execution_id));
+    let payload = initial.envelope.unwrap().payload.unwrap();
+    let rows = payload.series.iter().map(|series| series.raw_points).sum::<u64>();
+    group.throughput(Throughput::Elements(rows));
+    group.bench_function(BenchmarkId::new("first_frame_rows", rows), |bencher| {
         bencher.iter_custom(|iterations| {
             let mut elapsed = Duration::ZERO;
             for _ in 0..iterations {
