@@ -14,7 +14,7 @@
 
 /* === External Imports === */
 
-import { type Channel, type InvokeArgs, type InvokeOptions, invoke as invokeCommand } from "@tauri-apps/api/core";
+import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
 
 /* === Local Imports === */
 
@@ -36,11 +36,11 @@ import type { ParameterOverrides } from "./settings";
  * build that gets this far is a defect in a caller's own guard, so it throws
  * rather than resolving with something invented.
  */
-function invoke<T>(command: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T> {
+function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   if (isReportBuild()) {
     return Promise.reject(new Error(`A frozen report cannot call the desktop command "${command}".`));
   }
-  return invokeCommand<T>(command, args, options);
+  return invokeCommand<T>(command, args);
 }
 
 /* === Public Constants === */
@@ -87,14 +87,9 @@ export const commands = {
   /** Patch an MP4 recording's duration in place and upload it; returns the artifact id. */
   desktopRecordingFinish: (generation: string, durationMs: number, mediaType: string) =>
     invoke<string>("desktop_recording_finish", { generation, durationMs, mediaType }),
-  /** Pick a plugin bundle natively and stage it in one pass; `null` when the operator cancels. */
-  desktopPluginStageFile: (generation: string, progress: Channel<StagePluginProgress>) =>
-    invoke<string | null>("desktop_plugin_stage_file", { generation, progress }),
-  /** Stage a dropped plugin bundle carried as one raw invoke body; resolves with the installation id. */
-  desktopPluginStageBytes: (generation: string, bundle: Uint8Array, progress: Channel<StagePluginProgress>) =>
-    invoke<string>("desktop_plugin_stage_bytes", bundle, {
-      headers: { "dokime-plugin-generation": generation, "dokime-plugin-progress": progress.toJSON() },
-    }),
+  /** Stage the bundle just dropped on the window, or pick one natively; `null` when the operator cancels. */
+  desktopPluginStageFile: (generation: string, drop: boolean, progress: Channel<StagePluginProgress>) =>
+    invoke<string | null>("desktop_plugin_stage_file", { generation, drop, progress }),
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
   /** Drain all runtime resources before requesting Tauri's non-cancellable restart. */
   desktopRestart: () => invoke<null>("desktop_restart"),

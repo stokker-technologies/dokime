@@ -156,17 +156,11 @@ native_commands! {
         (generation: String, duration_ms: u64, media_type: String) -> Result<String, String>
         => crate::app::recording::desktop_recording_finish;
 
-    // Pick a plugin bundle natively and stage it in one pass; `None` when the operator cancels.
+    // Stage the bundle just dropped on the window, or pick one natively; `None` when the operator cancels.
     async desktop_plugin_stage_file
-        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, progress: tauri::ipc::Channel<crate::app::plugins::StageProgress>) -> Result<Option<String>, String>
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, dropped: tauri::State<'_, crate::app::plugins::DroppedFiles>, app: tauri::AppHandle]
+        (generation: String, drop: bool, progress: tauri::ipc::Channel<crate::app::plugins::StageProgress>) -> Result<Option<String>, String>
         => crate::app::plugins::desktop_plugin_stage_file;
-
-    // Stage a dropped plugin bundle carried as one raw invoke body; returns the installation id.
-    async desktop_plugin_stage_bytes
-        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, request: tauri::ipc::Request<'_>]
-        () -> Result<String, String>
-        => crate::app::plugins::desktop_plugin_stage_bytes;
 
     sync desktop_set_title
         [window: tauri::WebviewWindow]

@@ -9,14 +9,16 @@
 
 /* === External Imports === */
 
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileUp, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { formatStagePluginBytes, type StagePluginProgress } from "@/lib/api/native-plugins";
 import { useBrand } from "@/lib/brand";
+import { isTauriDesktop } from "@/lib/desktop-open";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -25,16 +27,17 @@ type PluginDropZoneProps = {
   disabled: boolean;
   error: string | null;
   filename: string | null;
-  onFile: (file: File) => void;
+  onDrop: (filename: string) => void;
   onPick: () => void;
   progress: StagePluginProgress | null;
 };
 
 /* === Components === */
 
-export function PluginDropZone({ disabled, error, filename, onFile, onPick, progress }: PluginDropZoneProps) {
+export function PluginDropZone({ disabled, error, filename, onDrop, onPick, progress }: PluginDropZoneProps) {
   const brand = useBrand();
-  const [dragging, setDragging] = useState(false);
+  const zone = useRef<HTMLFieldSetElement>(null);
+  const dragging = useNativeFileDrop(zone, disabled, onDrop);
 
   return (
     <div className="grid gap-2">
@@ -47,29 +50,7 @@ export function PluginDropZone({ disabled, error, filename, onFile, onPick, prog
           disabled && "opacity-70",
         )}
         disabled={disabled}
-        onDragEnter={(event) => {
-          event.preventDefault();
-          if (!disabled) {
-            setDragging(true);
-          }
-        }}
-        onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            setDragging(false);
-          }
-        }}
-        onDragOver={(event) => {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "copy";
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDragging(false);
-          const file = event.dataTransfer.files.item(0);
-          if (file && !disabled) {
-            onFile(file);
-          }
-        }}
+        ref={zone}
       >
         <div className="grid max-w-md justify-items-center gap-3">
           {disabled ? (
@@ -96,6 +77,47 @@ export function PluginDropZone({ disabled, error, filename, onFile, onPick, prog
 }
 
 /* === Private Functions === */
+
+/**
+ * Follow the shell's native file drag over the zone. The webview never sees a
+ * dropped file's bytes or path; the shell records the drop and stages it.
+ */
+function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolean, onDrop: (filename: string) => void): boolean {
+  const [over, setOver] = useState(false);
+  const latest = useRef({ disabled, onDrop });
+  latest.current = { disabled, onDrop };
+
+  useEffect(() => {
+    if (!isTauriDesktop()) return;
+    const inside = (position: { x: number; y: number }) => {
+      const bounds = zone.current?.getBoundingClientRect();
+      const x = position.x / window.devicePixelRatio;
+      const y = position.y / window.devicePixelRatio;
+      return Boolean(bounds && x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom);
+    };
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void getCurrentWebview()
+      .onDragDropEvent(({ payload }) => {
+        if (payload.type === "leave") return setOver(false);
+        const hovering = inside(payload.position) && !latest.current.disabled;
+        setOver(payload.type !== "drop" && hovering);
+        if (payload.type === "drop" && hovering) {
+          latest.current.onDrop(payload.paths[0]?.split(/[\\/]/).at(-1) ?? "plugin");
+        }
+      })
+      .then((stop) => {
+        if (disposed) stop();
+        else unlisten = stop;
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [zone]);
+
+  return over;
+}
 
 /** Render the busy drop zone's status line for the mutation's current phase. */
 function stagingLabel(progress: StagePluginProgress | null, filename: string | null): string {

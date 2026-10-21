@@ -49,9 +49,9 @@ export function useStagePluginMutation() {
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<StagePluginProgress | null>(null);
   const mutation = useMutation({
-    mutationFn: (file: File | null) => {
+    mutationFn: (source: "pick" | "drop") => {
       setProgress(null);
-      return stageNativePlugin(session.identity, file, { onProgress: setProgress });
+      return stageNativePlugin(session.identity, source, { onProgress: setProgress });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() });

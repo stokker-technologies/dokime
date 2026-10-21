@@ -95,15 +95,16 @@ test("Picked Bundle Stages In One Native Invoke", async () => {
     return "picked";
   });
 
-  const entry = await stageNativePlugin(session, null, { onProgress: (value) => progress.push(value) });
+  const entry = await stageNativePlugin(session, "pick", { onProgress: (value) => progress.push(value) });
 
   assert.equal(entry?.install_id, "picked");
   assert.equal(entry?.state, "staged");
   assert.equal(fixture.invoke.mock.calls.length, 1);
   const [command, args, options] = fixture.invoke.mock.calls[0];
   assert.equal(command, "desktop_plugin_stage_file");
-  assert.deepEqual(Object.keys(args), ["generation", "progress"]);
+  assert.deepEqual(Object.keys(args), ["generation", "drop", "progress"]);
   assert.equal(args.generation, "7");
+  assert.equal(args.drop, false);
   assert.equal(options, undefined);
   assert.deepEqual(progress, [{ phase: "reading" }, { phase: "uploading", sent: 52_500_000, total: 52_500_000 }, { phase: "inspecting" }]);
   assert.deepEqual(fixture.getInstallation.mock.calls, [[session, { installId: "picked" }]]);
@@ -111,36 +112,27 @@ test("Picked Bundle Stages In One Native Invoke", async () => {
 
 test("Cancelled Picker Stages Nothing", async () => {
   fixture.invoke.mockResolvedValue(null);
-  assert.equal(await stageNativePlugin(session, null), null);
+  assert.equal(await stageNativePlugin(session, "pick"), null);
   assert.equal(fixture.getInstallation.mock.calls.length, 0);
 });
 
-test("Dropped Bundle Crosses The Bridge Once As A Raw Body", async () => {
-  const bytes = new Uint8Array(3 * 1024 * 1024 + 5).fill(9);
-  const progress: StagePluginProgress[] = [];
+test("Dropped Bundle Stages From The Shell's Recorded Drop", async () => {
   fixture.invoke.mockResolvedValue("dropped");
 
-  const entry = await stageNativePlugin(session, new File([bytes], "obc-plugin.dokime"), { onProgress: (value) => progress.push(value) });
+  const entry = await stageNativePlugin(session, "drop");
 
   assert.equal(entry?.install_id, "dropped");
   assert.equal(fixture.invoke.mock.calls.length, 1);
-  const [command, body, options] = fixture.invoke.mock.calls[0];
-  assert.equal(command, "desktop_plugin_stage_bytes");
-  assert.ok(body instanceof Uint8Array);
-  assert.deepEqual(body, bytes);
-  assert.deepEqual(options, { headers: { "dokime-plugin-generation": "7", "dokime-plugin-progress": "__CHANNEL__:0" } });
-  assert.deepEqual(progress, [{ phase: "reading" }]);
-});
-
-test("Empty Bundle Is Refused Before The Bridge", async () => {
-  await assert.rejects(stageNativePlugin(session, new File([], "empty.dokime")), /between 1 and/);
-  assert.equal(fixture.invoke.mock.calls.length, 0);
+  const [command, args, options] = fixture.invoke.mock.calls[0];
+  assert.equal(command, "desktop_plugin_stage_file");
+  assert.equal(args.drop, true);
+  assert.equal(options, undefined, "no bundle bytes or path cross the bridge");
 });
 
 test("Drop Zone Reports Each Staging Phase", () => {
   const render = (progress: StagePluginProgress | null) =>
     renderToStaticMarkup(
-      createElement(PluginDropZone, { disabled: true, error: null, filename: "obc-plugin.dokime", onFile() {}, onPick() {}, progress }),
+      createElement(PluginDropZone, { disabled: true, error: null, filename: "obc-plugin.dokime", onDrop() {}, onPick() {}, progress }),
     );
   assert.match(render(null), /Inspecting obc-plugin\.dokime…/);
   assert.match(render({ phase: "reading" }), /Reading file…/);

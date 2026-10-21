@@ -95,36 +95,21 @@ export function formatStagePluginBytes(bytes: number): string {
 /**
  * Stage an inert plugin archive; activation remains a separate consent command.
  *
- * With no file, the shell picks the bundle natively, reads and hashes it once
- * and streams it to the backend in negotiated-size frames; `null` means the
- * operator cancelled the picker. A dropped file carries no path, so its bytes
- * cross the bridge once as a raw body into that same native staging.
+ * The shell obtains the bundle itself, from its native picker or from the
+ * native file drop it just recorded, then reads and hashes it once and streams
+ * it to the backend; no bundle bytes cross the webview. `null` means the
+ * operator cancelled the picker.
  */
 export async function stageNativePlugin(
   session: SessionIdentity,
-  file: File | null,
+  source: "pick" | "drop",
   options: StagePluginOptions = {},
 ): Promise<PluginEntry | null> {
   const progress = new Channel<StagePluginProgress>((message) => options.onProgress?.(message));
-  let installId: string | null;
-  if (file) {
-    options.onProgress?.({ phase: "reading" });
-    installId = await commands.desktopPluginStageBytes(session.generation, await readPluginBytes(file), progress);
-  } else {
-    installId = await commands.desktopPluginStageFile(session.generation, progress);
-  }
+  const installId = await commands.desktopPluginStageFile(session.generation, source === "drop", progress);
   if (installId === null) return null;
   if (!session.isCurrent()) throw new Error("The connection changed while the plugin was being staged.");
   return getNativePlugin(session, installId);
-}
-
-const NATIVE_PLUGIN_BYTES = 272 * 1024 * 1024;
-
-async function readPluginBytes(file: File): Promise<Uint8Array> {
-  if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > NATIVE_PLUGIN_BYTES) {
-    throw new NativeApiLimitError("Plugins.Stage", `plugin archive must be between 1 and ${NATIVE_PLUGIN_BYTES} bytes`);
-  }
-  return new Uint8Array(await file.arrayBuffer());
 }
 
 /* === Admitted Plugins === */

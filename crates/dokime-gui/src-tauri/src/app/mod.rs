@@ -92,8 +92,12 @@ fn start_tauri_app() -> tauri::Result<()> {
     let builder = tauri::Builder::default()
         .manage(crate::rpc::Bridge::default())
         .manage(crate::connection::ConnectionSession::default())
+        .manage(plugins::DroppedFiles::default())
         .manage(launch)
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                window.state::<plugins::DroppedFiles>().record(window.label(), paths);
+            }
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 window.state::<crate::rpc::Bridge>().cancel_owner(window.label());
                 // No single generation is authoritative at window teardown;
@@ -223,13 +227,9 @@ fn start_tauri_app() -> tauri::Result<()> {
 fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
     for window in app.config().app.windows.iter().filter(|window| !window.create) {
         let navigation_config = app.config().clone();
-        let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
-            .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config));
-        // The window-level OLE handler would otherwise swallow file drops
-        // before WebView2 raises the HTML5 events the plugin drop zone uses.
-        #[cfg(windows)]
-        let builder = builder.drag_and_drop(false);
-        builder.build()?;
+        tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
+            .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config))
+            .build()?;
     }
     Ok(())
 }
