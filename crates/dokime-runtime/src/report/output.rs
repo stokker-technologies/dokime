@@ -16,7 +16,6 @@
 // Standard Library Imports
 use std::{
     io::{self, Write},
-    num::NonZeroUsize,
     sync::LazyLock,
 };
 
@@ -38,17 +37,6 @@ static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(su
 /* === Structs === */
 
 struct ScriptFormatter;
-
-pub(super) struct Buffer {
-    bytes: Vec<u8>,
-    maximum: usize,
-}
-
-pub(super) struct Count {
-    bytes: usize,
-    maximum: NonZeroUsize,
-    exceeded: bool,
-}
 
 /* === Enums === */
 
@@ -73,63 +61,6 @@ impl serde_json::ser::Formatter for ScriptFormatter {
             start = at + character.len_utf8();
         }
         writer.write_all(&fragment.as_bytes()[start..])
-    }
-}
-
-impl Buffer {
-    pub(super) fn new(maximum: usize) -> io::Result<Self> {
-        let mut bytes = Vec::new();
-        bytes.try_reserve_exact(maximum).map_err(io::Error::other)?;
-        if bytes.capacity() > maximum {
-            return Err(io::Error::other("report output capacity exceeds its preclaim"));
-        }
-        Ok(Self { bytes, maximum })
-    }
-
-    pub(super) fn into_bytes(self) -> Vec<u8> {
-        self.bytes
-    }
-}
-
-impl Write for Buffer {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.bytes
-            .len()
-            .checked_add(bytes.len())
-            .filter(|required| *required <= self.maximum)
-            .ok_or_else(|| io::Error::other("report output exceeds its counted size"))?;
-        self.bytes.extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl Count {
-    pub(super) fn new(maximum: NonZeroUsize) -> Self {
-        Self { bytes: 0, maximum, exceeded: false }
-    }
-    pub(super) fn len(&self) -> usize {
-        self.bytes
-    }
-    pub(super) fn exceeded(&self) -> bool {
-        self.exceeded
-    }
-}
-
-impl Write for Count {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.bytes = self.bytes.checked_add(bytes.len()).filter(|required| *required <= self.maximum.get()).ok_or_else(|| {
-            self.exceeded = true;
-            io::Error::other("report output exceeds its byte limit")
-        })?;
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 

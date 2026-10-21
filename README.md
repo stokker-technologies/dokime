@@ -962,6 +962,16 @@ not build a test archive or a desktop GUI. Benchmark executables and compiler
 metadata live under `bench/`, hosts under `bin/`, and plugin fixtures under
 `fixtures/plugins/` within the native bench Build output.
 
+The server system benchmarks use a bench-only OBC capture suite with generated
+100k/200k-row telemetry and two operator prompts. They cover a 50 MiB plugin
+install, running execution and ten-member cycle reports, durable execution
+sealing, operator notes, and the first recovery plot frame containing points.
+Counters distinguish explicit SQLite transaction commits, data batches, native
+file durability confirmations and transferred payload bytes; SQLite autocommit
+statements and the separate Harmos state journal are outside these counters.
+Build with `mise run build:bench`, then run
+`mise run bench:system:rust`; ordinary product builds omit this fixture suite.
+
 `package --profile dev` consumes matching Product outputs without compiling;
 select `release` to package release Product bytes. Tests and Bench outputs are
 separate preparation inputs for their own lanes.

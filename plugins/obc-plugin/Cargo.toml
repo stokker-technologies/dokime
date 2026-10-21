@@ -17,6 +17,9 @@ license.workspace = true
 [package.metadata.dokime]
 debuginfo = false
 
+[features]
+benchmarks = []
+
 [dependencies]
 # Local
 dokime-domain = { version = "0.1.0", path = "../../crates/dokime-domain" }

@@ -38,7 +38,7 @@ ROOT = frontend.ROOT
 
 def build() -> None:
     """Use The Shared Bench Producer And Add The OBC Fixture Its System Stories Measure."""
-    extra = ("--exclude", "dokime-gui")
+    extra = ("--exclude", "dokime-gui", "--features", "obc-plugin/benchmarks")
     messages = bench.build(ROOT, extra=extra)
     output = paths.output(ROOT, "build", "bench")
     directory = output / "bench"

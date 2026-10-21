@@ -419,11 +419,7 @@ impl RuntimeHandle {
             }
         }
         let cycle = self.state_read().cycle_view(&test_cycle_id).ok_or_else(|| Error::not_found("cycle_not_found", "cycle not found"))?;
-        for execution in &cycle.test_executions {
-            if execution.saved.is_none() {
-                self.finish_saved_execution(&cycle, execution).await?;
-            }
-        }
+        self.finish_saved_members(&cycle).await?;
 
         // A Queued Receipt Becomes Terminal Only After Its Selection Is Sealed.
         let finishing = self

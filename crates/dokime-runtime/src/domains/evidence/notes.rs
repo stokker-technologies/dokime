@@ -147,11 +147,8 @@ impl RuntimeHandle {
                 return Err(NoteError::Sealed);
             }
         }
-        // Save native membership before selecting the annotation targets.
-        self.execution_storage
-            .save_cycle(request.owner.cycle_id().clone())
-            .await
-            .map_err(|error| NoteError::Unavailable(error.to_string()))?;
+        // Create And Append Already Persist Membership. The Note's Journal Commit
+        // And Selected Checkpoints Own Its Durability; Do Not Rewrite The Cycle.
         let state = self.state_read();
         if state.process_epoch() != &request.epoch {
             return Err(NoteError::Epoch);

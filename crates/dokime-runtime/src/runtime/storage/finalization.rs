@@ -55,11 +55,7 @@ impl RuntimeHandle {
         if cycle.saved.is_some() {
             return Ok(());
         }
-        for execution in &cycle.test_executions {
-            if execution.saved.is_none() {
-                self.finish_saved_execution(&cycle, execution).await?;
-            }
-        }
+        self.finish_saved_members(&cycle).await?;
         let progress = self.operation_progress().begin("Sealing Cycle Report");
         let sealed = match self.finish_saved_cycle(&cycle, &progress).await {
             Ok(sealed) => {
@@ -76,6 +72,49 @@ impl RuntimeHandle {
             .map_err(|error| Error::Operation(error.to_string()))?;
         self.execution_storage.retire_cycle_report(id).await;
         Ok(())
+    }
+
+    // Unsealed Members Finalize Four At Once. Those Without An Evidence
+    // Boundary Share One Flush And One Durable Intent: Their Providers Have
+    // Settled, So No Later Sample Can Belong To Any Of Them.
+    pub(crate) async fn finish_saved_members(&self, cycle: &CycleView) -> Result<()> {
+        let pending = cycle.test_executions.iter().filter(|execution| execution.saved.is_none()).cloned().collect::<Vec<_>>();
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let unbounded = {
+            let state = self.state_read();
+            pending
+                .iter()
+                .map(|execution| &execution.test_execution_id)
+                .filter(|id| {
+                    !state.report_finalizations.contains_key(*id)
+                        && state.executions.get(*id).is_some_and(|execution| execution.saved.is_none())
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        if !unbounded.is_empty() {
+            let evidence_at = self.storage().flush().await?;
+            let requested = self
+                .commit(crate::transactions::RequestReportFinalization {
+                    executions: unbounded,
+                    intent: crate::transactions::ReportFinalization {
+                        evidence_at,
+                        requested_at: crate::model::time::now_utc(),
+                        lifecycle: None,
+                    },
+                })
+                .await;
+            // A Refused Batch Leaves Each Member To Request Its Own Boundary.
+            if let Err(error) = requested {
+                tracing::debug!(%error, cycle_id = %cycle.test_cycle_id, "batched report finalization intent was refused");
+            }
+        }
+        match self.finish_saved_executions(cycle, pending).await?.into_iter().next() {
+            Some((_, error)) => Err(error),
+            None => Ok(()),
+        }
     }
 
     pub(crate) async fn finish_saved_executions(
