@@ -36,12 +36,12 @@ harmos = { workspace = true, features = ["grpc"] }
 thiserror = { workspace = true }
 
 # Logging
+tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-chrome = { workspace = true }
 tracing-error = { workspace = true }
 tracing-flame = { workspace = true }
 tracing-subscriber = { workspace = true }
-tracing = { workspace = true }
 
 # Utilities
 rand = { workspace = true }
@@ -106,15 +106,15 @@ tokio = { workspace = true, features = ["process", "test-util"] }
 # Networking
 tonic = { workspace = true, features = ["channel"] }
 
-# Testing
-criterion = { workspace = true }
+# Storage
+rusqlite = { workspace = true }
 
 # UI
 anstream = { workspace = true }
 portable-pty = { workspace = true }
 
-# Storage
-rusqlite = { workspace = true }
+# Testing
+criterion = { workspace = true }
 
 [[bench]]
 name = "system-server"
