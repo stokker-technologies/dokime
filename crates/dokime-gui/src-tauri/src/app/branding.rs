@@ -1,0 +1,609 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Runtime Branding Packs: Validation, Staging And Boot Promotion
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::{
+    collections::BTreeMap,
+    io::Read,
+    path::{Component, Path, PathBuf},
+    sync::Mutex,
+};
+
+// Third Party Imports
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager};
+use tauri_plugin_dialog::DialogExt;
+
+// Local Imports
+
+/* === Constants === */
+
+const ARCHIVE_BYTES: u64 = 20 * 1024 * 1024;
+const ARCHIVE_ENTRIES: usize = 200;
+const MANIFEST: &str = "brand.toml";
+const ACTIVE: &str = "active";
+const PENDING: &str = "pending";
+/// Applied by the shell at runtime: identity, logos, theme CSS and fonts.
+const RUNTIME_EXTENSIONS: [&str; 5] = ["toml", "css", "woff2", "svg", "png"];
+/// Build-time folders a fork's branding folder carries; skipped, never applied.
+const IGNORED_FOLDERS: [&str; 2] = ["icons", "generated"];
+/// Licence and readme text beside fonts and logos; skipped, never applied.
+const IGNORED_EXTENSIONS: [&str; 2] = ["txt", "md"];
+const THEME_FILES: [&str; 4] = ["theme/typography.css", "theme/base.css", "theme/light.css", "theme/dark.css"];
+const LOGO_VARIANTS: [(&str, &str, &str); 4] = [
+    ("transparent", "on_light", "transparent_on_light"),
+    ("transparent", "on_dark", "transparent_on_dark"),
+    ("contained", "on_light", "contained_on_light"),
+    ("contained", "on_dark", "contained_on_dark"),
+];
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/// What the shell resolved at boot and what the operator changed since.
+pub(crate) struct BrandingState {
+    root: PathBuf,
+    boot: Boot,
+    session: Mutex<Session>,
+}
+
+#[derive(Default)]
+struct Session {
+    pending: Option<PackSummary>,
+    removed: bool,
+}
+
+struct Boot {
+    pack: Option<LoadedPack>,
+    error: Option<String>,
+}
+
+/// The pack as the frontend applies it before it renders.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LoadedPack {
+    label: String,
+    title_template: String,
+    organization: Option<Organization>,
+    /// Logo variant to `data:` URI.
+    logos: BTreeMap<String, String>,
+    css: String,
+    #[serde(skip)]
+    ignored: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Organization {
+    name: String,
+    #[serde(default)]
+    unit: Option<String>,
+    #[serde(default)]
+    website: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PackSummary {
+    label: String,
+    organization: Option<String>,
+    /// Build-time parts the pack carries that only a rebuild applies.
+    ignored: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BrandingStatus {
+    /// The pack this process applied at boot, unless removed since.
+    active: Option<PackSummary>,
+    /// A validated pack that applies on the next start.
+    pending: Option<PackSummary>,
+    /// Packs were removed this session; the compiled brand applies on the next start.
+    removed: bool,
+    /// Why the active pack could not be applied at boot.
+    error: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BootScript<'a> {
+    pack: Option<&'a LoadedPack>,
+    error: Option<&'a str>,
+}
+
+#[derive(Deserialize)]
+struct Manifest {
+    app: AppSection,
+    #[serde(default)]
+    theme: Option<ThemeSection>,
+}
+
+#[derive(Deserialize)]
+struct AppSection {
+    label: String,
+    #[serde(default)]
+    title_template: Option<String>,
+    #[serde(default)]
+    slug: Option<String>,
+    #[serde(default)]
+    identifier: Option<String>,
+    #[serde(default)]
+    deep_link_scheme: Option<String>,
+    #[serde(default)]
+    organization: Option<Organization>,
+    #[serde(default)]
+    logos: BTreeMap<String, BTreeMap<String, String>>,
+}
+
+#[derive(Deserialize)]
+struct ThemeSection {
+    #[serde(default)]
+    corner_radii: BTreeMap<String, String>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl BrandingState {
+    fn status(&self) -> BrandingStatus {
+        let session = self.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        BrandingStatus {
+            active: (!session.removed).then(|| self.boot.pack.as_ref().map(LoadedPack::summary)).flatten(),
+            pending: session.pending.clone(),
+            removed: session.removed,
+            error: self.boot.error.clone(),
+        }
+    }
+
+    /// The script every main window runs before the frontend loads.
+    pub(crate) fn initialization_script(&self) -> String {
+        let boot = BootScript { pack: self.boot.pack.as_ref(), error: self.boot.error.as_deref() };
+        let json = serde_json::to_string(&boot).unwrap_or_else(|_| "{}".to_owned());
+        format!("window.__DOKIME_BRAND_PACK__ = {json};")
+    }
+}
+
+impl LoadedPack {
+    fn summary(&self) -> PackSummary {
+        PackSummary {
+            label: self.label.clone(),
+            organization: self.organization.as_ref().map(|organization| organization.name.clone()),
+            ignored: self.ignored.clone(),
+        }
+    }
+}
+
+/* === Public Functions === */
+
+/// Promotes a pending pack and loads the active one before any window exists.
+pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
+    let root = app.path().app_data_dir()?.join("branding");
+    let boot = boot(&root);
+    if let Some(error) = &boot.error {
+        tracing::error!(%error, "branding pack is invalid; the compiled brand applies");
+    }
+    let pending = load(&root.join(PENDING)).ok().map(|pack| pack.summary());
+    app.manage(BrandingState { root, boot, session: Mutex::new(Session { pending, removed: false }) });
+    Ok(())
+}
+
+pub fn desktop_branding_status(state: tauri::State<'_, BrandingState>) -> Result<BrandingStatus, String> {
+    Ok(state.status())
+}
+
+pub async fn desktop_branding_choose(app: AppHandle) -> Result<Option<BrandingStatus>, String> {
+    let picked = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || app.dialog().file().add_filter("Branding Pack", &["zip"]).blocking_pick_file()
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+    let Some(file) = picked else { return Ok(None) };
+    let path = file.into_path().map_err(|error| error.to_string())?;
+    let root = app.state::<BrandingState>().root.clone();
+    let summary = tauri::async_runtime::spawn_blocking(move || stage(&root, &path)).await.map_err(|error| error.to_string())??;
+    let state = app.state::<BrandingState>();
+    let mut session = state.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    session.pending = Some(summary);
+    session.removed = false;
+    drop(session);
+    Ok(Some(state.status()))
+}
+
+pub async fn desktop_branding_remove(app: AppHandle) -> Result<BrandingStatus, String> {
+    let root = app.state::<BrandingState>().root.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        for folder in [PENDING, ACTIVE] {
+            remove_folder(&root.join(folder))?;
+        }
+        Ok::<_, String>(())
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    let state = app.state::<BrandingState>();
+    let mut session = state.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    session.pending = None;
+    session.removed = true;
+    drop(session);
+    Ok(state.status())
+}
+
+/* === Private Functions === */
+
+fn boot(root: &Path) -> Boot {
+    let pending = root.join(PENDING);
+    let active = root.join(ACTIVE);
+    if pending.is_dir() {
+        // A Validated Pending Pack Replaces The Active One Whole, Never In Part.
+        if let Err(error) = remove_folder(&active).and_then(|()| std::fs::rename(&pending, &active).map_err(|error| error.to_string())) {
+            return Boot { pack: None, error: Some(format!("the pending branding pack could not be activated: {error}")) };
+        }
+    }
+    if !active.is_dir() {
+        return Boot { pack: None, error: None };
+    }
+    match load(&active) {
+        Ok(pack) => Boot { pack: Some(pack), error: None },
+        Err(error) => Boot { pack: None, error: Some(error) },
+    }
+}
+
+/// Validates an archive, extracts it beside the packs and replaces the pending pack only when it loads.
+fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
+    let metadata = std::fs::metadata(archive).map_err(|error| error.to_string())?;
+    if metadata.len() > ARCHIVE_BYTES {
+        return Err(format!("the branding pack exceeds {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+    }
+    let bytes = std::fs::read(archive).map_err(|error| error.to_string())?;
+    let files = validate_archive(&bytes)?;
+    std::fs::create_dir_all(root).map_err(|error| error.to_string())?;
+    let staging = tempfile::Builder::new().prefix(".staging-").tempdir_in(root).map_err(|error| error.to_string())?;
+    for (relative, contents) in &files {
+        let path = staging.path().join(relative);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        std::fs::write(&path, contents).map_err(|error| error.to_string())?;
+    }
+    let summary = load(staging.path())?.summary();
+    let pending = root.join(PENDING);
+    remove_folder(&pending)?;
+    std::fs::rename(staging.keep(), &pending).map_err(|error| error.to_string())?;
+    Ok(summary)
+}
+
+/// The runtime files of a branding folder zipped as is, keyed by their path inside the pack.
+fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+    if bytes.len() as u64 > ARCHIVE_BYTES {
+        return Err(format!("the branding pack exceeds {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+    }
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|error| format!("not a zip archive: {error}"))?;
+    if archive.len() > ARCHIVE_ENTRIES {
+        return Err(format!("the branding pack has more than {ARCHIVE_ENTRIES} entries"));
+    }
+    let mut names = Vec::with_capacity(archive.len());
+    for index in 0..archive.len() {
+        let entry = archive.by_index_raw(index).map_err(|error| error.to_string())?;
+        let name = entry.name().map_err(|error| format!("unreadable entry name: {error}"))?.into_owned();
+        if name.contains('\\') || name.starts_with('/') || name.contains(':') || entry.enclosed_name().is_none() {
+            return Err(format!("unsafe path in the branding pack: {name}"));
+        }
+        if entry.is_symlink() {
+            return Err(format!("links are not allowed in a branding pack: {name}"));
+        }
+        if entry.encrypted() {
+            return Err(format!("encrypted entries are not allowed in a branding pack: {name}"));
+        }
+        names.push((name, entry.is_dir()));
+    }
+    let prefix = manifest_prefix(names.iter().map(|(name, _)| name.as_str()))?;
+    let mut files = BTreeMap::new();
+    let mut total = 0u64;
+    for (index, (name, directory)) in names.iter().enumerate() {
+        let Some(relative) = name.strip_prefix(&prefix) else {
+            return Err(format!("the branding pack mixes folders: {name}"));
+        };
+        if *directory || relative.is_empty() {
+            continue;
+        }
+        let path = PathBuf::from(relative);
+        let first = path.components().next().and_then(|component| component.as_os_str().to_str()).unwrap_or_default();
+        let extension = path.extension().and_then(|extension| extension.to_str()).unwrap_or_default().to_ascii_lowercase();
+        if IGNORED_FOLDERS.contains(&first) || IGNORED_EXTENSIONS.contains(&extension.as_str()) {
+            continue;
+        }
+        if !RUNTIME_EXTENSIONS.contains(&extension.as_str()) {
+            return Err(format!("unsupported file in the branding pack: {relative}"));
+        }
+        let mut entry = archive.by_index(index).map_err(|error| error.to_string())?;
+        let mut contents = Vec::new();
+        let remaining = ARCHIVE_BYTES - total;
+        (&mut entry).take(remaining + 1).read_to_end(&mut contents).map_err(|error| error.to_string())?;
+        total += contents.len() as u64;
+        if total > ARCHIVE_BYTES {
+            return Err(format!("the branding pack expands beyond {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+        }
+        if files.insert(path, contents).is_some() {
+            return Err(format!("the branding pack repeats {relative}"));
+        }
+    }
+    Ok(files)
+}
+
+/// `brand.toml` sits at the root or under exactly one top folder holding every entry.
+fn manifest_prefix<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Result<String, String> {
+    if names.clone().any(|name| name == MANIFEST) {
+        return Ok(String::new());
+    }
+    let manifests: Vec<&str> = names.clone().filter(|name| name.matches('/').count() == 1 && name.ends_with("/brand.toml")).collect();
+    let [manifest] = manifests.as_slice() else {
+        return Err("the branding pack has no brand.toml at its root or under one top folder".to_owned());
+    };
+    let prefix = manifest.trim_end_matches(MANIFEST).to_owned();
+    if names.any(|name| !name.starts_with(&prefix)) {
+        return Err("the branding pack must hold one top folder or its files at the root".to_owned());
+    }
+    Ok(prefix)
+}
+
+/// Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
+fn load(dir: &Path) -> Result<LoadedPack, String> {
+    let text = std::fs::read_to_string(dir.join(MANIFEST)).map_err(|error| format!("brand.toml could not be read: {error}"))?;
+    let manifest: Manifest = toml::from_str(&text).map_err(|error| format!("brand.toml does not parse: {error}"))?;
+    let app = manifest.app;
+    if app.label.trim().is_empty() {
+        return Err("brand.toml needs an app label".to_owned());
+    }
+    let mut logos = BTreeMap::new();
+    for (treatment, surface, variant) in LOGO_VARIANTS {
+        let Some(file) = app.logos.get(treatment).and_then(|surfaces| surfaces.get(surface)) else { continue };
+        let relative = format!("logos/{file}");
+        let bytes = read_inside(dir, &relative)?;
+        let mime = match Path::new(file).extension().and_then(|extension| extension.to_str()) {
+            Some("svg") => "image/svg+xml",
+            Some("png") => "image/png",
+            _ => return Err(format!("logos must be SVG or PNG: {file}")),
+        };
+        logos.insert(variant.to_owned(), format!("data:{mime};base64,{}", BASE64.encode(bytes)));
+    }
+    if logos.is_empty() {
+        return Err("brand.toml names no logo the pack contains".to_owned());
+    }
+    let mut css = String::new();
+    for file in THEME_FILES {
+        if !dir.join(file).is_file() {
+            continue;
+        }
+        let source = String::from_utf8(read_inside(dir, file)?).map_err(|_| format!("{file} is not UTF-8"))?;
+        css.push_str(&format!("/* {file} */\n{}\n", inline_urls(dir, file, &source)?));
+        if file == "theme/base.css" {
+            css.push_str(&corner_radii(manifest.theme.as_ref()));
+        }
+    }
+    let ignored = [
+        app.slug.as_ref().map(|_| "slug"),
+        app.identifier.as_ref().map(|_| "bundle identifier"),
+        app.deep_link_scheme.as_ref().map(|_| "deep-link scheme"),
+        dir.join("icons").exists().then_some("OS icon"),
+    ]
+    .into_iter()
+    .flatten()
+    .map(str::to_owned)
+    .collect();
+    Ok(LoadedPack {
+        title_template: app.title_template.filter(|template| !template.trim().is_empty()).unwrap_or_else(|| "{app}".to_owned()),
+        label: app.label,
+        organization: app.organization,
+        logos,
+        css,
+        ignored,
+    })
+}
+
+fn corner_radii(theme: Option<&ThemeSection>) -> String {
+    let Some(radii) = theme.map(|theme| &theme.corner_radii).filter(|radii| !radii.is_empty()) else { return String::new() };
+    let mut css = String::from(":root {\n");
+    for (key, suffix) in
+        [("base", ""), ("sm", "-sm"), ("md", "-md"), ("lg", "-lg"), ("xl", "-xl"), ("2xl", "-2xl"), ("3xl", "-3xl"), ("4xl", "-4xl")]
+    {
+        if let Some(value) = radii.get(key).filter(|value| value.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')) {
+            css.push_str(&format!("  --brand-radius{suffix}: {value};\n"));
+        }
+    }
+    css.push_str("}\n");
+    css
+}
+
+/// Inlines local font and image references; the theme never reaches the network or leaves the pack.
+fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
+    let stripped = strip_comments(css)?;
+    let css = stripped.as_str();
+    if css.to_ascii_lowercase().contains("@import") {
+        return Err(format!("{file} may not @import other stylesheets"));
+    }
+    let mut output = String::with_capacity(css.len());
+    let mut rest = css;
+    while let Some(start) = rest.to_ascii_lowercase().find("url(") {
+        output.push_str(&rest[..start]);
+        let after = &rest[start + 4..];
+        let end = after.find(')').ok_or_else(|| format!("{file} has an unterminated url()"))?;
+        let raw = after[..end].trim().trim_matches(['"', '\'']).trim();
+        if raw.starts_with("data:") {
+            output.push_str(&rest[start..start + 4 + end + 1]);
+        } else {
+            let mime = match Path::new(raw).extension().and_then(|extension| extension.to_str()) {
+                Some("woff2") => "font/woff2",
+                Some("svg") => "image/svg+xml",
+                Some("png") => "image/png",
+                _ => return Err(format!("{file} references an unsupported file: {raw}")),
+            };
+            let bytes = read_inside(dir, raw)?;
+            output.push_str(&format!("url(\"data:{mime};base64,{}\")", BASE64.encode(bytes)));
+        }
+        rest = &after[end + 1..];
+    }
+    output.push_str(rest);
+    Ok(output)
+}
+
+/// Comments may mention `url()` and `@import`; only declarations count.
+fn strip_comments(css: &str) -> Result<String, String> {
+    let mut output = String::with_capacity(css.len());
+    let mut rest = css;
+    while let Some(start) = rest.find("/*") {
+        output.push_str(&rest[..start]);
+        let end = rest[start + 2..].find("*/").ok_or("a theme stylesheet has an unterminated comment")?;
+        rest = &rest[start + 2 + end + 2..];
+    }
+    output.push_str(rest);
+    Ok(output)
+}
+
+/// Reads a pack-relative path that cannot escape the pack folder.
+fn read_inside(dir: &Path, relative: &str) -> Result<Vec<u8>, String> {
+    let path = Path::new(relative);
+    if relative.contains(':') || path.components().any(|component| !matches!(component, Component::Normal(_))) {
+        return Err(format!("unsafe path in the branding pack: {relative}"));
+    }
+    std::fs::read(dir.join(path)).map_err(|error| format!("{relative} could not be read: {error}"))
+}
+
+fn remove_folder(path: &Path) -> Result<(), String> {
+    match std::fs::remove_dir_all(path) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(format!("{} could not be removed: {error}", path.display())),
+        _ => Ok(()),
+    }
+}
+
+/* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+
+    const LOGO: &[u8] = b"<svg xmlns='http://www.w3.org/2000/svg'/>";
+    const MANIFEST_TEXT: &str = "[app]\nlabel = \"Fork\"\nslug = \"fork\"\n[app.logos.transparent]\non_light = \"mark.svg\"\n";
+
+    fn archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (name, contents) in entries {
+            writer.start_file(*name, SimpleFileOptions::default()).unwrap();
+            writer.write_all(contents).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
+    }
+
+    fn branding_folder() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../branding")
+    }
+
+    fn zip_folder(root: &Path, prefix: &str) -> Vec<u8> {
+        fn walk(root: &Path, dir: &Path, prefix: &str, writer: &mut zip::ZipWriter<std::io::Cursor<Vec<u8>>>) {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                let name = format!("{prefix}{}", path.strip_prefix(root).unwrap().to_str().unwrap().replace('\\', "/"));
+                if path.is_dir() {
+                    walk(root, &path, prefix, writer);
+                } else {
+                    writer.start_file(name, SimpleFileOptions::default()).unwrap();
+                    writer.write_all(&std::fs::read(&path).unwrap()).unwrap();
+                }
+            }
+        }
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        walk(root, root, prefix, &mut writer);
+        writer.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn the_repository_branding_folder_zipped_as_is_loads() {
+        for prefix in ["", "branding/"] {
+            let files = validate_archive(&zip_folder(&branding_folder(), prefix)).unwrap();
+            assert!(files.contains_key(Path::new("brand.toml")));
+            assert!(files.keys().all(|path| !path.starts_with("icons") && !path.starts_with("generated")));
+            assert!(!files.contains_key(Path::new("fonts/OFL.txt")));
+            let root = tempfile::tempdir().unwrap();
+            for (relative, contents) in &files {
+                let path = root.path().join(relative);
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(path, contents).unwrap();
+            }
+            let pack = load(root.path()).unwrap();
+            assert_eq!(pack.label, "Dokime");
+            assert_eq!(pack.logos.len(), 4);
+            assert!(pack.css.contains("data:font/woff2;base64,"));
+            assert!(pack.css.contains("--brand-radius-sm"));
+            assert!(!pack.css.contains("url(\"fonts/"));
+            assert_eq!(pack.ignored, ["slug", "bundle identifier", "deep-link scheme"]);
+        }
+    }
+
+    #[test]
+    fn unsafe_and_oversized_archives_are_refused() {
+        for name in ["../brand.toml", "/etc/brand.toml", "logos\\mark.svg", "C:/brand.toml"] {
+            assert!(validate_archive(&archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), (name, LOGO)])).is_err(), "{name}");
+        }
+        let many: Vec<(String, &[u8])> = (0..=ARCHIVE_ENTRIES).map(|index| (format!("logos/{index}.svg"), LOGO)).collect();
+        let many: Vec<(&str, &[u8])> = many.iter().map(|(name, contents)| (name.as_str(), *contents)).collect();
+        assert!(validate_archive(&archive(&many)).unwrap_err().contains("entries"));
+        let large = vec![b' '; ARCHIVE_BYTES as usize + 1];
+        assert!(
+            validate_archive(&archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("theme/base.css", &large)])).unwrap_err().contains("MiB")
+        );
+        assert!(
+            validate_archive(&archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("run.sh", b"echo")])).unwrap_err().contains("unsupported")
+        );
+    }
+
+    #[test]
+    fn a_pack_needs_a_manifest_and_a_logo() {
+        assert!(validate_archive(&archive(&[("logos/mark.svg", LOGO)])).unwrap_err().contains("brand.toml"));
+        let root = tempfile::tempdir().unwrap();
+        let pack = archive(&[(MANIFEST, b"[app]\nlabel = \"Fork\"\n")]);
+        std::fs::write(root.path().join("pack.zip"), pack).unwrap();
+        assert!(stage(&root.path().join("branding"), &root.path().join("pack.zip")).unwrap_err().contains("logo"));
+        assert!(!root.path().join("branding").join(PENDING).exists(), "a refused pack leaves nothing pending");
+        let escaping = archive(&[(MANIFEST, b"[app]\nlabel = \"Fork\"\n[app.logos.transparent]\non_light = \"../../secret.svg\"\n")]);
+        std::fs::write(root.path().join("escape.zip"), escaping).unwrap();
+        assert!(stage(&root.path().join("branding"), &root.path().join("escape.zip")).unwrap_err().contains("unsafe"));
+    }
+
+    #[test]
+    fn a_staged_pack_activates_on_the_next_boot_and_an_invalid_one_falls_back() {
+        let root = tempfile::tempdir().unwrap();
+        let branding = root.path().join("branding");
+        std::fs::write(root.path().join("pack.zip"), archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
+        let summary = stage(&branding, &root.path().join("pack.zip")).unwrap();
+        assert_eq!((summary.label.as_str(), summary.ignored.as_slice()), ("Fork", ["slug".to_owned()].as_slice()));
+        let booted = boot(&branding);
+        assert_eq!(booted.pack.unwrap().label, "Fork");
+        assert!(!branding.join(PENDING).exists() && branding.join(ACTIVE).is_dir());
+        std::fs::write(branding.join(ACTIVE).join(MANIFEST), "not toml [").unwrap();
+        let fallback = boot(&branding);
+        assert!(fallback.pack.is_none());
+        assert!(fallback.error.unwrap().contains("brand.toml"));
+        assert!(branding.join(ACTIVE).is_dir(), "an invalid pack stays on disk for diagnosis");
+    }
+}

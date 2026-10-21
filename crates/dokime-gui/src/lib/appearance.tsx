@@ -10,11 +10,12 @@
 /* === External Imports === */
 
 import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 
 /* === Local Imports === */
 
 import { useNativeAppearance } from "@/app/native-session/context";
-import { brandFromLogos, BrandProvider, defaultBrand } from "@/lib/brand";
+import { BrandProvider, bootBranding, brandFromLogos, brandPack, defaultBrand, defaultTitleTemplate, packLogos } from "@/lib/brand";
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 
@@ -22,7 +23,7 @@ import { isReportBuild } from "@/lib/ui-mode";
 
 /* === Types === */
 
-import type { RuntimeAppearanceFrame, ThemeModePolicy as RuntimeThemeModePolicy } from "@/lib/types/view-contracts";
+import type { RuntimeAppearanceFrame, RuntimeAppLogo, ThemeModePolicy as RuntimeThemeModePolicy } from "@/lib/types/view-contracts";
 
 export type {
   RuntimeAppearanceFrame,
@@ -39,8 +40,8 @@ type Appearance = RuntimeAppearanceFrame & {
 
 const defaultAppearanceFrame: Appearance = {
   app_name: defaultBrand.label,
-  organization: null,
-  title_template: "{app}",
+  organization: brandPack?.organization ? packOrganization(brandPack.organization) : null,
+  title_template: defaultTitleTemplate,
   logos: [],
   themes: [],
   active_theme: null,
@@ -52,6 +53,8 @@ const defaultAppearanceFrame: Appearance = {
 
 const AppearanceContext = createContext<Appearance>(defaultAppearanceFrame);
 
+let reportedBrandingError = false;
+
 export const appearanceQueryKey = ["appearance"] as const;
 
 /* === Components === */
@@ -59,13 +62,25 @@ export const appearanceQueryKey = ["appearance"] as const;
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const nativeResource = useNativeAppearance();
   const appearance = useMemo<Appearance>(() => {
-    const frame = nativeResource ? appearanceFrameFromNative(nativeResource) : defaultAppearanceFrame;
+    const frame = nativeResource ? withBrandPack(appearanceFrameFromNative(nativeResource)) : defaultAppearanceFrame;
     return { ...frame, themes: frame.themes ?? [] };
   }, [nativeResource]);
   const brand = useMemo(
-    () => (nativeResource ? brandFromLogos(appearance.app_name, appearance.logos) : defaultBrand),
+    () => (nativeResource && !brandPack ? brandFromLogos(appearance.app_name, appearance.logos) : defaultBrand),
     [appearance, nativeResource],
   );
+
+  useEffect(() => {
+    const error = bootBranding.error;
+    if (!error || reportedBrandingError) return undefined;
+    reportedBrandingError = true;
+    // After The Commit, So The Toaster Mounted In The Same Render Is Listening.
+    const handle = window.setTimeout(
+      () => toast.error("Branding Pack Not Applied", { description: `${error}. The compiled brand applies.` }),
+      0,
+    );
+    return () => window.clearTimeout(handle);
+  }, []);
 
   useEffect(() => {
     const title = titleFromAppearance(appearance);
@@ -94,6 +109,30 @@ export function useAppearance(): Appearance {
 function titleFromAppearance(appearance: RuntimeAppearanceFrame): string {
   const template = appearance.title_template?.trim() || "{app}";
   return template.replaceAll("{app}", appearance.app_name);
+}
+
+/** The operator's branding pack is the brand: it replaces the identity the backend reports. */
+function withBrandPack(frame: RuntimeAppearanceFrame): RuntimeAppearanceFrame {
+  if (!brandPack) return frame;
+  return {
+    ...frame,
+    app_name: brandPack.label,
+    organization: brandPack.organization ? packOrganization(brandPack.organization) : null,
+    title_template: brandPack.titleTemplate,
+    logos: Object.entries(packLogos(brandPack)).map(([variant, logo]) => ({
+      variant: variant as RuntimeAppLogo["variant"],
+      plugin_id: "brand.pack",
+      asset_id: variant,
+      url: logo.src,
+      alt: logo.alt ?? null,
+    })),
+  };
+}
+
+function packOrganization(
+  organization: NonNullable<NonNullable<typeof brandPack>["organization"]>,
+): RuntimeAppearanceFrame["organization"] {
+  return { name: organization.name, unit: organization.unit ?? null, website: organization.website ?? null };
 }
 
 function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppearanceFrame {
