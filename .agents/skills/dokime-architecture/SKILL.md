@@ -9,13 +9,13 @@ Apply the shared architecture and Rust rules. The entry library is `dokime`: dom
 
 Connection, installation and version helpers belong to the entry library. Connection helpers use `dokime::client_error::Error`; the CLI reuses that error instead of wrapping it. Root `dokime::Error` and `dokime::Result` retain runtime identity across feature selections.
 
-The domain crate contains every operation, transaction, state entry, message and value definition. It performs no I/O, async work, storage or network access. Runtime crates implement the resource-bound behaviour and depend on domain crates; domain crates never depend on runtimes. Sidecars, plugins, clients and tools use the portable domain surface.
+The domain crate contains every operation, transaction, state entry, message and value definition. It performs no I/O, async work, storage or network access. Runtime crates implement the resource-bound behaviour and depend on domain crates; domain crates never depend on runtimes. `dokime-domain` is the only host-free portable Dokime crate. `dokime::domain` is its namespace through the entry library, not a host-free dependency guarantee: `dokime` unconditionally depends on `dokime-runtime` and Harmos plugin support. Consumers requiring a host-free dependency graph depend on `dokime-domain` directly; plugins use the entry library.
 
 Organize declarations kind-first: `model/`, `operations/`, `transactions/`, `state/`. Each kind's `mod.rs` is its closed catalog, with folder modules by domain. Runtime implementations mirror the same domain names and paths. A plugin's private definitions live in its `domain/` module; move a declaration to a shared domain crate when another party consumes it typed.
 
 Records select by envelope identity: scope is the cycle, item is the execution (or cycle for cycle context), source is the provider/process epoch. Use typed reads for records and retain columnar queries for plots and telemetry derivations. Lifecycle capture references the durable frozen execution revision rather than duplicating it.
 
-Packaging uses the entry library and Harmos packaging without enabling host services. Build scripts use `dokime::domain` contracts and request only enabled Harmos generators (`generate-proto`, `generate-python`, `generate-typescript`); `grpc` implies proto. The thin cargo tool uses the entry library and packaging instead of embedding a second host runtime.
+Packaging uses the entry library without Dokime's `host` feature, but explicitly enables `harmos/plugin-sidecar`; this avoids enabling Dokime host services, not Harmos hosting dependencies. Build scripts use `dokime::domain` contracts and the available Harmos packaging generators (`generate-proto`, `generate-python`). TypeScript generation is an external Buf tooling step over exported protobuf. The thin cargo tool uses the entry library and packaging instead of embedding a second host runtime.
 
 Storage is development v1. A clean schema break may require a fresh storage root; never silently reset existing data. Plugin installation and enablement become active after a full app restart; development reload remains an explicit separate lifecycle.
 

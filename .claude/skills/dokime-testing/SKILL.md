@@ -2,7 +2,7 @@
 name: dokime-testing
 description: Validate Dokime runtime boundaries, built plugins and the native desktop walkthrough.
 ---
-<!-- Rendered by stkr project update from .agents/skills/dokime-testing/SKILL.md; sha256:ce1f1ee751c4555573f835d2ba0cc1d2e95aae3e3b0380ffe9ada74dda677a75 -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-testing/SKILL.md; sha256:db84474d7444d412fc4e146550dc4511c4ab61dc113042501338ca3447a949ad -->
 
 # Dokime Testing
 
@@ -15,6 +15,6 @@ Dokime owns exactly two system stories, each made of named scenes:
 
 Preserve every behaviour when consolidating scenes. Before retiring a fixture, map each behaviour into a named scene or an in-process story. The shipped `obc-plugin` is the shared system fixture. Integration stories await observable changes or use a paused clock for time semantics; they do not poll with sleeps or assert wall-clock windows.
 
-Each lane preflights archive and required built artifacts before executing. Stories consume the build's stamped host, plugins, bindings and wheel; never compile a replacement inside ordinary stories. Rust benches use `<layer>-<domain>` binary names and share the bench profile.
+Prerequisites are selected per layer and language. Ordinary Rust unit tests consume the Tests archive without fixture-stamp preflight; other Rust test layers require their Tests fixtures. Acceptance and system lanes consume the declared hosts and Product outputs, with bindings and Python wheels only where the lane declares those products. The runner resolves host prerequisites through `hosts_for(category, language)` and product prerequisites through `products_for(category, language)`; do not require every artifact for every lane or compile replacements inside ordinary stories. Rust benches use `<layer>-<domain>` binary names and share the bench profile.
 
 Read [Native Desktop](references/desktop.md) when the native WebView, IPC, shell lifecycle or visible operator workflow changes. Report the platform actually exercised; Linux results do not establish Windows behaviour.

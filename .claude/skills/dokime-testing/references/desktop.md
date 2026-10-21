@@ -1,10 +1,10 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-testing/references/desktop.md; sha256:5201ea0026dafffcc797ccfa33ef1d22230e796b7c74130d772bd214c48a52c9 -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-testing/references/desktop.md; sha256:047fd70ef17e238640f64b15c463b8c53f793c897d5331cdbb8e9e25eec48007 -->
 
 # Dokime Desktop Validation
 
 Use the actual native WebView for desktop IPC and process ownership. Browser mocks and component tests do not prove native transport. Report precisely which mounted workflows and platforms were exercised; an unavailable platform remains unverified.
 
-Global guidance owns cadence. Run narrow scenarios only for concrete blockers during editing; run required checks, the full test aggregate and explicitly required native system tasks after cohesive implementation. Discover tasks in `mise.toml`; `mise run test:system` runs the desktop walkthrough (`test:system:typescript`) after the server walkthrough when its prerequisites are available. Preserve repository environment and preparation for filtered diagnosis.
+Global guidance owns cadence. During implementation run relevant local gates and tests proving changed behavior, respecting explicit holds. After source completion select acceptance and native system lanes from affected behavior. Local full validation is reserved for committed changes with project-wide impact; before ready review, complete the required final-candidate local gates and satisfy the complete provider validation graph, including configured native platforms. Discover tasks in `mise.toml`; `mise run test:system` runs the desktop walkthrough (`test:system:typescript`) after the server walkthrough when its prerequisites are available. Preserve repository environment and preparation for filtered diagnosis.
 
 ## Live Native Desktop
 
