@@ -261,6 +261,10 @@ impl Startup {
         }
         let mut device = Device::initialize(inputs.supply()).map_err(Error::Device)?;
         let log = charger_log();
+        std::fs::File::create_new(&log).map_err(|error| {
+            let message = format!("charger log: {error}");
+            Error::Observation(message)
+        })?;
         device.logging(&log);
         Ok(Self { produced: 0, device, log, accepted: false, prompt_action: String::new(), operator_note: String::new() })
     }

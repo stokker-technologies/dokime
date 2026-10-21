@@ -178,7 +178,7 @@ async fn step_awaits_record() {
 
 // The listen deadline is time semantics: with nobody publishing, the step's
 // budget elapses on the paused clock and the run fails.
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn record_wait_expires() {
     let root = tempfile::tempdir().unwrap();
     let expectation = Arc::new(Expectation { budget: Duration::from_secs(30), listening: Notify::new(), heard: Default::default() });
@@ -186,7 +186,10 @@ async fn record_wait_expires() {
     let handle = owner.handle();
 
     expectation.listening.notified().await;
+    // Pause only the deadline; startup and persisted outcome delivery use real I/O.
+    tokio::time::pause();
     tokio::time::advance(Duration::from_secs(31)).await;
+    tokio::time::resume();
 
     let ended = support::wait_for_cycle_outcome(&handle, &cycle, dokime::domain::model::execution::result::ResultStatus::Failed).await;
     assert_eq!(ended.test_executions[0].status, ExecutionStatus::Failed);

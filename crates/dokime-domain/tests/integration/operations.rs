@@ -45,11 +45,11 @@ use dokime_domain::operations::plugins::{Consent, Remove, Stage};
 /* === Tests === */
 
 // A slow machine may take minutes to install and reload a debug plugin, so the
-// host never cuts staging short; consent and removal stay ordinary requests.
+// host never cuts staging short; consent stays ordinary and removal is a mutation.
 #[test]
 fn slow_installs_complete() {
     assert!(Stage::POLICY.timeout >= Duration::from_secs(3_600));
     assert!(Stage::POLICY.attempt_timeout >= Duration::from_secs(3_600));
     assert_eq!(Consent::POLICY.timeout, Duration::from_secs(10));
-    assert_eq!(Remove::POLICY.timeout, Duration::from_secs(10));
+    assert_eq!(Remove::POLICY.timeout, Duration::from_secs(120));
 }

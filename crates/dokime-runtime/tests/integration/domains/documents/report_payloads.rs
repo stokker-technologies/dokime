@@ -1218,6 +1218,7 @@ async fn cycle_report_planned() {
     let suite = fixture_suite(&["passed", "passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite).await;
+    runtime.update_cycle_policy(cycle_id.clone(), false, CommandContext::default()).await.unwrap();
     let members = cycle_snapshot(&runtime, &cycle_id).await.test_executions;
     let receipt = runtime
         .start_execution(
