@@ -20,7 +20,7 @@ pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filte
 /* === Imports === */
 
 // Standard Library Imports
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 // Third Party Imports
 use futures_util::{Stream, StreamExt, stream};
@@ -38,8 +38,8 @@ use dokime_domain::operations::plots as contract;
 use dokime_runtime::{
     RuntimeHandle,
     runtime::query::{
-        RuntimePlotQueryMode, matching_plot_payload_request, merge_plot_payload_cursor, plot_payload_stream_envelope_visible,
-        plot_payload_stream_kind,
+        PlotWatchKeys, RuntimePlotQueryMode, matching_plot_payload_request, merge_plot_payload_cursor,
+        plot_payload_stream_envelope_visible, plot_payload_stream_kind,
     },
 };
 use wire::{ensure_message_budget, envelope, stream_frame};
@@ -327,6 +327,10 @@ impl Operation for Watch {
             next_flush = Some(Instant::now() + retry_delay);
             retry_delay = (retry_delay * 2).min(PLOT_RETRY_MAX);
         }
+        // Only a plot whose inputs advanced is read again, and every such plot
+        // is read in one batch per tick.
+        let keys = requests.iter().map(|request| (plot_key(request), PlotWatchKeys::for_request(request))).collect::<Vec<_>>();
+        let mut dirty = BTreeSet::<String>::new();
         loop {
             tokio::select! {
                 biased;
@@ -334,13 +338,13 @@ impl Operation for Watch {
                     if changed.is_none() {
                         return Ok(().into());
                     }
-                    if next_flush.is_none() {
-                        next_flush = Some(last_flush + PLOT_STREAM_THROTTLE);
-                    }
+                    dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state()).map(|(key, _)| key.clone()));
                 }
                 advanced = telemetry_watches.next(), if !telemetry_watches.is_empty() => {
-                    if advanced.is_some() && next_flush.is_none() {
-                        next_flush = Some(last_flush + PLOT_STREAM_THROTTLE);
+                    match advanced {
+                        Some((_, Some(stream))) => dirty.extend(keys.iter().filter(|(_, keys)| keys.reads_stream(&stream)).map(|(key, _)| key.clone())),
+                        Some((_, None)) => dirty.extend(keys.iter().map(|(key, _)| key.clone())),
+                        None => {}
                     }
                 }
                 _ = tokio::time::sleep_until(next_flush.unwrap_or_else(Instant::now)), if next_flush.is_some() => {
@@ -355,26 +359,41 @@ impl Operation for Watch {
                     }
                     let served = requests
                         .iter()
+                        .filter(|request| dirty.contains(&plot_key(request)))
                         .filter(|request| !unserved.iter().any(|pending| pending.plot_id == request.plot_id))
                         .cloned()
                         .collect::<Vec<_>>();
-                    for current in served {
-                        let batches = match runtime.query_plot_stream_batches(std::slice::from_ref(&current)).await {
-                            Ok(batches) => batches,
-                            Err(error) => {
-                                refused = true;
-                                let response = self.resources.produce(|| Ok(plot_error_frame(&current, error.to_string())))?;
-                                output.send_owned(response).await.map_err(failure)?;
-                                continue;
+                    if !served.is_empty() {
+                        for request in &served {
+                            dirty.remove(&plot_key(request));
+                        }
+                        tracing::debug!(plots = served.len(), plot_ids = %served.iter().map(plot_key).collect::<Vec<_>>().join(","), "plot stream query");
+                        match runtime.query_plot_stream_batches(&served).await {
+                            Ok(batches) => {
+                                for batch in batches {
+                                    let mode = batch.mode;
+                                    let value = batch.envelope;
+                                    let Some(current) = matching_plot_payload_request(&requests, &value.plot_id).cloned() else { continue };
+                                    if !plot_payload_stream_envelope_visible(mode, &value, &current) {
+                                        continue;
+                                    }
+                                    let selection = selection_for_plot(&requests, &selections, &value.plot_id)
+                                        .ok_or_else(|| Status::internal("plot response does not match a request"))?
+                                        .to_owned();
+                                    let response =
+                                        self.resources.frame(&mut requests, &current, plot_payload_stream_kind(mode), value, &epoch, &selection)?;
+                                    output.send_owned(response).await.map_err(failure)?;
+                                }
                             }
-                        };
-                        for batch in batches {
-                        let mode = batch.mode; let value = batch.envelope;
-                        let Some(current) = matching_plot_payload_request(&requests, &value.plot_id).cloned() else { continue; };
-                        if !plot_payload_stream_envelope_visible(mode, &value, &current) { continue; }
-                        let selection = selection_for_plot(&requests, &selections, &value.plot_id).ok_or_else(|| Status::internal("plot response does not match a request"))?.to_owned();
-                        let response = self.resources.frame(&mut requests, &current, plot_payload_stream_kind(mode), value, &epoch, &selection)?;
-                        output.send_owned(response).await.map_err(failure)?;
+                            Err(error) => {
+                                // The batch failed as one: every plot in it hears why and is read again.
+                                refused = true;
+                                for current in &served {
+                                    dirty.insert(plot_key(current));
+                                    let response = self.resources.produce(|| Ok(plot_error_frame(current, error.to_string())))?;
+                                    output.send_owned(response).await.map_err(failure)?;
+                                }
+                            }
                         }
                     }
                     if refused {
@@ -384,6 +403,9 @@ impl Operation for Watch {
                         retry_delay = PLOT_RETRY_FIRST;
                     }
                 }
+            }
+            if next_flush.is_none() && !dirty.is_empty() {
+                next_flush = Some(last_flush + PLOT_STREAM_THROTTLE);
             }
         }
     }
@@ -400,6 +422,11 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+
+/// The plot a request names, the key its frames and dirty marks share.
+fn plot_key(request: &dokime_runtime::runtime::query::PlotPayloadRequest) -> String {
+    request.plot_id.clone().unwrap_or_else(|| request.stream.clone())
+}
 
 /// Interleaves `ready` with a keepalive every `every` that passes without a result; ends with `ready`.
 fn with_keepalive<S: Stream + Unpin>(ready: S, every: Duration) -> impl Stream<Item = Opening<S::Item>> {

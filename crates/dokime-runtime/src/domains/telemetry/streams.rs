@@ -45,7 +45,8 @@ const UNSCOPED_STREAM_SEGMENT: &str = "-";
 
 /* === Type Aliases === */
 
-pub(crate) type TelemetryWatch = Pin<Box<dyn Stream<Item = u64> + Send>>;
+/// Each committed row's ordinal and stream; a gap yields its missed count and no stream.
+pub(crate) type TelemetryWatch = Pin<Box<dyn Stream<Item = (u64, Option<String>)> + Send>>;
 type PreparedSample = (TelemetrySample, crate::telemetry::TelemetryContract, u64);
 
 /* === Structs === */
@@ -341,8 +342,8 @@ impl RuntimeHandle {
         &self, _requests: &[crate::queries::PlotPayloadRequest],
     ) -> crate::runtime::Result<Vec<TelemetryWatch>> {
         let watching = self.streams.watch::<TelemetryRow>().map(|item| match item {
-            harmos::streams::Item::Row(row) => row.value.ordinal,
-            harmos::streams::Item::Gap { missed } => missed,
+            harmos::streams::Item::Row(row) => (row.value.ordinal, Some(row.value.stream)),
+            harmos::streams::Item::Gap { missed } => (missed, None),
         });
         Ok(vec![Box::pin(watching)])
     }
