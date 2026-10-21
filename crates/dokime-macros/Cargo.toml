@@ -30,7 +30,7 @@ syn = { workspace = true }
 
 [dev-dependencies]
 # Local
-sdk = { version = "0.1.0", package = "dokime", path = "../dokime", features = ["plugin"] }
+sdk = { version = "0.1.0", package = "dokime", path = "../dokime", features = ["plugin-sidecar"] }
 
 # Serialization
 serde = { workspace = true }

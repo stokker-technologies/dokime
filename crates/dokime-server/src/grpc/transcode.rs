@@ -16,9 +16,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::MessageError;
-use harmos::domain::Portable;
-use harmos::grpc::{Transcoded, Wire};
+use dokime::harmos::MessageError;
+use dokime::harmos::domain::Portable;
+use dokime::harmos::grpc::{Transcoded, Wire};
 use tonic::Status;
 
 // Local Imports
@@ -63,9 +63,13 @@ impl From<Untranscodable> for Status {
     }
 }
 
-impl From<Untranscodable> for harmos::Error {
+impl From<Untranscodable> for dokime::harmos::Error {
     fn from(error: Untranscodable) -> Self {
-        harmos::Error::Backend { operation: "encode gRPC message", kind: harmos::BackendFailure::Permanent, source: Box::new(error) }
+        dokime::harmos::Error::Backend {
+            operation: "encode gRPC message",
+            kind: dokime::harmos::BackendFailure::Permanent,
+            source: Box::new(error),
+        }
     }
 }
 

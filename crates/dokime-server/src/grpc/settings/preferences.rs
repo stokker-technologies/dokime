@@ -17,8 +17,8 @@
 use std::{fmt::Write, sync::Arc};
 
 // Third Party Imports
-use harmos::domain::Portable;
-use harmos::{
+use dokime::harmos::domain::Portable;
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response},
 };

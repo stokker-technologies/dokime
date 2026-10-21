@@ -107,7 +107,7 @@ pub(super) fn read(path: &Path) -> Result<Document, super::Error> {
         }
         Ok(_) => {}
     }
-    let bytes = Zeroizing::new(harmos::filesystem::input::read(path, MAXIMUM_BYTES).map_err(super::Error::RemoteStorage)?);
+    let bytes = Zeroizing::new(dokime::harmos::filesystem::input::read(path, MAXIMUM_BYTES).map_err(super::Error::RemoteStorage)?);
     let document: Document = serde_json::from_slice(&bytes).map_err(|_| super::Error::Configuration("invalid remote security document"))?;
     if document.version != 1 {
         return Err(super::Error::Configuration("unsupported remote security document version"));
@@ -133,7 +133,7 @@ pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error
         return Err(super::Error::Configuration("remote security document exceeds its byte limit"));
     }
 
-    harmos::filesystem::publication::write(path, &bytes)?;
+    dokime::harmos::filesystem::publication::write(path, &bytes)?;
     Ok(())
 }
 

@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::state::Transaction;
+use dokime::harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
@@ -30,7 +30,7 @@ use crate::{Error, Testbench};
 
 /* === Structs === */
 
-#[harmos::transaction(id = "obc.bench.stop", version = 1, irreversible)]
+#[dokime::harmos::transaction(harmos_path = dokime::harmos, id = "obc.bench.stop", version = 1, irreversible)]
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Stop;
 

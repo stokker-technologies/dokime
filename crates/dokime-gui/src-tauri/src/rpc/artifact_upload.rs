@@ -168,7 +168,8 @@ impl ArtifactUploads {
     ) -> Result<tauri::ipc::Response, RpcError> {
         context.check()?;
         let mut encoded = Vec::new();
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<_>>::encode(&header, &mut encoded).map_err(|_| RpcError::InvalidRequest)?;
+        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<_>>::encode(&header, &mut encoded)
+            .map_err(|_| RpcError::InvalidRequest)?;
         if encoded.len() > MAX_FRAME_BYTES {
             return Err(RpcError::LimitExceeded);
         }

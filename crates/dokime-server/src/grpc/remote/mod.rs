@@ -157,7 +157,7 @@ impl Controller {
     async fn apply(&self, change: Change) -> Result<GeneratedAccessKey, Error> {
         let mut state = self.state.lock().await;
         if state.closing {
-            return Err(harmos::Error::Closing { domain: "remote listener management" }.into());
+            return Err(dokime::harmos::Error::Closing { domain: "remote listener management" }.into());
         }
         let mut candidate = state.document.clone();
         let mut access_key = Zeroizing::new(String::new());

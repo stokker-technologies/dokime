@@ -17,9 +17,9 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::MemorySize;
-use harmos::domain::Portable;
-use harmos::operations::StreamOutput;
+use dokime::harmos::MemorySize;
+use dokime::harmos::domain::Portable;
+use dokime::harmos::operations::StreamOutput;
 use sha2::{Digest as _, Sha256};
 use tonic::Status;
 
@@ -35,7 +35,7 @@ use dokime::runtime::ArtifactReader;
 
 /* === Structs === */
 
-pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<dokime::domain::model::content::wire::ArtifactFrame>);
+pub(super) struct ArtifactFrames(pub(super) dokime::harmos::operations::Response<dokime::domain::model::content::wire::ArtifactFrame>);
 
 pub(super) struct Download<F> {
     pub(super) frames: F,
@@ -62,7 +62,7 @@ pub(super) trait Frames: Send + 'static {
     type Frame: Portable + MemorySize + Send + Sync + 'static;
 
     fn metadata(&self) -> Self::Frame;
-    fn metadata_owned(&self) -> Option<harmos::operations::Response<Self::Frame>> {
+    fn metadata_owned(&self) -> Option<dokime::harmos::operations::Response<Self::Frame>> {
         None
     }
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame;
@@ -78,7 +78,7 @@ impl Frames for ArtifactFrames {
         dokime::domain::model::content::wire::ArtifactFrame { payload: self.0.payload.clone() }
     }
 
-    fn metadata_owned(&self) -> Option<harmos::operations::Response<Self::Frame>> {
+    fn metadata_owned(&self) -> Option<dokime::harmos::operations::Response<Self::Frame>> {
         Some(self.0.clone())
     }
 
@@ -156,11 +156,11 @@ impl<F: Frames> Download<F> {
                             let mut payload = Vec::new();
                             payload
                                 .try_reserve_exact(bytes.len())
-                                .map_err(|_| harmos::Error::ResourceExhausted { resource: "file frame allocation" })?;
+                                .map_err(|_| dokime::harmos::Error::ResourceExhausted { resource: "file frame allocation" })?;
                             payload.extend_from_slice(bytes);
                             let frame = frames.chunk(offset, payload);
                             if frame.wire_len()? > limit {
-                                return Err(harmos::Error::ResourceExhausted { resource: "file frame encoding" });
+                                return Err(dokime::harmos::Error::ResourceExhausted { resource: "file frame encoding" });
                             }
                             Ok(frame)
                         })
@@ -218,17 +218,17 @@ fn checked_offset(offset: u64, count: usize, size: u64, noun: &str) -> Result<u6
 
 fn file_failure(source: dokime::runtime::Error, message: &'static str) -> Status {
     let status = match &source {
-        dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => Status::resource_exhausted(message),
-        dokime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => Status::unavailable(message),
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) => Status::resource_exhausted(message),
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::NotReady { .. }) => Status::unavailable(message),
         _ => Status::internal(message),
     };
     super::error::detailed(status, &source)
 }
 
-fn stream_failure(error: harmos::Error) -> Status {
+fn stream_failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
+        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
         _ => Status::internal(error.to_string()),
     }
 }

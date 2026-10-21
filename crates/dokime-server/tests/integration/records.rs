@@ -105,7 +105,7 @@ impl dokime::runtime::EmbeddedProvider for Bench {
         }
     }
 
-    fn streams(&self) -> Vec<harmos::sidecar::StreamDeclaration> {
+    fn streams(&self) -> Vec<dokime::harmos::sidecar::StreamDeclaration> {
         Vec::new()
     }
 

@@ -48,7 +48,7 @@ pub struct Config {
     pub(crate) tls: Option<TlsIdentity>,
     pub(crate) max_message_bytes: usize,
     remote: bool,
-    web: Option<Vec<harmos::grpc::Origin>>,
+    web: Option<Vec<dokime::harmos::grpc::Origin>>,
 }
 
 /* === Enums === */
@@ -108,7 +108,7 @@ impl Config {
         self
     }
 
-    pub fn with_grpc_web(mut self, origins: Vec<harmos::grpc::Origin>) -> Result<Self, Error> {
+    pub fn with_grpc_web(mut self, origins: Vec<dokime::harmos::grpc::Origin>) -> Result<Self, Error> {
         if origins.len() > 32 || origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
             return Err(Error::Configuration("allowed origins require at most 32 distinct exact origins"));
         }
@@ -116,13 +116,13 @@ impl Config {
         Ok(self)
     }
 
-    pub(crate) fn into_listener_settings(mut self) -> Result<harmos::grpc::Settings, Error> {
+    pub(crate) fn into_listener_settings(mut self) -> Result<dokime::harmos::grpc::Settings, Error> {
         self.validate()?;
         let bytes = NonZeroUsize::new(self.max_message_bytes).ok_or(Error::Configuration("message limit must be positive"))?;
-        let stream = harmos::operations::StreamSettings { items: NonZeroUsize::new(1).unwrap(), bytes };
+        let stream = dokime::harmos::operations::StreamSettings { items: NonZeroUsize::new(1).unwrap(), bytes };
         // An output item is charged at its decoded size, which outgrows its
         // encoding; the queue holds one message's worth of decoded frame.
-        let output = harmos::operations::StreamSettings {
+        let output = dokime::harmos::operations::StreamSettings {
             items: stream.items,
             bytes: NonZeroUsize::new(output_stream_bytes(self.max_message_bytes))
                 .ok_or(Error::Configuration("message limit must be positive"))?,
@@ -132,16 +132,16 @@ impl Config {
             let _ = rustls::crypto::ring::default_provider().install_default();
             tonic::transport::ServerTlsConfig::new().identity(identity.into_tonic()).timeout(Duration::from_secs(10))
         });
-        Ok(harmos::grpc::Settings {
+        Ok(dokime::harmos::grpc::Settings {
             address: self.bind_addr,
-            operations: harmos::grpc::server::Settings {
+            operations: dokime::harmos::grpc::server::Settings {
                 calls: NonZeroUsize::new(32).unwrap(),
                 // Transcoding Decodes Through The Canonical Postcard Form, So A Message Retains Up To Four Times Its Wire Size.
-                decode: harmos::grpc::DecodeSettings {
+                decode: dokime::harmos::grpc::DecodeSettings {
                     message_bytes: bytes,
                     retained_bytes: NonZeroUsize::new(bytes.get().saturating_mul(4).min(u32::MAX as usize)).unwrap(),
                 },
-                encode: harmos::grpc::EncodeSettings {
+                encode: dokime::harmos::grpc::EncodeSettings {
                     message_bytes: bytes,
                     buffer_bytes: NonZeroUsize::new(self.max_message_bytes.min(8192)).unwrap(),
                 },

@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -174,15 +174,15 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     Ok(values)
 }
 
-fn original_error(source: Status) -> harmos::Error {
+fn original_error(source: Status) -> dokime::harmos::Error {
     if source.code() == tonic::Code::ResourceExhausted {
         return exhausted();
     }
-    harmos::Error::backend("project original checkpoint context", harmos::BackendFailure::Corrupt, source)
+    dokime::harmos::Error::backend("project original checkpoint context", dokime::harmos::BackendFailure::Corrupt, source)
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical checkpoint context" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint context" }
 }
 
 /* === Tests === */

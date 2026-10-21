@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -101,7 +101,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 fn inventory_failure(error: dokime::runtime::Error) -> Status {
     let status = match &error {
-        dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("artifact inventory exceeds its read budget")
         }
         dokime::runtime::Error::Admission(AdmissionFailure::Overload { .. }) => Status::resource_exhausted("artifact inventory is busy"),

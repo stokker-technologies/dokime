@@ -42,7 +42,7 @@ use dokime::ExecutionFileContent;
 
 pub(super) fn metadata(
     content: &ExecutionFileContent, maximum: usize,
-) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
+) -> dokime::harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
     let frame = dokime::domain::model::content::wire::ExecutionFileDownloadFrame {
         payload: Some(dokime::domain::model::content::wire::ExecutionFileDownloadFramePayload::Metadata(
             dokime::domain::model::content::wire::ExecutionFileDownloadMetadata {
@@ -59,7 +59,7 @@ pub(super) fn metadata(
 
 pub(super) fn chunk(
     content: &ExecutionFileContent, maximum: usize,
-) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
+) -> dokime::harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
     let mut bytes = projection::slots(content.bytes.len())?;
     bytes.extend_from_slice(&content.bytes);
     checked(
@@ -74,7 +74,7 @@ pub(super) fn chunk(
 
 pub(super) fn complete(
     size: u64, digest: &Sha256, maximum: usize,
-) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
+) -> dokime::harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
     let digest = digest.clone().finalize();
     let mut hex = [0u8; 64];
     let alphabet = b"0123456789abcdef";
@@ -97,15 +97,15 @@ pub(super) fn complete(
 
 fn checked(
     frame: dokime::domain::model::content::wire::ExecutionFileDownloadFrame, maximum: usize,
-) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
+) -> dokime::harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
     if frame.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(frame)
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical execution download frame" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical execution download frame" }
 }
 
 /* === Tests === */

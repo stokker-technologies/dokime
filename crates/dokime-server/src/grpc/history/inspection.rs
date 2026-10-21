@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -54,7 +54,7 @@ struct Delete {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Inspect(Inspect),
     Delete(Delete),
@@ -130,12 +130,12 @@ pub(in crate::grpc) fn register(runtime: &RuntimeHandle, max_message_bytes: usiz
     Ok(())
 }
 
-pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> harmos::Result<checkpoint::ExecutionCheckpoint> {
+pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> dokime::harmos::Result<checkpoint::ExecutionCheckpoint> {
     let value = wire::checkpoint_wire_ref(source).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
             return exhausted();
         }
-        harmos::Error::backend("project inspected execution checkpoint", harmos::BackendFailure::Corrupt, source)
+        dokime::harmos::Error::backend("project inspected execution checkpoint", dokime::harmos::BackendFailure::Corrupt, source)
     })?;
     if value.wire_len()? > maximum {
         return Err(exhausted());
@@ -145,8 +145,8 @@ pub(super) fn project(source: &ExecutionCheckpoint, maximum: usize) -> harmos::R
 
 /* === Private Functions === */
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "historical checkpoint response" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "historical checkpoint response" }
 }
 
 /* === Tests === */

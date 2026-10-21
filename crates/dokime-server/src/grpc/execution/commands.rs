@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation};
+use dokime::harmos::operations::{Context, Operation};
 use tonic::Status;
 
 // Local Imports
@@ -50,7 +50,7 @@ struct Lookup {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Submit(Submit),
     Lookup(Lookup),
@@ -71,7 +71,7 @@ impl Operation for Submit {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::SubmitExecutionCommand, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
         submit(&self.resources, request).await
     }
 }
@@ -87,7 +87,7 @@ impl Operation for Lookup {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetExecutionCommand, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
         get(&self.resources, request).await
     }
 }
@@ -107,7 +107,7 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 
 async fn submit(
     resources: &super::Resources, request: &wire::SubmitExecutionCommand,
-) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
+) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
     let runtime = &resources.runtime;
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
@@ -126,7 +126,7 @@ async fn submit(
 
 async fn get(
     resources: &super::Resources, request: &wire::GetExecutionCommand,
-) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
+) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
     let runtime = &resources.runtime;
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
@@ -164,7 +164,7 @@ fn action(action: dokime::domain::model::execution::wire::ExecutionCommandAction
 
 fn charged_project(
     resources: &super::Resources, request_id: &CommandId, receipt: &StepCommandReceipt,
-) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
+) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionCommandReceipt>, Status> {
     let output = project(request_id, receipt)?;
     loan::response_limit(&output, resources.max_message_bytes)?;
     Ok(output.into())

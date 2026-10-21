@@ -56,7 +56,7 @@ use {dokime::domain::model::execution::result::CycleStatus, dokime::domain::mode
 
 /* === Structs === */
 
-#[harmos::message]
+#[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[derive(Clone, PartialEq)]
 pub struct ProgressRow {
     pub progress: f64,
@@ -490,9 +490,9 @@ fn fixture_progress_contract() -> TelemetryContract {
         stream: Identifier::new("fixture.progress").unwrap(),
         schema_version: 1,
         storage_schema: Some(
-            harmos::schema::graph::Schema::from_declaration(
-                <ProgressRow as harmos::schema::Described>::DEFINITION,
-                &harmos::config::SchemaSettings::default(),
+            dokime::harmos::schema::graph::Schema::from_declaration(
+                <ProgressRow as dokime::harmos::schema::Described>::DEFINITION,
+                &dokime::harmos::config::SchemaSettings::default(),
             )
             .unwrap(),
         ),
@@ -520,7 +520,7 @@ fn fixture_progress_telemetry(progress: f64) -> ProviderTelemetryOutcome {
         label: "Fixture Progress".to_owned(),
         samples: vec![dokime::transport::ProviderTelemetryRow {
             values: BTreeMap::from([("progress".to_owned(), Value::Number(progress))]),
-            payload: harmos::Message::encode_to_vec(&ProgressRow { progress }),
+            payload: dokime::harmos::Message::encode_to_vec(&ProgressRow { progress }),
         }],
     }
 }

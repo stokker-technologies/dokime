@@ -34,7 +34,7 @@ use {
 
 /* === Structs === */
 
-#[harmos::message]
+#[dokime::harmos::message(harmos_path = dokime::harmos)]
 struct BenchRow {
     elapsed_s: f64,
     voltage_v: f64,
@@ -228,13 +228,13 @@ async fn summary_complete_telemetry() {
             );
             sample.values.insert("progress".into(), Value::Number(index as f64));
             sample.scope = Some(scope.clone());
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
+            sample.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
     let mut unrelated =
         TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), 300, Timestamp::new("2026-09-13T00:00:00Z"), "fixture");
     unrelated.values.insert("progress".into(), Value::Number(999.0));
-    samples.push(unrelated.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: 999.0 })));
+    samples.push(unrelated.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: 999.0 })));
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), stream, samples)).await.unwrap();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
@@ -296,9 +296,9 @@ async fn duration_x_axis() {
 
     let mut contract = TelemetryContract::declared("bench.samples", "Bench Samples");
     contract.storage_schema = Some(
-        harmos::schema::graph::Schema::from_declaration(
-            <BenchRow as harmos::schema::Described>::DEFINITION,
-            &harmos::config::SchemaSettings::default(),
+        dokime::harmos::schema::graph::Schema::from_declaration(
+            <BenchRow as dokime::harmos::schema::Described>::DEFINITION,
+            &dokime::harmos::config::SchemaSettings::default(),
         )
         .unwrap(),
     );

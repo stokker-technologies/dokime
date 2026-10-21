@@ -20,7 +20,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
@@ -55,7 +55,7 @@ struct FileWatch {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     FileWatch(FileWatch),
 }
@@ -203,10 +203,10 @@ fn failure(error: Error) -> Status {
     }
 }
 
-fn stream_failure(error: harmos::Error) -> Status {
+fn stream_failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
+        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
         error => Status::internal(error.to_string()),
     }
 }

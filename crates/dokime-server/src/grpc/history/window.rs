@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -86,7 +86,7 @@ impl Operation for Read {
         let content_type = Some(output.file.metadata.media_type.clone());
         let offset = request.offset.min(output.file.length);
         let mut reader = view
-            .read_file(&output.file, harmos::storage::ByteRange { offset, limit: Some(limit as u64) })
+            .read_file(&output.file, dokime::harmos::storage::ByteRange { offset, limit: Some(limit as u64) })
             .await
             .map_err(wire::checkpoint_failure)?;
         let mut data = Vec::with_capacity(limit);
@@ -125,7 +125,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 fn project(
     checkpoint: &ExecutionCheckpoint, content: ExecutionFileContent, maximum: usize,
-) -> harmos::Result<dokime::domain::model::history::wire::CheckpointFileWindow> {
+) -> dokime::harmos::Result<dokime::domain::model::history::wire::CheckpointFileWindow> {
     let checkpoint = inspection::project(checkpoint, maximum)?;
     let content = window::owned(content, maximum)?;
     let response = dokime::domain::model::history::wire::CheckpointFileWindow { checkpoint: Some(checkpoint), content: Some(content) };
@@ -135,8 +135,8 @@ fn project(
     Ok(response)
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical checkpoint file window" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint file window" }
 }
 
 /* === Tests === */

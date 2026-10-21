@@ -317,9 +317,9 @@ fn bounded(bytes: usize) -> Result<usize, Status> {
     Ok(bytes)
 }
 
-fn failure(error: harmos::Error) -> Status {
+fn failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("canonical prompt construction exceeds its bound"),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("canonical prompt construction exceeds its bound"),
         _ => Status::internal("canonical prompt projection failed"),
     }
 }

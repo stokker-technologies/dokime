@@ -17,7 +17,7 @@
 use std::path::PathBuf;
 
 // Third Party Imports
-use harmos::plugin::inventory::CarrierSection;
+use dokime::harmos::plugin::inventory::CarrierSection;
 use harmos_packaging::bundle::{Bundle, Limits};
 
 // Local Imports

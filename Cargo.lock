@@ -929,7 +929,6 @@ dependencies = [
  "dokime-packaging",
  "dotenvy",
  "glob",
- "harmos",
  "harmos-packaging",
  "semver",
  "serde",
@@ -1961,7 +1960,6 @@ dependencies = [
  "criterion",
  "dokime",
  "dotenvy",
- "harmos",
  "harmos-packaging",
  "indicatif",
  "portable-pty",
@@ -2025,7 +2023,6 @@ dependencies = [
  "dokime",
  "dokime-server",
  "dotenvy",
- "harmos",
  "harmos-packaging",
  "harmos-sdk",
  "keyring",
@@ -2099,7 +2096,6 @@ dependencies = [
  "cargo_metadata 0.23.1",
  "clap",
  "dokime",
- "harmos",
  "harmos-packaging",
  "process-wrap",
  "serde",
@@ -2180,7 +2176,6 @@ dependencies = [
  "dokime-cli",
  "dotenvy",
  "futures-util",
- "harmos",
  "harmos-packaging",
  "harmos-sdk",
  "portable-pty",
@@ -5012,7 +5007,6 @@ version = "0.1.0"
 dependencies = [
  "dokime",
  "futures-util",
- "harmos",
  "obc-runtime",
  "serde",
  "serde_json",
@@ -5027,7 +5021,7 @@ dependencies = [
 name = "obc-runtime"
 version = "0.1.0"
 dependencies = [
- "harmos",
+ "dokime",
  "serde",
  "thiserror 2.0.21",
  "tracing",

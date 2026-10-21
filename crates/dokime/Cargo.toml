@@ -17,7 +17,9 @@ version = { workspace = true }
 
 [features]
 default = []
-plugin = ["native", "derive"]
+plugin-sidecar = ["native", "derive"]
+# Plugin Is An Alias For The Native Sidecar Authoring Surface.
+plugin = ["plugin-sidecar"]
 native = ["dokime-runtime/native"]
 derive = ["dokime-runtime/derive"]
 diagnostics = ["dokime-domain/diagnostics"]

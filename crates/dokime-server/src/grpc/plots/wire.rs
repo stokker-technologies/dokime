@@ -17,8 +17,8 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::MemorySize;
-use harmos::domain::Portable;
+use dokime::harmos::MemorySize;
+use dokime::harmos::domain::Portable;
 use serde_json::Value as JsonValue;
 use tonic::Status;
 

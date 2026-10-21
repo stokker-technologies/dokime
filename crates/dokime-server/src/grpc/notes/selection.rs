@@ -63,7 +63,7 @@ impl Page {
         }
         let stream = format!(
             "{kind}:{}",
-            Sha256::digest(harmos::Message::encode_to_vec(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+            Sha256::digest(dokime::harmos::Message::encode_to_vec(&selection)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
         let cursor = Cursor { epoch: snapshot.state().process_epoch().to_string(), stream, position: snapshot.revision() };
         if limit > 100 {

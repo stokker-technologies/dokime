@@ -152,7 +152,7 @@ async fn crashed_run_replay() {
         "recovery seals previous-session cycles before serving admission"
     );
     let cycle_id = dokime::TestCycleId::from_uuid(cycle_id).unwrap();
-    let cycle = dokime::storage::objects::cycle::read(owner.handle().storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
+    let cycle = dokime::storage::objects::cycle::read(owner.handle().storage(), &cycle_id, dokime::harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .unwrap()
@@ -162,11 +162,12 @@ async fn crashed_run_replay() {
     assert_eq!(cycle.execution_ids.len(), 1);
     let id = dokime::TestExecutionId::from_uuid(execution_id).unwrap();
     assert_eq!(cycle.execution_ids[0], id);
-    let execution = dokime::storage::objects::execution::read(owner.handle().storage(), &id, harmos::storage::ObjectVersion::Latest)
-        .await
-        .unwrap()
-        .unwrap()
-        .value;
+    let execution =
+        dokime::storage::objects::execution::read(owner.handle().storage(), &id, dokime::harmos::storage::ObjectVersion::Latest)
+            .await
+            .unwrap()
+            .unwrap()
+            .value;
     assert_eq!(execution.status, dokime::domain::model::execution::result::ExecutionStatus::Interrupted);
     assert_eq!(execution.test_execution_id, receipt.last_claim.as_ref().unwrap().execution_id);
     assert!(execution.finished_at.is_some());

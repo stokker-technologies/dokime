@@ -19,7 +19,7 @@ mod codec;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -142,7 +142,7 @@ fn status(error: dokime::runtime::Error) -> Status {
     let status = match &error {
         dokime::runtime::Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
         dokime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("aggregate source was not found"),
-        dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("aggregate response exceeds its original budget")
         }
         dokime::runtime::Error::Admission(AdmissionFailure::Overload { .. }) => Status::resource_exhausted("aggregate reads are busy"),

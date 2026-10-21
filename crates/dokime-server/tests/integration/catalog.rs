@@ -34,7 +34,7 @@ use {
 
 /* === Structs === */
 
-#[harmos::message]
+#[dokime::harmos::message(harmos_path = dokime::harmos)]
 #[derive(Clone, PartialEq)]
 struct CountRow {
     count: i64,

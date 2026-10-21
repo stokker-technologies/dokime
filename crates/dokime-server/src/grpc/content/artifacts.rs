@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
@@ -75,7 +75,7 @@ impl Operation for Download {
             .open_artifact_stream(&id)
             .await
             .map_err(|source| {
-                let status = if matches!(&source, dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+                let status = if matches!(&source, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
                     Status::resource_exhausted("cannot open stored artifact")
                 } else {
                     Status::internal("cannot open stored artifact")

@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -258,12 +258,12 @@ fn collect<T>(items: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result
     Ok(values)
 }
 
-fn status_failure(source: harmos::Error) -> Status {
+fn status_failure(source: dokime::harmos::Error) -> Status {
     super::wire::checkpoint_failure(source.into())
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical checkpoint evidence" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint evidence" }
 }
 
 /* === Tests === */

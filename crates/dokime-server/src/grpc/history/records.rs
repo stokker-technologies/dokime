@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::{Code, Status};
 
 // Local Imports
@@ -94,7 +94,9 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 
-fn project(page: &ExecutionRecordPage, maximum: usize) -> harmos::Result<dokime::domain::model::history::wire::CheckpointRecordPage> {
+fn project(
+    page: &ExecutionRecordPage, maximum: usize,
+) -> dokime::harmos::Result<dokime::domain::model::history::wire::CheckpointRecordPage> {
     let mut records = projection::slots(page.records.len())?;
     for row in &page.records {
         records.push(dokime::domain::model::history::wire::SavedRecord {
@@ -123,15 +125,15 @@ fn project(page: &ExecutionRecordPage, maximum: usize) -> harmos::Result<dokime:
     Ok(wire)
 }
 
-fn original_error(source: Status) -> harmos::Error {
+fn original_error(source: Status) -> dokime::harmos::Error {
     if source.code() == Code::ResourceExhausted {
         return exhausted();
     }
-    harmos::Error::backend("encode original checkpoint record", harmos::BackendFailure::Corrupt, source)
+    dokime::harmos::Error::backend("encode original checkpoint record", dokime::harmos::BackendFailure::Corrupt, source)
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical checkpoint record page" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint record page" }
 }
 
 /* === Tests === */

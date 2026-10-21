@@ -8,8 +8,8 @@ repository.workspace = true
 version = { workspace = true }
 
 [dependencies]
-# Git
-harmos = { workspace = true }
+# Local
+dokime = { workspace = true, features = ["plugin-sidecar"] }
 
 # Error Handling
 thiserror = { workspace = true }

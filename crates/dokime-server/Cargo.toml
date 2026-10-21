@@ -29,9 +29,6 @@ media-native = ["dokime/media-native"]
 # Local
 dokime = { workspace = true, features = ["host", "fft", "diagnostics", "terminal", "client"] }
 
-# Git
-harmos = { workspace = true, features = ["grpc"] }
-
 # Error Handling
 thiserror = { workspace = true }
 
@@ -84,7 +81,6 @@ tonic-types = { workspace = true }
 dokime = { workspace = true }
 
 # Git
-harmos = { workspace = true }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 [dev-dependencies]

@@ -53,7 +53,7 @@ impl NetworkArgs {
             .allowed_origins
             .iter()
             .map(|value| {
-                harmos::grpc::Origin::parse(value)
+                dokime::harmos::grpc::Origin::parse(value)
                     .map_err(|_| input("browser origins require a scheme and authority without path, credentials or wildcard"))
             })
             .collect::<Result<Vec<_>, _>>()?;

@@ -17,8 +17,8 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::domain::Portable;
-use harmos::{
+use dokime::harmos::domain::Portable;
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
@@ -104,7 +104,7 @@ impl Operation for Health {
         &mut self, _: Self::Context<'a>, _: &mut wire::GetHealth, _: &mut (),
     ) -> Result<Response<dokime::domain::model::backend::wire::BackendHealth>, Status> {
         let instance = self.resources.runtime.operations().submit(native::GetHealth {}).map_err(health_failure)?;
-        let health = harmos::grpc::response(instance).await.map_err(health_failure)?;
+        let health = dokime::harmos::grpc::response(instance).await.map_err(health_failure)?;
         produce(self.resources.maximum, || dokime::domain::model::backend::wire::BackendHealth {
             backend_id: health.backend_id.clone(),
             epoch: health.epoch.clone(),
@@ -132,7 +132,7 @@ impl Operation for Availability {
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, _: &mut wire::GetAvailability, _: &mut (),
     ) -> Result<Response<dokime::domain::model::backend::wire::BackendAvailability>, Status> {
-        use harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
+        use dokime::harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
         let maximum = self.resources.maximum;
         let mut methods = Vec::new();
         let mut after = None;
@@ -261,7 +261,7 @@ impl Operation for Archive {
 
 pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let instance = runtime.operations().submit(native::GetIdentity {})?;
-    let identity = harmos::grpc::response(instance).await?;
+    let identity = dokime::harmos::grpc::response(instance).await?;
     let identity = produce(maximum, || {
         dokime::domain::model::backend::wire::BackendIdentity {
             backend_id: identity.backend_id.clone(),
@@ -306,14 +306,14 @@ fn produce<T: MemorySize + Portable + Send + Sync + 'static>(maximum: usize, bui
     produce_result(maximum, || Ok(build()))
 }
 
-fn health_failure(source: harmos::Error) -> Status {
+fn health_failure(source: dokime::harmos::Error) -> Status {
     crate::grpc::error::detailed(Status::unavailable("runtime health is unavailable"), &source.into())
 }
 
-fn discovery_failure(source: harmos::Error) -> Status {
+fn discovery_failure(source: dokime::harmos::Error) -> Status {
     let status = match &source {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("operation discovery admission failed"),
-        harmos::Error::PermissionDenied | harmos::Error::OperationUnauthorized { .. } => {
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("operation discovery admission failed"),
+        dokime::harmos::Error::PermissionDenied | dokime::harmos::Error::OperationUnauthorized { .. } => {
             Status::permission_denied("operation discovery is not authorized")
         }
         _ => Status::unavailable("operation discovery is unavailable"),

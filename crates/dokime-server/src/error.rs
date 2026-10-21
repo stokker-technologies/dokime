@@ -34,7 +34,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("filesystem publication failed: {0}")]
-    Filesystem(#[from] harmos::filesystem::Error),
+    Filesystem(#[from] dokime::harmos::filesystem::Error),
 
     #[error("remote security storage failed: {0}")]
     RemoteStorage(#[source] std::io::Error),
@@ -49,10 +49,10 @@ pub enum Error {
     OperationService(#[source] tonic::Status),
 
     #[error("runtime operation failed: {0}")]
-    Operation(#[from] harmos::Error),
+    Operation(#[from] dokime::harmos::Error),
 
     #[error("invalid declared operation contract: {0}")]
-    Contract(#[from] harmos::operations::ContractError),
+    Contract(#[from] dokime::harmos::operations::ContractError),
 
     #[error("cannot bind gRPC listener: {0}")]
     Bind(#[from] std::io::Error),

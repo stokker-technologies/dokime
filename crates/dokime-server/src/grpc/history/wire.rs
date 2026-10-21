@@ -17,7 +17,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::{ObjectVersionToken, StorageCursor, StoreHistory};
+use dokime::harmos::storage::{ObjectVersionToken, StorageCursor, StoreHistory};
 use tonic::Status;
 
 // Local Imports
@@ -47,7 +47,7 @@ const MAX_CHECKPOINT_TOKEN_BYTES: usize = 4096;
 /* === Public Functions === */
 
 pub(super) fn query_failure(error: dokime::runtime::Error) -> Status {
-    if matches!(&error, dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+    if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
         return detailed(Status::resource_exhausted("historical response exceeds its original budget"), &error);
     }
     detailed(Status::unavailable(format!("historical execution discovery failed: {error}")), &error)
@@ -55,7 +55,7 @@ pub(super) fn query_failure(error: dokime::runtime::Error) -> Status {
 
 pub(super) fn checkpoint_failure(error: dokime::runtime::Error) -> Status {
     tracing::warn!(error = %error, "checkpoint read failed");
-    if matches!(&error, dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+    if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
         return detailed(Status::resource_exhausted("checkpoint exceeds its original budget"), &error);
     }
     detailed(Status::failed_precondition(format!("checkpoint cannot be read: {error}")), &error)

@@ -93,9 +93,9 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     result?;
     if let (Some(file), Some(destination)) = (staged, args.output) {
         let publication = if args.overwrite {
-            harmos::filesystem::publication::replace(file.path(), &destination)
+            dokime::harmos::filesystem::publication::replace(file.path(), &destination)
         } else {
-            harmos::filesystem::publication::install(file.path(), &destination)
+            dokime::harmos::filesystem::publication::install(file.path(), &destination)
         };
         publication.map_err(std::io::Error::from).map_err(output_error)?;
     }
@@ -106,7 +106,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 
 fn read_request(path: Option<&Path>, inline: Option<&str>) -> crate::Result<Vec<u8>> {
     let input = match path {
-        Some(path) => harmos::filesystem::input::read(path, MAX_INPUT_BYTES)?,
+        Some(path) => dokime::harmos::filesystem::input::read(path, MAX_INPUT_BYTES)?,
         None => inline.unwrap_or("{}").as_bytes().to_vec(),
     };
     if input.len() > MAX_INPUT_BYTES {
@@ -119,7 +119,7 @@ fn read_request(path: Option<&Path>, inline: Option<&str>) -> crate::Result<Vec<
 
 fn read_items(path: Option<&Path>, remaining: usize) -> crate::Result<Vec<Vec<u8>>> {
     let Some(path) = path else { return Ok(Vec::new()) };
-    let bytes = harmos::filesystem::input::read(path, remaining)?;
+    let bytes = dokime::harmos::filesystem::input::read(path, remaining)?;
     let text = std::str::from_utf8(&bytes).map_err(|_| crate::Error::Input("Input stream must be UTF-8 JSON lines".into()))?;
 
     let mut items = Vec::new();

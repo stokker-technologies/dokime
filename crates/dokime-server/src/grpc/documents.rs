@@ -19,7 +19,7 @@ mod wire;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 
@@ -165,8 +165,8 @@ fn scope(scope: Option<dokime::domain::model::documents::wire::DocumentScope>) -
     Ok((cycle, execution))
 }
 
-fn failure(error: harmos::Error) -> Status {
-    let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
+fn failure(error: dokime::harmos::Error) -> Status {
+    let status = if matches!(error, dokime::harmos::Error::ResourceExhausted { .. }) {
         Status::resource_exhausted("document admission failed")
     } else {
         Status::internal("document admission failed")

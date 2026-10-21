@@ -627,7 +627,7 @@ A shortened version of OBC's
 nine-case voltage/load sweep:
 
 ```rust
-// Cargo.toml: dokime = { git = "https://github.com/stokker-technologies/dokime", features = ["plugin"] }
+// Cargo.toml: dokime = { git = "https://github.com/stokker-technologies/dokime", features = ["plugin-sidecar"] }
 use dokime::definition::ParameterDefault;
 
 #[dokime::parameters]

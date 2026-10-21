@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -98,12 +98,14 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 
-fn project(page: &ExecutionBrowsePage, maximum: usize) -> harmos::Result<dokime::domain::model::history::wire::ExecutionBrowsePage> {
+fn project(
+    page: &ExecutionBrowsePage, maximum: usize,
+) -> dokime::harmos::Result<dokime::domain::model::history::wire::ExecutionBrowsePage> {
     let projected = super::wire::browse_page(page).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
             return exhausted();
         }
-        harmos::Error::backend("project historical execution page", harmos::BackendFailure::Corrupt, source)
+        dokime::harmos::Error::backend("project historical execution page", dokime::harmos::BackendFailure::Corrupt, source)
     })?;
     if projected.wire_len()? > maximum {
         return Err(exhausted());
@@ -111,8 +113,8 @@ fn project(page: &ExecutionBrowsePage, maximum: usize) -> harmos::Result<dokime:
     Ok(projected)
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "historical response" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "historical response" }
 }
 
 fn execution_filter(filter: Option<dokime::domain::model::history::wire::ExecutionFilter>) -> Result<ExecutionFilter, Status> {

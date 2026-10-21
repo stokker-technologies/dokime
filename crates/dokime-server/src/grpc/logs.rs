@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::{
+use dokime::harmos::{
     MemorySize,
     operations::{Response, StreamOutput},
 };
@@ -293,8 +293,8 @@ fn timestamp(value: &str) -> Option<Timestamp> {
     Some(Timestamp { seconds: moment.unix_timestamp(), nanos: moment.nanosecond() as i32 })
 }
 
-fn memory_failure(source: harmos::Error) -> Status {
-    let status = if matches!(source, harmos::Error::ResourceExhausted { .. }) {
+fn memory_failure(source: dokime::harmos::Error) -> Status {
+    let status = if matches!(source, dokime::harmos::Error::ResourceExhausted { .. }) {
         Status::resource_exhausted("log frame admission failed")
     } else {
         Status::internal("log frame admission failed")

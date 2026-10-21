@@ -96,16 +96,16 @@ matrix! {
     "/dokime.v1.Remote/RegenerateCertificate", unary, contracts::remote::RegenerateCertificate = contracts::remote::RegenerateCertificate { certificate_names: vec![] };
     "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {
         subject: model::reports::wire::ReportSubject::Execution(String::new()),
-        at: harmos::storage::StorageCursor {
-            history: harmos::storage::StoreHistory {
-                store: harmos::Identifier::new("authorization").unwrap(),
-                epoch: harmos::Identifier::new("test").unwrap(),
+        at: dokime::harmos::storage::StorageCursor {
+            history: dokime::harmos::storage::StoreHistory {
+                store: dokime::harmos::Identifier::new("authorization").unwrap(),
+                epoch: dokime::harmos::Identifier::new("test").unwrap(),
             },
             sequence: 0,
         },
     };
-    "/harmos.host.v1.Host/Catalog", unary, harmos::operations::host::Catalog = harmos::operations::host::Catalog {
-        kind: harmos::operations::host::CatalogKind::Operations,
+    "/harmos.host.v1.Host/Catalog", unary, dokime::harmos::operations::host::Catalog = dokime::harmos::operations::host::Catalog {
+        kind: dokime::harmos::operations::host::CatalogKind::Operations,
         schema: None,
         after: None,
         rows: None,
@@ -316,13 +316,13 @@ fn cases() -> impl Iterator<Item = &'static Case> {
 
 fn operation<O>(channel: Channel, token: Option<&'static str>, path: &'static str) -> Refusal
 where
-    O: harmos::operations::OperationDeclaration + harmos::domain::Portable + Default,
-    O::Response: harmos::domain::Portable + harmos::MemorySize,
+    O: dokime::harmos::operations::OperationDeclaration + dokime::harmos::domain::Portable + Default,
+    O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
 {
     Box::pin(async move {
-        use harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
+        use dokime::harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
         let bytes = std::num::NonZeroUsize::new(4096).unwrap();
-        let codec = Codec::<harmos::grpc::Transcoded, O::Response, harmos::operations::Response<O>>::new(
+        let codec = Codec::<dokime::harmos::grpc::Transcoded, O::Response, dokime::harmos::operations::Response<O>>::new(
             DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
             EncodeSettings { message_bytes: bytes, buffer_bytes: bytes },
         )
@@ -330,7 +330,7 @@ where
         let mut client = tonic::client::Grpc::new(channel);
         client.ready().await.unwrap();
         let declaration = O::default();
-        let envelope = harmos::operations::Response::new(declaration);
+        let envelope = dokime::harmos::operations::Response::new(declaration);
         let request = credentialed(envelope, token);
         let route = tonic::codegen::http::uri::PathAndQuery::from_static(path);
         let response = client.unary(request, route, codec).await;

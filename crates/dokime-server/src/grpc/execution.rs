@@ -28,7 +28,7 @@ pub(crate) use detail::result as result_summary;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation};
+use dokime::harmos::operations::{Context, Operation};
 use prost::Message;
 use tonic::{Code, Status};
 
@@ -102,7 +102,7 @@ struct ListExecutionSteps {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     GetCase(GetCase),
     GetExecution(GetExecution),
@@ -131,7 +131,7 @@ impl Operation for GetCase {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetCase, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::CaseDetail>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::CaseDetail>, Status> {
         detail::get_case(&self.resources, request).map(Into::into)
     }
 }
@@ -147,7 +147,7 @@ impl Operation for GetExecution {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetExecution, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionDetail>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ExecutionDetail>, Status> {
         detail::get_execution(&self.resources, request).map(Into::into)
     }
 }
@@ -163,7 +163,7 @@ impl Operation for ListCaseParameters {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListCaseParameters, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ListCaseParametersReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ListCaseParametersReply>, Status> {
         detail::list_case_parameters(&self.resources, request).map(Into::into)
     }
 }
@@ -179,7 +179,7 @@ impl Operation for ListExecutionParameters {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListExecutionParameters, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ListMaterializedParametersReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ListMaterializedParametersReply>, Status> {
         detail::list_execution_parameters(&self.resources, request).map(Into::into)
     }
 }
@@ -195,7 +195,7 @@ impl Operation for ListExecutionSteps {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListExecutionSteps, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ListExecutionStepsReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ListExecutionStepsReply>, Status> {
         steps::list(&self.resources, request).map(Into::into)
     }
 }
@@ -211,7 +211,7 @@ impl Operation for GetCycle {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetCycle, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::CycleSummary>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::CycleSummary>, Status> {
         self.resources.get_cycle(request).map(Into::into)
     }
 }
@@ -227,7 +227,7 @@ impl Operation for ListCycles {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListCycles, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ListCyclesReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ListCyclesReply>, Status> {
         self.resources.list_cycles(request).map(Into::into)
     }
 }
@@ -243,7 +243,7 @@ impl Operation for ListCases {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListCases, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ListCasesReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ListCasesReply>, Status> {
         self.resources.list_cases(request).map(Into::into)
     }
 }
@@ -259,7 +259,7 @@ impl Operation for ListExecutions {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListExecutions, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ListExecutionsReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ListExecutionsReply>, Status> {
         self.resources.list_executions(request).map(Into::into)
     }
 }
@@ -495,7 +495,7 @@ pub(super) fn execution_summary(
 
 /* === Private Functions === */
 
-fn inspection_reply<T: harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
+fn inspection_reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.encoded_len() > service.max_message_bytes {
         return Err(Status::resource_exhausted("inspection exceeds response budget"));
     }

@@ -31,9 +31,9 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::MemorySize;
-use harmos::domain::Portable;
-use harmos::grpc::{Transcoded, Wire};
+use dokime::harmos::MemorySize;
+use dokime::harmos::domain::Portable;
+use dokime::harmos::grpc::{Transcoded, Wire};
 use harmos_sdk::grpc::DecodeInput;
 use sha2::{Digest, Sha256};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};

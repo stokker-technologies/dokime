@@ -55,7 +55,7 @@ pub use server::{Server, Service};
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::catalog::{Catalog, Projection};
+use dokime::harmos::catalog::{Catalog, Projection};
 
 // Local Imports
 use dokime::domain::operations::Endpoints;

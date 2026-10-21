@@ -20,7 +20,7 @@ mod convert;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, StreamOutput};
 use prost::Message;
 use tonic::Status;
 
@@ -53,7 +53,7 @@ struct Read {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Read(Read),
     Download(Download),
@@ -74,7 +74,7 @@ impl Operation for Read {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, _: &mut wire::GetAppearance, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::appearance::wire::AppearanceSnapshot>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::appearance::wire::AppearanceSnapshot>, Status> {
         let captured = self
             .resources
             .runtime
@@ -110,7 +110,7 @@ impl Operation for Download {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut content::DownloadAppearanceAsset, output: &mut Self::Endpoints,
-    ) -> Result<harmos::operations::Response<()>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<()>, Status> {
         assets::download(&self.resources.runtime, std::mem::take(request), self.resources.max_message_bytes, output).await?;
         Ok(().into())
     }

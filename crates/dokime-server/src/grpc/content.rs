@@ -155,11 +155,11 @@ pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime::domain::model:
 
 /* === Private Functions === */
 
-fn transfer_frame_memory<T: harmos::domain::Portable>(frame: T) -> usize {
-    let retained = std::mem::size_of::<T>().saturating_add(std::mem::size_of::<harmos::operations::StreamItem<T>>());
+fn transfer_frame_memory<T: dokime::harmos::domain::Portable>(frame: T) -> usize {
+    let retained = std::mem::size_of::<T>().saturating_add(std::mem::size_of::<dokime::harmos::operations::StreamItem<T>>());
     let decoded = T::decoding_memory(&frame.encode_to_vec())
         .unwrap_or(usize::MAX)
-        .saturating_add(std::mem::size_of::<harmos::grpc::InputEnvelope<T, T>>());
+        .saturating_add(std::mem::size_of::<dokime::harmos::grpc::InputEnvelope<T, T>>());
     retained.max(decoded)
 }
 

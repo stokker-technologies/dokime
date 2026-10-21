@@ -23,7 +23,7 @@ use std::{
 };
 // Third Party Imports
 use async_trait::async_trait;
-use harmos::sidecar::StreamDeclaration;
+use dokime::harmos::sidecar::StreamDeclaration;
 use serde_json::{Value, json};
 // Local Imports
 use crate::support::bridge::{Harness, Local};
@@ -183,11 +183,11 @@ impl EmbeddedProvider for Provider {
             id: Reading::ID.into(),
             schema: Reading::VERSION,
             window: Reading::WINDOW,
-            metadata: <Reading as harmos::StreamSpec>::metadata(),
-            row_metadata: <Reading as harmos::RowMetadata>::row_metadata(),
-            row: harmos::schema::graph::Schema::from_declaration(
+            metadata: <Reading as dokime::harmos::StreamSpec>::metadata(),
+            row_metadata: <Reading as dokime::harmos::RowMetadata>::row_metadata(),
+            row: dokime::harmos::schema::graph::Schema::from_declaration(
                 <Reading as Described>::DEFINITION,
-                &harmos::config::SchemaSettings::default(),
+                &dokime::harmos::config::SchemaSettings::default(),
             )
             .unwrap(),
         }]

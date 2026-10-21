@@ -22,8 +22,8 @@ use std::{
 
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
-use harmos::domain::Portable;
-use harmos::grpc::{Transcoded, Wire};
+use dokime::harmos::domain::Portable;
+use dokime::harmos::grpc::{Transcoded, Wire};
 use harmos_packaging::bundle::{Bundle, Limits, Source};
 use sha2::{Digest, Sha256};
 

@@ -362,7 +362,7 @@ async fn publish(handle: &dokime::RuntimeHandle, id: &Identifier, start: u64, co
             ));
             let mut sample = TelemetrySample::new(dokime::model::identity::new_id(), id.clone(), index, at, "fixture");
             sample.values.insert("progress".into(), Value::Number(index as f64));
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
+            sample.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
@@ -375,7 +375,7 @@ async fn publish_scoped(handle: &dokime::RuntimeHandle, id: &Identifier, scope: 
             let mut sample = TelemetrySample::new(dokime::model::identity::new_id(), id.clone(), index, at, "fixture");
             sample.values.insert("progress".into(), Value::Number(index as f64));
             sample.scope = Some(scope.clone());
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
+            sample.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();

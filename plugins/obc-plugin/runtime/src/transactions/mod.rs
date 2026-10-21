@@ -37,7 +37,7 @@ use crate::{Error, Testbench};
 
 /* === Enums === */
 
-#[harmos::transactions(state = Testbench, error = Error)]
+#[dokime::harmos::transactions(harmos_path = dokime::harmos, state = Testbench, error = Error)]
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum Transactions {
     SetPower(SetPower),

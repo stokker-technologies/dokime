@@ -40,7 +40,7 @@ use dokime::domains::{ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
 
 pub(super) fn appearance(
     frame: RuntimeAppearanceFrame, logos: Vec<dokime::domain::model::appearance::wire::AppearanceLogo>,
-) -> harmos::Result<dokime::domain::model::appearance::wire::AppearanceSnapshot> {
+) -> dokime::harmos::Result<dokime::domain::model::appearance::wire::AppearanceSnapshot> {
     let mut themes = canonical::slots(frame.themes.len()).map_err(|_| exhausted())?;
     for source in frame.themes {
         themes.push(theme(source)?);
@@ -68,7 +68,7 @@ pub(super) fn appearance(
     })
 }
 
-pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> harmos::Result<usize> {
+pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> dokime::harmos::Result<usize> {
     let mut bytes = std::mem::size_of::<dokime::domain::model::appearance::wire::AppearanceSnapshot>()
         .saturating_add(source.app_name.capacity())
         .saturating_add(heap(&source.organization)?)
@@ -99,7 +99,7 @@ pub(in crate::grpc) fn historical_memory(source: &RuntimeAppearanceFrame) -> har
 
 /* === Private Functions === */
 
-fn theme(value: RuntimeThemeFamily) -> harmos::Result<dokime::domain::model::appearance::wire::ThemeFamily> {
+fn theme(value: RuntimeThemeFamily) -> dokime::harmos::Result<dokime::domain::model::appearance::wire::ThemeFamily> {
     let mut variables = Vec::new();
     variables.try_reserve_exact(value.variables.len()).map_err(|_| exhausted())?;
     for (key, value) in value.variables {
@@ -131,7 +131,7 @@ fn radii(value: ThemeCornerRadii) -> dokime::domain::model::appearance::wire::Th
     }
 }
 
-fn variant(value: ThemeVariant) -> harmos::Result<dokime::domain::model::appearance::wire::ThemeVariant> {
+fn variant(value: ThemeVariant) -> dokime::harmos::Result<dokime::domain::model::appearance::wire::ThemeVariant> {
     let mut variables = Vec::new();
     variables.try_reserve_exact(value.variables.len()).map_err(|_| exhausted())?;
     for (key, value) in value.variables {
@@ -140,7 +140,7 @@ fn variant(value: ThemeVariant) -> harmos::Result<dokime::domain::model::appeara
     Ok(dokime::domain::model::appearance::wire::ThemeVariant { variables, plot_palette: value.plot_palette })
 }
 
-fn variables_heap(source: &std::collections::BTreeMap<String, String>, slot: usize) -> harmos::Result<usize> {
+fn variables_heap(source: &std::collections::BTreeMap<String, String>, slot: usize) -> dokime::harmos::Result<usize> {
     let mut bytes = source.len().checked_mul(slot).ok_or_else(exhausted)?;
     for (key, value) in source {
         bytes = bytes.checked_add(key.capacity()).and_then(|bytes| bytes.checked_add(value.capacity())).ok_or_else(exhausted)?;
@@ -148,13 +148,13 @@ fn variables_heap(source: &std::collections::BTreeMap<String, String>, slot: usi
     Ok(bytes)
 }
 
-fn variant_heap(source: &ThemeVariant) -> harmos::Result<usize> {
+fn variant_heap(source: &ThemeVariant) -> dokime::harmos::Result<usize> {
     variables_heap(&source.variables, std::mem::size_of::<dokime::domain::model::appearance::wire::ThemeVariantVariablesEntry>())?
         .checked_add(heap(&source.plot_palette)?)
         .ok_or_else(exhausted)
 }
 
-fn heap<T: harmos::MemorySize>(source: &T) -> harmos::Result<usize> {
+fn heap<T: dokime::harmos::MemorySize>(source: &T) -> dokime::harmos::Result<usize> {
     let bytes = source.memory_size();
     if bytes == usize::MAX {
         return Err(exhausted());
@@ -162,8 +162,8 @@ fn heap<T: harmos::MemorySize>(source: &T) -> harmos::Result<usize> {
     Ok(bytes.saturating_sub(std::mem::size_of::<T>()))
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "historical appearance construction" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "historical appearance construction" }
 }
 
 /* === Tests === */

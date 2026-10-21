@@ -17,7 +17,6 @@ dokime = { workspace = true, features = ["terminal"] }
 dokime-packaging = { version = "0.1.0", path = "../dokime-packaging" }
 
 # Git
-harmos = { workspace = true, features = ["plugin"] }
 harmos-packaging = { workspace = true }
 
 # Error Handling

@@ -17,7 +17,7 @@
 
 // Third Party Imports
 use crate::wire::WireMessage;
-use harmos::MemorySize;
+use dokime::harmos::MemorySize;
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -270,7 +270,7 @@ async fn upload_sink_completes() {
     };
     let payload = &metadata_bytes[8..];
     assert!(
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<model::content::wire::ArtifactMetadata>>::decoding_memory(
+        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<model::content::wire::ArtifactMetadata>>::decoding_memory(
             harmos_sdk::grpc::DecodeInput::new(payload)
         )
         .unwrap()

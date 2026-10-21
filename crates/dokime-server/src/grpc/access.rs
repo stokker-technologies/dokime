@@ -128,7 +128,7 @@ impl Listeners {
         exact.or_else(wildcard).cloned().ok_or_else(|| Status::unauthenticated("listener is not accepting calls"))
     }
 
-    fn authenticate_call(&self, call: &harmos::grpc::middleware::Invocation) -> Result<Principal, Status> {
+    fn authenticate_call(&self, call: &dokime::harmos::grpc::middleware::Invocation) -> Result<Principal, Status> {
         use tonic::transport::server::{TcpConnectInfo, TlsConnectInfo};
         let extensions = call.transport();
         let plain = extensions.get::<TcpConnectInfo>().and_then(|info| info.local_addr);
@@ -154,16 +154,16 @@ impl Listeners {
     }
 }
 
-impl harmos::grpc::authentication::Authenticator for Listeners {
+impl dokime::harmos::grpc::authentication::Authenticator for Listeners {
     type Principal = Principal;
 
     fn authenticate<'a>(
-        &'a self, call: &'a harmos::grpc::middleware::Invocation,
-    ) -> harmos::grpc::authentication::Authentication<'a, Self::Principal> {
+        &'a self, call: &'a dokime::harmos::grpc::middleware::Invocation,
+    ) -> dokime::harmos::grpc::authentication::Authentication<'a, Self::Principal> {
         Box::pin(async move {
             self.authenticate_call(call)
                 // Carry the authored status so the served error keeps its message.
-                .map_err(|status| harmos::Error::OperationFailed { operation: call.path().to_owned(), source: Arc::new(status) })
+                .map_err(|status| dokime::harmos::Error::OperationFailed { operation: call.path().to_owned(), source: Arc::new(status) })
         })
     }
 }

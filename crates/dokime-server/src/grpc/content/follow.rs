@@ -17,7 +17,7 @@
 use std::{num::NonZeroUsize, sync::Arc, time::Instant};
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
@@ -131,8 +131,8 @@ async fn send(
 
 fn failure(error: Error) -> Status {
     let status = match &error {
-        Error::Harmos(harmos::Error::InvalidInput { reason, .. }) => Status::failed_precondition(*reason),
-        Error::Harmos(harmos::Error::ResourceExhausted { resource }) => {
+        Error::Harmos(dokime::harmos::Error::InvalidInput { reason, .. }) => Status::failed_precondition(*reason),
+        Error::Harmos(dokime::harmos::Error::ResourceExhausted { resource }) => {
             Status::resource_exhausted(format!("execution file exceeds original {resource} budget"))
         }
         Error::ExecutionFileTooLarge => Status::resource_exhausted("execution output exceeds native content limit"),

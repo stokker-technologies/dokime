@@ -24,8 +24,8 @@ use std::{
 
 // Third Party Imports
 use contract as v1;
-use harmos::domain::Portable;
-use harmos::{
+use dokime::harmos::domain::Portable;
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamInput, StreamItem},
 };

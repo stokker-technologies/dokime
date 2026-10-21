@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
@@ -206,8 +206,8 @@ fn event_wire(sequence: u64, event: &Event) -> dokime::domain::model::backend::w
     }
 }
 
-fn failure(source: harmos::Error) -> Status {
-    let status = if matches!(source, harmos::Error::ResourceExhausted { .. }) {
+fn failure(source: dokime::harmos::Error) -> Status {
+    let status = if matches!(source, dokime::harmos::Error::ResourceExhausted { .. }) {
         Status::resource_exhausted("trace delivery admission failed")
     } else {
         Status::internal("trace delivery failed")

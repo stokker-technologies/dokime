@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation};
+use dokime::harmos::operations::{Context, Operation};
 
 // Local Imports
 use super::*;
@@ -40,7 +40,7 @@ struct Execution {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Execution(Execution),
 }
@@ -60,7 +60,7 @@ impl Operation for Execution {
     }
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::StartExecution, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::RunReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::RunReply>, Status> {
         let context = super::control::command_context(&context, None)?;
         value::text(&request.execution_id)?;
         let id = dokime::domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())

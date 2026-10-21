@@ -323,7 +323,7 @@ fn projected_value(
     canonical::encode(source, budget, depth)
 }
 
-fn construction_failure(source: harmos::Error) -> Status {
+fn construction_failure(source: dokime::harmos::Error) -> Status {
     super::super::wire::checkpoint_failure(source.into())
 }
 

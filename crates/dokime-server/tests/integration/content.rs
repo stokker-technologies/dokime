@@ -277,7 +277,7 @@ async fn artifact_transfer(message_bytes: usize) {
         let request_json = serde_json::to_vec(&serde_json::json!({"artifactId": first_id})).unwrap();
         let dynamic = native
             .call_operation(
-                <contracts::content::DownloadArtifact as harmos::operations::OperationDeclaration>::ID,
+                <contracts::content::DownloadArtifact as dokime::harmos::operations::OperationDeclaration>::ID,
                 None,
                 &request_json,
                 vec![],
