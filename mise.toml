@@ -1,11 +1,3 @@
-# ***
-#
-# Dokime
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# ***
-
 # === Settings === #
 
 [settings]
@@ -35,7 +27,6 @@ taplo = "0.10.0"
 
 # Protocols And Code Generation
 protoc = "36.2"
-"npm:@fission-ai/openspec" = "1.14.3"
 
 # Release And Signing
 gh = "2.102.0"
@@ -60,7 +51,6 @@ PYTHONDONTWRITEBYTECODE = "1"
 python = "uv run --locked --project tools/python"
 tools = "uv run --locked --project tools/python python -m"
 lane = "uv run --locked --project tools/python python -m dokime_tools.test.run test"
-# The generated client modules; protoc's wire output stays excluded by the package's ruff configuration.
 generated_python = "packages/dokime-client/src/dokime_client/_wire packages/dokime-client/src/dokime_client/operation.py packages/dokime-client/src/dokime_client/dynamic.py packages/dokime-client/src/dokime_client/__init__.py packages/dokime-client/src/dokime_client/__init__.pyi"
 
 # === Prepare === #
@@ -132,7 +122,6 @@ depends = ["prepare"]
 run = [
   "{{vars.python}} ruff check packages/dokime-client",
   "{{vars.python}} ruff check tools/python",
-  # The Repository Tooling Reads No Generated Client, So Its Types Are Checked Before Any Build.
   "{{vars.python}} ty check --project tools/python",
 ]
 
@@ -162,7 +151,6 @@ run = [{ task = "format:toml --check" }, "actionlint"]
 
 [tasks."check:rust"]
 description = "Check Rust"
-# The runtime embeds the report viewer, so every feature proof needs it first.
 depends = ["prepare:report"]
 run = [
   { task = "format:rust --check" },
@@ -185,6 +173,12 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [{ task = "build:typescript --profile {{usage.profile}}" }, { task = "build:rust --profile {{usage.profile}}" }]
 env = { CARGO_INCREMENTAL = "0" }
 
+[tasks."build:bench"]
+description = "Build Benchmark Leaves And Matching Bench-Profile Hosts Without A Test Archive"
+depends = ["prepare:report"]
+run = "{{vars.tools}} dokime_tools.build.benchmarks"
+env = { CARGO_INCREMENTAL = "0" }
+
 [tasks."build:python"]
 description = "Build The Python Client Wheel"
 depends = ["prepare:harmos", "prepare:report"]
@@ -193,17 +187,9 @@ run = "{{vars.tools}} dokime_tools.build.product python --profile {{usage.profil
 
 [tasks."build:rust"]
 description = "Build Shipping Executables, Libraries And Plugin Bundle"
-# The runtime embeds the report viewer, a declared input of every native capture.
 depends = ["prepare:report"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.product rust --profile {{usage.profile}}"
-
-[tasks."build:typescript"]
-description = "Build The Generated GUI Client And Frontend"
-# Contract Metadata Embeds The Frozen Report Before The GUI Client Is Generated.
-depends = ["prepare:report"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.product typescript --profile {{usage.profile}}"
 
 [tasks."build:tests"]
 description = "Build The Shared Test Archive And Test Fixtures From Matching Product Hosts"
@@ -212,11 +198,11 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.tests --profile {{usage.profile}}"
 env = { CARGO_INCREMENTAL = "0" }
 
-[tasks."build:bench"]
-description = "Build Benchmark Leaves And Matching Bench-Profile Hosts Without A Test Archive"
+[tasks."build:typescript"]
+description = "Build The Generated GUI Client And Frontend"
 depends = ["prepare:report"]
-run = "{{vars.tools}} dokime_tools.build.benchmarks"
-env = { CARGO_INCREMENTAL = "0" }
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.build.product typescript --profile {{usage.profile}}"
 
 # === Dev === #
 
@@ -237,19 +223,85 @@ run = [
 [tasks.test]
 description = "Test Every Layer"
 usage = 'flag "--profile <profile>" default="dev"'
+depends = [
+  "test:unit --profile {{usage.profile}}",
+  "test:integration --profile {{usage.profile}}",
+  "test:generated --profile {{usage.profile}}",
+  "test:acceptance --profile {{usage.profile}}",
+  "test:system --profile {{usage.profile}}",
+]
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:unit"]
+description = "Test Unit Layer"
+usage = 'flag "--profile <profile>" default="dev"'
+depends = [
+  "test:unit:rust --profile {{usage.profile}}",
+  "test:unit:typescript --profile {{usage.profile}}",
+  "test:unit:python --profile {{usage.profile}}",
+]
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:unit:python"]
+description = "Test Unit Python"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language python --project packages/dokime-client"
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:unit:rust"]
+description = "Test Unit Rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust"
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:unit:typescript"]
+description = "Test Unit TypeScript"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  { task = "test:unit --profile {{usage.profile}}" },
-  { task = "test:integration --profile {{usage.profile}}" },
-  { task = "test:generated --profile {{usage.profile}}" },
-  { task = "test:acceptance --profile {{usage.profile}}" },
-  { task = "test:system --profile {{usage.profile}}" },
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run tests/unit --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
+]
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:integration"]
+description = "Test Integration Layer"
+usage = 'flag "--profile <profile>" default="dev"'
+depends = [
+  "test:integration:rust --profile {{usage.profile}}",
+  "test:integration:python --profile {{usage.profile}}",
+  "test:integration:typescript --profile {{usage.profile}}",
+]
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:integration:python"]
+description = "Test Integration Python"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime-client"
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:integration:rust"]
+description = "Test Integration Rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\""
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:integration:typescript"]
+description = "Test Integration TypeScript"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run tests/integration --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:acceptance"]
 description = "Test Acceptance Layer"
 usage = 'flag "--profile <profile>" default="dev"'
-run = [{ task = "test:acceptance:rust --profile {{usage.profile}}" }, { task = "test:acceptance:python --profile {{usage.profile}}" }]
+depends = ["test:acceptance:rust --profile {{usage.profile}}", "test:acceptance:python --profile {{usage.profile}}"]
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:acceptance:python"]
@@ -264,23 +316,41 @@ description = "Test Acceptance Rust"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  # The desktop/Python matrix drives the installed client wheel from the Rust lane.
   "{{vars.tools}} dokime_tools.test.archive --profile {{usage.profile}} --target any --install-wheels",
   "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust",
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
-[tasks."test:compile"]
-description = "Test Compile Contracts In The Build Tree"
+[tasks."test:coverage"]
+description = "Measure Coverage Over Instrumented Lanes"
 usage = 'flag "--profile <profile>" default="dev"'
-run = [{ task = "test:compile:rust --profile {{usage.profile}}" }]
+env.CARGO_INCREMENTAL = "0"
+run = [
+  "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.test.run coverage --language python --profile {{usage.profile}}",
+]
+
+[tasks."test:system"]
+description = "Test System Layer"
+usage = 'flag "--profile <profile>" default="dev"'
+depends = ["test:system:rust --profile {{usage.profile}}", "test:system:typescript --profile {{usage.profile}}"]
 env = { CARGO_INCREMENTAL = "0" }
 
-[tasks."test:compile:rust"]
-description = "Test Rust Compile Contracts"
+[tasks."test:system:rust"]
+description = "Test System Rust"
+depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-# The macro stories compile plugin sources with rustc against the built SDK and its dependency closure, which only the build tree has.
-run = "cargo nextest run --locked --workspace --all-targets --cargo-profile {{usage.profile}} --features tauri/custom-protocol,dokime/fault-injection -E \"binary_id(dokime-macros::compile)\""
+run = [
+  "{{vars.tools}} dokime_tools.test.archive --profile {{usage.profile}} --target any --install-wheels",
+  "{{vars.lane}} --profile {{usage.profile}} --category system --language rust",
+]
+env = { CARGO_INCREMENTAL = "0" }
+
+[tasks."test:system:typescript"]
+description = "Test System TypeScript"
+depends = ["prepare"]
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --profile {{usage.profile}} --junit {junit}"
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:generated"]
@@ -313,105 +383,15 @@ run = [
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
-[tasks."test:integration"]
-description = "Test Integration Layer"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "test:integration:rust --profile {{usage.profile}}" },
-  { task = "test:integration:python --profile {{usage.profile}}" },
-  { task = "test:integration:typescript --profile {{usage.profile}}" },
-]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:integration:python"]
-description = "Test Integration Python"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime-client"
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:integration:rust"]
-description = "Test Integration Rust"
-usage = 'flag "--profile <profile>" default="dev"'
-# The compile contracts run only in the build tree (test:compile); every other test binary is integration.
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\""
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:integration:typescript"]
-description = "Test Integration TypeScript"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run tests/integration --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
-]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:system"]
-description = "Test System Layer"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [{ task = "test:system:rust --profile {{usage.profile}}" }, { task = "test:system:typescript --profile {{usage.profile}}" }]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:system:rust"]
-description = "Test System Rust"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  "{{vars.tools}} dokime_tools.test.archive --profile {{usage.profile}} --target any --install-wheels",
-  "{{vars.lane}} --profile {{usage.profile}} --category system --language rust",
-]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:system:typescript"]
-description = "Test System TypeScript"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --profile {{usage.profile}} --junit {junit}"
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:unit"]
-description = "Test Unit Layer"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "test:unit:rust --profile {{usage.profile}}" },
-  { task = "test:unit:typescript --profile {{usage.profile}}" },
-  { task = "test:unit:python --profile {{usage.profile}}" },
-]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:unit:python"]
-description = "Test Unit Python"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language python --project packages/dokime-client"
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:unit:rust"]
-description = "Test Unit Rust"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust"
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks."test:unit:typescript"]
-description = "Test Unit TypeScript"
-depends = ["prepare"]
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
-  "{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run tests/unit --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
-]
-env = { CARGO_INCREMENTAL = "0" }
-
-[tasks.coverage]
-description = "Measure Coverage Over Instrumented Lanes"
-run = ["{{vars.tools}} dokime_tools.test.run coverage --language rust", "{{vars.tools}} dokime_tools.test.run coverage --language python"]
-
 # === Bench === #
 
 [tasks.bench]
 description = "Measure Every Bench Layer"
-run = [{ task = "bench:unit:rust" }, { task = "bench:integration:rust" }, { task = "bench:system:rust" }]
+depends = ["bench:unit:rust", "bench:integration:rust", "bench:system:rust"]
+
+[tasks."bench:unit:rust"]
+description = "Bench Unit Rust"
+run = "{{vars.tools}} dokime_tools.test.run bench --category unit --language rust"
 
 [tasks."bench:integration:rust"]
 description = "Bench Integration Rust"
@@ -420,10 +400,6 @@ run = "{{vars.tools}} dokime_tools.test.run bench --category integration --langu
 [tasks."bench:system:rust"]
 description = "Bench System Rust"
 run = "{{vars.tools}} dokime_tools.test.run bench --category system --language rust"
-
-[tasks."bench:unit:rust"]
-description = "Bench Unit Rust"
-run = "{{vars.tools}} dokime_tools.test.run bench --category unit --language rust"
 
 # === Docs === #
 
@@ -457,13 +433,13 @@ run = "stkr ci simulate --event {{usage.event}}"
 
 [tasks."ci:nightly"]
 description = "Run The Nightly Coverage And Bench Flow"
-run = [{ task = "build" }, { task = "build:tests" }, { task = "coverage" }, { task = "build:bench" }, { task = "bench" }]
+run = [{ task = "build" }, { task = "build:tests" }, { task = "test:coverage" }, { task = "build:bench" }, { task = "bench" }]
 
 # === Release === #
 
 [tasks."release:prepare"]
 description = "Prepare The Release Branch"
-run = "{{vars.tools}} dokime_tools.release.run prepare"
+run = "uv run --locked --project tools/python python -m dokime_tools.release.run prepare"
 
 [tasks."release:publish"]
 description = "Publish A Tagged Release"
@@ -504,7 +480,7 @@ run = "uv run --locked --project tools/python python -m dokime_tools.release.run
 
 [tasks."release:verify"]
 description = "Verify Published Assets And Their Opted-In Installers"
-run = "{{vars.tools}} dokime_tools.release.run verify"
+run = "uv run --locked --project tools/python python -m dokime_tools.release.run verify"
 
 # === Housekeeping === #
 

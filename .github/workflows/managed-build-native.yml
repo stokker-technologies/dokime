@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-native.yml; sha256:ad9c8d1141e140ac8549c3e1d0de5f619d70a9fc1045ed9df75fe16cdb6802cc
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-native.yml; sha256:efb01d3a08136eefb07b31fa33c626b43b448c9d4650a795c23838c9fc8205b7
 name: Build
 "on":
   workflow_call:
@@ -279,7 +279,6 @@ jobs:
       shell: bash
       run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
     - run: mise run build:tests --profile ${{ env.PROFILE }}
-    - run: mise run test:compile --profile ${{ env.PROFILE }}
     - name: Archive Build
       if: inputs.platform != 'windows'
       shell: bash

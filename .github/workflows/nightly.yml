@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:e9ed96865f549570566db049e363a97c604f2a6404e094beb3189e2f7170db89
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:24ce1d0ec299341452dada70d3455c0b701ddb62fcb544c28efe0d4630cbab5f
 name: Nightly
 "on":
   schedule:
@@ -24,6 +24,7 @@ jobs:
     - check_windows
     - validate
     - validate_linux
+    - validate_nightly
     - validate_windows
   build:
     name: Build
@@ -134,6 +135,16 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":[\"ubuntu-latest\"],\"large\":[\"ubuntu-latest\"]},\"windows\":{\"small\":[\"windows-latest\"],\"large\":[\"windows-latest\"]},\"nightly\":{\"small\":[\"self-hosted\",\"linux\"],\"coverage\":[\"ubuntu-latest\"]}}"
       budgets: "{\"validate_generated\":10,\"validate_test_acceptance_python\":10,\"validate_test_integration_python\":10,\"validate_test_integration_typescript\":10,\"validate_test_system_typescript\":14,\"validate_test_unit_python\":10,\"validate_test_unit_typescript\":10}"
+    secrets: inherit
+    needs:
+    - build
+    - build_linux
+  validate_nightly:
+    name: Validate
+    uses: ./.github/workflows/managed-validate-nightly.yml
+    with:
+      runners: "{\"linux\":{\"small\":[\"ubuntu-latest\"],\"large\":[\"ubuntu-latest\"]},\"windows\":{\"small\":[\"windows-latest\"],\"large\":[\"windows-latest\"]},\"nightly\":{\"small\":[\"self-hosted\",\"linux\"],\"coverage\":[\"ubuntu-latest\"]}}"
+      budgets: "{\"validate_coverage\":180}"
     secrets: inherit
     needs:
     - build

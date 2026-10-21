@@ -48,6 +48,24 @@ def build(profile: str) -> None:
 
     # Compile Test Targets Through The Shared Archive Owner.
     built = archive.build(ROOT, profile, ["--features", features])
+    subprocess.run(
+        [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--cargo-profile",
+            profile,
+            "--features",
+            features,
+            "-E",
+            "binary_id(dokime-macros::compile)",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
     metadata = built.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
         command = ["cargo", "metadata", "--locked", "--format-version", "1", "--features", features]
