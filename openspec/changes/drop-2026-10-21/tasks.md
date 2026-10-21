@@ -28,7 +28,7 @@
 - [x] 11. Render prompt asked/answered plot markers with title hover in live/report views. Proof: `plots/nominal.test.ts / Prompt Markers`; `native-desktop.mjs / cycle, report` (asked and answered hover titles).
 - [x] 12. Downsample full series per viewport preserving envelopes and avoid duplicate titles. Proof: `plots/nominal.test.ts / LTTB Reduction, Window Resampling`.
 - [x] 13. Pad and scroll console content with newest-line following. Proof: `console/nominal.test.ts / Tail Follow`; `native-desktop.mjs / cycle` (padding, scroll release and Jump to Latest).
-- [ ] 14. Verify Dokime README CI, crate, PyPI, release and license badges.
+- [x] 14. Verify Dokime README CI, crate, PyPI, release and license badges. Proof: `README badge endpoint audit` (workflow API, registry/release absence, four HTTP-200 status badges and Apache-2.0 license).
 - [ ] 15. Preserve four surface-aware logo variants, native icons and themed README logo.
 - [ ] 16. Place the Prompt card separately beneath Control.
 - [ ] 17. Derive cycle status independently of an execution's stop outcome.

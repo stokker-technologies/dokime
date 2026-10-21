@@ -8,10 +8,10 @@
 </p>
 
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml?query=branch%3Adev)
-[![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
-[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
-[![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases/latest)
-[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE)
+[![crates.io: unpublished](https://img.shields.io/badge/crates.io-unpublished-lightgrey)](#quick-start)
+[![PyPI: unpublished](https://img.shields.io/badge/PyPI-unpublished-lightgrey)](#quick-start)
+[![Release: unreleased](https://img.shields.io/badge/release-unreleased-lightgrey)](https://github.com/stokker-technologies/dokime/releases)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **Run repeatable engineering tests. Keep the evidence.**
 
@@ -148,6 +148,9 @@ A list can also be one parameter value. An ordered load sequence such as
 mean three separate cases. Expansion is declared explicitly.
 
 ## Quick Start
+
+Dokime has no published crates.io package, PyPI package or tagged release yet.
+Use a matching CI artifact set or build from source below.
 
 For an installed host and a second PC, follow the
 [candidate-artifact OBC walkthrough](packages/dokime-client/examples/remote/README.md).
