@@ -164,6 +164,11 @@ async fn development_control(runtime: &mut dokime_runtime::Runtime, paths: &[Pat
         };
         let result = async {
             let request: serde_json::Value = serde_json::from_str(&line)?;
+            if request["command"] == "storage_counters" {
+                let mut reply = serde_json::to_value(dokime_runtime::storage::sqlite::counters())?;
+                reply["event"] = "storage_counters".into();
+                return Ok(reply);
+            }
             if request["command"] != "reload" {
                 return Err(crate::host::Error::Input("unsupported development command".into()));
             }
@@ -184,13 +189,11 @@ async fn development_control(runtime: &mut dokime_runtime::Runtime, paths: &[Pat
             } else {
                 None
             };
-            Ok::<_, crate::host::Error>(rerun)
+            Ok::<_, crate::host::Error>(serde_json::json!({"event":"reloaded", "rerun_message":rerun}))
         }
         .await;
         let reply = match result {
-            Ok(rerun) => {
-                serde_json::json!({"event":"reloaded", "rerun_message":rerun})
-            }
+            Ok(reply) => reply,
             Err(error) => serde_json::json!({"event":"reload_failed", "message":error.to_string()}),
         };
         if writeln!(std::io::stdout().lock(), "{reply}").is_err() {

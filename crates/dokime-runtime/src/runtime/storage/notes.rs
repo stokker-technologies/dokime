@@ -54,10 +54,15 @@ impl ExecutionStorage {
         // Snapshot Handles In Key Order; Release The Registry Before Awaiting Owners
         let owners = {
             let active = self.active.lock().await;
-            if active.len() > NOTE_SCAN_LIMIT {
-                return Err(annotation_limit("annotation owner scan exceeds budget"));
+            match scope.test_execution_id.as_ref() {
+                Some(id) => active.get(id).cloned().into_iter().collect::<Vec<_>>(),
+                None => {
+                    if active.len() > NOTE_SCAN_LIMIT {
+                        return Err(annotation_limit("annotation owner scan exceeds budget"));
+                    }
+                    active.values().cloned().collect::<Vec<_>>()
+                }
             }
-            active.values().cloned().collect::<Vec<_>>()
         };
         let mut candidates = Vec::with_capacity(owners.len());
         for owner in &owners {

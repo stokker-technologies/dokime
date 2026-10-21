@@ -17,7 +17,7 @@
 // Standard Library Imports
 use std::{
     env::consts::EXE_SUFFIX,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdout, Command, Stdio},
     time::{Duration, Instant},
@@ -39,8 +39,14 @@ const PLATFORM: &str = if cfg!(windows) { "windows" } else { "linux" };
 pub struct Server {
     child: Child,
     endpoint: String,
-    _stdout: BufReader<ChildStdout>,
+    stdout: BufReader<ChildStdout>,
     _root: TempDir,
+}
+
+pub struct StorageCounters {
+    pub committed_transactions: u64,
+    pub data_batches: u64,
+    pub durable_files: u64,
 }
 
 /* === Enums === */
@@ -77,11 +83,37 @@ impl Server {
                 break event["endpoint"].as_str().unwrap().to_owned();
             }
         };
-        Self { child, endpoint, _stdout: stdout, _root: root }
+        Self { child, endpoint, stdout, _root: root }
     }
 
     pub fn endpoint(&self) -> &str {
         &self.endpoint
+    }
+
+    pub fn storage_counters(&mut self) -> StorageCounters {
+        let stdin = self.child.stdin.as_mut().unwrap();
+        writeln!(stdin, "{}", serde_json::json!({"command": "storage_counters"})).unwrap();
+        stdin.flush().unwrap();
+        let mut line = String::new();
+        assert!(self.stdout.read_line(&mut line).unwrap() > 0, "the server exited before replying");
+        let reply: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(reply["event"], "storage_counters");
+        StorageCounters {
+            committed_transactions: reply["committed_transactions"].as_u64().unwrap(),
+            data_batches: reply["data_batches"].as_u64().unwrap(),
+            durable_files: reply["durable_files"].as_u64().unwrap(),
+        }
+    }
+
+    // Development Control Loads The Bundle Into The Running Session.
+    pub fn reload(&mut self, bundle: &Path) {
+        let stdin = self.child.stdin.as_mut().unwrap();
+        writeln!(stdin, "{}", serde_json::json!({"command": "reload", "path": bundle})).unwrap();
+        stdin.flush().unwrap();
+        let mut line = String::new();
+        assert!(self.stdout.read_line(&mut line).unwrap() > 0, "the server exited before replying");
+        let reply: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(reply["event"], "reloaded", "the development session loads the bench bundle: {reply}");
     }
 
     pub fn stop(mut self) -> Duration {
