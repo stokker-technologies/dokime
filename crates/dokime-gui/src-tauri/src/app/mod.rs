@@ -60,6 +60,16 @@ pub fn run() {
         use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx};
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
     }
+    // WebKitGTK's DMA-BUF renderer repaints the whole window on the GTK main
+    // thread for every animation frame, and that thread also delivers async
+    // command responses, so a spinner can delay them by tens of seconds. An
+    // explicit operator value still wins.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // SAFETY: the process is still single-threaded; no runtime, logger or
+        // GTK thread has started yet.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
     dotenv::dotenv().ok();
     if let Err(error) = start_tauri_app() {
         eprintln!("failed to run {} desktop shell: {error}", crate::PRODUCT);
