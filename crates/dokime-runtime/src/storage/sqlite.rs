@@ -47,6 +47,10 @@ pub const SCHEMA_VERSION: i64 = 1;
 const LEASE_WAIT: Duration = Duration::from_secs(5);
 const LEASE_POLL: Duration = Duration::from_millis(50);
 
+static COMMITTED_TRANSACTIONS: AtomicU64 = AtomicU64::new(0);
+static DATA_BATCHES: AtomicU64 = AtomicU64::new(0);
+static DURABLE_FILES: AtomicU64 = AtomicU64::new(0);
+
 // Tables Of Earlier Layouts; Their Presence Means The Root Predates This Build.
 const RETIRED_TABLES: &str = "'storage_operations','storage_deletions','storage_recovery_head',
     'storage_bootstrap','storage_bootstrap_entries','storage_object_scalars',
@@ -60,6 +64,15 @@ const RETIRED_TABLES: &str = "'storage_operations','storage_deletions','storage_
 
 #[derive(Clone)]
 pub struct State(Arc<Owner>);
+
+// Process-Wide SQLite Diagnostics; These Exclude Autocommit Statements And The Harmos State Journal.
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+pub struct StorageCounters {
+    pub committed_transactions: u64,
+    pub data_batches: u64,
+    // Successful File Durability Confirmations, Including Repeated Confirmations Of One File.
+    pub durable_files: u64,
+}
 
 struct Owner {
     live: Arc<Mutex<Option<Live>>>,
@@ -115,7 +128,7 @@ impl State {
             let transaction = connection.transaction()?;
             transaction.execute_batch(catalog::SCHEMA)?;
             transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-            transaction.commit()?;
+            commit(transaction)?;
             let interrupt = connection.get_interrupt_handle();
             Ok(Self(Arc::new(Owner {
                 live: Arc::new(Mutex::new(Some(Live { connection, _lease: lease }))),
@@ -182,7 +195,21 @@ impl State {
 
 /* === Public Functions === */
 
+pub fn counters() -> StorageCounters {
+    StorageCounters {
+        committed_transactions: COMMITTED_TRANSACTIONS.load(Ordering::Relaxed),
+        data_batches: DATA_BATCHES.load(Ordering::Relaxed),
+        durable_files: DURABLE_FILES.load(Ordering::Relaxed),
+    }
+}
+
 /* === Private Functions === */
+
+fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
+    transaction.commit()?;
+    COMMITTED_TRANSACTIONS.fetch_add(1, Ordering::Relaxed);
+    Ok(())
+}
 
 // Takes the root's exclusive lease, waiting a bounded time for a departing
 // owner to let go. A lease still held after that belongs to a live runtime.

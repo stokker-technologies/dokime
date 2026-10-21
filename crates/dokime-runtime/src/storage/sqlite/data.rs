@@ -249,7 +249,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     if let Some(expected) = expected {
         expected.check(&head.history)?;
     }
-    transaction.commit()?;
+    super::commit(transaction)?;
     Ok(head)
 }
 
@@ -294,7 +294,8 @@ fn write(connection: &mut Connection, root: &std::path::Path, history: &StoreHis
         head.sequence = entry.position;
     }
     transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
-    transaction.commit()?;
+    super::commit(transaction)?;
+    super::DATA_BATCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     Ok(head)
 }
 
