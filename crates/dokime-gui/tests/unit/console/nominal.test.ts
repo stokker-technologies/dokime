@@ -26,7 +26,7 @@ import {
   RETAINED_BUFFERS,
   RETAINED_RECORDS,
 } from "@/shell/console-buffer";
-import { consoleFollowsTail, consoleTailPinned, FOLLOW_SLACK_PX } from "@/shell/console-follow";
+import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, consoleWindow, FOLLOW_SLACK_PX } from "@/shell/console-follow";
 
 /* === Re-Exports === */
 
@@ -108,6 +108,26 @@ test("Tail Follow", () => {
   assert.equal(consoleFollowsTail(true, consoleTailPinned(at(BOTTOM - 300))), false);
   assert.equal(consoleFollowsTail(true, consoleTailPinned(at(BOTTOM))), true);
   assert.equal(consoleFollowsTail(false, true), false);
+
+  // The First And Last Rows Sit Inside The Padding, Never Flush With The Frame
+  const list = { count: 100, height: 200, overscan: 0, rowHeight: 22 };
+  const top = consoleWindow({ ...list, scrollTop: 0 });
+  assert.equal(top.offset, CONSOLE_LIST_PADDING_PX);
+  assert.equal(top.contentHeight, 100 * 22 + 2 * CONSOLE_LIST_PADDING_PX);
+  assert.deepEqual([top.first, top.last], [0, 10]);
+
+  // Scrolled To The Bottom, The Last Row Is Drawn And Padding Follows It
+  const end = consoleWindow({ ...list, scrollTop: top.contentHeight - 200 });
+  assert.equal(end.last, 100);
+  assert.equal(end.offset + (end.last - end.first) * 22 + CONSOLE_LIST_PADDING_PX, end.contentHeight);
+
+  // An Empty List Draws Nothing And Keeps Its Padding
+  assert.deepEqual(consoleWindow({ ...list, count: 0, scrollTop: 0 }), {
+    first: 0,
+    last: 0,
+    contentHeight: 2 * CONSOLE_LIST_PADDING_PX,
+    offset: CONSOLE_LIST_PADDING_PX,
+  });
 });
 
 test("Record Buffers", () => {

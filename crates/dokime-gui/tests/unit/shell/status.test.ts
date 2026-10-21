@@ -20,6 +20,7 @@ import { backendExitMeaning } from "@/app/native-session/errors";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { statusPresentation } from "@/features/settings/plugins/PluginList";
 import { programSource } from "@/features/settings/plugins/PluginPrograms";
+import { announceStopping, desktopStopping, settleUnlessStopping } from "@/lib/desktop/stopping";
 import {
   type OperationFrame,
   operationPercent,
@@ -123,6 +124,7 @@ test("Backend Exit Meaning", () => {
   assert.match(backendExitMeaning(2) ?? "", /^Invalid input/);
   assert.match(backendExitMeaning(3) ?? "", /^Runtime failure/);
   assert.match(backendExitMeaning(4) ?? "", /^Incompatible storage/);
+  assert.match(backendExitMeaning(5) ?? "", /^Stop incomplete/);
   assert.equal(backendExitMeaning(0), "Clean stop");
 
   // An Undefined Code Or A Signal Claims No Meaning
@@ -146,4 +148,35 @@ test("Brand Label", () => {
     state: "removal_pending",
   } as unknown as Parameters<typeof statusPresentation>[0];
   assert.equal(statusPresentation(entry, "Acme").reason, "Active until Acme restarts.");
+});
+
+test("a failure during the desktop's stop never settles, and the stop shows only once it lasts", async () => {
+  const pending = Symbol("pending");
+  const outcome = (promise: Promise<unknown>) =>
+    Promise.race([
+      promise.then(
+        () => "resolved",
+        () => "rejected",
+      ),
+      new Promise((resolve) => setTimeout(() => resolve(pending), 10)),
+    ]);
+
+  // Running: A Failure Is The Caller's
+  assert.equal(desktopStopping(), "running");
+  assert.equal(await outcome(settleUnlessStopping(new Error("refused"))), "rejected");
+
+  // The Shell's Own Refusal Starts The Stop Even Before Its Announcement Arrives
+  assert.equal(await outcome(settleUnlessStopping({ kind: "session", detail: { kind: "shutting_down" } })), pending);
+  assert.equal(desktopStopping(), "hidden");
+
+  // Once Stopping, Any Failure Is The Stop's; Visible Never Returns To Hidden
+  assert.equal(await outcome(settleUnlessStopping({ kind: "session", detail: { kind: "superseded" } })), pending);
+  announceStopping({ stopping: true, visible: true });
+  announceStopping({ stopping: true, visible: false });
+  assert.equal(desktopStopping(), "visible");
+
+  // A Kept-Open Window Fails Normally Again
+  announceStopping({ stopping: false, visible: false });
+  assert.equal(desktopStopping(), "running");
+  assert.equal(await outcome(settleUnlessStopping(new Error("refused"))), "rejected");
 });

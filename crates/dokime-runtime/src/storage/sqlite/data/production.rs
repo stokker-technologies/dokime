@@ -234,7 +234,7 @@ impl State {
                 head.retention_generation=head.retention_generation.checked_add(1).ok_or(Error::Data("retention generation exhausted"))?;
                 transaction.execute("UPDATE storage_data_head SET retention_generation=?1 WHERE singleton=1",params![position(head.retention_generation)])?;
             }
-            transaction.commit()?;
+            super::super::commit(transaction)?;
             // Tombstones Fence New Reads Before Physical Reclamation. The
             // Serialized Owner Drains Every Previously Accepted Bounded Read.
             if let Some(reference)=reference

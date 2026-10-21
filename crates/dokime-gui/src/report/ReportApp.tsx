@@ -73,11 +73,11 @@ function ReportSurface() {
         cycleId,
         generatedAt: source.generatedAt,
         onSelect: setSelection,
-        status: plan?.test_cycle.status ?? "planned",
+        status: { lifecycle: plan?.test_cycle.status ?? "planned", phase: plan?.test_cycle.phase ?? "sealed" },
         title,
       }}
     >
-      <ReportCycleWorkspace source={source} selection={selection} />
+      <ReportCycleWorkspace onSelect={setSelection} selection={selection} source={source} />
     </ReportShell>
   );
 }

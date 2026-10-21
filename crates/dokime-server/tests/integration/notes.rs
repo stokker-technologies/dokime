@@ -12,16 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::RuntimeConfig;
-use dokime_runtime::runtime::command::CommandContext;
-use dokime_runtime::{RecordScope, TestCycleId};
+use dokime::RuntimeConfig;
+use dokime::domain::model;
+use dokime::runtime::command::CommandContext;
+use dokime::{RecordScope, TestCycleId};
 use model::execution::HealthSeverity;
 use model::execution::OperatorNoteRequest;
 
@@ -42,7 +43,8 @@ use model::execution::OperatorNoteRequest;
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn cycle(runtime: &dokime_runtime::RuntimeHandle) -> TestCycleId {
+
+async fn cycle(runtime: &dokime::RuntimeHandle) -> TestCycleId {
     let suite = support::fixture_suite(&["passed"]);
     support::register_fixture_execution(runtime, suite.clone()).await;
     support::cycle_with_cases(

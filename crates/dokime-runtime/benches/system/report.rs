@@ -193,7 +193,7 @@ async fn started_cycle(root: &Path, concurrency: usize, duration: f64) -> (Runti
     }
     let test_cycle_id = runtime
         .create_cycle(
-            CycleDefinition { metadata: registration.suite.metadata.clone(), continue_automatically: true, continue_on_failure: true },
+            CycleDefinition { metadata: registration.suite.metadata.clone(), continue_automatically: true },
             CommandContext::default(),
         )
         .await

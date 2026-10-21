@@ -41,7 +41,7 @@ pub struct ExecutionBinding {
 
 #[harmos_domain::message]
 #[harmos_domain::operation(response = AppendCasesReply, id = "dokime.execution.append_executions", version = 1,
-    policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+    policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Execution", method = "AppendExecutions"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

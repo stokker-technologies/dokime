@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 mod operations;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -20,7 +22,7 @@ use clap::Parser;
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -41,6 +43,7 @@ use dokime_domain::model;
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[tokio::test]
 async fn remote_security_persistence() {
     let root = tempfile::tempdir().unwrap();
@@ -101,16 +104,78 @@ async fn remote_security_persistence() {
 }
 
 #[tokio::test]
+async fn remote_sessions_recorded() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let native = connect(&server).await;
+    let key = native.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner().access_key;
+    let settings = model::remote::RemoteListenerSettings {
+        enabled: true,
+        address: "127.0.0.1:0".into(),
+        tls_enabled: false,
+        authentication_enabled: true,
+        certificate_names: vec![],
+    };
+    let status = native
+        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings) })
+        .await
+        .unwrap()
+        .into_inner();
+    let remote = WireClient::connect(format!("http://{}", status.listening_address.unwrap())).await.unwrap();
+    let mut rejected = Request::new(contracts::backend::GetIdentity {});
+    rejected.metadata_mut().insert("authorization", "Bearer a-different-long-token-01234567890123456789".parse().unwrap());
+    assert_eq!(remote.unary::<contracts::backend::GetIdentity>(rejected).await.unwrap_err().code(), Code::Unauthenticated);
+    for _ in 0..2 {
+        let mut admitted = Request::new(contracts::backend::GetIdentity {});
+        admitted.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
+        remote.unary::<contracts::backend::GetIdentity>(admitted).await.unwrap();
+    }
+    native.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap();
+
+    let page = native
+        .unary::<contracts::remote::ListSessions>(contracts::remote::ListSessions { cursor: None, limit: 20 })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(page.sessions.len(), 2, "native calls are not remote sessions");
+    let admitted = &page.sessions[0];
+    assert_eq!((admitted.principal.as_str(), admitted.calls), ("access-key", 2));
+    assert_eq!(admitted.outcome, model::remote::RemoteSessionOutcome::Admitted);
+    let refused = &page.sessions[1];
+    assert_eq!((refused.principal.as_str(), refused.calls), ("anonymous", 1));
+    assert_eq!(refused.outcome, model::remote::RemoteSessionOutcome::Rejected);
+    assert_eq!(refused.rejection.as_deref(), Some("invalid credentials"));
+    assert!(page.next_cursor.is_none());
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+
+    // The Log Survives The Host Restart With Its Sessions Closed.
+    let mut owner = runtime(root.path()).await;
+    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let native = connect(&server).await;
+    let restored = native
+        .unary::<contracts::remote::ListSessions>(contracts::remote::ListSessions { cursor: None, limit: 1 })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(restored.sessions.len(), 1);
+    assert!(restored.sessions[0].disconnected_at.is_some());
+    assert_eq!(restored.next_cursor.as_deref(), Some(restored.sessions[0].id.as_str()));
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn listener_policy_isolation() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
     let cycle = handle
         .create_cycle(
-            dokime_runtime::transactions::CycleDefinition {
+            dokime::transactions::CycleDefinition {
                 metadata: support::metadata("remote.listeners", "Listener Isolation"),
                 continue_automatically: false,
-                continue_on_failure: false,
             },
             Default::default(),
         )
@@ -161,6 +226,8 @@ async fn listener_policy_isolation() {
                 rules: vec![],
                 output: String::new(),
                 policy: model::files::wire::FileWatchPolicy::SnapshotAtStart,
+                selection: model::files::wire::FileWatchSelection::All,
+                wait_for_source_seconds: None,
                 poll_interval_ms: None,
                 maximum_seconds: None,
                 maximum_files: None,
@@ -205,22 +272,21 @@ async fn listener_policy_isolation() {
 
 #[tokio::test]
 async fn remote_cycle_seal() {
-    use dokime_domain::model::execution::result::CyclePhase;
+    use dokime::domain::model::execution::result::CyclePhase;
 
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let definition = dokime_runtime::transactions::CycleDefinition {
+    let definition = dokime::transactions::CycleDefinition {
         metadata: support::metadata("remote.seal", "Remote Campaign"),
         continue_automatically: false,
-        continue_on_failure: false,
     };
     let cycle = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     let other = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let endpoint = server.local_endpoint();
-    let target = dokime_client::Target::local(endpoint.clone()).unwrap();
-    let client = dokime_client::Client::connect(target, None, None).await.unwrap();
+    let target = dokime::client::Target::local(endpoint.clone()).unwrap();
+    let client = dokime::client::Client::connect(target, None, None).await.unwrap();
     let reply = client.cycle(cycle.clone()).seal().await.unwrap();
     assert!(reply.observed_cursor.is_some());
     let sealed = handle.watch_state().latest().state().cycles[&cycle].clone();
@@ -231,13 +297,13 @@ async fn remote_cycle_seal() {
 
     let cycle_id = cycle.to_string();
     let command = ["dokime", "cycle", "seal", &cycle_id, "--endpoint", &endpoint, "--json"];
-    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     assert_eq!(handle.watch_state().latest().state().cycles[&cycle], sealed);
 
     // Historical Repeats Remain Safe After The Live Header Retires.
     handle.create_cycle(definition, Default::default()).await.unwrap();
     assert!(!handle.watch_state().latest().state().cycles.contains_key(&cycle));
-    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -247,10 +313,9 @@ async fn operation_response_files() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let definition = dokime_runtime::transactions::CycleDefinition {
+    let definition = dokime::transactions::CycleDefinition {
         metadata: support::metadata("remote.operations", "Original"),
         continue_automatically: false,
-        continue_on_failure: false,
     };
     let cycle = handle.create_cycle(definition, Default::default()).await.unwrap();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
@@ -261,7 +326,7 @@ async fn operation_response_files() {
 
     let command =
         ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &request, "--output", output];
-    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     let snapshot = handle.watch_state().latest();
     assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "First Call");
     let saved = std::fs::read(&destination).unwrap();
@@ -273,14 +338,14 @@ async fn operation_response_files() {
     let next = serde_json::json!({"cycleId": cycle.to_string(), "label": "Second Call"}).to_string();
     let command =
         ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &next, "--output", output];
-    let error = dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap_err();
-    assert!(matches!(error, dokime::Error::Input(_)));
+    let error = dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap_err();
+    assert!(matches!(error, dokime_cli::Error::Input(_)));
     let snapshot = handle.watch_state().latest();
     assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "First Call", "output conflict must prevent the mutation");
     assert_eq!(std::fs::read(&destination).unwrap(), saved);
 
     let command = command.into_iter().chain(["--overwrite"]);
-    dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+    dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
     let snapshot = handle.watch_state().latest();
     assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "Second Call");
     let replacement = std::fs::read(&destination).unwrap();
@@ -299,7 +364,7 @@ async fn operation_response_files() {
         output,
         "--overwrite",
     ];
-    assert!(dokime::Cli::try_parse_from(command).unwrap().run().await.is_err());
+    assert!(dokime_cli::Cli::try_parse_from(command).unwrap().run().await.is_err());
     assert_eq!(std::fs::read(&destination).unwrap(), replacement, "failed streamed response must preserve the prior complete file");
 
     server.shutdown().await.unwrap();
@@ -327,8 +392,9 @@ async fn discovery_shares_independently() {
     let health = client.unary::<contracts::backend::GetHealth>(contracts::backend::GetHealth {}).await.unwrap().into_inner();
     assert_eq!(health.readiness, model::backend::wire::Readiness::Ready);
     assert_eq!(health.epoch, epoch);
-    let native =
-        dokime_client::Client::connect(dokime_client::Target::local(server.local_endpoint()).unwrap(), None, Some(&node_id)).await.unwrap();
+    let native = dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), None, Some(&node_id))
+        .await
+        .unwrap();
     let managed = native.health().await.unwrap();
     let managed_identity = native.identity().await.unwrap();
     assert_eq!(managed_identity.backend_id, node_id);
@@ -337,13 +403,13 @@ async fn discovery_shares_independently() {
     assert_eq!(managed_identity.product_version, identity.product_version);
     let operations = native.operations().await.unwrap();
     assert!(operations.iter().any(|operation| {
-        operation.contract.operation().id.as_str() == dokime_runtime::operations::evidence::WatchRecords::ID && operation.grpc_available
+        operation.contract.operation().id.as_str() == dokime::operations::evidence::WatchRecords::ID && operation.grpc_available
     }));
     assert!(operations.iter().any(|operation| {
-        operation.contract.operation().id.as_str() == dokime_runtime::operations::runtime::GetIdentity::ID && operation.grpc_available
+        operation.contract.operation().id.as_str() == dokime::operations::runtime::GetIdentity::ID && operation.grpc_available
     }));
-    let response = native.call_operation(dokime_runtime::operations::runtime::GetIdentity::ID, None, b"{}", vec![]).await.unwrap();
-    let Some(dokime_client::dynamic::Event::Completion(identity_response)) = response.message().await.unwrap() else {
+    let response = native.call_operation(dokime::operations::runtime::GetIdentity::ID, None, b"{}", vec![]).await.unwrap();
+    let Some(dokime::client::dynamic::Event::Completion(identity_response)) = response.message().await.unwrap() else {
         panic!("unary identity operation must return a completion");
     };
     assert_eq!(identity_response["backendId"], node_id);

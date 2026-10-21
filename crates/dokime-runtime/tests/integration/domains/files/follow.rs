@@ -123,7 +123,7 @@ async fn follow_terminal_interleavings() {
     let identity = live.metadata().identity.clone().unwrap();
     assert_eq!(drain(&mut live, ORIGINAL.len()).await, ORIGINAL);
     executor.release();
-    wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&handle, &cycle, ResultStatus::Passed).await;
     assert_sealed(&terminal(&mut live).await, &identity);
 
     // Finished: The Owner Seals Before The Viewer Is Admitted.

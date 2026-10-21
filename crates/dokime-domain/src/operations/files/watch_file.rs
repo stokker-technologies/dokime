@@ -56,6 +56,11 @@ pub struct WatchFile {
 
     pub policy: FileWatchPolicy,
 
+    #[serde(default)]
+    pub selection: FileWatchSelection,
+
+    pub wait_for_source_seconds: Option<u32>,
+
     // Discovery and capture interval: default 1000, 50–60000 milliseconds.
     #[row(description = "Discovery and capture interval: default 1000, 50–60000 milliseconds.")]
     pub poll_interval_ms: Option<u32>,

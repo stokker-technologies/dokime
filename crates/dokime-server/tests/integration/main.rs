@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod appearance;
 mod append;
 mod authoring;
@@ -40,6 +41,7 @@ mod support;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Duration;
 // Third Party Imports
@@ -48,10 +50,10 @@ use tonic::{
     transport::{Certificate, ClientTlsConfig, Endpoint},
 };
 // Local Imports
-use dokime_client::contracts;
+use dokime::client::contracts;
 use dokime_server::grpc::{Config, Server, TlsIdentity};
 use support::wire::*;
-use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime};
+use {dokime::Identifier, dokime::Metadata, dokime::Runtime};
 
 /* === Constants === */
 

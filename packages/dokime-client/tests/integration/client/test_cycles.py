@@ -92,13 +92,13 @@ def test_explicit_cycle() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             # Create Without Planning
-            cycle = await client.create_cycle(label="Bench Run", description="Line 2", continue_on_failure=True)
+            cycle = await client.create_cycle(label="Bench Run", description="Line 2", continue_automatically=True)
             assert cycle.id == CYCLE_ID and cycle.executions == ()
             assert server.created == 1 and server.append_calls == 0
             request = server.cycle_request
             assert request.metadata.label == "Bench Run"
             assert request.metadata.description == "Line 2"
-            assert request.continue_on_failure
+            assert request.continue_automatically
 
             # Append Planned Cases
             template = await client.template(TEMPLATE)

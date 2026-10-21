@@ -71,7 +71,6 @@ pub struct TestCycle {
     #[serde(default)]
     pub continue_automatically: bool,
 
-    pub continue_on_failure: bool,
     pub result: Option<ResultSummary>,
 }
 
@@ -104,9 +103,6 @@ pub struct CycleView {
 
     #[serde(default)]
     pub continue_automatically: bool,
-
-    #[serde(default)]
-    pub continue_on_failure: bool,
 
     pub result: Option<ResultSummary>,
 }

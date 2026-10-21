@@ -12,15 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
 // Local Imports
 use super::*;
-use dokime_client::contracts::history::BrowseExecutions;
-use dokime_client::contracts::history::DeleteExecution;
-use dokime_domain::model;
-use {dokime_runtime::CycleStatus, dokime_runtime::runtime::command::CommandContext};
+use dokime::client::contracts::history::BrowseExecutions;
+use dokime::client::contracts::history::DeleteExecution;
+use dokime::domain::model;
+use dokime::runtime::command::CommandContext;
 
 /* === Constants === */
 
@@ -39,8 +40,9 @@ use {dokime_runtime::CycleStatus, dokime_runtime::runtime::command::CommandConte
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn checkpoint_for(
-    handle: &dokime_runtime::RuntimeHandle, history: &mut WireClient, execution_id: &str,
+    handle: &dokime::RuntimeHandle, history: &mut WireClient, execution_id: &str,
 ) -> model::execution::wire_checkpoint::ExecutionCheckpoint {
     support::on_state_change(handle, async || {
         let checkpoint = history
@@ -99,7 +101,7 @@ async fn deletion_validates_unsupported() {
         .unwrap()
         .execution_id;
     gate.release.notify_one();
-    support::wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
+    support::wait_for_cycle_outcome(&handle, &cycle_id, dokime::domain::model::execution::result::ResultStatus::Passed).await;
     let checkpoint = checkpoint_for(&handle, &mut history, &live).await;
     let request = DeleteExecution { checkpoint: Some(checkpoint.clone()), request_identifier: "delete-request-1".into() };
 
@@ -153,8 +155,8 @@ async fn deletion_validates_unsupported() {
 
 #[tokio::test]
 async fn empty_cycles_retain_history() {
-    use dokime_client::contracts::history::BrowseCycles;
-    use dokime_domain::model::execution::wire::{ArchiveScope, CycleFilter};
+    use dokime::client::contracts::history::BrowseCycles;
+    use dokime::domain::model::execution::wire::{ArchiveScope, CycleFilter};
     use std::collections::BTreeSet;
 
     // Read An Empty Catalog
@@ -174,11 +176,8 @@ async fn empty_cycles_retain_history() {
     let mut ids = BTreeSet::new();
     let mut archived_id = None;
     for label in ["Empty Alpha", "Empty Beta", "Empty Gamma"] {
-        let definition = dokime_runtime::transactions::CycleDefinition {
-            metadata: support::metadata("history.empty", label),
-            continue_automatically: false,
-            continue_on_failure: false,
-        };
+        let definition =
+            dokime::transactions::CycleDefinition { metadata: support::metadata("history.empty", label), continue_automatically: false };
         let id = handle.create_cycle(definition, Default::default()).await.unwrap();
         handle.seal_cycle(id.clone(), Default::default()).await.unwrap();
         if archived_id.is_none() {
@@ -192,10 +191,9 @@ async fn empty_cycles_retain_history() {
     let snapshot = page.at.clone().unwrap();
 
     // Intervening Writes Cannot Change The Selected Saved Image
-    let definition = dokime_runtime::transactions::CycleDefinition {
+    let definition = dokime::transactions::CycleDefinition {
         metadata: support::metadata("history.later", "Later Empty"),
         continue_automatically: false,
-        continue_on_failure: false,
     };
     let later = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     handle.seal_cycle(later.clone(), Default::default()).await.unwrap();
@@ -234,7 +232,7 @@ async fn empty_cycles_retain_history() {
     for invalid in invalid {
         assert_eq!(client.unary::<BrowseCycles>(invalid).await.unwrap_err().code(), Code::InvalidArgument);
     }
-    let direct = dokime_runtime::runtime::query::cycle_history::CycleBrowseQuery {
+    let direct = dokime::runtime::query::cycle_history::CycleBrowseQuery {
         at: None,
         after: 1,
         limit: 1,
@@ -242,15 +240,10 @@ async fn empty_cycles_retain_history() {
         filter: Default::default(),
     };
     assert!(handle.browse_cycles(direct).await.is_err());
-    let oversized = dokime_runtime::runtime::query::cycle_history::CycleBrowseQuery {
-        at: None,
-        after: 0,
-        limit: 1,
-        max_bytes: 1,
-        filter: Default::default(),
-    };
+    let oversized =
+        dokime::runtime::query::cycle_history::CycleBrowseQuery { at: None, after: 0, limit: 1, max_bytes: 1, filter: Default::default() };
     let refusal = handle.browse_cycles(oversized).await;
-    assert!(matches!(refusal, Err(dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }))));
+    assert!(matches!(refusal, Err(dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }))));
 
     // Restart And Preserve Archive Visibility And Labels
     drop(client);

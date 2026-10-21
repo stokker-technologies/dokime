@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     path::{Path, PathBuf},
@@ -30,6 +31,7 @@ use tokio::process::{Child, ChildStdout, Command};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Host {
     child: Child,
     endpoint: String,
@@ -43,6 +45,7 @@ pub struct Host {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Host {
     pub async fn launch(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -77,7 +80,10 @@ impl Host {
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
         let mut phases = Vec::new();
         let ready = loop {
-            let line = lines.next_line().await.unwrap().expect("the backend exited before reporting readiness");
+            let Some(line) = lines.next_line().await.unwrap() else {
+                let diagnostics = std::fs::read_to_string(&stderr).unwrap_or_default();
+                panic!("the backend exited before reporting readiness:\n{diagnostics}");
+            };
             let event: serde_json::Value =
                 serde_json::from_str(&line).unwrap_or_else(|error| panic!("unparseable readiness line {line:?}: {error}"));
             if event["event"] != "phase" {
@@ -105,12 +111,26 @@ impl Host {
         serde_json::from_str(&line).unwrap()
     }
 
-    pub async fn connect(&self) -> dokime_client::Client {
-        dokime_client::Client::connect(dokime_client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
+    pub async fn connect(&self) -> dokime::client::Client {
+        dokime::client::Client::connect(dokime::client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
     }
 
     pub fn endpoint(&self) -> &str {
         &self.endpoint
+    }
+
+    pub fn pid(&self) -> u32 {
+        self.child.id().expect("the host is running")
+    }
+
+    // Close stdin, the desktop's stop request, and wait for the exit: its
+    // status, how long the stop took and the host's diagnostics.
+    pub async fn shutdown(mut self) -> (std::process::ExitStatus, std::time::Duration, String) {
+        let started = std::time::Instant::now();
+        drop(self.child.stdin.take());
+        let status = self.child.wait().await.unwrap();
+        let elapsed = started.elapsed();
+        (status, elapsed, std::fs::read_to_string(&self.stderr).unwrap())
     }
 
     pub async fn stop(mut self, signal: bool) {

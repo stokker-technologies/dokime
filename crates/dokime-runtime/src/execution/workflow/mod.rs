@@ -36,6 +36,9 @@ use dokime_domain::model::values::Value;
 
 const MAX_RETAINED_EXECUTIONS: usize = 32;
 
+// Shutdown alone re-admits local inputs on a short cadence while each run winds down.
+const SHUTDOWN_SETTLE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(10);
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -398,7 +401,7 @@ impl<T: SidecarTemplate> Workflow<T> {
                     }
                     tokio::select! {
                         _ = &mut run => break,
-                        _ = tokio::time::sleep(crate::transport::buffer::PROMPT_POLL_INTERVAL) => {}
+                        _ = tokio::time::sleep(SHUTDOWN_SETTLE_INTERVAL) => {}
                     }
                 }
             }

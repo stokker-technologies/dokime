@@ -40,7 +40,10 @@ type NativeElapsedUnit = Wire<NativeElapsed>;
 
 /** The native planning contract rejects selections above this bound. */
 export const NATIVE_CASE_LIMIT = 1_000;
-export const NATIVE_PAGE_SIZE = 100;
+/** The cursor-paged lists' cap (`wire_cursor::MAX_PAGE_ITEMS`): cycles, cases, executions, steps, prompts, catalog. */
+export const NATIVE_PAGE_SIZE = 500;
+/** The annotation and plugin lists keep their own cap of 100 items per page. */
+export const NATIVE_SMALL_PAGE_SIZE = 100;
 export const NATIVE_MAX_PAGES = 100;
 /** Keep aggregate reads below the bridge's in-flight call limit. */
 export const NATIVE_MAX_CONCURRENT_READS = 4;

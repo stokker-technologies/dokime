@@ -45,10 +45,8 @@ async fn fixture(root: &std::path::Path) -> (Runtime, CreateNote) {
     let metadata = Metadata::new(Identifier::new("notes.fixture").unwrap(), "Notes", None);
     let owner = Runtime::start(crate::service_support::budgets::runtime_config(root, metadata.clone())).await.unwrap();
     let handle = owner.handle();
-    let cycle_id = handle
-        .create_cycle(CycleDefinition { metadata, continue_automatically: false, continue_on_failure: false }, CommandContext::default())
-        .await
-        .unwrap();
+    let cycle_id =
+        handle.create_cycle(CycleDefinition { metadata, continue_automatically: false }, CommandContext::default()).await.unwrap();
     let request = CreateNote {
         epoch: handle.process_epoch(),
         mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),
@@ -66,6 +64,13 @@ async fn empty_cycle_datasets() {
     let root = tempdir().unwrap();
     let (mut owner, request) = fixture(root.path()).await;
     let runtime = owner.handle();
+    let cycle_id = request.owner.cycle_id().to_string();
+    let before = runtime
+        .storage()
+        .read_object::<dokime_runtime::storage::objects::cycle::Cycle>(&cycle_id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
     let committed = runtime.create_current_note(request.clone()).await.unwrap();
     assert_eq!(committed.publication, NotePublication::NoExistingDatasets);
     let retry = runtime.create_current_note(request).await.unwrap();
@@ -73,5 +78,12 @@ async fn empty_cycle_datasets() {
     let snapshot = runtime.watch_state().latest();
     assert_eq!(snapshot.state().note_admissions.len(), 1);
     assert_eq!(snapshot.state().iter_notes().count(), 1);
+    let after = runtime
+        .storage()
+        .read_object::<dokime_runtime::storage::objects::cycle::Cycle>(&cycle_id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after.version, before.version, "notes and retries do not rewrite an unrelated cycle projection");
     owner.shutdown().await.unwrap();
 }

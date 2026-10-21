@@ -13,6 +13,7 @@ pub mod archive;
 pub mod cycle;
 pub mod documents;
 pub mod evidence;
+pub mod execution_cancel;
 pub mod execution_control;
 pub mod installation;
 pub mod invalidation;
@@ -36,6 +37,7 @@ pub use archive::{ArchiveSubject, SetArchived};
 pub use cycle::{ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy};
 pub use documents::{AddExecutionDocumentParts, UpdatePlotSettings};
 pub use evidence::{CloseRecordSubscriptions, PublishRecord, RecordHealth};
+pub use execution_cancel::CancelExecution;
 pub use execution_control::ControlExecution;
 pub use installation::{InstallPlugin, RemovePlugin};
 pub use invalidation::InvalidateExecutions;
@@ -101,6 +103,7 @@ pub enum Transactions {
     BeginStepAttempt(BeginStepAttempt),
     SetCapturePhase(SetCapturePhase),
     ControlExecution(ControlExecution),
+    CancelExecution(CancelExecution),
     RecordExecutionTraceability(RecordExecutionTraceability),
     AddExecutionDocumentParts(AddExecutionDocumentParts),
     UpdatePlotSettings(UpdatePlotSettings),

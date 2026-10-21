@@ -139,7 +139,7 @@ impl Serialize for Rows<'_, '_> {
                         name: &case.metadata.label,
                         description: None,
                         source_file: None,
-                        parameters: &[],
+                        parameters: plan::Parameters(&case.definitions),
                         files: &[],
                         steps: &[],
                         measurements: &[],
@@ -158,7 +158,7 @@ impl Serialize for Rows<'_, '_> {
                         label: &case.metadata.label,
                         metadata: &case.metadata,
                         latest_test_execution_id: Some(case.latest_id.as_str()),
-                        status: execution_status(&case.status),
+                        status: member_status(&case.status, case.planned),
                     })?,
                     Section::Queue => rows.serialize_element(&plan::QueueItem {
                         queue_item_id: case.id.as_str(),
@@ -167,7 +167,7 @@ impl Serialize for Rows<'_, '_> {
                         template_id: case.template.as_str(),
                         case_id: case.id.as_str(),
                         repeat_index: 0,
-                        status: queue_status(&case.status),
+                        status: if case.planned { "queued" } else { queue_status(&case.status) },
                         current_test_execution_id: Some(case.latest_id.as_str()),
                         attempt_count: case.count,
                         blocked_reason: None,
@@ -186,7 +186,7 @@ impl Serialize for Rows<'_, '_> {
                     case_id: member.case.as_str(),
                     template_id: member.template.as_str(),
                     attempt_index: ordinal,
-                    status: execution_status(&member.status),
+                    status: member_status(&member.status, member.planned),
                     started_at: member.started_at.as_ref(),
                     finished_at: member.finished_at.as_ref(),
                     parameters: ReportValues(&member.parameters),
@@ -270,7 +270,6 @@ impl Serialize for PlanRows<'_, '_> {
             queue_count: report.index.cases.len(),
             current_test_execution_id: None,
             current_queue_item_id: None,
-            continue_on_failure: input.cycle.continue_on_failure,
             started_at: input.cycle.created_at,
             finished_at: is_finished_cycle(input).then_some(input.generated_at),
             duration_s: None,
@@ -341,7 +340,9 @@ impl Serialize for Steps<'_, '_> {
         let mut rows = serializer.serialize_seq(None)?;
         for (order, step) in member.steps.iter().enumerate() {
             rows.serialize_element(&step_with_owner(report.header, owner(), step, order, None))?;
-            for (order, criterion) in step.criteria.iter().enumerate() {
+            // Criteria Order Within Their Step, As The Live Execution Numbers Them.
+            for (position, criterion) in step.criteria.iter().enumerate() {
+                let order = order.saturating_mul(100).saturating_add(position);
                 rows.serialize_element(&step_with_owner(report.header, owner(), step, order, Some(criterion)))?;
             }
         }
@@ -426,6 +427,11 @@ pub(crate) fn selection(length: usize) -> Vec<usize> {
 }
 
 /* === Private Functions === */
+
+// An Undispatched Attempt Reads As The Live Cycle Spells It: A Skipped One Is Planned.
+fn member_status(status: &ExecutionStatus, planned: bool) -> &'static str {
+    if planned && *status == ExecutionStatus::Skipped { "planned" } else { execution_status(status) }
+}
 
 fn selected_samples(samples: &[crate::report::cycle::Sample]) -> impl ExactSizeIterator<Item = &crate::report::cycle::Sample> {
     selection(samples.len()).into_iter().map(move |index| &samples[index])

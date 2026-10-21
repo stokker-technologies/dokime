@@ -117,17 +117,11 @@ impl Transaction<RuntimeState> for CompleteRun {
         cycle.result = Some(crate::transactions::provider_finish::summarize(
             cycle.execution_ids.iter().map(|id| state.executions.get(id).expect("cycle execution owner exists")),
         ));
-        cycle.lifecycle = if request.summary.stop_requested {
-            CycleStatus::Stopped
-        } else if cycle.result.as_ref().is_some_and(|result| result.failed > 0 || result.blocked > 0) {
-            CycleStatus::Failed
-        } else if cycle.execution_ids.iter().any(|id| {
-            let execution = &state.executions[id];
-            execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none()
-        }) {
+        // An Active Cycle Returns To Idle: A Request's Outcome Belongs To Its Executions And `result`.
+        cycle.lifecycle = if cycle.phase == dokime_domain::model::execution::result::CyclePhase::Active {
             CycleStatus::Ready
         } else {
-            crate::transactions::provider_finish::lifecycle_for(cycle.result.as_ref())
+            crate::transactions::lifecycle::closed_lifecycle(cycle, &state.executions)
         };
         cycle.touch_at(self.at.clone());
         let cycle_id = cycle.test_cycle_id.clone();
@@ -318,7 +312,6 @@ mod tests {
                 execution_ids: Vec::new(),
                 records: Default::default(),
                 continue_automatically: false,
-                continue_on_failure: false,
                 result: None,
             },
         );
@@ -373,7 +366,7 @@ mod tests {
             assert!(request.failure.is_none());
             assert_eq!(request.publication_failure.as_deref(), Some("report memory exhausted"));
             let cycle = &state.cycles[&request.summary.cycle_id];
-            assert_eq!(cycle.lifecycle, if stopped { CycleStatus::Stopped } else { CycleStatus::Completed });
+            assert_eq!(cycle.lifecycle, CycleStatus::Ready, "a request outcome leaves its Active cycle idle");
             assert!(cycle.saved.is_none());
             let record_count = state.record_count;
             let summary = request.summary.clone();

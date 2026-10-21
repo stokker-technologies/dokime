@@ -27,7 +27,7 @@ pub use register_selection::RegisterSelection;
 
 // Local Imports
 use super::Endpoint;
-use super::ORDINARY;
+use super::{MUTATION, ORDINARY};
 
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;

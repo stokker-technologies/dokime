@@ -31,13 +31,13 @@ use tonic::Status;
 
 // Local Imports
 use super::access::Principal;
-use dokime_domain::model::identity::CommandId;
-use dokime_domain::model::identity::NoteId;
-use dokime_domain::model::identity::SessionId;
-use dokime_domain::operations::notes as contract;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::domains::evidence::notes as evidence;
-use dokime_runtime::domains::evidence::notes::NoteError;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::CommandId;
+use dokime::domain::model::identity::NoteId;
+use dokime::domain::model::identity::SessionId;
+use dokime::domain::operations::notes as contract;
+use dokime::domains::evidence::notes as evidence;
+use dokime::domains::evidence::notes::NoteError;
 
 /* === Constants === */
 
@@ -95,7 +95,7 @@ impl Operation for ListNotes {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut contract::ListNotes, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::notes::wire::ListNotesResponse>, Status> {
+    ) -> Result<Response<dokime::domain::model::notes::wire::ListNotesResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let page = selection::Page::new(
             request.selection.take(),
@@ -116,7 +116,7 @@ impl Operation for ListNotes {
         items.truncate(page.limit);
         self.resources.produce(|| {
             let next_after_id = if more { items.last().unwrap().note_id.to_string() } else { String::new() };
-            Ok(dokime_domain::model::notes::wire::ListNotesResponse {
+            Ok(dokime::domain::model::notes::wire::ListNotesResponse {
                 notes: items.into_iter().map(wire::note).collect::<Result<_, _>>()?,
                 cursor: Some(page.cursor),
                 next_after_id,
@@ -138,7 +138,7 @@ impl Operation for ListHealth {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut contract::ListHealth, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::notes::wire::ListHealthResponse>, Status> {
+    ) -> Result<Response<dokime::domain::model::notes::wire::ListHealthResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let page = selection::Page::new(
             request.selection.take(),
@@ -159,7 +159,7 @@ impl Operation for ListHealth {
         items.truncate(page.limit);
         self.resources.produce(|| {
             let next_after_id = if more { items.last().unwrap().health_item_id.to_string() } else { String::new() };
-            Ok(dokime_domain::model::notes::wire::ListHealthResponse {
+            Ok(dokime::domain::model::notes::wire::ListHealthResponse {
                 items: items.into_iter().map(wire::health).collect::<Result<_, _>>()?,
                 cursor: Some(page.cursor),
                 next_after_id,
@@ -181,7 +181,7 @@ impl Operation for CreateNote {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut contract::CreateNote, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::notes::wire::NoteReceipt>, Status> {
+    ) -> Result<Response<dokime::domain::model::notes::wire::NoteReceipt>, Status> {
         let actor =
             context.context().get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
         let result = self
@@ -215,7 +215,7 @@ impl Operation for EditNote {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut contract::EditNote, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::notes::wire::EditNoteResponse>, Status> {
+    ) -> Result<Response<dokime::domain::model::notes::wire::EditNoteResponse>, Status> {
         let actor =
             context.context().get::<Principal>().ok_or_else(|| Status::unauthenticated("authentication required"))?.subject().to_owned();
         let note = self
@@ -231,7 +231,7 @@ impl Operation for EditNote {
             })
             .await
             .map_err(status)?;
-        self.resources.produce(|| Ok(dokime_domain::model::notes::wire::EditNoteResponse { note: Some(wire::note(&note)?) }))
+        self.resources.produce(|| Ok(dokime::domain::model::notes::wire::EditNoteResponse { note: Some(wire::note(&note)?) }))
     }
 }
 
@@ -251,10 +251,10 @@ impl Resources {
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(512 * 1024) });
-    runtime.operations().register_wire_operation::<ListNotes>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<ListHealth>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<CreateNote>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<EditNote>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
+    runtime.operations().register_wire_operation::<ListNotes>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ListHealth>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<CreateNote>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<EditNote>("dokime", dokime::app::Lanes::Open, resources)?;
     Ok(())
 }
 

@@ -163,7 +163,7 @@ pub async fn blocked_cycle_with(
     let (owner, runtime) = started_with_fixture(config, executor.clone()).await;
     let suite = suites::fixture_suite(&["passed"]);
     suites::register_python_suite(&runtime, suite.clone()).await;
-    let cycle_id = suites::start_cycle(&runtime, suite, false).await;
+    let cycle_id = suites::start_cycle(&runtime, suite).await;
     let response = runtime.start_next_execution(cycle_id.clone(), dokime_runtime::runtime::command::CommandContext::default()).await;
     assert_eq!(response.status, dokime_runtime::runtime::command::CommandStatus::Accepted, "{response:?}");
     executor.wait_until_entered().await;

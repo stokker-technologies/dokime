@@ -117,5 +117,5 @@ fn compiled_bundle_filesystem() {
 
     assert!(authored.typography_css.contains("data:font/woff2;base64,"));
     assert!(theme::Bundled::manifest().contains("[app]"));
-    assert!(theme::Bundled::file("logos/contained-dark.svg").is_some());
+    assert!(theme::Bundled::file("logos/contained-on-dark.svg").is_some());
 }

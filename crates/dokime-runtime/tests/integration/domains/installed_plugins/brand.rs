@@ -35,10 +35,12 @@ deep_link_scheme = "acme-hub"
 name = "Acme Corp"
 unit = "Quality"
 
-[app.logo]
-file = "contained-dark.svg"
-mime_type = "image/svg+xml"
-alt = "Acme"
+[app.logos.transparent]
+on_light = "transparent-on-light.svg"
+on_dark = "transparent-on-dark.svg"
+[app.logos.contained]
+on_light = "contained-on-light.svg"
+on_dark = "contained-on-dark.svg"
 
 [theme]
 policy = "required"
@@ -116,7 +118,9 @@ fn write_brand(dir: &Path, manifest: &str) {
     fs::write(dir.join("brand.toml"), manifest).unwrap();
     let logos = dir.join("logos");
     fs::create_dir_all(&logos).unwrap();
-    fs::write(logos.join("contained-dark.svg"), "<svg/>").unwrap();
+    for variant in ["transparent-on-light", "transparent-on-dark", "contained-on-light", "contained-on-dark"] {
+        fs::write(logos.join(format!("{variant}.svg")), format!("<svg id='{variant}'/>")).unwrap();
+    }
     fs::create_dir_all(dir.join("theme")).unwrap();
     let typography = REQUIRED_TEST_TYPOGRAPHY.iter().map(|name| format!("--{name}: sample;")).collect::<Vec<_>>().join("\n");
     fs::write(dir.join("theme/typography.css"), format!(":root {{ {typography} }}")).unwrap();
@@ -154,9 +158,10 @@ fn brand_toml_types() {
     let organization = customization.organization.as_ref().unwrap();
     assert_eq!(organization.name, "Acme Corp");
     assert_eq!(organization.unit.as_deref(), Some("Quality"));
-    assert_eq!(customization.logo_assets.len(), 1);
-    assert_eq!(customization.logo_assets[0].asset_id.as_str(), "brand.logo");
-    assert!(Path::new(&customization.logo_assets[0].path).ends_with(Path::new("logos").join("contained-dark.svg")));
+    assert_eq!(customization.logo_assets.len(), 4);
+    assert_eq!(customization.logo_assets[0].asset_id.as_str(), "brand.logo.transparent-on-light");
+    assert!(Path::new(&customization.logo_assets[0].path).ends_with(Path::new("logos").join("transparent-on-light.svg")));
+    assert_eq!(customization.logo_assets[3].variant, dokime_domain::model::appearance::wire::LogoVariant::ContainedOnDark);
 
     assert!(matches!(customization.theme_policy, ThemeActivationPolicy::Required { mode: ThemeModePolicy::ForceDark, .. }));
 
@@ -214,15 +219,13 @@ label = "NoLogo"
 slug = "nologo"
 identifier = "com.nologo.hub"
 
-[app.logo]
-file = "missing.svg"
-mime_type = "image/svg+xml"
+[app.logos.contained]
+on_light = "missing.svg"
 "#,
     )
     .unwrap();
 
-    let brand = load_brand(dir.path()).unwrap();
-    assert!(brand.customization.logo_assets.is_empty());
+    assert!(load_brand(dir.path()).is_err());
 }
 
 #[tokio::test]
@@ -246,10 +249,12 @@ async fn runtime_appearance_brand() {
     assert_eq!(frame.app_name, "Acme Test Hub");
     let captured = runtime.capture_appearance(64 * 1024).unwrap();
     assert_eq!(captured.frame, frame);
-    let selected = frame.logo.as_ref().unwrap();
-    let asset = runtime.plugin_appearance_asset(&selected.plugin_id, &selected.asset_id).await;
-    assert_eq!(captured.logo, asset);
-    assert_eq!(asset.unwrap().path, root.path().join("logos/contained-dark.svg"));
+    assert_eq!(frame.logos.len(), 4);
+    for (selected, captured_asset) in frame.logos.iter().zip(captured.logos) {
+        let asset = runtime.plugin_appearance_asset(&selected.plugin_id, &selected.asset_id).await;
+        assert_eq!(captured_asset, asset);
+        assert!(asset.unwrap().path.is_file());
+    }
 
     runtime.set_brand(None);
     assert_ne!(runtime.appearance_frame().await.app_name, "Acme Test Hub");

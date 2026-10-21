@@ -24,10 +24,10 @@ use tonic::Status;
 use super::wire;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::canonical;
-use dokime_domain::model::history::wire::{CycleBrowsePage, SavedCycleSummary};
-use dokime_domain::operations::history::BrowseCycles;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::runtime::query::cycle_history::CycleBrowseQuery;
+use dokime::RuntimeHandle;
+use dokime::domain::model::history::wire::{CycleBrowsePage, SavedCycleSummary};
+use dokime::domain::operations::history::BrowseCycles;
+use dokime::runtime::query::cycle_history::CycleBrowseQuery;
 
 /* === Constants === */
 
@@ -111,7 +111,7 @@ impl Operation for Browse {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Browse>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(4 * 1024 * 1024) }),
     )?;
     Ok(())

@@ -161,9 +161,9 @@ value = "0.1.0"
 files = ["Cargo.toml", "packages/dokime-client/pyproject.toml", "crates/dokime-gui/src-tauri/tauri.conf.json"]
 
 [[package.executables]]
-package = "dokime"
+package = "dokime-cli"
 command = "dokime"
-name = "dokime"
+name = "dokime-cli"
 targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
 release = true
 verify = ["--version"]

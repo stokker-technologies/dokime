@@ -167,10 +167,10 @@ async fn shared_stream_publishes() {
     let suite = Checks::definition().suite;
 
     // Run Both Templates
-    let cycle = start_cases(&handle, metadata("fixture.shared.cycle", "Shared Cycle"), materialize_cases(SUITE, &suite), false).await;
+    let cycle = start_cases(&handle, metadata("fixture.shared.cycle", "Shared Cycle"), materialize_cases(SUITE, &suite)).await;
     let receipt = handle.start_next_execution(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
-    wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&handle, &cycle, ResultStatus::Passed).await;
 
     // Each Execution Published Under Its Own Template
     let rows = handle

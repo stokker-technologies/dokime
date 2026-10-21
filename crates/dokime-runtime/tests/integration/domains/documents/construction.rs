@@ -46,9 +46,9 @@ async fn default_document_order() {
 
     let suite = suite_with_authored_document();
     register_custom_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let execution = cycle.test_executions.first().unwrap();
     let default_document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
 
@@ -109,12 +109,12 @@ async fn current_cycle_state() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = suite_with_authored_document();
     register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     let document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
     let prepared = runtime.prepare_current_cycle_document(&cycle_id, &document_id).unwrap();
     let revision = runtime.watch_state().latest().revision();
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     assert!(runtime.watch_state().latest().revision() > revision);
     let captured = prepared.capture().await.unwrap();
     assert_eq!(captured.state_revision, revision);
@@ -190,11 +190,11 @@ async fn cycle_report_executions() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = suite_with_authored_document();
     register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     let case = runtime.watch_state().latest().state().cycle_view(&cycle_id).unwrap().test_executions[0].snapshot.case().clone();
     runtime.append_fixture_cases(cycle_id.clone(), vec![case], CommandContext::default()).await.unwrap();
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &cycle_id).await;
     let mut member_payloads = Vec::new();
@@ -245,9 +245,9 @@ async fn section_run_report() {
 
     let suite = suite_with_authored_document();
     register_custom_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let execution = cycle.test_executions.first().unwrap();
     let default_document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
 
@@ -344,7 +344,7 @@ async fn current_fact_frontiers() {
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
@@ -402,7 +402,7 @@ async fn current_fact_frontiers() {
     assert!(facts.iter().all(|record| record.scope.is_none()));
 
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
@@ -438,7 +438,7 @@ async fn document_routes_samples() {
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
@@ -497,7 +497,7 @@ async fn document_routes_samples() {
     assert_eq!(reading(frame.document.as_ref().unwrap()), Some(Value::Integer(1)));
 
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
@@ -522,7 +522,7 @@ async fn repeated_sections_follow() {
     register_python_suite(&runtime, suite.clone()).await;
 
     // Publish Channels Out Of Order Into The Running Execution
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
@@ -552,7 +552,7 @@ async fn repeated_sections_follow() {
     assert_eq!(labels, ["Channel 1", "Channel 6", "Channel 11"]);
 
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
@@ -649,10 +649,10 @@ async fn saved_report_evidence() {
     register_custom_suite(&runtime, suite.clone()).await;
     let admitted =
         runtime.test_suites().await.into_iter().find(|entry| entry.suite.metadata.identifier == suite.metadata.identifier).unwrap().suite;
-    let cycle_id = start_cycle(&runtime, admitted, false).await;
+    let cycle_id = start_cycle(&runtime, admitted).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
 
-    let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     let execution = &cycle.test_executions[0];
     let html = crate::service_support::native::report(&runtime, &execution.test_execution_id).await;
     let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;

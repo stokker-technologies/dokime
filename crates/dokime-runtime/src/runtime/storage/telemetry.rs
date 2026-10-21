@@ -247,18 +247,33 @@ impl super::executions::ExecutionStorage {
         &self,
     ) -> Result<std::collections::BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::RecordScope>>
     {
-        let ids = self.active_ids()?;
-        let mut scopes = std::collections::BTreeMap::new();
-        // Sorted Owner Locks Never Hold The Registry Across An Await.
-        for id in &ids {
-            if let Some(owner) = self.acquisition(id).await {
-                let owner = owner.lock_owned().await;
-                if !owner.finish_requested {
-                    scopes.insert(owner.execution.test_execution_id.clone(), owner.execution.scope.clone());
-                }
-            }
+        // A Routing Snapshot Only; `prepare_telemetry` Rechecks Each Owner Under Its Lock.
+        Ok(self.open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone())
+    }
+
+    // Saves Each Owned Typed Schema Once Per Process; Every Start Repeats The Request.
+    pub(crate) async fn register_schemas(&self, contracts: &[crate::telemetry::TelemetryContract]) -> Result<()> {
+        let storage = &self.storage;
+        let mut last = None;
+        let mut written = Vec::new();
+        for contract in contracts.iter().filter(|contract| !contract.foreign) {
+            let Some(codec) = self.codecs.unregistered(contract)? else {
+                continue;
+            };
+            let mutation = harmos::storage::MutationId {
+                window: storage.mutation_window()?.id,
+                key: Identifier::new(format!("{}.v{}", codec.schema().id, codec.schema().version)).map_err(crate::storage::Error::from)?,
+            };
+            last = Some(storage.write_schema_once(&mutation, codec.schema(), codec.graph()).await?);
+            written.push((contract, codec));
         }
-        Ok(scopes)
+        if let Some(cursor) = last {
+            storage.flush_until(&cursor).await?;
+        }
+        for (contract, codec) in written {
+            self.codecs.mark_registered(contract, &codec);
+        }
+        Ok(())
     }
 
     pub(crate) async fn prepare_telemetry(
@@ -301,41 +316,22 @@ impl super::executions::ExecutionStorage {
             let entry = TelemetryEntry { epoch: self.context_epoch.clone(), ordinal: *ordinal, sample: sample.clone() };
             let key = (contract.stream.clone(), contract.schema_version);
             if !codecs.contains_key(&key) {
-                let graph = contract
-                    .storage_schema
-                    .as_ref()
-                    .ok_or_else(|| invalid("telemetry producer requires an explicit storage row schema"))?;
-                let codec = telemetry::TypedCodec::new(
-                    &contract.stream,
-                    contract.schema_version,
-                    graph,
-                    &harmos::config::SchemaSettings::default(),
-                )?;
-                codecs.insert(key.clone(), codec);
+                if contract.storage_schema.is_none() {
+                    return Err(invalid("telemetry producer requires an explicit storage row schema"));
+                }
+                codecs.insert(key.clone(), (contract.storage_schema.as_ref(), self.codecs.codec(contract)?));
             }
-            rows.push(prepare(&entry, &codecs[&key])?);
+            let (graph, codec) = &codecs[&key];
+            if *graph != contract.storage_schema.as_ref() {
+                return Err(invalid("telemetry batch reuses a stream version with a different storage schema"));
+            }
+            rows.push(prepare(&entry, codec)?);
         }
         Ok(TelemetryAdmission { storage: self.storage.clone(), rows, _owners: owners })
     }
 }
 
 /* === Public Functions === */
-
-pub(crate) async fn register_schemas(storage: &Manager, contracts: &[crate::telemetry::TelemetryContract]) -> Result<()> {
-    let mut last = None;
-    for contract in contracts.iter().filter(|contract| !contract.foreign) {
-        let codec = telemetry::codec(contract)?;
-        let mutation = harmos::storage::MutationId {
-            window: storage.mutation_window()?.id,
-            key: Identifier::new(format!("{}.v{}", codec.schema().id, codec.schema().version)).map_err(crate::storage::Error::from)?,
-        };
-        last = Some(storage.write_schema_once(&mutation, codec.schema(), codec.graph()).await?);
-    }
-    if let Some(cursor) = last {
-        storage.flush_until(&cursor).await?;
-    }
-    Ok(())
-}
 
 pub(crate) fn prepare(entry: &TelemetryEntry, codec: &telemetry::TypedCodec) -> Result<PreparedTelemetry> {
     let sample = &entry.sample;

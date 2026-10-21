@@ -68,7 +68,7 @@ impl State {
                 "UPDATE storage_data_head SET retention_generation=?1 WHERE singleton=1",
                 [position(generation)],
             )?;
-            transaction.commit()?;
+            super::super::commit(transaction)?;
             Ok(())
         })())).await?
     }
@@ -145,7 +145,7 @@ impl State {
             for value in removable {
                 transaction.execute("DELETE FROM storage_data_entries WHERE position=?1",[value])?;
             }
-            transaction.commit()?;
+            super::super::commit(transaction)?;
             // Continue After Either Logical Or Physical Removal Progress.
             // Pins Can Retain Bytes Without Requiring A Busy Maintenance Loop.
             Ok((retired.len() < maximum, retired.is_empty() && reclaimed == 0))

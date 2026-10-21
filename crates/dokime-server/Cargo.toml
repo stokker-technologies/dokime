@@ -23,13 +23,11 @@ pkg-fmt = "bin"
 default = []
 # Host screenshot, camera and audio capture, enabled by the release server build;
 # see dokime-runtime for the system packages it links.
-media-native = ["dokime-runtime/media-native"]
+media-native = ["dokime/media-native"]
 
 [dependencies]
 # Local
-dokime-runtime = { version = "0.1.0", path = "../dokime-runtime", features = ["host", "fft"] }
-dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
-dokime = { version = "0.1.0", path = "../dokime" }
+dokime = { workspace = true, features = ["host", "fft", "diagnostics", "terminal", "client"] }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }
@@ -83,7 +81,7 @@ tonic-types = { workspace = true }
 
 [build-dependencies]
 # Local
-dokime-domain = { version = "0.1.0", path = "../dokime-domain" }
+dokime = { workspace = true }
 
 # Git
 harmos = { workspace = true }
@@ -91,8 +89,8 @@ harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 [dev-dependencies]
 # Local
-dokime-client = { version = "0.1.0", path = "../dokime-client" }
-dokime-host = { version = "0.1.0", path = "../dokime-host" }
+dokime = { workspace = true }
+dokime-cli = { workspace = true }
 
 # Git
 harmos-packaging = { workspace = true }

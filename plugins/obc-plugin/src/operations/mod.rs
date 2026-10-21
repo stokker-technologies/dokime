@@ -34,7 +34,7 @@ pub mod status;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Implemented {
     DeviceReader(device::DeviceReader),
     PowerControl(device::PowerControl),
@@ -43,7 +43,7 @@ pub enum Implemented {
     ConnectionListing(connections::ConnectionListing),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Operations {
     #[nested]
     Bench(crate::domain::operations::Operations),

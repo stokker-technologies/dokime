@@ -22,7 +22,7 @@ use harmos::grpc::Attached;
 // Local Imports
 use super::access::Listeners;
 use super::{Config, Error, appearance, authorization, catalog, content, execution, history, observation, planning, reports};
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
 
 /* === Constants === */
 
@@ -82,6 +82,10 @@ impl Service {
         let mut service = Self { runtime: runtime.clone(), config, listeners, remote: None };
         service.remote = Some(super::remote::register(&runtime, service.clone()).await?);
         Ok(service)
+    }
+
+    pub(super) fn sessions(&self) -> Arc<super::remote::sessions::SessionLog> {
+        self.listeners.sessions()
     }
 
     pub(super) fn message_limit(&self) -> usize {

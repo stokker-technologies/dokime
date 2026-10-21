@@ -225,7 +225,6 @@ pub fn case_template_with_identifier(identifier: &str, label: &str, result: &str
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],
-        continue_on_failure: false,
         prompt_definitions: Vec::new(),
         subscriptions: Vec::new(),
         document: None,
@@ -310,21 +309,19 @@ pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
         .collect()
 }
 
-pub async fn start_cycle(runtime: &RuntimeHandle, suite: TestSuite, continue_on_failure: bool) -> TestCycleId {
+pub async fn start_cycle(runtime: &RuntimeHandle, suite: TestSuite) -> TestCycleId {
     let cases = if suite.test_case_templates.is_empty() {
         Vec::new()
     } else {
         let registration = runtime.test_suites().await.into_iter().find(|entry| entry.suite == suite).expect("fixture suite is installed");
         materialize_cases(&registration.suite_id, &registration.suite)
     };
-    start_cases(runtime, metadata("cycle.start", "Start Cycle"), cases, continue_on_failure).await
+    start_cases(runtime, metadata("cycle.start", "Start Cycle"), cases).await
 }
 
-pub async fn start_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>, continue_on_failure: bool) -> TestCycleId {
-    let cycle_id = runtime
-        .create_cycle(CycleDefinition { metadata, continue_automatically: true, continue_on_failure }, CommandContext::default())
-        .await
-        .unwrap();
+pub async fn start_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>) -> TestCycleId {
+    let cycle_id =
+        runtime.create_cycle(CycleDefinition { metadata, continue_automatically: true }, CommandContext::default()).await.unwrap();
     if !cases.is_empty() {
         runtime.append_fixture_cases(cycle_id.clone(), cases, CommandContext::default()).await.unwrap();
     }
@@ -368,7 +365,6 @@ pub fn custom_suite() -> TestSuite {
                 metadata: metadata("custom.criterion", "Custom Criterion"),
                 expected: Some(Value::from("passed")),
             }],
-            continue_on_failure: false,
             prompt_definitions: Vec::new(),
             subscriptions: Vec::new(),
             document: None,

@@ -8,26 +8,38 @@
  */
 
 /* === Modules === */
+
 mod journal;
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 // Third Party Imports
 use tracing_subscriber::prelude::*;
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use dokime_server::trace::{Capture, Journal};
 
 /* === Constants === */
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 /* === Public Functions === */
+
 /* === Private Functions === */
+
 fn emit(execution_id: &str, count: usize) {
     let subscriber = tracing_subscriber::registry().with(Capture::new(Journal::global().clone()));
     tracing::subscriber::with_default(subscriber, || {
@@ -50,6 +62,7 @@ fn request(execution_id: &str, after: u64, follow: bool) -> contracts::backend::
 }
 
 /* === Tests === */
+
 #[tokio::test]
 async fn trace_watch_replays() {
     let environment = support::TestEnvironment::with_installed_plugins(Vec::new()).await;

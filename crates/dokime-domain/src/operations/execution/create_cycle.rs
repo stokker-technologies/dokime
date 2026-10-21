@@ -32,7 +32,7 @@ use super::*;
 
 #[harmos_domain::message]
 #[harmos_domain::operation(response = CreateCycleReply, id = "dokime.execution.create_cycle", version = 1,
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "CreateCycle"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -45,7 +45,6 @@ pub struct CreateCycle {
     pub metadata: Option<Metadata>,
 
     pub continue_automatically: bool,
-    pub continue_on_failure: bool,
     pub context: Option<MutationContext>,
 }
 

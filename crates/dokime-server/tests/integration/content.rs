@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Arc, Mutex};
 // Third Party Imports
@@ -20,14 +21,15 @@ use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_domain::model::execution::result::CycleView;
-use dokime_runtime::RecordScope;
-use dokime_runtime::artifacts::{ArtifactRecord, ArtifactUploadInput};
-use dokime_runtime::domains::ExecutionProviderTarget;
-use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
+use dokime::RecordScope;
+use dokime::artifacts::{ArtifactRecord, ArtifactUploadInput};
+use dokime::domain::model;
+use dokime::domain::model::execution::result::CycleView;
+use dokime::domains::ExecutionProviderTarget;
+use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
+
 const LARGE_ARTIFACT_BYTES: u64 = 300 * 1024 * 1024;
 
 /* === Macros === */
@@ -35,6 +37,7 @@ const LARGE_ARTIFACT_BYTES: u64 = 300 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Artifacts {
     records: Mutex<Vec<(ArtifactRecord, Vec<u8>)>>,
@@ -55,6 +58,7 @@ struct LargeArtifact;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFixture for Artifacts {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
@@ -245,7 +249,7 @@ async fn artifact_transfer(message_bytes: usize) {
     assert_eq!(
         content
             .download::<contracts::content::DownloadArtifact>(authenticated(contracts::content::DownloadArtifact {
-                artifact_id: dokime_runtime::model::identity::new_id::<dokime_runtime::ArtifactId>().to_string(),
+                artifact_id: dokime::model::identity::new_id::<dokime::ArtifactId>().to_string(),
             }))
             .await
             .unwrap()
@@ -259,7 +263,7 @@ async fn artifact_transfer(message_bytes: usize) {
 
     if message_bytes >= 1024 * 1024 {
         // Shared Native Verification And Publication
-        let native = dokime_client::Client::connect(dokime_client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None)
+        let native = dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None)
             .await
             .unwrap();
         let destination = root.path().join("verified.bin");
@@ -286,11 +290,11 @@ async fn artifact_transfer(message_bytes: usize) {
             while let Some(event) = dynamic.message().await.unwrap() {
                 assert!(!completed, "dynamic completion must be the final event");
                 match event {
-                    dokime_client::dynamic::Event::Item(value) => {
+                    dokime::client::dynamic::Event::Item(value) => {
                         assert!(value.as_object().is_some_and(|fields| !fields.is_empty()));
                         item_count += 1;
                     }
-                    dokime_client::dynamic::Event::Completion(_) => {
+                    dokime::client::dynamic::Event::Completion(_) => {
                         assert!(item_count >= 3, "metadata, content and artifact completion precede operation completion");
                         completed = true;
                     }
@@ -320,7 +324,7 @@ async fn artifact_transfer(message_bytes: usize) {
             "--output",
             response_file.to_str().unwrap(),
         ];
-        dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+        dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
         let bytes = std::fs::read(&response_file).unwrap();
         let response: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         let events = response.as_array().unwrap();
@@ -329,10 +333,10 @@ async fn artifact_transfer(message_bytes: usize) {
         assert_eq!(events[item_count]["event"], "completion");
 
         artifacts.release.notify_one();
-        support::wait_for_cycle_lifecycle(
+        support::wait_for_cycle_outcome(
             &owner.handle(),
             records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-            dokime_domain::model::execution::result::CycleStatus::Completed,
+            dokime::domain::model::execution::result::ResultStatus::Passed,
         )
         .await;
         // Export Sealed Evidence Through The Same Runtime And Shared Client.
@@ -366,7 +370,7 @@ async fn artifact_transfer(message_bytes: usize) {
         std::fs::write(&key_file, TOKEN).unwrap();
         let command =
             ["dokime", "cycle", "export", &cycle_id, "--endpoint", &endpoint, "--key-file", key_file.to_str().unwrap(), "--output", output];
-        dokime::Cli::try_parse_from(command).unwrap().run().await.unwrap();
+        dokime_cli::Cli::try_parse_from(command).unwrap().run().await.unwrap();
         assert!(cycle_export.is_file());
         assert!(!root.path().join("cycle.zip.part").exists());
         // A sealed execution cannot acquire another mutable artifact producer.
@@ -388,28 +392,28 @@ async fn artifact_transfer(message_bytes: usize) {
 
         let directory = root.path().join("publication-directory");
         std::fs::create_dir(&directory).unwrap();
-        assert!(matches!(native.download_artifact(request.clone(), directory).await, Err(dokime_client::DownloadError::Publication(_))));
+        assert!(matches!(native.download_artifact(request.clone(), directory).await, Err(dokime::client::DownloadError::Publication(_))));
         assert!(!root.path().join("publication-directory.part").exists());
 
         let partial = root.path().join("verified.bin.part");
         std::fs::write(&partial, b"another owner").unwrap();
-        assert!(matches!(native.download_artifact(request, destination).await, Err(dokime_client::DownloadError::Io(_))));
+        assert!(matches!(native.download_artifact(request, destination).await, Err(dokime::client::DownloadError::Io(_))));
         assert_eq!(std::fs::read(&partial).unwrap(), b"another owner");
         native.close_and_wait().await;
     } else {
-        let failure = dokime_client::Client::connect(dokime_client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None)
+        let failure = dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None)
             .await
             .err()
             .expect("the full availability inventory exceeds the small message budget");
         assert!(matches!(
             failure,
-            dokime_client::Error::Rpc(status) if status.code() == Code::ResourceExhausted
+            dokime::client::Error::Rpc(status) if status.code() == Code::ResourceExhausted
         ));
         artifacts.release.notify_one();
-        support::wait_for_cycle_lifecycle(
+        support::wait_for_cycle_outcome(
             &owner.handle(),
             records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-            dokime_domain::model::execution::result::CycleStatus::Completed,
+            dokime::domain::model::execution::result::ResultStatus::Passed,
         )
         .await;
     }
@@ -611,7 +615,7 @@ async fn artifact_upload_owned() {
     }
 
     let native =
-        dokime_client::Client::connect(dokime_client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
     let source = root.path().join("native-upload.bin");
     std::fs::write(&source, &bytes).unwrap();
     let uploaded = native
@@ -663,7 +667,7 @@ async fn artifact_upload_owned() {
             .find(|record| record.filename == "bad-offset.bin")
             .unwrap()
             .status,
-        dokime_runtime::artifacts::ArtifactStatus::Cancelled
+        dokime::artifacts::ArtifactStatus::Cancelled
     );
 
     let error = content
@@ -697,7 +701,7 @@ async fn artifact_upload_owned() {
             .find(|record| record.filename == "bad-size.bin")
             .unwrap()
             .status,
-        dokime_runtime::artifacts::ArtifactStatus::Rejected
+        dokime::artifacts::ArtifactStatus::Rejected
     );
 
     let error = content
@@ -731,7 +735,7 @@ async fn artifact_upload_owned() {
             .find(|record| record.filename == "bad-digest.bin")
             .unwrap()
             .status,
-        dokime_runtime::artifacts::ArtifactStatus::Rejected
+        dokime::artifacts::ArtifactStatus::Rejected
     );
 
     let listed = content
@@ -760,7 +764,7 @@ async fn artifact_upload_owned() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(());
         }
         None
@@ -820,7 +824,7 @@ async fn completion_harness()
 }
 
 async fn wait_for_watched_lifecycle(
-    owner: &Runtime, cycle: &dokime_runtime::TestCycleId, lifecycle: dokime_domain::model::execution::result::CycleStatus,
+    owner: &Runtime, cycle: &dokime::TestCycleId, lifecycle: dokime::domain::model::execution::result::CycleStatus,
 ) {
     owner
         .handle()
@@ -838,7 +842,7 @@ async fn finish_completion_harness(execution: WireClient, cycle_id: String, gate
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(());
         }
         None
@@ -928,7 +932,7 @@ async fn artifact_upload_match() {
             .find(|record| record.filename == "mismatched.bin")
             .unwrap()
             .status,
-        dokime_runtime::artifacts::ArtifactStatus::Rejected
+        dokime::artifacts::ArtifactStatus::Rejected
     );
     finish_completion_harness(execution, cycle_id, gate, owner, server).await;
 }
@@ -977,9 +981,9 @@ async fn artifact_upload_completion() {
 #[tokio::test]
 async fn open_report_states() {
     let (_root, mut owner, server, execution, _content, gate, cycle_id, scope) = completion_harness().await;
-    let cycle = dokime_runtime::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
+    let cycle = dokime::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
     let execution_id = scope.execution_id.clone().expect("captured execution scope");
-    wait_for_watched_lifecycle(&owner, &cycle, dokime_domain::model::execution::result::CycleStatus::Running).await;
+    wait_for_watched_lifecycle(&owner, &cycle, dokime::domain::model::execution::result::CycleStatus::Running).await;
 
     // Running: Both Reports Are Rendered From The Current Evidence
     let (metadata, html) = cycle_report(&execution, &cycle_id).await;
@@ -994,7 +998,7 @@ async fn open_report_states() {
 
     // Completed Executions Leave Their Cycle Active Until Explicitly Sealed.
     gate.release.notify_one();
-    wait_for_watched_lifecycle(&owner, &cycle, dokime_domain::model::execution::result::CycleStatus::Completed).await;
+    support::wait_for_cycle_outcome(&owner.handle(), &cycle, dokime::domain::model::execution::result::ResultStatus::Passed).await;
     let (metadata, _) = execution_report(&execution, &execution_id).await;
     assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Sealed);
     let (metadata, _) = cycle_report(&execution, &cycle_id).await;
@@ -1099,8 +1103,11 @@ async fn large_artifact_buffering() {
             .await
             .unwrap()
             .into_inner();
-        assert_ne!(cycle.status, model::execution::wire::CycleStatus::Failed);
-        (cycle.status == model::execution::wire::CycleStatus::Completed).then_some(())
+        assert!(!cycle.result.as_ref().is_some_and(|result| matches!(
+            result.status,
+            model::execution::wire::ResultStatus::Failed | model::execution::wire::ResultStatus::Blocked
+        )));
+        (support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed)).then_some(())
     })
     .await;
     let content = WireClient::new(stream);

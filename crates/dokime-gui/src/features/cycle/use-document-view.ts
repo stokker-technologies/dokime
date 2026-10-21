@@ -24,7 +24,9 @@ export function useDocumentView(options: DocumentViewOptions) {
   const filesQuery = useExecutionFilesQuery(scope.test_execution_id ?? null, kinds.has("artifacts") || kinds.has("media"));
   const notesQuery = useNotesQuery(kinds.has("notes"), scope);
   const healthQuery = useHealthQuery(kinds.has("health"), scope);
-  const recordsQuery = useRecordsQuery(kinds.has("records") || !live, scope);
+  /* Plots mark prompts and other records on their axes, so a document with
+     plots reads its records too. */
+  const recordsQuery = useRecordsQuery(kinds.has("records") || kinds.has("plots") || !live, scope);
   const traceabilityQuery = useTraceabilityQuery(kinds.has("traceability"), scope);
   const reportPayloads = useFrozenPlotPayloads(scope.test_execution_id ?? null);
   return useMemo(

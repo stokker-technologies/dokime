@@ -38,7 +38,7 @@ pub(crate) struct Appearance {
     app_name: String,
     organization: Option<Organization>,
     title_template: Option<String>,
-    logo: Option<Logo>,
+    logos: Vec<Logo>,
     themes: Vec<Theme>,
     active_theme: Option<String>,
     theme_family_locked: bool,
@@ -58,6 +58,7 @@ struct Organization {
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Logo {
+    variant: dokime_domain::model::plugins::LogoVariant,
     plugin_id: String,
     asset_id: String,
     url: String,
@@ -120,6 +121,16 @@ impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
         for theme in &frame.themes {
             themes.push(Theme::try_from(theme)?);
         }
+        let mut logos = slots(frame.logos.len())?;
+        for value in &frame.logos {
+            logos.push(Logo {
+                variant: value.variant,
+                plugin_id: value.plugin_id.as_str().to_owned(),
+                asset_id: value.asset_id.as_str().to_owned(),
+                url: value.url.clone(),
+                alt: value.alt.clone(),
+            });
+        }
         Ok(Self {
             app_name: frame.app_name.clone(),
             organization: frame.organization.as_ref().map(|value| Organization {
@@ -128,12 +139,7 @@ impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
                 website: value.website.clone(),
             }),
             title_template: frame.title_template.clone(),
-            logo: frame.logo.as_ref().map(|value| Logo {
-                plugin_id: value.plugin_id.as_str().to_owned(),
-                asset_id: value.asset_id.as_str().to_owned(),
-                url: value.url.clone(),
-                alt: value.alt.clone(),
-            }),
+            logos,
             themes,
             active_theme: frame.active_theme.as_ref().map(|id| id.as_str().to_owned()),
             theme_family_locked: frame.theme_family_locked,
@@ -156,6 +162,16 @@ impl TryFrom<Appearance> for RuntimeAppearanceFrame {
         for theme in frame.themes {
             themes.push(theme.try_into()?);
         }
+        let mut logos = slots(frame.logos.len())?;
+        for value in frame.logos {
+            logos.push(RuntimeAppLogo {
+                variant: value.variant,
+                plugin_id: Identifier::new(value.plugin_id).map_err(|_| invalid("logo artifact identifier is invalid"))?,
+                asset_id: Identifier::new(value.asset_id).map_err(|_| invalid("logo asset identifier is invalid"))?,
+                url: value.url,
+                alt: value.alt,
+            });
+        }
         let result = Self {
             app_name: frame.app_name,
             organization: frame.organization.map(|value| OrganizationIdentity {
@@ -164,17 +180,7 @@ impl TryFrom<Appearance> for RuntimeAppearanceFrame {
                 website: value.website,
             }),
             title_template: frame.title_template,
-            logo: frame
-                .logo
-                .map(|value| -> Result<RuntimeAppLogo> {
-                    Ok(RuntimeAppLogo {
-                        plugin_id: Identifier::new(value.plugin_id).map_err(|_| invalid("logo artifact identifier is invalid"))?,
-                        asset_id: Identifier::new(value.asset_id).map_err(|_| invalid("logo asset identifier is invalid"))?,
-                        url: value.url,
-                        alt: value.alt,
-                    })
-                })
-                .transpose()?,
+            logos,
             themes,
             active_theme: frame.active_theme.map(Identifier::new).transpose().map_err(|_| invalid("active theme identifier is invalid"))?,
             theme_family_locked: frame.theme_family_locked,
@@ -333,3 +339,45 @@ fn invalid(message: &str) -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime_domain::model::plugins::LogoVariant;
+
+    #[test]
+    fn captured_logo_categories() {
+        let variants =
+            [LogoVariant::TransparentOnLight, LogoVariant::TransparentOnDark, LogoVariant::ContainedOnLight, LogoVariant::ContainedOnDark];
+        let frame = RuntimeAppearanceFrame {
+            app_name: "Instrument".into(),
+            organization: None,
+            title_template: None,
+            logos: variants
+                .into_iter()
+                .enumerate()
+                .map(|(index, variant)| RuntimeAppLogo {
+                    variant,
+                    plugin_id: Identifier::new("brand").unwrap(),
+                    asset_id: Identifier::new(format!("logo.{index}")).unwrap(),
+                    url: "data:image/svg+xml;base64,PHN2Zy8+".into(),
+                    alt: Some("Instrument".into()),
+                })
+                .collect(),
+            themes: Vec::new(),
+            active_theme: None,
+            theme_family_locked: false,
+            mode_policy: ThemeModePolicy::UserOrSystem,
+            mode_locked: false,
+            source_plugin_id: None,
+        };
+        let captured = Appearance::try_from(&frame).unwrap();
+        assert_eq!(RuntimeAppearanceFrame::try_from(captured).unwrap(), frame);
+        let mut duplicate = frame.clone();
+        duplicate.logos[1].variant = duplicate.logos[0].variant;
+        assert!(RuntimeAppearanceFrame::try_from(Appearance::try_from(&duplicate).unwrap()).is_err());
+        let mut external = frame;
+        external.logos[3].url = "https://example.invalid/logo.svg".into();
+        assert!(RuntimeAppearanceFrame::try_from(Appearance::try_from(&external).unwrap()).is_err());
+    }
+}

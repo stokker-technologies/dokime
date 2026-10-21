@@ -36,7 +36,7 @@ pub use stage::Stage;
 // Local Imports
 use super::Endpoint;
 use super::INSTALLATION;
-use super::ORDINARY;
+use super::{MUTATION, ORDINARY};
 
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;

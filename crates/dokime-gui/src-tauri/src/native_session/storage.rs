@@ -25,7 +25,7 @@ use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 // Local Imports
 use super::{DesktopSessionError as Error, StorageResetReason as Reason};
-use dokime_runtime::paths::ApplicationPaths;
+use dokime::paths::ApplicationPaths;
 
 /* === Constants === */
 

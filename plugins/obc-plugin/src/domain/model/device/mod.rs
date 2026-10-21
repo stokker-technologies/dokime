@@ -29,7 +29,7 @@
 
 /* === Structs === */
 
-#[dokime_runtime::message]
+#[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct DeviceState {
     #[row(description = "Whether the manual demonstration device is powered.")]

@@ -8,12 +8,15 @@
  */
 
 /* === Modules === */
+
 pub mod unit_connected;
 
 /* === Re-Exports === */
+
 pub use unit_connected::UnitConnected;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,7 +32,8 @@ pub use unit_connected::UnitConnected;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Listeners {
     UnitConnected(UnitConnected),
 }

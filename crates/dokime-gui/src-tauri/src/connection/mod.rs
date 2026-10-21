@@ -30,7 +30,7 @@ use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
 // Local Imports
-use dokime_client::credentials::{KeyringStore, SecretStore};
+use dokime::client::credentials::{KeyringStore, SecretStore};
 
 /* === Constants === */
 
@@ -57,7 +57,7 @@ struct SessionState {
 #[derive(Clone)]
 pub struct SessionLease {
     generation: String,
-    client: dokime_client::Client,
+    client: dokime::client::Client,
     cancellation: CancellationToken,
 }
 
@@ -108,6 +108,20 @@ impl ConnectionSession {
             return Err(ConnectionError::Superseded);
         }
         state.lease.clone().ok_or(ConnectionError::NotConnected)
+    }
+
+    // Keep A Final Native Side Effect Serialized With Generation Invalidation.
+    pub(crate) fn with_current<T>(&self, generation: &str, action: impl FnOnce() -> T) -> Result<T, ConnectionError> {
+        let state = self.inner.lock().expect("connection state poisoned");
+        if state.snapshot.generation != generation {
+            return Err(ConnectionError::Superseded);
+        }
+        if state.lease.is_none() {
+            return Err(ConnectionError::NotConnected);
+        }
+        let result = action();
+        drop(state);
+        Ok(result)
     }
 
     pub fn disconnect(&self) -> Result<ConnectionSnapshot, ConnectionError> {
@@ -173,7 +187,7 @@ impl ConnectionSession {
             }
             ConnectionCredentials::Bearer { token, remember } => (Some(Zeroizing::new(token)), remember),
         };
-        let client = dokime_client::Client::connect(target.inner.clone(), token.as_ref().map(|token| token.as_str()), expected_id)
+        let client = dokime::client::Client::connect(target.inner.clone(), token.as_ref().map(|token| token.as_str()), expected_id)
             .await
             .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
@@ -237,7 +251,7 @@ impl Drop for SessionState {
 }
 
 impl SessionLease {
-    pub(crate) fn client(&self) -> &dokime_client::Client {
+    pub(crate) fn client(&self) -> &dokime::client::Client {
         &self.client
     }
 

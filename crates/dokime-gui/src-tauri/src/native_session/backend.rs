@@ -34,8 +34,8 @@ use crate::PRODUCT;
 // The development-stream contracts a backend must report to be trusted. The
 // desktop and its backend ship from one installer, so this is the same gate
 // cargo-dokime applies to a separately installed host.
-use dokime_domain::DEV_PROTOCOL;
-use dokime_domain::READINESS_PROTOCOL;
+use dokime::domain::DEV_PROTOCOL;
+use dokime::domain::READINESS_PROTOCOL;
 
 /* === Constants === */
 
@@ -162,12 +162,17 @@ impl Process {
         .map_err(|_| format!("The {PRODUCT} backend did not report readiness in time."))?
     }
 
-    pub async fn shutdown(&mut self) -> Result<ExitStatus, String> {
+    pub async fn shutdown(&mut self, abandon: &tokio_util::sync::CancellationToken) -> Result<ExitStatus, String> {
         drop(self.control.take());
-        // Final Reports May Outlive An Ordinary Transfer Deadline.
-        // The owner retains this process until shutdown finishes or the user
-        // explicitly chooses to exit after a failure.
-        self.child.wait().await.map_err(|error| Self::failure(error, "stop"))
+        // The backend bounds its own stop; the owner waits for it unless the
+        // operator chooses to exit without finishing.
+        tokio::select! {
+            status = self.child.wait() => return status.map_err(|error| Self::failure(error, "stop")),
+            () = abandon.cancelled() => {}
+        }
+        tracing::warn!("exiting without finishing: ending the backend");
+        self.child.start_kill().map_err(|error| Self::failure(error, "end"))?;
+        self.child.wait().await.map_err(|error| Self::failure(error, "end"))
     }
 
     fn failure(error: std::io::Error, action: &str) -> String {
@@ -220,7 +225,7 @@ pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> 
     // Report The Failed Launch
     // Readiness failed, but the process may still be running and still
     // holding the execution store. Drain it before reporting.
-    let (message, status) = match process.shutdown().await {
+    let (message, status) = match process.shutdown(&tokio_util::sync::CancellationToken::new()).await {
         Ok(status) => (error, Some(status)),
         Err(cleanup) => (format!("{error} {cleanup}"), None),
     };

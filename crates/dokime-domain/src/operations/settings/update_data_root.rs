@@ -32,7 +32,7 @@ use super::*;
 
 #[harmos_domain::message]
 #[harmos_domain::operation(response = ApplicationSettings, id = "dokime.settings.update_data_root", version = 1,
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Settings", method = "UpdateDataRoot"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpdateDataRoot {

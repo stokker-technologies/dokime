@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
 import { mapStepStatus } from "@/lib/api/native-planning";
-import { downloadNativeCycleReport, openNativeReport } from "@/lib/api/native-reports";
+import { openNativeReport } from "@/lib/api/native-reports";
 import { timestampIso } from "@/lib/api/native-values";
 import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
 import { usePageChrome } from "@/shell/page-chrome";
@@ -345,8 +345,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
     setBusy(true);
     try {
       setError(null);
-      const report = await downloadNativeCycleReport({ ...session.identity, own: session.own }, cycleId);
-      await openNativeReport(report, session.identity);
+      await openNativeReport(session.identity, { kind: "cycle_report", cycleId });
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {

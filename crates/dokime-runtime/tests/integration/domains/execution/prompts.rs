@@ -273,8 +273,7 @@ async fn stopping_cycle_waits() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = started(prompt_config(root.path())).await;
     let cycle_id =
-        start_cases(&runtime, Metadata::new(Identifier::new("cycle.prompt.stop").unwrap(), "Prompt Stop Cycle", None), Vec::new(), false)
-            .await;
+        start_cases(&runtime, Metadata::new(Identifier::new("cycle.prompt.stop").unwrap(), "Prompt Stop Cycle", None), Vec::new()).await;
     let mut prompt = prompt_request();
     prompt.scope = RecordScope::default().with_cycle(cycle_id.clone());
 
@@ -305,8 +304,7 @@ async fn shutdown_preserves_prompts() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = started(prompt_config(root.path())).await;
     let cycle =
-        start_cases(&runtime, Metadata::new(Identifier::new("cycle.prompt.recovery").unwrap(), "Prompt Recovery", None), Vec::new(), false)
-            .await;
+        start_cases(&runtime, Metadata::new(Identifier::new("cycle.prompt.recovery").unwrap(), "Prompt Recovery", None), Vec::new()).await;
     let mut scoped = prompt_request();
     scoped.scope = RecordScope::default().with_cycle(cycle);
     let id = scoped.prompt_id.clone();
@@ -316,7 +314,7 @@ async fn shutdown_preserves_prompts() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 
-    // Graceful Shutdown Seals The Cycle; Its Unanswered Prompt Stays Settled Across Restarts.
+    // The Next Start Seals The Cycle The Stop Left Active; Its Unanswered Prompt Expires And Stays Settled.
     for _ in 0..2 {
         let (mut owner, runtime) = started(prompt_config(root.path())).await;
         assert_eq!(runtime.pending_prompt_projection().await, vec![standalone.clone()]);
@@ -352,7 +350,7 @@ async fn shutdown_preserves_prompts() {
             }
         }
     }
-    assert_eq!(settlements, vec![("prompt.response.cancelled".to_owned(), Value::from("execution_stopped"))]);
+    assert_eq!(settlements, vec![("prompt.response.expired".to_owned(), Value::from("runtime_restarted"))]);
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
@@ -366,7 +364,7 @@ async fn cycle_stop_settles() {
     let (_owner, runtime) = inspection_runtime(root.path(), executor.clone()).await;
     let suite = inspection_suite(plt400_suite());
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
@@ -401,7 +399,7 @@ async fn execution_stop_settles() {
         values: vec![ParameterExpr::Literal { value: Value::from("passed") }, ParameterExpr::Literal { value: Value::from("alternate") }],
     };
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
@@ -421,7 +419,7 @@ async fn execution_stop_settles() {
     assert!(runtime.prompt_settled_at(&id).await.is_some(), "the execution stop settles its open prompt");
     assert_eq!(cycle_pending(&runtime, &test_cycle_id).await, 0);
     assert_late_answer_refused(&runtime, &id).await;
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopped).await;
+    wait_for_cycle_idle(&runtime, &test_cycle_id, ResultStatus::Cancelled).await;
 }
 
 #[tokio::test]
@@ -433,7 +431,7 @@ async fn interruption_settles_prompts() {
     let (mut owner, runtime) = inspection_runtime(root.path(), executor.clone()).await;
     let suite = inspection_suite(plt400_suite());
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
@@ -693,7 +691,6 @@ async fn check_stopped_question(stop_cycle: bool) {
         &runtime,
         Metadata::new(Identifier::new("fixture.asking.cycle").unwrap(), "Asking Cycle", None),
         crate::service_support::suites::materialize_cases("fixture.asking.checks", &suite),
-        false,
     )
     .await;
     let receipt = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
@@ -714,7 +711,11 @@ async fn check_stopped_question(stop_cycle: bool) {
 
     // === The Run Ends Stopped, Not Failed === //
 
-    let ended = wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Stopped).await;
+    let ended = if stop_cycle {
+        wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Stopped).await
+    } else {
+        wait_for_cycle_idle(&runtime, &cycle, ResultStatus::Cancelled).await
+    };
     assert_eq!(
         ended.test_executions[0].status,
         ExecutionStatus::Cancelled,

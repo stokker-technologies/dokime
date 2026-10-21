@@ -147,7 +147,10 @@ impl Transaction<RuntimeState> for SubmitPromptResponse {
     type Error = String;
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
-        ensure_runtime_active(state)?;
+        // A stopping runtime still settles the questions its stop cancels.
+        if self.accepted {
+            ensure_runtime_active(state)?;
+        }
         prepare_response(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
 

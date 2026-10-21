@@ -29,6 +29,7 @@ import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirme
 import { saveNativeDiagnosticsBundle } from "@/lib/api/native-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
 import { useApplicationSettings } from "@/lib/application-settings";
+import { bootBranding, brandPack } from "@/lib/brand";
 import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
 import { formatBytes } from "@/lib/format";
 import type { DiagnosticPathKey } from "@/lib/types/view-contracts";
@@ -152,6 +153,12 @@ export function DiagnosticsSection() {
             {counts.test_suites} suites
             {counts.installed_plugin_errors ? ` · ${counts.installed_plugin_errors} errors` : " · no errors"}
           </span>
+        </SettingsRow>
+        <SettingsRow
+          label="Branding Pack"
+          error={bootBranding.error ? `Not applied: ${bootBranding.error}. The compiled brand applies.` : null}
+        >
+          <span className="text-sm text-muted-foreground">{brandPack ? `${brandPack.label} pack applied` : "Compiled brand"}</span>
         </SettingsRow>
       </SettingsCard>
 

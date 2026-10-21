@@ -7,14 +7,16 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("selection", "after", "through")
+    __slots__ = ("selection", "after", "through", "latest")
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     AFTER_FIELD_NUMBER: _ClassVar[int]
     THROUGH_FIELD_NUMBER: _ClassVar[int]
+    LATEST_FIELD_NUMBER: _ClassVar[int]
     selection: Row3
     after: Row4
     through: Row4
-    def __init__(self, selection: _Optional[_Union[Row3, _Mapping]] = ..., after: _Optional[_Union[Row4, _Mapping]] = ..., through: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
+    latest: int
+    def __init__(self, selection: _Optional[_Union[Row3, _Mapping]] = ..., after: _Optional[_Union[Row4, _Mapping]] = ..., through: _Optional[_Union[Row4, _Mapping]] = ..., latest: _Optional[int] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("records", "scanned", "through", "replay_complete", "retained_after")

@@ -926,7 +926,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "dokime",
- "dokime-domain",
  "dokime-packaging",
  "dotenvy",
  "glob",
@@ -1936,9 +1935,31 @@ dependencies = [
  "anstream",
  "anstyle",
  "clap",
- "criterion",
  "dokime-client",
  "dokime-domain",
+ "dokime-runtime",
+ "dotenvy",
+ "harmos",
+ "harmos-packaging",
+ "indicatif",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "dokime-cli"
+version = "0.1.0"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "clap",
+ "criterion",
+ "dokime",
  "dotenvy",
  "harmos",
  "harmos-packaging",
@@ -1951,7 +1972,6 @@ dependencies = [
  "thiserror 2.0.21",
  "time",
  "tokio",
- "tokio-stream",
  "tonic",
  "tracing",
  "uuid",
@@ -2003,9 +2023,6 @@ dependencies = [
  "async-trait",
  "base64 0.23.1",
  "dokime",
- "dokime-client",
- "dokime-domain",
- "dokime-runtime",
  "dokime-server",
  "dotenvy",
  "harmos",
@@ -2031,6 +2048,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "toml 1.1.8+spec-1.1.0",
  "tonic",
  "tracing",
  "tracing-appender",
@@ -2065,7 +2083,7 @@ dependencies = [
 name = "dokime-macros"
 version = "0.1.0"
 dependencies = [
- "dokime-runtime",
+ "dokime",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
@@ -2159,10 +2177,7 @@ dependencies = [
  "clap",
  "criterion",
  "dokime",
- "dokime-client",
- "dokime-domain",
- "dokime-host",
- "dokime-runtime",
+ "dokime-cli",
  "dotenvy",
  "futures-util",
  "harmos",
@@ -4995,8 +5010,7 @@ dependencies = [
 name = "obc-plugin"
 version = "0.1.0"
 dependencies = [
- "dokime-domain",
- "dokime-runtime",
+ "dokime",
  "futures-util",
  "harmos",
  "obc-runtime",
@@ -9853,6 +9867,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e2fc56a6707efb066c40aead2409ebb1224e6dde24a074e9fbc78ced500507b"
 dependencies = [
  "crc32fast",
+ "flate2",
  "indexmap 2.14.2",
  "memchr",
  "nix 0.31.3",

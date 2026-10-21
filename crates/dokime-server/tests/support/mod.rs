@@ -10,8 +10,8 @@
 #![allow(dead_code)]
 
 /* === Modules === */
+
 pub mod artifacts;
-#[path = "../../../dokime-runtime/tests/support/services/budgets.rs"]
 pub mod budgets;
 pub mod host;
 pub mod wire;
@@ -19,6 +19,7 @@ pub mod wire;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -28,24 +29,24 @@ use std::{
 use tempfile::tempdir;
 use tonic::{Extensions, Request, Status};
 // Local Imports
-use dokime_client::contracts;
-use dokime_domain::model;
-use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_runtime::definition::{
+use dokime::client::contracts;
+use dokime::definition::{
     CriterionDefinition, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, TestCase, TestCaseTemplate, TestSuite,
 };
-use dokime_runtime::domains::execution::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
-use dokime_runtime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
-use dokime_runtime::runtime::command::CommandContext;
-use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
-use dokime_runtime::transactions::CycleDefinition;
-use dokime_runtime::transport::{
+use dokime::domain::model;
+use dokime::domain::model::execution::result::ExecutionStatus;
+use dokime::domains::execution::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
+use dokime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
+use dokime::runtime::command::CommandContext;
+use dokime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+use dokime::transactions::CycleDefinition;
+use dokime::transport::{
     ProviderCriterionOutcome, ProviderCycleOutcome, ProviderDependencyProbe, ProviderExecutionFailure, ProviderExecutionOutcome,
     ProviderPhaseOutcome, ProviderStatusOutcome, ProviderTelemetryOutcome,
 };
-use dokime_runtime::{CaseId, CredentialBackendKind, Identifier, Metadata, ParameterId, TemplateId, TestCycleId, Value, ValueType};
-use dokime_runtime::{InstalledPlugin, Runtime, RuntimeCredentialConfig, RuntimeHandle};
-use {dokime_domain::model::execution::result::CycleStatus, dokime_domain::model::execution::result::CycleView};
+use dokime::{CaseId, CredentialBackendKind, Identifier, Metadata, ParameterId, TemplateId, TestCycleId, Value, ValueType};
+use dokime::{InstalledPlugin, Runtime, RuntimeCredentialConfig, RuntimeHandle};
+use {dokime::domain::model::execution::result::CycleStatus, dokime::domain::model::execution::result::CycleView};
 
 /* === Constants === */
 
@@ -54,6 +55,7 @@ use {dokime_domain::model::execution::result::CycleStatus, dokime_domain::model:
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct ProgressRow {
@@ -75,6 +77,7 @@ struct FixtureProgressExecutor;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestEnvironment {
     pub async fn with_installed_plugins(artifacts: Vec<InstalledPlugin>) -> Self {
         Self::with_provider(Arc::new(FakePythonExecutor), artifacts, None).await
@@ -97,7 +100,7 @@ impl TestEnvironment {
         if let Some((suite_id, dispatcher)) = action_dispatcher {
             runtime_config = runtime_config.with_action_dispatcher(suite_id, dispatcher);
         }
-        let runtime_owner = { dokime_runtime::Runtime::with_execution_fixture(runtime_config, "fixture", provider) }.await.unwrap();
+        let runtime_owner = { dokime::Runtime::with_execution_fixture(runtime_config, "fixture", provider) }.await.unwrap();
         let runtime = runtime_owner.handle();
 
         Self { root, _runtime_owner: runtime_owner, runtime }
@@ -132,6 +135,7 @@ impl ExecutionFixture for FixtureProgressExecutor {
 }
 
 /* === Public Functions === */
+
 pub(crate) async fn planned_cycle(
     client: &wire::WireClient, create: Request<contracts::execution::CreateCycle>, plan: model::planning::wire::SelectionPlan,
 ) -> Result<String, Status> {
@@ -143,28 +147,26 @@ pub(crate) async fn planned_cycle(
 }
 
 pub async fn cycle_with_cases(runtime: &RuntimeHandle, metadata: Metadata, cases: Vec<TestCase>) -> TestCycleId {
-    let cycle_id = runtime
-        .create_cycle(CycleDefinition { metadata, continue_automatically: false, continue_on_failure: false }, CommandContext::default())
-        .await
-        .unwrap();
-    let executions = cases.iter().map(|case| (dokime_runtime::model::identity::new_id(), case.test_case_id.clone())).collect();
-    runtime.register_cases(dokime_runtime::model::identity::new_id(), cases).await.unwrap();
+    let cycle_id =
+        runtime.create_cycle(CycleDefinition { metadata, continue_automatically: false }, CommandContext::default()).await.unwrap();
+    let executions = cases.iter().map(|case| (dokime::model::identity::new_id(), case.test_case_id.clone())).collect();
+    runtime.register_cases(dokime::model::identity::new_id(), cases).await.unwrap();
     runtime.append_executions(cycle_id.clone(), executions).await.unwrap();
     cycle_id
 }
 
 pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
-    let options = dokime_runtime::definition::CaseMaterializationOptions {
+    let options = dokime::definition::CaseMaterializationOptions {
         force: true,
-        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
-        registration_id: dokime_runtime::model::identity::new_id(),
+        max_cases: dokime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        registration_id: dokime::model::identity::new_id(),
         first_label_number: 1,
     };
     suite
         .test_case_templates
         .iter()
         .flat_map(|template| {
-            dokime_runtime::definition::materialize_template_cases(suite_id, template, Default::default(), options.clone())
+            dokime::definition::materialize_template_cases(suite_id, template, Default::default(), options.clone())
                 .unwrap()
                 .test_cases
                 .into_iter()
@@ -199,6 +201,17 @@ pub async fn register_fixture_progress_execution(runtime: &RuntimeHandle, suite:
     register_fixture_registration(runtime, fixture_progress_registration(suite)).await;
 }
 
+// The progress fixture plus a second, idle stream of the same shape, so a
+// plot can watch a stream that never receives rows.
+pub async fn register_fixture_progress_and_idle_execution(runtime: &RuntimeHandle, suite: TestSuite) {
+    let mut registration = fixture_progress_registration(suite);
+    let mut idle = fixture_progress_contract();
+    idle.stream = Identifier::new("fixture.idle").unwrap();
+    idle.metadata = metadata("fixture.idle", "Fixture Idle");
+    registration.telemetry_contracts.push(idle);
+    register_fixture_registration(runtime, registration).await;
+}
+
 pub fn fixture_suite(results: &[&str]) -> TestSuite {
     TestSuite {
         metadata: metadata("fixture.suite", "Fixture Suite"),
@@ -229,7 +242,7 @@ pub async fn register_fixture_execution_pair(runtime: &RuntimeHandle, first: Tes
     let mut diagnostics = fixture_progress_registration(second);
     diagnostics.workflow = Some("run_diagnostics".to_owned());
     runtime
-        .set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([fixture_progress_registration(first), diagnostics]))
+        .set_suites("provider:fixture", dokime::definition::SuiteSet::new([fixture_progress_registration(first), diagnostics]))
         .await
         .unwrap();
 }
@@ -237,8 +250,8 @@ pub async fn register_fixture_execution_pair(runtime: &RuntimeHandle, first: Tes
 pub fn materialized_case(identifier: &str, label: &str, result: &str) -> TestCase {
     TestCase {
         suite_id: "fixture.registration".to_owned(),
-        test_case_id: dokime_runtime::model::identity::new_id::<CaseId>(),
-        test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
+        test_case_id: dokime::model::identity::new_id::<CaseId>(),
+        test_case_template_id: dokime::model::identity::new_id::<TemplateId>(),
         suite: None,
         metadata: metadata(identifier, label),
         parameters: BTreeMap::from([("fixture.result".to_owned(), Value::from(result))]),
@@ -276,6 +289,31 @@ pub async fn wait_for_cycle_lifecycle(runtime: &RuntimeHandle, test_cycle_id: &T
         .await
         .expect("the runtime state watch stays open");
     snapshot.state().cycle_view(test_cycle_id).expect("the cycle stays live until it reaches the lifecycle")
+}
+
+// An Active cycle whose every member settled, idle again; its aggregate outcome is `result`.
+pub async fn wait_for_cycle_outcome(
+    runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, outcome: dokime::domain::model::execution::result::ResultStatus,
+) -> CycleView {
+    let snapshot = runtime
+        .watch_state()
+        .wait_until(|snapshot| {
+            let state = snapshot.state();
+            let live =
+                state.run_requests.values().any(|request| &request.summary.cycle_id == test_cycle_id && !request.summary.phase.terminal());
+            !live && state.cycle_view(test_cycle_id).is_some_and(|cycle| settled_view(&cycle, &outcome))
+        })
+        .await
+        .expect("the runtime state watch stays open");
+    snapshot.state().cycle_view(test_cycle_id).expect("the cycle stays live until it settles")
+}
+
+// The same settled Active cycle, as its wire summary states it.
+pub fn cycle_settled(cycle: &model::execution::wire::CycleSummary, outcome: model::execution::wire::ResultStatus) -> bool {
+    cycle.status == model::execution::wire::CycleStatus::Ready
+        && cycle.running_count == 0
+        && cycle.queued_count == 0
+        && cycle.result.as_ref().is_some_and(|result| result.status == outcome)
 }
 
 pub async fn on_state_change<T>(runtime: &RuntimeHandle, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
@@ -356,10 +394,6 @@ pub fn fixture_provider_outcome(cycle: &CycleView, emit_progress: bool) -> Provi
                 }]
             },
         });
-
-        if status != "passed" && !cycle.continue_on_failure {
-            break;
-        }
     }
 
     ProviderCycleOutcome {
@@ -383,8 +417,17 @@ pub fn fixture_provider_outcome(cycle: &CycleView, emit_progress: bool) -> Provi
 }
 
 /* === Private Functions === */
+
+fn settled_view(cycle: &CycleView, outcome: &dokime::domain::model::execution::result::ResultStatus) -> bool {
+    let planned =
+        cycle.test_executions.iter().any(|execution| execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none());
+    cycle.phase == dokime::domain::model::execution::result::CyclePhase::Active
+        && cycle.lifecycle == CycleStatus::Ready
+        && !planned
+        && cycle.result.as_ref().is_some_and(|result| &result.status == outcome)
+}
 async fn register_fixture_registration(runtime: &RuntimeHandle, registration: TestSuiteDefinition) {
-    runtime.set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([registration])).await.unwrap();
+    runtime.set_suites("provider:fixture", dokime::definition::SuiteSet::new([registration])).await.unwrap();
 }
 
 fn cycle_suite_identifiers(cycle: &CycleView) -> Vec<String> {
@@ -404,7 +447,7 @@ fn case_template(index: usize, result: &str) -> TestCaseTemplate {
 
 fn named_case_template(identifier: &str, label: &str, index: usize, result: &str) -> TestCaseTemplate {
     TestCaseTemplate {
-        test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
+        test_case_template_id: dokime::model::identity::new_id::<TemplateId>(),
         metadata: metadata(&format!("{identifier}.{index}"), &format!("{label} {index}")),
         tags: vec!["fixture".to_owned()],
         parameter_groups: Vec::new(),
@@ -412,7 +455,7 @@ fn named_case_template(identifier: &str, label: &str, index: usize, result: &str
             expansion: Default::default(),
             min: None,
             max: None,
-            parameter_id: dokime_runtime::model::identity::new_id::<ParameterId>(),
+            parameter_id: dokime::model::identity::new_id::<ParameterId>(),
             metadata: metadata("fixture.result", "Fixture Result"),
             group_id: None,
             value_type: ValueType::Text,
@@ -427,15 +470,14 @@ fn named_case_template(identifier: &str, label: &str, index: usize, result: &str
         files: Vec::new(),
         phases: vec![ExecutionPhaseDefinition {
             repeatable: false,
-            step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
+            step_id: dokime::model::identity::new_id::<dokime::StepId>(),
             metadata: metadata("fixture.phase", "Fixture Phase"),
         }],
         criteria: vec![CriterionDefinition {
-            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
+            criterion_id: dokime::model::identity::new_id::<dokime::CriterionId>(),
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],
-        continue_on_failure: false,
         prompt_definitions: Vec::new(),
         subscriptions: Vec::new(),
         document: None,
@@ -476,7 +518,7 @@ fn fixture_progress_telemetry(progress: f64) -> ProviderTelemetryOutcome {
     ProviderTelemetryOutcome {
         stream: "fixture.progress".to_owned(),
         label: "Fixture Progress".to_owned(),
-        samples: vec![dokime_runtime::transport::ProviderTelemetryRow {
+        samples: vec![dokime::transport::ProviderTelemetryRow {
             values: BTreeMap::from([("progress".to_owned(), Value::Number(progress))]),
             payload: harmos::Message::encode_to_vec(&ProgressRow { progress }),
         }],

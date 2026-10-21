@@ -19,7 +19,7 @@
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -44,12 +44,12 @@ async fn started(gate: &Gate) {
 }
 
 fn start(owner: &Runtime, cycle: &str) -> contracts::execution::StartExecution {
-    let cycle = dokime_runtime::TestCycleId::from_uuid(cycle).unwrap();
+    let cycle = dokime::TestCycleId::from_uuid(cycle).unwrap();
     let execution_id = owner.handle().watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string();
     contracts::execution::StartExecution { execution_id, mode: model::execution::wire::ExecutionMode::Automatic }
 }
 
-async fn receipt(handle: &dokime_runtime::RuntimeHandle, id: &str) -> Arc<model::execution::request::RunReceipt> {
+async fn receipt(handle: &dokime::RuntimeHandle, id: &str) -> Arc<model::execution::request::RunReceipt> {
     let id = model::identity::CommandId::from_uuid(id).unwrap();
     handle.run_request(&id).await.unwrap().unwrap()
 }
@@ -127,7 +127,7 @@ async fn command_receipts_survive_restart() {
     let terminal = support::on_state_change(&owner.handle(), async || {
         let response = client.unary::<contracts::execution::GetExecutionCommand>(authenticated(lookup.clone())).await;
         if let Err(error) = &response {
-            let request_id = dokime_domain::model::identity::CommandId::from_uuid(command.request_id.clone()).unwrap();
+            let request_id = dokime::domain::model::identity::CommandId::from_uuid(command.request_id.clone()).unwrap();
             let original = owner.handle().run_request(&request_id).await;
             panic!("command lookup failed: {error}; original receipt: {original:?}");
         }
@@ -222,24 +222,24 @@ async fn execution_admissions_restart() {
     let mut rebooted = runtime(root.path()).await;
     let handle = rebooted.handle();
     assert!(handle.watch_state().latest().state().cycles.is_empty(), "shutdown seals every old cycle");
-    let other_id = dokime_domain::model::identity::TestCycleId::from_uuid(other_cycle).unwrap();
-    let stored_cycle = dokime_runtime::storage::objects::cycle::read(handle.storage(), &other_id, harmos::storage::ObjectVersion::Latest)
+    let other_id = dokime::domain::model::identity::TestCycleId::from_uuid(other_cycle).unwrap();
+    let stored_cycle = dokime::storage::objects::cycle::read(handle.storage(), &other_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .unwrap()
         .value;
     assert_eq!(stored_cycle.test_cycle_id, other_id);
-    assert_eq!(stored_cycle.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
+    assert_eq!(stored_cycle.phase, dokime::domain::model::execution::result::CyclePhase::Sealed);
     assert!(stored_cycle.saved.is_some());
     assert_eq!(stored_cycle.execution_ids.len(), 1);
     let execution_id = &stored_cycle.execution_ids[0];
     let stored_execution =
-        dokime_runtime::storage::objects::execution::read(handle.storage(), execution_id, harmos::storage::ObjectVersion::Latest)
+        dokime::storage::objects::execution::read(handle.storage(), execution_id, harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
             .unwrap()
             .value;
-    assert_eq!(stored_execution.status, dokime_domain::model::execution::result::ExecutionStatus::Cancelled);
+    assert_eq!(stored_execution.status, dokime::domain::model::execution::result::ExecutionStatus::Cancelled);
     assert!(stored_execution.started_at.is_none());
     assert!(stored_execution.finished_at.is_some());
     assert!(stored_execution.saved.is_some());
@@ -250,13 +250,13 @@ async fn execution_admissions_restart() {
     assert_eq!(retried.command_id, admission.command_id);
     assert_eq!(retried.accepted_at, admission.accepted_at);
     assert!(handle.watch_state().latest().state().cycles.is_empty());
-    let restored_cycle = dokime_runtime::storage::objects::cycle::read(handle.storage(), &other_id, harmos::storage::ObjectVersion::Latest)
+    let restored_cycle = dokime::storage::objects::cycle::read(handle.storage(), &other_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .unwrap()
         .value;
     let restored_execution =
-        dokime_runtime::storage::objects::execution::read(handle.storage(), execution_id, harmos::storage::ObjectVersion::Latest)
+        dokime::storage::objects::execution::read(handle.storage(), execution_id, harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
             .unwrap()
@@ -288,7 +288,7 @@ async fn key_rotation_isolation() {
         .into_inner();
     let client = WireClient::connect(format!("http://{}", listening.listening_address.unwrap())).await.unwrap();
     let cycle = support::planned_cycle(&client, auth(create(), &key.access_key), selection_plan(&owner)).await.unwrap();
-    let cycle_id = dokime_domain::model::identity::TestCycleId::from_uuid(cycle.clone()).unwrap();
+    let cycle_id = dokime::domain::model::identity::TestCycleId::from_uuid(cycle.clone()).unwrap();
     let request = start(&owner, &cycle);
 
     let admission = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key.access_key)).await.unwrap();

@@ -9,7 +9,6 @@
 
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,7 +45,7 @@ type Props = {
  * The host owns controls for the semantic plugin catalog.
  *
  * A plugin's settings are settings, so they sit on the same two-column grid as
- * every other settings section — `label (260px) | value`, the description in
+ * every other settings section — `label | value`, the description in
  * the label cell, one row height — rather than a stack of labels over
  * full-width fields. The schema carries no groups today, so there are no group
  * eyebrows to draw; when `SettingsEntry` gains one, the eyebrow goes here.
@@ -75,7 +74,7 @@ export function InstalledPluginSettingsForm({ schema, values, discovered, onSubm
   }
 
   return (
-    <div className="grid">
+    <>
       {fields.map((field) => (
         <SettingField
           configured={Boolean(bindings.bindings?.[field.id]?.configured)}
@@ -89,9 +88,11 @@ export function InstalledPluginSettingsForm({ schema, values, discovered, onSubm
         />
       ))}
       {(bindings.missing_required ?? []).length > 0 && (
-        <p className="px-4 pt-3 text-xs text-destructive">Missing required secrets: {(bindings.missing_required ?? []).join(", ")}</p>
+        <p className="px-4 py-3 text-xs text-destructive" role="alert">
+          Missing required secrets: {(bindings.missing_required ?? []).join(", ")}
+        </p>
       )}
-    </div>
+    </>
   );
 }
 
@@ -186,7 +187,6 @@ function SettingField({
   }
   return (
     <SettingsRow
-      className="border-b border-border/60 last:border-b-0"
       description={field.description}
       htmlFor={id}
       label={field.title}
@@ -254,26 +254,23 @@ function SecretField({
         }
       />
       {kind === "stored_credential" && (
-        <div className="flex gap-2">
-          <Input
-            aria-label="Secret value"
-            type="password"
-            autoComplete="new-password"
-            placeholder={configured ? "Replace stored secret" : "Enter secret"}
-            value={secret}
-            onChange={(event) => setSecret(event.target.value)}
-          />
-          <Button
-            type="button"
-            disabled={saving || !secret}
-            onClick={() => {
-              onSave(secret);
-              setSecret("");
-            }}
-          >
-            {configured ? "Replace" : "Save"}
-          </Button>
-        </div>
+        <Input
+          aria-label="Secret value"
+          type="password"
+          autoComplete="new-password"
+          disabled={saving}
+          placeholder={configured ? "Type a replacement and press Enter" : "Type the secret and press Enter"}
+          value={secret}
+          onChange={(event) => setSecret(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+          onBlur={() => {
+            if (!secret) return;
+            onSave(secret);
+            setSecret("");
+          }}
+        />
       )}
     </div>
   );

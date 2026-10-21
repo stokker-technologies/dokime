@@ -10,7 +10,7 @@
 # binaries are built, so a rebrand needs a rebuild):
 #
 #   brand.toml    this manifest — identity, theme policy, corner geometry
-#   logos/        app marks, named `<treatment>-<theme>.<ext>`
+#   logos/        app marks, named `<treatment>-on-<surface>.<ext>`
 #   icons/        OS app-icon sources (icon.png is the desktop icon master)
 #   theme/        authored CSS: typography.css, base.css, light.css, dark.css
 #   fonts/        vendored woff2 faces (offline; never fetched at runtime)
@@ -39,15 +39,16 @@ name = "Stokker Technologies"
 # unit = "..."       # optional
 # website = "..."    # optional
 
-[app.logo]
-# The mark the app shell and reports render, resolved from this bundle's logos/
-# folder. Files there are named `<treatment>-<theme>`: `treatment` is the
-# artwork form (`contained` sits on its own plate, `transparent` is plate-less),
-# `theme` is the mark's own ink tone. Only the SVG is loaded by the runtime; a
-# same-named raster beside it is the export master.
-file = "contained-dark.svg"
-mime_type = "image/svg+xml"
-alt = "Dokime"
+# Stoa categories: treatment and intended background surface, not ink tone.
+# Runtime sources are SVG filenames within logos/; matching PNGs are exports.
+# The shell prefers transparent artwork and falls back within the same surface.
+[app.logos.transparent]
+on_light = "transparent-on-light.svg"
+on_dark = "transparent-on-dark.svg"
+
+[app.logos.contained]
+on_light = "contained-on-light.svg"
+on_dark = "contained-on-dark.svg"
 
 [theme]
 # register_only | default | required.

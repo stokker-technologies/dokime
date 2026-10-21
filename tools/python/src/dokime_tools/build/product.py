@@ -33,6 +33,7 @@ ROOT = frontend.ROOT
 EXECUTABLES = ("dokime", "dokime-server", "cargo-dokime", "dokime-gui")
 PACKAGES = (
     "dokime",
+    "dokime-cli",
     "dokime-server",
     "cargo-dokime",
     "dokime-gui",

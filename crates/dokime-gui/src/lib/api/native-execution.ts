@@ -19,7 +19,7 @@ import * as rpc from "@/lib/rpc/generated/client";
 type CycleSummary = Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>;
 type ExecutionDetail = Wire<Awaited<ReturnType<typeof rpc.executionGetExecution>>>;
 type ExecutionStep = Wire<Awaited<ReturnType<typeof rpc.executionListExecutionSteps>>["steps"][number]>;
-type StepCriterion = Wire<Awaited<ReturnType<typeof rpc.executionListStepCriteria>>["criteria"][number]>;
+type StepCriterion = ExecutionStep["criteria"][number];
 type ParameterCursor = Parameters<typeof rpc.executionListExecutionParameters>[1]["cursor"];
 type ExecutionParameterSet = Parameters<typeof rpc.executionListExecutionParameters>[1]["set"];
 type StepPageCursor = Wire<Parameters<typeof rpc.executionListExecutionSteps>[1]["cursor"]>;
@@ -140,6 +140,11 @@ export async function stopNativeTestExecution(session: SessionIdentity, executio
   await rpc.executionStopExecution(session, { executionId });
 }
 
+/** Skips One Unstarted Attempt; Cycle Continuation Is Unchanged */
+export async function cancelNativeTestExecution(session: SessionIdentity, executionId: string): Promise<void> {
+  await rpc.executionCancelExecution(session, { executionId });
+}
+
 export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
   await rpc.executionSealCycle(session, { cycleId });
 }
@@ -186,9 +191,8 @@ export async function updateNativeTestCyclePolicy(
   session: SessionIdentity,
   cycleId: string,
   continueAutomatically: boolean,
-  continueOnFailure: boolean,
 ): Promise<StartTestCycleResponse> {
-  await rpc.executionUpdateCyclePolicy(session, { cycleId, continueAutomatically, continueOnFailure });
+  await rpc.executionUpdateCyclePolicy(session, { cycleId, continueAutomatically });
   const plan = await fetchNativeTestCyclePlan(session, cycleId);
   if (!plan) throw new Error("The cycle disappeared after updating its policy.");
   return { plan };
@@ -210,11 +214,7 @@ async function loadNativeExecution(session: SessionIdentity, executionId: string
     HarmosVariant: { case: "Outputs", value: {} },
   });
   const steps = await listExecutionSteps(session, executionId);
-  const criteria = await mapBounded(steps, async (step) => ({
-    step,
-    criteria: await listStepCriteria(session, executionId, step.stepId),
-  }));
-  return { detail, inputs, outputs, steps: criteria };
+  return { detail, inputs, outputs, steps: steps.map((step) => ({ step, criteria: step.criteria })) };
 }
 
 type NativeExecution = {
@@ -389,25 +389,6 @@ async function listExecutionSteps(session: SessionIdentity, executionId: string)
     cursor = reply.nextCursor;
   }
   throw new NativeApiLimitError("Execution.ListExecutionSteps", `more than ${NATIVE_MAX_PAGES} pages`);
-}
-
-async function listStepCriteria(session: SessionIdentity, executionId: string, stepId: string) {
-  const result: StepCriterion[] = [];
-  let cursor: StepPageCursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply = await rpc.executionListStepCriteria(session, {
-      executionId,
-      stepId,
-      limit: NATIVE_PAGE_SIZE,
-      cursor,
-    });
-    result.push(...reply.criteria);
-    if (!reply.nextCursor) return result;
-    if (stepCursorKey(reply.nextCursor) === stepCursorKey(cursor))
-      throw new NativeApiLimitError("Execution.ListStepCriteria", "cursor did not advance");
-    cursor = reply.nextCursor;
-  }
-  throw new NativeApiLimitError("Execution.ListStepCriteria", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
 async function loadNativeExecutionsForPlan(session: SessionIdentity, cycleId: string): Promise<TestExecution[]> {

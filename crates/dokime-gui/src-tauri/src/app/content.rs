@@ -21,9 +21,11 @@ use std::path::{Path, PathBuf};
 // Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
-use dokime_domain::operations::content as v1;
+use dokime::domain::operations::content as v1;
 
 /* === Constants === */
+
+const CYCLE_REPORT: &str = "cycle.summary";
 
 /* === Macros === */
 
@@ -42,6 +44,8 @@ pub(crate) struct VerifiedContent {
     pub sha256: String,
 
     pub content_type: Option<String>,
+
+    pub report_origin: Option<dokime::domain::model::reports::wire::ReportOrigin>,
 }
 
 #[derive(Debug, serde::Serialize, thiserror::Error)]
@@ -84,11 +88,13 @@ impl DeliveryError {
     }
 }
 
-impl From<dokime_client::DownloadError> for DeliveryError {
-    fn from(error: dokime_client::DownloadError) -> Self {
-        use dokime_client::DownloadError as Download;
-        let rpc =
-            |stage: DeliveryStage, error: dokime_client::Error| Self { stage, failure: DeliveryFailure::Rpc(crate::Error::from(error)) };
+impl From<dokime::client::DownloadError> for DeliveryError {
+    fn from(error: dokime::client::DownloadError) -> Self {
+        use dokime::client::DownloadError as Download;
+        let rpc = |stage: DeliveryStage, error: dokime::client::Error| {
+            let error = crate::Error::from(error);
+            Self { stage, failure: DeliveryFailure::Rpc(error) }
+        };
         match error {
             Download::Request(error) => rpc(DeliveryStage::Request, error),
             Download::Client(error) => rpc(DeliveryStage::Stream, error),
@@ -102,12 +108,32 @@ impl From<dokime_client::DownloadError> for DeliveryError {
 }
 
 impl VerifiedContent {
-    fn from_download<T>(download: dokime_client::Download<T>, content_type: impl FnOnce(T) -> Option<String>) -> Self {
+    pub(crate) fn report_origin(&self) -> Option<&'static str> {
+        use dokime::domain::model::reports::wire::ReportOrigin;
+        self.report_origin.as_ref().map(|origin| match origin {
+            ReportOrigin::Sealed => "sealed",
+            ReportOrigin::Current => "current",
+        })
+    }
+
+    fn from_report(download: dokime::client::Download<dokime::domain::model::reports::wire::ReportMetadata>) -> Self {
+        let origin = download.metadata.origin;
+        Self {
+            path: download.path,
+            size_bytes: download.size_bytes,
+            sha256: download.sha256,
+            content_type: Some("text/html".into()),
+            report_origin: Some(origin),
+        }
+    }
+
+    fn from_download<T>(download: dokime::client::Download<T>, content_type: impl FnOnce(T) -> Option<String>) -> Self {
         Self {
             path: download.path,
             size_bytes: download.size_bytes,
             sha256: download.sha256,
             content_type: content_type(download.metadata),
+            report_origin: None,
         }
     }
 }
@@ -118,51 +144,71 @@ pub(crate) async fn fetch_verified(
     lease: &SessionLease, source: &ArtifactSource, destination: &Path,
 ) -> Result<VerifiedContent, DeliveryError> {
     if let Some(parent) = destination.parent() {
-        tokio::fs::create_dir_all(parent).await.map_err(|error| DeliveryError::local(DeliveryStage::Write, error.to_string()))?;
+        tokio::fs::create_dir_all(parent).await.map_err(|error| {
+            let message = error.to_string();
+            DeliveryError::local(DeliveryStage::Write, message)
+        })?;
     }
-    let client = lease.client().with_frame_limit(std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit"));
+    let frame_limit = std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit");
+    let client = lease.client().with_frame_limit(frame_limit);
     let destination = destination.to_path_buf();
     let result = match source {
-        ArtifactSource::Artifact { artifact_id } => client
-            .download_artifact(v1::DownloadArtifact { artifact_id: artifact_id.clone() }, destination)
-            .await
-            .map(|download| VerifiedContent::from_download(download, |metadata| metadata.content_type)),
-        ArtifactSource::ExecutionFile { execution_id, relative_path } => client
-            .download_execution_file(
-                v1::DownloadExecutionFile { execution_id: execution_id.clone(), relative_path: relative_path.clone() },
+        ArtifactSource::Artifact { artifact_id } => {
+            let request = v1::DownloadArtifact { artifact_id: artifact_id.clone() };
+            let download = client.download_artifact(request, destination).await?;
+            let content = VerifiedContent::from_download(download, |metadata| metadata.content_type);
+            Ok(content)
+        }
+        ArtifactSource::ExecutionFile { execution_id, relative_path } => {
+            let request = v1::DownloadExecutionFile { execution_id: execution_id.clone(), relative_path: relative_path.clone() };
+            let download = client.download_execution_file(request, destination).await?;
+            let content = VerifiedContent::from_download(download, |metadata| metadata.content_type);
+            Ok(content)
+        }
+        ArtifactSource::ExecutionEvidence { execution_id } => {
+            let subject = dokime::domain::model::exports::EvidenceSubject::Execution(execution_id.clone());
+            let request = v1::DownloadEvidence { subject: Some(subject) };
+            let download = client.download_evidence(request, destination, false).await?;
+            let content_type = Some("application/zip".into());
+            let content = VerifiedContent::from_download(download, |_| content_type);
+            Ok(content)
+        }
+        ArtifactSource::CycleEvidence { cycle_id } => {
+            let subject = dokime::domain::model::exports::EvidenceSubject::Cycle(cycle_id.clone());
+            let request = v1::DownloadEvidence { subject: Some(subject) };
+            let download = client.download_evidence(request, destination, false).await?;
+            let content_type = Some("application/zip".into());
+            let content = VerifiedContent::from_download(download, |_| content_type);
+            Ok(content)
+        }
+        ArtifactSource::CycleReport { cycle_id } => client
+            .download_cycle_report(
+                dokime::domain::operations::reports::DownloadCycleReport { cycle_id: cycle_id.clone(), identifier: CYCLE_REPORT.into() },
                 destination,
             )
             .await
-            .map(|download| VerifiedContent::from_download(download, |metadata| metadata.content_type)),
-        ArtifactSource::ExecutionEvidence { execution_id } => client
-            .download_evidence(
-                v1::DownloadEvidence { subject: Some(dokime_domain::model::exports::EvidenceSubject::Execution(execution_id.clone())) },
+            .map(VerifiedContent::from_report),
+        ArtifactSource::ExecutionReport { execution_id } => client
+            .download_execution_report(
+                dokime::domain::operations::reports::DownloadExecutionReport { execution_id: execution_id.clone() },
                 destination,
-                false,
             )
             .await
-            .map(|download| VerifiedContent::from_download(download, |_| Some("application/zip".into()))),
-        ArtifactSource::CycleEvidence { cycle_id } => client
-            .download_evidence(
-                v1::DownloadEvidence { subject: Some(dokime_domain::model::exports::EvidenceSubject::Cycle(cycle_id.clone())) },
-                destination,
-                false,
-            )
-            .await
-            .map(|download| VerifiedContent::from_download(download, |_| Some("application/zip".into()))),
+            .map(VerifiedContent::from_report),
     };
     result.map_err(DeliveryError::from)
 }
 
 pub(crate) async fn push_verified(
-    lease: &SessionLease, source: &Path, header: dokime_domain::model::content::wire::UploadArtifactHeader,
-) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, String> {
-    lease
-        .client()
-        .with_frame_limit(std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit"))
-        .upload_artifact_file(source, header)
-        .await
-        .map_err(|error| error.to_string())
+    lease: &SessionLease, source: &Path, header: dokime::domain::model::content::wire::UploadArtifactHeader,
+) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, String> {
+    let frame_limit = std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit");
+    let client = lease.client().with_frame_limit(frame_limit);
+    let result = client.upload_artifact_file(source, header).await;
+    match result {
+        Ok(metadata) => Ok(metadata),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 /* === Private Functions === */
@@ -178,7 +224,9 @@ mod tests {
         let refusal = tonic::Status::failed_precondition(
             "The evidence bundle becomes available when the cycle is terminal; this cycle is still running.",
         );
-        let error = DeliveryError::from(dokime_client::DownloadError::Request(dokime_client::Error::Rpc(refusal)));
+        let refusal = dokime::client::Error::Rpc(refusal);
+        let refusal = dokime::client::DownloadError::Request(refusal);
+        let error = DeliveryError::from(refusal);
 
         let wire = serde_json::to_value(&error).unwrap();
 
@@ -203,8 +251,9 @@ mod tests {
 
     #[test]
     fn local_failures_name_their_stage() {
-        let staged = DeliveryError::from(dokime_client::DownloadError::Io(std::io::Error::other("disk full")));
-        let invalid = DeliveryError::from(dokime_client::DownloadError::Invalid("size or SHA-256 mismatch"));
+        let write_error = std::io::Error::other("disk full");
+        let staged = DeliveryError::from(dokime::client::DownloadError::Io(write_error));
+        let invalid = DeliveryError::from(dokime::client::DownloadError::Invalid("size or SHA-256 mismatch"));
 
         assert_eq!(staged.stage, DeliveryStage::Write);
         assert_eq!(invalid.stage, DeliveryStage::Stream);

@@ -15,11 +15,13 @@
 
 /* === Modules === */
 
+mod await_file_watch_armed;
 mod file_watch;
 mod watch_file;
 
 /* === Re-Exports === */
 
+pub use await_file_watch_armed::AwaitFileWatchArmed;
 pub use file_watch::FileWatch;
 pub use watch_file::WatchFile;
 

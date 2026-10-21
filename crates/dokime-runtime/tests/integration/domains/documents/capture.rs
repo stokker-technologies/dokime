@@ -164,6 +164,6 @@ async fn undeclared_records_settle() {
             "{record_type} names the undeclared type: {record:?}"
         );
     }
-    let shutdown = owner.shutdown().await;
-    assert!(shutdown.is_err(), "shutdown retains the failed evidence finalization");
+    // The Stop Leaves The Failed Seal Where It Is; The Next Start Retries It.
+    owner.shutdown().await.unwrap();
 }

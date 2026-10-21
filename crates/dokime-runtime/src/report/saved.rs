@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
 use harmos::{
@@ -308,8 +308,7 @@ impl ReportFile {
     }
 
     pub(super) fn render(html: &HtmlReport, mut metadata: FileMetadata) -> Result<Self> {
-        let length = html.length(NonZeroUsize::MAX)?;
-        let bytes = html.bytes(length)?;
+        let bytes = html.render()?;
         metadata.expected_length = Some(bytes.len() as u64);
         metadata.expected_sha256 = Some(Sha256::digest(&bytes).into());
         Ok(Self::new(ReportFileData { metadata, bytes }))
@@ -330,8 +329,7 @@ impl ReportFile {
         let captured = html.captured_input()?;
         let stem = format!("{}.{}", captured.execution_id, uuid::Uuid::now_v7());
         let context = Self::context(html.captured_source()?, &stem)?;
-        let length = html.length(NonZeroUsize::MAX)?;
-        let bytes = html.bytes(length)?;
+        let bytes = html.render()?;
         let metadata = file_metadata(
             report_file_id(&stem, ".report")?,
             Identifier::new(captured.execution_id.as_str()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
@@ -420,3 +418,27 @@ fn file_metadata(id: Identifier, scope: Identifier, media_type: &str, bytes: &[u
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The Published Payload Of A Fixed Input; Changing It Changes Every Sealed Report Digest.
+    const PAYLOAD_SHA256: &str = "fdf7335e8c7d1e57c21ad4f5c5756c30fd778fdb36f6e03bd7c8ff73eb1beccd";
+
+    #[test]
+    fn report_digest_is_stable() {
+        let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("fixtures/execution-report-input.json")).unwrap();
+        let evidence = Arc::new(captured.source(&[]));
+        let html = HtmlReport::from_capture(Arc::new(captured), evidence).unwrap();
+        let (_, report) = ReportFile::capture(&html).unwrap();
+        let bytes = &report.data.bytes;
+        assert_eq!(report.data.metadata.expected_length, Some(bytes.len() as u64));
+        assert_eq!(report.data.metadata.expected_sha256, Some(Sha256::digest(bytes).into()));
+        let html = std::str::from_utf8(bytes).unwrap();
+        let payload = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1;
+        let payload = payload.split_once("</script>").unwrap().0;
+        let digest = Sha256::digest(payload.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(digest, PAYLOAD_SHA256);
+    }
+}

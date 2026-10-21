@@ -23,8 +23,8 @@ use tonic::Status;
 // Local Imports
 use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
-use dokime_domain::operations::content as wire;
-use dokime_runtime::{RuntimeHandle, runtime::Error};
+use dokime::domain::operations::content as wire;
+use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -54,7 +54,7 @@ impl Operation for Follow {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ExecutionFileFollowFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::content::wire::ExecutionFileFollowFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -95,7 +95,7 @@ impl Operation for Follow {
         send(output, metadata, self.resources.maximum).await?;
         while let Some(frame) = follower.next_frame(maximum).await.map_err(failure)? {
             let terminal =
-                matches!(&frame.payload, Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(_)));
+                matches!(&frame.payload, Some(dokime::domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(_)));
             send(output, frame, self.resources.maximum).await?;
             if terminal {
                 tracing::debug!(execution_id = %execution,
@@ -111,7 +111,7 @@ impl Operation for Follow {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Follow>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
@@ -120,8 +120,8 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 
 async fn send(
-    output: &mut StreamOutput<dokime_domain::model::content::wire::ExecutionFileFollowFrame>,
-    frame: dokime_domain::model::content::wire::ExecutionFileFollowFrame, maximum: usize,
+    output: &mut StreamOutput<dokime::domain::model::content::wire::ExecutionFileFollowFrame>,
+    frame: dokime::domain::model::content::wire::ExecutionFileFollowFrame, maximum: usize,
 ) -> Result<(), Status> {
     if frame.wire_len()? > maximum {
         return Err(Status::resource_exhausted("follow frame exceeds listener message limit"));

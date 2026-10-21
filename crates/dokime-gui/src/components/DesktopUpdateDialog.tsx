@@ -169,7 +169,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
         </div>
 
         <DialogFooter className="gap-2 sm:justify-between">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {auth?.signedIn ? (
               <Button disabled={busy !== null} onClick={() => void handleSignOut()} type="button" variant="outline">
                 <LogOut data-icon="inline-start" />
@@ -182,7 +182,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button disabled={!canCheck} onClick={() => void handleCheckForUpdates()} type="button" variant="outline">
               <RefreshCw data-icon="inline-start" />
               Check For Updates

@@ -26,8 +26,8 @@ use harmos::operations::authorization::{Authorization, Authorizer, Provider};
 // Local Imports
 use super::Error;
 use super::access::{Listeners, Principal};
-use dokime_domain::operations::Endpoints;
-use dokime_domain::operations::Operations;
+use dokime::domain::operations::Endpoints;
+use dokime::domain::operations::Operations;
 
 /* === Constants === */
 
@@ -95,7 +95,7 @@ impl Authorizer for Policy {
 
 /* === Public Functions === */
 
-pub(super) fn register(runtime: &dokime_runtime::RuntimeHandle) -> Result<Arc<Listeners>, Error> {
+pub(super) fn register(runtime: &dokime::RuntimeHandle) -> Result<Arc<Listeners>, Error> {
     let authorizer = Arc::new(Policy::new()?);
     runtime.operations().register_authorizer(authorizer)?;
     let listeners = Arc::new(Listeners::default());

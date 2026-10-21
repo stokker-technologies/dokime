@@ -21,9 +21,10 @@
 
 // Local Imports
 use super::list_file;
-use dokime_client::{Client, contracts};
+use dokime::client::{Client, contracts};
 
 /* === Constants === */
+
 const LOG_TAIL_BYTES: u32 = 16 * 1024;
 
 /* === Macros === */
@@ -54,7 +55,7 @@ pub async fn execution(client: &Client, execution_id: &str, log: &str) -> String
     for step in steps {
         let label = step.metadata.as_ref().map_or(step.step_id.clone(), |metadata| metadata.label.clone());
         lines.push(format!("step {label}: {:?} {:?}", step.status, step.detail));
-        lines.extend(criteria(client, execution_id, step.step_id).await);
+        lines.extend(step.criteria.iter().map(criterion));
     }
 
     let mut content = client.clone();
@@ -71,16 +72,10 @@ pub async fn execution(client: &Client, execution_id: &str, log: &str) -> String
 }
 
 /* === Private Functions === */
-async fn criteria(client: &Client, execution_id: &str, step_id: String) -> Vec<String> {
-    let request = contracts::execution::ListStepCriteria { execution_id: execution_id.to_owned(), step_id, ..Default::default() };
-    let criteria = client.execution_list_step_criteria(request).await.unwrap().criteria;
-    criteria
-        .into_iter()
-        .map(|criterion| {
-            let identifier = criterion.metadata.as_ref().map_or(String::new(), |metadata| metadata.identifier.clone());
-            format!("  criterion {identifier}: {:?} {:?} {:?}", criterion.status, criterion.observed, criterion.message)
-        })
-        .collect()
+
+fn criterion(criterion: &dokime::domain::model::execution::wire::StepCriterion) -> String {
+    let identifier = criterion.metadata.as_ref().map_or(String::new(), |metadata| metadata.identifier.clone());
+    format!("  criterion {identifier}: {:?} {:?} {:?}", criterion.status, criterion.observed, criterion.message)
 }
 
 /* === Tests === */

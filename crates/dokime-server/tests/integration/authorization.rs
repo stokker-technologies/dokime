@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
@@ -19,9 +20,10 @@ use std::pin::Pin;
 use tonic::{Code, Status, transport::Channel};
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
+
 const NATIVE_ONLY_METHODS: [&str; 6] = [
     "/dokime.v1.Media/Screenshot",
     "/dokime.v1.Media/Photo",
@@ -61,6 +63,7 @@ const STREAMING_CASES: &[Case] = &[
 ];
 
 /* === Macros === */
+
 macro_rules! matrix {
     (@request) => {
         Default::default()
@@ -89,6 +92,7 @@ matrix! {
     "/dokime.v1.Remote/ReadListener", unary, contracts::remote::ReadListener = contracts::remote::ReadListener {};
     "/dokime.v1.Remote/UpdateListener", unary, contracts::remote::UpdateListener = contracts::remote::UpdateListener { settings: None };
     "/dokime.v1.Remote/GenerateKey", unary, contracts::remote::GenerateKey = contracts::remote::GenerateKey {};
+    "/dokime.v1.Remote/ListSessions", unary, contracts::remote::ListSessions = contracts::remote::ListSessions { cursor: None, limit: 20 };
     "/dokime.v1.Remote/RegenerateCertificate", unary, contracts::remote::RegenerateCertificate = contracts::remote::RegenerateCertificate { certificate_names: vec![] };
     "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {
         subject: model::reports::wire::ReportSubject::Execution(String::new()),
@@ -171,7 +175,6 @@ matrix! {
     };
     "/dokime.v1.Execution/ListExecutionSteps", unary, contracts::execution::ListExecutionSteps;
     "/dokime.v1.Execution/ListExecutions", unary, contracts::execution::ListExecutions;
-    "/dokime.v1.Execution/ListStepCriteria", unary, contracts::execution::ListStepCriteria;
     "/dokime.v1.Execution/PauseCycle", unary, contracts::execution::PauseCycle;
     "/dokime.v1.Execution/ResumeCycle", unary, contracts::execution::ResumeCycle;
     "/dokime.v1.Execution/StartExecution", unary, contracts::execution::StartExecution = contracts::execution::StartExecution {
@@ -181,6 +184,7 @@ matrix! {
     "/dokime.v1.Execution/PauseExecution", unary, contracts::execution::PauseExecution;
     "/dokime.v1.Execution/ResumeExecution", unary, contracts::execution::ResumeExecution;
     "/dokime.v1.Execution/StopExecution", unary, contracts::execution::StopExecution;
+    "/dokime.v1.Execution/CancelExecution", unary, contracts::execution::CancelExecution;
     "/dokime.v1.Execution/SubmitExecutionCommand", unary, contracts::execution::SubmitExecutionCommand = contracts::execution::SubmitExecutionCommand {
         request_id: String::new(),
         command_id: String::new(),
@@ -200,6 +204,8 @@ matrix! {
         rules: Vec::new(),
         output: String::new(),
         policy: model::files::wire::FileWatchPolicy::Unspecified,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: None,
         maximum_seconds: None,
         maximum_files: None,
@@ -272,9 +278,11 @@ matrix! {
 }
 
 /* === Type Aliases === */
+
 type Refusal = Pin<Box<dyn Future<Output = Option<Status>> + Send>>;
 
 /* === Structs === */
+
 struct Case {
     path: &'static str,
     call: fn(Channel, Option<&'static str>) -> Refusal,
@@ -289,6 +297,7 @@ struct Case {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
     match token {
         Some(token) => auth(message, token),
@@ -297,7 +306,7 @@ fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
 }
 
 fn cases() -> impl Iterator<Item = &'static Case> {
-    use dokime_runtime::operations::runtime::{GetHealth, GetIdentity};
+    use dokime::operations::runtime::{GetHealth, GetIdentity};
     static OPERATIONS: &[Case] = &[
         Case { path: GetHealth::PATH, call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH) },
         Case { path: GetIdentity::PATH, call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH) },

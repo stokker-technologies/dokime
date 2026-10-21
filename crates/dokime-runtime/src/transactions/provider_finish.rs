@@ -328,10 +328,9 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
         .map(|execution| execution.test_execution_id.clone())
         .collect::<Vec<_>>();
     let mut failed = false;
-    let mut stop_after = None;
     let mut terminal_records = Vec::new();
 
-    for (index, execution_id) in execution_ids.iter().enumerate() {
+    for execution_id in &execution_ids {
         let Some(existing) = cycle.test_executions.iter().find(|execution| &execution.test_execution_id == execution_id).cloned() else {
             continue;
         };
@@ -359,18 +358,7 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
         if let Some(record) = terminal_execution_record(&execution, &case.metadata.label) {
             terminal_records.push(record);
         }
-        let passed = execution.status == ExecutionStatus::Passed;
         upsert_execution(&mut cycle.test_executions, execution);
-        if !bounded && !passed && !stopped && !cycle.continue_on_failure {
-            stop_after = Some(index);
-            break;
-        }
-    }
-    if let Some(index) = stop_after {
-        let unattempted = &execution_ids[index + 1..];
-        if !bounded {
-            cycle.test_executions.retain(|execution| !unattempted.contains(&execution.test_execution_id));
-        }
     }
     if stopped {
         for execution in &mut cycle.test_executions {

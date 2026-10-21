@@ -130,7 +130,7 @@ impl State {
                         params![receipt.mutation.window.as_str(), receipt.mutation.key.as_str(), expires, encoded],
                     )?;
                 }
-                transaction.commit()?;
+                super::super::commit(transaction)?;
                 Ok(())
             })())
         })

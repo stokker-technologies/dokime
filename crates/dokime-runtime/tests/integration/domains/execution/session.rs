@@ -255,7 +255,7 @@ async fn cancellation_retains_verdict() {
         let provider = Provider(probe.clone());
         let (mut owner, handle) = started(config(root.path()).register(Arc::new(provider))).await;
         let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
-        let cycle_id = start_cases(&handle, metadata("session.cancel", "Cancellation"), materialize_cases(SOURCE, &suite), false).await;
+        let cycle_id = start_cases(&handle, metadata("session.cancel", "Cancellation"), materialize_cases(SOURCE, &suite)).await;
         let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
         assert_eq!(receipt.status, CommandStatus::Accepted);
         probe.entered.notified().await;
@@ -319,7 +319,7 @@ async fn ignored_stop(mode: Settlement) {
     let probe = Arc::new(Probe::new(mode));
     let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
-    let cycle_id = start_cases(&handle, metadata("session.ignored", "Ignored Stop"), materialize_cases(SOURCE, &suite), false).await;
+    let cycle_id = start_cases(&handle, metadata("session.ignored", "Ignored Stop"), materialize_cases(SOURCE, &suite)).await;
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     probe.entered.notified().await;
@@ -335,7 +335,7 @@ async fn ignored_stop(mode: Settlement) {
     // The paused clock reaches the stop budget only while the runtime is idle: forcing it forward
     // with `advance` also expired storage deadlines of writes still in flight on a slow machine,
     // failing the journal capture and leaving the run unsettled.
-    tokio::time::sleep(Duration::from_secs(31)).await;
+    tokio::time::sleep(Duration::from_secs(dokime_domain::STOP_SETTLEMENT_SECONDS + 1)).await;
     tokio::time::resume();
     stopping.await.unwrap();
     wait_for_run_settled(&handle, &receipt.command_id).await;
@@ -353,7 +353,11 @@ async fn ignored_stop(mode: Settlement) {
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
     let log = files.iter().find(|file| file.relative_path.ends_with("stream.log")).unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
-    assert!(String::from_utf8(log.bytes).unwrap().contains("the run did not answer its stop within 30 seconds"));
+    assert!(
+        String::from_utf8(log.bytes)
+            .unwrap()
+            .contains(&format!("the run did not answer its stop within {} seconds", dokime_domain::STOP_SETTLEMENT_SECONDS))
+    );
     probe.released.send_replace(true);
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -370,7 +374,7 @@ async fn provider_failure_releases() {
         dokime_host::HostTelemetryConfig::default().with_source(dokime_host::HostTelemetrySourceKind::Fixture),
     ));
     let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
-    let cycle_id = start_cases(&handle, metadata("session.failure", "Provider Failure"), materialize_cases(SOURCE, &suite), false).await;
+    let cycle_id = start_cases(&handle, metadata("session.failure", "Provider Failure"), materialize_cases(SOURCE, &suite)).await;
     let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     probe.entered.notified().await;
@@ -382,7 +386,8 @@ async fn provider_failure_releases() {
     probe.released.send_replace(true);
     wait_for_run_settled(&handle, &receipt.command_id).await;
     let failed = cycle_snapshot(&handle, &cycle_id).await;
-    assert_eq!(failed.lifecycle, CycleStatus::Failed);
+    assert_eq!(failed.lifecycle, CycleStatus::Ready, "a failed request leaves its Active cycle idle");
+    assert_eq!(failed.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Blocked));
     // The provider failed inside its open step, so the host interrupts it.
     assert_eq!(failed.test_executions[0].status, ExecutionStatus::Interrupted);
     assert!(*probe.cancellation.borrow(), "failure cleanup cancels the provider");

@@ -64,7 +64,6 @@ pub struct TemplateContext {
     document: Option<DocumentDefinition>,
     steps: Vec<Step>,
     criteria: Vec<CriterionDefinition>,
-    continue_on_failure: bool,
     prompts: Vec<crate::prompts::PromptDefinition>,
     subscriptions: Vec<super::Subscription>,
     attributes: BTreeMap<String, Value>,
@@ -191,7 +190,6 @@ impl TemplateContext {
             document: None,
             steps: Vec::new(),
             criteria: Vec::new(),
-            continue_on_failure: false,
             prompts: Vec::new(),
             subscriptions: Vec::new(),
             attributes: BTreeMap::new(),
@@ -244,10 +242,6 @@ impl TemplateContext {
         }
     }
 
-    pub fn set_continue_on_failure(&mut self, continue_on_failure: bool) {
-        self.continue_on_failure = continue_on_failure;
-    }
-
     pub fn set_prompts(&mut self, prompts: impl IntoIterator<Item = crate::prompts::PromptDefinition>) {
         self.prompts = prompts.into_iter().collect();
     }
@@ -298,7 +292,6 @@ impl TemplateContext {
             document: self.document,
             phases,
             criteria: self.criteria,
-            continue_on_failure: self.continue_on_failure,
             prompt_definitions: self.prompts,
             subscriptions: self.subscriptions,
             attributes,

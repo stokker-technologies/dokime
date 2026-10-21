@@ -140,9 +140,22 @@ impl FtpSource {
             let start = usize::try_from(offset).map_err(|_| ReadFailure::Failed(invalid("the resume offset overflows")))?;
             match tokio::time::timeout(COMMAND_TIMEOUT, connection.resume_transfer(start)).await {
                 Ok(Ok(())) => {}
-                Ok(Err(FtpError::UnexpectedResponse(_))) => {
+                Ok(Err(FtpError::UnexpectedResponse(response)))
+                    if matches!(
+                        response.status,
+                        suppaftp::Status::BadCommand
+                            | suppaftp::Status::BadArguments
+                            | suppaftp::Status::NotImplemented
+                            | suppaftp::Status::NotImplementedParameter
+                    ) =>
+                {
                     self.connection = Some(connection);
                     return Err(ReadFailure::ResumeUnsupported);
+                }
+                Ok(Err(FtpError::UnexpectedResponse(response))) => {
+                    return Err(ReadFailure::Failed(invalid(format!(
+                        "FTP resume was refused for {relative:?}: {response}; verify permissions and source path"
+                    ))));
                 }
                 Ok(Err(source)) => {
                     return Err(ReadFailure::Failed(unreachable_source(format!("{relative}: {source}"))));
@@ -154,7 +167,16 @@ impl FtpSource {
         }
 
         // Copy At Most The Listed Length, Then Complete The Transfer
-        let mut stream = bounded(connection.retr_as_stream(&remote)).await?;
+        let mut stream = match tokio::time::timeout(COMMAND_TIMEOUT, connection.retr_as_stream(&remote)).await {
+            Ok(Ok(stream)) => stream,
+            Ok(Err(FtpError::UnexpectedResponse(response))) => {
+                return Err(ReadFailure::Failed(invalid(format!(
+                    "FTP retrieval was refused for {relative:?}: {response}; verify permissions and source path"
+                ))));
+            }
+            Ok(Err(source)) => return Err(ReadFailure::Failed(unreachable_source(source))),
+            Err(_) => return Err(ReadFailure::Failed(unreachable_source("FTP retrieval setup timed out"))),
+        };
         let copied = tokio::time::timeout(TRANSFER_TIMEOUT, async { tokio::io::copy(&mut (&mut stream).take(length), sink).await })
             .await
             .map_err(|_| unreachable_source(format!("{relative}: the transfer timed out")))?
@@ -198,7 +220,14 @@ impl FtpSource {
                 Err(_) => return Err(unreachable_source("the directory listing timed out")),
             }
         }
-        bounded(connection.list(Some(remote))).await
+        match tokio::time::timeout(COMMAND_TIMEOUT, connection.list(Some(remote))).await {
+            Ok(Ok(lines)) => Ok(lines),
+            Ok(Err(FtpError::UnexpectedResponse(response))) if response.status == suppaftp::Status::FileUnavailable => Err(invalid(
+                "FTP directory unavailable (550): it may be absent or permission denied. Create the directory and grant listing access before watching; automatic root waiting cannot distinguish these causes",
+            )),
+            Ok(Err(source)) => Err(unreachable_source(source)),
+            Err(_) => Err(unreachable_source("the directory listing timed out")),
+        }
     }
 
     fn parse(&self, line: &str) -> Option<Listed> {

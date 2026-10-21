@@ -44,7 +44,7 @@ pub struct RuntimeInstalledPluginAsset {
 
 pub struct CapturedAppearance {
     pub frame: RuntimeAppearanceFrame,
-    pub logo: Option<RuntimeInstalledPluginAsset>,
+    pub logos: Vec<Option<RuntimeInstalledPluginAsset>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -112,8 +112,10 @@ pub(crate) fn construction_memory(state: &crate::RuntimeState, brand: Option<&Re
     {
         bytes = bytes.saturating_add(theme.as_str().len());
     }
-    if let Some(asset) = customization.logo_assets.first() {
+    for asset in &customization.logo_assets {
         bytes = bytes
+            .saturating_add(std::mem::size_of::<RuntimeAppLogo>())
+            .saturating_add(std::mem::size_of::<Option<RuntimeInstalledPluginAsset>>())
             .saturating_add(plugin_id.len())
             .saturating_add(asset.asset_id.as_str().len())
             .saturating_add(logo_url_length(plugin_id, asset))
@@ -148,7 +150,7 @@ pub(crate) fn captured_logo_asset(
     state: &crate::RuntimeState, brand: Option<&ResolvedBrand>, logo: &RuntimeAppLogo,
 ) -> Option<RuntimeInstalledPluginAsset> {
     let (plugin_id, customization) = selected_customization(state, brand)?;
-    let asset = customization.logo_assets.first()?;
+    let asset = customization.logo_assets.iter().find(|asset| asset.asset_id == logo.asset_id && asset.variant == logo.variant)?;
     if plugin_id != logo.plugin_id.as_str() || asset.asset_id != logo.asset_id {
         return None;
     }
@@ -160,8 +162,8 @@ pub(crate) fn capture_appearance_state(
 ) -> Result<CapturedAppearance, AppearanceLimitExceeded> {
     preflight_appearance(state, brand, max_bytes)?;
     let frame = captured_appearance(state, brand);
-    let logo = frame.logo.as_ref().and_then(|logo| captured_logo_asset(state, brand, logo));
-    Ok(CapturedAppearance { frame, logo })
+    let logos = frame.logos.iter().map(|logo| captured_logo_asset(state, brand, logo)).collect();
+    Ok(CapturedAppearance { frame, logos })
 }
 
 /* === Private Functions === */
@@ -190,13 +192,13 @@ fn appearance_frame(themes: Vec<RuntimeThemeFamily>, selected: Option<(&str, &Ap
     };
 
     let (active_theme, theme_family_locked, mode_policy) = resolve_policy(&customization.theme_policy, &themes);
-    let logo = customization.logo_assets.first().map(|asset| runtime_logo(plugin_id, asset));
+    let logos = customization.logo_assets.iter().map(|asset| runtime_logo(plugin_id, asset)).collect();
 
     RuntimeAppearanceFrame {
         app_name: customization.display_name.clone().unwrap_or_else(|| DEFAULT_APP_NAME.to_owned()),
         organization: customization.organization.clone(),
         title_template: customization.title_template.clone().or_else(|| Some("{app}".to_owned())),
-        logo,
+        logos,
         themes,
         active_theme,
         theme_family_locked,
@@ -250,7 +252,7 @@ fn neutral_frame(themes: Vec<RuntimeThemeFamily>) -> RuntimeAppearanceFrame {
         app_name: DEFAULT_APP_NAME.to_owned(),
         organization: None,
         title_template: Some("{app}".to_owned()),
-        logo: None,
+        logos: Vec::new(),
         themes,
         active_theme: None,
         theme_family_locked: false,
@@ -316,6 +318,7 @@ fn runtime_logo(plugin_id: &str, asset: &AppLogoAsset) -> RuntimeAppLogo {
     url.push_str("/assets/");
     url.push_str(asset.asset_id.as_str());
     RuntimeAppLogo {
+        variant: asset.variant,
         plugin_id: Identifier::new(plugin_id).expect("installed source is valid"),
         asset_id: asset.asset_id.clone(),
         url,

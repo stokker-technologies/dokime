@@ -844,12 +844,6 @@ fn cycle_traceability_entries(cycle: &CycleView) -> Vec<TraceabilityEntry> {
         entry("cycle.updated_at", "Cycle Updated At", Value::from(cycle.updated_at.to_string()), TEST_EXECUTION_TRACEABILITY.source),
         entry("cycle.label", "Cycle Label", Value::from(cycle.metadata.label.clone()), TEST_EXECUTION_TRACEABILITY.source),
         entry("cycle.case_count", "Case Count", Value::Integer(cycle.cases().count() as i64), TEST_EXECUTION_TRACEABILITY.source),
-        entry(
-            "cycle.continue_on_failure",
-            "Continue On Failure",
-            Value::from(cycle.continue_on_failure),
-            TEST_EXECUTION_TRACEABILITY.source,
-        ),
     ]
 }
 

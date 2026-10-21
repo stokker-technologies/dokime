@@ -675,9 +675,14 @@ impl Runtime {
                 .map_err(operation)?;
         }
         let cycles = self.handle.state_read().cycles.keys().cloned().collect::<Vec<_>>();
+        if cycles.is_empty() {
+            return Ok(());
+        }
         for cycle in cycles {
             self.handle.seal_cycle_inner(cycle, crate::CommandContext::default()).await?;
         }
+        // The Stop Left These Active; Once Sealed They Are Served From Native History Like Any Earlier Session's.
+        self.handle.commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() }).await.map_err(operation)?;
         Ok(())
     }
 }

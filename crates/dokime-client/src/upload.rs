@@ -56,7 +56,7 @@ impl Client {
         let file = tokio::fs::File::open(source).await?;
         header.size_bytes = file.metadata().await?.len();
         header.sha256 = None;
-        let chunk_bytes = self.request_limit().saturating_sub(64).min(1024 * 1024);
+        let chunk_bytes = super::plugins::chunk_bytes(self.backend().limits.max_chunk_bytes, self.request_limit());
         if chunk_bytes == 0 {
             return Err(Error::Invalid("negotiated frame limit cannot carry upload data"));
         }

@@ -10,6 +10,7 @@
 /* === Modules === */
 pub(crate) mod artifacts;
 pub(crate) mod authoring;
+pub(crate) mod cancel;
 pub(crate) mod contention;
 pub(crate) mod definition;
 pub(crate) mod diagnostics;

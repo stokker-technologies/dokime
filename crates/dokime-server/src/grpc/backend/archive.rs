@@ -21,11 +21,9 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::{bundle, chunked, value::canonical};
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
 
 /* === Constants === */
-
-const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
@@ -33,7 +31,7 @@ const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Structs === */
 
-struct Frames(Response<dokime_domain::model::backend::wire::DiagnosticsBundleFrame>);
+struct Frames(Response<dokime::domain::model::backend::wire::DiagnosticsBundleFrame>);
 
 /* === Enums === */
 
@@ -42,7 +40,7 @@ struct Frames(Response<dokime_domain::model::backend::wire::DiagnosticsBundleFra
 /* === Implementations === */
 
 impl chunked::Frames for Frames {
-    type Frame = dokime_domain::model::backend::wire::DiagnosticsBundleFrame;
+    type Frame = dokime::domain::model::backend::wire::DiagnosticsBundleFrame;
     fn metadata(&self) -> Self::Frame {
         self.0.as_ref().clone()
     }
@@ -50,16 +48,16 @@ impl chunked::Frames for Frames {
         Some(self.0.clone())
     }
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        dokime_domain::model::backend::wire::DiagnosticsBundleFrame {
-            payload: Some(dokime_domain::model::backend::wire::DiagnosticsBundleFramePayload::Chunk(
-                dokime_domain::model::backend::wire::DiagnosticsBundleChunk { offset, data },
+        dokime::domain::model::backend::wire::DiagnosticsBundleFrame {
+            payload: Some(dokime::domain::model::backend::wire::DiagnosticsBundleFramePayload::Chunk(
+                dokime::domain::model::backend::wire::DiagnosticsBundleChunk { offset, data },
             )),
         }
     }
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        dokime_domain::model::backend::wire::DiagnosticsBundleFrame {
-            payload: Some(dokime_domain::model::backend::wire::DiagnosticsBundleFramePayload::Complete(
-                dokime_domain::model::backend::wire::DiagnosticsBundleCompletion { size_bytes, sha256 },
+        dokime::domain::model::backend::wire::DiagnosticsBundleFrame {
+            payload: Some(dokime::domain::model::backend::wire::DiagnosticsBundleFramePayload::Complete(
+                dokime::domain::model::backend::wire::DiagnosticsBundleCompletion { size_bytes, sha256 },
             )),
         }
     }
@@ -68,16 +66,16 @@ impl chunked::Frames for Frames {
 /* === Public Functions === */
 
 pub(super) async fn deliver(
-    runtime: &RuntimeHandle, identity: &dokime_domain::model::backend::wire::BackendIdentity, maximum: usize, tail: Option<u64>,
-    output: &mut StreamOutput<dokime_domain::model::backend::wire::DiagnosticsBundleFrame>,
+    runtime: &RuntimeHandle, identity: &dokime::domain::model::backend::wire::BackendIdentity, maximum: usize, tail: Option<u64>,
+    output: &mut StreamOutput<dokime::domain::model::backend::wire::DiagnosticsBundleFrame>,
 ) -> Result<(), Status> {
     let archive = super::collect(runtime, identity, bundle::log_tail_ceiling(tail)).await?;
     let size_bytes = archive.bytes.len() as u64;
     let bytes = archive.bytes;
     let header = super::status::produce_result(maximum, || {
-        Ok(dokime_domain::model::backend::wire::DiagnosticsBundleFrame {
-            payload: Some(dokime_domain::model::backend::wire::DiagnosticsBundleFramePayload::Header(
-                dokime_domain::model::backend::wire::DiagnosticsBundleHeader {
+        Ok(dokime::domain::model::backend::wire::DiagnosticsBundleFrame {
+            payload: Some(dokime::domain::model::backend::wire::DiagnosticsBundleFramePayload::Header(
+                dokime::domain::model::backend::wire::DiagnosticsBundleHeader {
                     filename: archive.filename,
                     content_type: "application/zip".into(),
                     generated_at: Some(canonical::timestamp(&archive.generated_at)?),
@@ -85,7 +83,7 @@ pub(super) async fn deliver(
                     entries: archive
                         .entries
                         .iter()
-                        .map(|entry| dokime_domain::model::backend::wire::DiagnosticsBundleEntry {
+                        .map(|entry| dokime::domain::model::backend::wire::DiagnosticsBundleEntry {
                             path: entry.path.clone(),
                             size_bytes: entry.size_bytes,
                             present: entry.present,
@@ -103,7 +101,7 @@ pub(super) async fn deliver(
         sha256: Some(archive.sha256),
         noun: "diagnostics archive",
         read_failure: "diagnostics archive could not be read",
-        chunk_bytes: CHUNK_BYTES.min(maximum.saturating_sub(256)),
+        chunk_bytes: super::super::content::download_chunk_bytes(maximum),
         message_limit: maximum,
     }
     .run(output)

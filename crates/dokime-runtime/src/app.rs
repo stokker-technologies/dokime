@@ -107,7 +107,7 @@ pub(crate) fn builder(origin: impl Into<Origin>, resources: Resources) -> Builde
 pub async fn launch(config: Config) -> crate::runtime::Result<crate::Runtime> {
     let (runtime_config, mut startup) = config.into_runtime_config();
     if let Some(brand) = &mut startup.brand {
-        brand.materialize_logo(&runtime_config.paths().cache().join("brand"))?;
+        brand.materialize_logos(&runtime_config.paths().cache().join("brand"))?;
     }
     let runtime = crate::Runtime::start(runtime_config).await?;
     let handle = runtime.handle();

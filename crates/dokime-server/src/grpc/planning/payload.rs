@@ -21,10 +21,10 @@ use tonic::Status;
 
 // Local Imports
 use super::rejection;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::values::Value;
-use dokime_runtime::definition::parameters::limits;
-use dokime_runtime::definition::{ParameterDefinition, TestCase, TestCaseTemplate};
+use dokime::definition::parameters::limits;
+use dokime::definition::{ParameterDefinition, TestCase, TestCaseTemplate};
+use dokime::domain::model::identity::Metadata;
+use dokime::domain::model::values::Value;
 
 /* === Constants === */
 

@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod pagination;
 
 pub(crate) mod search;
@@ -28,6 +29,7 @@ pub(crate) mod documents_execution;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
@@ -36,11 +38,11 @@ use prost::Message;
 use tokio::sync::Notify;
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_domain::model::execution::result::CycleView;
-use dokime_runtime::domains::ExecutionProviderTarget;
-use dokime_runtime::transport::ProviderExecutionFailure;
-use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
+use dokime::domain::model;
+use dokime::domain::model::execution::result::CycleView;
+use dokime::domains::ExecutionProviderTarget;
+use dokime::transport::ProviderExecutionFailure;
+use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
 
@@ -49,6 +51,7 @@ use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixture
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Progress;
 
 #[derive(Default)]
@@ -72,6 +75,7 @@ struct Gated {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFixture for Progress {
     fn run_cycle<'a>(
         &'a self, _context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
@@ -118,7 +122,9 @@ impl Gated {
 }
 
 /* === Public Functions === */
+
 /* === Private Functions === */
+
 #[tokio::test]
 async fn registered_create_definitions() {
     let root = tempfile::tempdir().unwrap();
@@ -208,7 +214,7 @@ async fn registered_create_definitions() {
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status == model::execution::wire::CycleStatus::Completed {
+            if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
                 assert_eq!(cycle.execution_count, 1);
                 let attempts = execution
                     .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -429,7 +435,7 @@ async fn checkpoint_telemetry_queries() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(
                 history
                     .unary::<contracts::history::BrowseExecutions>(authenticated(contracts::history::BrowseExecutions {
@@ -517,14 +523,14 @@ async fn historical_checkpoint_content() {
     gate.started.notified().await;
     gate.release.notify_one();
     support::on_state_change(&owner.handle(), async || {
-        if execution
-            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &execution
+                .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None
@@ -594,7 +600,7 @@ async fn historical_checkpoint_content() {
         definition.parameters,
         vec![model::execution::wire::CaseParameter {
             name: "fixture.result".into(),
-            value: Some(model::values::wire::Value::from(&dokime_runtime::Value::Text("passed".into()))),
+            value: Some(model::values::wire::Value::from(&dokime::Value::Text("passed".into()))),
         }]
     );
     assert!(frozen_snapshot.host_version.as_ref().is_some_and(|version| !version.is_empty()));
@@ -779,7 +785,10 @@ async fn invalid_admission_values() {
     );
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles { limit: 101, ..Default::default() })
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
+                limit: dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1,
+                ..Default::default()
+            })
             .await
             .unwrap_err()
             .code(),
@@ -839,14 +848,14 @@ async fn stalled_stream_execution() {
     let next = service.listen().await.unwrap();
     let client = WireClient::connect(next.local_endpoint()).await.unwrap();
     support::on_state_change(&owner.handle(), async || {
-        if client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() })
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &client
+                .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() })
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None
@@ -904,7 +913,7 @@ async fn run_cycle_targets() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(cycle);
         }
         None

@@ -10,6 +10,7 @@
 /* === Modules === */
 
 mod append_executions;
+mod cancel_execution;
 mod copy_cycle;
 mod create_cycle;
 mod delete_case;
@@ -23,7 +24,6 @@ mod list_cycles;
 mod list_execution_parameters;
 mod list_execution_steps;
 mod list_executions;
-mod list_step_criteria;
 mod pause_cycle;
 mod pause_execution;
 mod rename_cycle;
@@ -41,6 +41,7 @@ mod update_cycle_policy;
 /* === Re-Exports === */
 
 pub use append_executions::{AppendExecutions, ExecutionBinding};
+pub use cancel_execution::CancelExecution;
 pub use copy_cycle::CopyCycle;
 pub use create_cycle::CreateCycle;
 pub use delete_case::DeleteCase;
@@ -54,7 +55,6 @@ pub use list_cycles::ListCycles;
 pub use list_execution_parameters::ListExecutionParameters;
 pub use list_execution_steps::ListExecutionSteps;
 pub use list_executions::ListExecutions;
-pub use list_step_criteria::ListStepCriteria;
 pub use pause_cycle::PauseCycle;
 pub use pause_execution::PauseExecution;
 pub use rename_cycle::RenameCycle;
@@ -77,7 +77,7 @@ pub use update_cycle_policy::UpdateCyclePolicy;
 
 // Local Imports
 use super::Endpoint;
-use super::ORDINARY;
+use super::{MUTATION, ORDINARY};
 
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
@@ -156,7 +156,6 @@ use crate::model::planning::wire::*;
 #[harmos_domain::catalog]
 pub enum Operations {
     ListExecutionSteps(ListExecutionSteps),
-    ListStepCriteria(ListStepCriteria),
     CopyCycle(CopyCycle),
     CreateCycle(CreateCycle),
     GetCycle(GetCycle),
@@ -172,6 +171,7 @@ pub enum Operations {
     PauseExecution(PauseExecution),
     ResumeExecution(ResumeExecution),
     StopExecution(StopExecution),
+    CancelExecution(CancelExecution),
     SubmitExecutionCommand(SubmitExecutionCommand),
     GetExecutionCommand(GetExecutionCommand),
     PauseCycle(PauseCycle),
@@ -191,10 +191,6 @@ pub enum Operations {
 
 impl Endpoint for ListExecutionSteps {
     const PATH: &'static str = "/dokime.v1.Execution/ListExecutionSteps";
-}
-
-impl Endpoint for ListStepCriteria {
-    const PATH: &'static str = "/dokime.v1.Execution/ListStepCriteria";
 }
 
 impl Endpoint for CopyCycle {
@@ -255,6 +251,10 @@ impl Endpoint for ResumeExecution {
 
 impl Endpoint for StopExecution {
     const PATH: &'static str = "/dokime.v1.Execution/StopExecution";
+}
+
+impl Endpoint for CancelExecution {
+    const PATH: &'static str = "/dokime.v1.Execution/CancelExecution";
 }
 
 impl Endpoint for SubmitExecutionCommand {

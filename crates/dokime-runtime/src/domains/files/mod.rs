@@ -26,6 +26,7 @@ mod watch;
 pub use dokime_domain::model::files::wire::FileWatchGapReason as GapReason;
 pub use dokime_domain::model::files::wire::FileWatchPhase as Phase;
 pub use dokime_domain::model::files::wire::FileWatchPolicy as Policy;
+pub use dokime_domain::model::files::wire::FileWatchSelection as Selection;
 pub use operation::{Resources as StepBuiltins, register};
 pub use watch::{FileWatch, WatchEvent};
 
@@ -94,6 +95,9 @@ struct Settings {
     output: String,
     artifact: Option<String>,
     policy: Policy,
+    selection: Selection,
+    wait_for_source: Option<Duration>,
+    single: bool,
     matcher: FileMatcher,
     lines: LineMatchers,
     poll_interval: Duration,
@@ -113,7 +117,7 @@ impl RuntimeHandle {
     // or to the calling step's execution; the two must agree when both exist.
     pub async fn open_file_watch(&self, request: &FileWatchRequest, context_execution: Option<&str>) -> Result<FileWatch> {
         let settings = self.watch_settings(request, context_execution)?;
-        let source = self.watch_source(request.source.as_ref()).await?;
+        let source = self.watch_source(request.source.as_ref(), settings.wait_for_source.is_some()).await?;
         FileWatch::open(self.clone(), settings, source).await
     }
 
@@ -133,6 +137,8 @@ impl RuntimeHandle {
                 rules: vec![FileRule { glob: literal(&file), action: FileRuleAction::Include }],
                 output: request.output.clone(),
                 policy: request.policy,
+                selection: request.selection,
+                wait_for_source_seconds: request.wait_for_source_seconds,
                 poll_interval_ms: request.poll_interval_ms,
                 maximum_seconds: request.maximum_seconds,
                 maximum_files: Some(1),
@@ -150,18 +156,19 @@ impl RuntimeHandle {
             }
         }
         settings.artifact = request.artifact.clone();
+        settings.single = true;
         settings.lines = LineMatchers::compile(&request.matchers, &request.markers).map_err(|source| invalid(source.to_string()))?;
         if !settings.lines.is_empty() && settings.policy != Policy::Stream {
             return Err(invalid("line matchers and markers need the Stream policy"));
         }
         // The named file sits in its parent: no deeper entry can match it.
-        let source = self.watch_source(Some(&source)).await?.single_file();
+        let source = self.watch_source(Some(&source), settings.wait_for_source.is_some()).await?.single_file();
         FileWatch::open(self.clone(), settings, source).await
     }
 
-    async fn watch_source(&self, source: Option<&FileWatchSource>) -> Result<Source> {
+    async fn watch_source(&self, source: Option<&FileWatchSource>, wait: bool) -> Result<Source> {
         Ok(match source.and_then(|source| source.payload.as_ref()) {
-            Some(FileWatchSourcePayload::Local(local)) => Source::local(&local.root).await?,
+            Some(FileWatchSourcePayload::Local(local)) => Source::local(&local.root, wait).await?,
             Some(FileWatchSourcePayload::Ftp(ftp)) => {
                 let password = match &ftp.credential_id {
                     Some(id) => Some(self.watch_credential(id).await?),
@@ -217,6 +224,12 @@ impl RuntimeHandle {
             seconds => seconds.map(|seconds| Duration::from_secs(seconds.into())),
         };
         let maximum_files = request.maximum_files.map_or(DEFAULT_FILES, |files| files as usize);
+        let wait_for_source = match request.wait_for_source_seconds {
+            Some(seconds) if seconds == 0 || seconds > MAXIMUM_SECONDS => {
+                return Err(invalid(format!("the source wait must be 1–{MAXIMUM_SECONDS} seconds")));
+            }
+            seconds => seconds.map(|seconds| Duration::from_secs(seconds.into())),
+        };
         if maximum_files == 0 || maximum_files > MAXIMUM_FILES {
             return Err(invalid(format!("a watch may track 1–{MAXIMUM_FILES} files")));
         }
@@ -229,6 +242,9 @@ impl RuntimeHandle {
             output: request.output.clone(),
             artifact: None,
             policy: request.policy,
+            selection: request.selection,
+            wait_for_source,
+            single: false,
             matcher,
             lines: LineMatchers::default(),
             poll_interval,

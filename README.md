@@ -1,5 +1,18 @@
 # Dokime
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/logos/transparent-on-dark.svg">
+    <img src="branding/logos/transparent-on-light.svg" alt="Dokime logo" width="240">
+  </picture>
+</p>
+
+[![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml?query=branch%3Adev)
+[![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
+[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
+[![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases/latest)
+[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE-APACHE)
+
 **Run repeatable engineering tests. Keep the evidence.**
 
 Dokime turns hardware and software test procedures into operator workflows,
@@ -115,8 +128,9 @@ Active. Select the destination cycle in the Library before adding attempts.
 **Seal Cycle** closes admission immediately, stops that cycle's running work,
 cancels unrun executions and waits for every execution and the cycle report to
 be durably saved. The phase advances through **Sealing** to **Sealed**. Other
-cycles continue. Shutdown seals all Active cycles; startup finishes sealing
-previous-session cycles without replaying device operations.
+cycles continue. Shutdown stops running executions without regenerating cycle
+reports. Startup seals previous-session Active cycles without replaying device
+operations.
 
 For a charger campaign, one template might measure steady-state charging while
 another checks overcurrent protection. Cartesian expansion turns the operating
@@ -282,7 +296,7 @@ Ctrl+C stops waiting locally. A timeout or disconnection after dispatch can leav
 the device outcome unknown, even when no response was received. Check device
 state before manually resending; calls are never retried automatically. Manual
 operations can affect a running test and are not logged into its execution
-evidence. From Rust, `dokime_client::Client::call_operation` uses the same live
+evidence. From Rust, `dokime::client::Client::call_operation` uses the same live
 contract discovery and shared Harmos codec:
 
 ```rust
@@ -462,8 +476,8 @@ remote work running; `execution stop EXECUTION_ID` requests a cooperative stop.
 Several cycles can stay Active, with one execution running server-wide.
 `continue_automatically` defaults to false. To let the server continue with
 the next unstarted member after natural completion and durable sealing, create
-the cycle with `--continue-automatically`. `--continue-on-failure` controls
-failure continuation. Explicit execution Stop durably sets the cycle's
+the cycle with `--continue-automatically`. A failed execution is a result, not
+a reason to halt: continuation proceeds regardless of verdicts. Explicit execution Stop durably sets the cycle's
 `continue_automatically=false`. Later explicit Start runs only the selected
 attempt until the user explicitly re-enables that policy.
 Appending to an idle cycle starts no hardware, and reaching the end keeps the
@@ -582,7 +596,6 @@ policy alongside its metadata:
     "updated_at": null
   },
   "continue_automatically": false,
-  "continue_on_failure": false,
   "context": null
 }
 ```
@@ -614,9 +627,10 @@ A shortened version of OBC's
 nine-case voltage/load sweep:
 
 ```rust
-use dokime_runtime::definition::ParameterDefault;
+// Cargo.toml: dokime = { git = "https://github.com/stokker-technologies/dokime", features = ["plugin"] }
+use dokime::definition::ParameterDefault;
 
-#[dokime_runtime::parameters]
+#[dokime::parameters]
 pub struct Parameters {
     #[parameter(
         label = "AC Voltage (RMS)", unit = "V",
@@ -648,7 +662,7 @@ This excerpt is the template's measurement observer. `InputMeasurement`,
 `Samples`, `ObserverStreams`, and `reading` belong to the example:
 
 ```rust
-#[dokime_runtime::observer(interval_ms = 5, streams = ObserverStreams)]
+#[dokime::observer(interval_ms = 5, streams = ObserverStreams)]
 async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
     let row = reading(ctx.resources())?;
     ctx.stream::<InputMeasurement>()
@@ -664,7 +678,7 @@ summary through `ctx.artifacts()`. Its criterion checks that enough samples
 were captured and that the completion record accepted the run:
 
 ```rust
-#[dokime_runtime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
+#[dokime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
 fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
     Ok(
         ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
@@ -693,7 +707,7 @@ simulated charger's log this way:
 ```rust
 let watch = ctx
     .host()
-    .submit_as::<WatchFile>(WatchFileRequest {
+    .submit(WatchFile {
         execution_id: None,
         source: Some(FileWatchSource {
             payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
@@ -703,6 +717,8 @@ let watch = ctx
         output: "charger".into(),
         artifact: Some("charger/device.log".into()),
         policy: FileWatchPolicy::Stream,
+        selection: FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: Some(100),
         maximum_seconds: Some(1),
         maximum_bytes: None,
@@ -712,9 +728,17 @@ let watch = ctx
         markers: Vec::new(),
     })
     .await?;
-// The watch takes its baseline first; the charger then logs its readings.
+watch.armed().await?;
+// The baseline is established; the charger can now start logging its readings.
 let captured = watch.join().await?.into_owned();
 ```
+
+`All` follows baseline files and later arrivals. `Latest` selects the newest
+baseline file, while `New` captures only files discovered after the baseline.
+Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
+file beneath an accessible root may appear later. Unavailable FTP roots fail
+immediately because FTP status 550 cannot distinguish missing roots from denied
+access. Permission and invalid-path failures remain immediate.
 
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
@@ -765,17 +789,100 @@ verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
 
+## CLI Reference
+
+The `dokime-cli` package installs the `dokime` executable.
+
+`dokime` connects to a backend; `cargo dokime` authors plugin bundles. Every
+command prints its full flags with `--help`. Commands that connect accept
+`--endpoint` or `--backend`, `--key-file` (or `DOKIME_KEY`), `--ca`,
+`--env-file` and `--timeout-seconds`; most accept `--json` for scripts.
+
+### Connection And Backends
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--expected-backend` |
+| `dokime auth login\|status\|logout` | Validate, save or remove local credentials. | `--key-file` |
+| `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--endpoint`, `--keyring`, `--profiles-file` |
+| `dokime serve` | Run the installed `dokime-server`; arguments after `--` pass through. | `--server` |
+| `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
+
+### Catalog And Plans
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime catalog list\|show` | Browse registered suites and their templates. | `--json` |
+| `dokime plan preview` | Preview cases without registering them. | `--template`, `--parameters-json` |
+| `dokime plan register` | Register cases with a caller-retained idempotency key. | `--template`, `--request-key`, `--max-cases` |
+| `dokime plan materialize` | Materialize template cases without creating executions. | `--template`, `--parameters-json`, `--id-only` |
+
+### Cycles And Executions
+
+Exercised by [control-test](packages/dokime-client/examples/remote/cli/control-test.sh)
+and [control-prompt](packages/dokime-client/examples/remote/cli/control-prompt.sh).
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime cycle create` | Create an empty active cycle. | `--label`, `--continue-automatically`, `--id-only` |
+| `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
+| `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
+| `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |
+| `dokime execution start\|run` | Start one execution; `run` also waits for its seal. | `--mode`, `--wait-seconds`, `--samples` |
+| `dokime execution wait\|stop` | Wait for a durable outcome or stop one execution. | `--wait-seconds` |
+| `dokime execution prompt next\|show\|answer` | Find, inspect and answer an execution's prompts. | `--action`, `--values-json` |
+| `dokime execution export` | Download a sealed execution's evidence. | `--output`, `--overwrite` |
+
+### Operations And Plugins
+
+Exercised by [control-device](packages/dokime-client/examples/remote/cli/control-device.sh).
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime operation list\|show` | Discover operations and their provider contracts. | `--json` |
+| `dokime operation call` | Call a provider and read its items and completion. | `--json`, `--input`, `--output` |
+| `dokime plugin install` | Stage a bundle, review it and authorize next-boot activation. | `--yes` |
+
+### Plugin Authoring
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `cargo dokime new` | Create a native plugin offline. | `--name` |
+| `cargo dokime build` | Compile a plugin and freeze it into a `.dokime` bundle. | `-p`, `--release`, `-o` |
+| `cargo dokime package` | Bundle a collected build without compiling. | `--build-json`, `-o` |
+| `cargo dokime dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
+| `cargo dokime inspect` | Verify a bundle and print its manifest as JSON. | |
+
+## Crate Layout
+
+| Crate | Responsibility |
+| --- | --- |
+| `dokime` | Entry library for plugins, Rust consumers and shipped interfaces. |
+| `dokime-cli` | Installs the `dokime` command; owns parsing and commands. |
+| `dokime-domain` | Internal pure definitions, exposed as `dokime::domain`. |
+| `dokime-runtime` | Internal runtime implementation, re-exported by `dokime`. |
+| `dokime-client` | Remote implementation, exposed as `dokime::client`. |
+| `dokime-server`, `dokime-gui` | Server and desktop interfaces. |
+| `dokime-packaging`, `cargo-dokime` | Plugin packaging and authoring tools. |
+
+The entry library also owns connection, installation and version helpers. With
+`client` enabled, connection errors live under `dokime::client_error`; root
+`dokime::Error` and `dokime::Result` always name the runtime's error contract.
+
 ## Cargo Features
 
-These flags configure the `dokime-runtime` plugin SDK dependency. Desktop
-application users do not need to select them. The default SDK includes native
-plugin support and authoring macros; operation, model and record definitions
-live in `dokime-domain`, which every feature set shares.
+These flags configure the `dokime` entry library. Defaults are empty; plugin
+authors enable `plugin` for native support and authoring macros. Shared
+definitions are available under `dokime::domain` in every feature set.
 
 | Feature | Default | Enables |
 | --- | --- | --- |
-| `native` | Yes | Native plugin SDK, sidecar support, and plugin prelude. |
-| `derive` | Yes | Suite, template, step, observer, and other authoring macros. |
+| `plugin` | No | Native plugin support and authoring macros (`native`, `derive`). |
+| `client` | No | Remote access under `dokime::client` and connection/installation helpers. |
+| `diagnostics` | No | Captured error chains, span traces and backtraces. |
+| `terminal` | No | Shared terminal output used by command-line interfaces and packaging. |
+| `native` | No | Native plugin SDK, sidecar support, and plugin prelude. |
+| `derive` | No | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
 | `host` | No | The application host the server embeds: storage, gRPC and host collectors. |
 | `fft` | No | Spectrum analyses on top of `host`. |
@@ -787,19 +894,19 @@ state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
 fresh storage root. Existing data is never silently reset.
 
-For remote automation, depend on the reusable client crate:
+For remote automation, enable the entry library's client surface:
 
 ```toml
 [dependencies]
-dokime-client = { git = "https://github.com/stokker-technologies/dokime", rev = "<tested-commit>" }
+dokime = { git = "https://github.com/stokker-technologies/dokime", rev = "<tested-commit>", features = ["client"] }
 ```
 
 Replace `<tested-commit>` with the revision used by your integration.
-`dokime-client` owns remote connection, authentication, discovery, listening,
-recovery and profile access. The `dokime` crate owns plugin authoring; its
+`dokime::client` exposes remote connection, authentication, discovery, listening,
+recovery and profile access. The `dokime` crate also exposes plugin authoring; its
 `storage` feature does not enable `native` or `derive` when defaults are disabled.
 Disabling defaults retains the SDK's underlying Harmos dependency. See the
-[SDK manifest](crates/dokime-runtime/Cargo.toml) and
+[Entry Library Manifest](crates/dokime/Cargo.toml) and
 [client manifest](crates/dokime-client/Cargo.toml) for details.
 
 ## Documentation
@@ -807,7 +914,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 - [Remote OBC Walkthrough](packages/dokime-client/examples/remote/README.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
 - [OBC Plugin](plugins/obc-plugin/) — the charger simulation and complete test templates.
 - [Plugin Starter](crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
-- [Runtime And Plugin SDK](crates/dokime-runtime/src/lib.rs) — public authoring APIs and module documentation.
+- [Entry Library And Plugin SDK](crates/dokime/src/lib.rs) — public entry point for authoring APIs.
 - [Client API](crates/dokime-client/src/) — programmatic access to cycles and executions.
 - [Contributing](CONTRIBUTING.md) — repository setup and development workflow.
 
@@ -857,8 +964,20 @@ mise run ci --event pr
 binaries and libraries, the OBC bundle, generated clients, the frontend, the
 Python distribution and its tutorial. It resolves the server contracts before
 compiling the frontend, then builds the desktop shell with those assets
-embedded in both profiles. Dev keeps workspace Rust code unoptimized.
+embedded in both profiles. Dev applies basic optimization to the packaged Rust
+crates while retaining debug information and assertions. Package defaults to
+`dev` and prints the packaged profile; select `--profile release` explicitly
+for release packages.
 Interactive `tauri dev` continues to use the Vite server.
+
+After an intentional Python client change, refresh the tutorial lock from the
+built candidate wheel, then rerun the Python Build and Package tasks:
+
+```sh
+uv run --locked --project tools/python python -m dokime_tools.package.examples --profile dev --relock
+mise run build:python --profile dev
+mise run package:python --profile dev
+```
 
 `build:tests --profile dev` separately compiles the shared test archive and
 test fixtures, requiring the matching Product outputs first. Use `release`
@@ -874,6 +993,16 @@ executables, their matching server/packaging hosts and plugin fixture. It does
 not build a test archive or a desktop GUI. Benchmark executables and compiler
 metadata live under `bench/`, hosts under `bin/`, and plugin fixtures under
 `fixtures/plugins/` within the native bench Build output.
+
+The server system benchmarks use a bench-only OBC capture suite with generated
+100k/200k-row telemetry and two operator prompts. They cover a 50 MiB plugin
+install, running execution and ten-member cycle reports, durable execution
+sealing, operator notes, and the first recovery plot frame containing points.
+Counters distinguish explicit SQLite transaction commits, data batches, native
+file durability confirmations and transferred payload bytes; SQLite autocommit
+statements and the separate Harmos state journal are outside these counters.
+Build with `mise run build:bench`, then run
+`mise run bench:system:rust`; ordinary product builds omit this fixture suite.
 
 `package --profile dev` consumes matching Product outputs without compiling;
 select `release` to package release Product bytes. Tests and Bench outputs are
@@ -919,6 +1048,30 @@ graph from committed source with cold dependency homes;
 `mise run ci:nightly` adds coverage and benches.
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
+
+### Branding
+
+Brand identity is configured in [branding/brand.toml](branding/brand.toml).
+The [logo pack](branding/logos) provides SVG and PNG exports in four categories:
+`transparent-on-light`, `transparent-on-dark`, `contained-on-light`, and
+`contained-on-dark`. The suffix identifies the intended background. The shell
+and captured reports select artwork for the current light or dark surface.
+After changing the pack, run `mise run prepare:branding` and rebuild. Desktop
+icons are regenerated from [the icon master](branding/icons/icon.png), which
+uses the contained light-surface artwork.
+
+An installed desktop can be rebranded without a rebuild. Zip the branding
+folder as is, then choose it under Settings › Appearance › Branding Pack. The
+zip can hold the files at its root or under one top folder. The pack applies
+on the next start and takes precedence over the compiled brand. It can set the
+app label, title template, organization, logos, theme CSS and fonts. The
+slug, bundle identifier, deep-link scheme and OS icon stay compiled into the
+build, so the pack's values for them are ignored. The `icons/` and
+`generated/` folders are skipped. A pack is refused unless it is a zip of at
+most 20 MiB and 200 entries holding only `.toml`, `.css`, `.woff2`, `.svg` and
+`.png` files. Licence `.txt` and `.md` files are skipped. If an active pack
+stops loading, the compiled brand applies and the reason shows under
+Settings › Diagnostics.
 
 ### Generated Clients
 

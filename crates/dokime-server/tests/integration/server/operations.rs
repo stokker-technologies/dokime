@@ -29,6 +29,7 @@ use tokio::sync::Notify;
 use super::{Config, Server, runtime};
 
 /* === Constants === */
+
 const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(10),
     attempt_timeout: std::time::Duration::from_secs(10),
@@ -41,6 +42,7 @@ const POLICY: harmos::operations::OperationPolicy = harmos::operations::Operatio
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 struct Receipt {
     calls: u32,
@@ -71,6 +73,7 @@ struct Handler {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::operations::Operation for Handler {
     type Declaration = Mutate;
     type Resources = Gate;
@@ -108,6 +111,7 @@ impl harmos::operations::Operation for Handler {
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[tokio::test]
 async fn response_publication_faults() {
     for overwrite in [false, true] {
@@ -116,7 +120,7 @@ async fn response_publication_faults() {
         let handle = owner.handle();
         let resources = Gate::default();
         let gate = Arc::new(resources);
-        handle.operations().register_wire_operation::<Handler>("fixture.output", dokime_runtime::app::Lanes::Open, gate.clone()).unwrap();
+        handle.operations().register_wire_operation::<Handler>("fixture.output", dokime::app::Lanes::Open, gate.clone()).unwrap();
         let server = Server::start(handle, Config::local()).await.unwrap();
         let endpoint = server.local_endpoint();
 
@@ -129,7 +133,7 @@ async fn response_publication_faults() {
         let command =
             ["dokime", "operation", "call", "fixture.output.mutate", "--endpoint", &endpoint, "--output", destination.to_str().unwrap()];
         let arguments = command.into_iter().chain(overwrite.then_some("--overwrite"));
-        let args = dokime::Cli::try_parse_from(arguments).unwrap();
+        let args = dokime_cli::Cli::try_parse_from(arguments).unwrap();
         let pending = args.run();
         tokio::pin!(pending);
 
@@ -149,7 +153,7 @@ async fn response_publication_faults() {
 
         gate.release.notify_one();
         let error = pending.await.unwrap_err();
-        assert!(matches!(error, dokime::Error::OperationOutput { .. }), "{error}");
+        assert!(matches!(error, dokime_cli::Error::OperationOutput { .. }), "{error}");
         assert_eq!(error.exit_code(), std::process::ExitCode::from(3));
         assert_eq!(gate.calls.load(Ordering::SeqCst), 1, "a failed response publication must never replay the operation");
 
@@ -178,7 +182,7 @@ async fn response_unavailable_after_effect() {
     let handle = owner.handle();
     let resources = Gate::default();
     let gate = Arc::new(resources);
-    handle.operations().register_wire_operation::<Handler>("fixture.output", dokime_runtime::app::Lanes::Open, gate.clone()).unwrap();
+    handle.operations().register_wire_operation::<Handler>("fixture.output", dokime::app::Lanes::Open, gate.clone()).unwrap();
     let server = Server::start(handle, Config::local()).await.unwrap();
     let endpoint = server.local_endpoint();
 
@@ -199,7 +203,7 @@ async fn response_unavailable_after_effect() {
         destination.to_str().unwrap(),
         "--overwrite",
     ];
-    let args = dokime::Cli::try_parse_from(command).unwrap();
+    let args = dokime_cli::Cli::try_parse_from(command).unwrap();
     let pending = args.run();
     tokio::pin!(pending);
 
@@ -210,7 +214,7 @@ async fn response_unavailable_after_effect() {
     gate.release.notify_one();
     let error = pending.await.unwrap_err();
 
-    assert!(matches!(error, dokime::Error::OperationUncertain { .. }), "{error}");
+    assert!(matches!(error, dokime_cli::Error::OperationUncertain { .. }), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(3));
     assert_eq!(gate.calls.load(Ordering::SeqCst), 1, "an unavailable completion must never retry the effect");
     assert_eq!(std::fs::read(&destination).unwrap(), b"previous complete response");

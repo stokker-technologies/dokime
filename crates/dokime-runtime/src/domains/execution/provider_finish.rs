@@ -212,9 +212,7 @@ impl RuntimeHandle {
                 let state = self.state_read();
                 let cycle = &state.cycles[cycle_id];
                 let request = &state.run_requests[request_id];
-                let failed = request.summary.failed > 0 || request.failure.is_some() || request.publication_failure.is_some();
-                let enabled = cycle.continue_automatically && (!failed || cycle.continue_on_failure);
-                if !enabled || request.summary.stop_requested || cycle.ensure_active().is_err() {
+                if !cycle.continue_automatically || request.summary.stop_requested || cycle.ensure_active().is_err() {
                     return;
                 }
                 let Some(previous) = request.test_execution_id.as_ref() else { return };

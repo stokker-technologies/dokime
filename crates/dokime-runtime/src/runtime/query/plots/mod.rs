@@ -20,7 +20,7 @@ pub use crate::plot::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
     PlotPayloadCursor, PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries,
-    PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan,
+    PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan, declared_plot_request,
     plot_payload_request_for_descriptor,
 };
 pub(crate) use analysis::definitions as analysis_definitions;
@@ -63,11 +63,40 @@ type WindowedTelemetry = (Vec<Vec<TelemetrySample>>, Vec<Option<Vec<TelemetrySam
 
 /* === Structs === */
 
+/// What a live plot watch re-reads a plot for: rows on the telemetry streams
+/// it reads, and state changes when it reads records or no telemetry at all.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PlotWatchKeys {
+    telemetry_streams: Vec<String>,
+    records: bool,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl PlotWatchKeys {
+    pub fn for_request(request: &PlotPayloadRequest) -> Self {
+        Self {
+            telemetry_streams: request_telemetry_streams(request).into_iter().map(|stream| stream.as_str().to_owned()).collect(),
+            records: !request_record_types(request).is_empty(),
+        }
+    }
+
+    /// Whether a row committed on `stream` can change this plot.
+    pub fn reads_stream(&self, stream: &str) -> bool {
+        self.telemetry_streams
+            .iter()
+            .any(|declared| crate::plot::stream_matches_alias(stream, declared) || crate::plot::stream_matches_alias(declared, stream))
+    }
+
+    /// Whether a runtime state change can change this plot.
+    pub fn follows_state(&self) -> bool {
+        self.records || self.telemetry_streams.is_empty()
+    }
+}
 
 /* === Public Functions === */
 

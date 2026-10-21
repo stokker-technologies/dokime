@@ -10,6 +10,7 @@
 // Execute Remote Examples Against The Built OBC Plugin
 
 /* === Modules === */
+
 mod interruption;
 
 /* === Re-Exports === */
@@ -27,8 +28,8 @@ use tokio::process::Command;
 
 // Local Imports
 use crate::support::artifacts;
-use dokime_client::{Client, dynamic::Event};
-use dokime_domain::model::{
+use dokime::client::{Client, dynamic::Event};
+use dokime::domain::model::{
     execution::result::CyclePhase,
     identity::{PromptId, TestCycleId},
 };
@@ -48,6 +49,7 @@ use dokime_domain::model::{
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
     let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
@@ -68,6 +70,7 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
 }
 
 /* === Private Functions === */
+
 async fn execute(extension: &str, workflow: &str, endpoint: &str, directory: &Path) -> String {
     let mut command = if extension == "bat" && workflow == "test" {
         // Local Filenames Must Never Expand Observation Filter Globs.

@@ -21,6 +21,7 @@ import { toast } from "sonner";
 
 // Local Imports
 import { Button } from "@/components/ui/button";
+import { CLUSTER_BUTTON_CLASS } from "./CycleReportButton";
 import { useCycleCommands } from "./cycle-queries";
 
 /* === Re-Exports === */
@@ -55,8 +56,8 @@ export function CycleExportButton({ cycleId, executionId, sealed }: Props) {
       );
   };
   return (
-    <Button disabled={!sealed || exportEvidence.isPending} onClick={save} title={title} variant="outline">
-      <FileArchive />
+    <Button className={CLUSTER_BUTTON_CLASS} disabled={!sealed || exportEvidence.isPending} onClick={save} title={title} variant="outline">
+      <FileArchive data-icon="inline-start" />
       {exportEvidence.isPending ? "Exporting Evidence…" : "Export Evidence"}
     </Button>
   );

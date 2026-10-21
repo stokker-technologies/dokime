@@ -52,6 +52,12 @@ pub struct FileWatch {
 
     pub policy: FileWatchPolicy,
 
+    #[serde(default)]
+    pub selection: FileWatchSelection,
+
+    // Opt in to waiting for a missing root or matching file, bounded independently of capture.
+    pub wait_for_source_seconds: Option<u32>,
+
     // Discovery and capture interval: default 1000, 50–60000 milliseconds.
     #[row(description = "Discovery and capture interval: default 1000, 50–60000 milliseconds.")]
     pub poll_interval_ms: Option<u32>,

@@ -311,7 +311,7 @@ pub async fn rpc_stream_ack<R: tauri::Runtime>(
 /* === Private Functions === */
 
 async fn forward(
-    entry: &Entry, context: &Context, client: &dokime_client::Client, channel: &Channel<Response>, path: &str,
+    entry: &Entry, context: &Context, client: &dokime::client::Client, channel: &Channel<Response>, path: &str,
     receiver: mpsc::Receiver<Vec<u8>>, deadline: Duration,
 ) -> Result<(), RpcError> {
     let mut incoming = client.stream_raw(path, ReceiverStream::new(receiver), deadline).await?;

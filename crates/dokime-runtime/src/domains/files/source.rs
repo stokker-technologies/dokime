@@ -65,8 +65,8 @@ pub(super) enum ReadFailure {
 /* === Implementations === */
 
 impl Source {
-    pub(super) async fn local(root: &str) -> Result<Self> {
-        Ok(Self::Local(LocalSource::open(root).await?))
+    pub(super) async fn local(root: &str, wait: bool) -> Result<Self> {
+        Ok(Self::Local(LocalSource::open(root, wait).await?))
     }
 
     pub(super) fn single_file(self) -> Self {

@@ -26,11 +26,12 @@ use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
 // Local Imports
-use dokime_domain::model::remote::RemoteListenerSettings;
+use dokime::domain::model::remote::RemoteListenerSettings;
 
 /* === Constants === */
 
 const MAXIMUM_BYTES: usize = 256 * 1024;
+const MAXIMUM_NAMES: usize = 32;
 
 /* === Macros === */
 
@@ -125,14 +126,7 @@ pub(super) fn read(path: &Path) -> Result<Document, super::Error> {
 
 pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error> {
     let parent = path.parent().ok_or(super::Error::Configuration("remote security path has no parent"))?;
-    let mut directory = std::fs::DirBuilder::new();
-    directory.recursive(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::DirBuilderExt;
-        directory.mode(0o700);
-    }
-    directory.create(parent).map_err(super::Error::RemoteStorage)?;
+    private_directory(parent).map_err(super::Error::RemoteStorage)?;
     let bytes =
         Zeroizing::new(serde_json::to_vec(document).map_err(|_| super::Error::Configuration("cannot encode remote security document"))?);
     if bytes.len() > MAXIMUM_BYTES {
@@ -148,7 +142,7 @@ pub(super) fn validate(settings: &RemoteListenerSettings) -> Result<SocketAddr, 
         .address
         .parse::<SocketAddr>()
         .map_err(|_| super::Error::Configuration("listener address must be an IP address and port"))?;
-    if settings.certificate_names.len() > 32 {
+    if settings.certificate_names.len() > MAXIMUM_NAMES {
         return Err(super::Error::Configuration("at most 32 certificate identities are allowed"));
     }
     for (index, name) in settings.certificate_names.iter().enumerate() {
@@ -158,14 +152,7 @@ pub(super) fn validate(settings: &RemoteListenerSettings) -> Result<SocketAddr, 
         if name.parse::<IpAddr>().is_ok() {
             continue;
         }
-        let valid_dns = name.split('.').all(|label| {
-            !label.is_empty()
-                && label.len() <= 63
-                && label.as_bytes().first().is_some_and(u8::is_ascii_alphanumeric)
-                && label.as_bytes().last().is_some_and(u8::is_ascii_alphanumeric)
-                && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
-        });
-        if !valid_dns {
+        if !valid_dns(name) {
             return Err(super::Error::Configuration(
                 "certificate identities must be exact DNS names or IP addresses without wildcards or ports",
             ));
@@ -174,7 +161,54 @@ pub(super) fn validate(settings: &RemoteListenerSettings) -> Result<SocketAddr, 
     Ok(address)
 }
 
+// Creates the owner-only directory that holds remote security material and the session log.
+pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
+    let mut directory = std::fs::DirBuilder::new();
+    directory.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        directory.mode(0o700);
+    }
+    directory.create(path)
+}
+
+// The identities this host answers to: the listen address when it is specific, the host name
+// and every non-loopback interface address, falling back to loopback when nothing else exists.
+pub(super) fn host_names(address: SocketAddr) -> Vec<String> {
+    let networks = sysinfo::Networks::new_with_refreshed_list();
+    let interfaces = networks.values().flat_map(|network| network.ip_networks().iter().map(|network| network.addr));
+    default_names(address, sysinfo::System::host_name(), interfaces)
+}
+
 /* === Private Functions === */
+
+fn default_names(address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = IpAddr>) -> Vec<String> {
+    let reachable = |ip: &IpAddr| !ip.is_loopback() && !ip.is_unspecified() && !matches!(ip, IpAddr::V6(v6) if v6.is_unicast_link_local());
+    let host =
+        host_name.map(|name| name.trim().trim_end_matches('.').to_ascii_lowercase()).filter(|name| name.len() <= 253 && valid_dns(name));
+    let addresses = std::iter::once(address.ip()).chain(interfaces).filter(reachable).map(|ip| ip.to_string());
+    let mut names: Vec<String> = Vec::new();
+    for name in host.into_iter().chain(addresses) {
+        if names.len() < MAXIMUM_NAMES && !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    if names.is_empty() {
+        names = vec!["localhost".into(), "127.0.0.1".into()];
+    }
+    names
+}
+
+fn valid_dns(name: &str) -> bool {
+    name.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && label.as_bytes().first().is_some_and(u8::is_ascii_alphanumeric)
+            && label.as_bytes().last().is_some_and(u8::is_ascii_alphanumeric)
+            && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    })
+}
 
 /* === Tests === */
 
@@ -239,5 +273,20 @@ mod tests {
         }
         settings.certificate_names = vec!["localhost".into(), "localhost".into()];
         assert!(validate(&settings).is_err());
+    }
+    #[test]
+    fn default_certificate_identities() {
+        let wildcard: SocketAddr = "0.0.0.0:8765".parse().unwrap();
+        let interfaces = ["127.0.0.1", "192.168.1.20", "fe80::1", "192.168.1.20", "2001:db8::7"].map(|ip| ip.parse().unwrap());
+        let names = default_names(wildcard, Some("Lab-Host.".into()), interfaces.into_iter());
+        assert_eq!(names, ["lab-host", "192.168.1.20", "2001:db8::7"]);
+        let mut settings = Document::initial().settings;
+        settings.certificate_names = names;
+        validate(&settings).unwrap();
+        let specific: SocketAddr = "10.0.0.5:8765".parse().unwrap();
+        assert_eq!(default_names(specific, Some("bad_name".into()), std::iter::empty()), ["10.0.0.5"]);
+        assert_eq!(default_names(wildcard, None, std::iter::empty()), ["localhost", "127.0.0.1"]);
+        let many = (0..64u8).map(|index| IpAddr::from([10, 0, 1, index]));
+        assert_eq!(default_names(wildcard, None, many).len(), MAXIMUM_NAMES);
     }
 }

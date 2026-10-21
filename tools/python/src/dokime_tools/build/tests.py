@@ -44,7 +44,7 @@ def build(profile: str) -> None:
     output = paths.output(ROOT, "build", profile)
     staged = product.files(profile)
     sync_output(output / "web", frontend.WEB_ROOT / "dist")
-    features = "tauri/custom-protocol,dokime-runtime/fault-injection"
+    features = "tauri/custom-protocol,dokime/fault-injection"
 
     # Compile Test Targets Through The Shared Archive Owner.
     built = archive.build(ROOT, profile, ["--features", features])

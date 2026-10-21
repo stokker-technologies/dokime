@@ -42,7 +42,7 @@ use super::*;
 
 async fn planned(client: &WireClient, owner: &Runtime) -> (String, String) {
     let cycle = support::planned_cycle(client, authenticated(create()), selection_plan(owner)).await.unwrap();
-    let id = dokime_runtime::TestCycleId::from_uuid(cycle.clone()).unwrap();
+    let id = dokime::TestCycleId::from_uuid(cycle.clone()).unwrap();
     let execution = owner.handle().watch_state().latest().state().cycles[&id].execution_ids[0].to_string();
     (cycle, execution)
 }
@@ -51,8 +51,8 @@ fn start(id: &str) -> contracts::execution::StartExecution {
     contracts::execution::StartExecution { execution_id: id.to_owned(), mode: model::execution::wire::ExecutionMode::Automatic }
 }
 
-async fn sealed(handle: &dokime_runtime::RuntimeHandle, id: &str) {
-    let id = dokime_runtime::TestExecutionId::from_uuid(id).unwrap();
+async fn sealed(handle: &dokime::RuntimeHandle, id: &str) {
+    let id = dokime::TestExecutionId::from_uuid(id).unwrap();
     support::on_state_change(handle, async || handle.watch_state().latest().state().executions[&id].saved.is_some().then_some(())).await;
 }
 
@@ -66,14 +66,14 @@ async fn blocking_run_drains_and_preserves_work_after_callback_error() {
     let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let wire = WireClient::connect(server.local_endpoint()).await.unwrap();
     let client =
-        dokime_client::Client::connect(dokime_client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
     let (_, first) = planned(&wire, &owner).await;
-    let execution = client.execution(dokime_runtime::TestExecutionId::from_uuid(first.clone()).unwrap());
+    let execution = client.execution(dokime::TestExecutionId::from_uuid(first.clone()).unwrap());
 
     // Invalid Observation Filters Cannot Admit Hardware Work.
-    let invalid = dokime_client::RunOptions { record_types: Some(vec!["bad[regex]".into()]), ..Default::default() };
+    let invalid = dokime::client::RunOptions { record_types: Some(vec!["bad[regex]".into()]), ..Default::default() };
     let error = execution.run(invalid, Default::default()).await.unwrap_err();
-    assert!(matches!(error, dokime_client::Error::Rpc(ref status) if status.code() == Code::InvalidArgument));
+    assert!(matches!(error, dokime::client::Error::Rpc(ref status) if status.code() == Code::InvalidArgument));
     assert!(owner.handle().watch_state().latest().state().run_requests.is_empty());
     assert_eq!(gate.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
 
@@ -88,8 +88,8 @@ async fn blocking_run_drains_and_preserves_work_after_callback_error() {
         samples.push(page.complete);
         Ok(())
     };
-    let options = dokime_client::RunOptions { record_types: Some(Vec::new()), streams: Some(Vec::new()), ..Default::default() };
-    let running = execution.run(options, dokime_client::RunCallbacks { records: Some(&mut on_records), samples: Some(&mut on_samples) });
+    let options = dokime::client::RunOptions { record_types: Some(Vec::new()), streams: Some(Vec::new()), ..Default::default() };
+    let running = execution.run(options, dokime::client::RunCallbacks { records: Some(&mut on_records), samples: Some(&mut on_samples) });
     let release = async {
         gate.started.notified().await;
         gate.release.notify_one();
@@ -103,17 +103,17 @@ async fn blocking_run_drains_and_preserves_work_after_callback_error() {
 
     // A Callback Error Ends Observation While The Admitted Execution Remains Running.
     let (_, second) = planned(&wire, &owner).await;
-    let execution = client.execution(dokime_runtime::TestExecutionId::from_uuid(second.clone()).unwrap());
-    let mut refuse = |_: &model::evidence::wire::RecordPage| -> dokime_client::Result<()> {
-        Err(dokime_client::Error::Rpc(tonic::Status::aborted("operator callback refused page")))
+    let execution = client.execution(dokime::TestExecutionId::from_uuid(second.clone()).unwrap());
+    let mut refuse = |_: &model::evidence::wire::RecordPage| -> dokime::client::Result<()> {
+        Err(dokime::client::Error::Rpc(tonic::Status::aborted("operator callback refused page")))
     };
-    let options = dokime_client::RunOptions { record_types: Some(Vec::new()), ..Default::default() };
-    let running = execution.run(options, dokime_client::RunCallbacks { records: Some(&mut refuse), samples: None });
+    let options = dokime::client::RunOptions { record_types: Some(Vec::new()), ..Default::default() };
+    let running = execution.run(options, dokime::client::RunCallbacks { records: Some(&mut refuse), samples: None });
     let (error, ()) = tokio::join!(running, async {
         gate.started.notified().await;
     });
-    assert!(matches!(error.unwrap_err(), dokime_client::Error::Rpc(ref status) if status.code() == Code::Aborted));
-    let id = dokime_runtime::TestExecutionId::from_uuid(second.clone()).unwrap();
+    assert!(matches!(error.unwrap_err(), dokime::client::Error::Rpc(ref status) if status.code() == Code::Aborted));
+    let id = dokime::TestExecutionId::from_uuid(second.clone()).unwrap();
     assert!(owner.handle().watch_state().latest().state().executions[&id].saved.is_none());
     assert_eq!(gate.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
     gate.release.notify_one();
@@ -149,13 +149,13 @@ async fn start_identity_survives() {
     // Another Listener Attribution Cannot Create A Second Attempt Admission.
     let native = handle
         .start_execution(
-            dokime_runtime::TestExecutionId::from_uuid(first.clone()).unwrap(),
-            dokime_domain::model::execution::ExecutionMode::Automatic,
-            dokime_runtime::CommandContext { submitted_by: Some("another-listener".into()), ..Default::default() },
+            dokime::TestExecutionId::from_uuid(first.clone()).unwrap(),
+            dokime::domain::model::execution::ExecutionMode::Automatic,
+            dokime::CommandContext { submitted_by: Some("another-listener".into()), ..Default::default() },
         )
         .await;
     assert_eq!(native.command_id.to_string(), original.command_id);
-    assert_eq!(native.status, dokime_runtime::runtime::command::CommandStatus::Accepted);
+    assert_eq!(native.status, dokime::runtime::command::CommandStatus::Accepted);
 
     let queued = accepted(wire.unary::<contracts::execution::StartExecution>(authenticated(start(&second))).await.unwrap().into_inner());
     let duplicate = accepted(wire.unary::<contracts::execution::StartExecution>(authenticated(start(&second))).await.unwrap().into_inner());

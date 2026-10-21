@@ -19,7 +19,7 @@
 
 /* === External Imports === */
 
-import { useState } from "react";
+import { toast } from "sonner";
 
 /* === Local Imports === */
 
@@ -103,17 +103,13 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
   const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
   const settingsMutation = useInstalledPluginSettingsMutation();
   const credentialMutation = useInstalledPluginCredentialMutation();
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
-  async function save(operation: () => Promise<unknown>) {
-    setFeedback(null);
-    setSaveError(null);
+  async function saveCredential(operation: () => Promise<unknown>) {
     try {
       await operation();
-      setFeedback("Saved.");
+      toast.success("Credential Stored");
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Settings could not be saved.");
+      toast.error("Credential Not Stored", { description: error instanceof Error ? error.message : "Settings could not be saved." });
     } finally {
       credentialMutation.reset();
     }
@@ -155,30 +151,17 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card">
-      <InstalledPluginDetail
-        detail={detailQuery.data}
-        onSaveCredential={(id, credentialId, secret) =>
-          void save(() => credentialMutation.mutateAsync({ pluginId: id, credentialId, secret }))
-        }
-        /* Settings write themselves and each row reports where it was
-           changed, so this surface does not repeat the outcome at the bottom
-           of the page; a credential, which is an explicit write, still does. */
-        onSaveSettings={async (id, values) => {
-          await settingsMutation.mutateAsync({ pluginId: id, values });
-        }}
-        savingCredential={credentialMutation.isPending}
-      />
-      {feedback ? (
-        <p className="px-4 pb-3 text-sm" role="status">
-          {feedback}
-        </p>
-      ) : null}
-      {saveError ? (
-        <p className="px-4 pb-3 text-sm text-destructive" role="alert">
-          {saveError}
-        </p>
-      ) : null}
-    </section>
+    <InstalledPluginDetail
+      detail={detailQuery.data}
+      onSaveCredential={(id, credentialId, secret) =>
+        void saveCredential(() => credentialMutation.mutateAsync({ pluginId: id, credentialId, secret }))
+      }
+      /* Settings write themselves and each row reports its own outcome; a
+         credential, which is an explicit write, reports through a toast. */
+      onSaveSettings={async (id, values) => {
+        await settingsMutation.mutateAsync({ pluginId: id, values });
+      }}
+      savingCredential={credentialMutation.isPending}
+    />
   );
 }

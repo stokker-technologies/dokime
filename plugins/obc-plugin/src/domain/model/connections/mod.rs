@@ -28,7 +28,7 @@
 /* === Structs === */
 
 // What `ListConnections` answers.
-#[dokime_runtime::message]
+#[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Connections {
     #[row(description = "The resource ids, one per unit the listener heard about.")]

@@ -24,11 +24,11 @@ use tonic::Status;
 
 // Local Imports
 use super::{Change, Controller, Error};
-use dokime_domain::{
-    model::remote::{GeneratedAccessKey, RemoteListenerStatus},
+use dokime::RuntimeHandle;
+use dokime::domain::{
+    model::remote::{GeneratedAccessKey, RemoteListenerStatus, RemoteSessionPage},
     operations::remote as wire,
 };
-use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 
@@ -51,6 +51,10 @@ struct GenerateKey {
 }
 
 struct RegenerateCertificate {
+    controller: Arc<Controller>,
+}
+
+struct ListSessions {
     controller: Arc<Controller>,
 }
 
@@ -137,14 +141,33 @@ impl Operation for RegenerateCertificate {
     }
 }
 
+impl Operation for ListSessions {
+    type Declaration = wire::ListSessions;
+    type Resources = Controller;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(controller: Arc<Controller>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { controller })
+    }
+
+    async fn run<'a>(
+        &mut self, _: Self::Context<'a>, request: &mut wire::ListSessions, _: &mut (),
+    ) -> Result<Response<RemoteSessionPage>, Status> {
+        self.controller.sessions(request.cursor.as_deref(), request.limit).map(Response::new).map_err(status)
+    }
+}
+
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &RuntimeHandle, controller: Arc<Controller>) -> Result<(), Error> {
     let operations = runtime.operations();
-    operations.register_wire_operation::<ReadListener>("dokime", dokime_runtime::app::Lanes::Open, controller.clone())?;
-    operations.register_wire_operation::<UpdateListener>("dokime", dokime_runtime::app::Lanes::Open, controller.clone())?;
-    operations.register_wire_operation::<GenerateKey>("dokime", dokime_runtime::app::Lanes::Open, controller.clone())?;
-    operations.register_wire_operation::<RegenerateCertificate>("dokime", dokime_runtime::app::Lanes::Open, controller)?;
+    operations.register_wire_operation::<ReadListener>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<UpdateListener>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<GenerateKey>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<RegenerateCertificate>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<ListSessions>("dokime", dokime::app::Lanes::Open, controller)?;
     Ok(())
 }
 

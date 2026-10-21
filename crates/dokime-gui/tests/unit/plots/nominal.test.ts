@@ -22,12 +22,15 @@ import {
   nearestDrawnPoint,
   type SeriesSummary,
   seriesLegendColumns,
+  seriesLegendColumnWidth,
   seriesLegendRows,
   statsSummaryCells,
   summaryInFlight,
   toggleTrace,
 } from "@/lib/statistics";
-import type { PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
+import type { HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
+import { formatCursorX } from "@/plots/axis";
+import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
   type HistogramColumn,
@@ -36,9 +39,10 @@ import {
   histogramAxisTitle,
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
-import { applyPlotMessages, emptyLivePlotState, type LivePlotState } from "@/plots/live-frames";
-import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
-import { lttbIndices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices } from "@/plots/reduce";
+import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotState, plotWaitingLabel } from "@/plots/live-frames";
+import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
+import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
+import { lttbIndices, m4Indices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices, windowIndices } from "@/plots/reduce";
 import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Re-Exports === */
@@ -279,6 +283,145 @@ test("Empty Snapshot", () => {
   assert.equal(applyPlotMessages(state, [streamMessage("append", 0, empty)], "auto").droppedBatches, 1);
 });
 
+test("Window Resampling", () => {
+  /* A 50 Hz sine sampled at 1 kHz for 60 s, drawn 800 CSS px wide. */
+  const rate = 1_000;
+  const x = Array.from({ length: 60 * rate }, (_, index) => index / rate);
+  const sine = x.map((t) => Math.sin(2 * Math.PI * 50 * t));
+  const columns = 800;
+
+  // The Whole Run Is Cut To Four Samples Per Pixel Column, Ends Included
+  const whole = windowIndices(x, [sine], null, columns);
+  assert.ok(whole);
+  assert.ok(whole.length <= 4 * columns + 2);
+  assert.equal(whole[0], 0);
+  assert.equal(whole.at(-1), x.length - 1);
+  assertAscending(whole);
+
+  // A 15 s Zoom Resamples The Window Itself And Keeps The Envelope Of Every Column
+  const zoom = { min: 20, max: 35 };
+  const zoomed = windowIndices(x, [sine], zoom, columns);
+  assert.ok(zoomed);
+  assertAscending(zoomed);
+  const inside = zoomed.filter((index) => x[index] >= zoom.min && x[index] <= zoom.max);
+  assert.ok(inside.length > 3 * columns, "the window gets the whole budget, not a slice of the run's");
+  const span = (zoom.max - zoom.min) / columns;
+  for (let column = 0; column < columns; column += 10) {
+    const from = zoom.min + column * span;
+    const to = from + span;
+    const truth = sine.filter((_, index) => x[index] >= from && x[index] < to);
+    const kept = inside.filter((index) => x[index] >= from && x[index] < to).map((index) => sine[index]);
+    assert.equal(Math.max(...kept), Math.max(...truth), `column ${column} keeps its peak`);
+    assert.equal(Math.min(...kept), Math.min(...truth), `column ${column} keeps its trough`);
+  }
+  // The Line Reaches Both Frame Edges And A Reset Still Fits The Whole Run
+  assert.ok(zoomed.includes(Math.round(zoom.min * rate) - 1));
+  assert.ok(zoomed.includes(Math.round(zoom.max * rate) + 1));
+  assert.equal(zoomed[0], 0);
+  assert.equal(zoomed.at(-1), x.length - 1);
+
+  // A Window Within The Budget Draws Every Sample, A Short Run Is Never Reduced
+  const second = windowIndices(x, [sine], { min: 10, max: 11 }, columns);
+  assert.ok(second);
+  for (let index = 10 * rate; index <= 11 * rate; index += 1) assert.ok(second.includes(index));
+  assert.equal(windowIndices(x.slice(0, 3_000), [sine.slice(0, 3_000)], null, columns), null);
+
+  // M4 Keeps First, Lowest, Highest And Last Per Bucket And Skips Gaps
+  assert.deepEqual(m4Indices([0, 1, 2, 3, 4, 5], [3, 9, null, 1, 4, 5], 0, 6, 1), [0, 1, 3, 5]);
+  assert.deepEqual(m4Indices([0, 1, 2], [null, null, null], 0, 3, 1), []);
+
+  // Traces On One Axis Are Resampled Together
+  const cosine = x.map((t) => Math.cos(2 * Math.PI * 50 * t));
+  const both = windowIndices(x, [sine, cosine], zoom, columns);
+  assert.ok(both);
+  assert.ok(zoomed.every((index) => both.includes(index)));
+
+  // A Group Titled Like Its Only Plot Prints The Title Once
+  const plot = { title: "AC Voltage" } as Parameters<typeof groupRepeatsPlotTitle>[1][number];
+  assert.equal(groupRepeatsPlotTitle("AC Voltage", [plot]), true);
+  assert.equal(groupRepeatsPlotTitle("Mains", [plot]), false);
+  assert.equal(groupRepeatsPlotTitle("AC Voltage", [plot, plot]), false);
+});
+
+test("Prompt Markers", () => {
+  const record = (record_type: string, timestamp: string, details: Record<string, unknown>, message?: string) =>
+    ({
+      details,
+      display: { icon: "clock", tone: "neutral" },
+      level: "info",
+      message,
+      record_id: `${record_type}-${timestamp}`,
+      record_type,
+      source: "runtime",
+      timestamp,
+    }) as unknown as HubRecord;
+  const records = [
+    record("prompt.response.submitted", "2026-10-20T20:04:30Z", { prompt_id: "p-1" }, "Prompt response submitted."),
+    record("prompt.request.confirmation", "2026-10-20T20:04:12Z", { prompt_id: "p-1", title: "Connect The Load" }, "Connect The Load"),
+    record("prompt.request.form", "2026-10-20T20:05:00Z", { prompt_id: "p-2", title: "Enter Serial" }),
+    record("prompt.response.cancelled", "2026-10-20T20:05:10Z", { prompt_id: "p-2" }),
+    record("prompt.request.choice", "not a time", { prompt_id: "p-3", title: "Pick" }),
+    record("step.started", "2026-10-20T20:04:00Z", {}),
+  ];
+
+  // Requests Mark When A Prompt Was Asked And Submissions When It Was Answered, In Time Order
+  const markers = promptMarkers(records);
+  assert.deepEqual(
+    markers.map((marker) => [marker.kind, marker.x, marker.title]),
+    [
+      ["asked", Date.parse("2026-10-20T20:04:12Z") / 1000, "Connect The Load"],
+      ["answered", Date.parse("2026-10-20T20:04:30Z") / 1000, "Connect The Load"],
+      ["asked", Date.parse("2026-10-20T20:05:00Z") / 1000, "Enter Serial"],
+    ],
+  );
+
+  // The Hover Names The Moment And The Prompt's Title
+  assert.equal(promptMarkerLabel(markers[0]), "Prompt asked: Connect The Load");
+  assert.equal(promptMarkerLabel(markers[1]), "Prompt answered: Connect The Load");
+
+  // An Answer Whose Request Is Out Of Scope Still Marks, Under A Generic Title
+  assert.deepEqual(
+    promptMarkers([records[0]]).map((marker) => marker.title),
+    ["Prompt"],
+  );
+  assert.deepEqual(promptMarkers([]), []);
+});
+
+test("Waiting For Data", () => {
+  const opened = { voltage: { ...emptyLivePlotState(), status: "loading" as const } };
+
+  // The Watch's Acknowledgement Turns A Loading Plot Into A Quiet Wait, Never An Error
+  const acknowledged = applyPendingNotice(opened, "voltage", 1_000);
+  assert.equal(acknowledged.voltage.status, "waiting");
+  assert.equal(acknowledged.voltage.error, null);
+  assert.equal(plotWaitingLabel(acknowledged.voltage), "Waiting For Data \u00b7 0 s");
+
+  // Each Keepalive Counts From The First Notice, However Long The First Read Takes
+  const later = applyPendingNotice(acknowledged, "voltage", 46_000);
+  assert.equal(later.voltage.status, "waiting");
+  assert.equal(plotWaitingLabel(later.voltage), "Waiting For Data \u00b7 45 s");
+
+  // A Notice For A Plot This Watch Does Not Hold Changes Nothing
+  assert.equal(applyPendingNotice(later, "current", 50_000), later);
+
+  // A Server Error Frame Still Reports, And A Later Notice Does Not Hide It
+  const failed = {
+    voltage: applyPlotMessages(
+      later.voltage,
+      [{ ...streamMessage("error", 0, hostFrame([], [])), warnings: ["plot query unavailable"] }],
+      "auto",
+    ),
+  };
+  assert.equal(failed.voltage.status, "error");
+  assert.equal(applyPendingNotice(failed, "voltage", 60_000), failed);
+
+  // The First Frame Ends The Wait
+  const served = applyPlotMessages(later.voltage, [streamMessage("snapshot", 0, hostFrame([0, 1], [[1, 2]]))], "auto");
+  assert.equal(served.status, "live");
+  assert.equal(served.waitingSince, null);
+  assert.equal(applyPendingNotice({ voltage: served }, "voltage", 70_000).voltage, served);
+});
+
 test("Frame Retention", () => {
   // A Snapshot Keeps One Representation: The Cartesian Frame
   const start = pulse(50);
@@ -448,6 +591,29 @@ test("Series Legend", () => {
     ["trace", "xCursor", "yCursor", "count", "min", "max", "mean", "median", "std", "rms"],
   );
 
+  // Headers Print The Name And The Unit On Two Lines, So A Long Unit Never Clips The Name
+  const ohms = seriesLegendColumns("M\u03a9");
+  assert.deepEqual(
+    ohms.map((column) => [column.title, column.unit]),
+    [
+      ["Trace", null],
+      ["X Cursor", null],
+      ["Y Cursor", "M\u03a9"],
+      ["Count", null],
+      ["Min", "M\u03a9"],
+      ["Max", "M\u03a9"],
+      ["Mean", "M\u03a9"],
+      ["Median", "M\u03a9"],
+      ["Std", "M\u03a9"],
+      ["Rms", "M\u03a9"],
+    ],
+  );
+  // Widths Depend On The Column Alone, So Every Table On A Page Lines Up Whatever Its Unit
+  const widths = (unit: string | null) => seriesLegendColumns(unit).map((column) => seriesLegendColumnWidth(column.id));
+  assert.deepEqual(widths("dBm"), widths(null));
+  assert.deepEqual(widths("M\u03a9"), widths("V"));
+  assert.deepEqual(widths(null).slice(1), ["w-52", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24", "w-24"]);
+
   // Rows Follow Trace Order And Read Each Trace's Own Backend Summary
   const rows = seriesLegendRows({ hidden: new Set(), summaries: SUMMARIES, traces: TRACES });
   assert.deepEqual(
@@ -531,6 +697,26 @@ test("Series Legend", () => {
     ],
   );
 
+  // On A Time Axis The X Cursor Reads As The Local Date And Clock, To What One Pixel Resolves
+  const evening = new Date(2026, 9, 20, 22, 4, 12, 345).getTime() / 1000;
+  const timeAxis = { timeAxis: true, xFormat: null, xElapsedUnit: null, origin: {}, widthPx: 600 };
+  assert.equal(formatCursorX(evening, { ...timeAxis, span: 3_600 }), "10/20/26 10:04:12 PM");
+  assert.equal(formatCursorX(evening, { ...timeAxis, span: 15 }), "10/20/26 10:04:12.35 PM");
+  assert.equal(formatCursorX(evening, { ...timeAxis, span: 1 }), "10/20/26 10:04:12.345 PM");
+  assert.equal(formatCursorX(evening, { ...timeAxis, span: 120 }), "10/20/26 10:04:12.3 PM");
+  assert.equal(formatCursorX(new Date(2026, 9, 21, 0, 0, 5).getTime() / 1000, { ...timeAxis, span: 3_600 }), "10/21/26 12:00:05 AM");
+  // Elapsed And Numeric Axes Keep Their Own Readouts, Never A Date
+  assert.equal(formatCursorX(12.5, { ...timeAxis, xElapsedUnit: "s", span: 60 }), "12.5 s");
+  assert.equal(formatCursorX(3, { ...timeAxis, timeAxis: false, span: 6_000 }), "3");
+  const formatted = seriesLegendRows({
+    cursorPoints: [{ x: evening, y: 1 }, null],
+    formatX: (value) => formatCursorX(value, { ...timeAxis, span: 15 }),
+    hidden: new Set(),
+    summaries: SUMMARIES,
+    traces: TRACES,
+  });
+  assert.equal(formatted[0].xCursor, "10/20/26 10:04:12.35 PM");
+
   // The Table Dims Only While A Summary Request Is In Flight
   // A zoom or window change asks for new numbers: the old range's dim.
   assert.equal(summaryInFlight("requested"), true);
@@ -609,8 +795,15 @@ test("Plot Placeholders", () => {
   assert.equal(worded.detail, "No categorical samples are available.");
 
   // A Plot The Backend Could Not Produce Says So Instead Of Waiting
+  // It Reads As A Failure, Not A Wait: The Error Tone Tints The Full Plot Area
   assert.deepEqual(plotUnavailableText("Field voltage_v is not numeric."), {
     label: "Plot Unavailable",
     detail: "Field voltage_v is not numeric.",
+    tone: "error",
   });
+
+  // A Stream Error With Nothing Drawn Takes The Same Tone; Waiting And Reconnecting Stay Quiet
+  assert.equal(plotPlaceholderText({ stateLabel: STREAM_ERROR, stateDetail: "plot query unavailable" }).tone, "error");
+  assert.equal(stated.tone, undefined);
+  assert.equal(plotPlaceholderText({}).tone, undefined);
 });

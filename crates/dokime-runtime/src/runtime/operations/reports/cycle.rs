@@ -19,6 +19,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use futures_util::{StreamExt, stream::FuturesOrdered};
 use harmos::{operations::Context, storage::StorageCursor};
 
 // Local Imports
@@ -27,6 +28,7 @@ use crate::{
     app::Dokime,
     config::StorageSettings,
     report::CapturedExecutionReportInput,
+    report::cycle::CycleMember,
     runtime::Error,
     runtime::Result,
     runtime::progress::Operation,
@@ -34,11 +36,15 @@ use crate::{
     storage::Manager,
 };
 use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::saved::ExecutionSeal;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::reports::wire::MaterializedReport;
 
 /* === Constants === */
+
+// Members This Process No Longer Retains Re-Query Their Evidence, At Most This Many At Once.
+const ACTIVE_MEMBER_QUERIES: usize = 4;
 
 /* === Macros === */
 
@@ -47,6 +53,14 @@ use dokime_domain::model::reports::wire::MaterializedReport;
 /* === Structs === */
 
 /* === Enums === */
+
+// How One Member Of An Active Cycle Enters Its Current Report.
+enum Member {
+    Planned(Box<TestExecution>),
+    Sealed(Box<ExecutionSeal>),
+    // Its Materialization Gate Stays Held Until Its Evidence Is Materialized.
+    Captured(crate::runtime::storage::execution::ExecutionView, tokio::sync::OwnedMutexGuard<()>),
+}
 
 /* === Traits === */
 
@@ -57,12 +71,16 @@ use dokime_domain::model::reports::wire::MaterializedReport;
 pub(super) async fn materialize(
     ctx: &Context<'_>, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation,
 ) -> Result<MaterializedReport> {
-    let _gate = resources.execution_storage.cycle_save.lock().await;
+    let gate = resources.execution_storage.cycle_save.lock().await;
     progress.phase("Collecting Cycle Report Members");
     let finalization = resources.execution_storage.cycle_materialization(id, at, progress).await?;
     match finalization {
-        Some(finalization) => sealed(ctx, resources, id, at, finalization, progress).await,
-        None => current(ctx, resources, id, at, progress).await,
+        // The Seal Keeps Saves Ordered Until Its One Report Is Retained.
+        Some(finalization) => {
+            let _gate = gate;
+            sealed(ctx, resources, id, at, finalization, progress).await
+        }
+        None => current(ctx, resources, id, at, progress, gate).await,
     }
 }
 
@@ -79,12 +97,19 @@ async fn sealed(
         return Ok(MaterializedReport { report });
     }
     let mut members = Vec::with_capacity(finalization.executions.len());
+    let mut pending = FuturesOrdered::new();
     for execution in finalization.executions.iter() {
-        if !at.covers(&execution.source.evidence_through)? {
-            return Err(invalid("sealed member evidence exceeds cycle report boundary"));
+        if pending.len() == ACTIVE_MEMBER_QUERIES
+            && let Some(member) = pending.next().await
+        {
+            members.push(CycleMember::Captured(Box::new(member?)));
         }
-        members.push(crate::report::materialize::sealed_member(ctx, storage, settings, execution, progress).await?);
+        pending.push_back(sealed_member(ctx, resources, storage, settings, execution, at, progress));
     }
+    while let Some(member) = pending.next().await {
+        members.push(CycleMember::Captured(Box::new(member?)));
+    }
+    drop(pending);
     progress.phase("Rendering");
     let prepared = crate::report::cycle::CycleReport::prepare(storage, finalization.snapshot, members, progress).await?;
     progress.phase("Publishing Report");
@@ -94,9 +119,11 @@ async fn sealed(
     Ok(MaterializedReport { report })
 }
 
-// An Active Cycle Renders Every Started Member At Its Own Persisted Boundary.
+// An Active Cycle Renders Every Started Member At Its Own Persisted Boundary
+// And Lists Every Unstarted Member As Planned, Keeping Cycle Order.
 async fn current(
     ctx: &Context<'_>, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation,
+    gate: tokio::sync::MutexGuard<'_, ()>,
 ) -> Result<MaterializedReport> {
     let storage = &resources.execution_storage.storage;
     let settings = &ctx.scope().resources::<Dokime>().storage_settings;
@@ -127,8 +154,14 @@ async fn current(
     if header.session_id.is_none() {
         header.session_id = Some(session);
     }
-    let mut members = Vec::new();
-    for execution in source.test_executions.iter().filter(|execution| execution.status != ExecutionStatus::Pending) {
+    // Members Are Admitted And Captured While Cycle Saves Wait; Their Evidence
+    // Is Then Materialized Without Holding Notes Or Run Completions Back.
+    let mut plans = Vec::new();
+    for execution in source.test_executions.iter() {
+        if unstarted(execution) {
+            plans.push(Member::Planned(Box::new(execution.clone())));
+            continue;
+        }
         let seal = match &execution.saved {
             Some(seal) => Some(seal.clone()),
             None => match resources.execution_storage.published_seal(&execution.test_execution_id).await {
@@ -136,8 +169,8 @@ async fn current(
                 None => resources.execution_storage.durable_seal(&execution.test_execution_id).await?,
             },
         };
-        let member = if let Some(seal) = &seal {
-            sealed_member(ctx, storage, settings, seal, at, progress).await?
+        let plan = if let Some(seal) = seal {
+            Member::Sealed(Box::new(seal))
         } else {
             progress.phase("Capturing Evidence");
             let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
@@ -148,11 +181,10 @@ async fn current(
             if resources.execution_storage.acquisition(&execution.test_execution_id).await.is_none() {
                 resources.execution_storage.acquire(&source, execution).await?;
             }
-            let gate = resources.execution_storage.materialization_gate(&execution.test_execution_id).await?;
-            let _guard = gate.lock().await;
+            let guard = resources.execution_storage.materialization_gate(&execution.test_execution_id).await?.lock_owned().await;
             // Finalization May Publish This Member's Final Report While The Gate Was Awaited.
             if let Some(seal) = resources.execution_storage.published_seal(&execution.test_execution_id).await {
-                members.push(sealed_member(ctx, storage, settings, &seal, at, progress).await?);
+                plans.push(Member::Sealed(Box::new(seal)));
                 continue;
             }
             let inspection = match resources.execution_storage.retained_report_view(&execution.test_execution_id).await {
@@ -168,11 +200,28 @@ async fn current(
             if inspection.evidence_through()? != boundary || inspection.execution() != execution {
                 return Err(invalid("cycle member differs from its frozen source"));
             }
-            crate::report::materialize::execution(ctx, settings, &inspection, false, progress).await?
+            Member::Captured(inspection, guard)
         };
-        members.push(member);
+        plans.push(plan);
     }
-    let appearance = match members.first() {
+    drop(gate);
+    let mut members = Vec::with_capacity(plans.len());
+    for plan in plans {
+        members.push(match plan {
+            Member::Planned(execution) => CycleMember::Planned(execution),
+            Member::Sealed(seal) => {
+                CycleMember::Captured(Box::new(sealed_member(ctx, resources, storage, settings, &seal, at, progress).await?))
+            }
+            Member::Captured(inspection, _guard) => {
+                CycleMember::Captured(Box::new(crate::report::materialize::execution(ctx, settings, &inspection, false, progress).await?))
+            }
+        });
+    }
+    let captured = members.iter().find_map(|member| match member {
+        CycleMember::Captured(captured) => Some(captured),
+        CycleMember::Planned(_) => None,
+    });
+    let appearance = match captured {
         Some(member) => member.context.appearance.clone(),
         None => resources.execution_storage.report_appearance().await?,
     };
@@ -185,13 +234,27 @@ async fn current(
     Ok(MaterializedReport { report })
 }
 
+// A Member Sealed By This Process Reuses Its Materialized Report Input; Others Re-Query Their Evidence.
 async fn sealed_member(
-    ctx: &Context<'_>, storage: &Manager, settings: &StorageSettings, seal: &ExecutionSeal, at: &StorageCursor, progress: &Operation,
+    ctx: &Context<'_>, resources: &Resources, storage: &Manager, settings: &StorageSettings, seal: &ExecutionSeal, at: &StorageCursor,
+    progress: &Operation,
 ) -> Result<CapturedExecutionReportInput> {
     if !at.covers(&seal.source.evidence_through)? {
         return Err(invalid("sealed member evidence exceeds cycle report boundary"));
     }
+    if let Some(input) = resources.execution_storage.retained_member_input(seal).await {
+        return Ok((*input).clone());
+    }
     crate::report::materialize::sealed_member(ctx, storage, settings, seal, progress).await
+}
+
+// Nothing Dispatched It: Queued, Or Planned As The Runtime Spells It (An Unsealed Skip Never Started).
+fn unstarted(execution: &TestExecution) -> bool {
+    match execution.status {
+        ExecutionStatus::Pending => true,
+        ExecutionStatus::Skipped => execution.started_at.is_none() && execution.finished_at.is_none() && execution.saved.is_none(),
+        _ => false,
+    }
 }
 
 fn invalid(reason: &str) -> Error {

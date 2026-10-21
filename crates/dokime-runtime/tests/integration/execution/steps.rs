@@ -72,6 +72,12 @@ struct Fault {
 struct TailParameters {
     #[parameter(label = "Watched File", default = "")]
     path: String,
+
+    #[parameter(label = "Mirror And Rotate", default = false)]
+    mirror: bool,
+
+    #[parameter(label = "Copy Truncate", default = false)]
+    copy_truncate: bool,
 }
 
 /* === Enums === */
@@ -122,6 +128,13 @@ impl LeaveWatch {
     #[dokime_runtime::step(label = "Tail the Device Log")]
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let path = ctx.parameters().path.clone();
+        let mirror = ctx.parameters().mirror;
+        let matchers = if mirror {
+            Vec::new()
+        } else {
+            vec![LineMatcher::publishing::<DeviceLog>(r"temp=(?P<temperature_c>[\d.]+) state=(?P<state>\w+)")]
+        };
+        let markers = if mirror { Vec::new() } else { vec![LineMarker::new(r"FAULT (?P<code>\w+)", "steps.checks.fault")] };
         let watch = ctx
             .host()
             .submit(WatchFile {
@@ -129,16 +142,29 @@ impl LeaveWatch {
                 source: Some(FileWatchSource { payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: path.clone() })) }),
                 output: "logs".into(),
                 artifact: Some("logs/device.log".into()),
-                policy: FileWatchPolicy::Stream,
+                policy: if mirror { FileWatchPolicy::Mirror } else { FileWatchPolicy::Stream },
+                selection: dokime_domain::model::files::wire::FileWatchSelection::All,
+                wait_for_source_seconds: None,
                 poll_interval_ms: Some(50),
-                maximum_seconds: None,
+                maximum_seconds: mirror.then_some(1),
                 maximum_bytes: None,
-                matchers: vec![LineMatcher::publishing::<DeviceLog>(r"temp=(?P<temperature_c>[\d.]+) state=(?P<state>\w+)")],
-                markers: vec![LineMarker::new(r"FAULT (?P<code>\w+)", "steps.checks.fault")],
+                matchers,
+                markers,
             })
             .await?;
         // The device writes once the watch has taken its baseline.
-        tokio::time::sleep(Duration::from_millis(150)).await;
+        watch.armed().await?;
+        if mirror {
+            if ctx.parameters().copy_truncate {
+                std::fs::write(&path, b"x\n")?;
+            } else {
+                std::fs::rename(&path, format!("{path}.old"))?;
+                std::fs::write(&path, APPENDED)?;
+            }
+            let captured = watch.join().await?.into_owned();
+            assert_eq!(captured.artifacts.len(), 2);
+            return Ok(());
+        }
         std::fs::OpenOptions::new().append(true).open(&path)?.write_all(APPENDED)?;
         tokio::time::sleep(Duration::from_millis(150)).await;
         // Left running: the step-end sweep cancels it.
@@ -152,6 +178,39 @@ impl LeaveWatch {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn harness_mirror_arms_before_rotation_and_retains_both_segments() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("device.log");
+    std::fs::write(&path, BEFORE).unwrap();
+    let report = Harness::template(TAIL)
+        .parameter("path", path.to_str().unwrap())
+        .parameter("mirror", true)
+        .run::<Suites>()
+        .await
+        .expect("the run completes");
+    assert!(report.passed(), "{}", report.diagnostics());
+    assert_eq!(report.artifact("logs/device.log").bytes, BEFORE);
+    assert_eq!(report.artifact("logs/device.segment2.log").bytes, APPENDED);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn harness_copy_truncate_retains_the_previous_segment() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("device.log");
+    std::fs::write(&path, BEFORE).unwrap();
+    let report = Harness::template(TAIL)
+        .parameter("path", path.to_str().unwrap())
+        .parameter("mirror", true)
+        .parameter("copy_truncate", true)
+        .run::<Suites>()
+        .await
+        .expect("the run completes");
+    assert!(report.passed(), "{}", report.diagnostics());
+    assert_eq!(report.artifact("logs/device.log").bytes, BEFORE);
+    assert_eq!(report.artifact("logs/device.segment2.log").bytes, b"x\n");
+}
 
 // A watch left running past its step is cancelled by the sweep with a
 // warning; until then its matcher and marker turned the lines it captured

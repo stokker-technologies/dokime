@@ -46,6 +46,15 @@ pub struct ListRecords {
     pub after: Option<Cursor>,
 
     pub through: Option<Cursor>,
+
+    // Nonzero asks for the tail: the last `latest` matching records up to the
+    // current frontier, oldest first, in one complete page whose cursors sit at
+    // that frontier. Valid only with both cursors absent; follow with
+    // WatchRecords after the returned cursor.
+    #[row(
+        description = "Nonzero asks for the tail: the last `latest` matching records up to the current frontier, oldest first, in one complete page whose cursors sit at that frontier. Valid only with both cursors absent; follow with WatchRecords after the returned cursor."
+    )]
+    pub latest: u32,
 }
 
 /* === Enums === */

@@ -33,15 +33,15 @@ try {
   assert.equal(appearance.appearance.organization.name, "Stokker Technologies");
   assert.equal(appearance.appearance.themes.length, 1);
   assert.ok(appearance.appearance.themes[0].stylesheet.includes("@font-face"));
-  assert.ok(appearance.logoUrl.startsWith("blob:"));
-  const logo = await (await fetch(appearance.logoUrl)).arrayBuffer();
-  assert.equal(
-    createHash("sha256").update(new Uint8Array(logo)).digest("hex"),
-    appearance.appearance.logo.asset.reference.sha256,
-  );
+  assert.equal(appearance.logos.length, 4);
+  for (const [index, logo] of appearance.logos.entries()) {
+    assert.ok(logo.url.startsWith("blob:"));
+    const bytes = await (await fetch(logo.url)).arrayBuffer();
+    assert.equal(createHash("sha256").update(new Uint8Array(bytes)).digest("hex"), appearance.appearance.logos[index].asset.reference.sha256);
+  }
   appearance.dispose();
   appearance.dispose();
-  await assert.rejects(fetch(appearance.logoUrl));
+  for (const logo of appearance.logos) await assert.rejects(fetch(logo.url));
   const suites = await api.catalogListSuites(session, { limit: 10 });
   assert.equal(suites.suites.length, 1);
   assert.equal(suites.suites[0].suiteId, "rpc.artifact");

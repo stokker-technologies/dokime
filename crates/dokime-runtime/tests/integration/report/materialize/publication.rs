@@ -48,9 +48,9 @@ async fn dependency_publication_retry() {
     let (mut source_owner, runtime) = booted_with_fixture(source_root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     let source_seal = cycle.test_executions[0].saved.as_ref().unwrap();
     let inspection = runtime.execution_snapshot(&cycle.test_executions[0].test_execution_id).await.unwrap();
     let context = inspection.context().unwrap().clone();
@@ -84,6 +84,8 @@ async fn dependency_publication_retry() {
         context,
     };
     drop(inspection);
+    // A Stop Leaves Its Active Cycles To The Next Start; This Story Needs The Parent Seal Now.
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     drop(runtime);
     source_owner.shutdown().await.unwrap();
 

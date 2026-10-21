@@ -12,14 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{net::Ipv4Addr, sync::Arc};
 // Third Party Imports
 use tonic::Status;
 // Local Imports
 use super::fixture::{Gate, Listener, MemorySecrets, Service, server_health};
-use dokime_client::contracts::runtime;
-use dokime_domain::model;
+use dokime::client::contracts::runtime;
+use dokime::domain::model;
 use dokime_gui::connection::{ConnectionCredentials, ConnectionError, ConnectionPhase, ConnectionSession, ConnectionTarget};
 
 /* === Constants === */
@@ -41,6 +42,7 @@ use dokime_gui::connection::{ConnectionCredentials, ConnectionError, ConnectionP
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[tokio::test]
 async fn switching_cancels_work() {
     let session = ConnectionSession::default();

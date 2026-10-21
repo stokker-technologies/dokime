@@ -127,8 +127,8 @@ pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
 /* === Private Functions === */
 
 fn hub_log_path(root: &Path) -> PathBuf {
-    use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
-    dokime_runtime::domains::exports::storage::path_conventions(root)
+    use dokime::domains::exports::storage::DiagnosticPathKey;
+    dokime::domains::exports::storage::path_conventions(root)
         .into_iter()
         .find(|convention| convention.key == DiagnosticPathKey::HubLog)
         .and_then(|convention| convention.absolute_path)

@@ -8,8 +8,9 @@
  */
 
 /* The one way a cycle comes into being: a title, an optional description and
-   its failure policy. The cycle starts empty; the caller decides where the
-   operator goes next. */
+   Continue Automatically, on the same settings form the cycle's own Settings
+   dialog draws. The cycle starts empty; the caller decides where the operator
+   goes next. */
 
 /* === External Imports === */
 
@@ -19,10 +20,7 @@ import { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { SettingsFields } from "@/features/cycle/SettingsForm";
 import { useCreateCycleMutation } from "@/features/cycles-home/cycles-queries";
 import { initialNewCycleForm, type NewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 
@@ -78,38 +76,12 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             <DialogTitle>New Cycle</DialogTitle>
             <DialogDescription>The cycle starts empty. Add cases to it from the Library.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="new-cycle-title">Title</Label>
-            <Input
-              aria-invalid={error !== null && !form.title.trim()}
-              id="new-cycle-title"
-              onChange={(event) => change({ title: event.target.value })}
-              value={form.title}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="new-cycle-description">Description</Label>
-            <Textarea
-              id="new-cycle-description"
-              onChange={(event) => change({ description: event.target.value })}
-              placeholder="Optional"
-              value={form.description}
-            />
-          </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-            <Label htmlFor="new-cycle-continue-automatically">Continue Automatically</Label>
-            <Switch
-              checked={form.continueAutomatically}
-              id="new-cycle-continue-automatically"
-              onCheckedChange={(continueAutomatically) => change({ continueAutomatically })}
-            />
-            <Label htmlFor="new-cycle-continue-on-failure">Continue after a failed case</Label>
-            <Switch
-              checked={form.continueOnFailure}
-              id="new-cycle-continue-on-failure"
-              onCheckedChange={(continueOnFailure) => change({ continueOnFailure })}
-            />
-          </div>
+          <SettingsFields
+            idPrefix="new-cycle"
+            onChange={(patch) => change(patch)}
+            titleInvalid={error !== null && !form.title.trim()}
+            values={{ continueAutomatically: form.continueAutomatically, description: form.description, title: form.title }}
+          />
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}

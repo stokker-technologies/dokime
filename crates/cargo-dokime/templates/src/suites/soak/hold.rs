@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -23,10 +24,11 @@ use crate::bench::Heater;
 use crate::domain::model::prompts::SoakCheckpoint;
 use crate::domain::operations::ReadChamber;
 use crate::{Error, Result};
-use dokime_runtime::host::ToolConnectionAcquired;
-use dokime_runtime::prelude::*;
+use dokime::host::ToolConnectionAcquired;
+use dokime::prelude::*;
 
 /* === Constants === */
+
 const RAMP_POLL: Duration = Duration::from_millis(10);
 
 /* === Macros === */
@@ -34,6 +36,7 @@ const RAMP_POLL: Duration = Duration::from_millis(10);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // A record is a type, declared once, in the file of whatever publishes it —
 // here, beside the step that files it. The struct's fields *are* the contract's
 // fields, so there is no id to keep in agreement with a separate declaration
@@ -90,7 +93,7 @@ pub struct SoakResources {
 // criterion reads them with `ctx.samples::<SoakRow>()`, and the
 // `#[observer]` below adds only the cadence it publishes them on.
 // `#[stream]` writes the columns as well, so this does not also derive
-// `#[dokime_runtime::row]`, and every column comes with a handle a document names
+// `#[dokime::row]`, and every column comes with a handle a document names
 // it by — rename `celsius` and the plot above stops compiling rather than
 // quietly drawing nothing.
 #[stream(
@@ -117,28 +120,29 @@ struct Summary<'a> {
 }
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Required {
     ReadChamber(ReadChamber),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Prompts {
     SoakCheckpoint(SoakCheckpoint),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Records {
     HoldReached(HoldReached),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Inputs {
     System(host::System),
     ToolConnectionAcquired(ToolConnectionAcquired),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum ObserverStreams {
     SoakRow(SoakRow),
 }
@@ -146,6 +150,7 @@ pub enum ObserverStreams {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[template(
     id = "{{owner}}.soak.hold",
     label = "Hold at Temperature",
@@ -213,7 +218,7 @@ impl Hold {
         // Every context logs, including the ones handed out by shared
         // reference: a log line is a send onto the host's own queue, so a hook
         // that opens handles can say what it is opening.
-        dokime_runtime::info!(ctx, "opening the heater on {port}");
+        dokime::info!(ctx, "opening the heater on {port}");
         let heater = Heater::open(port);
 
         let shared = SoakResources { heater: tokio::sync::Mutex::new(heater.await?), holding: AtomicBool::new(false) };
@@ -241,17 +246,17 @@ impl Hold {
 
     #[step(
         label = "Wait for the Unit",
-        description = "Waits for somebody else to say the unit is on the bench.\n`ctx.listen::<T>()` is the one way a step waits, and it answers a standard stream — so `.timeout(…)`, `.next()` and the rest are the adapters Rust already has, imported once from `dokime_runtime::prelude`. [`ToolConnectionAcquired`] is the host's own record type, so this step names no id and reads no detail map: the unit's identity is a field of the fact it waited for.\nAn execution's record inbox starts where the run started, so a unit that came online before this step reached its await still satisfies it.\nA bench with no gateway beside it is told about no unit, so a deadline here is a note rather than a failure. Make it a `?` the day another plugin is responsible for saying so."
+        description = "Waits for somebody else to say the unit is on the bench.\n`ctx.listen::<T>()` is the one way a step waits, and it answers a standard stream — so `.timeout(…)`, `.next()` and the rest are the adapters Rust already has, imported once from `dokime::prelude`. [`ToolConnectionAcquired`] is the host's own record type, so this step names no id and reads no detail map: the unit's identity is a field of the fact it waited for.\nAn execution's record inbox starts where the run started, so a unit that came online before this step reached its await still satisfies it.\nA bench with no gateway beside it is told about no unit, so a deadline here is a note rather than a failure. Make it a `?` the day another plugin is responsible for saying so."
     )]
     async fn connected(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let budget = Duration::from_secs_f64(ctx.parameters().connect_budget_s);
         match ctx.listen::<ToolConnectionAcquired>().timeout(budget).next().await {
             Some(Ok(connected)) => {
-                dokime_runtime::info!(ctx, "unit {} is on the bench", connected.resource_id);
+                dokime::info!(ctx, "unit {} is on the bench", connected.resource_id);
                 self.unit = Some(connected.resource_id);
             }
             Some(Err(waited)) => {
-                dokime_runtime::warn!(ctx, "{waited}; testing whatever is on the bench");
+                dokime::warn!(ctx, "{waited}; testing whatever is on the bench");
             }
             None => ctx.warn("nothing is listening for units on this bench"),
         }
@@ -266,7 +271,7 @@ impl Hold {
         // === Set The Target === //
 
         ctx.resources().heater.lock().await.set_target(target_c).await?;
-        dokime_runtime::info!(ctx, "heater set to {target_c:.1} °C");
+        dokime::info!(ctx, "heater set to {target_c:.1} °C");
 
         // === Wait For The Band === //
 
@@ -278,7 +283,7 @@ impl Hold {
             // is this attempt's alone.
             let celsius = ctx.call::<ReadChamber>(ReadChamber {}).await?.celsius;
             if (celsius - target_c).abs() <= band_c {
-                dokime_runtime::info!(ctx, "target reached at {celsius:.2} °C");
+                dokime::info!(ctx, "target reached at {celsius:.2} °C");
                 return Ok(());
             }
             tokio::time::sleep(RAMP_POLL).await;
@@ -315,10 +320,10 @@ impl Hold {
         // fewer than it measured. Worth saying so rather than reporting a
         // shorter hold as if it were the one that was asked for.
         if held.missed() > 0 {
-            dokime_runtime::warn!(ctx, "the hold missed {} rows it measured", held.missed());
+            dokime::warn!(ctx, "the hold missed {} rows it measured", held.missed());
         }
         log.finish()?;
-        dokime_runtime::info!(ctx, "held for {sample} samples, ending at {celsius:.2} °C");
+        dokime::info!(ctx, "held for {sample} samples, ending at {celsius:.2} °C");
 
         // === Publish What It Measured === //
 
@@ -344,7 +349,7 @@ impl Hold {
         // === Ask The Operator === //
 
         let answer = ctx.ask(SoakCheckpoint::default()).await?;
-        dokime_runtime::info!(ctx, "operator note: {}", answer.note);
+        dokime::info!(ctx, "operator note: {}", answer.note);
         self.note = Some(answer.note);
         if !answer.accepted {
             ctx.warn("the operator did not sign off on this soak");
@@ -407,7 +412,7 @@ impl Hold {
 
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
         ctx.resources().heater.lock().await.off().await?;
-        dokime_runtime::info!(ctx, "chamber released after {:?}", ctx.reason());
+        dokime::info!(ctx, "chamber released after {:?}", ctx.reason());
 
         Ok(())
     }

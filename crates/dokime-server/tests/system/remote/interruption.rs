@@ -33,20 +33,21 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use dokime_client::{Client, TestCycleHandle, TestExecutionHandle};
-use dokime_domain::model::identity::wire::Metadata;
-use dokime_domain::model::planning::wire::{RegisteredSelection, RegisteredSelectionParametersEntry, SelectionValues};
-use dokime_domain::model::{
+use dokime::client::{Client, TestCycleHandle, TestExecutionHandle};
+use dokime::domain::model::identity::wire::Metadata;
+use dokime::domain::model::planning::wire::{RegisteredSelection, RegisteredSelectionParametersEntry, SelectionValues};
+use dokime::domain::model::{
     execution::{ExecutionMode, result::CyclePhase, wire::ResultStatus},
     identity::{TestCycleId, TestExecutionId},
     values::Value,
 };
-use dokime_domain::operations::{
+use dokime::domain::operations::{
     execution::{CreateCycle, ExecutionBinding},
     planning::MaterializeTemplate,
 };
 
 /* === Constants === */
+
 // Every scenario's script waits at most 60 s on its own; past this the script is stuck.
 const SCRIPT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
 
@@ -55,6 +56,7 @@ const SCRIPT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300)
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Process {
     child: Box<dyn portable_pty::Child + Send + Sync>,
     reaped: bool,
@@ -82,6 +84,7 @@ struct Gate {
 }
 
 /* === Enums === */
+
 enum Action {
     Interrupt(Client),
     Disconnect(Client, oneshot::Sender<()>),
@@ -97,6 +100,7 @@ enum Boundary {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for Process {
     fn drop(&mut self) {
         if self.reaped {
@@ -177,8 +181,8 @@ impl Gate {
     }
 
     async fn committed(&self) -> std::io::Result<bool> {
-        use dokime_domain::model::execution::wire::CycleFilter;
-        use dokime_domain::operations::execution::ListCycles;
+        use dokime::domain::model::execution::wire::CycleFilter;
+        use dokime::domain::operations::execution::ListCycles;
 
         // Locate The Script's Cycle Without Depending On Its Pending Reply.
         let filter = CycleFilter { text: self.label.clone(), ..Default::default() };
@@ -235,6 +239,7 @@ async fn relay(mut incoming: TcpStream, mut outgoing: TcpStream, gate: Option<Ga
 }
 
 /* === Public Functions === */
+
 pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
     let (other_cycle, other_execution) = waiting_execution(client).await;
@@ -259,6 +264,7 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path) {
 }
 
 /* === Private Functions === */
+
 async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHandle) {
     let changes = client.observation_watch_runtime(Default::default()).await.unwrap();
     let parameters = vec![RegisteredSelectionParametersEntry {
@@ -278,7 +284,7 @@ async fn waiting_execution(client: &Client) -> (TestCycleHandle, TestExecutionHa
         created_at: None,
         updated_at: None,
     };
-    let request = CreateCycle { metadata: Some(metadata), continue_automatically: false, continue_on_failure: false, context: None };
+    let request = CreateCycle { metadata: Some(metadata), continue_automatically: false, context: None };
     let cycle = client.create_cycle(request).await.unwrap();
     let binding = ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: materialized.cases[0].case_id.clone() };
     cycle.append(vec![binding]).await.unwrap();
@@ -609,7 +615,7 @@ async fn admitted(client: &Client, id: TestExecutionId) {
             // Python Prints Constructed Identities Before Append Is Confirmed.
             let request_id = match execution.snapshot().await {
                 Ok(snapshot) => snapshot.controls.and_then(|controls| controls.request_id),
-                Err(dokime_client::Error::Rpc(status)) if status.code() == dokime_client::RpcCode::NotFound => None,
+                Err(dokime::client::Error::Rpc(status)) if status.code() == dokime::client::RpcCode::NotFound => None,
                 Err(error) => panic!("execution admission probe failed: {error}"),
             };
             if request_id.is_some() {

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,9 +20,9 @@ use crate::support::wire::WireMessage;
 use prost::Message;
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::Value;
-use dokime_runtime::definition::{FileDefinition, ParameterExpr, ParameterSelection, SuiteSet};
+use dokime::Value;
+use dokime::definition::{FileDefinition, ParameterExpr, ParameterSelection, SuiteSet};
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -40,7 +41,8 @@ use dokime_runtime::definition::{FileDefinition, ParameterExpr, ParameterSelecti
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn selection(suite: &dokime_runtime::definition::TestSuite) -> model::planning::wire::RegisteredSelection {
+
+fn selection(suite: &dokime::definition::TestSuite) -> model::planning::wire::RegisteredSelection {
     model::planning::wire::RegisteredSelection {
         suite_id: suite.metadata.identifier.to_string(),
         template_id: suite.test_case_templates[0].test_case_template_id.to_string(),
@@ -99,8 +101,8 @@ async fn ordered_selections_provider() {
     let mut first = support::fixture_suite(&["passed"]);
     first.tags = vec!["suite-tag".into()];
     let parameter = &mut first.test_case_templates[0].parameters[0];
-    parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_runtime::ValueType::Integer;
+    parameter.expansion = dokime::definition::ParameterExpansion::Cartesian;
+    parameter.value_type = dokime::ValueType::Integer;
     parameter.expression = ParameterExpr::Literal { value: Value::Integer(0) };
     first.test_case_templates[0].files.push(FileDefinition {
         metadata: support::metadata("fixture.file", "Input"),
@@ -113,12 +115,8 @@ async fn ordered_selections_provider() {
     second.metadata = support::metadata("fixture.second", "Second");
     second.test_case_templates[0].metadata = support::metadata("fixture.second.template", "Second template");
     let parameter = &mut second.test_case_templates[0].parameters[0];
-    parameter.list = Some(dokime_runtime::definition::ParameterList {
-        element_type: dokime_runtime::ValueType::Integer,
-        min_items: None,
-        max_items: None,
-    });
-    parameter.value_type = dokime_runtime::ValueType::Array;
+    parameter.list = Some(dokime::definition::ParameterList { element_type: dokime::ValueType::Integer, min_items: None, max_items: None });
+    parameter.value_type = dokime::ValueType::Array;
     parameter.expression = ParameterExpr::Literal { value: Value::Array(vec![Value::Integer(0)]) };
     parameter.selection = Some(ParameterSelection { choices: vec![] });
     owner
@@ -187,13 +185,13 @@ async fn ordered_selections_provider() {
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&execution, authenticated(create()), input).await.unwrap();
     let snapshot = owner.handle().watch_state().latest();
-    let id = dokime_runtime::TestCycleId::from_uuid(cycle_id).unwrap();
+    let id = dokime::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
-    assert_eq!(cycle.lifecycle, dokime_domain::model::execution::result::CycleStatus::Ready);
+    assert_eq!(cycle.lifecycle, dokime::domain::model::execution::result::CycleStatus::Ready);
     assert_eq!(cycle.test_executions.len(), cycle.cases().count());
     for (execution, case) in cycle.test_executions.iter().zip(cycle.cases()) {
         assert_eq!(execution.test_case_id, case.test_case_id);
-        assert_eq!(execution.status, dokime_domain::model::execution::result::ExecutionStatus::Skipped);
+        assert_eq!(execution.status, dokime::domain::model::execution::result::ExecutionStatus::Skipped);
         assert!(execution.started_at.is_none());
     }
     for (case, expected) in cycle.cases().zip(&preview.cases) {
@@ -366,8 +364,8 @@ async fn effective_native_materialization() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let mut suite = support::fixture_suite(&["passed"]);
-    suite.test_case_templates[0].parameters[0].expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    suite.test_case_templates[0].parameters[0].value_type = dokime_runtime::ValueType::Integer;
+    suite.test_case_templates[0].parameters[0].expansion = dokime::definition::ParameterExpansion::Cartesian;
+    suite.test_case_templates[0].parameters[0].value_type = dokime::ValueType::Integer;
     let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
@@ -404,7 +402,7 @@ async fn effective_native_materialization() {
     }
     suite.test_case_templates[0].parameters[0].expression = ParameterExpr::Range { start: 0, stop: 100, step: 1 };
     let mut other = suite.test_case_templates[0].parameters[0].clone();
-    other.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::ParameterId>();
+    other.parameter_id = dokime::model::identity::new_id::<dokime::ParameterId>();
     other.metadata = support::metadata("fixture.other", "Other dimension");
     suite.test_case_templates[0].parameters.push(other);
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
@@ -427,8 +425,8 @@ async fn payload_budget_allocation() {
     let mut owner = runtime(root.path()).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let template = &mut suite.test_case_templates[0];
-    template.parameters[0].expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    template.parameters[0].value_type = dokime_runtime::ValueType::Integer;
+    template.parameters[0].expansion = dokime::definition::ParameterExpansion::Cartesian;
+    template.parameters[0].value_type = dokime::ValueType::Integer;
     template.parameters[0].expression = ParameterExpr::Range { start: 0, stop: 999, step: 1 };
     for index in 0..32 {
         template.files.push(FileDefinition {
@@ -479,10 +477,10 @@ async fn payload_budget_allocation() {
     suite.test_case_templates[0].metadata.label = "Template".into();
     suite.metadata.description = None;
     let template = &mut suite.test_case_templates[0];
-    template.parameters[0].value_type = dokime_runtime::ValueType::Array;
+    template.parameters[0].value_type = dokime::ValueType::Array;
     template.parameters[0].expression = ParameterExpr::Literal { value: Value::Array(vec![Value::Text("x".repeat(1024)); 32]) };
     let mut other = template.parameters[0].clone();
-    other.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::ParameterId>();
+    other.parameter_id = dokime::model::identity::new_id::<dokime::ParameterId>();
     other.metadata = support::metadata("fixture.other", "Other");
     other.expression = ParameterExpr::Array { values: vec![ParameterExpr::Reference { parameter: "fixture.result".into() }; 1000] };
     template.parameters.push(other);
@@ -514,18 +512,18 @@ async fn materialization_rejects_nonfinite_parameters_before_registration() {
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     for value_type in [
-        dokime_runtime::ValueType::Number,
-        dokime_runtime::ValueType::Boolean,
-        dokime_runtime::ValueType::Text,
-        dokime_runtime::ValueType::Array,
-        dokime_runtime::ValueType::Object,
+        dokime::ValueType::Number,
+        dokime::ValueType::Boolean,
+        dokime::ValueType::Text,
+        dokime::ValueType::Array,
+        dokime::ValueType::Object,
     ] {
         suite.test_case_templates[0].parameters[0].value_type = value_type.clone();
         handle.set_suites("provider:fixture", SuiteSet::new([support::fixture_registration(suite.clone())])).await.unwrap();
         for number in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             let value = match value_type {
-                dokime_runtime::ValueType::Array => Value::Array(vec![Value::Object([("nested".into(), Value::Number(number))].into())]),
-                dokime_runtime::ValueType::Object => Value::Object([("nested".into(), Value::Array(vec![Value::Number(number)]))].into()),
+                dokime::ValueType::Array => Value::Array(vec![Value::Object([("nested".into(), Value::Number(number))].into())]),
+                dokime::ValueType::Object => Value::Object([("nested".into(), Value::Array(vec![Value::Number(number)]))].into()),
                 _ => Value::Number(number),
             };
             let mut selected = selection(&suite);
@@ -592,7 +590,7 @@ async fn registered_cases_selection() {
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&execution, Request::new(create()), selected).await.unwrap();
     let snapshot = owner.handle().watch_state().latest();
-    let id = dokime_runtime::TestCycleId::from_uuid(cycle_id).unwrap();
+    let id = dokime::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
     assert_eq!(cycle.test_executions.len(), 2);
     assert_ne!(cycle.test_executions[0].test_execution_id, cycle.test_executions[1].test_execution_id);

@@ -26,8 +26,8 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::{error::detailed, value};
-use dokime_domain::operations::content as wire;
-use dokime_runtime::{RuntimeHandle, runtime::Error};
+use dokime::domain::operations::content as wire;
+use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -57,7 +57,7 @@ impl Operation for Download {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ExecutionFileDownloadFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::content::wire::ExecutionFileDownloadFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -79,7 +79,7 @@ impl Operation for Download {
         if source.metadata().size_bytes > super::MAX_CONTENT_BYTES {
             return Err(Status::resource_exhausted("execution output exceeds native content limit"));
         }
-        let maximum = NonZeroUsize::new(super::transfer_chunk_bytes(message_limit))
+        let maximum = NonZeroUsize::new(super::download_chunk_bytes(message_limit))
             .ok_or_else(|| Status::resource_exhausted("message limit cannot contain execution chunk"))?;
         let metadata = frames::metadata(source.metadata(), message_limit).map_err(|error| stream_failure(error.into()))?;
         output.send_owned(metadata.into()).await.map_err(|error| stream_failure(error.into()))?;
@@ -112,7 +112,7 @@ impl Operation for Download {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())

@@ -54,6 +54,9 @@ pub(crate) fn root() -> SdkRoot {
 }
 
 pub(crate) fn name() -> String {
+    if let Ok(proc_macro_crate::FoundCrate::Name(name)) = proc_macro_crate::crate_name("dokime") {
+        return name;
+    }
     match proc_macro_crate::crate_name("dokime-runtime") {
         Ok(proc_macro_crate::FoundCrate::Name(name)) => name,
         _ => "dokime_runtime".to_owned(),
@@ -77,7 +80,7 @@ pub(crate) fn contracted(declared: TokenStream) -> TokenStream {
 
         const _: () = assert!(
             #sdk::MACRO_CONTRACT == #MACRO_CONTRACT,
-            "dokime-runtime and dokime-macros resolve to different revisions; depend on `dokime-runtime` only, pinned to one rev, and run `cargo update -p dokime-runtime`"
+            "dokime and dokime-macros resolve to different revisions; depend on `dokime` only, pinned to one rev, and run `cargo update -p dokime`"
         );
     }
 }

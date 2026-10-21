@@ -32,7 +32,7 @@ use super::*;
 
 #[harmos_domain::message]
 #[harmos_domain::operation(response = DeleteExecutionResponse, id = "dokime.history.delete_execution", version = 1,
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "DeleteExecution"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeleteExecution {

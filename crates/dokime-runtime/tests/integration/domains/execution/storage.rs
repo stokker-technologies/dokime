@@ -132,7 +132,7 @@ async fn execution_save_sealing() {
         std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
     }
     executor.release();
-    wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     let completed = cycle_snapshot(&handle, &cycle_id).await;
     let frame = follower.next_frame(maximum).await.unwrap().unwrap();
@@ -253,7 +253,7 @@ async fn permanent_finalization_settles() {
         started_with_fixture(config(root.path()), Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed"), refuse.clone()))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
+    let test_cycle_id = start_cycle(&runtime, suite.clone()).await;
     let mut watch = runtime.watch_state();
     let receipt = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
@@ -268,7 +268,8 @@ async fn permanent_finalization_settles() {
         .expect("the state watch stays open");
     let cycle = terminal.state().cycle_view(&test_cycle_id).unwrap();
     assert!(cycle.saved.is_none(), "an unproduced report is never sealed");
-    assert_eq!(cycle.lifecycle, CycleStatus::Completed);
+    assert_eq!(cycle.lifecycle, CycleStatus::Ready);
+    assert_eq!(cycle.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Passed));
     let failed_id = cycle.test_executions[0].test_execution_id.clone();
     let test_case_id = cycle.test_executions[0].test_case_id.clone();
     assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Passed);
@@ -282,8 +283,7 @@ async fn permanent_finalization_settles() {
     drop(terminal);
     drop(watch);
     drop(runtime);
-    assert!(owner.shutdown().await.is_err(), "unsealable evidence cannot acknowledge successful shutdown");
-    refuse.store(false, std::sync::atomic::Ordering::SeqCst);
+    // The stop leaves the unsealable cycle to the next start, which seals it once its report encodes.
     owner.shutdown().await.unwrap();
     drop(owner);
 
@@ -351,7 +351,7 @@ async fn permanent_finalization_settles() {
     assert_eq!(original_cycle.execution_ids.len(), 1);
     let fresh_cycle = runtime
         .create_cycle(
-            CycleDefinition { metadata: original_cycle.metadata.clone(), continue_automatically: false, continue_on_failure: false },
+            CycleDefinition { metadata: original_cycle.metadata.clone(), continue_automatically: false },
             CommandContext::default(),
         )
         .await
@@ -361,7 +361,7 @@ async fn permanent_finalization_settles() {
         .await
         .unwrap();
     runtime.start_case_execution(fresh_cycle.clone(), test_case_id, CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &fresh_cycle, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &fresh_cycle, ResultStatus::Passed).await;
     runtime.seal_cycle(fresh_cycle.clone(), CommandContext::default()).await.unwrap();
     let rerun = cycle_snapshot(&runtime, &fresh_cycle).await;
     assert_eq!(rerun.test_executions.len(), 1);

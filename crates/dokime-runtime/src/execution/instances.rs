@@ -92,6 +92,7 @@ pub struct StepInstance<O: OperationDeclaration> {
     id: Id,
     slot: Arc<Slot<O>>,
     released: bool,
+    readiness: Option<Readiness>,
 }
 
 struct Slot<O: OperationDeclaration> {
@@ -107,9 +108,15 @@ pub(crate) struct LocalRun {
     // A served built-in settles itself when cancelled; a harness answer that
     // never looks at the signal is aborted instead.
     cooperative: bool,
+    readiness: watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>,
 }
 
 /* === Enums === */
+
+enum Readiness {
+    Host(Supervisor),
+    Local(watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>),
+}
 
 enum Running<O: OperationDeclaration> {
     Host(HostInstance<O>),
@@ -160,12 +167,16 @@ impl Handles {
 }
 
 impl LocalRun {
-    pub(crate) fn spawn<F>(serve: impl FnOnce(watch::Receiver<bool>) -> F, cooperative: bool) -> Self
+    pub(crate) fn spawn<F>(
+        serve: impl FnOnce(watch::Receiver<bool>, watch::Sender<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>) -> F,
+        cooperative: bool,
+    ) -> Self
     where
         F: Future<Output = Result<Vec<u8>, String>> + Send + 'static,
     {
         let (cancel, cancelled) = watch::channel(false);
-        Self { task: tokio::spawn(serve(cancelled)), cancel, cooperative }
+        let (ready, readiness) = watch::channel(None);
+        Self { task: tokio::spawn(serve(cancelled, ready)), cancel, cooperative, readiness }
     }
 
     fn request_cancel(&self) {
@@ -196,22 +207,27 @@ impl LocalRun {
 }
 
 impl<O: OperationDeclaration> StepInstance<O> {
-    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8]) -> Self {
+    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8], host: Supervisor) -> Self {
         let id = instance.id();
-        Self::tracked(handles, id, Running::Host(instance), request)
+        let mut handle = Self::tracked(handles, id, Running::Host(instance), request);
+        handle.readiness = Some(Readiness::Host(host));
+        handle
     }
 
     pub(crate) fn local(handles: &Handles, run: LocalRun, request: &[u8]) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(LOCAL_IDS);
         let id = Id::new(NEXT.fetch_sub(1, Ordering::Relaxed));
-        Self::tracked(handles, id, Running::Local(run), request)
+        let readiness = run.readiness.clone();
+        let mut handle = Self::tracked(handles, id, Running::Local(run), request);
+        handle.readiness = Some(Readiness::Local(readiness));
+        handle
     }
 
     fn tracked(handles: &Handles, id: Id, running: Running<O>, request: &[u8]) -> Self {
         let (kind, name) = label::<O>(request);
         let slot = Arc::new(Slot { running: tokio::sync::Mutex::new(Some(running)), kind, name });
         handles.track(Arc::clone(&slot) as Arc<dyn Sweep>);
-        Self { id, slot, released: false }
+        Self { id, slot, released: false, readiness: None }
     }
 
     pub fn id(&self) -> Id {
@@ -262,6 +278,28 @@ impl<O: OperationDeclaration> StepInstance<O> {
     pub fn detach(mut self) -> Id {
         self.released = true;
         self.id
+    }
+}
+
+impl StepInstance<WatchFile> {
+    pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, CallError> {
+        match self.readiness.as_ref() {
+            Some(Readiness::Host(host)) => {
+                let response = host.call(dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: self.id.value() }).await?;
+                Ok(response.into_owned())
+            }
+            Some(Readiness::Local(signal)) => {
+                let mut signal = signal.clone();
+                loop {
+                    let value = signal.borrow_and_update().clone();
+                    if let Some(value) = value {
+                        return value.map_err(refused);
+                    }
+                    signal.changed().await.map_err(|_| refused("file watch stopped before capture was armed; inspect its outcome"))?;
+                }
+            }
+            None => Err(refused("file watch has no readiness binding")),
+        }
     }
 }
 

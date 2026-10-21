@@ -12,11 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use dokime_runtime::host::ToolConnectionAcquired;
-use dokime_runtime::plugin::testing::Harness;
+use dokime::host::ToolConnectionAcquired;
+use dokime::plugin::testing::Harness;
 
 // Local Imports
 use {{crate}}::bench::Sensor;
@@ -40,6 +41,7 @@ use {{crate}}::domain::operations::ReadChamber;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn chamber() -> impl Fn(ReadChamber) -> ChamberReading + Send + Sync + 'static {
     let sensor = Sensor::open("/dev/ttyUSB0", 22.0);
     move |_| ChamberReading { celsius: sensor.read_celsius().expect("the simulated sensor reads"), sensor: sensor.describe() }
@@ -109,10 +111,11 @@ async fn unreachable_target_run() {
 }
 
 /* === Tests === */
+
 #[test]
 fn soak_document_wraps() {
-    use dokime_runtime::definition::DeclaredTemplate;
-    use dokime_runtime::document::{DocumentCardBody, DocumentNode};
+    use dokime::definition::DeclaredTemplate;
+    use dokime::document::{DocumentCardBody, DocumentNode};
 
     let declaration = <{{crate}}::suites::soak::Hold as DeclaredTemplate>::declaration();
     let document = declaration.document.as_ref().expect("the soak template authors its document");

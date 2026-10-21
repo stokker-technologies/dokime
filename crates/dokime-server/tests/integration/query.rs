@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,7 +20,7 @@ use crate::support::wire::WireMessage;
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -38,6 +39,7 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn client(root: &std::path::Path) -> (impl Sized, WireClient) {
     let owner = runtime(root).await;
     let config = keyed();

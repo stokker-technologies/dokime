@@ -75,7 +75,7 @@ impl State {
                 if !matched {
                     return Ok(false);
                 }
-                transaction.commit()?;
+                super::commit(transaction)?;
                 Ok(true)
             })
             .await?;
@@ -105,7 +105,7 @@ impl State {
                     transaction
                         .execute("UPDATE storage_sources SET priority = ?1 WHERE identifier = ?2", params![priority as i64, identifier])?;
                 }
-                transaction.commit()?;
+                super::commit(transaction)?;
                 Ok(true)
             })
             .await?;

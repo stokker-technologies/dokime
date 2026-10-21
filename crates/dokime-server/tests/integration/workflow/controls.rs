@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -56,18 +57,17 @@ async fn cycle_edits_state() {
         .unary::<contracts::execution::UpdateCyclePolicy>(authenticated(contracts::execution::UpdateCyclePolicy {
             cycle_id: id.clone(),
             continue_automatically: false,
-            continue_on_failure: true,
             context: None,
         }))
         .await
         .unwrap();
     assert!(
-        client
+        !client
             .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.clone() }))
             .await
             .unwrap()
             .into_inner()
-            .continue_on_failure
+            .continue_automatically
     );
     client
         .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: case.case_id.clone(), context: None }))
@@ -312,16 +312,16 @@ async fn attempts(client: &mut WireClient, id: &str) -> Vec<model::execution::wi
         .executions
 }
 
-async fn completed(handle: &dokime_runtime::RuntimeHandle, client: &mut WireClient, id: &str) {
+async fn completed(handle: &dokime::RuntimeHandle, client: &mut WireClient, id: &str) {
     support::on_state_change(handle, async || {
-        if client
-            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.into() }))
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &client
+                .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.into() }))
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None

@@ -360,11 +360,33 @@ pub(crate) fn normalize_analysis_fields(request: &mut PlotPayloadRequest) {
     }
 }
 
+/// The query a descriptor resolves to: its declared request, mapped once
+/// through [`canonical_plot_query`], the same mapping a live query applies to
+/// the declared request a client sends back.
 pub fn plot_payload_request_for_descriptor(
     descriptor: &PlotDescriptor, scope: Option<RecordScope>, max_points: Option<usize>, window_s: Option<f64>,
     cursor: Option<PlotPayloadCursor>,
 ) -> PlotPayloadRequest {
-    let mut request = PlotPayloadRequest {
+    canonical_plot_query(declared_plot_request(descriptor, scope, max_points, window_s, cursor))
+}
+
+/// The query-time mapping of a declared request: a histogram's declared x
+/// becomes the binned series, and simple analysis fields become field keys.
+/// It runs exactly once per query; a mapped request is not a declaration.
+pub(crate) fn canonical_plot_query(mut request: PlotPayloadRequest) -> PlotPayloadRequest {
+    normalize_histogram_value(&mut request);
+    normalize_analysis_fields(&mut request);
+    request
+}
+
+/// A descriptor's request as the document declares it, before the query-time
+/// mapping: what a document definition carries to a client, and what the
+/// client's live watch sends back.
+pub fn declared_plot_request(
+    descriptor: &PlotDescriptor, scope: Option<RecordScope>, max_points: Option<usize>, window_s: Option<f64>,
+    cursor: Option<PlotPayloadCursor>,
+) -> PlotPayloadRequest {
+    PlotPayloadRequest {
         analysis: descriptor.input.analysis.clone(),
         plot_id: Some(descriptor.plot_id.to_string()),
         plot_type: Some(descriptor.plot_type.clone()),
@@ -394,10 +416,7 @@ pub fn plot_payload_request_for_descriptor(
         cursor,
         technique: descriptor.input.downsample,
         summary_window: None,
-    };
-    normalize_histogram_value(&mut request);
-    normalize_analysis_fields(&mut request);
-    request
+    }
 }
 
 pub(crate) fn plot_payload_diagnostics(payload: &PlotPayload, delta: bool) -> PlotPayloadDiagnostics {
@@ -1145,3 +1164,34 @@ fn marker_color(record_type: &str) -> String {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::{DocumentSelection, Plot, plot_descriptor_for_definition, plot_input_for_definition};
+    use dokime_domain::model::expressions::telemetry;
+
+    // The obc startup suite's histogram declares its binned value on x. The
+    // report maps the descriptor once; the live view receives the declared
+    // request in its document and sends it back, and the live query maps that
+    // once. Both bin the same input, so neither reports "none was declared".
+    #[test]
+    fn histogram_binning_inputs() {
+        let mut plot = Plot::histogram("Voltage Distribution");
+        plot.id("obc.startup.voltage_distribution");
+        plot.unit("V");
+        plot.x(telemetry("obc.startup", "voltage_v"));
+        let input = plot_input_for_definition(&plot, &[], 0, &DocumentSelection::default());
+        let descriptor = plot_descriptor_for_definition(input, plot.metadata.clone());
+
+        let report = plot_payload_request_for_descriptor(&descriptor, None, None, None, None);
+        let declared = declared_plot_request(&descriptor, None, None, None, None);
+        let live = canonical_plot_query(declared.clone());
+
+        assert!(declared.x_expression.is_some(), "the document carries the declared x, not the mapped request");
+        assert_eq!((&live.x_key, &live.y_keys, &live.y_expressions), (&report.x_key, &report.y_keys, &report.y_expressions));
+        assert!(!report.y_keys.is_empty() || !report.y_expressions.is_empty(), "the declared x is the binned series");
+        assert!(matches!(analyses::analyze(&mut [], &live), Some(PlotAnalysis::Histogram { .. })), "the live query bins");
+        assert!(matches!(analyses::analyze(&mut [], &report), Some(PlotAnalysis::Histogram { .. })), "the report bins");
+    }
+}

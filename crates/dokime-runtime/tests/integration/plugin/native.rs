@@ -87,6 +87,7 @@ struct Lease;
 
 // The step built-in a suite plugin requires; this host watches no files.
 struct Watching;
+struct AwaitingWatch;
 
 #[derive(Default)]
 struct Backend {
@@ -394,6 +395,7 @@ impl HostLog {
         operations.register_wire_operation::<Question>(HOST, Lanes::Open, Arc::new(())).unwrap();
         operations.register_wire_operation::<Lease>(HOST, Lanes::Open, Arc::new(())).unwrap();
         operations.register_wire_operation::<Watching>(HOST, Lanes::Open, Arc::new(())).unwrap();
+        operations.register_wire_operation::<AwaitingWatch>(HOST, Lanes::Open, Arc::new(())).unwrap();
         log
     }
 
@@ -541,6 +543,24 @@ impl harmos::operations::Operation for Watching {
     async fn run<'ctx>(
         &mut self, _: Self::Context<'ctx>, _: &mut dokime_runtime::operations::files::WatchFile, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<model::files::wire::WatchFileOutcome>> {
+        Err(harmos::Error::InvalidInput { field: "file watch", reason: "the fixture host watches no files" })
+    }
+}
+
+impl harmos::operations::Operation for AwaitingWatch {
+    type Declaration = dokime_runtime::operations::files::AwaitFileWatchArmed;
+    type Resources = ();
+    type Error = harmos::Error;
+    type Context<'a> = harmos::operations::Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
+        Ok(Self)
+    }
+
+    async fn run<'ctx>(
+        &mut self, _: Self::Context<'ctx>, _: &mut Self::Declaration, _: &mut (),
+    ) -> harmos::Result<harmos::operations::Response<model::files::wire::FileWatchArmed>> {
         Err(harmos::Error::InvalidInput { field: "file watch", reason: "the fixture host watches no files" })
     }
 }

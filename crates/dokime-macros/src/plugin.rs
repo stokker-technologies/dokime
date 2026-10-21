@@ -83,10 +83,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let sdk = crate::facade::root();
     let block: ItemImpl = syn::parse2(item.clone())?;
     let Type::Path(owner) = block.self_ty.as_ref() else {
-        return Err(Error::new(
-            block.self_ty.span(),
-            "`#[dokime_runtime::plugin]` belongs on `impl dokime_runtime::Plugin for ConcreteType`",
-        ));
+        return Err(Error::new(block.self_ty.span(), "`#[dokime::plugin]` belongs on `impl dokime::Plugin for ConcreteType`"));
     };
     let owner = owner
         .path
@@ -103,13 +100,13 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
             Meta::List(list) if list.path.is_ident("streams") => {
                 return Err(Error::new(
                     list.span(),
-                    "a plugin registers the streams its templates, observers and evidence declare; remove `streams(...)` and declare a stream no template or observer publishes in `dokime_runtime::Evidence<Streams>`",
+                    "a plugin registers the streams its templates, observers and evidence declare; remove `streams(...)` and declare a stream no template or observer publishes in `dokime::Evidence<Streams>`",
                 ));
             }
             Meta::NameValue(named) if named.path.is_ident("stream_entries") => {
                 return Err(Error::new(
                     named.span(),
-                    "`#[dokime_runtime::plugin]` derives its stream grant from its declarations; remove `stream_entries`",
+                    "`#[dokime::plugin]` derives its stream grant from its declarations; remove `stream_entries`",
                 ));
             }
             Meta::NameValue(named) if named.path.is_ident("provides") => {
@@ -291,6 +288,7 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
         // The host's step built-in every template reaches through
         // `ctx.host()` without listing it.
         hosted.push(syn::parse_quote!(#sdk::operations::files::WatchFile));
+        hosted.push(syn::parse_quote!(#sdk::operations::files::AwaitFileWatchArmed));
     }
     if contributed.records {
         hosted.push(syn::parse_quote!(#sdk::records::RecordPublication));

@@ -129,13 +129,16 @@ fn cache_key(source: &ArtifactSource) -> Result<String, String> {
         ArtifactSource::ExecutionEvidence { .. } | ArtifactSource::CycleEvidence { .. } => {
             Err("evidence bundles must be saved, not previewed as media".into())
         }
+        ArtifactSource::CycleReport { .. } | ArtifactSource::ExecutionReport { .. } => {
+            Err("reports are saved or opened, not previewed as media".into())
+        }
         ArtifactSource::Artifact { artifact_id } => {
-            let id = dokime_domain::model::identity::ArtifactId::from_uuid(artifact_id.clone())
+            let id = dokime::domain::model::identity::ArtifactId::from_uuid(artifact_id.clone())
                 .map_err(|_| "invalid artifact id".to_string())?;
             Ok(format!("art-{id}"))
         }
         ArtifactSource::ExecutionFile { execution_id, relative_path } => {
-            let id = dokime_domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
+            let id = dokime::domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
                 .map_err(|_| "invalid execution id".to_string())?;
             let digest = Sha256::digest(relative_path.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             Ok(format!("exec-{id}-{digest}"))
@@ -145,13 +148,13 @@ fn cache_key(source: &ArtifactSource) -> Result<String, String> {
 
 fn parse_cache_key(key: &str) -> Result<String, String> {
     if let Some(id) = key.strip_prefix("art-") {
-        let id = dokime_domain::model::identity::ArtifactId::from_uuid(id.to_string()).map_err(|_| "invalid artifact id".to_string())?;
+        let id = dokime::domain::model::identity::ArtifactId::from_uuid(id.to_string()).map_err(|_| "invalid artifact id".to_string())?;
         return Ok(format!("art-{id}"));
     }
     if let Some(rest) = key.strip_prefix("exec-") {
         let (id, digest) = rest.rsplit_once('-').ok_or_else(|| "invalid media key".to_string())?;
         let id =
-            dokime_domain::model::identity::TestExecutionId::from_uuid(id.to_string()).map_err(|_| "invalid execution id".to_string())?;
+            dokime::domain::model::identity::TestExecutionId::from_uuid(id.to_string()).map_err(|_| "invalid execution id".to_string())?;
         if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err("invalid media key digest".into());
         }

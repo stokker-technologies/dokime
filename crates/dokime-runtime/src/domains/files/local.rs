@@ -25,7 +25,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 // Local Imports
 use super::source::{Entry, Listing};
 use super::{SCAN_ENTRIES, capped, invalid, unreachable_source};
-use crate::files::FileMatcher;
+use crate::files::{FileMatcher, identity};
 use crate::runtime::Result;
 
 /* === Constants === */
@@ -48,12 +48,18 @@ pub(in crate::domains::files) struct LocalSource {
 /* === Implementations === */
 
 impl LocalSource {
-    pub(super) async fn open(root: &str) -> Result<Self> {
+    pub(super) async fn open(root: &str, wait: bool) -> Result<Self> {
         let path = Path::new(root);
         if !path.is_absolute() {
             return Err(invalid("a local watch root must be an absolute path"));
         }
-        let root = tokio::fs::canonicalize(path).await.map_err(|source| unreachable_source(format!("watch root {root:?}: {source}")))?;
+        let root = match tokio::fs::canonicalize(path).await {
+            Ok(root) => root,
+            Err(source) if wait && source.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self { root: path.to_owned(), depth: usize::MAX });
+            }
+            Err(source) => return Err(source_error(root, source)),
+        };
         if !tokio::fs::metadata(&root).await.map_err(|source| unreachable_source(format!("watch root {root:?}: {source}")))?.is_dir() {
             return Err(invalid("a local watch root must be a directory"));
         }
@@ -74,7 +80,7 @@ impl LocalSource {
 
     pub(super) async fn read_range(&self, relative: &str, offset: u64, length: u64, sink: &mut tokio::fs::File) -> Result<u64> {
         let path = self.root.join(relative);
-        let mut file = tokio::fs::File::open(&path).await.map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
+        let mut file = tokio::fs::File::open(&path).await.map_err(|source| source_error(relative, source))?;
         file.seek(std::io::SeekFrom::Start(offset)).await.map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
         let copied =
             tokio::io::copy(&mut file.take(length), sink).await.map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
@@ -87,6 +93,10 @@ impl LocalSource {
 /* === Private Functions === */
 
 fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
+    let metadata = std::fs::metadata(root).map_err(|source| source_error(&root.display().to_string(), source))?;
+    if !metadata.is_dir() {
+        return Err(invalid("a local watch root must be a directory"));
+    }
     let mut listing = Listing::new();
     let mut visited = 0_usize;
     for entry in walkdir::WalkDir::new(root).follow_links(false).min_depth(1).max_depth(depth) {
@@ -100,7 +110,7 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
             Err(source) if source.io_error().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) => {
                 continue;
             }
-            Err(source) => return Err(unreachable_source(source)),
+            Err(source) => return Err(invalid(format!("cannot scan watch root: {source}"))),
         };
         if !entry.file_type().is_file() {
             continue;
@@ -116,12 +126,20 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
             Ok(metadata) => metadata,
             Err(_) => continue,
         };
+        std::fs::File::open(entry.path()).map_err(|source| source_error(&relative, source))?;
         listing.insert(
             relative,
             Entry { size: metadata.len(), modified: metadata.modified().ok(), identity: identity(entry.path(), &metadata) },
         );
     }
     Ok(listing)
+}
+
+fn source_error(path: &str, source: std::io::Error) -> crate::runtime::Error {
+    if source.kind() == std::io::ErrorKind::NotFound {
+        return crate::runtime::Error::not_found("file_watch_missing", format!("watch source {path:?}: {source}"));
+    }
+    invalid(format!("watch source {path:?}: {source}"))
 }
 
 fn relative_path(root: &Path, path: &Path) -> Option<String> {
@@ -131,25 +149,6 @@ fn relative_path(root: &Path, path: &Path) -> Option<String> {
         segments.push(component.as_os_str().to_str()?);
     }
     Some(segments.join("/"))
-}
-
-#[cfg(unix)]
-fn identity(_: &Path, metadata: &std::fs::Metadata) -> Option<(u64, u64)> {
-    use std::os::unix::fs::MetadataExt;
-    Some((metadata.dev(), metadata.ino()))
-}
-
-#[cfg(windows)]
-fn identity(path: &Path, _: &std::fs::Metadata) -> Option<(u64, u64)> {
-    match file_id::get_low_res_file_id(path).ok()? {
-        file_id::FileId::LowRes { volume_serial_number, file_index } => Some((u64::from(volume_serial_number), file_index)),
-        _ => None,
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-fn identity(_: &Path, _: &std::fs::Metadata) -> Option<(u64, u64)> {
-    None
 }
 
 /* === Tests === */

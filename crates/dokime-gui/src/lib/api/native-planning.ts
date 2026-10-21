@@ -23,12 +23,14 @@ import type {
   Row8 as GeneratedNativeCaseActions,
 } from "@generated/dokime/v1/ExecutionMessages/ListCases/messages_pb";
 import type { Row3 as GeneratedCursor } from "@generated/dokime/v1/ExecutionMessages/ListCycles/messages_pb";
-import type { Row8 as GeneratedStepStatus } from "@generated/dokime/v1/ExecutionMessages/ListExecutionSteps/messages_pb";
+import type {
+  Row23 as GeneratedCriterionStatus,
+  Row8 as GeneratedStepStatus,
+} from "@generated/dokime/v1/ExecutionMessages/ListExecutionSteps/messages_pb";
 import type {
   Row5 as GeneratedExecutionStatus,
   Row4 as GeneratedExecutionSummary,
 } from "@generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb";
-import type { Row8 as GeneratedCriterionStatus } from "@generated/dokime/v1/ExecutionMessages/ListStepCriteria/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -107,7 +109,6 @@ export async function previewNativeTestCycle(
 export type NewCycleRequest = {
   label: string;
   description?: string;
-  continueOnFailure: boolean;
   continueAutomatically: boolean;
 };
 
@@ -125,7 +126,6 @@ export async function createNativeTestCycle(session: SessionIdentity, request: N
       tags: [],
       attributes: [],
     },
-    continueOnFailure: request.continueOnFailure,
     continueAutomatically: request.continueAutomatically,
     context: { correlationId: crypto.randomUUID() },
   });
@@ -212,10 +212,9 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
       queue_count: mappedCases.length,
       current_test_execution_id: active?.current_test_execution_id ?? null,
       current_queue_item_id: active?.case_id ?? null,
-      continue_on_failure: summary.continueOnFailure,
       continue_automatically: summary.continueAutomatically,
       started_at: timestampIso(summary.startedAt),
-      finished_at: isFinishedCycle(summary.status) ? timestampIso(summary.updatedAt) : null,
+      finished_at: summary.phase?.HarmosVariant.case === "Sealed" ? timestampIso(summary.updatedAt) : null,
       duration_s: durationSeconds(summary.startedAt, summary.updatedAt),
       duration_delta_s: null,
       metadata: metadataJson(summary.metadata),
@@ -656,8 +655,4 @@ export function mapCriterionStatus(status: CriterionStatus | undefined): StepExe
     default:
       return "pending";
   }
-}
-
-export function isFinishedCycle(status: CycleStatus | undefined): boolean {
-  return ["Completed", "Failed", "Stopped"].includes(status?.HarmosVariant.case ?? "");
 }

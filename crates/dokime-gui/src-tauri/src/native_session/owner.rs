@@ -43,6 +43,8 @@ struct Inner {
     state: Mutex<State>,
     transition: tokio::sync::Mutex<Resources>,
     local: Option<Result<Backend, String>>,
+    // Cancelled once, when the operator exits without finishing.
+    abandon: tokio_util::sync::CancellationToken,
 }
 
 struct State {
@@ -81,6 +83,7 @@ impl DesktopSession {
             }),
             transition: tokio::sync::Mutex::new(Resources::default()),
             local: None,
+            abandon: tokio_util::sync::CancellationToken::new(),
         }))
     }
     pub fn with_local_backend(connection: ConnectionSession, backend: Backend) -> Self {
@@ -137,7 +140,7 @@ impl DesktopSession {
         // Resolve The Shared Profile Before Replacing An Active Session.
         let selection = match selection {
             BackendSelection::Profile { name } => {
-                let store = dokime_client::profiles::Store::discover(None)
+                let store = dokime::client::profiles::Store::discover(None)
                     .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
                 let document = store.load().map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
                 let profile = document.get(&name).map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
@@ -148,8 +151,8 @@ impl DesktopSession {
                     ConnectionTarget::Local { endpoint: profile.endpoint.clone() }
                 };
                 let credentials = match resolved.credential {
-                    dokime_client::profiles::Credential::None => ConnectionCredentials::None,
-                    dokime_client::profiles::Credential::Keyring => ConnectionCredentials::Saved,
+                    dokime::client::profiles::Credential::None => ConnectionCredentials::None,
+                    dokime::client::profiles::Credential::Keyring => ConnectionCredentials::Saved,
                 };
                 BackendSelection::Attach {
                     request: ConnectRequest { target, credentials, expected_backend_id: resolved.expected_backend_id },
@@ -228,6 +231,10 @@ impl DesktopSession {
     pub async fn shutdown(&self) -> Result<DesktopSessionSnapshot, Error> {
         self.stop(true).await
     }
+    // End the owned backend now, without the rest of its orderly stop.
+    pub fn abandon(&self) {
+        self.0.abandon.cancel();
+    }
     fn backend(&self) -> Result<Backend, Error> {
         self.0.local.clone().ok_or(Error::LocalBackendUnavailable)?.map_err(|message| Error::Startup { message, diagnostics: None })
     }
@@ -238,11 +245,17 @@ impl DesktopSession {
         }
         state.revision = state.revision.checked_add(1).ok_or(Error::ShuttingDown)?;
         state.closing |= closing;
-        state.ownership = BackendOwnership::None;
         state.phase = None;
         state.archived = None;
         state.startup_log = None;
-        self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
+        // A closing desktop keeps an established connection until its backend
+        // has stopped: the window goes on showing what it showed, and nothing
+        // it still asks is answered as superseded. A connection still being
+        // made is abandoned at once.
+        if !state.closing || state.ownership == BackendOwnership::None {
+            state.ownership = BackendOwnership::None;
+            self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
+        }
         Ok(state.revision)
     }
     fn current(&self, revision: u64) -> Result<(), Error> {
@@ -253,8 +266,12 @@ impl DesktopSession {
         let owner = self.clone();
         tokio::spawn(async move {
             let mut resources = owner.0.transition.lock().await;
-            resources.shutdown().await?;
+            resources.shutdown(&owner.0.abandon).await?;
             owner.current(revision)?;
+            if closing {
+                owner.0.state.lock().expect("desktop owner poisoned").ownership = BackendOwnership::None;
+                owner.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
+            }
             Ok(owner.status())
         })
         .await
@@ -263,7 +280,7 @@ impl DesktopSession {
     async fn select_owned(&self, revision: u64, selection: BackendSelection) -> Result<DesktopSessionSnapshot, Error> {
         let mut resources = self.0.transition.lock().await;
         self.current(revision)?;
-        resources.shutdown().await?;
+        resources.shutdown(&self.0.abandon).await?;
         self.current(revision)?;
         self.establish(revision, selection, &mut resources).await
     }
@@ -288,13 +305,13 @@ impl DesktopSession {
             }
         };
         if let Err(error) = self.current(revision) {
-            resources.shutdown().await?;
+            resources.shutdown(&self.0.abandon).await?;
             return Err(error);
         }
         let connected = self.0.connection.connect(request).await;
         if let Err(error) = self.current(revision) {
             self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
-            resources.shutdown().await?;
+            resources.shutdown(&self.0.abandon).await?;
             return Err(error);
         }
         match connected {
@@ -321,11 +338,11 @@ impl DesktopSession {
                     return Ok(snapshot);
                 }
                 self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
-                resources.shutdown().await?;
+                resources.shutdown(&self.0.abandon).await?;
                 Err(Error::Superseded)
             }
             Err(error) => {
-                resources.shutdown().await?;
+                resources.shutdown(&self.0.abandon).await?;
                 Err(Error::Connection { error })
             }
         }
@@ -337,7 +354,7 @@ impl DesktopSession {
         let mut resources = self.0.transition.lock().await;
         self.current(revision)?;
         self.report_phase(revision, "stopping");
-        resources.shutdown().await?;
+        resources.shutdown(&self.0.abandon).await?;
         self.current(revision)?;
 
         // Archive The Data Root First, When Asked
@@ -379,15 +396,19 @@ impl DesktopSession {
 }
 
 impl Resources {
-    async fn shutdown(&mut self) -> Result<(), Error> {
+    async fn shutdown(&mut self, abandon: &tokio_util::sync::CancellationToken) -> Result<(), Error> {
         if let Some(local) = self.local.as_mut() {
-            let status = local.shutdown().await.map_err(|message| Error::Shutdown { message })?;
+            let status = local.shutdown(abandon).await.map_err(|message| Error::Shutdown { message })?;
+            // The process has exited either way; a retry has nothing left to wait for.
+            self.local = None;
             if !status.success() {
                 return Err(Error::Shutdown {
-                    message: format!("The {} backend did not close cleanly ({status}); reports may be incomplete.", crate::PRODUCT),
+                    message: format!(
+                        "The {} backend did not stop cleanly ({status}); its next start seals what it left unfinished.",
+                        crate::PRODUCT
+                    ),
                 });
             }
-            self.local = None;
         }
         Ok(())
     }

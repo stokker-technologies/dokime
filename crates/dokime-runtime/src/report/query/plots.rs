@@ -21,7 +21,6 @@ use harmos::{
     operations::Context,
     storage::query::transform::{
         FieldPath, Transform,
-        downsample::{Algorithm, Downsample},
         sort::{Sort, SortKey},
     },
 };
@@ -31,7 +30,6 @@ use super::{invalid, statistics, telemetry};
 use crate::document::PlotType;
 use crate::execution::context::captured::source::CapturedSource;
 use crate::expressions::DataSource;
-use crate::plot::DownsampleTechnique;
 use crate::plot::PlotAnalysis;
 use crate::plot::PlotPayload;
 use crate::plot::PlotPayloadContext;
@@ -91,7 +89,7 @@ pub(in crate::report) async fn materialize(
                     .and_then(|versions| versions.values().next());
                 crate::report::analysis::materialize(ctx, &request, &samples, projected, contract).await?
             } else {
-                crate::plot::build_plot_payload(&samples, records, request, source.captured_at.as_str(), &context)
+                full(&samples, records, &request, source.captured_at.as_str(), &context)
             }
         }
     };
@@ -167,38 +165,14 @@ async fn optimized(
         // Missing Values Preserve Existing Gap Semantics Through The Raw Path.
         if statistics.count != statistics.rows && request.plot_type != Some(PlotType::Histogram) {
             let samples = telemetry::read(ctx, settings, at, scope, contract, vec![]).await?;
-            return Ok(crate::plot::build_plot_payload(&samples, records, request.clone(), source.captured_at.as_str(), context));
+            return Ok(full(&samples, records, request, source.captured_at.as_str(), context));
         }
-        let maximum = request.max_points.unwrap_or(crate::document::DEFAULT_PLOT_MAX_POINTS);
-        let mut transforms =
-            vec![Transform::Sort(Sort { keys: vec![SortKey { field: x.clone(), descending: false, nulls_first: false }] })];
-        if maximum > 0 {
-            let algorithm = match request.technique {
-                DownsampleTechnique::Raw => Algorithm::Decimate,
-                DownsampleTechnique::MinMax if maximum >= 2 => Algorithm::Extrema,
-                DownsampleTechnique::Lttb if maximum >= 3 => Algorithm::Lttb,
-                DownsampleTechnique::Auto | DownsampleTechnique::Unspecified
-                    if maximum >= 3 && statistics.count <= maximum.saturating_mul(4) =>
-                {
-                    Algorithm::Lttb
-                }
-                DownsampleTechnique::Auto | DownsampleTechnique::Unspecified if maximum >= 2 => Algorithm::Extrema,
-                _ => Algorithm::Decimate,
-            };
-            // Histogram Bins And Statistics Are Independent Full-Data Queries.
-            // Its Display Trace May Use Decimation Even When Values Are Missing.
-            let algorithm = if request.plot_type == Some(PlotType::Histogram) { Algorithm::Decimate } else { algorithm };
-            transforms.push(Transform::Downsample(Downsample {
-                max_rows: maximum,
-                algorithm,
-                value: Some(statistics::field(key)),
-                axis: Some(x.clone()),
-            }));
-        }
+        let transforms = vec![Transform::Sort(Sort { keys: vec![SortKey { field: x.clone(), descending: false, nulls_first: false }] })];
         let samples = telemetry::read(ctx, settings, at, scope, contract, transforms).await?;
         let mut single = request.clone();
         single.y_keys = vec![key.clone()];
-        let one = crate::plot::build_plot_payload(&samples, records, single, source.captured_at.as_str(), context);
+        single.max_points = Some(0);
+        let one = full(&samples, records, &single, source.captured_at.as_str(), context);
         for mut series in one.series {
             series.raw_points = statistics.count;
             series.downsampled = series.points.len() < statistics.count;
@@ -211,7 +185,9 @@ async fn optimized(
             histograms.push(statistics::histogram(read, at, scope, contract, key, request.histogram.bins, &statistics).await?);
         }
     }
+    let budget = std::mem::take(&mut payload.max_points);
     payload = crate::plot::finish_plot_payload(payload, request);
+    payload.max_points = budget;
     payload.summaries = summaries;
     for series in &mut payload.series {
         series.downsampled = series.points.len() < series.raw_points;
@@ -222,4 +198,77 @@ async fn optimized(
     Ok(payload)
 }
 
+// Captured Series Stay Whole. Only The Viewer Applies A Display Budget To Its
+// Visible Window; Dropping An Earlier Point Here Would Make Zoom Irrecoverable.
+fn full(
+    samples: &[crate::telemetry::TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, generated_at: &str,
+    context: &PlotPayloadContext,
+) -> PlotPayload {
+    let mut payload = crate::plot::project_plot_payload(samples, records, request, generated_at, context);
+    for series in &mut payload.series {
+        series.raw_points = series.raw_points.max(series.points.len());
+    }
+    // The Display Budget Stays Stated; The Viewer Reduces To It Per Visible Window.
+    let budget = std::mem::take(&mut payload.max_points);
+    let mut payload = crate::plot::finish_plot_payload(payload, request);
+    payload.max_points = budget;
+    for series in &mut payload.series {
+        series.downsampled = series.points.len() < series.raw_points;
+    }
+    payload
+}
+
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Value;
+    use crate::model::identity::new_id;
+    use crate::telemetry::TelemetrySample;
+    use dokime_domain::model::time::Timestamp;
+
+    #[test]
+    fn frozen_series_retains_points_beyond_the_live_plot_cap() {
+        let count = crate::config::MAX_PLOT_POINTS as usize + 101;
+        let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
+        let stream = Identifier::new("fixture.capture").unwrap();
+        let samples = (0..count)
+            .map(|index| {
+                let mut sample = TelemetrySample::new(new_id(), stream.clone(), index as u64, timestamp.clone(), "fixture");
+                let value = if index == 25 { 1_000_000.0 } else { index as f64 };
+                sample.values.insert("index".into(), Value::Number(index as f64));
+                sample.values.insert("value".into(), Value::Number(value));
+                sample
+            })
+            .collect::<Vec<_>>();
+        let request = PlotPayloadRequest {
+            stream: stream.to_string(),
+            x_key: Some("index".into()),
+            y_keys: vec!["value".into()],
+            plot_type: Some(PlotType::TimeSeries),
+            max_points: Some(32),
+            technique: crate::plot::DownsampleTechnique::MinMax,
+            ..Default::default()
+        };
+
+        let mut payload = full(&samples, &[], &request, timestamp.as_str(), &PlotPayloadContext::default());
+        let series = &payload.series[0];
+        assert_eq!(series.points.len(), count);
+        assert_eq!(series.raw_points, count);
+        assert!(!series.downsampled);
+        assert_eq!(series.points.first().unwrap().y, Some(0.0));
+        assert_eq!(series.points.last().unwrap().y, Some((count - 1) as f64));
+        assert_eq!(payload.max_points, 32);
+
+        // An Early Viewport Can Still Recover Its Original Spike And Endpoints.
+        payload.series[0].points.retain(|point| point.x.as_f64().is_some_and(|x| x <= 100.0));
+        assert_eq!(payload.series[0].points.len(), 101);
+        let viewport = crate::plot::finish_plot_payload(payload, &request);
+        let points = &viewport.series[0].points;
+        assert!(points.len() <= 32);
+        assert!(points.iter().any(|point| point.y == Some(1_000_000.0)));
+        assert_eq!(points.first().unwrap().y, Some(0.0));
+        assert_eq!(points.last().unwrap().y, Some(100.0));
+    }
+}

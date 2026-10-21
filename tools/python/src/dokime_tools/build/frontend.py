@@ -21,7 +21,7 @@ from pathlib import Path
 # Local Imports
 from dokime_tools.package.staging import clear_output, sync_output
 
-from . import paths
+from . import branding, paths
 
 # Type Checking Imports
 
@@ -42,6 +42,8 @@ INPUT_ROOTS = [
     ROOT / "branding/brand.toml",
     ROOT / "branding/theme",
     ROOT / "branding/fonts",
+    ROOT / "branding/logos",
+    ROOT / "branding/generated/default-brand.json",
     WEB_ROOT / "pnpm-lock.yaml",
 ]
 
@@ -57,6 +59,7 @@ def is_stale(previous_hash: str | None, current_hash: str, source_exists: bool) 
 
 
 def ensure_report() -> None:
+    branding.generate()
     digest = hashlib.sha256()
     for path in sorted({file for root in INPUT_ROOTS for file in _files(root)}):
         digest.update(str(path.relative_to(WEB_ROOT, walk_up=True)).encode())
@@ -90,6 +93,7 @@ def ensure_report() -> None:
 
 
 def build_live(args: list[str]) -> None:
+    branding.generate()
     vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
     command = ["node", str(vite), "build"]
     if args:
@@ -102,6 +106,7 @@ def build_live(args: list[str]) -> None:
 
 def build(profile: str) -> Path:
     """Build The Live Frontend Once And Mirror It Where The Desktop Shell Serves It From."""
+    branding.generate()
     output = paths.output(ROOT, "build", profile) / "web"
     clear_output(output)
     subprocess.run(["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--outDir", str(output)], cwd=WEB_ROOT, check=True)

@@ -177,6 +177,97 @@ impl RuntimeHandle {
         Ok(())
     }
 
+    pub async fn cancel_execution(&self, id: TestExecutionId, context: CommandContext) -> Result<(), Error> {
+        let permit = self.admit_owned_work().ok_or(Error::ShuttingDown)?;
+        let runtime = self.clone();
+        tokio::spawn(async move {
+            let _permit = permit;
+            runtime.cancel_execution_inner(id, context).await
+        })
+        .await
+        .map_err(|source| Error::Join { source })?
+    }
+
+    async fn cancel_execution_inner(&self, id: TestExecutionId, context: CommandContext) -> Result<(), Error> {
+        use crate::transactions::execution_cancel::CancelAdmission;
+
+        // Decide Under Admission So A Racing Start Cannot Dispatch The Member.
+        let admission = self.plugin_admission.lock().await;
+        let execution = self.known_execution(&id).await?.ok_or_else(|| Error::not_found("execution_not_found", "execution not found"))?;
+        if !self.state_read().executions.contains_key(&id) {
+            let cancelled = execution.status == dokime_domain::model::execution::result::ExecutionStatus::Cancelled
+                && execution.started_at.is_none()
+                && execution.saved.is_some();
+            return if cancelled { Ok(()) } else { Err(Error::conflict("cycle_closed", "historical execution cannot be cancelled")) };
+        }
+        let cycle_id = execution.test_cycle_id.clone();
+        let transaction =
+            crate::transactions::CancelExecution { test_execution_id: id.clone(), occurred_at: crate::model::time::now_utc() };
+        let admitted = transaction.admit(&self.state_read()).map_err(|refusal| Error::conflict(refusal.code, refusal.message))?;
+        if admitted == CancelAdmission::Cancelled && execution.saved.is_some() {
+            return Ok(());
+        }
+        if let CancelAdmission::Queued(request_id) = &admitted
+            && self.owns_provider_task(request_id)
+        {
+            return Err(Error::conflict("execution_already_started", "execution has already been dispatched"));
+        }
+
+        // Commit The Skip, Then Stage Its Queued Request Without Provider Work.
+        if admitted != CancelAdmission::Cancelled {
+            self.freeze_report_inputs(vec![id.clone()]).await?;
+            self.commit_with_key(context.idempotency_key, transaction).await?;
+        }
+        let request = crate::transactions::ControlExecution::owning_request(&self.state_read(), &id).cloned();
+        if let Some(request) = &request
+            && request.summary.phase == crate::transactions::provider::request::RunPhase::Queued
+        {
+            self.commit(crate::transactions::StageQueuedStop {
+                request_id: request.summary.request_id.clone(),
+                at: crate::model::time::now_utc(),
+            })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
+        }
+        drop(admission);
+
+        // Seal The Skipped Member Before Its Request Becomes Terminal.
+        let cycle =
+            self.state_read().cycle_view(&cycle_id).ok_or_else(|| Error::not_found("cycle_not_found", "execution cycle not found"))?;
+        let execution = cycle
+            .test_executions
+            .iter()
+            .find(|execution| execution.test_execution_id == id)
+            .ok_or_else(|| Error::not_found("execution_not_found", "execution not found"))?;
+        if execution.saved.is_none() {
+            self.finish_saved_execution(&cycle, execution).await?;
+        }
+        if let Some(request) = request {
+            self.complete_staged_request(&request.summary.request_id).await?;
+        }
+        self.execution_storage.save_cycle_header(cycle_id).await?;
+        self.dispatch_next_request().await;
+        Ok(())
+    }
+
+    fn owns_provider_task(&self, request_id: &dokime_domain::model::identity::CommandId) -> bool {
+        let tasks = self.provider_tasks.lock().expect("provider task registry is healthy");
+        tasks.iter().any(|task| &task.request_id == request_id && !task.settled.is_cancelled())
+    }
+
+    async fn complete_staged_request(&self, request_id: &dokime_domain::model::identity::CommandId) -> Result<(), Error> {
+        let at = self.state_read().run_requests[request_id]
+            .completion_at
+            .clone()
+            .ok_or_else(|| Error::Operation("queued cancellation has no completion timestamp".into()))?;
+        self.commit(crate::transactions::CompleteRun { request_id: request_id.clone(), at, unsealed: None })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
+        let summary = self.state_read().run_requests[request_id].summary.clone();
+        self.request_storage.update(request_id, |receipt| receipt.summary = summary).await?;
+        Ok(())
+    }
+
     async fn control_execution(&self, id: TestExecutionId, action: Action, context: CommandContext) -> Result<(), Error> {
         if self.is_shutting_down() {
             return Err(Error::ShuttingDown);
@@ -328,11 +419,7 @@ impl RuntimeHandle {
             }
         }
         let cycle = self.state_read().cycle_view(&test_cycle_id).ok_or_else(|| Error::not_found("cycle_not_found", "cycle not found"))?;
-        for execution in &cycle.test_executions {
-            if execution.saved.is_none() {
-                self.finish_saved_execution(&cycle, execution).await?;
-            }
-        }
+        self.finish_saved_members(&cycle).await?;
 
         // A Queued Receipt Becomes Terminal Only After Its Selection Is Sealed.
         let finishing = self
