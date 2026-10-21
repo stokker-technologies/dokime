@@ -200,7 +200,7 @@ pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
     let root = app.path().app_data_dir()?.join("branding");
     let boot = boot(&root);
     if let Some(error) = &boot.error {
-        tracing::error!(%error, "branding pack is invalid; the compiled brand applies");
+        tracing::error!(%error, "branding pack could not be activated; retaining the last valid appearance");
     }
     let pending = load(&root.join(PENDING)).ok().map(|pack| pack.summary());
     app.manage(BrandingState { root, boot, session: Mutex::new(Session { pending, removed: false }) });
@@ -253,19 +253,66 @@ pub async fn desktop_branding_remove(app: AppHandle) -> Result<BrandingStatus, S
 fn boot(root: &Path) -> Boot {
     let pending = root.join(PENDING);
     let active = root.join(ACTIVE);
+    let mut promotion_error = None;
     if pending.is_dir() {
-        // A Validated Pending Pack Replaces The Active One Whole, Never In Part.
-        if let Err(error) = remove_folder(&active).and_then(|()| std::fs::rename(&pending, &active).map_err(|error| error.to_string())) {
-            return Boot { pack: None, error: Some(format!("the pending branding pack could not be activated: {error}")) };
+        // Validate Again At Boot Before Replacing The Last Valid Pack.
+        let validated = load(&pending);
+        let promoted = validated.and_then(|pack| {
+            replace_pack(&pending, &active)?;
+            Ok(pack)
+        });
+        match promoted {
+            Ok(pack) => return Boot { pack: Some(pack), error: None },
+            Err(error) => {
+                promotion_error = Some(format!("the pending branding pack could not be activated: {error}"));
+            }
         }
     }
     if !active.is_dir() {
-        return Boot { pack: None, error: None };
+        return Boot { pack: None, error: promotion_error };
     }
     match load(&active) {
-        Ok(pack) => Boot { pack: Some(pack), error: None },
-        Err(error) => Boot { pack: None, error: Some(error) },
+        Ok(pack) => Boot { pack: Some(pack), error: promotion_error },
+        Err(error) => {
+            let error = match promotion_error {
+                Some(pending) => format!("{pending}; the active pack also failed: {error}"),
+                None => error,
+            };
+            Boot { pack: None, error: Some(error) }
+        }
     }
+}
+
+fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
+    if !destination.exists() {
+        return std::fs::rename(source, destination).map_err(|error| error.to_string());
+    }
+
+    // Keep The Previous Pack On Disk Until Publication Succeeds.
+    let root = destination.parent().ok_or("the pack destination has no parent directory")?;
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(".previous-");
+    let backup = builder.tempdir_in(root).map_err(|error| error.to_string())?;
+    let previous = backup.path().join(ACTIVE);
+    std::fs::rename(destination, &previous).map_err(|error| error.to_string())?;
+    let backup = backup.keep();
+
+    let error = match std::fs::rename(source, destination) {
+        Ok(()) => {
+            let cleanup = std::fs::remove_dir_all(&backup);
+            if let Err(error) = cleanup {
+                tracing::warn!(%error, path = %backup.display(), "the replaced branding pack remains on disk");
+            }
+            return Ok(());
+        }
+        Err(error) => error,
+    };
+    if let Err(restore) = std::fs::rename(&previous, destination) {
+        let retained = previous.display();
+        return Err(format!("{error}; restoring the previous pack failed: {restore}; it remains at {retained}"));
+    }
+    let _ = std::fs::remove_dir(&backup);
+    Err(error.to_string())
 }
 
 /// Validates an archive, extracts it beside the packs and replaces the pending pack only when it loads.
@@ -287,8 +334,7 @@ fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
     }
     let summary = load(staging.path())?.summary();
     let pending = root.join(PENDING);
-    remove_folder(&pending)?;
-    std::fs::rename(staging.keep(), &pending).map_err(|error| error.to_string())?;
+    replace_pack(staging.path(), &pending)?;
     Ok(summary)
 }
 
@@ -605,5 +651,38 @@ mod tests {
         assert!(fallback.pack.is_none());
         assert!(fallback.error.unwrap().contains("brand.toml"));
         assert!(branding.join(ACTIVE).is_dir(), "an invalid pack stays on disk for diagnosis");
+    }
+
+    #[test]
+    fn invalid_pending_pack_preserves_the_last_valid_active_pack() {
+        let root = tempfile::tempdir().unwrap();
+        let branding = root.path().join("branding");
+        let archive_path = root.path().join("pack.zip");
+        std::fs::write(&archive_path, archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
+        stage(&branding, &archive_path).unwrap();
+        assert_eq!(boot(&branding).pack.unwrap().label, "Fork");
+        stage(&branding, &archive_path).unwrap();
+        std::fs::write(branding.join(PENDING).join(MANIFEST), "invalid [").unwrap();
+
+        let retained = boot(&branding);
+
+        assert_eq!(retained.pack.unwrap().label, "Fork");
+        assert!(retained.error.unwrap().contains("pending branding pack"));
+        assert_eq!(std::fs::read_to_string(branding.join(ACTIVE).join(MANIFEST)).unwrap(), MANIFEST_TEXT);
+        assert_eq!(std::fs::read_to_string(branding.join(PENDING).join(MANIFEST)).unwrap(), "invalid [");
+    }
+
+    #[test]
+    fn failed_promotion_restores_the_active_pack() {
+        let root = tempfile::tempdir().unwrap();
+        let active = root.path().join(ACTIVE);
+        std::fs::create_dir(&active).unwrap();
+        std::fs::write(active.join(MANIFEST), MANIFEST_TEXT).unwrap();
+
+        let pending = root.path().join(PENDING);
+        assert!(replace_pack(&pending, &active).is_err(), "a missing pending pack cannot replace the active pack");
+
+        assert_eq!(std::fs::read_to_string(active.join(MANIFEST)).unwrap(), MANIFEST_TEXT);
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1, "rollback removes only its empty backup directory");
     }
 }

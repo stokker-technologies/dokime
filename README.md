@@ -1071,9 +1071,10 @@ slug, bundle identifier, deep-link scheme and OS icon stay compiled into the
 build, so the pack's values for them are ignored. The `icons/` and
 `generated/` folders are skipped. A pack is refused unless it is a zip of at
 most 20 MiB and 200 entries holding only `.toml`, `.css`, `.woff2`, `.svg` and
-`.png` files. Licence `.txt` and `.md` files are skipped. If an active pack
-stops loading, the compiled brand applies and the reason shows under
-Settings › Diagnostics.
+`.png` files. Licence `.txt` and `.md` files are skipped. A pending pack is
+validated again at startup; invalid input keeps the last valid active pack
+and remains on disk for diagnosis. If the active pack itself stops loading,
+the compiled brand applies. Activation errors show under Settings › Diagnostics.
 
 ### Generated Clients
 
