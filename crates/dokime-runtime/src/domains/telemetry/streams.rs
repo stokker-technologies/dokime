@@ -213,37 +213,51 @@ impl RuntimeHandle {
             }
             leased.insert(sample.stream.clone(), owners.into_values().collect::<Vec<_>>());
         }
-        let state =
-            self.state_manager.state().read(Clone::clone).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?.value;
-        // Validate The Entire Supplied Batch Before Closed Scope Filtering.
-        for sample in samples {
-            if let Some(scope) = &sample.scope {
-                state
-                    .capture_scope(scope)
-                    .map_err(|reason| crate::runtime::Error::Operation(format!("telemetry acquisition refused: {reason}")))?;
-            }
-        }
-        let mut samples = captured_samples(samples, &leased)?;
-        delivery.attribute(&state)?;
-        for sample in &mut samples {
-            if let Some(scope) = &sample.scope {
-                sample.scope = Some(state.capture_scope(scope).map_err(crate::runtime::Error::Operation)?);
-            }
-        }
-        // Each stream's contract is looked up and normalized once per batch;
-        // only the row checks run per row.
-        let lookup = crate::runtime_state::contract_lookup(&state);
-        let mut contracts = BTreeMap::new();
+        // Scope Capture And Contract Lookup Read The Live State In Place, Without Copying It.
+        let (samples, mut contracts) = self
+            .state_manager
+            .state()
+            .read(|state| -> crate::runtime::Result<_> {
+                // Validate The Entire Supplied Batch Before Closed Scope Filtering.
+                for sample in samples {
+                    if let Some(scope) = &sample.scope {
+                        state
+                            .capture_scope(scope)
+                            .map_err(|reason| crate::runtime::Error::Operation(format!("telemetry acquisition refused: {reason}")))?;
+                    }
+                }
+                let mut samples = captured_samples(samples, &leased)?;
+                delivery.attribute(state)?;
+                for sample in &mut samples {
+                    if let Some(scope) = &sample.scope {
+                        sample.scope = Some(state.capture_scope(scope).map_err(crate::runtime::Error::Operation)?);
+                    }
+                }
+                let lookup = crate::runtime_state::contract_lookup(state);
+                let mut contracts = BTreeMap::new();
+                for sample in &samples {
+                    if !contracts.contains_key(&sample.stream) {
+                        contracts.insert(sample.stream.clone(), lookup.telemetry_contract(&sample.stream));
+                    }
+                }
+                Ok((samples, contracts))
+            })
+            .await
+            .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?
+            .value?;
+        // Each stream's contract is normalized once per batch; only the row checks run per row.
+        let mut normalized = BTreeMap::new();
         let mut accepted = Vec::with_capacity(samples.len());
         for sample in samples {
-            if !contracts.contains_key(&sample.stream) {
-                let contract = lookup
-                    .telemetry_contract(&sample.stream)
+            if !normalized.contains_key(&sample.stream) {
+                let contract = contracts
+                    .remove(&sample.stream)
+                    .flatten()
                     .ok_or_else(|| validation_rejection("telemetry contract is unavailable", "stream", None))?;
-                let normalized = contract.normalized();
-                contracts.insert(sample.stream.clone(), (contract, normalized));
+                let rules = contract.normalized();
+                normalized.insert(sample.stream.clone(), (contract, rules));
             }
-            let (contract, normalized) = &contracts[&sample.stream];
+            let (contract, normalized) = &normalized[&sample.stream];
             validate_normalized_telemetry_sample(normalized, &sample, ValidationMode::Strict)
                 .map_err(|error| validation_rejection(error.to_string(), "telemetry", None))?;
             accepted.push((sample, contract.clone(), 0));

@@ -53,6 +53,23 @@ pub(super) async fn count(storage: &ExecutionStorage) -> Result<usize> {
 pub(super) async fn inspect(
     storage: &ExecutionStorage, mut visit: impl FnMut(&TestExecutionId, &ExecutionOutput) -> harmos::Result<()>,
 ) -> Result<usize> {
+    let owners = storage.active.lock().await.values().cloned().collect::<Vec<_>>();
+    let mut live = Vec::new();
+    for owner in owners {
+        let acquisition = owner.lock().await;
+        for upload in acquisition.artifacts.values() {
+            if let Some(output) = upload.descriptor() {
+                live.push((acquisition.execution_id.clone(), output.clone()));
+            }
+        }
+    }
+    // Observe All Completed Uploads Through One Logical Durability Boundary.
+    // Native Finish Has Already Saved Each File's Immutable Bytes.
+    if let Some(through) = live.iter().map(|(_, output)| &output.file.position).max_by_key(|position| position.sequence)
+        && !storage.storage.cursor_saved().covers(through)?
+    {
+        storage.storage.flush_until(through).await?;
+    }
     let saved = storage.storage.cursor_saved();
     let mut seen = BTreeMap::new();
     for row in super::history::executions(&storage.storage).await? {
@@ -67,17 +84,12 @@ pub(super) async fn inspect(
             }
         }
     }
-    let owners = storage.active.lock().await.values().cloned().collect::<Vec<_>>();
-    for owner in owners {
-        let acquisition = owner.lock().await;
-        for upload in acquisition.artifacts.values() {
-            if let Some(output) = upload.descriptor()
-                && saved.covers(&output.file.position)?
-                && let ExecutionOutputContent::Artifact { record, .. } = &output.content
-                && observe(&mut seen, &acquisition.execution_id, record)?
-            {
-                visit(&acquisition.execution_id, output)?;
-            }
+    for (id, output) in live {
+        if saved.covers(&output.file.position)?
+            && let ExecutionOutputContent::Artifact { record, .. } = &output.content
+            && observe(&mut seen, &id, record)?
+        {
+            visit(&id, &output)?;
         }
     }
     Ok(seen.len())

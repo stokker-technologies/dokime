@@ -169,6 +169,35 @@ split-debuginfo = "unpacked"
 [profile.dev.package."*"]
 opt-level = 2
 
+# `mise run package` ships the dev profile, so the crates that run in the packaged binaries get basic
+# optimization; debug info and debug assertions stay. Package specs take no globs, so each crate is named.
+[profile.dev.package.dokime]
+opt-level = 1
+
+[profile.dev.package.dokime-client]
+opt-level = 1
+
+[profile.dev.package.dokime-domain]
+opt-level = 1
+
+[profile.dev.package.dokime-gui]
+opt-level = 1
+
+[profile.dev.package.dokime-host]
+opt-level = 1
+
+[profile.dev.package.dokime-runtime]
+opt-level = 1
+
+[profile.dev.package.dokime-server]
+opt-level = 1
+
+[profile.dev.package.obc-plugin]
+opt-level = 1
+
+[profile.dev.package.obc-runtime]
+opt-level = 1
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

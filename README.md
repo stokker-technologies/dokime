@@ -11,7 +11,7 @@
 [![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
 [![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
 [![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases/latest)
-[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE)
+[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE-APACHE)
 
 **Run repeatable engineering tests. Keep the evidence.**
 
@@ -128,8 +128,9 @@ Active. Select the destination cycle in the Library before adding attempts.
 **Seal Cycle** closes admission immediately, stops that cycle's running work,
 cancels unrun executions and waits for every execution and the cycle report to
 be durably saved. The phase advances through **Sealing** to **Sealed**. Other
-cycles continue. Shutdown seals all Active cycles; startup finishes sealing
-previous-session cycles without replaying device operations.
+cycles continue. Shutdown stops running executions without regenerating cycle
+reports. Startup seals previous-session Active cycles without replaying device
+operations.
 
 For a charger campaign, one template might measure steady-state charging while
 another checks overcurrent protection. Cartesian expansion turns the operating
@@ -941,7 +942,10 @@ mise run ci
 binaries and libraries, the OBC bundle, generated clients, the frontend, the
 Python distribution and its tutorial. It resolves the server contracts before
 compiling the frontend, then builds the desktop shell with those assets
-embedded in both profiles. Dev keeps workspace Rust code unoptimized.
+embedded in both profiles. Dev applies basic optimization to the packaged Rust
+crates while retaining debug information and assertions. Package defaults to
+`dev` and prints the packaged profile; select `--profile release` explicitly
+for release packages.
 Interactive `tauri dev` continues to use the Vite server.
 
 `build:tests --profile dev` separately compiles the shared test archive and

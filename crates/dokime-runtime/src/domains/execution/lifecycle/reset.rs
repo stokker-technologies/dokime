@@ -20,7 +20,7 @@ pub(crate) use crate::transactions::{CycleResetAction as Action, ResetCycle as R
 // Third Party Imports
 
 // Local Imports
-use crate::transactions::cycle::apply_cycle_reset;
+use crate::transactions::cycle::plan_cycle_reset;
 use crate::{CommandContext, RuntimeHandle, runtime::Error};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
@@ -53,8 +53,7 @@ impl RuntimeHandle {
     async fn reset_cycle_owned(&self, test_cycle_id: TestCycleId, action: Action, context: CommandContext) -> Result<(), Error> {
         let _admission = self.evidence_admission.lock().await;
         let transaction = Reset { test_cycle_id: test_cycle_id.clone(), action, occurred_at: crate::model::time::now_utc() };
-        let mut projected = (*self.state_read()).clone();
-        let execution_ids = apply_cycle_reset(&mut projected, &transaction)?;
+        let (_, execution_ids) = plan_cycle_reset(&self.state_read(), &transaction)?;
         self.commit_with_key(context.idempotency_key, transaction).await?;
         for execution_id in execution_ids {
             if let Err(error) = self.abandon_execution_artifacts(&execution_id).await {

@@ -148,7 +148,7 @@ impl Transaction<RuntimeState> for ResetCycle {
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         ensure_runtime_active(state)?;
-        apply_cycle_reset(&mut state.clone(), self).map(|_| ()).map_err(|error| error.to_string())
+        plan_cycle_reset(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -159,11 +159,18 @@ impl Transaction<RuntimeState> for ResetCycle {
 /* === Public Functions === */
 
 pub fn apply_cycle_reset(state: &mut RuntimeState, reset: &ResetCycle) -> Result<Vec<TestExecutionId>, Error> {
+    let (cycle, removed) = plan_cycle_reset(state, reset)?;
+    state.replace_cycle(cycle).map_err(conflict)?;
+    Ok(removed)
+}
+
+// The Reset Cycle And The Executions It Removes, Validated Against The Unchanged State.
+pub fn plan_cycle_reset(state: &RuntimeState, reset: &ResetCycle) -> Result<(CycleView, Vec<TestExecutionId>), Error> {
     let mut cycle = state.cycle_view(&reset.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
     let CycleResetAction::Delete { test_case_id } = &reset.action;
     let removed = delete_cycle_case(&mut cycle, test_case_id, reset.occurred_at.clone()).map_err(conflict)?;
-    state.replace_cycle(cycle).map_err(conflict)?;
-    Ok(removed)
+    state.validate_cycle_view(&cycle).map_err(conflict)?;
+    Ok((cycle, removed))
 }
 
 pub(crate) fn ensure_case_deletable(cycle: &CycleView, test_case_id: &CaseId) -> Result<(), String> {

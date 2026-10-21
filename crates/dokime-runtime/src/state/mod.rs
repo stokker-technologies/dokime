@@ -106,6 +106,16 @@ pub struct RuntimeState {
     pub archived_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
 }
 
+// The Fields A Plugin Catalog Change Rewrites, Restored Together When The Change Is Refused.
+struct CatalogSnapshot {
+    installed_plugins: BTreeMap<String, InstalledPlugin>,
+    suites: SuiteRegistry,
+    prompt_definitions: BTreeMap<String, PromptDefinition>,
+    record_definitions: BTreeMap<dokime_domain::model::identity::Identifier, RecordContract>,
+    record_history: record_history::RecordHistory,
+    telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
+}
+
 /* === Enums === */
 
 #[derive(Clone, Debug, PartialEq)]
@@ -391,21 +401,41 @@ impl RuntimeState {
             }
         }
         let source = installation.source.clone();
-        let mut projected = self.clone();
-        projected.installed_plugins.insert(source.clone(), installation.clone());
-        projected.suites.set(&source, installation.suites.clone())?;
-        projected.rebuild_installed_domains_with((redefinition == Redefinition::Supersede).then_some(source.as_str()))?;
-        *self = projected;
-        Ok(())
+        self.change_catalog(|state| {
+            state.suites.set(&source, installation.suites.clone())?;
+            state.installed_plugins.insert(source.clone(), installation);
+            state.rebuild_installed_domains_with((redefinition == Redefinition::Supersede).then_some(source.as_str()))
+        })
     }
 
     pub fn remove_plugin(&mut self, source: &str) -> Result<(), String> {
-        let mut projected = self.clone();
-        projected.installed_plugins.remove(source);
-        projected.suites.unregister_source(source);
-        projected.rebuild_installed_domains()?;
-        *self = projected;
-        Ok(())
+        self.change_catalog(|state| {
+            state.installed_plugins.remove(source);
+            state.suites.unregister_source(source);
+            state.rebuild_installed_domains()
+        })
+    }
+
+    // Applies A Catalog Change In Place, Copying Only The Catalog So A Refusal Leaves The State Untouched.
+    fn change_catalog(&mut self, change: impl FnOnce(&mut Self) -> Result<(), String>) -> Result<(), String> {
+        let snapshot = CatalogSnapshot {
+            installed_plugins: self.installed_plugins.clone(),
+            suites: self.suites.clone(),
+            prompt_definitions: self.prompt_definitions.clone(),
+            record_definitions: self.record_definitions.clone(),
+            record_history: self.record_history.clone(),
+            telemetry_definitions: self.telemetry_definitions.clone(),
+        };
+        let changed = change(self);
+        if changed.is_err() {
+            self.installed_plugins = snapshot.installed_plugins;
+            self.suites = snapshot.suites;
+            self.prompt_definitions = snapshot.prompt_definitions;
+            self.record_definitions = snapshot.record_definitions;
+            self.record_history = snapshot.record_history;
+            self.telemetry_definitions = snapshot.telemetry_definitions;
+        }
+        changed
     }
 
     fn rebuild_installed_domains(&mut self) -> Result<(), String> {
@@ -789,3 +819,28 @@ fn is_host_stream(stream: &dokime_domain::model::identity::Identifier) -> bool {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refused_catalog_change_keeps_the_state() {
+        let mut state = RuntimeState::new(SessionId::from_seed("catalog.fixture"));
+        state.install_builtin_domains().unwrap();
+        let plugin = |source: &str, label: &str| InstalledPlugin {
+            source: source.to_owned(),
+            record_contracts: vec![RecordContract::declared("fixture.reading", label)],
+            ..Default::default()
+        };
+        state.install_plugin(plugin("fixture.first", "First")).unwrap();
+        let installed = state.clone();
+
+        // A Conflicting Record Refuses Inside The Rebuild And Leaves Every Catalog Field
+        assert!(state.install_plugin(plugin("fixture.second", "Second")).is_err());
+        assert_eq!(state, installed);
+
+        state.remove_plugin("fixture.first").unwrap();
+        assert!(!state.record_definitions.contains_key(&dokime_domain::model::identity::Identifier::new("fixture.reading").unwrap()));
+    }
+}

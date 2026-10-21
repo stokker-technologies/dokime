@@ -176,7 +176,8 @@ impl ArtifactUpload {
                 save(&mut acquisition, &upload.id).await?;
                 let record = acquisition.artifacts[&upload.id].record.clone();
                 drop(acquisition);
-                storage.storage.flush().await?;
+                // Native Finish Already Confirms Immutable File Durability.
+                // Save The Logical Descriptors Together At The Execution Boundary.
                 return outcome(record, complete);
             }
             // A successful publication can retire its process-local owner.

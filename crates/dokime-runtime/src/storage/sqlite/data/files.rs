@@ -138,7 +138,7 @@ impl State {
                 let transaction = connection.transaction()?;
                 transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
                 transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
-                transaction.commit()?;
+                super::super::commit(transaction)?;
                 remove(&source)?;
                 Ok(reference)
             })())
@@ -271,7 +271,7 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
             params![staging.id.as_str(), super::position(1), entry::encode(&checkpoint, METADATA_BYTES)?],
         )?;
     }
-    transaction.commit()?;
+    super::super::commit(transaction)?;
     let (_, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("file staging disappeared"))?;
     if finished.is_none() && finish_intent(connection, &staging.id)?.is_none() {
         let path = staging_path(connection, root, &staging.id)?;
@@ -286,7 +286,9 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
 }
 
 pub(super) fn confirm_durability(path: &Path) -> Result<(), Error> {
-    Ok(harmos::filesystem::publication::confirm(path)?)
+    harmos::filesystem::publication::confirm(path)?;
+    super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    Ok(())
 }
 
 pub(super) fn confirm(connection: &Connection, root: &Path, reference: &FileReference) -> Result<(), Error> {

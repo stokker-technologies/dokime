@@ -74,6 +74,11 @@ pub(crate) struct ExecutionStorage {
     pub(super) cycle_reports:
         Mutex<BTreeMap<dokime_domain::model::identity::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>>,
     pub(super) active: Mutex<BTreeMap<TestExecutionId, Arc<Mutex<Acquisition>>>>,
+
+    // Scopes Of Owners Still Admitting Evidence; Telemetry Routes Through It Without Locking Each Owner.
+    pub(super) open_scopes: Arc<std::sync::Mutex<BTreeMap<TestExecutionId, dokime_domain::model::execution::RecordScope>>>,
+
+    pub(super) codecs: crate::storage::telemetry::CodecCache,
     pub(crate) tail_stops: Mutex<BTreeMap<String, Arc<TailStop>>>,
     pub(crate) captures: super::captures::Captures,
 }
@@ -218,6 +223,8 @@ impl ExecutionStorage {
             cycle_save: Arc::new(Mutex::new(())),
             cycle_reports: Mutex::new(BTreeMap::new()),
             active: Mutex::new(BTreeMap::new()),
+            open_scopes: Default::default(),
+            codecs: Default::default(),
             tail_stops: Mutex::new(BTreeMap::new()),
             captures: Default::default(),
         })
@@ -327,6 +334,7 @@ impl ExecutionStorage {
             return Err(invalid("report request differs from its persisted finalization boundary"));
         }
         let report_boundary = at.clone();
+        let open_scopes = self.open_scopes.clone();
         let operation = async move {
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
@@ -342,6 +350,7 @@ impl ExecutionStorage {
                 // Retain The Exact Input Before Closing Admission Or Awaiting A Save
                 acquisition.finalizing = Some(frozen.clone());
                 acquisition.finish_requested = true;
+                open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&acquisition.execution_id);
             }
             let frozen =
                 if final_report { acquisition.finalizing.as_ref().expect("original finalization retained").clone() } else { frozen };
@@ -621,6 +630,10 @@ impl ExecutionStorage {
             let mut active = self.active.lock().await;
             match active.entry(id) {
                 std::collections::btree_map::Entry::Vacant(entry) => {
+                    self.open_scopes
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .insert(entry.key().clone(), execution.scope.clone());
                     entry.insert(owner.clone());
                     None
                 }
