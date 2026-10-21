@@ -72,8 +72,8 @@ impl Fixture {
         runtime.handle().publish_product_record(calibration.into_draft("rpc.fixture")).await.unwrap();
 
         // Native Server And Session
-        // Keep The 150 KB Artifact In Multiple Bounded Download Frames.
-        let config = Config::local().with_max_message_bytes(128 * 1024);
+        // Keep The 1.2 MB Artifact In Multiple Frames While Admitting 256 KiB Upload Chunks.
+        let config = Config::local().with_max_message_bytes(1024 * 1024);
         let server = Server::start(runtime.handle(), config).await.unwrap();
         let session = ConnectionSession::default();
         session

@@ -87,6 +87,7 @@ struct Gate {
 
 enum Action {
     Interrupt(Client),
+    InterruptOnSample(Client),
     Disconnect(Client, oneshot::Sender<()>),
     InterruptAt(Gate),
 }
@@ -432,7 +433,7 @@ async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
     let command = super::configured_command("py", "test", endpoint, &directory, &[("SAMPLE_COUNT", "64"), ("EXECUTION_COUNT", "1")]);
     let command = terminal_command(command.as_std(), false);
     let selected = client.clone();
-    let outcome = tokio::task::spawn_blocking(move || run(command, "Sample: obc.pulse #", Action::Interrupt(selected))).await.unwrap();
+    let outcome = tokio::task::spawn_blocking(move || run(command, "Execution: ", Action::InterruptOnSample(selected))).await.unwrap();
     assert!(outcome.triggered && !outcome.success, "partial capture was not interrupted:\n{}", outcome.text);
     let cycles = super::identities(&outcome.text, "Cycle: ");
     let executions = super::identities(&outcome.text, "Execution: ");
@@ -578,6 +579,13 @@ fn read_terminal(
                     writer.write_all(b"\x03")?;
                     writer.flush()?;
                 }
+                Action::InterruptOnSample(client) => {
+                    let id = execution.unwrap();
+                    runtime.block_on(admitted(&client, id.clone()));
+                    runtime.block_on(first_sample(&client, id));
+                    writer.write_all(b"\x03")?;
+                    writer.flush()?;
+                }
                 Action::Disconnect(client, disconnect) => {
                     runtime.block_on(admitted(&client, execution.unwrap()));
                     let _ = disconnect.send(());
@@ -605,6 +613,22 @@ fn read_terminal(
     let plain = anstream::adapter::strip_str(&text).to_string();
     let text = plain.replace("\r\n", "\n");
     Ok((text, triggered))
+}
+
+async fn first_sample(client: &Client, id: TestExecutionId) {
+    // The Tutorial Prints Only After Draining; Observe Live Evidence Before Interrupting It.
+    let execution = client.execution(id);
+    let samples = execution.samples(vec!["obc.pulse".into()], true, 64, None).unwrap();
+    let waiting = async {
+        while let Some(page) = samples.message().await.unwrap() {
+            if !page.samples.is_empty() {
+                return;
+            }
+        }
+        panic!("the execution must publish a sample before finishing");
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(30), waiting).await.expect("the execution must begin its capture");
+    samples.close().await;
 }
 
 async fn admitted(client: &Client, id: TestExecutionId) {

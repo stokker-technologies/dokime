@@ -262,7 +262,6 @@ test("Execution Controls", () => {
     progress: null,
     promptWaiting: false,
     status: "running",
-    stepStatuses: [],
     stopping: false,
     ...patch,
   });
@@ -305,16 +304,20 @@ test("Execution Controls", () => {
   // A Waiting Prompt Is Named, Not Shown, In Control
   assert.equal(executionControlState(input({ controls: running, promptWaiting: true })).line, "Waits on the prompt below");
 
-  // Once The Last Step Settles The Attempt Finalizes And Offers Nothing
-  const settled = executionControlState(input({ controls: { ...running, canPause: true }, stepStatuses: ["passed", "passed"] }));
+  // Runtime Finalization Offers Nothing; A Completed Step Counter Does Not End The Run.
+  const settled = executionControlState(input({ controls: { ...running, canPause: true }, status: "finalizing" }));
   assert.deepEqual(settled, { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" });
   assert.equal(
     executionControlState(input({ controls: running, progress: { completed: 5, id: "s", label: "S", total: 5 } })).phase,
-    "finalizing",
+    "running",
   );
   assert.equal(executionControlState(input({ controls: running, status: "finalizing" })).phase, "finalizing");
   assert.equal(executionControlState(input({ controls: running, status: "passed" })).phase, "finalizing");
-  assert.equal(executionControlState(input({ controls: running, stepStatuses: ["passed", "running"] })).phase, "running");
+  const waiting = executionControlState(
+    input({ controls: running, progress: { completed: 5, id: "s", label: "S", total: 5 }, promptWaiting: true }),
+  );
+  assert.equal(waiting.phase, "waiting");
+  assert.deepEqual(waiting.actions, ["Stop"]);
 
   // A Stop In Flight Offers Nothing Further
   assert.equal(executionControlState(input({ controls: running, stopping: true })).line, "Stopping · saving evidence");

@@ -21,13 +21,17 @@
  * only while live: a file has nothing to command.
  */
 
-/* === External Imports === */
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
 
 import { Ban, Pause, Play, RotateCcw, Square } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 
-/* === Local Imports === */
+// Local Imports
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { stepRecordLabel } from "@/components/document/StepRecordsCard";
@@ -37,6 +41,28 @@ import { ControlCard } from "./ControlCard";
 import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
 import { useCycleCommands, useRerunCase } from "./cycle-queries";
 import { type CycleExecutionRow, caseActionTooltip, progressStepLabel } from "./cycle-workspace-model";
+
+/* === Re-Exports === */
+
+/* === Constants === */
+
+const REPORTS: Record<ExecutionAction, { done: string; failed: string }> = {
+  Cancel: { done: "Execution Cancelled", failed: "Execution Could Not Be Cancelled" },
+  Pause: { done: "Execution Pause Requested", failed: "Execution Control Failed" },
+  "Re-Run": { done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" },
+  Resume: { done: "Execution Resume Requested", failed: "Execution Control Failed" },
+  Start: { done: "Execution Started", failed: "Execution Could Not Start" },
+  Stop: { done: "Execution Stopped And Evidence Saved", failed: "Execution Control Failed" },
+};
+
+const ACTION_ICONS: Record<ExecutionAction, ReactNode> = {
+  Cancel: <Ban data-icon="inline-start" />,
+  Pause: <Pause data-icon="inline-start" />,
+  "Re-Run": <RotateCcw data-icon="inline-start" />,
+  Resume: <Play data-icon="inline-start" />,
+  Start: <Play data-icon="inline-start" />,
+  Stop: <Square data-icon="inline-start" />,
+};
 
 /* === Types === */
 
@@ -58,26 +84,6 @@ export type ExecutionControlProps = {
 export type ExecutionActionButtonProps = {
   action: ExecutionAction;
   actions: ExecutionActions;
-};
-
-/* === Constants === */
-
-const REPORTS: Record<ExecutionAction, { done: string; failed: string }> = {
-  Cancel: { done: "Execution Cancelled", failed: "Execution Could Not Be Cancelled" },
-  Pause: { done: "Execution Pause Requested", failed: "Execution Control Failed" },
-  "Re-Run": { done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" },
-  Resume: { done: "Execution Resume Requested", failed: "Execution Control Failed" },
-  Start: { done: "Execution Started", failed: "Execution Could Not Start" },
-  Stop: { done: "Execution Stopped And Evidence Saved", failed: "Execution Control Failed" },
-};
-
-const ACTION_ICONS: Record<ExecutionAction, ReactNode> = {
-  Cancel: <Ban data-icon="inline-start" />,
-  Pause: <Pause data-icon="inline-start" />,
-  "Re-Run": <RotateCcw data-icon="inline-start" />,
-  Resume: <Play data-icon="inline-start" />,
-  Start: <Play data-icon="inline-start" />,
-  Stop: <Square data-icon="inline-start" />,
 };
 
 /* === Components === */
@@ -147,7 +153,6 @@ export function useExecutionActions({
       : null,
     promptWaiting: prompts.some((prompt) => prompt.scope?.test_execution_id === execution.test_execution_id),
     status: execution.status,
-    stepStatuses: execution.steps.filter((record) => record.record_type === "step").map((record) => record.status),
     stopping: commands.stopExecution.isPending,
   });
   const id = execution.test_execution_id;
@@ -192,10 +197,12 @@ export function useExecutionActions({
   };
 }
 
-/* === Private Functions === */
+/* === Public Functions === */
 
 /** The running step's human label, as the Steps card names it; the phase for an opaque id. */
 export function stepLabel(execution: Pick<TestExecution, "steps">, stepId: string, phase: string): string {
   const record = execution.steps.find((item) => item.record_type === "step" && item.step_id === stepId);
   return record ? stepRecordLabel(record, false) : progressStepLabel(stepId, phase);
 }
+
+/* === Private Functions === */

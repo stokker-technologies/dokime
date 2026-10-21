@@ -37,16 +37,6 @@ import { executionStatusLabel, isTerminalExecutionStatus, isUnstartedExecution }
 
 /* === Constants === */
 
-const SETTLED_STEP_STATUSES: ReadonlySet<string> = new Set([
-  "passed",
-  "failed",
-  "skipped",
-  "cancelled",
-  "stopped",
-  "blocked",
-  "interrupted",
-]);
-
 /* === Types === */
 
 /** One lifecycle action of the execution's Control card, in card order. */
@@ -68,8 +58,6 @@ export type ExecutionControlState = {
 export type ExecutionControlInput = {
   status: TestExecution["status"];
   controls: TestExecution["controls"];
-  /** The statuses of the execution's step records, criteria excluded. */
-  stepStatuses: readonly string[];
   /** The live step progress, when the runtime streams one for this execution. */
   progress: { label: string; id: string; completed: number; total: number } | null;
   /** Whether a prompt of this execution waits for an answer. */
@@ -97,10 +85,8 @@ export type CycleControlInput = {
 /* === Public Functions === */
 
 /**
- * The execution's card. Finalizing wins over every running state as soon as
- * the last step settles: the runtime then waits for the provider to settle and
- * saves the evidence, which can take half a minute, and Pause or Stop would
- * act on nothing the operator can still change.
+ * The runtime owns finalization. Completed records cover only finished steps,
+ * and progress counts one step's work; neither establishes that the run ended.
  */
 export function executionControlState(input: ExecutionControlInput): ExecutionControlState {
   const { controls, progress, status } = input;
@@ -112,7 +98,7 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
   if (isTerminalExecutionStatus(status) && !controls) {
     return { actions: ["Re-Run"], detail: null, line: `Ended · ${executionStatusLabel(status)}`, phase: "ended" };
   }
-  if (status === "finalizing" || isTerminalExecutionStatus(status) || lastStepSettled(input)) {
+  if (status === "finalizing" || isTerminalExecutionStatus(status)) {
     return { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" };
   }
   if (input.stopping || controls?.stopRequested) {
@@ -153,11 +139,5 @@ export function inputNeededLabel(ordinals: readonly number[]): string | null {
 }
 
 /* === Private Functions === */
-
-/** Every step has settled, or the progress stream counted the last one. */
-function lastStepSettled({ progress, stepStatuses }: ExecutionControlInput): boolean {
-  if (progress && progress.total > 0 && progress.completed >= progress.total) return true;
-  return stepStatuses.length > 0 && stepStatuses.every((status) => SETTLED_STEP_STATUSES.has(status));
-}
 
 /* === Entry Point === */

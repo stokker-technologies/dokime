@@ -2392,7 +2392,9 @@ async function remoteAccessJourney() {
   await session.goto(`/cycles/${activeCycle}?view=cycle`);
   await cyclePhase(session, "Active");
   /* The cycle page names the execution waiting on input; the prompt itself is answered there. */
-  assert.ok(hasText(await session.text(), "Input needed on #"), "the cycle names the execution its surviving prompt waits on");
+  await until("the cycle names the execution its surviving prompt waits on", async () =>
+    hasText(await session.text(), "Input needed on #"),
+  );
   const running = await caseRowText(session, STARTUP_TEMPLATE);
   assert.match(running, /\b(Running|Waiting)\b/, "rotation leaves the admitted execution running");
   await session.execute(
@@ -2658,7 +2660,7 @@ async function reportJourney(session, cycleId) {
   assert.deepEqual(runControls, [], "A frozen report renders no run controls");
   assert.ok(hasText(report, "Records"), "The report renders its records section");
   assert.equal(
-    (dom.match(/data-level="case"/g) ?? []).length,
+    (dom.match(/<li\b[^>]*\bdata-level="case"/g) ?? []).length,
     liveMembers,
     "The frozen report must list every planned execution the live cycle lists, pending ones included",
   );
