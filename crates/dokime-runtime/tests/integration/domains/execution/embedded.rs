@@ -102,6 +102,16 @@ impl EmbeddedProvider for Probe {
             version: "0.1.0".into(),
             enabled: true,
             suites: dokime_runtime::definition::SuiteSet::new([suite]),
+            telemetry_contracts: vec![
+                dokime_runtime::telemetry::TelemetryContract::declared("fixture.embedded.staged", "Staged Reading")
+                    .typed::<StagedReading>()
+                    .column(dokime_runtime::telemetry::TelemetryColumn::declared(
+                        "value",
+                        "Value",
+                        dokime_runtime::ValueType::Number,
+                        dokime_runtime::telemetry::TelemetryRole::Value,
+                    )),
+            ],
             ..Default::default()
         }
     }
@@ -141,6 +151,39 @@ impl EmbeddedProvider for Probe {
 /* === Private Functions === */
 
 /* === Tests === */
+#[tokio::test]
+async fn admitted_catalog_is_durable_before_exposure() {
+    let root = tempfile::tempdir().unwrap();
+    let metadata = dokime_runtime::Metadata::new(Identifier::new("fixture.catalog.host").unwrap(), "Catalog Host", None);
+    let config = crate::service_support::budgets::runtime_config(root.path(), metadata);
+    let provider = || {
+        Arc::new(Probe {
+            label: "catalog",
+            fail: false,
+            block_start: false,
+            events: Arc::new(Mutex::new(Vec::new())),
+            signals: Signals::default(),
+        })
+    };
+    let mut runtime = dokime_runtime::Runtime::start(config.register(provider())).await.unwrap();
+    let suite = dokime_runtime::storage::objects::suite::read(runtime.handle().storage(), "fixture.embedded.suite").await.unwrap();
+    assert!(suite.is_some(), "first boot persists the newly admitted suite");
+    let contract = provider().catalog().telemetry_contracts.remove(0);
+    let codec = dokime_runtime::storage::telemetry::codec(&contract).unwrap();
+    runtime.handle().storage().lookup_schema(codec.schema()).await.expect("plugin-wide schema exists before any execution");
+    runtime.shutdown().await.unwrap();
+
+    let root = tempfile::tempdir().unwrap();
+    let metadata = dokime_runtime::Metadata::new(Identifier::new("fixture.catalog.host").unwrap(), "Catalog Host", None);
+    let config = crate::service_support::budgets::runtime_config(root.path(), metadata);
+    let mut runtime = dokime_runtime::Runtime::start(config).await.unwrap();
+    runtime.register(provider()).await.unwrap();
+    let suite = dokime_runtime::storage::objects::suite::read(runtime.handle().storage(), "fixture.embedded.suite").await.unwrap();
+    assert!(suite.is_some(), "registration persists the replacement catalog before returning");
+    runtime.handle().storage().lookup_schema(codec.schema()).await.expect("registration persists plugin-wide schemas");
+    runtime.shutdown().await.unwrap();
+}
+
 // registration replaces template operations and cleans failed initialization.
 
 #[tokio::test]

@@ -380,6 +380,7 @@ impl Runtime {
         if reconcile && let Err(error) = self.handle.commit(ReconcileProviders { providers }).await {
             return Err(operation(error));
         }
+        self.capture_ready_catalogs().await?;
         self.recover_plugin_executions().await?;
         for active in self.plugins.values() {
             if let PluginProvenance::Installed { install_id, .. } = active.package.input.provenance {
@@ -407,6 +408,18 @@ impl Runtime {
                     .map(|provider| provider.catalog.clone()),
             )
             .collect()
+    }
+
+    async fn capture_ready_catalogs(&mut self) -> Result<()> {
+        let ready: Vec<_> = self.plugin_manager.as_ref().expect("manager is initialized").ready().map(str::to_owned).collect();
+        // Catalog Reconciliation Must Precede Schema Capture And Recovery.
+        let contracts = self.handle.state_read().telemetry_contracts();
+        self.handle.execution_storage.register_schemas(&contracts).await?;
+        for source in ready {
+            self.handle.capture_suite_objects(&source).await?;
+        }
+        self.handle.storage().flush().await?;
+        Ok(())
     }
 
     fn expose_plugins(&mut self) -> Result<()> {
@@ -474,6 +487,7 @@ impl Runtime {
         }
 
         self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: source }).await.map_err(operation)?;
+        self.capture_ready_catalogs().await?;
         self.expose_plugins()?;
         Ok(())
     }
@@ -631,6 +645,7 @@ impl Runtime {
             return Err(error.into());
         }
         self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: name.clone() }).await.map_err(operation)?;
+        self.capture_ready_catalogs().await?;
         self.expose_plugins()?;
         std::mem::take(&mut self.pending_plugins).close().await.map_err(operation)?;
         for (record, version) in redefined {

@@ -189,7 +189,6 @@ impl Instance {
         let templates = self.provider.start().await?;
         let running = self.running.as_mut().expect("partial initialization remains owned");
         running.templates = templates.clone();
-        handle.capture_suite_objects(&self.owner).await?;
 
         let registration = handle.operations.stage_plugin(&scope, |bindings| {
             for template in &templates {

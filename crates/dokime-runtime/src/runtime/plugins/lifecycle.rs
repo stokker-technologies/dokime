@@ -305,7 +305,6 @@ impl Adapter<'_> {
         let program = &sidecar.program;
         let bindings = program.bindings.clone();
         sidecar.start(self.handle, router, authority).await?;
-        self.handle.capture_suite_objects(&artifact.id).await?;
         self.packages.get_mut(&sidecar.package).expect("the prepared package is retained").running.push(Running {
             source: artifact.id.clone(),
             exposed: false,
