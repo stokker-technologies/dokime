@@ -50,7 +50,7 @@
 - [ ] 46. Complete native report delivery and verify transfer sizes, plot budgets, deadlines and client flow control; measure export throughput.
 - [ ] 47. Complete telemetry/artifact durability batching, codec reuse, narrow state transitions and event-driven prompt waits with behavior tests and measurements; retain approved per-attempt preparation and verify cancellation/terminal evidence through the real public path.
 - [ ] 48. Verify batched changed-plot queries and telemetry-only refresh semantics.
-- [ ] 49. Enlarge sidebar logo to about one sixth window height, center wordmark beneath and separate navigation.
+- [x] 49. Enlarge sidebar logo to about one sixth window height, center wordmark beneath and separate navigation.
 
 ## Watcher Extension
 

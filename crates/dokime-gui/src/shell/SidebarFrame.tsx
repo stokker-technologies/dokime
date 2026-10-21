@@ -17,7 +17,7 @@
 
 // Third Party Imports
 import type { ReactNode } from "react";
-import { useBrand } from "@/lib/brand";
+import { selectLogo, useBrand } from "@/lib/brand";
 import { BrandMark } from "./BrandMark";
 import { useSidebarState } from "./use-sidebar-state";
 
@@ -31,7 +31,6 @@ import { useSidebarState } from "./use-sidebar-state";
 
 /* === Components === */
 export function SidebarFrame({ children }: { children: ReactNode }) {
-  const { label } = useBrand();
   const { collapsed, width } = useSidebarState();
   return (
     <nav
@@ -40,15 +39,30 @@ export function SidebarFrame({ children }: { children: ReactNode }) {
       data-collapsed={collapsed || undefined}
       style={{ width }}
     >
-      <div className="flex min-w-0 flex-col items-center gap-3 px-[var(--shell-gap)] pt-5 pb-8">
-        <BrandMark className={collapsed ? "h-7 max-w-full object-contain" : "h-[16.67vh] max-w-full object-contain"} />
-        {collapsed ? null : (
-          <span className="max-w-full truncate text-center font-heading text-xl font-semibold tracking-wide">{label}</span>
-        )}
-      </div>
+      <SidebarBrand collapsed={collapsed} />
 
       {children}
     </nav>
+  );
+}
+
+// The Open Sidebar Stacks A Window-Sized Logo Over Its Centred Wordmark.
+export function SidebarBrand({ collapsed }: { collapsed: boolean }) {
+  const brand = useBrand();
+  // Without artwork the wordmark alone stands for the brand.
+  const artwork = selectLogo(brand, "transparent", "light") ?? selectLogo(brand, "transparent", "dark");
+  if (collapsed) {
+    return (
+      <div className="flex min-w-0 justify-center px-[var(--shell-gap)] pt-5 pb-8">
+        <BrandMark className="h-7 max-w-full object-contain" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-3 px-[var(--shell-gap)] pt-6 pb-10" data-slot="sidebar-brand">
+      {artwork ? <BrandMark className="h-[var(--sidebar-logo-height)] max-w-full object-contain" /> : null}
+      <span className="max-w-full truncate text-center font-heading text-xl font-semibold tracking-wide">{brand.label}</span>
+    </div>
   );
 }
 

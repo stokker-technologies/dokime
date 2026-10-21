@@ -198,6 +198,9 @@
   --sidebar-width: clamp(14rem, 24vw, 22rem);
   --sidebar-width-collapsed: 3.5rem;
   --sidebar-indent: 0.75rem;
+  /* The open sidebar's logo: a sixth of the window, legible on short
+     windows and never towering on tall ones. */
+  --sidebar-logo-height: clamp(4rem, 16.67vh, 10rem);
   /* The tree's own rhythm: 36px at every desktop density, 48px at touch. */
   --sidebar-row-height: 2.25rem;
   /* The cycle explorer's one-line rows: 28px on a desk, 44px at touch, with

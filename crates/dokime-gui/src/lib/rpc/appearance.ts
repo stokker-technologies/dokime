@@ -1,9 +1,9 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // Native appearance resources. The session owner disposes resources when replaced.
 
+import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 import type { Wire } from "./canonical.js";
 import * as rpc from "./generated/client.js";
-import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 
 type AppearanceAssetMetadata = NonNullable<AppearanceSnapshot["logos"][number]["asset"]>;
 
