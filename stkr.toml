@@ -45,7 +45,7 @@ max_workspaces = 5
 # === CI === #
 
 [ci.runners]
-windows = ["windows-latest"]
+windows = "windows-latest"
 
 [ci.budgets]
 # Two-Hour Build Jobs: 110 Minutes Plus The Renderer’s Ten-Minute Margin.
