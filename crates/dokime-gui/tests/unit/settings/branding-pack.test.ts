@@ -66,6 +66,15 @@ test("an invalid pack and a refused archive show as the field error", () => {
   assert.match(refused, /data-state="none"/, "a refused archive changes nothing");
 });
 
+test("a refused pending pack reports that the last valid pack remains active", () => {
+  const retained = row({ ...NONE, active: FORK, error: "pending pack does not parse" });
+
+  assert.match(retained, /data-state="active"/);
+  assert.match(retained, />Fork · Fork Labs</);
+  assert.match(retained, /The last valid pack remains active/);
+  assert.doesNotMatch(retained, /The compiled brand applies/);
+});
+
 /* === Private Functions === */
 
 function row(status: BrandingStatus, choiceError: string | null = null): string {

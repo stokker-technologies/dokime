@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDiagnosticsQuery } from "@/features/cycle/server-state";
 import { SettingsCard } from "@/features/settings/SettingsCard";
+import { brandingPackError } from "@/features/settings/sections/branding-pack";
 import { SettingsPathField } from "@/features/settings/SettingsPathField";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
@@ -33,6 +34,8 @@ import { bootBranding, brandPack } from "@/lib/brand";
 import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
 import { formatBytes } from "@/lib/format";
 import type { DiagnosticPathKey } from "@/lib/types/view-contracts";
+
+/* === Re-Exports === */
 
 /* === Constants === */
 
@@ -49,30 +52,7 @@ const pathConventionLabels: Record<Exclude<DiagnosticPathKey, "collect_bundle">,
   startup_doctor: "Startup Doctor Report",
 };
 
-/* === Private Functions === */
-
-function startupLabel(status: string): string {
-  if (status === "ok") {
-    return "Healthy";
-  }
-  if (status === "warning") {
-    return "Warning";
-  }
-  if (status === "failed") {
-    return "Failed";
-  }
-  return status;
-}
-
-function startupBadgeClass(status: string): string {
-  if (status === "ok") {
-    return "border-success/30 bg-success/10 text-success";
-  }
-  if (status === "warning") {
-    return "border-warning/30 bg-warning/10 text-warning";
-  }
-  return "border-destructive/40 bg-destructive/10 text-destructive";
-}
+/* === Types === */
 
 /* === Components === */
 
@@ -154,10 +134,7 @@ export function DiagnosticsSection() {
             {counts.installed_plugin_errors ? ` · ${counts.installed_plugin_errors} errors` : " · no errors"}
           </span>
         </SettingsRow>
-        <SettingsRow
-          label="Branding Pack"
-          error={bootBranding.error ? `Not applied: ${bootBranding.error}. The compiled brand applies.` : null}
-        >
+        <SettingsRow label="Branding Pack" error={brandingPackError(bootBranding.error, brandPack !== null)}>
           <span className="text-sm text-muted-foreground">{brandPack ? `${brandPack.label} pack applied` : "Compiled brand"}</span>
         </SettingsRow>
       </SettingsCard>
@@ -186,8 +163,6 @@ export function DiagnosticsSection() {
     </>
   );
 }
-
-/* === Subcomponents === */
 
 /**
  * The support archive, as an action rather than a path.
@@ -328,4 +303,33 @@ function StorageResetRow({ directory }: { directory: string }) {
       </Dialog>
     </SettingsRow>
   );
+}
+
+/* === Hooks === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+function startupLabel(status: string): string {
+  if (status === "ok") {
+    return "Healthy";
+  }
+  if (status === "warning") {
+    return "Warning";
+  }
+  if (status === "failed") {
+    return "Failed";
+  }
+  return status;
+}
+
+function startupBadgeClass(status: string): string {
+  if (status === "ok") {
+    return "border-success/30 bg-success/10 text-success";
+  }
+  if (status === "warning") {
+    return "border-warning/30 bg-warning/10 text-warning";
+  }
+  return "border-destructive/40 bg-destructive/10 text-destructive";
 }

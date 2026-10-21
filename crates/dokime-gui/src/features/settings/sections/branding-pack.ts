@@ -47,7 +47,7 @@ export type BrandingPackPresentation = {
 /* === Public Functions === */
 
 export function brandingPackPresentation(status: BrandingStatus): BrandingPackPresentation {
-  const base = { error: status.error ? `Not applied: ${status.error}. The compiled brand applies.` : null, ignored: null };
+  const base = { error: brandingPackError(status.error, status.active !== null), ignored: null };
   if (status.pending) {
     return {
       ...base,
@@ -98,6 +98,12 @@ export function brandingPackPresentation(status: BrandingStatus): BrandingPackPr
     restart: false,
     remove: false,
   };
+}
+
+export function brandingPackError(error: string | null, retained: boolean): string | null {
+  if (!error) return null;
+  const appearance = retained ? "The last valid pack remains active." : "The compiled brand applies.";
+  return `Not applied: ${error}. ${appearance}`;
 }
 
 /* === Private Functions === */
