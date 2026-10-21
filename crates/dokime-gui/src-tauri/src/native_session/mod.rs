@@ -53,6 +53,10 @@ impl DesktopSessionControl {
         self.0.shutdown().await?;
         Ok(())
     }
+    /// End the owned backend without the rest of its orderly stop.
+    pub fn abandon(&self) {
+        self.0.abandon();
+    }
     pub fn status(&self) -> DesktopSessionSnapshot {
         self.0.status()
     }

@@ -33,6 +33,7 @@ import { ActiveCyclePicker, ActiveCycleSummary } from "@/features/library/Active
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
+import { useDesktopStopping } from "@/lib/desktop/stopping";
 import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
 import { consoleAttentionCount } from "@/shell/ConsoleDrawerView";
@@ -224,7 +225,11 @@ function OperationBar({ operation }: { operation: BackendOperation }) {
 
 function BackendItem() {
   const status = useBackendStatus();
+  const stopping = useDesktopStopping();
   const label = status.label ?? "Backend";
+  if (stopping === "visible") {
+    return <StatusReadout title={`${label} is stopping`} tone="warn" value={`${label} · Stopping…`} />;
+  }
   const tone =
     status.connection === "connected"
       ? "good"
