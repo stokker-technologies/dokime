@@ -542,7 +542,7 @@ async fn queued_execution_identity() {
 }
 
 #[tokio::test]
-async fn continuation_failure_retained() {
+async fn continuation_after_failure() {
     use dokime_domain::model::execution::{ExecutionMode, result::CyclePhase};
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::case_parameter())).await;
@@ -551,18 +551,29 @@ async fn continuation_failure_retained() {
     let cycle = start_cycle(&runtime, suite).await;
     let before = cycle_snapshot(&runtime, &cycle).await;
     let first = before.test_executions[0].test_execution_id.clone();
-    let receipt = runtime.start_execution(first, ExecutionMode::Automatic, CommandContext::default()).await;
-    wait_for_run_settled(&runtime, &receipt.command_id).await;
-    let failed = cycle_snapshot(&runtime, &cycle).await;
-    assert_eq!(failed.phase, CyclePhase::Active);
-    assert_eq!(failed.test_executions[0].status, ExecutionStatus::Failed);
-    assert!(failed.test_executions[0].saved.is_some());
-    assert_eq!(failed.test_executions[1], before.test_executions[1]);
+    runtime.start_execution(first, ExecutionMode::Automatic, CommandContext::default()).await;
 
+    // A Failed Verdict Is A Result: Continuation Runs The Next Member Anyway.
+    let settled = runtime
+        .watch_state()
+        .wait_until(|snapshot| {
+            snapshot.state().cycles[&cycle].execution_ids.iter().all(|id| snapshot.state().executions[id].saved.is_some())
+        })
+        .await
+        .unwrap()
+        .state()
+        .cycle_view(&cycle)
+        .unwrap();
+    assert_eq!(settled.phase, CyclePhase::Active);
+    assert_eq!(settled.test_executions[0].status, ExecutionStatus::Failed);
+    assert_eq!(settled.test_executions[1].status, ExecutionStatus::Passed);
+
+    // A Case Appended After Natural Completion Waits For An Explicit Start.
+    let requests = runtime.watch_state().latest().state().run_requests.len();
     let case = before.test_executions[1].snapshot.case().clone();
     runtime.append_fixture_cases(cycle.clone(), vec![case], CommandContext::default()).await.unwrap();
     let idle = cycle_snapshot(&runtime, &cycle).await;
     assert_eq!(idle.test_executions.len(), 3);
-    assert!(idle.test_executions[1..].iter().all(|execution| execution.started_at.is_none() && execution.finished_at.is_none()));
-    assert_eq!(runtime.watch_state().latest().state().run_requests.len(), 1);
+    assert!(idle.test_executions[2].started_at.is_none() && idle.test_executions[2].finished_at.is_none());
+    assert_eq!(runtime.watch_state().latest().state().run_requests.len(), requests);
 }

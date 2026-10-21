@@ -387,7 +387,7 @@ async fn cycle_spanning_group() {
 }
 
 #[tokio::test]
-async fn fail_fast_failure() {
+async fn group_continues_after_failure() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::case_parameter())).await;
     let first = plt400_suite_with_result("failed");
@@ -408,9 +408,20 @@ async fn fail_fast_failure() {
 
     let cycle = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Failed).await;
     assert_eq!(cycle.test_executions.len(), 2);
+    // A Failed Verdict Never Halts The Group: The Next Member Runs To Its Own Outcome.
+    let cycle = runtime
+        .watch_state()
+        .wait_until(|snapshot| {
+            snapshot.state().cycles[&test_cycle_id].execution_ids.iter().all(|id| snapshot.state().executions[id].saved.is_some())
+        })
+        .await
+        .unwrap()
+        .state()
+        .cycle_view(&test_cycle_id)
+        .unwrap();
     assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Failed);
-    assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Skipped);
-    assert!(cycle.test_executions[1].started_at.is_none());
+    assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Passed);
+    assert!(cycle.test_executions[1].started_at.is_some());
 }
 
 /* === Tests === */
