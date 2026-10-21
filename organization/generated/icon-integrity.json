@@ -1,7 +1,7 @@
 {
   "algorithm": "sha256",
   "source": {
-    "path": "branding/icons/icon.png",
+    "path": "organization/icons/icon.png",
     "sha256": "e711921dab14ca9763b7978bfcb3aa62b4e34d8893d7aeba2116bf487f35355a"
   },
   "outputs": [
@@ -63,7 +63,7 @@
     },
     {
       "path": "crates/dokime-gui/src-tauri/icons/icon.icns",
-      "sha256": "4d4d1a987200b602da00b099e40bef9e7e6a881b3c89b80afde95f2336f06855"
+      "sha256": "fba22f8ebd6e1627a09a73d381755946845570554d739ac47a23d4147815ef45"
     },
     {
       "path": "crates/dokime-gui/src-tauri/icons/icon.ico",

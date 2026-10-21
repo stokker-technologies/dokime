@@ -115,7 +115,7 @@ const REQUIRED_TEST_PALETTE: &[&str] = &[
 
 /* === Private Functions === */
 fn write_brand(dir: &Path, manifest: &str) {
-    fs::write(dir.join("brand.toml"), manifest).unwrap();
+    fs::write(dir.join("organization.toml"), manifest).unwrap();
     let logos = dir.join("logos");
     fs::create_dir_all(&logos).unwrap();
     for variant in ["transparent-on-light", "transparent-on-dark", "contained-on-light", "contained-on-dark"] {
@@ -141,7 +141,17 @@ fn write_brand(dir: &Path, manifest: &str) {
 /* === Tests === */
 
 #[test]
-fn brand_toml_types() {
+fn generated_organization_stylesheet_matches_runtime_resolution() {
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../organization");
+    let resolved = load_brand(&directory).unwrap();
+    let stylesheet = resolved.theme.unwrap().stylesheet.unwrap();
+    let generated = fs::read_to_string(directory.join("generated/theme.css")).unwrap();
+
+    assert_eq!(generated, stylesheet);
+}
+
+#[test]
+fn organization_toml_types() {
     let dir = tempdir().unwrap();
     write_brand(dir.path(), NEUTRAL_BRAND);
 
@@ -190,7 +200,7 @@ fn brand_toml_types() {
 fn app_brand_label() {
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("brand.toml"),
+        dir.path().join("organization.toml"),
         r#"
 [app]
 label = "Minimal"
@@ -212,7 +222,7 @@ identifier = "com.minimal.hub"
 fn missing_logo_failing() {
     let dir = tempdir().unwrap();
     fs::write(
-        dir.path().join("brand.toml"),
+        dir.path().join("organization.toml"),
         r#"
 [app]
 label = "NoLogo"

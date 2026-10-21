@@ -8,7 +8,7 @@
  */
 
 /**
- * Branding Pack Row States
+ * Organization Pack Row States
  */
 
 /* === Imports === */
@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import type { BrandingPackSummary, BrandingStatus } from "@/lib/desktop/branding";
+import { organizationPackError, type OrganizationPackSummary, type OrganizationStatus } from "@/lib/desktop/organization";
 
 /* === Re-Exports === */
 
@@ -26,10 +26,10 @@ import type { BrandingPackSummary, BrandingStatus } from "@/lib/desktop/branding
 
 /* === Types === */
 
-export type BrandingPackState = "none" | "active" | "pending" | "removed" | "invalid";
+export type OrganizationPackState = "none" | "active" | "pending" | "removed" | "invalid";
 
-export type BrandingPackPresentation = {
-  state: BrandingPackState;
+export type OrganizationPackPresentation = {
+  state: OrganizationPackState;
   /** The pack named in the row, or the compiled brand. */
   value: string;
   /** What happens next, in one sentence. */
@@ -46,8 +46,8 @@ export type BrandingPackPresentation = {
 
 /* === Public Functions === */
 
-export function brandingPackPresentation(status: BrandingStatus): BrandingPackPresentation {
-  const base = { error: brandingPackError(status.error, status.active !== null), ignored: null };
+export function organizationPackPresentation(status: OrganizationStatus): OrganizationPackPresentation {
+  const base = { error: organizationPackError(status.error, status.active !== null), ignored: null };
   if (status.pending) {
     return {
       ...base,
@@ -94,25 +94,19 @@ export function brandingPackPresentation(status: BrandingStatus): BrandingPackPr
     ...base,
     state: "none",
     value: "Compiled Brand",
-    detail: "Choose a zipped branding folder to rebrand this desktop.",
+    detail: "Choose a zipped organization folder to rebrand this desktop.",
     restart: false,
     remove: false,
   };
 }
 
-export function brandingPackError(error: string | null, retained: boolean): string | null {
-  if (!error) return null;
-  const appearance = retained ? "The last valid pack remains active." : "The compiled brand applies.";
-  return `Not applied: ${error}. ${appearance}`;
-}
-
 /* === Private Functions === */
 
-function packName(pack: BrandingPackSummary): string {
+function packName(pack: OrganizationPackSummary): string {
   return pack.organization ? `${pack.label} · ${pack.organization}` : pack.label;
 }
 
-function ignoredParts(pack: BrandingPackSummary): string | null {
+function ignoredParts(pack: OrganizationPackSummary): string | null {
   return pack.ignored.length ? `Kept from this build: ${pack.ignored.join(", ")}.` : null;
 }
 

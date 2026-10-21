@@ -19,7 +19,7 @@ use std::{env, io, path::PathBuf};
 // Third Party Imports
 
 // Local Imports
-use super::{ApplicationPaths, Config, DEFAULT_APPLICATION_ID, Settings, branding};
+use super::{ApplicationPaths, Config, DEFAULT_APPLICATION_ID, Settings, organization};
 
 /* === Constants === */
 
@@ -50,7 +50,7 @@ impl ApplicationOptions {
     pub fn resolve(self) -> io::Result<Config> {
         let explicit = self.application_root.is_some();
         let ambient = |name| (!explicit).then(|| environment_path(name)).flatten();
-        let brand = branding::brand();
+        let brand = organization::brand();
 
         // Resolve The Application Root And Its Settings
         let root = match self.application_root.or_else(|| ambient(APPLICATION_ROOT_ENV)) {

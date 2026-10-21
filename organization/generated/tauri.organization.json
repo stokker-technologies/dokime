@@ -5,8 +5,9 @@
     "windows": [
       {
         "create": false,
-        "dragDropEnabled": false,
+        "dragDropEnabled": true,
         "height": 960,
+        "maximized": true,
         "minHeight": 720,
         "minWidth": 1080,
         "resizable": true,

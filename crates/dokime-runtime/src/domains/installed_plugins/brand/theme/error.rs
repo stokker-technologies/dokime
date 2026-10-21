@@ -57,10 +57,10 @@ pub enum Error {
     #[error("{file} {selector} has unsupported chart property --{property}; expected chart-1 through chart-8")]
     UnsupportedChartProperty { file: &'static str, selector: &'static str, property: String },
 
-    #[error("{file} must not use @import; keep the branding stylesheet self-contained")]
+    #[error("{file} must not use @import; keep the organization stylesheet self-contained")]
     Import { file: &'static str },
 
-    #[error("{file} font URL {url:?} is not a contained local branding asset")]
+    #[error("{file} font URL {url:?} is not a contained local organization asset")]
     UnsafeUrl { file: &'static str, url: String },
 
     #[error("{file} font URL {url:?} has unsupported media type; use woff2, woff, ttf, or otf")]

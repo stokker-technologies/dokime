@@ -10,8 +10,8 @@
 /* === Modules === */
 
 mod application;
-pub mod branding;
 mod launch;
+pub mod organization;
 pub(crate) mod policy;
 mod runtime;
 mod settings;

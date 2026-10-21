@@ -17,7 +17,7 @@
 
 - [ ] 1. Verify path-based plugin bundle installation without serial JSON chunks; native installation walkthrough proof remains required beyond the single-invoke adapter tests.
 - [x] 2. Format plot X cursor timestamps consistently with axes. Proof: `plots/nominal.test.ts` / `Series Legend`.
-- [ ] 3. Show statistics headers and units without clipping.
+- [ ] 3. Show statistics headers and units without clipping; run the `cycle` native walkthrough's mounted header bounds proof.
 - [x] 4. Distinguish queued execution cancel from active stop. Proof: `cycle/nominal.test.ts` / `Execution Controls`.
 - [ ] 5. Align parameter labels, values and adjacent units across views.
 - [ ] 6. Keep prompt response controls only on their execution.
@@ -54,7 +54,7 @@
 - [ ] 37. Answer single-boolean prompts through No/Yes footer actions.
 - [ ] 38. Share the page shell across Library, Cycles, History and Explore.
 - [ ] 39. Verify fast drag-and-drop bundle install.
-- [ ] 40. Persist runtime branding packs for next boot and retain compiled identity boundaries.
+- [ ] 40. Persist runtime organization packs for next boot and retain compiled identity boundaries; prove pending-pack revalidation and rollback in `app::organization::tests`, then native activation.
 - [ ] 41. Verify the Linux WebView response-stall fix and operator override behavior.
 - [ ] 42. Complete orderly close, bounded force quit and measured idle/running exit.
 - [ ] 43. Complete and run six system benchmark scenarios with native evidence.

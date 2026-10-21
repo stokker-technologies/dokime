@@ -2,8 +2,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="branding/logos/transparent-on-dark.svg">
-    <img src="branding/logos/transparent-on-light.svg" alt="Dokime logo" width="240">
+    <source media="(prefers-color-scheme: dark)" srcset="organization/logos/transparent-on-dark.svg">
+    <img src="organization/logos/transparent-on-light.svg" alt="Dokime logo" width="240">
   </picture>
 </p>
 
@@ -1051,19 +1051,19 @@ graph from committed source with cold dependency homes;
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
-### Branding
+### Organization
 
-Brand identity is configured in [branding/brand.toml](branding/brand.toml).
-The [logo pack](branding/logos) provides SVG and PNG exports in four categories:
+Brand identity is configured in [organization/organization.toml](organization/organization.toml).
+The [logo pack](organization/logos) provides SVG and PNG exports in four categories:
 `transparent-on-light`, `transparent-on-dark`, `contained-on-light`, and
 `contained-on-dark`. The suffix identifies the intended background. The shell
 and captured reports select artwork for the current light or dark surface.
-After changing the pack, run `mise run prepare:branding` and rebuild. Desktop
-icons are regenerated from [the icon master](branding/icons/icon.png), which
+After changing the pack, run `mise run prepare:organization` and rebuild. Desktop
+icons are regenerated from [the icon master](organization/icons/icon.png), which
 uses the contained light-surface artwork.
 
-An installed desktop can be rebranded without a rebuild. Zip the branding
-folder as is, then choose it under Settings › Appearance › Branding Pack. The
+An installed desktop can be rebranded without a rebuild. Zip the organization
+folder as is, then choose it under Settings › Appearance › Organization Pack. The
 zip can hold the files at its root or under one top folder. The pack applies
 on the next start and takes precedence over the compiled brand. It can set the
 app label, title template, organization, logos, theme CSS and fonts. The
@@ -1075,6 +1075,13 @@ most 20 MiB and 200 entries holding only `.toml`, `.css`, `.woff2`, `.svg` and
 validated again at startup; invalid input keeps the last valid active pack
 and remains on disk for diagnosis. If the active pack itself stops loading,
 the compiled brand applies. Activation errors show under Settings › Diagnostics.
+
+To import an installed legacy Branding Pack, keep its existing `branding/active`
+folder under the desktop's application-data directory, zip that folder's contents,
+and choose the archive under Organization Pack. The importer accepts `brand.toml`
+and stores it as `organization.toml`; it leaves the original folder untouched.
+Packs containing both manifest names are rejected. New packs use only
+`organization.toml` and are stored separately under `organization/`.
 
 ### Generated Clients
 

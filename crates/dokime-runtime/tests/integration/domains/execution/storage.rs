@@ -225,7 +225,8 @@ async fn execution_save_sealing() {
 async fn terminal_capture_repaired() {
     let root = tempdir().unwrap();
     let (mut owner, handle, cycle_id, executor) = blocked_cycle(root.path()).await;
-    std::fs::write(root.path().join("brand.toml"), "[app]\nlabel = \"Test\"\nslug = \"test\"\nidentifier = \"com.test.hub\"\n").unwrap();
+    std::fs::write(root.path().join("organization.toml"), "[app]\nlabel = \"Test\"\nslug = \"test\"\nidentifier = \"com.test.hub\"\n")
+        .unwrap();
     let mut brand = dokime_runtime::domains::installed_plugins::load_brand(root.path()).unwrap();
     brand.customization.display_name = Some("x".repeat(4 * 1024 * 1024));
     handle.set_brand(Some(brand));

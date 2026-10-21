@@ -1,7 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { useEffect } from "react";
 import { useApplicationSettings } from "@/lib/application-settings";
-import { brandPack, defaultBrand } from "@/lib/brand";
+import { organizationPack, defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 import { applyThemeStylesheet, applyThemeVariables, themeCornerRadiusVariables } from "@/lib/theme";
@@ -34,8 +34,8 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
         appearance.themes.find((theme) => theme.themeId === selected) ??
         appearance.themes.find((theme) => theme.themeId === appearance.activeTheme) ??
         appearance.themes[0];
-      // An operator's branding pack replaces the compiled brand theme; its stylesheet is already in place.
-      if (brandPack && family?.themeId === BRAND_THEME_ID) {
+      // An operator's organization pack replaces the compiled brand theme; its stylesheet is already in place.
+      if (organizationPack && family?.themeId === BRAND_THEME_ID) {
         applyThemeVariables(null);
         applyThemeStylesheet(null);
         return;
@@ -56,8 +56,8 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
        second `applyDensity` here re-ran on every settings refetch and undid
        whatever the current density was between the cleanup and the reapply. */
     useUiStore.getState().setUiState({ density: settings.data?.appearance.density ?? "comfortable" });
-    const title = brandPack
-      ? brandPack.titleTemplate.replaceAll("{app}", brandPack.label).trim() || brandPack.label
+    const title = organizationPack
+      ? organizationPack.titleTemplate.replaceAll("{app}", organizationPack.label).trim() || organizationPack.label
       : (appearance.titleTemplate ?? "{app}").replaceAll("{app}", appearance.appName).trim() || defaultBrand.label;
     document.title = title;
     void commands.desktopSetTitle(title).catch(() => {});

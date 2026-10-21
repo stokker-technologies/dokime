@@ -35,7 +35,7 @@ use theme::{Bundled, Directory, Error as ThemeCssError, Source, load_from as loa
 /* === Constants === */
 
 pub(crate) const BRAND_ARTIFACT_ID: &str = "brand";
-const BRAND_MANIFEST_FILE: &str = "brand.toml";
+const BRAND_MANIFEST_FILE: &str = "organization.toml";
 const BRAND_LOGOS_DIR: &str = "logos";
 const BRAND_THEME_ID: &str = "brand.theme";
 const BRAND_CUSTOMIZATION_ID: &str = "brand.customization";
@@ -154,7 +154,7 @@ pub enum BrandLoadError {
     #[error("could not read {path}: {source}")]
     Read { path: std::path::PathBuf, source: std::io::Error },
 
-    #[error("could not parse brand.toml: {0}")]
+    #[error("could not parse organization.toml: {0}")]
     Parse(Box<toml::de::Error>),
 
     #[error("brand identifier is invalid: {0}")]

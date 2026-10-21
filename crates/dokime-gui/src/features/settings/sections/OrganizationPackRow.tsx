@@ -8,7 +8,7 @@
  */
 
 /**
- * Branding Pack Row Of The Brand Card
+ * Organization Pack Row Of The Brand Card
  */
 
 /* === Imports === */
@@ -21,20 +21,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 // Local Imports
 import { Button } from "@/components/ui/button";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import { type BrandingPackPresentation, brandingPackPresentation } from "@/features/settings/sections/branding-pack";
-import type { BrandingStatus } from "@/lib/desktop/branding";
+import { type OrganizationPackPresentation, organizationPackPresentation } from "@/features/settings/sections/organization-pack";
+import type { OrganizationStatus } from "@/lib/desktop/organization";
 import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */
 
 /* === Constants === */
 
-const STATUS_KEY = ["settings", "branding-pack"] as const;
+const STATUS_KEY = ["settings", "organization-pack"] as const;
 
 /* === Types === */
 
-type BrandingPackViewProps = {
-  presentation: BrandingPackPresentation;
+type OrganizationPackViewProps = {
+  presentation: OrganizationPackPresentation;
   /** A refused archive, shown as the field error until the next choice. */
   choiceError: string | null;
   busy: boolean;
@@ -45,28 +45,28 @@ type BrandingPackViewProps = {
 
 /* === Components === */
 
-/** The desktop shell's branding pack: chosen here, applied on the next start. */
-export function BrandingPackRow() {
+/** The desktop shell's organization pack: chosen here, applied on the next start. */
+export function OrganizationPackRow() {
   const client = useQueryClient();
-  const status = useQuery({ queryKey: STATUS_KEY, queryFn: commands.desktopBrandingStatus, retry: false });
-  const publish = (next: BrandingStatus | null) => {
+  const status = useQuery({ queryKey: STATUS_KEY, queryFn: commands.desktopOrganizationStatus, retry: false });
+  const publish = (next: OrganizationStatus | null) => {
     if (next) client.setQueryData(STATUS_KEY, next);
   };
-  const choose = useMutation({ mutationFn: commands.desktopBrandingChoose, onSuccess: publish });
-  const remove = useMutation({ mutationFn: commands.desktopBrandingRemove, onSuccess: publish });
+  const choose = useMutation({ mutationFn: commands.desktopOrganizationChoose, onSuccess: publish });
+  const remove = useMutation({ mutationFn: commands.desktopOrganizationRemove, onSuccess: publish });
   const restart = useMutation({ mutationFn: commands.desktopRestart });
   if (!status.data) {
     return (
-      <SettingsRow label="Branding Pack" error={status.error ? message(status.error) : null}>
+      <SettingsRow label="Organization Pack" error={status.error ? message(status.error) : null}>
         <span className="text-sm text-muted-foreground" role="status">
-          {status.error ? "Unavailable" : "Reading the branding pack…"}
+          {status.error ? "Unavailable" : "Reading the organization pack…"}
         </span>
       </SettingsRow>
     );
   }
   return (
-    <BrandingPackView
-      presentation={brandingPackPresentation(status.data)}
+    <OrganizationPackView
+      presentation={organizationPackPresentation(status.data)}
       choiceError={
         choose.error ? message(choose.error) : remove.error ? message(remove.error) : restart.error ? message(restart.error) : null
       }
@@ -78,10 +78,10 @@ export function BrandingPackRow() {
   );
 }
 
-export function BrandingPackView({ presentation, choiceError, busy, choose, remove, restart }: BrandingPackViewProps) {
+export function OrganizationPackView({ presentation, choiceError, busy, choose, remove, restart }: OrganizationPackViewProps) {
   const description = [presentation.detail, presentation.ignored].filter(Boolean).join(" ");
   return (
-    <SettingsRow label="Branding Pack" description={description} error={choiceError ?? presentation.error}>
+    <SettingsRow label="Organization Pack" description={description} error={choiceError ?? presentation.error}>
       <span className="min-w-0 text-sm font-medium" data-state={presentation.state}>
         {presentation.value}
       </span>
@@ -109,5 +109,5 @@ export function BrandingPackView({ presentation, choiceError, busy, choose, remo
 /* === Private Functions === */
 
 function message(error: unknown): string {
-  return error instanceof Error ? error.message : typeof error === "string" ? error : "The branding pack could not be changed.";
+  return error instanceof Error ? error.message : typeof error === "string" ? error : "The organization pack could not be changed.";
 }

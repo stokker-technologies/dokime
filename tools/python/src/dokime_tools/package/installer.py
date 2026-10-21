@@ -76,7 +76,7 @@ def check(root: Path = ROOT) -> None:
     if packaging["bundle"].get("externalBin") != ["binaries/dokime", "binaries/dokime-server"]:
         raise ValueError("Tauri bundle.externalBin must contain the Dokime CLI and server")
     if bundle.get("resources") != []:
-        raise ValueError("Tauri bundle.resources must be empty; branding is compiled")
+        raise ValueError("Tauri bundle.resources must be empty; organization is compiled")
     if bundle.get("windows", {}).get("nsis", {}).get("installerHooks") != "windows/installer-hooks.nsh":
         raise ValueError("NSIS installer hooks must install the CLI command")
     linux = json.loads((directory / "tauri.linux.conf.json").read_text(encoding="utf-8"))
@@ -98,7 +98,7 @@ def bundle_args(platform: str, *, signed: bool) -> list[str]:
     arguments = [
         "bundle",
         "--config",
-        "../../branding/generated/tauri.brand.json",
+        "../../organization/generated/tauri.organization.json",
         "--config",
         "src-tauri/tauri.bundle.conf.json",
         "--bundles",
@@ -384,7 +384,7 @@ def _release_requested() -> bool:
 
 
 def _slug(root: Path) -> str:
-    return tomllib.loads((root / "branding/brand.toml").read_text(encoding="utf-8"))["app"]["slug"]
+    return tomllib.loads((root / "organization/organization.toml").read_text(encoding="utf-8"))["app"]["slug"]
 
 
 # === Entry Point === #

@@ -59,7 +59,7 @@ rand = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 zeroize = { workspace = true }
-# Branding packs from Finder, Explorer and `zip` are deflated.
+# Organization packs from Finder, Explorer and `zip` are deflated.
 zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Serialization

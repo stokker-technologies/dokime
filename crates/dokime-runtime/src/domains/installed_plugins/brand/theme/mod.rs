@@ -119,10 +119,10 @@ enum ParsedRule {
 
 impl Authored {
     pub fn combined_css(&self, corner_radii: &ThemeCornerRadii) -> String {
-        let mut output = String::from("/* GENERATED from the authored `branding/theme/` CSS.\n * Do not edit by hand. */\n");
+        let mut output = String::from("/* GENERATED from the authored `organization/theme/` CSS.\n * Do not edit by hand. */\n");
         append_section(&mut output, TYPOGRAPHY_CSS_FILE, &self.typography_css);
         append_section(&mut output, BASE_CSS_FILE, &self.base_css);
-        output.push_str("\n/* BEGIN generated corner radii from branding/brand.toml */\n:root {\n");
+        output.push_str("\n/* BEGIN generated corner radii from organization/organization.toml */\n:root {\n");
         render_corner_radii(&mut output, corner_radii);
         output.push_str("}\n/* END generated corner radii */\n");
         append_section(&mut output, LIGHT_CSS_FILE, &self.light_css);

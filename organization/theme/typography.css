@@ -1,7 +1,7 @@
 /* Dokime typography: the single source for font loading, stacks, and display scale.
  *
  * Font url() values are relative to the brand bundle root (the folder holding
- * brand.toml), not to this file — the compiled Dokime theme resolves them there and
+ * organization.toml), not to this file — the compiled Dokime theme resolves them there and
  * inlines each face as a data URI. Faces must stay inside the bundle; a `../`
  * escape is rejected. */
 

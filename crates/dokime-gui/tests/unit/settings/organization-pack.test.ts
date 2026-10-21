@@ -18,15 +18,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
 // Local Imports
-import { BrandingPackView } from "@/features/settings/sections/BrandingPackRow";
-import { brandingPackPresentation } from "@/features/settings/sections/branding-pack";
-import type { BrandingStatus } from "@/lib/desktop/branding";
+import { OrganizationPackView } from "@/features/settings/sections/OrganizationPackRow";
+import { organizationPackPresentation } from "@/features/settings/sections/organization-pack";
+import type { OrganizationStatus } from "@/lib/desktop/organization";
 
 /* === Re-Exports === */
 
 /* === Constants === */
 
-const NONE: BrandingStatus = { active: null, pending: null, removed: false, error: null };
+const NONE: OrganizationStatus = { active: null, pending: null, removed: false, error: null };
 const FORK = { label: "Fork", organization: "Fork Labs", ignored: ["slug", "bundle identifier"] };
 
 /* === Types === */
@@ -56,13 +56,13 @@ test("the brand card names the pack, what happens next and the actions that appl
 });
 
 test("an invalid pack and a refused archive show as the field error", () => {
-  const invalid = row({ ...NONE, error: "brand.toml does not parse" });
+  const invalid = row({ ...NONE, error: "organization.toml does not parse" });
   assert.match(invalid, /data-state="invalid"/);
-  assert.match(invalid, /role="alert"[^>]*>Not applied: brand.toml does not parse. The compiled brand applies./);
+  assert.match(invalid, /role="alert"[^>]*>Not applied: organization.toml does not parse. The compiled brand applies./);
   assert.deepEqual(buttons(invalid), ["Choose File…", "Remove"]);
 
-  const refused = row(NONE, "unsafe path in the branding pack: ../brand.toml");
-  assert.match(refused, /role="alert"[^>]*>unsafe path in the branding pack: ..\/brand.toml</);
+  const refused = row(NONE, "unsafe path in the organization pack: ../organization.toml");
+  assert.match(refused, /role="alert"[^>]*>unsafe path in the organization pack: ..\/organization.toml</);
   assert.match(refused, /data-state="none"/, "a refused archive changes nothing");
 });
 
@@ -77,10 +77,10 @@ test("a refused pending pack reports that the last valid pack remains active", (
 
 /* === Private Functions === */
 
-function row(status: BrandingStatus, choiceError: string | null = null): string {
+function row(status: OrganizationStatus, choiceError: string | null = null): string {
   return renderToStaticMarkup(
-    createElement(BrandingPackView, {
-      presentation: brandingPackPresentation(status),
+    createElement(OrganizationPackView, {
+      presentation: organizationPackPresentation(status),
       choiceError,
       busy: false,
       choose: () => undefined,

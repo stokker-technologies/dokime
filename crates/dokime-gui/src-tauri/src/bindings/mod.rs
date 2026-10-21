@@ -161,23 +161,23 @@ native_commands! {
         (title: String) -> Result<(), String>
         => crate::app::desktop::desktop_set_title;
 
-    // The branding pack applied at boot and the one that applies on the next start.
-    sync desktop_branding_status
-        [state: tauri::State<'_, crate::app::branding::BrandingState>]
-        () -> Result<crate::app::branding::BrandingStatus, String>
-        => crate::app::branding::desktop_branding_status;
+    // The organization pack applied at boot and the one that applies on the next start.
+    sync desktop_organization_status
+        [state: tauri::State<'_, crate::app::organization::OrganizationState>]
+        () -> Result<crate::app::organization::OrganizationStatus, String>
+        => crate::app::organization::desktop_organization_status;
 
-    // Pick, validate and stage a branding pack zip; None when the picker is dismissed.
-    async desktop_branding_choose
+    // Pick, validate and stage a organization pack zip; None when the picker is dismissed.
+    async desktop_organization_choose
         [app: tauri::AppHandle]
-        () -> Result<Option<crate::app::branding::BrandingStatus>, String>
-        => crate::app::branding::desktop_branding_choose;
+        () -> Result<Option<crate::app::organization::OrganizationStatus>, String>
+        => crate::app::organization::desktop_organization_choose;
 
     // Delete the pending and active packs; the compiled brand applies on the next start.
-    async desktop_branding_remove
+    async desktop_organization_remove
         [app: tauri::AppHandle]
-        () -> Result<crate::app::branding::BrandingStatus, String>
-        => crate::app::branding::desktop_branding_remove;
+        () -> Result<crate::app::organization::OrganizationStatus, String>
+        => crate::app::organization::desktop_organization_remove;
 
     // Drain all runtime resources before requesting Tauri's non-cancellable restart.
     async desktop_restart

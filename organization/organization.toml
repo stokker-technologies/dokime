@@ -9,7 +9,7 @@
 # Bundle layout (one folder per concern; compiled into `dokime-app` when the
 # binaries are built, so a rebrand needs a rebuild):
 #
-#   brand.toml    this manifest — identity, theme policy, corner geometry
+#   organization.toml    this manifest — identity, theme policy, corner geometry
 #   logos/        app marks, named `<treatment>-on-<surface>.<ext>`
 #   icons/        OS app-icon sources (icon.png is the desktop icon master)
 #   theme/        authored CSS: typography.css, base.css, light.css, dark.css

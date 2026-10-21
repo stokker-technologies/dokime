@@ -7,7 +7,7 @@
  * ***
  */
 
-// Runtime Branding Packs: Validation, Staging And Boot Promotion
+// Runtime Organization Packs: Validation, Staging And Boot Promotion
 
 /* === Modules === */
 
@@ -35,12 +35,13 @@ use tauri_plugin_dialog::DialogExt;
 
 const ARCHIVE_BYTES: u64 = 20 * 1024 * 1024;
 const ARCHIVE_ENTRIES: usize = 200;
-const MANIFEST: &str = "brand.toml";
+const MANIFEST: &str = "organization.toml";
+const LEGACY_MANIFEST: &str = "brand.toml";
 const ACTIVE: &str = "active";
 const PENDING: &str = "pending";
 /// Applied by the shell at runtime: identity, logos, theme CSS and fonts.
 const RUNTIME_EXTENSIONS: [&str; 5] = ["toml", "css", "woff2", "svg", "png"];
-/// Build-time folders a fork's branding folder carries; skipped, never applied.
+/// Build-time folders a fork's organization folder carries; skipped, never applied.
 const IGNORED_FOLDERS: [&str; 2] = ["icons", "generated"];
 /// Licence and readme text beside fonts and logos; skipped, never applied.
 const IGNORED_EXTENSIONS: [&str; 2] = ["txt", "md"];
@@ -59,7 +60,7 @@ const LOGO_VARIANTS: [(&str, &str, &str); 4] = [
 /* === Structs === */
 
 /// What the shell resolved at boot and what the operator changed since.
-pub(crate) struct BrandingState {
+pub(crate) struct OrganizationState {
     root: PathBuf,
     boot: Boot,
     session: Mutex<Session>,
@@ -110,7 +111,7 @@ pub(crate) struct PackSummary {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct BrandingStatus {
+pub(crate) struct OrganizationStatus {
     /// The pack this process applied at boot, unless removed since.
     active: Option<PackSummary>,
     /// A validated pack that applies on the next start.
@@ -164,10 +165,10 @@ struct ThemeSection {
 
 /* === Implementations === */
 
-impl BrandingState {
-    fn status(&self) -> BrandingStatus {
+impl OrganizationState {
+    fn status(&self) -> OrganizationStatus {
         let session = self.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        BrandingStatus {
+        OrganizationStatus {
             active: (!session.removed).then(|| self.boot.pack.as_ref().map(LoadedPack::summary)).flatten(),
             pending: session.pending.clone(),
             removed: session.removed,
@@ -179,7 +180,7 @@ impl BrandingState {
     pub(crate) fn initialization_script(&self) -> String {
         let boot = BootScript { pack: self.boot.pack.as_ref(), error: self.boot.error.as_deref() };
         let json = serde_json::to_string(&boot).unwrap_or_else(|_| "{}".to_owned());
-        format!("window.__DOKIME_BRAND_PACK__ = {json};")
+        format!("window.__DOKIME_ORGANIZATION_PACK__ = {json};")
     }
 }
 
@@ -197,32 +198,32 @@ impl LoadedPack {
 
 /// Promotes a pending pack and loads the active one before any window exists.
 pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
-    let root = app.path().app_data_dir()?.join("branding");
+    let root = app.path().app_data_dir()?.join("organization");
     let boot = boot(&root);
     if let Some(error) = &boot.error {
-        tracing::error!(%error, "branding pack could not be activated; retaining the last valid appearance");
+        tracing::error!(%error, "organization pack could not be activated; retaining the last valid appearance");
     }
     let pending = load(&root.join(PENDING)).ok().map(|pack| pack.summary());
-    app.manage(BrandingState { root, boot, session: Mutex::new(Session { pending, removed: false }) });
+    app.manage(OrganizationState { root, boot, session: Mutex::new(Session { pending, removed: false }) });
     Ok(())
 }
 
-pub fn desktop_branding_status(state: tauri::State<'_, BrandingState>) -> Result<BrandingStatus, String> {
+pub fn desktop_organization_status(state: tauri::State<'_, OrganizationState>) -> Result<OrganizationStatus, String> {
     Ok(state.status())
 }
 
-pub async fn desktop_branding_choose(app: AppHandle) -> Result<Option<BrandingStatus>, String> {
+pub async fn desktop_organization_choose(app: AppHandle) -> Result<Option<OrganizationStatus>, String> {
     let picked = tauri::async_runtime::spawn_blocking({
         let app = app.clone();
-        move || app.dialog().file().add_filter("Branding Pack", &["zip"]).blocking_pick_file()
+        move || app.dialog().file().add_filter("Organization Pack", &["zip"]).blocking_pick_file()
     })
     .await
     .map_err(|error| error.to_string())?;
     let Some(file) = picked else { return Ok(None) };
     let path = file.into_path().map_err(|error| error.to_string())?;
-    let root = app.state::<BrandingState>().root.clone();
+    let root = app.state::<OrganizationState>().root.clone();
     let summary = tauri::async_runtime::spawn_blocking(move || stage(&root, &path)).await.map_err(|error| error.to_string())??;
-    let state = app.state::<BrandingState>();
+    let state = app.state::<OrganizationState>();
     let mut session = state.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     session.pending = Some(summary);
     session.removed = false;
@@ -230,8 +231,8 @@ pub async fn desktop_branding_choose(app: AppHandle) -> Result<Option<BrandingSt
     Ok(Some(state.status()))
 }
 
-pub async fn desktop_branding_remove(app: AppHandle) -> Result<BrandingStatus, String> {
-    let root = app.state::<BrandingState>().root.clone();
+pub async fn desktop_organization_remove(app: AppHandle) -> Result<OrganizationStatus, String> {
+    let root = app.state::<OrganizationState>().root.clone();
     tauri::async_runtime::spawn_blocking(move || {
         for folder in [PENDING, ACTIVE] {
             remove_folder(&root.join(folder))?;
@@ -240,7 +241,7 @@ pub async fn desktop_branding_remove(app: AppHandle) -> Result<BrandingStatus, S
     })
     .await
     .map_err(|error| error.to_string())??;
-    let state = app.state::<BrandingState>();
+    let state = app.state::<OrganizationState>();
     let mut session = state.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     session.pending = None;
     session.removed = true;
@@ -264,7 +265,7 @@ fn boot(root: &Path) -> Boot {
         match promoted {
             Ok(pack) => return Boot { pack: Some(pack), error: None },
             Err(error) => {
-                promotion_error = Some(format!("the pending branding pack could not be activated: {error}"));
+                promotion_error = Some(format!("the pending organization pack could not be activated: {error}"));
             }
         }
     }
@@ -301,7 +302,7 @@ fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
         Ok(()) => {
             let cleanup = std::fs::remove_dir_all(&backup);
             if let Err(error) = cleanup {
-                tracing::warn!(%error, path = %backup.display(), "the replaced branding pack remains on disk");
+                tracing::warn!(%error, path = %backup.display(), "the replaced organization pack remains on disk");
             }
             return Ok(());
         }
@@ -319,7 +320,7 @@ fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
 fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
     let metadata = std::fs::metadata(archive).map_err(|error| error.to_string())?;
     if metadata.len() > ARCHIVE_BYTES {
-        return Err(format!("the branding pack exceeds {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+        return Err(format!("the organization pack exceeds {} MiB", ARCHIVE_BYTES / 1024 / 1024));
     }
     let bytes = std::fs::read(archive).map_err(|error| error.to_string())?;
     let files = validate_archive(&bytes)?;
@@ -338,48 +339,48 @@ fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
     Ok(summary)
 }
 
-/// The runtime files of a branding folder zipped as is, keyed by their path inside the pack.
+/// The runtime files of an organization folder zipped as is, keyed by their path inside the pack.
 fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     if bytes.len() as u64 > ARCHIVE_BYTES {
-        return Err(format!("the branding pack exceeds {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+        return Err(format!("the organization pack exceeds {} MiB", ARCHIVE_BYTES / 1024 / 1024));
     }
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|error| format!("not a zip archive: {error}"))?;
     if archive.len() > ARCHIVE_ENTRIES {
-        return Err(format!("the branding pack has more than {ARCHIVE_ENTRIES} entries"));
+        return Err(format!("the organization pack has more than {ARCHIVE_ENTRIES} entries"));
     }
     let mut names = Vec::with_capacity(archive.len());
     for index in 0..archive.len() {
         let entry = archive.by_index_raw(index).map_err(|error| error.to_string())?;
         let name = entry.name().map_err(|error| format!("unreadable entry name: {error}"))?.into_owned();
         if name.contains('\\') || name.starts_with('/') || name.contains(':') || entry.enclosed_name().is_none() {
-            return Err(format!("unsafe path in the branding pack: {name}"));
+            return Err(format!("unsafe path in the organization pack: {name}"));
         }
         if entry.is_symlink() {
-            return Err(format!("links are not allowed in a branding pack: {name}"));
+            return Err(format!("links are not allowed in an organization pack: {name}"));
         }
         if entry.encrypted() {
-            return Err(format!("encrypted entries are not allowed in a branding pack: {name}"));
+            return Err(format!("encrypted entries are not allowed in an organization pack: {name}"));
         }
         names.push((name, entry.is_dir()));
     }
-    let prefix = manifest_prefix(names.iter().map(|(name, _)| name.as_str()))?;
+    let (prefix, manifest) = manifest_location(names.iter().map(|(name, _)| name.as_str()))?;
     let mut files = BTreeMap::new();
     let mut total = 0u64;
     for (index, (name, directory)) in names.iter().enumerate() {
         let Some(relative) = name.strip_prefix(&prefix) else {
-            return Err(format!("the branding pack mixes folders: {name}"));
+            return Err(format!("the organization pack mixes folders: {name}"));
         };
         if *directory || relative.is_empty() {
             continue;
         }
-        let path = PathBuf::from(relative);
+        let path = PathBuf::from(if relative == manifest { MANIFEST } else { relative });
         let first = path.components().next().and_then(|component| component.as_os_str().to_str()).unwrap_or_default();
         let extension = path.extension().and_then(|extension| extension.to_str()).unwrap_or_default().to_ascii_lowercase();
         if IGNORED_FOLDERS.contains(&first) || IGNORED_EXTENSIONS.contains(&extension.as_str()) {
             continue;
         }
         if !RUNTIME_EXTENSIONS.contains(&extension.as_str()) {
-            return Err(format!("unsupported file in the branding pack: {relative}"));
+            return Err(format!("unsupported file in the organization pack: {relative}"));
         }
         let mut entry = archive.by_index(index).map_err(|error| error.to_string())?;
         let mut contents = Vec::new();
@@ -387,38 +388,49 @@ fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
         (&mut entry).take(remaining + 1).read_to_end(&mut contents).map_err(|error| error.to_string())?;
         total += contents.len() as u64;
         if total > ARCHIVE_BYTES {
-            return Err(format!("the branding pack expands beyond {} MiB", ARCHIVE_BYTES / 1024 / 1024));
+            return Err(format!("the organization pack expands beyond {} MiB", ARCHIVE_BYTES / 1024 / 1024));
         }
         if files.insert(path, contents).is_some() {
-            return Err(format!("the branding pack repeats {relative}"));
+            return Err(format!("the organization pack repeats {relative}"));
         }
     }
     Ok(files)
 }
 
-/// `brand.toml` sits at the root or under exactly one top folder holding every entry.
-fn manifest_prefix<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Result<String, String> {
-    if names.clone().any(|name| name == MANIFEST) {
-        return Ok(String::new());
+// Legacy Manifests Are Accepted Only At The Explicit Archive Import Boundary.
+fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Result<(String, &'static str), String> {
+    let mut manifests = Vec::new();
+    for name in names.clone() {
+        if name.matches('/').count() > 1 {
+            continue;
+        }
+        let filename = name.rsplit('/').next().unwrap_or_default();
+        let manifest = match filename {
+            MANIFEST => MANIFEST,
+            LEGACY_MANIFEST => LEGACY_MANIFEST,
+            _ => continue,
+        };
+        let prefix = name.trim_end_matches(manifest).to_owned();
+        manifests.push((prefix, manifest));
     }
-    let manifests: Vec<&str> = names.clone().filter(|name| name.matches('/').count() == 1 && name.ends_with("/brand.toml")).collect();
-    let [manifest] = manifests.as_slice() else {
-        return Err("the branding pack has no brand.toml at its root or under one top folder".to_owned());
+
+    let [(prefix, manifest)] = manifests.as_slice() else {
+        return Err("the organization pack needs exactly one organization.toml (or legacy brand.toml) at its root or under one top folder"
+            .to_owned());
     };
-    let prefix = manifest.trim_end_matches(MANIFEST).to_owned();
-    if names.any(|name| !name.starts_with(&prefix)) {
-        return Err("the branding pack must hold one top folder or its files at the root".to_owned());
+    if names.any(|name| !name.starts_with(prefix)) {
+        return Err("the organization pack must hold one top folder or its files at the root".to_owned());
     }
-    Ok(prefix)
+    Ok((prefix.clone(), *manifest))
 }
 
 /// Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
 fn load(dir: &Path) -> Result<LoadedPack, String> {
-    let text = std::fs::read_to_string(dir.join(MANIFEST)).map_err(|error| format!("brand.toml could not be read: {error}"))?;
-    let manifest: Manifest = toml::from_str(&text).map_err(|error| format!("brand.toml does not parse: {error}"))?;
+    let text = std::fs::read_to_string(dir.join(MANIFEST)).map_err(|error| format!("organization.toml could not be read: {error}"))?;
+    let manifest: Manifest = toml::from_str(&text).map_err(|error| format!("organization.toml does not parse: {error}"))?;
     let app = manifest.app;
     if app.label.trim().is_empty() {
-        return Err("brand.toml needs an app label".to_owned());
+        return Err("organization.toml needs an app label".to_owned());
     }
     let mut logos = BTreeMap::new();
     for (treatment, surface, variant) in LOGO_VARIANTS {
@@ -433,7 +445,7 @@ fn load(dir: &Path) -> Result<LoadedPack, String> {
         logos.insert(variant.to_owned(), format!("data:{mime};base64,{}", BASE64.encode(bytes)));
     }
     if logos.is_empty() {
-        return Err("brand.toml names no logo the pack contains".to_owned());
+        return Err("organization.toml names no logo the pack contains".to_owned());
     }
     let mut css = String::new();
     for file in THEME_FILES {
@@ -529,7 +541,7 @@ fn strip_comments(css: &str) -> Result<String, String> {
 fn read_inside(dir: &Path, relative: &str) -> Result<Vec<u8>, String> {
     let path = Path::new(relative);
     if relative.contains(':') || path.components().any(|component| !matches!(component, Component::Normal(_))) {
-        return Err(format!("unsafe path in the branding pack: {relative}"));
+        return Err(format!("unsafe path in the organization pack: {relative}"));
     }
     std::fs::read(dir.join(path)).map_err(|error| format!("{relative} could not be read: {error}"))
 }
@@ -561,8 +573,8 @@ mod tests {
         writer.finish().unwrap().into_inner()
     }
 
-    fn branding_folder() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../branding")
+    fn organization_folder() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../organization")
     }
 
     fn zip_folder(root: &Path, prefix: &str) -> Vec<u8> {
@@ -584,10 +596,10 @@ mod tests {
     }
 
     #[test]
-    fn the_repository_branding_folder_zipped_as_is_loads() {
-        for prefix in ["", "branding/"] {
-            let files = validate_archive(&zip_folder(&branding_folder(), prefix)).unwrap();
-            assert!(files.contains_key(Path::new("brand.toml")));
+    fn the_repository_organization_folder_zipped_as_is_loads() {
+        for prefix in ["", "organization/"] {
+            let files = validate_archive(&zip_folder(&organization_folder(), prefix)).unwrap();
+            assert!(files.contains_key(Path::new("organization.toml")));
             assert!(files.keys().all(|path| !path.starts_with("icons") && !path.starts_with("generated")));
             assert!(!files.contains_key(Path::new("fonts/OFL.txt")));
             let root = tempfile::tempdir().unwrap();
@@ -608,7 +620,7 @@ mod tests {
 
     #[test]
     fn unsafe_and_oversized_archives_are_refused() {
-        for name in ["../brand.toml", "/etc/brand.toml", "logos\\mark.svg", "C:/brand.toml"] {
+        for name in ["../organization.toml", "/etc/organization.toml", "logos\\mark.svg", "C:/organization.toml"] {
             assert!(validate_archive(&archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), (name, LOGO)])).is_err(), "{name}");
         }
         let many: Vec<(String, &[u8])> = (0..=ARCHIVE_ENTRIES).map(|index| (format!("logos/{index}.svg"), LOGO)).collect();
@@ -625,51 +637,51 @@ mod tests {
 
     #[test]
     fn a_pack_needs_a_manifest_and_a_logo() {
-        assert!(validate_archive(&archive(&[("logos/mark.svg", LOGO)])).unwrap_err().contains("brand.toml"));
+        assert!(validate_archive(&archive(&[("logos/mark.svg", LOGO)])).unwrap_err().contains("organization.toml"));
         let root = tempfile::tempdir().unwrap();
         let pack = archive(&[(MANIFEST, b"[app]\nlabel = \"Fork\"\n")]);
         std::fs::write(root.path().join("pack.zip"), pack).unwrap();
-        assert!(stage(&root.path().join("branding"), &root.path().join("pack.zip")).unwrap_err().contains("logo"));
-        assert!(!root.path().join("branding").join(PENDING).exists(), "a refused pack leaves nothing pending");
+        assert!(stage(&root.path().join("organization"), &root.path().join("pack.zip")).unwrap_err().contains("logo"));
+        assert!(!root.path().join("organization").join(PENDING).exists(), "a refused pack leaves nothing pending");
         let escaping = archive(&[(MANIFEST, b"[app]\nlabel = \"Fork\"\n[app.logos.transparent]\non_light = \"../../secret.svg\"\n")]);
         std::fs::write(root.path().join("escape.zip"), escaping).unwrap();
-        assert!(stage(&root.path().join("branding"), &root.path().join("escape.zip")).unwrap_err().contains("unsafe"));
+        assert!(stage(&root.path().join("organization"), &root.path().join("escape.zip")).unwrap_err().contains("unsafe"));
     }
 
     #[test]
     fn a_staged_pack_activates_on_the_next_boot_and_an_invalid_one_falls_back() {
         let root = tempfile::tempdir().unwrap();
-        let branding = root.path().join("branding");
+        let organization = root.path().join("organization");
         std::fs::write(root.path().join("pack.zip"), archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        let summary = stage(&branding, &root.path().join("pack.zip")).unwrap();
+        let summary = stage(&organization, &root.path().join("pack.zip")).unwrap();
         assert_eq!((summary.label.as_str(), summary.ignored.as_slice()), ("Fork", ["slug".to_owned()].as_slice()));
-        let booted = boot(&branding);
+        let booted = boot(&organization);
         assert_eq!(booted.pack.unwrap().label, "Fork");
-        assert!(!branding.join(PENDING).exists() && branding.join(ACTIVE).is_dir());
-        std::fs::write(branding.join(ACTIVE).join(MANIFEST), "not toml [").unwrap();
-        let fallback = boot(&branding);
+        assert!(!organization.join(PENDING).exists() && organization.join(ACTIVE).is_dir());
+        std::fs::write(organization.join(ACTIVE).join(MANIFEST), "not toml [").unwrap();
+        let fallback = boot(&organization);
         assert!(fallback.pack.is_none());
-        assert!(fallback.error.unwrap().contains("brand.toml"));
-        assert!(branding.join(ACTIVE).is_dir(), "an invalid pack stays on disk for diagnosis");
+        assert!(fallback.error.unwrap().contains("organization.toml"));
+        assert!(organization.join(ACTIVE).is_dir(), "an invalid pack stays on disk for diagnosis");
     }
 
     #[test]
     fn invalid_pending_pack_preserves_the_last_valid_active_pack() {
         let root = tempfile::tempdir().unwrap();
-        let branding = root.path().join("branding");
+        let organization = root.path().join("organization");
         let archive_path = root.path().join("pack.zip");
         std::fs::write(&archive_path, archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        stage(&branding, &archive_path).unwrap();
-        assert_eq!(boot(&branding).pack.unwrap().label, "Fork");
-        stage(&branding, &archive_path).unwrap();
-        std::fs::write(branding.join(PENDING).join(MANIFEST), "invalid [").unwrap();
+        stage(&organization, &archive_path).unwrap();
+        assert_eq!(boot(&organization).pack.unwrap().label, "Fork");
+        stage(&organization, &archive_path).unwrap();
+        std::fs::write(organization.join(PENDING).join(MANIFEST), "invalid [").unwrap();
 
-        let retained = boot(&branding);
+        let retained = boot(&organization);
 
         assert_eq!(retained.pack.unwrap().label, "Fork");
-        assert!(retained.error.unwrap().contains("pending branding pack"));
-        assert_eq!(std::fs::read_to_string(branding.join(ACTIVE).join(MANIFEST)).unwrap(), MANIFEST_TEXT);
-        assert_eq!(std::fs::read_to_string(branding.join(PENDING).join(MANIFEST)).unwrap(), "invalid [");
+        assert!(retained.error.unwrap().contains("pending organization pack"));
+        assert_eq!(std::fs::read_to_string(organization.join(ACTIVE).join(MANIFEST)).unwrap(), MANIFEST_TEXT);
+        assert_eq!(std::fs::read_to_string(organization.join(PENDING).join(MANIFEST)).unwrap(), "invalid [");
     }
 
     #[test]
@@ -684,5 +696,17 @@ mod tests {
 
         assert_eq!(std::fs::read_to_string(active.join(MANIFEST)).unwrap(), MANIFEST_TEXT);
         assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1, "rollback removes only its empty backup directory");
+    }
+
+    #[test]
+    fn explicit_legacy_import_normalizes_only_the_manifest_name() {
+        let bytes = archive(&[("branding/brand.toml", MANIFEST_TEXT.as_bytes()), ("branding/logos/mark.svg", LOGO)]);
+        let files = validate_archive(&bytes).unwrap();
+
+        assert_eq!(files[Path::new(MANIFEST)], MANIFEST_TEXT.as_bytes());
+        assert_eq!(files[Path::new("logos/mark.svg")], LOGO);
+        assert!(!files.contains_key(Path::new(LEGACY_MANIFEST)));
+        let mixed = archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), (LEGACY_MANIFEST, MANIFEST_TEXT.as_bytes())]);
+        assert!(validate_archive(&mixed).unwrap_err().contains("exactly one"));
     }
 }

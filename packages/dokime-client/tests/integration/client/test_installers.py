@@ -13,6 +13,7 @@
 # Standard Library Imports
 import hashlib
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,6 +21,7 @@ from types import SimpleNamespace
 import pytest
 
 # Local Imports
+from dokime_tools.build import organization
 from dokime_tools.package import installer, linux
 
 # Type Checking Imports
@@ -33,6 +35,27 @@ from dokime_tools.package import installer, linux
 # === Classes === #
 
 # === Public Functions === #
+
+
+def test_organization_overlay_preserves_native_window_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    assets = tmp_path / "organization"
+    shutil.copytree(organization.BRAND, assets)
+    config = tmp_path / "crates/dokime-gui/src-tauri/tauri.conf.json"
+    config.parent.mkdir(parents=True)
+    window = {"create": False, "dragDropEnabled": True, "maximized": True, "minWidth": 1080, "title": "Source Title"}
+    config.write_text(json.dumps({"app": {"windows": [window]}}), encoding="utf-8")
+    monkeypatch.setattr(organization, "ROOT", tmp_path)
+    monkeypatch.setattr(organization, "BRAND", assets)
+
+    organization.generate()
+
+    overlay = json.loads((assets / "generated/tauri.organization.json").read_text())
+    assert overlay["identifier"] == "com.stokker.dokime"
+    assert overlay["app"]["windows"] == [{**window, "title": "Dokime"}]
+    stylesheet = (assets / "generated/theme.css").read_text()
+    assert "data:font/woff2;base64," in stylesheet
+    assert 'url("fonts/' not in stylesheet
+    assert "--brand-radius-sm: 0.0625rem" in stylesheet
 
 
 @pytest.mark.parametrize("provider", ["github", "gitlab"])
@@ -141,7 +164,7 @@ def _candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, P
     config = root / installer.TAURI / "tauri.conf.json"
     config.parent.mkdir(parents=True)
     config.write_text(json.dumps({"version": "0.1.0"}), encoding="utf-8")
-    brand = root / "branding/brand.toml"
+    brand = root / "organization/organization.toml"
     brand.parent.mkdir()
     brand.write_text('[app]\nslug = "dokime"\n', encoding="utf-8")
 

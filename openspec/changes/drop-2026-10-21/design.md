@@ -22,15 +22,7 @@ The completion delivery is one signed feature-branch push after the complete Lin
 
 ## Source Ownership
 
-| Workspace | Owned Source And Responsibility |
-| --- | --- |
-| drop-2026-10-21 | Native report delivery in GUI src-tauri/app and bindings, native-delivery/native-reports consumers, item 49 sidebar branding, combined spec, generated bindings and integration |
-| drop-execution | GUI cycle/execution/data queries, server evidence and execution aggregate handlers, corresponding domain operations and tests; item 45 |
-| drop-seal | Runtime reports, report operations and note persistence; server/runtime system benchmark workflows; items 21, 32, 43 |
-| drop-shutdown | Native close lifecycle and owned host shutdown, matching tests; item 42 |
-| drop-runtime-perf | Cargo dev profile/package profile reporting, runtime execution/artifact/telemetry persistence, codec caching, state transitions and prompt notifications; items 44, 47 |
-
-One writer per workspace. All source adoption belongs to the integration owner. Finished plots/settings/branding slices are already incorporated and must be verified in the final tree. Merge outstanding execution, seal, shutdown and runtime work after relevant gates; reconcile overlapping runtime paths explicitly. Regenerate clients from the combined source, never hand-merge generated outputs. Read project architecture and native desktop contracts before changes.
+The sole completion owner covers GUI native delivery and bindings, native-delivery/native-reports consumers and sidebar branding; GUI cycle/execution/data queries and server aggregate handlers; runtime reports, notes and benchmarks; native/owned shutdown; Cargo profiles, execution/artifact/telemetry durability, codecs, transitions and prompt notifications. Existing slice commits are adoption provenance; no sibling workspace is edited. Regenerate clients from this combined source, never hand-merge generated outputs. Read project architecture and native desktop contracts before changes.
 
 ## Locked Behavior
 
@@ -57,11 +49,11 @@ After combined source completion, build the development product and required tes
 
 Review risks include telemetry-only plots after runtime updates, empty initial plot frames, runtime branding/style ordering, full report fidelity and owned/attached shutdown. Preserve all system story behaviors. README claims and examples must match delivered behavior; no rustdoc or docs authoring before 1.0.
 
-Final review targets dev only after remote-streamline PR 2 lands and published Harmos pins resolve. Authorized delivery includes required native checks, ready review and squash auto-merge; no protected-branch shortcuts. Finish the OpenSpec change when all tasks are satisfied. Existing parked follow-ups (cycle description edit, cycle cancel operation, cancelled-record type, old docs mention, light runtime brand loader) are excluded unless source proves they prevent an agreed item's acceptance. The reported OBC protobuf-support failure is a validation concern, not a waived required lane.
+Final delivery targets a draft review into dev after required Linux and Windows validation and published Harmos pins resolve; no protected-branch shortcuts. Ready review and integration are not claimed by the draft. Existing parked follow-ups (cycle description edit, cycle cancel operation, cancelled-record type, old docs mention, light runtime brand loader) are excluded unless source proves they prevent an agreed item's acceptance. The reported OBC protobuf-support failure is a validation concern, not a waived required lane.
 
 ## Watcher Extension
 
-The watcher writer owns disjoint files in the integration tree: domain files models/operations, runtime domains/files, hosted/harness watcher adapters, server file-watch handlers, watcher tests, authoring guidance and examples. Runtime performance retains execution/artifact/telemetry ownership; the integrator owns generated clients, README consolidation and commits. No independent checkout or publication is created.
+The completion owner covers domain file models/operations, runtime domains/files, hosted/harness watcher adapters, server file-watch handlers, watcher tests, generated clients, authoring guidance, examples and README. No independent checkout or publication is created.
 
 Selection is independent of byte capture: All remains default; Latest selects the newest matching baseline file by modification time with stable path tie-breaking and follows that file's rotation without switching to later arrivals; New ignores the baseline and captures files first discovered afterward from byte zero. An empty baseline is explicitly represented when arming.
 
@@ -79,8 +71,6 @@ Human-approved FTP limitation: status 550 cannot distinguish missing roots from 
 
 First consolidate the original drop/watchers and native report corrections. Finish frontend consumers, generated clients/guidance, README and examples together. Relevant local gates precede commits/publication; complete project validation and benchmarks wait for the entire expanded combined tree. Development schema breaks remain allowed at v1; do not build database compatibility solely for development data, and never silently delete/reset real stored secrets or packs.
 
-## Organization Packs (absorbed from the organization-packs change)
-
 ## Organization Pack Extension
 
 Replace authored branding/brand.toml and branding-pack surfaces with organization/organization.toml and Organization Pack naming. Preserve appearance, pending restart activation, compiled defaults, OS bundle/storage identity and deep-link registration. Existing installed pack data is retained through validated migration or explicit import guidance, never silently deleted. Organization configuration supplies defaults, not enforced administrator policy; secret values never travel in packs.
@@ -94,8 +84,6 @@ Plugin release discovery uses a bounded version-1 JSON manifest with `package`, 
 ## Source Order
 
 Replace Organization Pack assets/generation/loading and lock its pure manifest/policy contracts. Replace the obsolete GitLab-only account/updater flow with origin-scoped authentication, provider resolution and exact-candidate verification/install; plugin releases stage through the existing host lifecycle.
-
-## Shared Secret Storage (absorbed from the shared-secret-storage change)
 
 ## Shared Secret Storage Extension
 

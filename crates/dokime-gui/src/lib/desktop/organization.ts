@@ -8,7 +8,7 @@
  */
 
 /**
- * Branding Pack Status The Desktop Shell Reports
+ * Organization Pack Status The Desktop Shell Reports
  */
 
 /* === Imports === */
@@ -25,24 +25,24 @@
 
 /* === Types === */
 
-/** Mirrors `PackSummary` in `src-tauri/src/app/branding.rs`. */
-export type BrandingPackSummary = {
+/** Mirrors `PackSummary` in `src-tauri/src/app/organization.rs`. */
+export type OrganizationPackSummary = {
   label: string;
   organization: string | null;
   /** Build-time parts the pack carries that only a rebuild applies. */
   ignored: string[];
 };
 
-/** Mirrors `BrandingStatus` in `src-tauri/src/app/branding.rs`. */
-export type BrandingStatus = {
-  active: BrandingPackSummary | null;
-  pending: BrandingPackSummary | null;
+/** Mirrors `OrganizationStatus` in `src-tauri/src/app/organization.rs`. */
+export type OrganizationStatus = {
+  active: OrganizationPackSummary | null;
+  pending: OrganizationPackSummary | null;
   removed: boolean;
   error: string | null;
 };
 
 /** Mirrors `LoadedPack`: what the shell hands the frontend before it renders. */
-export type BootBrandPack = {
+export type BootOrganizationPack = {
   label: string;
   titleTemplate: string;
   organization: { name: string; unit?: string | null; website?: string | null } | null;
@@ -50,11 +50,17 @@ export type BootBrandPack = {
   css: string;
 };
 
-export type BootBranding = { pack: BootBrandPack | null; error: string | null };
+export type BootOrganization = { pack: BootOrganizationPack | null; error: string | null };
 
 /* === Classes === */
 
 /* === Public Functions === */
+
+export function organizationPackError(error: string | null, retained: boolean): string | null {
+  if (!error) return null;
+  const appearance = retained ? "The last valid pack remains active." : "The compiled brand applies.";
+  return `Not applied: ${error}. ${appearance}`;
+}
 
 /* === Private Functions === */
 

@@ -20,7 +20,7 @@ import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
 
 import type { StagePluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
-import type { BrandingStatus } from "./branding";
+import type { OrganizationStatus } from "./organization";
 import type { BackendProfiles } from "./connection";
 import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
 import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
@@ -91,12 +91,12 @@ export const commands = {
   desktopPluginStageFile: (generation: string, drop: boolean, progress: Channel<StagePluginProgress>) =>
     invoke<string | null>("desktop_plugin_stage_file", { generation, drop, progress }),
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
-  /** The branding pack applied at boot and the one that applies on the next start. */
-  desktopBrandingStatus: () => invoke<BrandingStatus>("desktop_branding_status"),
-  /** Pick, validate and stage a branding pack zip; null when the picker is dismissed. */
-  desktopBrandingChoose: () => invoke<BrandingStatus | null>("desktop_branding_choose"),
+  /** The organization pack applied at boot and the one that applies on the next start. */
+  desktopOrganizationStatus: () => invoke<OrganizationStatus>("desktop_organization_status"),
+  /** Pick, validate and stage an organization pack zip; null when the picker is dismissed. */
+  desktopOrganizationChoose: () => invoke<OrganizationStatus | null>("desktop_organization_choose"),
   /** Delete the pending and active packs; the compiled brand applies on the next start. */
-  desktopBrandingRemove: () => invoke<BrandingStatus>("desktop_branding_remove"),
+  desktopOrganizationRemove: () => invoke<OrganizationStatus>("desktop_organization_remove"),
   /** Drain all runtime resources before requesting Tauri's non-cancellable restart. */
   desktopRestart: () => invoke<null>("desktop_restart"),
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),

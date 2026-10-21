@@ -7,7 +7,7 @@
  * ***
  */
 
-/* === External Imports === */
+/* === Imports === */
 
 import { createContext, type ReactNode, useContext, useEffect, useMemo } from "react";
 import { toast } from "sonner";
@@ -15,15 +15,24 @@ import { toast } from "sonner";
 /* === Local Imports === */
 
 import { useNativeAppearance } from "@/app/native-session/context";
-import { BrandProvider, bootBranding, brandFromLogos, brandPack, defaultBrand, defaultTitleTemplate, packLogos } from "@/lib/brand";
+import {
+  BrandProvider,
+  bootOrganization,
+  brandFromLogos,
+  organizationPack,
+  defaultBrand,
+  defaultTitleTemplate,
+  packLogos,
+} from "@/lib/brand";
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
+import { organizationPackError } from "@/lib/desktop/organization";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 
 import { isReportBuild } from "@/lib/ui-mode";
 
-/* === Types === */
-
 import type { RuntimeAppearanceFrame, RuntimeAppLogo, ThemeModePolicy as RuntimeThemeModePolicy } from "@/lib/types/view-contracts";
+
+/* === Re-Exports === */
 
 export type {
   RuntimeAppearanceFrame,
@@ -34,13 +43,9 @@ export type {
 
 /* === Constants === */
 
-type Appearance = RuntimeAppearanceFrame & {
-  themes: NonNullable<RuntimeAppearanceFrame["themes"]>;
-};
-
 const defaultAppearanceFrame: Appearance = {
   app_name: defaultBrand.label,
-  organization: brandPack?.organization ? packOrganization(brandPack.organization) : null,
+  organization: organizationPack?.organization ? packOrganization(organizationPack.organization) : null,
   title_template: defaultTitleTemplate,
   logos: [],
   themes: [],
@@ -53,30 +58,42 @@ const defaultAppearanceFrame: Appearance = {
 
 const AppearanceContext = createContext<Appearance>(defaultAppearanceFrame);
 
-let reportedBrandingError = false;
+let reportedOrganizationError = false;
 
 export const appearanceQueryKey = ["appearance"] as const;
+
+/* === Types === */
+
+type Appearance = RuntimeAppearanceFrame & {
+  themes: NonNullable<RuntimeAppearanceFrame["themes"]>;
+};
+
+/* === Hooks === */
+
+export function useAppearance(): Appearance {
+  return useContext(AppearanceContext);
+}
 
 /* === Components === */
 
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const nativeResource = useNativeAppearance();
   const appearance = useMemo<Appearance>(() => {
-    const frame = nativeResource ? withBrandPack(appearanceFrameFromNative(nativeResource)) : defaultAppearanceFrame;
+    const frame = nativeResource ? withOrganizationPack(appearanceFrameFromNative(nativeResource)) : defaultAppearanceFrame;
     return { ...frame, themes: frame.themes ?? [] };
   }, [nativeResource]);
   const brand = useMemo(
-    () => (nativeResource && !brandPack ? brandFromLogos(appearance.app_name, appearance.logos) : defaultBrand),
+    () => (nativeResource && !organizationPack ? brandFromLogos(appearance.app_name, appearance.logos) : defaultBrand),
     [appearance, nativeResource],
   );
 
   useEffect(() => {
-    const error = bootBranding.error;
-    if (!error || reportedBrandingError) return undefined;
-    reportedBrandingError = true;
+    const error = bootOrganization.error;
+    if (!error || reportedOrganizationError) return undefined;
+    reportedOrganizationError = true;
     // After The Commit, So The Toaster Mounted In The Same Render Is Listening.
     const handle = window.setTimeout(
-      () => toast.error("Branding Pack Not Applied", { description: `${error}. The compiled brand applies.` }),
+      () => toast.error("Organization Pack Not Applied", { description: organizationPackError(error, organizationPack !== null) }),
       0,
     );
     return () => window.clearTimeout(handle);
@@ -100,10 +117,6 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 
 /* === Public Functions === */
 
-export function useAppearance(): Appearance {
-  return useContext(AppearanceContext);
-}
-
 /* === Private Functions === */
 
 function titleFromAppearance(appearance: RuntimeAppearanceFrame): string {
@@ -111,15 +124,15 @@ function titleFromAppearance(appearance: RuntimeAppearanceFrame): string {
   return template.replaceAll("{app}", appearance.app_name);
 }
 
-/** The operator's branding pack is the brand: it replaces the identity the backend reports. */
-function withBrandPack(frame: RuntimeAppearanceFrame): RuntimeAppearanceFrame {
-  if (!brandPack) return frame;
+/** The operator's organization pack is the brand: it replaces the identity the backend reports. */
+function withOrganizationPack(frame: RuntimeAppearanceFrame): RuntimeAppearanceFrame {
+  if (!organizationPack) return frame;
   return {
     ...frame,
-    app_name: brandPack.label,
-    organization: brandPack.organization ? packOrganization(brandPack.organization) : null,
-    title_template: brandPack.titleTemplate,
-    logos: Object.entries(packLogos(brandPack)).map(([variant, logo]) => ({
+    app_name: organizationPack.label,
+    organization: organizationPack.organization ? packOrganization(organizationPack.organization) : null,
+    title_template: organizationPack.titleTemplate,
+    logos: Object.entries(packLogos(organizationPack)).map(([variant, logo]) => ({
       variant: variant as RuntimeAppLogo["variant"],
       plugin_id: "brand.pack",
       asset_id: variant,
@@ -130,7 +143,7 @@ function withBrandPack(frame: RuntimeAppearanceFrame): RuntimeAppearanceFrame {
 }
 
 function packOrganization(
-  organization: NonNullable<NonNullable<typeof brandPack>["organization"]>,
+  organization: NonNullable<NonNullable<typeof organizationPack>["organization"]>,
 ): RuntimeAppearanceFrame["organization"] {
   return { name: organization.name, unit: organization.unit ?? null, website: organization.website ?? null };
 }

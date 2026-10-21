@@ -17,7 +17,7 @@ import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme
 /* === Report appearance ===
    The generated report carries the captured runtime appearance frame. Applying it here
    keeps the frozen report under the theme contract instead of reverting
-   to default branding. */
+   to default organization. */
 
 /* === Constants === */
 

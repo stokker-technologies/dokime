@@ -9,7 +9,6 @@
 
 /* === Modules === */
 
-pub(crate) mod branding;
 mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
@@ -17,6 +16,7 @@ pub(crate) mod gitlab;
 pub(crate) mod local;
 mod logging;
 pub(crate) mod media;
+pub(crate) mod organization;
 pub(crate) mod plugins;
 pub(crate) mod recording;
 pub(crate) mod settings;
@@ -138,7 +138,7 @@ fn start_tauri_app() -> tauri::Result<()> {
             let owner = crate::native_session::DesktopSession::with_local_configuration(connection, local::configuration(app.handle()));
             *setup_owner.lock().expect("setup owner poisoned") = Some(owner.clone());
             app.manage(crate::native_session::DesktopSessionControl::active(owner));
-            branding::setup(app)?;
+            organization::setup(app)?;
             create_main_windows(app)?;
             if shutdown_stdin {
                 let handle = app.handle().clone();
@@ -182,8 +182,8 @@ fn start_tauri_app() -> tauri::Result<()> {
 fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
     for window in app.config().app.windows.iter().filter(|window| !window.create) {
         let navigation_config = app.config().clone();
-        // The branding pack reaches the frontend before its first script runs.
-        let brand = app.state::<branding::BrandingState>().initialization_script();
+        // The organization pack reaches the frontend before its first script runs.
+        let brand = app.state::<organization::OrganizationState>().initialization_script();
         tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
             .initialization_script(&brand)
             .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config))

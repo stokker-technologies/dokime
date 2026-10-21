@@ -4,12 +4,12 @@ Agent context for the Dokime GUI. This is a Tauri 2 desktop application with a
 Vite, React 19, and Tailwind CSS v4 frontend. The same frontend code supports the
 live operator shell and the self-contained report renderer.
 
-## Brand Assets
+## Organization Assets
 
-- Brand values live in `../../branding/brand.toml` and are compiled into
-  `dokime-app` (its `brand::theme` module). Preserve committed frontend assets under
-  `../../branding/generated/`; runtime appearance owns the compiled stylesheet.
-- Treat `../dokime-app/dist-report/report.html` as generated output. The report
+- Brand values live in `../../organization/organization.toml` and are compiled into
+  `dokime-runtime` (its `domains::installed_plugins::brand::theme` module). Preserve committed frontend assets under
+  `../../organization/generated/`; runtime appearance owns the compiled stylesheet.
+- Treat `../dokime-runtime/dist-report/report.html` as generated output. The report
   build owns it.
 
 ## Project Shape
@@ -27,18 +27,18 @@ live operator shell and the self-contained report renderer.
 
 ## Validation
 
-- Install synchronized dependencies with `mise run sync`.
+- Install synchronized dependencies with `mise run prepare`.
 - After authored brand changes, rebuild the compiled theme and report with
-  `mise run prepare:report`, then run the repository checks.
-- Run `mise run check:types` and `mise run test:integration:typescript` for frontend changes.
+  `mise run prepare:organization` and `mise run prepare:report`, then run the repository checks.
+- Run `mise run check:typescript` and `mise run test:integration:typescript` for frontend changes.
 - Run `mise run check` before committing. Use `mise run test:system:typescript` when a
   running-stack workflow or browser interaction changes.
 
 ## Canonical Bindings And Transport
 
-- `mise run bindings:generate` projects standard ES bindings and the typed facade
-  from one explicitly selected canonical Cargo export. `bindings:check` compares
-  that same export. Rust `dokime-contract::operations` declarations own the wire
+- `mise run dev` exports the canonical Cargo contracts and runs `tools/bindings.mjs`
+  to project standard ES bindings and the typed facade. Generated-client lanes verify
+  that same export. Rust `dokime-domain::operations` declarations own the wire
   shape; do not maintain parallel domain DTOs or a second codec. Generation does
   not compile the GUI or runtime.
 - Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the

@@ -1,11 +1,11 @@
-/* GENERATED from the authored `branding/theme/` CSS.
+/* GENERATED from the authored `organization/theme/` CSS.
  * Do not edit by hand. */
 
 /* BEGIN authored theme/typography.css */
 /* Dokime typography: the single source for font loading, stacks, and display scale.
  *
  * Font url() values are relative to the brand bundle root (the folder holding
- * brand.toml), not to this file — the compiled Dokime theme resolves them there and
+ * organization.toml), not to this file — the compiled Dokime theme resolves them there and
  * inlines each face as a data URI. Faces must stay inside the bundle; a `../`
  * escape is rejected. */
 
@@ -93,7 +93,7 @@ html {
 }
 /* END authored theme/base.css */
 
-/* BEGIN generated corner radii from branding/brand.toml */
+/* BEGIN generated corner radii from organization/organization.toml */
 :root {
   --brand-radius: 0.1875rem;
   --brand-radius-sm: 0.0625rem;
