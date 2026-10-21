@@ -37,14 +37,16 @@ const KEY = "0123456789abcdef".repeat(4);
 test("access key dialog shows the whole key and every action without fixed widths", () => {
   const html = panel(() => undefined);
   assert.equal(KEY.length, 64);
-  assert.match(html, new RegExp(`value="${KEY}"`));
+  assert.match(html, new RegExp(`<textarea[^>]*>${KEY}</textarea>`));
   for (const label of ["Copy Key", "Save Key File…", "Save Public Certificate…", "I Have Saved The Key"]) {
     assert.ok(html.includes(`>${label}</button>`), label);
   }
   assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Save Public Certificate/);
   assert.doesNotMatch(html, /(?<![\w-])(?:min-)?w-\[|width:/);
-  const input = html.match(/<input[^>]*aria-label="Generated Access Key"[^>]*>|<input[^>]*>/)?.[0] ?? "";
+  const input = html.match(/<textarea[^>]*aria-label="Generated Access Key"[^>]*>/)?.[0] ?? "";
   assert.match(input, /\bmin-w-0\b/);
+  assert.match(input, /\bbreak-all\b/);
+  assert.match(input, /readOnly=""/);
 });
 
 test("access key dialog hides the certificate action when the host has no certificate", () => {

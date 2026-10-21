@@ -47,7 +47,7 @@
 - [x] 30. Preserve FIFO prompts as self-contained cards. Proof: `execution/nominal.test.ts / Prompt Ordering, Prompt Queue, Prompt Decisions, Prompt Answering`; `native-desktop.mjs / cycle`.
 - [x] 31. Show empty pending, ticking running and measured completed step durations. Proof: `execution/nominal.test.ts / Step Durations, Duration Formatting`.
 - [x] 32. Complete narrow operator-note persistence and measure latency. Proof: `domains::documents::capture::notes_until_seal`, `domains::evidence::notes::empty_cycle_datasets`; `workflow_adds_note/{idle_rows,during_cycle_report_rows}/100000` (10 samples each).
-- [ ] 33. Fix access-key dialog overflow.
+- [x] 33. Fix access-key dialog overflow. Proof: `settings/access-key-dialog.test.ts`; `native-desktop.mjs / remote-access` (full key and all six controls fit a 1080×760 viewport).
 - [ ] 34. Apply remote settings live, reflect actual status and generate missing TLS certificates.
 - [ ] 35. Use a shared two-column settings layout and repair affected dialogs.
 - [ ] 36. Page remote session history in groups of twenty.

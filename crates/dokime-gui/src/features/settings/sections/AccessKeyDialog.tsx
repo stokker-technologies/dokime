@@ -21,7 +21,7 @@ import { useState } from "react";
 // Local Imports
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 /* === Re-Exports === */
 
@@ -70,7 +70,14 @@ export function AccessKeyPanel({ value, busy, saved, saveError, close, save, sav
           This is the only time the key is shown. It gives full control of this host. Copy it or save it as a key file before closing.
         </DialogDescription>
       </DialogHeader>
-      <Input aria-label="Generated Access Key" autoComplete="off" readOnly value={value} className="min-w-0 font-mono text-xs" />
+      <Textarea
+        aria-label="Generated Access Key"
+        autoComplete="off"
+        readOnly
+        rows={2}
+        value={value}
+        className="min-w-0 resize-none break-all font-mono text-xs md:text-xs"
+      />
       {error || saveError ? <p role="alert">{error ?? saveError}</p> : null}
       {saved || copied ? <p role="status">{saved ? "Key File Saved" : "Key Copied"}</p> : null}
       <DialogFooter>
