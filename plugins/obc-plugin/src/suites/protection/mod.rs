@@ -38,7 +38,7 @@ pub struct Suite;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Templates {
     Overcurrent(overcurrent::Overcurrent),
 }
@@ -47,7 +47,7 @@ pub enum Templates {
 
 /* === Implementations === */
 
-#[dokime_runtime::suite(id = SUITE, label = "Charger Protection", tags = ["device", "protection"], templates = Templates, description = "Verify that the Charger's protection disconnects it once the load draws too much current.")]
+#[dokime::suite(id = SUITE, label = "Charger Protection", tags = ["device", "protection"], templates = Templates, description = "Verify that the Charger's protection disconnects it once the load draws too much current.")]
 impl Suite {}
 
 /* === Public Functions === */

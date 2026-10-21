@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -37,6 +38,7 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn labelled(identifier: &str, label: &str, description: Option<&str>) -> contracts::execution::CreateCycle {
     contracts::execution::CreateCycle {
         metadata: Some(model::identity::wire::Metadata {

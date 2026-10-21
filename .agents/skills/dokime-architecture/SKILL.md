@@ -5,7 +5,9 @@ description: Define Dokime domain, runtime, shell and packaging ownership and li
 
 # Dokime Architecture
 
-Apply the shared architecture and Rust rules. The accepted boundary is `dokime-domain` for definitions and pure domain behaviour, `dokime-runtime` for resource-bound behaviour, `dokime-server` and `dokime-gui` for shells, `dokime-client` for remote access, `dokime-packaging` for code generation and packaging, and the bare `dokime` crate for the installable CLI. During an in-progress cutover verify landed paths before citing an API.
+Apply the shared architecture and Rust rules. The entry library is `dokime`: domain definitions are under `dokime::domain`, runtime functionality is re-exported at its root, and remote access is under `dokime::client` with feature `client`. Shipped interfaces, plugins and cargo tools consume these surfaces through `dokime`. The `dokime-cli` package owns command parsing and commands and installs the `dokime` executable. Internal `dokime-domain`, `dokime-runtime` and `dokime-client` crates retain implementation ownership; `dokime-packaging` owns build and packaging utilities. During an in-progress cutover verify landed paths before citing an API.
+
+Connection, installation and version helpers belong to the entry library. Connection helpers use `dokime::client_error::Error`; the CLI reuses that error instead of wrapping it. Root `dokime::Error` and `dokime::Result` retain runtime identity across feature selections.
 
 The domain crate contains every operation, transaction, state entry, message and value definition. It performs no I/O, async work, storage or network access. Runtime crates implement the resource-bound behaviour and depend on domain crates; domain crates never depend on runtimes. Sidecars, plugins, clients and tools use the portable domain surface.
 
@@ -13,7 +15,7 @@ Organize declarations kind-first: `model/`, `operations/`, `transactions/`, `sta
 
 Records select by envelope identity: scope is the cycle, item is the execution (or cycle for cycle context), source is the provider/process epoch. Use typed reads for records and retain columnar queries for plots and telemetry derivations. Lifecycle capture references the durable frozen execution revision rather than duplicating it.
 
-Packaging depends on portable domains and Harmos packaging, never the runtime. Build scripts request only enabled generators (`generate-proto`, `generate-python`, `generate-typescript`); `grpc` implies proto. The thin cargo tool uses the canonical CLI and packaging instead of embedding a second runtime.
+Packaging uses the entry library and Harmos packaging without enabling host services. Build scripts use `dokime::domain` contracts and request only enabled Harmos generators (`generate-proto`, `generate-python`, `generate-typescript`); `grpc` implies proto. The thin cargo tool uses the entry library and packaging instead of embedding a second host runtime.
 
 Storage is development v1. A clean schema break may require a fresh storage root; never silently reset existing data. Plugin installation and enablement become active after a full app restart; development reload remains an explicit separate lifecycle.
 

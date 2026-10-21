@@ -104,7 +104,7 @@ where
     ) -> std::fmt::Result {
         let mut fields = ConsoleFields::default();
         event.record(&mut fields);
-        let timestamp = fields.timestamp.filter(|value| !value.is_empty()).unwrap_or_else(dokime_runtime::execution::log::timestamp);
+        let timestamp = fields.timestamp.filter(|value| !value.is_empty()).unwrap_or_else(dokime::execution::log::timestamp);
         let time = timestamp.get(11..23).unwrap_or(&timestamp);
         let plugin = fields.plugin.as_deref().unwrap_or("host");
         let location = match fields.execution.as_deref() {
@@ -159,7 +159,7 @@ pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
     Registry::default()
         .with(layers)
         // Not a logging layer: `ErrorLayer` is what lets a captured
-        // `dokime_runtime::plugin::Diagnostic` read back the spans it happened inside.
+        // `dokime::plugin::Diagnostic` read back the spans it happened inside.
         // Without it in this subscriber every host-side span trace is empty, and
         // nothing says so.
         .with(tracing_error::ErrorLayer::default())

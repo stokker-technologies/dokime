@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,8 +26,9 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // What `ReadChamber` answers.
-#[dokime_runtime::message]
+#[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct ChamberReading {
     #[row(description = "What the chamber is at, in °C.")]
@@ -42,7 +44,7 @@ pub struct ChamberReading {
 // `TemperatureRow::celsius()` stops resolving the day the field is renamed.
 // The observer below says how often, and everything that reads these rows names
 // this type.
-#[dokime_runtime::stream(
+#[dokime::stream(
     id = "{{owner}}.temperature",
     window = 4096,
     label = "Bench Temperature",

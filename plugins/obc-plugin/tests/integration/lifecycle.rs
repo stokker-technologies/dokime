@@ -18,10 +18,10 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::model;
-use dokime_runtime::Value;
-use dokime_runtime::execution::Workflow;
-use dokime_runtime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
+use dokime::Value;
+use dokime::domain::model;
+use dokime::execution::Workflow;
+use dokime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
 use model::records::publication::RecordPublishRequest;
 use obc_plugin::{Pulse, PulseRow, SOURCE, pulse_value, suites};
 
@@ -42,12 +42,13 @@ use obc_plugin::{Pulse, PulseRow, SOURCE, pulse_value, suites};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn start_request(token: &str, sample_count: u64) -> RunExecution {
-    let template = <Pulse as dokime_runtime::definition::DeclaredTemplate>::declaration();
-    let cases = dokime_runtime::definition::materialize_template_cases(
+    let template = <Pulse as dokime::definition::DeclaredTemplate>::declaration();
+    let cases = dokime::definition::materialize_template_cases(
         "fixture.registration",
         &template,
-        dokime_runtime::definition::CaseMaterializationSelection {
+        dokime::definition::CaseMaterializationSelection {
             case_overrides: std::collections::BTreeMap::from([(
                 "sample_count".to_owned(),
                 vec![Value::from(i64::try_from(sample_count).unwrap())],
@@ -60,8 +61,8 @@ fn start_request(token: &str, sample_count: u64) -> RunExecution {
     RunExecution {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
-        test_cycle_id: dokime_runtime::TestCycleId::from_seed("obc.fixture.cycle").to_string(),
-        test_execution_id: dokime_runtime::TestExecutionId::from_seed(token).to_string(),
+        test_cycle_id: dokime::TestCycleId::from_seed("obc.fixture.cycle").to_string(),
+        test_execution_id: dokime::TestExecutionId::from_seed(token).to_string(),
         template_identifier: template.metadata.identifier.to_string(),
         workflow: suites::checks::ID.to_owned(),
 
@@ -77,7 +78,7 @@ fn workflow() -> Workflow<Pulse> {
 fn drain(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch {
     let reply = workflow.drain(token, cursor).expect("the execution remains drainable");
     for encoded in &reply.step_begins {
-        let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
     }
     reply
@@ -86,7 +87,7 @@ fn drain(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch 
 async fn next(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch {
     let reply = workflow.next(token, cursor).await.expect("the execution remains drainable");
     for encoded in &reply.step_begins {
-        let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
     }
     reply
@@ -130,7 +131,7 @@ async fn execution_streams_outcome() {
     // The declared stream sampled until the step had what it waited for.
     assert!(samples.len() >= 3);
     assert!(samples.iter().all(|sample| { sample.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some()) }));
-    assert!(samples.iter().all(|sample| { sample.stream.as_str() == <PulseRow as dokime_runtime::StreamSpec>::ID }));
+    assert!(samples.iter().all(|sample| { sample.stream.as_str() == <PulseRow as dokime::StreamSpec>::ID }));
     // The values are the sidecar's own deterministic function of the index,
     // compared with a tolerance because they round-trip through JSON.
     for (index, sample) in samples.iter().enumerate() {
@@ -146,8 +147,8 @@ async fn execution_streams_outcome() {
     assert_eq!(
         records.iter().map(|record| record.record_type.as_str()).collect::<Vec<_>>(),
         vec![
-            <suites::checks::pulse::RunStarted as dokime_runtime::records::DeclaredRecord>::RECORD_TYPE,
-            <suites::checks::pulse::RunCompleted as dokime_runtime::records::DeclaredRecord>::RECORD_TYPE,
+            <suites::checks::pulse::RunStarted as dokime::records::DeclaredRecord>::RECORD_TYPE,
+            <suites::checks::pulse::RunCompleted as dokime::records::DeclaredRecord>::RECORD_TYPE,
         ]
     );
     assert!(outcome.passed);

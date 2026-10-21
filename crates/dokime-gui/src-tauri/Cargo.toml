@@ -26,7 +26,7 @@ console = []
 
 [build-dependencies]
 # Local
-dokime-domain = { version = "0.1.0", path = "../../dokime-domain" }
+dokime = { workspace = true }
 
 # Git
 harmos = { workspace = true }
@@ -40,10 +40,7 @@ tauri-build = { workspace = true, features = [] }
 
 [dependencies]
 # Local
-dokime-client = { version = "0.1.0", path = "../../dokime-client" }
-# Excludes the SDK default `derive`; the shell authors no plugins and needs no attribute macros.
-dokime-runtime = { version = "0.1.0", path = "../../dokime-runtime", default-features = false, features = ["native"] }
-dokime-domain = { version = "0.1.0", path = "../../dokime-domain", features = ["diagnostics"] }
+dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }
@@ -102,8 +99,7 @@ windows = { workspace = true, features = ["Win32_System_Com"] }
 
 [dev-dependencies]
 # Local
-dokime = { version = "0.1.0", path = "../../dokime" }
-dokime-runtime = { version = "0.1.0", path = "../../dokime-runtime", features = ["host", "fft"] }
+dokime = { workspace = true, features = ["host", "fft", "plugin"] }
 dokime-server = { version = "0.1.0", path = "../../dokime-server" }
 
 # Git

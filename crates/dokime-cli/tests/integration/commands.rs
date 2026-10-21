@@ -1,0 +1,363 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::io::Write;
+
+// Third Party Imports
+use clap::Parser;
+
+// Local Imports
+use dokime::client::profiles::Store;
+use dokime_cli::{Cli, Error};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */
+
+#[test]
+fn execution_lifecycle_parser() {
+    for command in ["run", "stop", "request", "rerun"] {
+        assert!(Cli::try_parse_from(["dokime", "cycle", command]).is_err());
+    }
+    let execution = "00000000-0000-0000-0000-000000000001";
+    let run = ["dokime", "execution", "run", execution];
+    assert!(Cli::try_parse_from(run).is_ok());
+    let listening = ["--records", "--samples", "--record-type", "obc.*", "--record-type", "dokime.*", "--stream", "obc.?"];
+    assert!(Cli::try_parse_from(run.into_iter().chain(listening)).is_ok());
+    assert!(Cli::try_parse_from(run.into_iter().chain(["--request-key", "obsolete"])).is_err());
+    assert!(Cli::try_parse_from(["dokime", "plan", "materialize", "--template", "obc.check", "--id-only"]).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "cycle", "append", execution, "--case-id", execution, "--id-only"]).is_ok());
+    let append = ["dokime", "cycle", "append", execution, "--case-id", execution, "--id-file", "ids.txt"];
+    assert!(Cli::try_parse_from(append).is_ok());
+    let next = ["dokime", "execution", "prompt", "next", execution, "--id-only", "--id-file", "ids.txt"];
+    assert!(Cli::try_parse_from(next).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "cycle", "create", "--label", "Test", "--id-file", "ids.txt"]).is_err());
+}
+
+#[tokio::test]
+async fn interrupt_recovery_boundaries() {
+    let execution = "00000000-0000-0000-0000-000000000001";
+    let cycle = "00000000-0000-0000-0000-000000000002";
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().to_str().unwrap();
+    let export_output = directory.path().join("requested-export.zip");
+    for command in [
+        vec!["dokime", "execution", "start", execution],
+        vec!["dokime", "execution", "run", execution],
+        vec!["dokime", "execution", "wait", execution],
+        vec!["dokime", "execution", "prompt", "next", execution],
+        vec!["dokime", "execution", "prompt", "show", execution, execution],
+        vec!["dokime", "execution", "prompt", "answer", execution, execution, "--action", "yes"],
+        vec!["dokime", "execution", "export", execution, "--output", export_output.to_str().unwrap()],
+    ] {
+        for missing in [
+            vec!["--cancel-on-interrupt"],
+            vec!["--owned-cycle", cycle],
+            vec!["--recovery-directory", path],
+            vec!["--cancel-on-interrupt", "--owned-cycle", cycle],
+        ] {
+            let arguments = command.iter().copied().chain(missing);
+            assert!(Cli::try_parse_from(arguments).is_err(), "partial recovery choices must be refused");
+        }
+        let recovery = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+        let arguments = command.iter().copied().chain(recovery);
+        let parsed = Cli::try_parse_from(arguments).unwrap();
+        assert!(matches!(parsed.run().await, Err(Error::Client(_))), "complete choices pass offline validation before endpoint parsing");
+        let destination = directory.path().join(format!("execution-{execution}.zip"));
+        std::fs::write(&destination, b"previous evidence").unwrap();
+        let arguments = command.iter().copied().chain(recovery);
+        let parsed = Cli::try_parse_from(arguments).unwrap();
+        assert!(matches!(parsed.run().await, Err(Error::Download(_))), "output conflicts must be refused before endpoint parsing");
+        assert_eq!(std::fs::read(&destination).unwrap(), b"previous evidence");
+        std::fs::remove_file(destination).unwrap();
+    }
+
+    let append = ["dokime", "cycle", "append", cycle, "--case-id", execution];
+    for incomplete in [vec!["--cancel-on-interrupt"], vec!["--owned-cycle", cycle], vec!["--recovery-directory", path]] {
+        assert!(Cli::try_parse_from(append.into_iter().chain(incomplete)).is_err());
+    }
+    let flags = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+    let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
+    assert!(matches!(parsed.run().await, Err(Error::Client(_))));
+    let flags = ["--cancel-on-interrupt", "--owned-cycle", execution, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+    let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
+    assert!(matches!(parsed.run().await, Err(Error::Input(_))), "append cannot authorize recovery of another cycle");
+}
+
+#[tokio::test]
+async fn json_files_connection() {
+    assert!(Cli::try_parse_from(["dokime", "serve"]).is_ok());
+    for arguments in [
+        vec!["plan", "preview", "--template", "checks.probe", "--case-id", "case"],
+        vec!["plan", "preview", "--input-file", "request.json", "--case-id", "case"],
+        vec!["plan", "preview", "--case-id", "case", "--selection-json", "{}"],
+        vec!["plan", "register", "--input-file", "request.json", "--request-key", "plan-1"],
+        vec!["cycle", "create", "--input-file", "request.json", "--label", "Override"],
+        // A cycle needs a label and has no start or wait shortcut.
+        vec!["cycle", "create"],
+        vec!["cycle", "create", "--label", "Test", "--wait-seconds", "5"],
+        vec!["cycle", "create", "--label", "Test", "--id-only", "--json"],
+        vec!["cycle", "create", "--label", "Test", "--id-only", "--request-key", "run-1"],
+        vec!["plan", "preview", "--parameters-json", "{}"],
+        // Appending names an existing cycle, or reads it from the request file.
+        vec!["cycle", "append", "--template", "checks.probe"],
+        vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--input-file", "request.json"],
+        vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--input-file", "request.json", "--template", "checks.probe"],
+    ] {
+        assert!(Cli::try_parse_from(std::iter::once("dokime").chain(arguments)).is_err());
+    }
+    // Dynamic Calls Accept Providers Absent From The Compiled Product Catalog.
+    assert!(
+        Cli::try_parse_from([
+            "dokime",
+            "operation",
+            "call",
+            "external.plugin.exchange",
+            "--owner",
+            "external-plugin",
+            "--input-stream-file",
+            "frames.jsonl",
+            "--json",
+            "{}",
+            "--endpoint",
+            "http://127.0.0.1:8765",
+        ])
+        .is_ok()
+    );
+    assert!(
+        Cli::try_parse_from(["dokime", "operation", "show", "external.plugin.exchange", "--owner", "external-plugin", "--json",]).is_ok()
+    );
+
+    let mut file = tempfile::NamedTempFile::new().unwrap();
+    file.write_all(b"{broken-json").unwrap();
+    let args = Cli::try_parse_from([
+        "dokime",
+        "operation",
+        "call",
+        "dokime.runtime.health",
+        "--endpoint",
+        "invalid-endpoint",
+        "--input",
+        file.path().to_str().unwrap(),
+    ])
+    .unwrap();
+    assert!(matches!(args.run().await, Err(Error::Input(_))));
+
+    let args = Cli::try_parse_from(["dokime", "operation", "call", "missing.operation", "--endpoint", "invalid-endpoint"]).unwrap();
+    assert!(matches!(args.run().await, Err(Error::Client(_))));
+
+    let args =
+        Cli::try_parse_from(["dokime", "operation", "call", "dokime.evidence.watch_records", "--endpoint", "invalid-endpoint"]).unwrap();
+    let refused = args.run().await.unwrap_err();
+    assert_eq!(refused.exit_code(), std::process::ExitCode::from(2));
+    assert!(matches!(refused, Error::Client(_)));
+
+    for arguments in [
+        vec!["execution", "stop", "invalid"],
+        vec!["execution", "run", "invalid"],
+        vec!["execution", "start", "invalid"],
+        vec!["execution", "wait", "invalid"],
+        vec!["execution", "run", "98184567-8924-4fb0-b4e2-667347e097a1", "--stream", "obc.[ab]"],
+        vec!["execution", "run", "98184567-8924-4fb0-b4e2-667347e097a1", "--record-type", "^obc.*$"],
+        vec!["plan", "materialize", "--case-id", "98184567-8924-4fb0-b4e2-667347e097a1"],
+        vec!["plan", "materialize", "--template", "checks.probe", "--max-cases", "1"],
+        vec!["execution", "prompt", "next", "invalid"],
+        vec!["execution", "prompt", "show", "98184567-8924-4fb0-b4e2-667347e097a1", "invalid"],
+        vec![
+            "execution",
+            "prompt",
+            "answer",
+            "98184567-8924-4fb0-b4e2-667347e097a1",
+            "a13ae695-1f02-4464-9f7b-0b14ecffcb41",
+            "--action",
+            "yes",
+            "--values-json",
+            "[]",
+        ],
+        vec!["plan", "preview", "--template", "checks.probe", "--parameters-json", "[]"],
+        vec!["plan", "preview", "--template", "checks.probe", "--parameters-json", "{broken"],
+        vec!["plan", "preview", "--case-id", "invalid"],
+        vec!["plan", "preview", "--selection-json", "{\"unexpected\":true}"],
+        vec!["plan", "register", "--case-id", "invalid", "--request-key", "plan-1"],
+        vec!["plan", "register", "--template", "checks.probe", "--request-key", " "],
+        // A template is named by its readable ID, refused before connecting
+        // when it does not name a suite and one lowercase segment.
+        vec!["plan", "preview", "--template", "probe"],
+        vec!["plan", "preview", "--template", "checks.Probe"],
+        vec![
+            "plan",
+            "preview",
+            "--selection-json",
+            "{\"suite_id\":\"foreign\",\"template_id\":\"checks.probe\",\"parameters\":[],\"files\":[]}",
+        ],
+        vec!["plan", "register", "--template", "0197f000-0000-7000-8000-000000000002", "--request-key", "plan-1"],
+        vec!["plan", "preview", "--input-file", file.path().to_str().unwrap()],
+        vec!["plan", "register", "--input-file", file.path().to_str().unwrap()],
+        vec!["cycle", "create", "--input-file", file.path().to_str().unwrap()],
+        vec!["cycle", "create", "--label", "Test", "--identifier", "Not An Identifier"],
+        vec!["cycle", "append", "invalid", "--case-id", "98184567-8924-4fb0-b4e2-667347e097a1"],
+        vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--case-id", "invalid"],
+        vec!["cycle", "append", "--input-file", file.path().to_str().unwrap()],
+    ] {
+        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "invalid-endpoint"])).unwrap();
+        assert!(matches!(args.run().await, Err(Error::Input(_))));
+    }
+
+    for arguments in [
+        vec!["cycle", "create", "--label", "Test"],
+        vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--case-id", "98184567-8924-4fb0-b4e2-667347e097a1"],
+        vec!["plan", "preview", "--template", "checks.probe"],
+        vec![
+            "plan",
+            "preview",
+            "--selection-json",
+            "{\"suite_id\":\"bench.checks\",\"template_id\":\"bench.checks.probe_2\",\"parameters\":[],\"files\":[]}",
+        ],
+    ] {
+        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "invalid-endpoint"])).unwrap();
+        assert!(matches!(args.run().await, Err(Error::Client(_))));
+    }
+}
+
+#[tokio::test]
+async fn operation_files() {
+    for arguments in
+        [vec!["--json", "{}", "--input", "request.json"], vec!["--input-file", "request.json"], vec!["--json"], vec!["--overwrite"]]
+    {
+        let command = ["dokime", "operation", "call", "device.enable"];
+        let parsed = Cli::try_parse_from(command.into_iter().chain(arguments));
+        assert!(parsed.is_err());
+    }
+
+    let directory = tempfile::tempdir().unwrap();
+    let destination = directory.path().join("response.json");
+    std::fs::write(&destination, b"previous response").unwrap();
+    let path = destination.to_str().unwrap();
+    let command = ["dokime", "operation", "call", "device.enable", "--endpoint", "invalid-endpoint", "--json", "{}", "--output", path];
+    let args = Cli::try_parse_from(command).unwrap();
+    let error = args.run().await.unwrap_err();
+    assert!(matches!(error, Error::Input(_)), "existing output must be refused before connection");
+    assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
+
+    let args = Cli::try_parse_from(command.into_iter().chain(["--overwrite"])).unwrap();
+    let error = args.run().await.unwrap_err();
+    assert!(matches!(error, Error::Client(_)), "explicit overwrite may proceed to connection");
+    assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
+    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1, "failed calls remove their staged output");
+
+    let args = Cli::try_parse_from([
+        "dokime",
+        "operation",
+        "call",
+        "device.enable",
+        "--endpoint",
+        "invalid-endpoint",
+        "--json",
+        "{broken",
+        "--output",
+        path,
+        "--overwrite",
+    ])
+    .unwrap();
+    assert!(matches!(args.run().await.unwrap_err(), Error::Input(_)));
+    assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
+
+    let directory_output = directory.path().join("directory.json");
+    std::fs::create_dir(&directory_output).unwrap();
+    let args = Cli::try_parse_from([
+        "dokime",
+        "operation",
+        "call",
+        "device.enable",
+        "--endpoint",
+        "invalid-endpoint",
+        "--output",
+        directory_output.to_str().unwrap(),
+        "--overwrite",
+    ])
+    .unwrap();
+    assert!(matches!(args.run().await.unwrap_err(), Error::Input(_)));
+    assert!(directory_output.is_dir());
+}
+
+#[tokio::test]
+async fn offline_backend_profiles() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("backends.json");
+    let filename = path.to_str().unwrap();
+    let command = |arguments: &[&str]| Cli::try_parse_from(std::iter::once("dokime").chain(arguments.iter().copied())).unwrap();
+    command(&["backend", "list", "--profiles-file", filename, "--json"]).run().await.unwrap();
+    assert!(!path.exists());
+    let invalid = command(&["backend", "add", "lab", "--endpoint", "http://remote.example/path", "--profiles-file", filename]);
+    assert_eq!(invalid.run().await.unwrap_err().exit_code(), std::process::ExitCode::from(2));
+    assert!(!path.exists());
+    command(&["backend", "add", "lab", "--endpoint", "http://remote.example:8765", "--profiles-file", filename]).run().await.unwrap();
+    let selection = Store::new(&path).load().unwrap().select(Some("lab"), None, None).unwrap();
+    assert!(selection.target.is_remote());
+    assert_eq!(selection.target.endpoint(), "http://remote.example:8765/");
+    let original = std::fs::read(&path).unwrap();
+    let duplicate = command(&["backend", "add", "lab", "--endpoint", "http://127.0.0.1:9000", "--profiles-file", filename]);
+    assert!(matches!(duplicate.run().await, Err(Error::Input(_))));
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+    command(&["backend", "use", "lab", "--profiles-file", filename]).run().await.unwrap();
+    assert_eq!(Store::new(&path).load().unwrap().default.as_deref(), Some("lab"));
+    command(&["backend", "show", "lab", "--profiles-file", filename, "--json"]).run().await.unwrap();
+    let selected = std::fs::read(&path).unwrap();
+    assert!(matches!(command(&["backend", "use", "unknown", "--profiles-file", filename]).run().await, Err(Error::Input(_))));
+    assert_eq!(std::fs::read(&path).unwrap(), selected);
+    command(&["backend", "remove", "lab", "--profiles-file", filename]).run().await.unwrap();
+    let document = Store::new(&path).load().unwrap();
+    assert!(document.default.is_none());
+    assert!(document.profiles.is_empty());
+}
+
+#[tokio::test]
+async fn credentials_precede_operations() {
+    for option in ["--ca", "--expected-backend"] {
+        assert!(Cli::try_parse_from(["dokime", "status", option, "value"]).is_err());
+        assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "https://host:8765", option, "value",]).is_ok());
+    }
+    assert!(Cli::try_parse_from(["dokime", "status", "--backend", "lab", "--endpoint", "http://127.0.0.1"]).is_err());
+    assert!(Cli::try_parse_from(["dokime", "status", "--backend", "lab", "--ca", "missing.pem"]).is_err());
+    assert!(Cli::try_parse_from(["dokime", "status", "--backend", "lab", "--expected-backend", "machine"]).is_err());
+    assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "http://127.0.0.1", "--timeout-seconds", "0"]).is_err());
+    let login = Cli::try_parse_from(["dokime", "auth", "login", "--endpoint", "http://127.0.0.1"]).unwrap();
+    assert!(matches!(login.run().await, Err(Error::Input(_))));
+    let logout = Cli::try_parse_from(["dokime", "auth", "logout", "--endpoint", "http://127.0.0.1", "--key-file", "missing-key"]).unwrap();
+    assert!(matches!(logout.run().await, Err(Error::Input(_))));
+    let check = Error::Check(Box::new(Error::Client(dokime::client::Error::IncompatibleApi)));
+    assert_eq!(check.exit_code(), std::process::ExitCode::from(1));
+    let exhausted = dokime::client::Error::Rpc(tonic::Status::resource_exhausted("response budget"));
+    assert_eq!(Error::Client(exhausted).exit_code(), std::process::ExitCode::from(4));
+    let exhausted = dokime::client::Error::Rpc(tonic::Status::resource_exhausted("response budget"));
+    assert_eq!(Error::Operation(exhausted.into()).exit_code(), std::process::ExitCode::from(4));
+}

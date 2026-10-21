@@ -22,7 +22,7 @@ use std::sync::Arc;
 use crate::Resources;
 use crate::domain::model::connections::Connections;
 use crate::domain::operations::ListConnections;
-use dokime_runtime::prelude::*;
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -42,7 +42,7 @@ pub struct ConnectionListing {
 
 /* === Implementations === */
 
-#[dokime_runtime::operation]
+#[dokime::operation]
 impl ConnectionListing {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }

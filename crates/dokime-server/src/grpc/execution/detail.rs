@@ -22,13 +22,13 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::*;
-use dokime_domain::model::execution::result::TestExecution;
-use dokime_domain::model::execution::wire as execution_model;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::identity::wire::Diagnostic;
-use dokime_domain::model::values::Value;
-use dokime_runtime::definition::{MaterializedParameter, ParameterSource};
+use dokime::definition::{MaterializedParameter, ParameterSource};
+use dokime::domain::model::execution::result::TestExecution;
+use dokime::domain::model::execution::wire as execution_model;
+use dokime::domain::model::identity::Metadata;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domain::model::identity::wire::Diagnostic;
+use dokime::domain::model::values::Value;
 
 /* === Constants === */
 
@@ -74,8 +74,8 @@ impl Bounds {
 /* === Public Functions === */
 
 pub(super) fn execution<'a>(
-    state: &'a dokime_runtime::state::RuntimeState, id: &str,
-) -> Result<(&'a dokime_domain::model::execution::result::TestCycle, usize, &'a TestExecution), Status> {
+    state: &'a dokime::state::RuntimeState, id: &str,
+) -> Result<(&'a dokime::domain::model::execution::result::TestCycle, usize, &'a TestExecution), Status> {
     let id = TestExecutionId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     let execution = state.executions.get(&id).ok_or_else(|| Status::not_found("execution not found in current runtime"))?;
     let cycle = state.cycles.get(&execution.test_cycle_id).ok_or_else(|| Status::failed_precondition("execution owner is unavailable"))?;
@@ -88,16 +88,16 @@ pub(super) fn execution<'a>(
 }
 
 pub(crate) fn result(
-    value: &dokime_domain::model::execution::result::ResultSummary,
-) -> dokime_domain::model::execution::wire::ResultSummary {
-    use dokime_domain::model::execution::result::ResultStatus;
-    dokime_domain::model::execution::wire::ResultSummary {
+    value: &dokime::domain::model::execution::result::ResultSummary,
+) -> dokime::domain::model::execution::wire::ResultSummary {
+    use dokime::domain::model::execution::result::ResultStatus;
+    dokime::domain::model::execution::wire::ResultSummary {
         status: match value.status {
-            ResultStatus::Pending => dokime_domain::model::execution::wire::ResultStatus::Pending,
-            ResultStatus::Passed => dokime_domain::model::execution::wire::ResultStatus::Passed,
-            ResultStatus::Failed => dokime_domain::model::execution::wire::ResultStatus::Failed,
-            ResultStatus::Blocked => dokime_domain::model::execution::wire::ResultStatus::Blocked,
-            ResultStatus::Cancelled => dokime_domain::model::execution::wire::ResultStatus::Cancelled,
+            ResultStatus::Pending => dokime::domain::model::execution::wire::ResultStatus::Pending,
+            ResultStatus::Passed => dokime::domain::model::execution::wire::ResultStatus::Passed,
+            ResultStatus::Failed => dokime::domain::model::execution::wire::ResultStatus::Failed,
+            ResultStatus::Blocked => dokime::domain::model::execution::wire::ResultStatus::Blocked,
+            ResultStatus::Cancelled => dokime::domain::model::execution::wire::ResultStatus::Cancelled,
         },
         passed: value.passed,
         failed: value.failed,
@@ -127,7 +127,7 @@ pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<e
             summary: Some(super::case_summary(
                 case,
                 ordinal,
-                dokime_runtime::runtime::query::case_projection(snapshot.state(), &cycle, &case.test_case_id),
+                dokime::runtime::query::case_projection(snapshot.state(), &cycle, &case.test_case_id),
                 &mut bounds,
             )?),
             suite: case.suite.as_ref().map(metadata).transpose()?,
@@ -190,12 +190,12 @@ pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -
             finished_at: execution.finished_at.as_ref().map(canonical::timestamp).transpose()?,
             result: execution.result.as_ref().map(result),
             input_parameter_count: execution.snapshot.parameters().len() as u64,
-            controls: dokime_runtime::runtime::query::execution_controls(snapshot.state(), &execution.test_execution_id).map(|controls| {
+            controls: dokime::runtime::query::execution_controls(snapshot.state(), &execution.test_execution_id).map(|controls| {
                 execution_model::ExecutionControls {
                     request_id: controls.request_id.map(|id| id.to_string()),
                     mode: match controls.mode {
-                        dokime_domain::model::execution::ExecutionMode::Automatic => execution_model::ExecutionMode::Automatic,
-                        dokime_domain::model::execution::ExecutionMode::Interactive => execution_model::ExecutionMode::Interactive,
+                        dokime::domain::model::execution::ExecutionMode::Automatic => execution_model::ExecutionMode::Automatic,
+                        dokime::domain::model::execution::ExecutionMode::Interactive => execution_model::ExecutionMode::Interactive,
                     },
                     paused: controls.paused,
                     stop_requested: controls.stop_requested,
@@ -240,7 +240,7 @@ pub(super) fn metadata_memory(value: &Metadata) -> Result<usize, Status> {
     canonical::metadata_memory(value)
 }
 
-pub(super) fn diagnostic(value: &dokime_runtime::plugin::Diagnostic, bounds: &mut Bounds) -> Result<Diagnostic, Status> {
+pub(super) fn diagnostic(value: &dokime::plugin::Diagnostic, bounds: &mut Bounds) -> Result<Diagnostic, Status> {
     value::collection(value.chain.len())?;
     value::collection(value.span_trace.len())?;
     bounds.bytes(std::mem::size_of::<Diagnostic>())?;
@@ -356,14 +356,14 @@ fn bounded(value: &str, bounds: &mut Bounds) -> Result<String, Status> {
 }
 
 fn parameter_cursor(
-    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot, selection: execution_model::ParameterCursorSelection,
+    snapshot: &dokime::runtime::query::RuntimeStateSnapshot, selection: execution_model::ParameterCursorSelection,
 ) -> execution_model::ParameterCursor {
     execution_model::ParameterCursor { observed: Some(canonical::cursor(snapshot)), selection: Some(selection) }
 }
 
 fn parameter_page(
-    limit: u32, after: &str, cursor: Option<&execution_model::ParameterCursor>,
-    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot, selection: &execution_model::ParameterCursorSelection,
+    limit: u32, after: &str, cursor: Option<&execution_model::ParameterCursor>, snapshot: &dokime::runtime::query::RuntimeStateSnapshot,
+    selection: &execution_model::ParameterCursorSelection,
 ) -> Result<usize, Status> {
     if let Some(cursor) = cursor {
         if cursor.selection.as_ref() != Some(selection) {

@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::prelude::StatusResponse;
+use dokime::prelude::StatusResponse;
 
 /* === Constants === */
 
@@ -28,8 +28,8 @@ use dokime_runtime::prelude::StatusResponse;
 
 /* === Structs === */
 
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
+#[dokime::message]
+#[dokime::operation(
     id = "obc-plugin.get_status",
     response = StatusResponse,
     version = 1,

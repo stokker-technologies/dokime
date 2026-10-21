@@ -12,18 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use {
-    dokime_runtime::DurationMillis, dokime_runtime::MeasurementUnit, dokime_runtime::UnitFamily, dokime_runtime::Value,
-    dokime_runtime::ValueType, dokime_runtime::records::RecordContract, dokime_runtime::records::RecordField,
-    dokime_runtime::records::RecordIconKey, dokime_runtime::records::RecordSeverity, dokime_runtime::records::RecordTone,
-    dokime_runtime::telemetry::TelemetryColumn, dokime_runtime::telemetry::TelemetryContract, dokime_runtime::telemetry::TelemetryRole,
+    dokime::DurationMillis, dokime::MeasurementUnit, dokime::UnitFamily, dokime::Value, dokime::ValueType, dokime::records::RecordContract,
+    dokime::records::RecordField, dokime::records::RecordIconKey, dokime::records::RecordSeverity, dokime::records::RecordTone,
+    dokime::telemetry::TelemetryColumn, dokime::telemetry::TelemetryContract, dokime::telemetry::TelemetryRole,
 };
 
 /* === Constants === */
@@ -33,6 +33,7 @@ use {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct CountRow {
@@ -78,7 +79,7 @@ async fn schemas_exact_pages() {
         Some(MeasurementUnit { metadata: support::metadata("unit.tick", "Tick"), family: UnitFamily::Count, symbol: "tick".into() });
     telemetry.columns[1].display_unit = Some("ticks".into());
     registration.telemetry_contracts = vec![telemetry];
-    handle.set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([registration.clone()])).await.unwrap();
+    handle.set_suites("provider:fixture", dokime::definition::SuiteSet::new([registration.clone()])).await.unwrap();
     let config = keyed();
     let server = Server::start(handle.clone(), config).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
@@ -176,7 +177,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(contracts::catalog::ListTelemetrySchemas {
-                limit: dokime_domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1,
+                limit: dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1,
                 ..Default::default()
             }))
             .await
@@ -197,7 +198,7 @@ async fn schemas_exact_pages() {
         Code::InvalidArgument
     );
     registration.record_contracts.clear();
-    handle.set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([registration])).await.unwrap();
+    handle.set_suites("provider:fixture", dokime::definition::SuiteSet::new([registration])).await.unwrap();
     assert_eq!(
         client
             .unary::<contracts::catalog::ListRecordSchemas>(authenticated(contracts::catalog::ListRecordSchemas {
@@ -232,8 +233,7 @@ async fn catalog_suite_extensions() {
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].parameters[0].value_type = ValueType::Number;
-    suite.test_case_templates[0].parameters[0].expression =
-        dokime_runtime::definition::ParameterExpr::Literal { value: Value::Number(10.0) };
+    suite.test_case_templates[0].parameters[0].expression = dokime::definition::ParameterExpr::Literal { value: Value::Number(10.0) };
     suite.test_case_templates[0].parameters[0].min = Some(1.0);
     suite.test_case_templates[0].parameters[0].max = Some(100.0);
     suite.test_case_templates[0].parameters[0].extensions = BTreeMap::from([
@@ -242,7 +242,7 @@ async fn catalog_suite_extensions() {
         ("ui.flags".to_owned(), Value::Object(BTreeMap::from([("visible".to_owned(), Value::from(true))]))),
     ]);
     let registration = support::fixture_registration(suite);
-    handle.set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([registration])).await.unwrap();
+    handle.set_suites("provider:fixture", dokime::definition::SuiteSet::new([registration])).await.unwrap();
     let config = keyed();
     let server = Server::start(handle, config).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();

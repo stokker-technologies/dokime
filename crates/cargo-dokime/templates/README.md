@@ -29,8 +29,8 @@ mise.toml                          the tasks every CI job runs
 requests it serves. The handlers live under `src/operations/`, one folder per
 domain with the same name, and are bound through `operations::Implemented`.
 
-Each contribution belongs to a named `#[dokime_runtime::catalog]` enum in its owning
-module. `src/lib.rs` composes these on `#[dokime_runtime::plugin]`: `provides =
+Each contribution belongs to a named `#[dokime::catalog]` enum in its owning
+module. `src/lib.rs` composes these on `#[dokime::plugin]`: `provides =
 domain::operations::Operations` names the operations it serves, and `contributions(...)`
 lists the suites, records and listeners, evidence streams and settings it adds
 to the host. Public `Streams` and `Records` catalogs in `lib.rs` register
@@ -39,9 +39,9 @@ observer file defines its own public `Streams` and `Records` catalogs as permitt
 subsets, keeping empty catalogs explicit. Demand observers run while any declared
 stream or record has an active subscriber; registration alone does not start them.
 
-Each request is its operation: a `#[dokime_runtime::operation]` struct under
+Each request is its operation: a `#[dokime::operation]` struct under
 `src/domain/operations/` carries an explicit wire id, its response, a version
-and a policy. Its handler is a bare `#[dokime_runtime::operation]` on an
+and a policy. Its handler is a bare `#[dokime::operation]` on an
 inherent impl whose `run` borrows that request. Empty requests are empty
 structs. A template names the operations it calls with `requires = Required`
 and invokes `ctx.call::<ReadChamber>(ReadChamber {}).await?`; the call is
@@ -69,7 +69,7 @@ cargo test
 ```
 
 runs `tests/soak.rs`, which drives the template through
-`dokime_runtime::plugin::testing::Harness`: parameters, settings and secrets as builder
+`dokime::plugin::testing::Harness`: parameters, settings and secrets as builder
 calls, the awaited record filed the way the host files it, and a typed report of
 the verdict, the samples, the records, the traceability and the evidence files.
 No host and no hardware are involved.

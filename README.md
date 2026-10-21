@@ -296,7 +296,7 @@ Ctrl+C stops waiting locally. A timeout or disconnection after dispatch can leav
 the device outcome unknown, even when no response was received. Check device
 state before manually resending; calls are never retried automatically. Manual
 operations can affect a running test and are not logged into its execution
-evidence. From Rust, `dokime_client::Client::call_operation` uses the same live
+evidence. From Rust, `dokime::client::Client::call_operation` uses the same live
 contract discovery and shared Harmos codec:
 
 ```rust
@@ -627,9 +627,10 @@ A shortened version of OBC's
 nine-case voltage/load sweep:
 
 ```rust
-use dokime_runtime::definition::ParameterDefault;
+// Cargo.toml: dokime = { git = "https://github.com/stokker-technologies/dokime", features = ["plugin"] }
+use dokime::definition::ParameterDefault;
 
-#[dokime_runtime::parameters]
+#[dokime::parameters]
 pub struct Parameters {
     #[parameter(
         label = "AC Voltage (RMS)", unit = "V",
@@ -661,7 +662,7 @@ This excerpt is the template's measurement observer. `InputMeasurement`,
 `Samples`, `ObserverStreams`, and `reading` belong to the example:
 
 ```rust
-#[dokime_runtime::observer(interval_ms = 5, streams = ObserverStreams)]
+#[dokime::observer(interval_ms = 5, streams = ObserverStreams)]
 async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
     let row = reading(ctx.resources())?;
     ctx.stream::<InputMeasurement>()
@@ -677,7 +678,7 @@ summary through `ctx.artifacts()`. Its criterion checks that enough samples
 were captured and that the completion record accepted the run:
 
 ```rust
-#[dokime_runtime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
+#[dokime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
 fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
     Ok(
         ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
@@ -790,6 +791,8 @@ finalizes an empty cycle with its report.
 
 ## CLI Reference
 
+The `dokime-cli` package installs the `dokime` executable.
+
 `dokime` connects to a backend; `cargo dokime` authors plugin bundles. Every
 command prints its full flags with `--help`. Commands that connect accept
 `--endpoint` or `--backend`, `--key-file` (or `DOKIME_KEY`), `--ca`,
@@ -850,17 +853,36 @@ Exercised by [control-device](packages/dokime-client/examples/remote/cli/control
 | `cargo dokime dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
 | `cargo dokime inspect` | Verify a bundle and print its manifest as JSON. | |
 
+## Crate Layout
+
+| Crate | Responsibility |
+| --- | --- |
+| `dokime` | Entry library for plugins, Rust consumers and shipped interfaces. |
+| `dokime-cli` | Installs the `dokime` command; owns parsing and commands. |
+| `dokime-domain` | Internal pure definitions, exposed as `dokime::domain`. |
+| `dokime-runtime` | Internal runtime implementation, re-exported by `dokime`. |
+| `dokime-client` | Remote implementation, exposed as `dokime::client`. |
+| `dokime-server`, `dokime-gui` | Server and desktop interfaces. |
+| `dokime-packaging`, `cargo-dokime` | Plugin packaging and authoring tools. |
+
+The entry library also owns connection, installation and version helpers. With
+`client` enabled, connection errors live under `dokime::client_error`; root
+`dokime::Error` and `dokime::Result` always name the runtime's error contract.
+
 ## Cargo Features
 
-These flags configure the `dokime-runtime` plugin SDK dependency. Desktop
-application users do not need to select them. The default SDK includes native
-plugin support and authoring macros; operation, model and record definitions
-live in `dokime-domain`, which every feature set shares.
+These flags configure the `dokime` entry library. Defaults are empty; plugin
+authors enable `plugin` for native support and authoring macros. Shared
+definitions are available under `dokime::domain` in every feature set.
 
 | Feature | Default | Enables |
 | --- | --- | --- |
-| `native` | Yes | Native plugin SDK, sidecar support, and plugin prelude. |
-| `derive` | Yes | Suite, template, step, observer, and other authoring macros. |
+| `plugin` | No | Native plugin support and authoring macros (`native`, `derive`). |
+| `client` | No | Remote access under `dokime::client` and connection/installation helpers. |
+| `diagnostics` | No | Captured error chains, span traces and backtraces. |
+| `terminal` | No | Shared terminal output used by command-line interfaces and packaging. |
+| `native` | No | Native plugin SDK, sidecar support, and plugin prelude. |
+| `derive` | No | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
 | `host` | No | The application host the server embeds: storage, gRPC and host collectors. |
 | `fft` | No | Spectrum analyses on top of `host`. |
@@ -872,19 +894,19 @@ state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
 fresh storage root. Existing data is never silently reset.
 
-For remote automation, depend on the reusable client crate:
+For remote automation, enable the entry library's client surface:
 
 ```toml
 [dependencies]
-dokime-client = { git = "https://github.com/stokker-technologies/dokime", rev = "<tested-commit>" }
+dokime = { git = "https://github.com/stokker-technologies/dokime", rev = "<tested-commit>", features = ["client"] }
 ```
 
 Replace `<tested-commit>` with the revision used by your integration.
-`dokime-client` owns remote connection, authentication, discovery, listening,
-recovery and profile access. The `dokime` crate owns plugin authoring; its
+`dokime::client` exposes remote connection, authentication, discovery, listening,
+recovery and profile access. The `dokime` crate also exposes plugin authoring; its
 `storage` feature does not enable `native` or `derive` when defaults are disabled.
 Disabling defaults retains the SDK's underlying Harmos dependency. See the
-[SDK manifest](crates/dokime-runtime/Cargo.toml) and
+[Entry Library Manifest](crates/dokime/Cargo.toml) and
 [client manifest](crates/dokime-client/Cargo.toml) for details.
 
 ## Documentation
@@ -892,7 +914,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 - [Remote OBC Walkthrough](packages/dokime-client/examples/remote/README.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
 - [OBC Plugin](plugins/obc-plugin/) — the charger simulation and complete test templates.
 - [Plugin Starter](crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
-- [Runtime And Plugin SDK](crates/dokime-runtime/src/lib.rs) — public authoring APIs and module documentation.
+- [Entry Library And Plugin SDK](crates/dokime/src/lib.rs) — public entry point for authoring APIs.
 - [Client API](crates/dokime-client/src/) — programmatic access to cycles and executions.
 - [Contributing](CONTRIBUTING.md) — repository setup and development workflow.
 

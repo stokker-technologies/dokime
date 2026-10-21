@@ -22,8 +22,8 @@ use prost::Message;
 use tonic::Status;
 
 // Local Imports
-use dokime_runtime::plugin::Diagnostic;
-use dokime_runtime::runtime::Error as HostError;
+use dokime::plugin::Diagnostic;
+use dokime::runtime::Error as HostError;
 
 /* === Constants === */
 
@@ -69,15 +69,15 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
 
 /* === Private Functions === */
 
-fn captured(diagnostic: &Diagnostic) -> dokime_domain::model::evidence::wire::CapturedRecordError {
-    dokime_domain::model::evidence::wire::CapturedRecordError {
+fn captured(diagnostic: &Diagnostic) -> dokime::domain::model::evidence::wire::CapturedRecordError {
+    dokime::domain::model::evidence::wire::CapturedRecordError {
         message: diagnostic.message.clone(),
         code: None,
         source: (!diagnostic.location.is_empty()).then(|| diagnostic.location.clone()),
         cause_chain: diagnostic
             .chain
             .iter()
-            .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause { message: cause.clone(), code: None, source: None })
+            .map(|cause| dokime::domain::model::evidence::wire::CapturedErrorCause { message: cause.clone(), code: None, source: None })
             .collect(),
         stacktrace_attachment: None,
         trace_id: None,

@@ -12,17 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{path::Path, sync::Arc};
 // Third Party Imports
 
 // Local Imports
 use super::artifact;
-use dokime_domain::model;
+use dokime::domain::model;
 use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::BackendSelection;
 use dokime_server::grpc::{Config, Server};
-use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runtime, dokime_runtime::RuntimeConfig};
+use {dokime::Identifier, dokime::Metadata, dokime::Runtime, dokime::RuntimeConfig};
 
 /* === Constants === */
 
@@ -31,6 +32,7 @@ use {dokime_runtime::Identifier, dokime_runtime::Metadata, dokime_runtime::Runti
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Fixture {
     pub session: ConnectionSession,
     pub server: Server,
@@ -49,6 +51,7 @@ pub struct Published {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Fixture {
     pub async fn new() -> Self {
         // Runtime With A Calibration Record
@@ -96,10 +99,10 @@ impl Fixture {
 
 impl Published {
     pub async fn start(root: &Path) -> Self {
-        let mut config = dokime_runtime::config::Config::local(root);
+        let mut config = dokime::config::Config::local(root);
         config.seed_plugins = false;
         config.credential_backend = serde_json::from_value(serde_json::json!({"backend":"memory"})).unwrap();
-        let runtime = dokime_runtime::app::launch(config).await.unwrap();
+        let runtime = dokime::app::launch(config).await.unwrap();
         let server = Server::start(runtime.handle(), Config::local()).await.unwrap();
         Self { runtime, server }
     }
@@ -115,6 +118,7 @@ impl Published {
 }
 
 /* === Public Functions === */
+
 pub fn attach(endpoint: String) -> BackendSelection {
     BackendSelection::Attach {
         request: ConnectRequest {

@@ -120,17 +120,17 @@ impl From<tonic::Status> for RpcError {
     }
 }
 
-impl From<dokime_client::Error> for RpcError {
-    fn from(error: dokime_client::Error) -> Self {
+impl From<dokime::client::Error> for RpcError {
+    fn from(error: dokime::client::Error) -> Self {
         match error {
-            dokime_client::Error::Rpc(status) => rpc_error(status),
+            dokime::client::Error::Rpc(status) => rpc_error(status),
             error => ConnectionError::from(error).into(),
         }
     }
 }
 
 impl Context {
-    fn client(&self) -> dokime_client::Client {
+    fn client(&self) -> dokime::client::Client {
         self.lease.client().with_frame_limit(std::num::NonZeroUsize::new(MAX_FRAME_BYTES).expect("positive desktop frame bound"))
     }
 

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     path::{Path, PathBuf},
@@ -30,6 +31,7 @@ use tokio::process::{Child, ChildStdout, Command};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Host {
     child: Child,
     endpoint: String,
@@ -43,6 +45,7 @@ pub struct Host {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Host {
     pub async fn launch(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -105,8 +108,8 @@ impl Host {
         serde_json::from_str(&line).unwrap()
     }
 
-    pub async fn connect(&self) -> dokime_client::Client {
-        dokime_client::Client::connect(dokime_client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
+    pub async fn connect(&self) -> dokime::client::Client {
+        dokime::client::Client::connect(dokime::client::Target::local(&self.endpoint).unwrap(), None, None).await.unwrap()
     }
 
     pub fn endpoint(&self) -> &str {

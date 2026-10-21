@@ -27,9 +27,9 @@ use super::super::{
 };
 use super::wire;
 use crate::grpc::transcode::Transcode;
-use dokime_domain::operations::history as contract;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::runtime::query::checkpoint_records::ExecutionRecordPage;
+use dokime::RuntimeHandle;
+use dokime::domain::operations::history as contract;
+use dokime::runtime::query::checkpoint_records::ExecutionRecordPage;
 
 /* === Constants === */
 
@@ -65,10 +65,10 @@ impl Operation for List {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut contract::ListCheckpointRecords, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointRecordPage>, Status> {
+    ) -> Result<Response<dokime::domain::model::history::wire::CheckpointRecordPage>, Status> {
         value::text(&request.after)?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
-        let query = dokime_runtime::runtime::query::checkpoint_records::ExecutionRecordQuery {
+        let query = dokime::runtime::query::checkpoint_records::ExecutionRecordQuery {
             after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),
             limit: (request.limit != 0).then_some(request.limit as usize),
         };
@@ -86,7 +86,7 @@ impl Operation for List {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
@@ -94,23 +94,23 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 
-fn project(page: &ExecutionRecordPage, maximum: usize) -> harmos::Result<dokime_domain::model::history::wire::CheckpointRecordPage> {
+fn project(page: &ExecutionRecordPage, maximum: usize) -> harmos::Result<dokime::domain::model::history::wire::CheckpointRecordPage> {
     let mut records = projection::slots(page.records.len())?;
     for row in &page.records {
-        records.push(dokime_domain::model::history::wire::SavedRecord {
+        records.push(dokime::domain::model::history::wire::SavedRecord {
             epoch: projection::text(row.epoch.as_str())?,
             record: Some(evidence::record(&row.record).map_err(original_error)?),
         });
     }
     let mut issues = projection::slots(page.issues.len())?;
     for issue in &page.issues {
-        issues.push(dokime_domain::model::history::wire::HistoryIssue {
+        issues.push(dokime::domain::model::history::wire::HistoryIssue {
             source: issue.source.as_deref().map(projection::text).transpose()?,
             dataset: issue.dataset.as_deref().map(projection::text).transpose()?,
             message: projection::text(&issue.message)?,
         });
     }
-    let wire = dokime_domain::model::history::wire::CheckpointRecordPage {
+    let wire = dokime::domain::model::history::wire::CheckpointRecordPage {
         checkpoint: Some(super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?),
         records,
         next_after: page.next.as_deref().map(projection::text).transpose()?,

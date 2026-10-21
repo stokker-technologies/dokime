@@ -22,7 +22,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 // Local Imports
-use dokime_runtime::paths::ApplicationPaths;
+use dokime::paths::ApplicationPaths;
 
 /* === Constants === */
 

@@ -58,7 +58,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let arguments = Arguments::read(attribute, "a listener", ARGUMENTS)?;
     let mut block: ItemImpl = syn::parse2(item.clone())?;
     if block.trait_.is_some() {
-        return Err(Error::new_spanned(&block.self_ty, "`#[dokime_runtime::listener]` declares the listener's own inherent impl"));
+        return Err(Error::new_spanned(&block.self_ty, "`#[dokime::listener]` declares the listener's own inherent impl"));
     }
     let identifier = arguments.required("id", "the host calls a listener by its operation id")?;
     let identifier = &crate::arguments::wire_identity(Some(identifier.clone()), crate::arguments::type_name(&block.self_ty)?)?;

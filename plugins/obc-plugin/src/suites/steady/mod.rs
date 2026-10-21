@@ -41,7 +41,7 @@ pub struct SteadySuite;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Templates {
     Steady(measurement::Steady),
 }
@@ -50,7 +50,7 @@ pub enum Templates {
 
 /* === Implementations === */
 
-#[dokime_runtime::suite(
+#[dokime::suite(
     id = STEADY_SUITE,
     label = "Charger Steady State",
     tags = ["device", "steady", "ac"],

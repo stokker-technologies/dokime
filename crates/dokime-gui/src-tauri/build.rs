@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() {
     // The Shell Names The Product From The Generated Brand, Like The Web UI
     let label = brand_text("default-brand.json", "label");
@@ -44,7 +46,7 @@ fn main() {
 
     let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR for build scripts"));
     let contracts =
-        harmos::operations::Contracts::of::<dokime_domain::operations::Operations>().expect("canonical desktop transfer contracts");
+        harmos::operations::Contracts::of::<dokime::domain::operations::Operations>().expect("canonical desktop transfer contracts");
     harmos_packaging::proto::generate(&contracts, &output.join("grpc").join("operations")).expect("desktop transfer descriptors");
     tauri_build::build();
 

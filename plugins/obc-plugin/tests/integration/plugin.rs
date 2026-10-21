@@ -42,9 +42,10 @@ use obc_plugin::ObcPlugin;
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[tokio::test]
 async fn resources_share_allocation() {
-    use dokime_runtime::__harmos::Plugin;
+    use dokime::__harmos::Plugin;
 
     let mut plugin = <ObcPlugin as Plugin>::prepare(Default::default()).unwrap();
     let first = Plugin::resources(&plugin);
@@ -60,10 +61,8 @@ async fn resources_share_allocation() {
 
 #[test]
 fn executable_declares_routes() {
-    let declared = dokime_runtime::__harmos::sidecar::Executable::at(executable())
-        .expect("the obc-plugin executable declares itself")
-        .declaration()
-        .clone();
+    let declared =
+        dokime::__harmos::sidecar::Executable::at(executable()).expect("the obc-plugin executable declares itself").declaration().clone();
 
     assert_eq!(declared.id, "obc-plugin");
     assert_eq!(declared.version.to_string(), "0.1.0");

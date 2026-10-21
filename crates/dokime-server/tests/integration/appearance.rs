@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -20,8 +21,8 @@ use prost::Message;
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::domains::installed_plugins::{ResolvedBrand, load_brand};
+use dokime::domain::model;
+use dokime::domains::installed_plugins::{ResolvedBrand, load_brand};
 
 /* === Constants === */
 
@@ -40,6 +41,7 @@ use dokime_runtime::domains::installed_plugins::{ResolvedBrand, load_brand};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn brand(path: &std::path::Path) -> ResolvedBrand {
     let mut brand = load_brand(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../branding")).unwrap();
     brand.customization.logo_assets[0].path = path.to_string_lossy().into_owned();

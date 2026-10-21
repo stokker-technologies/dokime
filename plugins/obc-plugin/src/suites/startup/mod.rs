@@ -39,7 +39,7 @@ pub struct StartupSuite;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Templates {
     Startup(sequence::Startup),
 }
@@ -48,7 +48,7 @@ pub enum Templates {
 
 /* === Implementations === */
 
-#[dokime_runtime::suite(
+#[dokime::suite(
     id = STARTUP_SUITE,
     label = "Charger Start-Up",
     tags = ["device", "startup", "ac"],

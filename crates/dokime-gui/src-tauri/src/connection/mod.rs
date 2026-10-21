@@ -30,7 +30,7 @@ use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
 // Local Imports
-use dokime_client::credentials::{KeyringStore, SecretStore};
+use dokime::client::credentials::{KeyringStore, SecretStore};
 
 /* === Constants === */
 
@@ -57,7 +57,7 @@ struct SessionState {
 #[derive(Clone)]
 pub struct SessionLease {
     generation: String,
-    client: dokime_client::Client,
+    client: dokime::client::Client,
     cancellation: CancellationToken,
 }
 
@@ -187,7 +187,7 @@ impl ConnectionSession {
             }
             ConnectionCredentials::Bearer { token, remember } => (Some(Zeroizing::new(token)), remember),
         };
-        let client = dokime_client::Client::connect(target.inner.clone(), token.as_ref().map(|token| token.as_str()), expected_id)
+        let client = dokime::client::Client::connect(target.inner.clone(), token.as_ref().map(|token| token.as_str()), expected_id)
             .await
             .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
@@ -251,7 +251,7 @@ impl Drop for SessionState {
 }
 
 impl SessionLease {
-    pub(crate) fn client(&self) -> &dokime_client::Client {
+    pub(crate) fn client(&self) -> &dokime::client::Client {
         &self.client
     }
 

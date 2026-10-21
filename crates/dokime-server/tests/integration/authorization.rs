@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
@@ -19,9 +20,10 @@ use std::pin::Pin;
 use tonic::{Code, Status, transport::Channel};
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
+
 const NATIVE_ONLY_METHODS: [&str; 6] = [
     "/dokime.v1.Media/Screenshot",
     "/dokime.v1.Media/Photo",
@@ -61,6 +63,7 @@ const STREAMING_CASES: &[Case] = &[
 ];
 
 /* === Macros === */
+
 macro_rules! matrix {
     (@request) => {
         Default::default()
@@ -275,9 +278,11 @@ matrix! {
 }
 
 /* === Type Aliases === */
+
 type Refusal = Pin<Box<dyn Future<Output = Option<Status>> + Send>>;
 
 /* === Structs === */
+
 struct Case {
     path: &'static str,
     call: fn(Channel, Option<&'static str>) -> Refusal,
@@ -292,6 +297,7 @@ struct Case {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
     match token {
         Some(token) => auth(message, token),
@@ -300,7 +306,7 @@ fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
 }
 
 fn cases() -> impl Iterator<Item = &'static Case> {
-    use dokime_runtime::operations::runtime::{GetHealth, GetIdentity};
+    use dokime::operations::runtime::{GetHealth, GetIdentity};
     static OPERATIONS: &[Case] = &[
         Case { path: GetHealth::PATH, call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH) },
         Case { path: GetIdentity::PATH, call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH) },

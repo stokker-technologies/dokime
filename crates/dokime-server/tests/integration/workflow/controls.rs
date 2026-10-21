@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -311,7 +312,7 @@ async fn attempts(client: &mut WireClient, id: &str) -> Vec<model::execution::wi
         .executions
 }
 
-async fn completed(handle: &dokime_runtime::RuntimeHandle, client: &mut WireClient, id: &str) {
+async fn completed(handle: &dokime::RuntimeHandle, client: &mut WireClient, id: &str) {
     support::on_state_change(handle, async || {
         if support::cycle_settled(
             &client

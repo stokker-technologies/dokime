@@ -64,13 +64,13 @@ pub enum Error {
     Json(#[from] serde_json::Error),
 
     #[error(transparent)]
-    Runtime(#[from] dokime_runtime::runtime::Error),
+    Runtime(#[from] dokime::runtime::Error),
 
     #[error("server failed: {0}")]
     Server(#[from] crate::grpc::Error),
 
     #[error("server failed: {server}; runtime shutdown also failed: {runtime}")]
-    Cleanup { server: Box<crate::grpc::Error>, runtime: Box<dokime_runtime::runtime::Error> },
+    Cleanup { server: Box<crate::grpc::Error>, runtime: Box<dokime::runtime::Error> },
 }
 
 /* === Traits === */
@@ -92,22 +92,20 @@ impl Error {
         })
     }
 
-    pub fn launch(error: dokime_runtime::runtime::Error, root: PathBuf) -> Self {
+    pub fn launch(error: dokime::runtime::Error, root: PathBuf) -> Self {
         let reason = match storage_refusal(&error) {
             Some(refusal) => refusal.to_string(),
             None => return Self::Runtime(error),
         };
         Self::IncompatibleStorage { root, reason }
     }
-    pub(crate) fn startup(server: crate::grpc::Error, cleanup: dokime_runtime::runtime::Result<()>) -> Self {
+    pub(crate) fn startup(server: crate::grpc::Error, cleanup: dokime::runtime::Result<()>) -> Self {
         match cleanup {
             Ok(()) => Self::Server(server),
             Err(runtime) => Self::Cleanup { server: Box::new(server), runtime: Box::new(runtime) },
         }
     }
-    pub(crate) fn shutdown(
-        server: std::result::Result<(), crate::grpc::Error>, runtime: dokime_runtime::runtime::Result<()>,
-    ) -> Result<()> {
+    pub(crate) fn shutdown(server: std::result::Result<(), crate::grpc::Error>, runtime: dokime::runtime::Result<()>) -> Result<()> {
         match (server, runtime) {
             (Err(server), Err(runtime)) => Err(Self::Cleanup { server: Box::new(server), runtime: Box::new(runtime) }),
             (Err(server), _) => Err(server.into()),
@@ -121,10 +119,10 @@ impl Error {
 
 /* === Private Functions === */
 
-fn storage_refusal(error: &dokime_runtime::runtime::Error) -> Option<&dokime_runtime::storage::sqlite::Error> {
+fn storage_refusal(error: &dokime::runtime::Error) -> Option<&dokime::storage::sqlite::Error> {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(cause) = source {
-        if let Some(storage) = cause.downcast_ref::<dokime_runtime::storage::sqlite::Error>() {
+        if let Some(storage) = cause.downcast_ref::<dokime::storage::sqlite::Error>() {
             return incompatible(storage).then_some(storage);
         }
         source = cause.source();
@@ -132,8 +130,8 @@ fn storage_refusal(error: &dokime_runtime::runtime::Error) -> Option<&dokime_run
     None
 }
 
-fn incompatible(error: &dokime_runtime::storage::sqlite::Error) -> bool {
-    use dokime_runtime::storage::sqlite::{Error, rusqlite::ErrorCode};
+fn incompatible(error: &dokime::storage::sqlite::Error) -> bool {
+    use dokime::storage::sqlite::{Error, rusqlite::ErrorCode};
     match error {
         Error::Incompatible(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
         Error::Sqlite(error) => matches!(error.sqlite_error_code(), Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt)),

@@ -38,7 +38,7 @@ pub struct ObcChecks;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Templates {
     Pulse(pulse::Pulse),
 }
@@ -47,7 +47,7 @@ pub enum Templates {
 
 /* === Implementations === */
 
-#[dokime_runtime::suite(
+#[dokime::suite(
     id = ID,
     label = "OBC Checks",
     tags = ["example", "sidecar"],
@@ -57,7 +57,7 @@ pub enum Templates {
     // the start request defaults to the suite id.
     templates = Templates, description = "Bench checks run inside the OBC plugin before a Charger is connected.")]
 // There is no `records()` and no `telemetry()` here: the one stream this suite
-// streams is declared by the `#[dokime_runtime::observer]` that publishes it, and the two
+// streams is declared by the `#[dokime::observer]` that publishes it, and the two
 // records its template publishes are declared beside the steps that publish
 // them. The suite publishes what its templates declared.
 impl ObcChecks {}

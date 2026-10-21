@@ -20,7 +20,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::analysis::{Analysis, Limits, Output, Response, ResultData, Samples, Values};
+use dokime::analysis::{Analysis, Limits, Output, Response, ResultData, Samples, Values};
 
 /* === Constants === */
 

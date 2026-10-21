@@ -25,14 +25,14 @@ use super::chunked;
 use super::value::canonical;
 use super::{error::detailed, value};
 use crate::grpc::transcode::Transcode;
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::reports as wire;
-use dokime_runtime::OpenedReport;
-use dokime_runtime::ReportOrigin;
-use dokime_runtime::RuntimeHandle;
+use dokime::OpenedReport;
+use dokime::ReportOrigin;
+use dokime::RuntimeHandle;
+use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::domain::model::identity::Identifier;
+use dokime::domain::model::identity::TestCycleId;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domain::operations::reports as wire;
 
 /* === Constants === */
 
@@ -49,7 +49,7 @@ struct Resources {
     pub(super) max_message_bytes: usize,
 }
 
-struct HtmlFrames(Response<dokime_domain::model::reports::wire::ReportHtmlFrame>);
+struct HtmlFrames(Response<dokime::domain::model::reports::wire::ReportHtmlFrame>);
 
 struct Download {
     resources: Arc<Resources>,
@@ -76,7 +76,7 @@ impl Operation for Download {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -96,7 +96,7 @@ impl Operation for Execution {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -114,10 +114,10 @@ impl Operation for Execution {
 }
 
 impl chunked::Frames for HtmlFrames {
-    type Frame = dokime_domain::model::reports::wire::ReportHtmlFrame;
+    type Frame = dokime::domain::model::reports::wire::ReportHtmlFrame;
 
     fn metadata(&self) -> Self::Frame {
-        dokime_domain::model::reports::wire::ReportHtmlFrame { payload: self.0.payload.clone() }
+        dokime::domain::model::reports::wire::ReportHtmlFrame { payload: self.0.payload.clone() }
     }
 
     fn metadata_owned(&self) -> Option<Response<Self::Frame>> {
@@ -125,17 +125,17 @@ impl chunked::Frames for HtmlFrames {
     }
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Chunk(
-                dokime_domain::model::reports::wire::ReportHtmlChunk { offset, data },
+        dokime::domain::model::reports::wire::ReportHtmlFrame {
+            payload: Some(dokime::domain::model::reports::wire::ReportHtmlFramePayload::Chunk(
+                dokime::domain::model::reports::wire::ReportHtmlChunk { offset, data },
             )),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        dokime_domain::model::reports::wire::ReportHtmlFrame {
-            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Complete(
-                dokime_domain::model::reports::wire::ReportHtmlCompletion { size_bytes, sha256 },
+        dokime::domain::model::reports::wire::ReportHtmlFrame {
+            payload: Some(dokime::domain::model::reports::wire::ReportHtmlFramePayload::Complete(
+                dokime::domain::model::reports::wire::ReportHtmlCompletion { size_bytes, sha256 },
             )),
         }
     }
@@ -146,7 +146,7 @@ impl chunked::Frames for HtmlFrames {
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
     )?;
     Ok(())
@@ -156,20 +156,20 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 
 async fn deliver(
     resources: &Resources, report: OpenedReport, identifier: &Identifier,
-    output: &mut StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>,
+    output: &mut StreamOutput<dokime::domain::model::reports::wire::ReportHtmlFrame>,
 ) -> Result<Response<()>, Status> {
     let OpenedReport { test_cycle_id, test_execution_id, metadata, generated_at, origin, html } = report;
-    let frame = dokime_domain::model::reports::wire::ReportHtmlFrame {
-        payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
-            dokime_domain::model::reports::wire::ReportMetadata {
+    let frame = dokime::domain::model::reports::wire::ReportHtmlFrame {
+        payload: Some(dokime::domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
+            dokime::domain::model::reports::wire::ReportMetadata {
                 test_cycle_id: test_cycle_id.to_string(),
                 test_execution_id: test_execution_id.map(|id| id.to_string()),
                 identifier: identifier.to_string(),
                 metadata: metadata.as_ref().map(canonical::metadata).transpose()?,
                 generated_at: Some(canonical::timestamp(&generated_at)?),
                 origin: match origin {
-                    ReportOrigin::Sealed => dokime_domain::model::reports::wire::ReportOrigin::Sealed,
-                    ReportOrigin::Current => dokime_domain::model::reports::wire::ReportOrigin::Current,
+                    ReportOrigin::Sealed => dokime::domain::model::reports::wire::ReportOrigin::Sealed,
+                    ReportOrigin::Current => dokime::domain::model::reports::wire::ReportOrigin::Current,
                 },
                 warnings: Vec::new(),
             },
@@ -194,11 +194,11 @@ async fn deliver(
     Ok(().into())
 }
 
-fn report_failure(error: dokime_runtime::runtime::Error) -> Status {
-    if let dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
+fn report_failure(error: dokime::runtime::Error) -> Status {
+    if let dokime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
         return Status::not_found(message.clone());
     }
-    let status = if matches!(&error, dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+    let status = if matches!(&error, dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
         Status::resource_exhausted(format!("report operation failed: {error}"))
     } else {
         Status::failed_precondition(format!("report operation failed: {error}"))

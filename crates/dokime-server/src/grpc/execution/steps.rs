@@ -20,12 +20,12 @@
 // Local Imports
 use super::detail::{Bounds, diagnostic, execution, metadata, metadata_memory};
 use super::*;
-use dokime_domain::model::execution::result::CriterionResult;
-use dokime_domain::model::execution::result::CriterionStatus;
-use dokime_domain::model::execution::result::StepRecord;
-use dokime_domain::model::execution::result::StepStatus;
-use dokime_domain::model::execution::wire as execution_model;
-use dokime_runtime::runtime::query::RuntimeStateSnapshot;
+use dokime::domain::model::execution::result::CriterionResult;
+use dokime::domain::model::execution::result::CriterionStatus;
+use dokime::domain::model::execution::result::StepRecord;
+use dokime::domain::model::execution::result::StepStatus;
+use dokime::domain::model::execution::wire as execution_model;
+use dokime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
 

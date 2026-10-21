@@ -28,7 +28,7 @@ use crate::{
         operations::{ReadDevice, SetPower},
     },
 };
-use dokime_runtime::prelude::{Refusal, Supervisor};
+use dokime::prelude::{Refusal, Supervisor};
 use obc_runtime::device::{Device, Fault, Power};
 
 /* === Constants === */
@@ -53,27 +53,27 @@ pub struct PowerControl {
 
 /* === Implementations === */
 
-#[dokime_runtime::operation]
+#[dokime::operation]
 impl DeviceReader {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 
     async fn run(&mut self, _: &Supervisor, _: &mut ReadDevice) -> Result<DeviceState, Refusal> {
-        let device = dokime_runtime::plugin::refusal(self.resources.app().device().await)?;
+        let device = dokime::plugin::refusal(self.resources.app().device().await)?;
         Ok(observed(&device))
     }
 }
 
-#[dokime_runtime::operation]
+#[dokime::operation]
 impl PowerControl {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 
     async fn run(&mut self, _: &Supervisor, request: &mut SetPower) -> Result<DeviceState, Refusal> {
-        dokime_runtime::plugin::refusal(self.resources.app().set_power(request.enabled).await)?;
-        let device = dokime_runtime::plugin::refusal(self.resources.app().device().await)?;
+        dokime::plugin::refusal(self.resources.app().set_power(request.enabled).await)?;
+        let device = dokime::plugin::refusal(self.resources.app().device().await)?;
         Ok(observed(&device))
     }
 }

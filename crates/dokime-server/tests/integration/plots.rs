@@ -12,20 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use tracing_subscriber::layer::SubscriberExt;
-use {
-    dokime_runtime::Identifier, dokime_runtime::Timestamp, dokime_runtime::Value, dokime_runtime::telemetry::TelemetryBatch,
-    dokime_runtime::telemetry::TelemetrySample,
-};
+use {dokime::Identifier, dokime::Timestamp, dokime::Value, dokime::telemetry::TelemetryBatch, dokime::telemetry::TelemetrySample};
 
 /* === Constants === */
+
 const ROWS: u64 = 40_000;
 const BATCH: u64 = 2_000;
 const STORED: u64 = 300;
@@ -36,7 +35,7 @@ const STORED: u64 = 300;
 
 /* === Structs === */
 
-/// The plot ids of each batched stream query the watch logs, in order.
+// The plot ids of each batched stream query the watch logs, in order.
 #[derive(Clone, Default)]
 struct QueryLog(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
 
@@ -78,6 +77,7 @@ impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for QueryLog {
 }
 
 /* === Public Functions === */
+
 // A 10,000-point window is served; the 100,000-point cap does not fit one
 // message, so the server reads the plot again under what fits, says so in a
 // warning, and keeps following it.
@@ -153,7 +153,7 @@ async fn plot_points_admission() {
 // in-memory window is empty, yet window All still opens with the stored rows.
 #[tokio::test]
 async fn sealed_window_all() {
-    use dokime_runtime::runtime::command::CommandContext;
+    use dokime::runtime::command::CommandContext;
     let root = tempfile::tempdir().unwrap();
     let config = || crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.plots", "Plots"));
     let gate = std::sync::Arc::new(Gate::default());
@@ -216,7 +216,7 @@ async fn sealed_window_all() {
     }
     drop(watch);
     gate.release.notify_one();
-    support::wait_for_cycle_outcome(&handle, &cycle, dokime_domain::model::execution::result::ResultStatus::Passed).await;
+    support::wait_for_cycle_outcome(&handle, &cycle, dokime::domain::model::execution::result::ResultStatus::Passed).await;
     support::on_state_change(&handle, async || handle.execution_saved_checkpoint(execution.clone()).await.ok()).await;
     server.shutdown().await.unwrap();
     drop(handle);
@@ -289,6 +289,7 @@ async fn batched_stream_queries() {
 }
 
 /* === Private Functions === */
+
 fn request(max_points: u64) -> model::plots::wire::PlotRequest {
     model::plots::wire::PlotRequest {
         plot_id: Some("fixture.progress.plot".into()),
@@ -326,7 +327,7 @@ async fn first_frame(client: &WireClient, max_points: u64) -> model::plots::wire
     data_frame(&mut stream).await
 }
 
-/// The next frame that carries a plot's data or error, past the watch's acknowledgements and keepalives.
+// The next frame that carries a plot's data or error, past the watch's acknowledgements and keepalives.
 async fn data_frame(watch: &mut WireStream<model::plots::wire::PlotStreamFrame>) -> model::plots::wire::PlotStreamFrame {
     loop {
         let frame = watch.message().await.unwrap().unwrap();
@@ -349,7 +350,7 @@ fn served_points(frame: &model::plots::wire::PlotStreamFrame) -> usize {
         .unwrap_or_default()
 }
 
-async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start: u64, count: u64) {
+async fn publish(handle: &dokime::RuntimeHandle, id: &Identifier, start: u64, count: u64) {
     let samples = (start..start + count)
         .map(|index| {
             let at = Timestamp::new(format!(
@@ -359,27 +360,25 @@ async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start:
                 index / 1_000 % 60,
                 index % 1_000
             ));
-            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), id.clone(), index, at, "fixture");
+            let mut sample = TelemetrySample::new(dokime::model::identity::new_id(), id.clone(), index, at, "fixture");
             sample.values.insert("progress".into(), Value::Number(index as f64));
             sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
-    handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
 }
 
-async fn publish_scoped(
-    handle: &dokime_runtime::RuntimeHandle, id: &Identifier, scope: &model::execution::RecordScope, start: u64, count: u64,
-) {
+async fn publish_scoped(handle: &dokime::RuntimeHandle, id: &Identifier, scope: &model::execution::RecordScope, start: u64, count: u64) {
     let samples = (start..start + count)
         .map(|index| {
             let at = Timestamp::new(format!("2026-09-13T00:{:02}:{:02}.000Z", index / 60, index % 60));
-            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), id.clone(), index, at, "fixture");
+            let mut sample = TelemetrySample::new(dokime::model::identity::new_id(), id.clone(), index, at, "fixture");
             sample.values.insert("progress".into(), Value::Number(index as f64));
             sample.scope = Some(scope.clone());
             sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
-    handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
 }
 
 fn maximum_points(message: &str) -> usize {

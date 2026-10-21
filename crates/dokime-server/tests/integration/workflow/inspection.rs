@@ -12,14 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use {dokime_runtime::Value, dokime_runtime::domains::execution::authoring::SidecarStepContext};
+use dokime::domain::model;
+use {dokime::Value, dokime::domains::execution::authoring::SidecarStepContext};
 
 /* === Constants === */
 
@@ -308,10 +309,10 @@ async fn planned_params_limit() {
     suite.test_case_templates[0].parameters = (0..257)
         .map(|index| {
             let mut parameter = prototype.clone();
-            parameter.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::ParameterId>();
+            parameter.parameter_id = dokime::model::identity::new_id::<dokime::ParameterId>();
             parameter.metadata = support::metadata(&format!("p{index:03}"), "Parameter");
-            parameter.expression = dokime_runtime::definition::ParameterExpr::Literal { value: Value::Integer(index) };
-            parameter.value_type = dokime_runtime::ValueType::Integer;
+            parameter.expression = dokime::definition::ParameterExpr::Literal { value: Value::Integer(index) };
+            parameter.value_type = dokime::ValueType::Integer;
             parameter
         })
         .collect();

@@ -12,21 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use tonic::Code;
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::domains::{
+use dokime::domain::model;
+use dokime::domains::{
     ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderContribution, OptionProviderOption,
     OptionProviderSource, PluginEntrypoint,
 };
 use {
-    dokime_runtime::Identifier, dokime_runtime::InstalledPlugin, dokime_runtime::Metadata, dokime_runtime::Value,
-    dokime_runtime::settings::SecretSetting, dokime_runtime::settings::Settings, dokime_runtime::settings::SettingsEntry,
-    dokime_runtime::settings::TextArea,
+    dokime::Identifier, dokime::InstalledPlugin, dokime::Metadata, dokime::Value, dokime::settings::SecretSetting,
+    dokime::settings::Settings, dokime::settings::SettingsEntry, dokime::settings::TextArea,
 };
 
 /* === Constants === */
@@ -36,6 +36,7 @@ use {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct FixtureActionDispatcher;
 
 /* === Enums === */
@@ -43,8 +44,9 @@ struct FixtureActionDispatcher;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ActionDispatcher for FixtureActionDispatcher {
-    fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, dokime_runtime::domains::StatusResponse> {
+    fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, dokime::domains::StatusResponse> {
         Box::pin(async { Err(ActionDispatcherError::Unavailable) })
     }
 
@@ -67,6 +69,7 @@ impl ActionDispatcher for FixtureActionDispatcher {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let environment = support::TestEnvironment::with_installed_plugins_and_action_dispatcher(
         vec![fixture_module()],

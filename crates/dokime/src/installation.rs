@@ -20,7 +20,7 @@ use std::process::Command;
 // Third Party Imports
 
 // Local Imports
-use crate::{Error, Result};
+use crate::client_error::{Error, Result};
 
 /* === Constants === */
 
@@ -33,7 +33,7 @@ const PRODUCT: &str = "Dokime";
 
 /* === Structs === */
 
-pub(crate) struct Program {
+pub struct Program {
     name: &'static str,
 }
 
@@ -44,10 +44,10 @@ pub(crate) struct Program {
 /* === Implementations === */
 
 impl Program {
-    pub(crate) const SERVER: Self = Self { name: "dokime-server" };
-    pub(crate) const GUI: Self = Self { name: "dokime-gui" };
+    pub const SERVER: Self = Self { name: "dokime-server" };
+    pub const GUI: Self = Self { name: "dokime-gui" };
 
-    pub(crate) fn resolve(&self, explicit: Option<&Path>) -> Result<PathBuf> {
+    pub fn resolve(&self, explicit: Option<&Path>) -> Result<PathBuf> {
         if let Some(path) = explicit {
             return executable(path).ok_or_else(|| Error::Input(format!("{} {} is not a file", self.name, path.display())));
         }
@@ -71,7 +71,7 @@ impl Program {
 
 /* === Public Functions === */
 
-pub(crate) fn hand_over(mut command: Command) -> Result<()> {
+pub fn hand_over(mut command: Command) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;

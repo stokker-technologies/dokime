@@ -20,13 +20,13 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use dokime_domain::model::identity::DokimeIdentity;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::identity::SessionId;
-use dokime_domain::model::time::Timestamp;
-use dokime_runtime::domains::exports::storage::{DiagnosticPathConvention, path_conventions};
-use dokime_runtime::domains::installed_plugins::InstalledPluginErrorRecord;
-use dokime_runtime::runtime::query::RuntimeOverviewSnapshot;
+use dokime::domain::model::identity::DokimeIdentity;
+use dokime::domain::model::identity::Metadata;
+use dokime::domain::model::identity::SessionId;
+use dokime::domain::model::time::Timestamp;
+use dokime::domains::exports::storage::{DiagnosticPathConvention, path_conventions};
+use dokime::domains::installed_plugins::InstalledPluginErrorRecord;
+use dokime::runtime::query::RuntimeOverviewSnapshot;
 
 /* === Constants === */
 
@@ -100,7 +100,7 @@ pub enum StartupDoctorCheckKey {
 
 impl DiagnosticsSnapshot {
     pub fn from_runtime(snapshot: RuntimeOverviewSnapshot, storage_root: &Path, application_root: &Path) -> Self {
-        let captured_at = dokime_runtime::model::time::now_utc();
+        let captured_at = dokime::model::time::now_utc();
         let startup_doctor = StartupDoctorSnapshot::from_runtime(&snapshot, storage_root, captured_at.clone());
         let counts = DiagnosticsCounts::from_runtime(&snapshot);
 

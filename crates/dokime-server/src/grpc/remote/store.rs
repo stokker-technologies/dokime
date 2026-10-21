@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
 // Local Imports
-use dokime_domain::model::remote::RemoteListenerSettings;
+use dokime::domain::model::remote::RemoteListenerSettings;
 
 /* === Constants === */
 
@@ -161,7 +161,7 @@ pub(super) fn validate(settings: &RemoteListenerSettings) -> Result<SocketAddr, 
     Ok(address)
 }
 
-/// Creates the owner-only directory that holds remote security material and the session log.
+// Creates the owner-only directory that holds remote security material and the session log.
 pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
     let mut directory = std::fs::DirBuilder::new();
     directory.recursive(true);
@@ -173,8 +173,8 @@ pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
     directory.create(path)
 }
 
-/// The identities this host answers to: the listen address when it is specific, the host name
-/// and every non-loopback interface address, falling back to loopback when nothing else exists.
+// The identities this host answers to: the listen address when it is specific, the host name
+// and every non-loopback interface address, falling back to loopback when nothing else exists.
 pub(super) fn host_names(address: SocketAddr) -> Vec<String> {
     let networks = sysinfo::Networks::new_with_refreshed_list();
     let interfaces = networks.values().flat_map(|network| network.ip_networks().iter().map(|network| network.addr));

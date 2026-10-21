@@ -28,8 +28,8 @@ use crate::domain::model::readiness::Readiness;
 
 /* === Structs === */
 
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
+#[dokime::message]
+#[dokime::operation(
     id = "obc-plugin.check_readiness",
     response = Readiness,
     version = 1,

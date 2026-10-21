@@ -22,7 +22,7 @@ use sha2::{Digest, Sha256};
 use super::super::files;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::value::projection;
-use dokime_runtime::ExecutionFileContent;
+use dokime::ExecutionFileContent;
 
 /* === Constants === */
 
@@ -42,10 +42,10 @@ use dokime_runtime::ExecutionFileContent;
 
 pub(super) fn metadata(
     content: &ExecutionFileContent, maximum: usize,
-) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
-    let frame = dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-        payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Metadata(
-            dokime_domain::model::content::wire::ExecutionFileDownloadMetadata {
+) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
+    let frame = dokime::domain::model::content::wire::ExecutionFileDownloadFrame {
+        payload: Some(dokime::domain::model::content::wire::ExecutionFileDownloadFramePayload::Metadata(
+            dokime::domain::model::content::wire::ExecutionFileDownloadMetadata {
                 relative_path: projection::text(&content.relative_path)?,
                 content_type: content.content_type.as_deref().map(projection::text).transpose()?,
                 kind: files::kind(&content.content_kind),
@@ -59,13 +59,13 @@ pub(super) fn metadata(
 
 pub(super) fn chunk(
     content: &ExecutionFileContent, maximum: usize,
-) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
+) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
     let mut bytes = projection::slots(content.bytes.len())?;
     bytes.extend_from_slice(&content.bytes);
     checked(
-        dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
-                dokime_domain::model::content::wire::ArtifactChunk { offset: content.offset, data: bytes },
+        dokime::domain::model::content::wire::ExecutionFileDownloadFrame {
+            payload: Some(dokime::domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(
+                dokime::domain::model::content::wire::ArtifactChunk { offset: content.offset, data: bytes },
             )),
         },
         maximum,
@@ -74,7 +74,7 @@ pub(super) fn chunk(
 
 pub(super) fn complete(
     size: u64, digest: &Sha256, maximum: usize,
-) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
+) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
     let digest = digest.clone().finalize();
     let mut hex = [0u8; 64];
     let alphabet = b"0123456789abcdef";
@@ -84,9 +84,9 @@ pub(super) fn complete(
     }
     let sha256 = projection::text(std::str::from_utf8(&hex).expect("hexadecimal digest is ASCII"))?;
     checked(
-        dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Complete(
-                dokime_domain::model::content::wire::ArtifactCompletion { size_bytes: size, sha256 },
+        dokime::domain::model::content::wire::ExecutionFileDownloadFrame {
+            payload: Some(dokime::domain::model::content::wire::ExecutionFileDownloadFramePayload::Complete(
+                dokime::domain::model::content::wire::ArtifactCompletion { size_bytes: size, sha256 },
             )),
         },
         maximum,
@@ -96,8 +96,8 @@ pub(super) fn complete(
 /* === Private Functions === */
 
 fn checked(
-    frame: dokime_domain::model::content::wire::ExecutionFileDownloadFrame, maximum: usize,
-) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileDownloadFrame> {
+    frame: dokime::domain::model::content::wire::ExecutionFileDownloadFrame, maximum: usize,
+) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileDownloadFrame> {
     if frame.wire_len()? > maximum {
         return Err(exhausted());
     }

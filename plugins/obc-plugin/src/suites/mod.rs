@@ -36,7 +36,7 @@ pub mod steady;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Suites {
     ObcChecks(checks::ObcChecks),
     StartupSuite(startup::StartupSuite),

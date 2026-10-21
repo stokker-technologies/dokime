@@ -27,13 +27,13 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use dokime_domain::model::remote::{RemoteSession, RemoteSessionOutcome, RemoteSessionPage};
+use dokime::domain::model::remote::{RemoteSession, RemoteSessionOutcome, RemoteSessionPage};
 
 /* === Constants === */
 
-/// The log keeps the most recent sessions only.
+// The log keeps the most recent sessions only.
 pub(crate) const CAPACITY: usize = 500;
-/// A peer quiet this long has gone; transport drops are not observable here.
+// A peer quiet this long has gone; transport drops are not observable here.
 pub(crate) const IDLE_MILLIS: u64 = 60_000;
 const MAXIMUM_PAGE: usize = 100;
 const MAXIMUM_BYTES: usize = 1024 * 1024;
@@ -44,7 +44,7 @@ const MAXIMUM_BYTES: usize = 1024 * 1024;
 
 /* === Structs === */
 
-/// Remote sessions as the authenticator sees them, persisted beside the listener security.
+// Remote sessions as the authenticator sees them, persisted beside the listener security.
 #[derive(Default)]
 pub(crate) struct SessionLog {
     state: Mutex<State>,
@@ -52,7 +52,7 @@ pub(crate) struct SessionLog {
 
 #[derive(Default)]
 struct State {
-    /// Oldest first.
+    // Oldest first.
     sessions: Vec<RemoteSession>,
     next: u64,
     path: Option<PathBuf>,
@@ -79,8 +79,8 @@ pub(crate) enum Outcome<'a> {
 /* === Implementations === */
 
 impl SessionLog {
-    /// Loads the persisted log and persists to it from now on. An unreadable log is kept on
-    /// disk untouched and this process records in memory only.
+    // Loads the persisted log and persists to it from now on. An unreadable log is kept on
+    // disk untouched and this process records in memory only.
     pub(crate) fn attach(&self, path: PathBuf) {
         let mut state = self.lock();
         match read(&path) {
@@ -106,7 +106,7 @@ impl SessionLog {
         self.list_at(cursor, limit, now())
     }
 
-    /// Writes the log when it changed since the last write.
+    // Writes the log when it changed since the last write.
     pub(crate) fn flush(&self) {
         let (path, document) = {
             let mut state = self.lock();

@@ -41,10 +41,10 @@ pub enum Error {
     MissingEvidence(String),
 
     #[error("dokime sdk: {0}")]
-    Sdk(#[from] dokime_runtime::Error),
+    Sdk(#[from] dokime::Error),
 
     #[error("host operation: {0}")]
-    Host(#[from] dokime_runtime::harmos::sidecar::CallError),
+    Host(#[from] dokime::harmos::sidecar::CallError),
 
     #[error("device: {0}")]
     Device(#[from] obc_runtime::Error),
@@ -56,7 +56,7 @@ pub enum Error {
     DeviceResourcePoisoned,
 
     #[error("waiting for a unit to come online: {0}")]
-    Awaited(#[from] dokime_runtime::prelude::Elapsed),
+    Awaited(#[from] dokime::prelude::Elapsed),
 
     #[error("reference image: {0}")]
     Image(String),
@@ -72,7 +72,7 @@ pub enum Error {
 
 /* === Implementations === */
 
-impl From<Error> for dokime_runtime::domains::ActionDispatcherError {
+impl From<Error> for dokime::domains::ActionDispatcherError {
     fn from(error: Error) -> Self {
         Self::Refused { code: -32_000, message: error.to_string() }
     }

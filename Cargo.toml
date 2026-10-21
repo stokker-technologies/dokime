@@ -9,6 +9,7 @@
 [workspace]
 members = [
   "crates/dokime",
+  "crates/dokime-cli",
   "crates/dokime-runtime",
   "crates/dokime-client",
   "crates/dokime-domain",
@@ -33,6 +34,13 @@ publish = true
 repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
+# Local
+dokime = { version = "0.1.0", path = "crates/dokime", default-features = false }
+dokime-cli = { version = "0.1.0", path = "crates/dokime-cli" }
+dokime-client = { version = "0.1.0", path = "crates/dokime-client" }
+dokime-domain = { version = "0.1.0", path = "crates/dokime-domain" }
+dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-features = false }
+
 # Git
 harmos = { version = "0.1.0", git = "https://github.com/stokker-technologies/harmos.git", rev = "c6a88d737ac212fcc0d91367a6f120ca7da16971" }
 harmos-domain = { version = "0.1.0", git = "https://github.com/stokker-technologies/harmos.git", rev = "c6a88d737ac212fcc0d91367a6f120ca7da16971" }
@@ -172,6 +180,9 @@ opt-level = 2
 # `mise run package` ships the dev profile, so the crates that run in the packaged binaries get basic
 # optimization; debug info and debug assertions stay. Package specs take no globs, so each crate is named.
 [profile.dev.package.dokime]
+opt-level = 1
+
+[profile.dev.package.dokime-cli]
 opt-level = 1
 
 [profile.dev.package.dokime-client]

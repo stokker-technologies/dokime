@@ -24,8 +24,8 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
-use dokime_domain::operations::history;
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::operations::history;
 
 /* === Constants === */
 
@@ -61,11 +61,11 @@ impl Operation for Get {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut history::GetCheckpointDocument, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointDocument>, Status> {
+    ) -> Result<Response<dokime::domain::model::history::wire::CheckpointDocument>, Status> {
         let checkpoint = super::wire::checkpoint(request.checkpoint.take())?;
         let document = self.resources.runtime.execution_checkpoint_document(checkpoint).await.map_err(super::wire::checkpoint_failure)?;
-        let project = || -> harmos::Result<dokime_domain::model::history::wire::CheckpointDocument> {
-            let response = dokime_domain::model::history::wire::CheckpointDocument {
+        let project = || -> harmos::Result<dokime::domain::model::history::wire::CheckpointDocument> {
+            let response = dokime::domain::model::history::wire::CheckpointDocument {
                 checkpoint: Some(super::wire::checkpoint_wire(document.checkpoint).map_err(original_error)?),
                 document: Some(wire::execution_document(document.document).map_err(original_error)?),
                 acquisition_finished: document.acquisition_finished,
@@ -84,7 +84,7 @@ impl Operation for Get {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum: maximum.min(4 * 1024 * 1024) }),
     )?;
     Ok(())

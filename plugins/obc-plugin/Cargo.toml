@@ -19,8 +19,7 @@ debuginfo = false
 
 [dependencies]
 # Local
-dokime-domain = { version = "0.1.0", path = "../../crates/dokime-domain" }
-dokime-runtime = { version = "0.1.0", path = "../../crates/dokime-runtime" }
+dokime = { workspace = true, features = ["plugin"] }
 obc-runtime = { version = "0.1.0", path = "runtime" }
 
 # Error Handling

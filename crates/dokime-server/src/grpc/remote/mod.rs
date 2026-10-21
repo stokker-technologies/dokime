@@ -29,8 +29,8 @@ use zeroize::Zeroizing;
 
 // Local Imports
 use super::{Config, Error, Server, Service, TlsIdentity};
-use dokime_domain::model::remote::{GeneratedAccessKey, RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::model::remote::{GeneratedAccessKey, RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
 
 /* === Constants === */
 

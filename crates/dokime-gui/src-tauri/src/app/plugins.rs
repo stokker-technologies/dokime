@@ -27,7 +27,7 @@ use tauri_plugin_dialog::DialogExt;
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
 use crate::connection::{ConnectionSession, SessionLease};
-use dokime_domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES;
+use dokime::domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES;
 
 /* === Constants === */
 
@@ -132,7 +132,7 @@ async fn stage(lease: &SessionLease, bytes: Vec<u8>, progress: Channel<StageProg
     let started = Instant::now();
     let size_bytes = bytes.len();
     let hashing = move || {
-        let sha256 = dokime_client::plugin_bundle_digest(&bytes);
+        let sha256 = dokime::client::plugin_bundle_digest(&bytes);
         (bytes, sha256)
     };
     let (bytes, sha256) = tauri::async_runtime::spawn_blocking(hashing).await.map_err(text)?;

@@ -27,7 +27,7 @@ use crate::grpc::{
     chunked::{self, Frames},
     error::detailed_error,
 };
-use dokime_domain::{
+use dokime::domain::{
     model::{
         content::wire::{ArtifactChunk, ArtifactCompletion},
         exports::{EvidenceExportFrame, EvidenceExportPayload, EvidenceSubject},
@@ -35,7 +35,7 @@ use dokime_domain::{
     },
     operations::content::DownloadEvidence,
 };
-use dokime_runtime::{RuntimeHandle, domains::exports::evidence::Error};
+use dokime::{RuntimeHandle, domains::exports::evidence::Error};
 
 /* === Constants === */
 
@@ -121,7 +121,7 @@ impl Frames for ExportFrames {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())

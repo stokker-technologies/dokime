@@ -13,9 +13,8 @@ pkg-fmt = "bin"
 
 [dependencies]
 # Local
-dokime-domain = { version = "0.1.0", path = "../dokime-domain" }
+dokime = { workspace = true, features = ["terminal"] }
 dokime-packaging = { version = "0.1.0", path = "../dokime-packaging" }
-dokime = { version = "0.1.0", path = "../dokime" }
 
 # Git
 harmos = { workspace = true, features = ["plugin"] }

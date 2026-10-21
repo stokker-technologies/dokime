@@ -24,8 +24,7 @@ const RESPONSE: f64 = 0.5;
 
 const MAXIMUM_C: f64 = 150.0;
 
-static CHAMBERS: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<Chamber>>>>> =
-    LazyLock::new(|| Mutex::new(BTreeMap::new()));
+static CHAMBERS: LazyLock<Mutex<BTreeMap<String, Arc<Mutex<Chamber>>>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 /* === Macros === */
 
@@ -68,24 +67,18 @@ pub enum BenchError {
 impl Sensor {
     pub fn open(port: impl Into<String>, ambient_c: f64) -> Self {
         let port = port.into();
-        let chamber = Arc::clone(registry().entry(port.clone()).or_insert_with(|| {
-            Arc::new(Mutex::new(Chamber {
-                celsius: ambient_c,
-                target_c: ambient_c,
-                powered: false,
-            }))
-        }));
+        let chamber = Arc::clone(
+            registry()
+                .entry(port.clone())
+                .or_insert_with(|| Arc::new(Mutex::new(Chamber { celsius: ambient_c, target_c: ambient_c, powered: false }))),
+        );
 
         Self { port, chamber }
     }
 
     pub fn read_celsius(&self) -> Result<f64, BenchError> {
         let mut chamber = self.chamber.lock().unwrap_or_else(PoisonError::into_inner);
-        let target = if chamber.powered {
-            chamber.target_c
-        } else {
-            chamber.celsius
-        };
+        let target = if chamber.powered { chamber.target_c } else { chamber.celsius };
         chamber.celsius += (target - chamber.celsius) * RESPONSE;
 
         Ok(chamber.celsius)
@@ -107,22 +100,13 @@ impl Sensor {
 impl Heater {
     pub async fn open(port: impl Into<String>) -> Result<Self, BenchError> {
         let port = port.into();
-        let chamber = registry()
-            .get(&port)
-            .map(Arc::clone)
-            .ok_or_else(|| BenchError::Unopened { port: port.clone() })?;
+        let chamber = registry().get(&port).map(Arc::clone).ok_or_else(|| BenchError::Unopened { port: port.clone() })?;
 
         Ok(Self { port, chamber })
     }
 
     pub async fn identity(&self) -> Result<Identity, BenchError> {
-        Ok(Identity {
-            serial: format!(
-                "SIM-{}",
-                self.port.trim_start_matches('/').replace('/', "-")
-            ),
-            firmware: "sim-1.0".to_owned(),
-        })
+        Ok(Identity { serial: format!("SIM-{}", self.port.trim_start_matches('/').replace('/', "-")), firmware: "sim-1.0".to_owned() })
     }
 
     pub async fn set_target(&self, celsius: f64) -> Result<(), BenchError> {
@@ -151,10 +135,7 @@ fn registry() -> std::sync::MutexGuard<'static, BTreeMap<String, Arc<Mutex<Chamb
 }
 
 fn rest(chamber: &Mutex<Chamber>) {
-    chamber
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .powered = false;
+    chamber.lock().unwrap_or_else(PoisonError::into_inner).powered = false;
 }
 
 /* === Tests === */

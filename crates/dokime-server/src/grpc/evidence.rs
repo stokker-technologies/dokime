@@ -27,10 +27,10 @@ use tonic::Status;
 // Local Imports
 use super::error::detailed;
 use crate::grpc::transcode::Transcode;
-use dokime_domain::model::definition::wire::RecordSchema;
-use dokime_domain::model::execution::wire_cursor::Cursor;
-use dokime_domain::operations::evidence as v1;
-use dokime_runtime::{RuntimeHandle, runtime::CapturedRecords};
+use dokime::domain::model::definition::wire::RecordSchema;
+use dokime::domain::model::execution::wire_cursor::Cursor;
+use dokime::domain::operations::evidence as v1;
+use dokime::{RuntimeHandle, runtime::CapturedRecords};
 use selection::Selection;
 
 /* === Constants === */
@@ -43,7 +43,7 @@ const PAGE_BYTES: usize = 512 * 1024;
 
 /* === Type Aliases === */
 
-type Page = dokime_domain::model::evidence::wire::RecordPage;
+type Page = dokime::domain::model::evidence::wire::RecordPage;
 
 /* === Structs === */
 
@@ -62,7 +62,7 @@ struct Reader {
 
 // The newest matching records of a tail scan, bounded by count and bytes.
 struct Tail {
-    kept: VecDeque<(usize, dokime_domain::model::evidence::wire::CapturedRecord)>,
+    kept: VecDeque<(usize, dokime::domain::model::evidence::wire::CapturedRecord)>,
     keep: usize,
     budget: usize,
     bytes: usize,
@@ -89,7 +89,7 @@ struct Schema {
 
 impl Reader {
     fn new(
-        runtime: &RuntimeHandle, selection: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>, after: Option<Cursor>,
+        runtime: &RuntimeHandle, selection: Option<dokime::domain::model::evidence::wire::CapturedRecordSelection>, after: Option<Cursor>,
         through: Option<Cursor>, bytes: usize,
     ) -> Result<Self, Status> {
         let source = runtime.captured_records();
@@ -115,7 +115,7 @@ impl Reader {
     }
     async fn page(&mut self) -> Result<Page, Status> {
         let mut scanned = self.scanned;
-        let mut page = dokime_domain::model::evidence::wire::RecordPage {
+        let mut page = dokime::domain::model::evidence::wire::RecordPage {
             records: Vec::with_capacity(RECORD_LIMIT),
             scanned: Some(self.cursor(scanned)),
             through: Some(self.cursor(self.through)),
@@ -160,7 +160,7 @@ impl Reader {
     // Scans the whole replay through the frontier fixed at construction and
     // keeps the newest matching records that fit the count and byte budgets.
     async fn tail(&mut self, latest: usize) -> Result<Page, Status> {
-        let mut page = dokime_domain::model::evidence::wire::RecordPage {
+        let mut page = dokime::domain::model::evidence::wire::RecordPage {
             records: Vec::new(),
             scanned: Some(self.cursor(self.through)),
             through: Some(self.cursor(self.through)),
@@ -189,7 +189,7 @@ impl Tail {
     fn new(keep: usize, budget: usize) -> Self {
         Self { kept: VecDeque::with_capacity(keep), keep, budget, bytes: 0, oversized: false }
     }
-    fn offer(&mut self, selection: &Selection, record: &dokime_runtime::runtime::CapturedRecord) -> Result<(), Status> {
+    fn offer(&mut self, selection: &Selection, record: &dokime::runtime::CapturedRecord) -> Result<(), Status> {
         if !selection.matches(record) {
             return Ok(());
         }
@@ -204,7 +204,7 @@ impl Tail {
         }
         Ok(())
     }
-    fn finish(self) -> Result<Vec<dokime_domain::model::evidence::wire::CapturedRecord>, Status> {
+    fn finish(self) -> Result<Vec<dokime::domain::model::evidence::wire::CapturedRecord>, Status> {
         if self.oversized {
             return Err(Status::resource_exhausted("newest captured record exceeds page limit"));
         }
@@ -224,7 +224,7 @@ impl Operation for List {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut v1::ListRecords, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::evidence::wire::RecordPage>, Status> {
+    ) -> Result<Response<dokime::domain::model::evidence::wire::RecordPage>, Status> {
         if request.after.is_some() != request.through.is_some() {
             return Err(Status::invalid_argument("pagination requires both after and through cursors"));
         }
@@ -251,7 +251,7 @@ impl Operation for Watch {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::evidence::wire::RecordPage>;
+    type Endpoints = StreamOutput<dokime::domain::model::evidence::wire::RecordPage>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -291,7 +291,7 @@ impl Operation for Schema {
             return Err(Status::failed_precondition("record schema epoch mismatch; resynchronize"));
         }
         super::value::text(&request.record_type)?;
-        let kind = dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.record_type))
+        let kind = dokime::domain::model::identity::Identifier::new(std::mem::take(&mut request.record_type))
             .map_err(|_| Status::invalid_argument("invalid record type"))?;
         let contract = snapshot
             .state()
@@ -309,20 +309,20 @@ impl Operation for Schema {
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum });
-    runtime.operations().register_wire_operation::<List>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Watch>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Schema>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
+    runtime.operations().register_wire_operation::<List>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Watch>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Schema>("dokime", dokime::app::Lanes::Open, resources)?;
     Ok(())
 }
 
 /* === Private Functions === */
 
 fn memory_error(error: harmos::Error) -> Status {
-    let error = dokime_runtime::runtime::Error::from(error);
+    let error = dokime::runtime::Error::from(error);
     detailed(Status::resource_exhausted(format!("captured record output unavailable: {error}")), &error)
 }
 
-fn capture_error(error: dokime_runtime::runtime::Error) -> Status {
+fn capture_error(error: dokime::runtime::Error) -> Status {
     detailed(Status::unavailable(format!("captured record source unavailable: {error}")), &error)
 }
 

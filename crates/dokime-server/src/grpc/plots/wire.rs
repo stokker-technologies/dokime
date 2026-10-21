@@ -27,24 +27,24 @@ use super::super::enums::canonical as enums;
 use super::super::value::{self, Budget, canonical};
 use super::cursor::{bounded_text, expression_stream};
 use crate::grpc::transcode::Transcode;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::Value;
-use dokime_runtime::document::DocumentFilter;
-use dokime_runtime::document::FftOptions;
-use dokime_runtime::document::HistogramOptions;
-use dokime_runtime::document::PlotDescriptor;
-use dokime_runtime::document::PlotInput;
-use dokime_runtime::document::ReferenceBand;
-use dokime_runtime::document::ReferenceLine;
-use dokime_runtime::document::SigmaIntervalOptions;
-use dokime_runtime::expressions::DataExpression;
-use dokime_runtime::expressions::DataSource;
-use dokime_runtime::expressions::DataTransform;
-use dokime_runtime::runtime::query::PlotPayloadCursor;
-use dokime_runtime::runtime::query::PlotPayloadEnvelope;
-use dokime_runtime::runtime::query::PlotPayloadRequest;
-use dokime_runtime::runtime::query::PlotPayloadStreamKind;
-use dokime_runtime::runtime::query::declared_plot_request;
+use dokime::document::DocumentFilter;
+use dokime::document::FftOptions;
+use dokime::document::HistogramOptions;
+use dokime::document::PlotDescriptor;
+use dokime::document::PlotInput;
+use dokime::document::ReferenceBand;
+use dokime::document::ReferenceLine;
+use dokime::document::SigmaIntervalOptions;
+use dokime::domain::model::identity::Identifier;
+use dokime::domain::model::values::Value;
+use dokime::expressions::DataExpression;
+use dokime::expressions::DataSource;
+use dokime::expressions::DataTransform;
+use dokime::runtime::query::PlotPayloadCursor;
+use dokime::runtime::query::PlotPayloadEnvelope;
+use dokime::runtime::query::PlotPayloadRequest;
+use dokime::runtime::query::PlotPayloadStreamKind;
+use dokime::runtime::query::declared_plot_request;
 
 /* === Constants === */
 
@@ -81,11 +81,11 @@ impl From<Status> for FrameError {
 
 pub(crate) fn document_plot_definition(
     descriptor: &PlotDescriptor,
-) -> Result<dokime_domain::model::documents::wire::DocumentPlotDefinition, Status> {
+) -> Result<dokime::domain::model::documents::wire::DocumentPlotDefinition, Status> {
     // The declared request, not the mapped query: the live watch sends it back
     // and the query maps it once, exactly as the report maps the descriptor.
     let request = declared_plot_request(descriptor, Some(descriptor.input.scope.clone()), None, descriptor.input.live_window_s, None);
-    Ok(dokime_domain::model::documents::wire::DocumentPlotDefinition {
+    Ok(dokime::domain::model::documents::wire::DocumentPlotDefinition {
         metadata: Some(canonical::metadata(&descriptor.metadata)?),
         request: Some(plot_request_wire(&request)?),
         presentation: Some(plot_presentation(&descriptor.input)?),
@@ -95,8 +95,8 @@ pub(crate) fn document_plot_definition(
 
 pub(super) fn envelope(
     value: PlotPayloadEnvelope, epoch: &str, selection: &str, limit: usize,
-) -> Result<dokime_domain::model::plots::wire::PlotEnvelope, FrameError> {
-    let envelope = dokime_domain::model::plots::wire::PlotEnvelope {
+) -> Result<dokime::domain::model::plots::wire::PlotEnvelope, FrameError> {
+    let envelope = dokime::domain::model::plots::wire::PlotEnvelope {
         plot_id: value.plot_id,
         revision: value.revision,
         cursor: Some(plot_cursor_wire(value.cursor, epoch, selection)),
@@ -110,14 +110,14 @@ pub(super) fn envelope(
 
 pub(super) fn stream_frame(
     kind: PlotPayloadStreamKind, value: PlotPayloadEnvelope, epoch: &str, selection: &str, limit: usize,
-) -> Result<dokime_domain::model::plots::wire::PlotStreamFrame, FrameError> {
-    Ok(dokime_domain::model::plots::wire::PlotStreamFrame {
+) -> Result<dokime::domain::model::plots::wire::PlotStreamFrame, FrameError> {
+    Ok(dokime::domain::model::plots::wire::PlotStreamFrame {
         kind: plot_stream_kind(kind),
         envelope: Some(envelope(value, epoch, selection, limit)?),
     })
 }
 
-pub(crate) fn values(values: &BTreeMap<String, Value>) -> Result<dokime_domain::model::values::wire::Value, Status> {
+pub(crate) fn values(values: &BTreeMap<String, Value>) -> Result<dokime::domain::model::values::wire::Value, Status> {
     canonical::object(values, &mut Budget::new())
 }
 
@@ -128,45 +128,42 @@ pub(super) fn ensure_message_budget<M: Portable>(value: &M, limit: usize, label:
     Ok(())
 }
 
-pub(crate) fn plot_filter_wire(filter: &DocumentFilter) -> Result<dokime_domain::model::plots::wire::PlotFilter, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotFilter {
+pub(crate) fn plot_filter_wire(filter: &DocumentFilter) -> Result<dokime::domain::model::plots::wire::PlotFilter, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotFilter {
         expression: Some(data_expression_wire(&filter.expression)?),
         operator: enums::filter_operator(&filter.operator),
         value: filter.value.as_ref().map(|value| canonical::encode(value, &mut Budget::new(), 0)).transpose()?,
     })
 }
 
-pub(crate) fn data_expression_wire(expression: &DataExpression) -> Result<dokime_domain::model::plots::wire::DataExpression, Status> {
+pub(crate) fn data_expression_wire(expression: &DataExpression) -> Result<dokime::domain::model::plots::wire::DataExpression, Status> {
     value::collection(expression.transforms.len())?;
-    let source = Some(match &expression.source {
-        DataSource::Telemetry { stream, field } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Telemetry(dokime_domain::model::plots::wire::TelemetryDataSource {
-                stream: expression_stream(stream.clone())?,
-                field: bounded_text(field.clone())?,
-            })
-        }
-        DataSource::Parameter { name } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Parameter(dokime_domain::model::plots::wire::ParameterDataSource {
-                name: bounded_text(name.clone())?,
-            })
-        }
-        DataSource::Dimension { name } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Dimension(dokime_domain::model::plots::wire::DimensionDataSource {
-                name: bounded_text(name.clone())?,
-            })
-        }
-        DataSource::Record { record_type } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Record(dokime_domain::model::plots::wire::RecordDataSource {
-                record_type: bounded_text(record_type.clone())?,
-            })
-        }
-        DataSource::Artifact { artifact } => {
-            dokime_domain::model::plots::wire::DataExpressionSource::Artifact(dokime_domain::model::plots::wire::ArtifactDataSource {
-                artifact: bounded_text(artifact.clone())?,
-            })
-        }
-    });
-    Ok(dokime_domain::model::plots::wire::DataExpression {
+    let source =
+        Some(match &expression.source {
+            DataSource::Telemetry { stream, field } => dokime::domain::model::plots::wire::DataExpressionSource::Telemetry(
+                dokime::domain::model::plots::wire::TelemetryDataSource {
+                    stream: expression_stream(stream.clone())?,
+                    field: bounded_text(field.clone())?,
+                },
+            ),
+            DataSource::Parameter { name } => dokime::domain::model::plots::wire::DataExpressionSource::Parameter(
+                dokime::domain::model::plots::wire::ParameterDataSource { name: bounded_text(name.clone())? },
+            ),
+            DataSource::Dimension { name } => dokime::domain::model::plots::wire::DataExpressionSource::Dimension(
+                dokime::domain::model::plots::wire::DimensionDataSource { name: bounded_text(name.clone())? },
+            ),
+            DataSource::Record { record_type } => {
+                dokime::domain::model::plots::wire::DataExpressionSource::Record(dokime::domain::model::plots::wire::RecordDataSource {
+                    record_type: bounded_text(record_type.clone())?,
+                })
+            }
+            DataSource::Artifact { artifact } => {
+                dokime::domain::model::plots::wire::DataExpressionSource::Artifact(dokime::domain::model::plots::wire::ArtifactDataSource {
+                    artifact: bounded_text(artifact.clone())?,
+                })
+            }
+        });
+    Ok(dokime::domain::model::plots::wire::DataExpression {
         label: expression.label.as_ref().map(|label| bounded_text(label.clone())).transpose()?,
         source,
         transforms: expression.transforms.iter().map(data_transform_wire).collect::<Result<_, _>>()?,
@@ -176,12 +173,12 @@ pub(crate) fn data_expression_wire(expression: &DataExpression) -> Result<dokime
 /* === Private Functions === */
 
 fn optional_format(
-    value: Option<&dokime_domain::model::values::ValueFormat>,
-) -> Option<dokime_domain::model::definition::wire::ValueFormat> {
+    value: Option<&dokime::domain::model::values::ValueFormat>,
+) -> Option<dokime::domain::model::definition::wire::ValueFormat> {
     value.map(canonical::format)
 }
 
-fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit: usize) -> Result<(), FrameError> {
+fn fit_message(envelope: &dokime::domain::model::plots::wire::PlotEnvelope, limit: usize) -> Result<(), FrameError> {
     let encoded_budget = limit.saturating_sub(MESSAGE_HEADROOM_BYTES);
     let decoded_budget = super::super::config::output_stream_bytes(limit).saturating_sub(DECODED_HEADROOM_BYTES);
     let encoded = envelope.wire_len().map_err(Status::from)?;
@@ -226,16 +223,16 @@ fn fit_message(envelope: &dokime_domain::model::plots::wire::PlotEnvelope, limit
     Err(FrameError::TooManyPoints { maximum })
 }
 
-fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime_domain::model::plots::wire::PlotRequest, Status> {
+fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::model::plots::wire::PlotRequest, Status> {
     let stream = wire_stream(&request.stream)?;
     value::collection(request.y_keys.len())?;
     let y_keys = request.y_keys.iter().map(|value| bounded_text(value.clone())).collect::<Result<_, _>>()?;
     value::collection(request.marker_record_types.len())?;
     let marker_record_types = request.marker_record_types.iter().map(|value| bounded_text(value.clone())).collect::<Result<_, _>>()?;
-    Ok(dokime_domain::model::plots::wire::PlotRequest {
+    Ok(dokime::domain::model::plots::wire::PlotRequest {
         analysis: request.analysis.as_ref().map(super::analysis::selection_wire).transpose()?,
         plot_id: request.plot_id.as_ref().map(|value| bounded_text(value.clone())).transpose()?,
-        plot_type: request.plot_type.as_ref().map_or(dokime_domain::model::plots::wire::PlotType::Unspecified, enums::plot_type),
+        plot_type: request.plot_type.as_ref().map_or(dokime::domain::model::plots::wire::PlotType::Unspecified, enums::plot_type),
         x_scale: enums::axis_scale(&request.x_scale),
         y_scale: enums::axis_scale(&request.y_scale),
         stream,
@@ -266,36 +263,38 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime_domain::mode
         technique: enums::downsample_technique(&request.technique),
         summary_window: request
             .summary_window
-            .map(|window| dokime_domain::model::plots::wire::PlotWindow { from: window.from, to: window.to }),
+            .map(|window| dokime::domain::model::plots::wire::PlotWindow { from: window.from, to: window.to }),
     })
 }
 
-fn data_transform_wire(transform: &DataTransform) -> Result<dokime_domain::model::plots::wire::DataTransform, Status> {
-    use dokime_domain::model::plots::wire::DataTransformKind as Kind;
+fn data_transform_wire(transform: &DataTransform) -> Result<dokime::domain::model::plots::wire::DataTransform, Status> {
+    use dokime::domain::model::plots::wire::DataTransformKind as Kind;
     let kind = match transform {
         DataTransform::Aggregate(aggregate) => {
-            Kind::Aggregate(dokime_domain::model::plots::wire::AggregateTransform { aggregate: *aggregate })
+            Kind::Aggregate(dokime::domain::model::plots::wire::AggregateTransform { aggregate: *aggregate })
         }
-        DataTransform::TimeBetween { previous_record_type } => Kind::TimeBetween(dokime_domain::model::plots::wire::TimeBetweenTransform {
-            previous_record_type: bounded_text(previous_record_type.clone())?,
-        }),
+        DataTransform::TimeBetween { previous_record_type } => {
+            Kind::TimeBetween(dokime::domain::model::plots::wire::TimeBetweenTransform {
+                previous_record_type: bounded_text(previous_record_type.clone())?,
+            })
+        }
         DataTransform::TelemetryAtOrBefore { stream, field } => {
-            Kind::TelemetryAtOrBefore(dokime_domain::model::plots::wire::TelemetryAtOrBeforeTransform {
+            Kind::TelemetryAtOrBefore(dokime::domain::model::plots::wire::TelemetryAtOrBeforeTransform {
                 stream: expression_stream(stream.clone())?,
                 field: bounded_text(field.clone())?,
             })
         }
         DataTransform::Detail { name } => {
-            Kind::Detail(dokime_domain::model::plots::wire::DetailTransform { name: bounded_text(name.clone())? })
+            Kind::Detail(dokime::domain::model::plots::wire::DetailTransform { name: bounded_text(name.clone())? })
         }
-        DataTransform::PerCase => Kind::PerCase(dokime_domain::model::plots::wire::EmptyTransform {}),
+        DataTransform::PerCase => Kind::PerCase(dokime::domain::model::plots::wire::EmptyTransform {}),
     };
-    Ok(dokime_domain::model::plots::wire::DataTransform { kind: Some(kind) })
+    Ok(dokime::domain::model::plots::wire::DataTransform { kind: Some(kind) })
 }
 
-fn plot_presentation(input: &PlotInput) -> Result<dokime_domain::model::documents::wire::PlotPresentation, Status> {
+fn plot_presentation(input: &PlotInput) -> Result<dokime::domain::model::documents::wire::PlotPresentation, Status> {
     let (x_axis, x_axis_unit) = enums::plot_axis(input.x_axis.as_ref());
-    Ok(dokime_domain::model::documents::wire::PlotPresentation {
+    Ok(dokime::domain::model::documents::wire::PlotPresentation {
         style: enums::plot_style(&input.style),
         fft: Some(plot_fft_wire(&input.fft)?),
         interval: Some(plot_interval_wire(&input.interval)?),
@@ -310,8 +309,8 @@ fn plot_presentation(input: &PlotInput) -> Result<dokime_domain::model::document
     })
 }
 
-fn plot_fft_wire(value: &FftOptions) -> Result<dokime_domain::model::plots::wire::PlotFftOptions, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotFftOptions {
+fn plot_fft_wire(value: &FftOptions) -> Result<dokime::domain::model::plots::wire::PlotFftOptions, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotFftOptions {
         sample_rate_hz: value.sample_rate_hz.map(|value| finite_nonnegative(value, "plot FFT sample_rate_hz")).transpose()?,
         window: enums::fft_window(&value.window),
         detrend: enums::fft_detrend(&value.detrend),
@@ -322,23 +321,23 @@ fn plot_fft_wire(value: &FftOptions) -> Result<dokime_domain::model::plots::wire
     })
 }
 
-fn plot_interval_wire(value: &SigmaIntervalOptions) -> Result<dokime_domain::model::plots::wire::PlotIntervalOptions, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotIntervalOptions {
+fn plot_interval_wire(value: &SigmaIntervalOptions) -> Result<dokime::domain::model::plots::wire::PlotIntervalOptions, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotIntervalOptions {
         bin_width: finite_nonnegative(value.bin_width, "plot interval bin_width")?,
         sigma: finite_nonnegative(value.sigma, "plot interval sigma")?,
         clip_to_observed: value.clip_to_observed,
     })
 }
 
-fn plot_histogram_wire(value: &HistogramOptions) -> Result<dokime_domain::model::plots::wire::PlotHistogramOptions, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotHistogramOptions {
+fn plot_histogram_wire(value: &HistogramOptions) -> Result<dokime::domain::model::plots::wire::PlotHistogramOptions, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotHistogramOptions {
         bins: u64::try_from(value.bins).map_err(|_| Status::internal("plot histogram bins do not fit wire"))?,
         unit: value.unit.as_ref().map(|value| bounded_text(value.clone())).transpose()?,
     })
 }
 
-fn plot_reference_line_wire(value: &ReferenceLine) -> Result<dokime_domain::model::documents::wire::PlotReferenceLine, Status> {
-    Ok(dokime_domain::model::documents::wire::PlotReferenceLine {
+fn plot_reference_line_wire(value: &ReferenceLine) -> Result<dokime::domain::model::documents::wire::PlotReferenceLine, Status> {
+    Ok(dokime::domain::model::documents::wire::PlotReferenceLine {
         axis: enums::reference_axis(&value.axis),
         value: value.value.map(|value| finite_number(value, "plot reference line value")).transpose()?,
         source: value.source.as_ref().map(data_expression_wire).transpose()?,
@@ -348,8 +347,8 @@ fn plot_reference_line_wire(value: &ReferenceLine) -> Result<dokime_domain::mode
     })
 }
 
-fn plot_reference_band_wire(value: &ReferenceBand) -> Result<dokime_domain::model::documents::wire::PlotReferenceBand, Status> {
-    Ok(dokime_domain::model::documents::wire::PlotReferenceBand {
+fn plot_reference_band_wire(value: &ReferenceBand) -> Result<dokime::domain::model::documents::wire::PlotReferenceBand, Status> {
+    Ok(dokime::domain::model::documents::wire::PlotReferenceBand {
         axis: enums::reference_axis(&value.axis),
         min: value.min.map(|value| finite_number(value, "plot reference band min")).transpose()?,
         max: value.max.map(|value| finite_number(value, "plot reference band max")).transpose()?,
@@ -385,21 +384,21 @@ fn finite_duration(value: f64, label: &str) -> Result<f64, Status> {
     finite_nonnegative(value, label)
 }
 
-fn plot_stream_kind(value: PlotPayloadStreamKind) -> dokime_domain::model::plots::wire::PlotStreamKind {
+fn plot_stream_kind(value: PlotPayloadStreamKind) -> dokime::domain::model::plots::wire::PlotStreamKind {
     match value {
-        PlotPayloadStreamKind::Snapshot => dokime_domain::model::plots::wire::PlotStreamKind::Snapshot,
-        PlotPayloadStreamKind::Append => dokime_domain::model::plots::wire::PlotStreamKind::Append,
-        PlotPayloadStreamKind::Replace => dokime_domain::model::plots::wire::PlotStreamKind::Replace,
-        PlotPayloadStreamKind::Error => dokime_domain::model::plots::wire::PlotStreamKind::Error,
+        PlotPayloadStreamKind::Snapshot => dokime::domain::model::plots::wire::PlotStreamKind::Snapshot,
+        PlotPayloadStreamKind::Append => dokime::domain::model::plots::wire::PlotStreamKind::Append,
+        PlotPayloadStreamKind::Replace => dokime::domain::model::plots::wire::PlotStreamKind::Replace,
+        PlotPayloadStreamKind::Error => dokime::domain::model::plots::wire::PlotStreamKind::Error,
     }
 }
 
-fn plot_cursor_wire(value: PlotPayloadCursor, epoch: &str, selection: &str) -> dokime_domain::model::plots::wire::PlotCursor {
-    dokime_domain::model::plots::wire::PlotCursor {
+fn plot_cursor_wire(value: PlotPayloadCursor, epoch: &str, selection: &str) -> dokime::domain::model::plots::wire::PlotCursor {
+    dokime::domain::model::plots::wire::PlotCursor {
         telemetry_streams: value
             .telemetry_streams
             .into_iter()
-            .map(|(key, value)| dokime_domain::model::plots::wire::PlotCursorTelemetryStreamsEntry { key, value })
+            .map(|(key, value)| dokime::domain::model::plots::wire::PlotCursorTelemetryStreamsEntry { key, value })
             .collect(),
         record_sequence: value.record_sequence,
         epoch: epoch.to_owned(),
@@ -407,7 +406,7 @@ fn plot_cursor_wire(value: PlotPayloadCursor, epoch: &str, selection: &str) -> d
     }
 }
 
-fn plot_payload(value: dokime_runtime::runtime::query::PlotPayload) -> Result<dokime_domain::model::plots::wire::PlotPayload, Status> {
+fn plot_payload(value: dokime::runtime::query::PlotPayload) -> Result<dokime::domain::model::plots::wire::PlotPayload, Status> {
     let maximum = super::cursor::MAX_PLOT_POINTS as usize;
     if value.series.iter().any(|series| series.points.len() > maximum)
         || value.cartesian.as_ref().is_some_and(|frame| frame.series.iter().any(|series| series.x.len().max(series.y.len()) > maximum))
@@ -422,7 +421,7 @@ fn plot_payload(value: dokime_runtime::runtime::query::PlotPayload) -> Result<do
     }
     let context = values(&value.context)?;
     let cartesian = value.cartesian.map(plot_cartesian).transpose()?;
-    Ok(dokime_domain::model::plots::wire::PlotPayload {
+    Ok(dokime::domain::model::plots::wire::PlotPayload {
         computed: value.computed.map(super::analysis::computation).transpose()?,
         stream: value.stream,
         x_key: value.x_key,
@@ -443,10 +442,10 @@ fn plot_payload(value: dokime_runtime::runtime::query::PlotPayload) -> Result<do
 }
 
 fn plot_series_summary(
-    value: dokime_runtime::runtime::query::PlotSeriesSummary,
-) -> Result<dokime_domain::model::plots::wire::PlotSeriesSummary, Status> {
+    value: dokime::runtime::query::PlotSeriesSummary,
+) -> Result<dokime::domain::model::plots::wire::PlotSeriesSummary, Status> {
     let number = |value: Option<f64>| value.map(|value| finite_number(value, "plot series summary")).transpose();
-    Ok(dokime_domain::model::plots::wire::PlotSeriesSummary {
+    Ok(dokime::domain::model::plots::wire::PlotSeriesSummary {
         series_id: bounded_text(value.series_id)?,
         count: u64::try_from(value.count).map_err(|_| Status::internal("plot summary count does not fit wire"))?,
         min: number(value.min)?,
@@ -458,7 +457,7 @@ fn plot_series_summary(
         window: value
             .window
             .map(|window| {
-                Ok::<_, Status>(dokime_domain::model::plots::wire::PlotWindow {
+                Ok::<_, Status>(dokime::domain::model::plots::wire::PlotWindow {
                     from: finite_number(window.from, "plot summary window")?,
                     to: finite_number(window.to, "plot summary window")?,
                 })
@@ -467,27 +466,27 @@ fn plot_series_summary(
     })
 }
 
-fn plot_analysis(value: dokime_runtime::runtime::query::PlotAnalysis) -> Result<dokime_domain::model::plots::wire::PlotAnalysis, Status> {
-    use dokime_domain::model::plots::wire::PlotAnalysisResult as Analysis;
-    use dokime_runtime::runtime::query::PlotAnalysis;
+fn plot_analysis(value: dokime::runtime::query::PlotAnalysis) -> Result<dokime::domain::model::plots::wire::PlotAnalysis, Status> {
+    use dokime::domain::model::plots::wire::PlotAnalysisResult as Analysis;
+    use dokime::runtime::query::PlotAnalysis;
 
     let count = |value| u64::try_from(value).map_err(|_| Status::internal("analysis count does not fit wire"));
     let number = |value| finite_number(value, "plot analysis number");
     let result = match value {
         PlotAnalysis::Error { message } => {
-            Analysis::Error(dokime_domain::model::plots::wire::PlotAnalysisError { message: bounded_text(message)? })
+            Analysis::Error(dokime::domain::model::plots::wire::PlotAnalysisError { message: bounded_text(message)? })
         }
-        PlotAnalysis::Histogram { series } => Analysis::Histogram(dokime_domain::model::plots::wire::PlotHistogramAnalysis {
+        PlotAnalysis::Histogram { series } => Analysis::Histogram(dokime::domain::model::plots::wire::PlotHistogramAnalysis {
             series: series
                 .into_iter()
                 .map(|series| {
-                    Ok(dokime_domain::model::plots::wire::PlotHistogramSeries {
+                    Ok(dokime::domain::model::plots::wire::PlotHistogramSeries {
                         key: bounded_text(series.key)?,
                         count: count(series.count)?,
                         statistics: series
                             .statistics
                             .map(|statistics| {
-                                Ok::<_, Status>(dokime_domain::model::plots::wire::PlotHistogramStatistics {
+                                Ok::<_, Status>(dokime::domain::model::plots::wire::PlotHistogramStatistics {
                                     mean: number(statistics.mean)?,
                                     median: number(statistics.median)?,
                                     std: number(statistics.std)?,
@@ -501,7 +500,7 @@ fn plot_analysis(value: dokime_runtime::runtime::query::PlotAnalysis) -> Result<
                             .bins
                             .into_iter()
                             .map(|bin| {
-                                Ok(dokime_domain::model::plots::wire::PlotHistogramBin {
+                                Ok(dokime::domain::model::plots::wire::PlotHistogramBin {
                                     lower: number(bin.lower)?,
                                     upper: number(bin.upper)?,
                                     count: count(bin.count)?,
@@ -512,12 +511,12 @@ fn plot_analysis(value: dokime_runtime::runtime::query::PlotAnalysis) -> Result<
                 })
                 .collect::<Result<_, Status>>()?,
         }),
-        PlotAnalysis::BoxSummary { series, total } => Analysis::BoxSummary(dokime_domain::model::plots::wire::PlotBoxSummaryAnalysis {
+        PlotAnalysis::BoxSummary { series, total } => Analysis::BoxSummary(dokime::domain::model::plots::wire::PlotBoxSummaryAnalysis {
             total: count(total)?,
             series: series
                 .into_iter()
                 .map(|series| {
-                    Ok(dokime_domain::model::plots::wire::PlotBoxSummary {
+                    Ok(dokime::domain::model::plots::wire::PlotBoxSummary {
                         key: bounded_text(series.key)?,
                         label: bounded_text(series.label)?,
                         count: count(series.count)?,
@@ -533,18 +532,18 @@ fn plot_analysis(value: dokime_runtime::runtime::query::PlotAnalysis) -> Result<
                 })
                 .collect::<Result<_, Status>>()?,
         }),
-        PlotAnalysis::SigmaInterval { series } => Analysis::SigmaInterval(dokime_domain::model::plots::wire::PlotSigmaIntervalAnalysis {
+        PlotAnalysis::SigmaInterval { series } => Analysis::SigmaInterval(dokime::domain::model::plots::wire::PlotSigmaIntervalAnalysis {
             series: series
                 .into_iter()
                 .map(|series| {
-                    Ok(dokime_domain::model::plots::wire::PlotSigmaSeries {
+                    Ok(dokime::domain::model::plots::wire::PlotSigmaSeries {
                         key: bounded_text(series.key)?,
                         raw_points: count(series.raw_points)?,
                         bins: series
                             .bins
                             .into_iter()
                             .map(|bin| {
-                                Ok(dokime_domain::model::plots::wire::PlotSigmaBin {
+                                Ok(dokime::domain::model::plots::wire::PlotSigmaBin {
                                     x: number(bin.x)?,
                                     count: count(bin.count)?,
                                     mean: number(bin.mean)?,
@@ -562,18 +561,18 @@ fn plot_analysis(value: dokime_runtime::runtime::query::PlotAnalysis) -> Result<
         }
     };
 
-    Ok(dokime_domain::model::plots::wire::PlotAnalysis { result: Some(result) })
+    Ok(dokime::domain::model::plots::wire::PlotAnalysis { result: Some(result) })
 }
 
 fn wifi_occupancy(
-    channels: Vec<i64>, occupied_channels: Vec<i64>, bands: Vec<dokime_runtime::runtime::query::WifiBandWindow>,
-    scans: Vec<dokime_runtime::runtime::query::WifiScan>,
-) -> Result<dokime_domain::model::plots::wire::PlotWifiOccupancyAnalysis, Status> {
-    use dokime_domain::model::plots::wire::PlotWifiBandScan;
-    use dokime_domain::model::plots::wire::PlotWifiBandWindow;
-    use dokime_domain::model::plots::wire::PlotWifiChannelCount;
-    use dokime_domain::model::plots::wire::PlotWifiOccupancyAnalysis;
-    use dokime_domain::model::plots::wire::PlotWifiScan;
+    channels: Vec<i64>, occupied_channels: Vec<i64>, bands: Vec<dokime::runtime::query::WifiBandWindow>,
+    scans: Vec<dokime::runtime::query::WifiScan>,
+) -> Result<dokime::domain::model::plots::wire::PlotWifiOccupancyAnalysis, Status> {
+    use dokime::domain::model::plots::wire::PlotWifiBandScan;
+    use dokime::domain::model::plots::wire::PlotWifiBandWindow;
+    use dokime::domain::model::plots::wire::PlotWifiChannelCount;
+    use dokime::domain::model::plots::wire::PlotWifiOccupancyAnalysis;
+    use dokime::domain::model::plots::wire::PlotWifiScan;
 
     let count = |value| u64::try_from(value).map_err(|_| Status::internal("wifi occupancy count does not fit wire"));
     Ok(PlotWifiOccupancyAnalysis {
@@ -640,19 +639,19 @@ fn json_value(value: JsonValue) -> Result<Value, Status> {
 }
 
 fn plot_cartesian(
-    value: dokime_runtime::runtime::query::PlotCartesianFrame,
-) -> Result<dokime_domain::model::plots::wire::PlotCartesianFrame, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotCartesianFrame {
+    value: dokime::runtime::query::PlotCartesianFrame,
+) -> Result<dokime::domain::model::plots::wire::PlotCartesianFrame, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotCartesianFrame {
         mode: match value.mode {
-            dokime_runtime::runtime::query::PlotCartesianMode::Aligned => dokime_domain::model::plots::wire::PlotCartesianMode::Aligned,
-            dokime_runtime::runtime::query::PlotCartesianMode::Faceted => dokime_domain::model::plots::wire::PlotCartesianMode::Faceted,
+            dokime::runtime::query::PlotCartesianMode::Aligned => dokime::domain::model::plots::wire::PlotCartesianMode::Aligned,
+            dokime::runtime::query::PlotCartesianMode::Faceted => dokime::domain::model::plots::wire::PlotCartesianMode::Faceted,
         },
         series: value
             .series
             .into_iter()
-            .map(|series| dokime_domain::model::plots::wire::PlotCartesianSeriesFrame {
+            .map(|series| dokime::domain::model::plots::wire::PlotCartesianSeriesFrame {
                 x: series.x,
-                y: series.y.into_iter().map(|value| dokime_domain::model::plots::wire::NullableNumber { value }).collect(),
+                y: series.y.into_iter().map(|value| dokime::domain::model::plots::wire::NullableNumber { value }).collect(),
             })
             .collect(),
         x_domain: value.x_domain.map(plot_domain),
@@ -662,14 +661,14 @@ fn plot_cartesian(
     })
 }
 
-fn plot_domain(value: dokime_runtime::runtime::query::PlotDomain) -> dokime_domain::model::plots::wire::PlotDomain {
-    dokime_domain::model::plots::wire::PlotDomain { min: value.min, max: value.max }
+fn plot_domain(value: dokime::runtime::query::PlotDomain) -> dokime::domain::model::plots::wire::PlotDomain {
+    dokime::domain::model::plots::wire::PlotDomain { min: value.min, max: value.max }
 }
 
 fn plot_diagnostics(
-    value: dokime_runtime::runtime::query::PlotPayloadDiagnostics,
-) -> Result<dokime_domain::model::plots::wire::PlotPayloadDiagnostics, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotPayloadDiagnostics {
+    value: dokime::runtime::query::PlotPayloadDiagnostics,
+) -> Result<dokime::domain::model::plots::wire::PlotPayloadDiagnostics, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotPayloadDiagnostics {
         series_count: u64::try_from(value.series_count).map_err(|_| Status::internal("plot series count does not fit wire"))?,
         point_count: u64::try_from(value.point_count).map_err(|_| Status::internal("plot point count does not fit wire"))?,
         raw_point_count: u64::try_from(value.raw_point_count).map_err(|_| Status::internal("plot raw point count does not fit wire"))?,
@@ -680,8 +679,8 @@ fn plot_diagnostics(
     })
 }
 
-fn plot_series(value: dokime_runtime::runtime::query::PlotSeries) -> Result<dokime_domain::model::plots::wire::PlotSeries, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotSeries {
+fn plot_series(value: dokime::runtime::query::PlotSeries) -> Result<dokime::domain::model::plots::wire::PlotSeries, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotSeries {
         key: value.key,
         label: value.label,
         unit: value.unit,
@@ -692,16 +691,16 @@ fn plot_series(value: dokime_runtime::runtime::query::PlotSeries) -> Result<doki
     })
 }
 
-fn plot_point(value: dokime_runtime::runtime::query::PlotPoint) -> Result<dokime_domain::model::plots::wire::PlotPoint, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotPoint {
+fn plot_point(value: dokime::runtime::query::PlotPoint) -> Result<dokime::domain::model::plots::wire::PlotPoint, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotPoint {
         x: Some(canonical::encode(&json_value(value.x)?, &mut Budget::new(), 0)?),
         y: value.y,
         z: value.z,
     })
 }
 
-fn plot_marker(value: dokime_runtime::runtime::query::PlotMarker) -> Result<dokime_domain::model::plots::wire::PlotMarker, Status> {
-    Ok(dokime_domain::model::plots::wire::PlotMarker {
+fn plot_marker(value: dokime::runtime::query::PlotMarker) -> Result<dokime::domain::model::plots::wire::PlotMarker, Status> {
+    Ok(dokime::domain::model::plots::wire::PlotMarker {
         x: Some(canonical::encode(&json_value(value.x)?, &mut Budget::new(), 0)?),
         label: value.label,
         record_type: value.record_type,

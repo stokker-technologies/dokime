@@ -20,10 +20,10 @@ use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::notes::NoteOwner;
-use dokime_domain::model::execution::wire_cursor::Cursor;
-use dokime_runtime::runtime::query::RuntimeStateSnapshot;
+use dokime::domain::model::execution::RecordScope;
+use dokime::domain::model::execution::notes::NoteOwner;
+use dokime::domain::model::execution::wire_cursor::Cursor;
+use dokime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
 
@@ -40,7 +40,7 @@ pub(super) struct Page {
     pub after: String,
     pub cursor: Cursor,
     scope: Option<RecordScope>,
-    case_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
+    case_executions: std::collections::BTreeSet<dokime::domain::model::identity::TestExecutionId>,
 }
 
 /* === Enums === */
@@ -51,11 +51,11 @@ pub(super) struct Page {
 
 impl Page {
     pub fn new(
-        selection: Option<dokime_domain::model::notes::wire::AnnotationSelection>, limit: u32, after_id: String,
+        selection: Option<dokime::domain::model::notes::wire::AnnotationSelection>, limit: u32, after_id: String,
         given_cursor: Option<Cursor>, snapshot: &RuntimeStateSnapshot, kind: &str,
     ) -> Result<Self, Status> {
         let mut selection =
-            selection.unwrap_or(dokime_domain::model::notes::wire::AnnotationSelection { owner: None, include_context: false });
+            selection.unwrap_or(dokime::domain::model::notes::wire::AnnotationSelection { owner: None, include_context: false });
         let owner = selection.owner.take().map(|owner| super::wire::owner(Some(owner))).transpose()?;
         selection.owner = owner.as_ref().map(super::wire::encode_owner);
         if owner.is_none() {
@@ -100,9 +100,9 @@ impl Page {
             let executions = snapshot
                 .state()
                 .executions_for_cycle(cycle)
-                .take(dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT + 1)
+                .take(dokime::domain::model::execution::notes::NOTE_SCAN_LIMIT + 1)
                 .collect::<Vec<_>>();
-            if executions.len() > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {
+            if executions.len() > dokime::domain::model::execution::notes::NOTE_SCAN_LIMIT {
                 return Err(Status::resource_exhausted("annotation owner scan budget exceeded"));
             }
             case_executions

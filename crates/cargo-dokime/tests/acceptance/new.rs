@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 use super::support;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     fs,
@@ -41,6 +43,7 @@ use sha2::{Digest, Sha256};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn generate(root: &Path, args: &[&str]) -> Output {
     Command::new(super::support::tool())
         .current_dir(root)
@@ -58,13 +61,14 @@ fn succeeded(output: Output) -> String {
 }
 
 /* === Tests === */
+
 #[test]
 fn standalone_scaffold_offline() {
     let root = support::standalone_directory();
     succeeded(generate(root.path(), &["my-plugin"]));
     let manifest = fs::read_to_string(root.path().join("my-plugin/Cargo.toml")).unwrap();
     let document = manifest.parse::<toml_edit::DocumentMut>().unwrap();
-    let sdk = &document["dependencies"]["dokime-runtime"];
+    let sdk = &document["dependencies"]["dokime"];
     assert_eq!(sdk["git"].as_str(), Some("https://github.com/stokker-technologies/dokime"));
     assert_eq!(sdk["branch"].as_str(), Some("dev"));
     assert!(sdk.get("rev").is_none());

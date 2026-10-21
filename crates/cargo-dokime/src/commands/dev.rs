@@ -411,7 +411,7 @@ async fn readiness_line(events: &mut (impl tokio::io::AsyncBufRead + Unpin)) -> 
     if value["event"] == "phase" {
         return Ok(ReadinessLine::Phase);
     }
-    if value["event"] != "ready" || value["protocol"] != dokime_domain::READINESS_PROTOCOL || value["transport"] != "grpc" {
+    if value["event"] != "ready" || value["protocol"] != dokime::domain::READINESS_PROTOCOL || value["transport"] != "grpc" {
         return Err(Error::Invalid("Dokime returned an unsupported development readiness message".into()));
     }
     let url = value["endpoint"].as_str().ok_or_else(|| Error::Invalid("Dokime readiness omitted its gRPC endpoint".into()))?;
@@ -744,11 +744,11 @@ async fn inspect(cli: &Path) -> Result<Identity, Error> {
         })?;
     let identity: Identity = serde_json::from_slice(&output.stdout)
         .map_err(|error| Error::Invalid(format!("the Dokime server returned invalid version information: {error}; update Dokime")))?;
-    if identity.dev_protocol != dokime_domain::DEV_PROTOCOL {
+    if identity.dev_protocol != dokime::domain::DEV_PROTOCOL {
         return Err(Error::Invalid(format!(
             "the Dokime server uses development protocol {}; this cargo-dokime requires {}. Update Dokime and the Cargo extension together",
             identity.dev_protocol,
-            dokime_domain::DEV_PROTOCOL
+            dokime::domain::DEV_PROTOCOL
         )));
     }
     compatible(&identity, &Version::parse(env!("CARGO_PKG_VERSION")).expect("Cargo version"))?;
