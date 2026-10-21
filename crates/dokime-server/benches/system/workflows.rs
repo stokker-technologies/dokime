@@ -160,12 +160,8 @@ impl Session {
             let append = contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions };
             self.client.execution_append_executions(append).await.unwrap();
         }
-        let policy = contracts::execution::UpdateCyclePolicy {
-            cycle_id: cycle_id.clone(),
-            continue_automatically: true,
-            continue_on_failure: false,
-            context: None,
-        };
+        let policy =
+            contracts::execution::UpdateCyclePolicy { cycle_id: cycle_id.clone(), continue_automatically: true, ..Default::default() };
         self.client.execution_update_cycle_policy(policy).await.unwrap();
         let members = self.executions(&cycle_id).await.into_iter().map(|member| member.execution_id).collect::<Vec<_>>();
         let start = contracts::execution::StartExecution {
