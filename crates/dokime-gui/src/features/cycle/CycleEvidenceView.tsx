@@ -27,7 +27,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { Button } from "@/components/ui/button";
-import type { DocumentViewCard, PromptRequest } from "@/lib/types";
+import type { DocumentViewCard } from "@/lib/types";
 import { PageShell } from "@/shell/PageShell";
 import {
   DocumentViewPresentation,
@@ -38,7 +38,7 @@ import {
 import { BUSY_NOTICE, type evidencePaneState } from "./document-query-model";
 import type { DocumentSurface } from "./document-view-model";
 import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
-import { PromptQueue } from "./PromptQueue";
+import { PromptHistory } from "./PromptHistory";
 import { RecordsSection } from "./RecordsSection";
 
 /* === Types === */
@@ -53,7 +53,7 @@ export type CycleEvidenceViewProps = {
   /** The header and Control card the viewer composes above the document. */
   lead?: ReactNode;
   /** The prompts the cycle itself asked, which no execution owns; none in a file. */
-  prompts?: PromptRequest[];
+  promptQueue?: ReactNode;
   /** The page bar's breadcrumb. */
   trail: string[];
   /** The page bar's action cluster; none in a file. */
@@ -70,7 +70,7 @@ export function CycleEvidenceView({
   onRetry,
   documentView: DocumentContent = DocumentViewPresentation,
   lead,
-  prompts = [],
+  promptQueue,
   trail,
   pageActions,
 }: CycleEvidenceViewProps) {
@@ -79,7 +79,7 @@ export function CycleEvidenceView({
     <div className="grid min-h-0">
       <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={trail}>
         {lead}
-        <PromptQueue prompts={prompts} records={cycleRecords} />
+        {promptQueue ?? <PromptHistory records={cycleRecords} />}
         {pane.kind === "failed" ? (
           <PaneNotice
             action={onRetry ? { label: "Try Again", onClick: onRetry } : undefined}

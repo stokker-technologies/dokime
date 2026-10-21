@@ -38,10 +38,10 @@ import { PromptPanel } from "@/components/PromptPanel";
 import { Badge } from "@/components/ui/badge";
 import { type PromptValue, type PromptValues, promptResponseValues } from "@/lib/prompts";
 import { recordLevelLabel, recordLevelVariant } from "@/lib/record-display";
-import { absoluteTimestampLabel } from "@/lib/time-format";
 import type { HubRecord, PromptField, PromptRequest, StepExecutionRecord } from "@/lib/types";
 import { STATUS_PILL_CLASS } from "./cycle-workspace-model";
 import { ExecutionSectionCard } from "./ExecutionSectionCard";
+import { PromptAnswers } from "./PromptHistory";
 import { answeredPrompts, pendingPromptCountLabel, queuePrompts } from "./prompt-banner-model";
 import { usePromptResponseMutation } from "./server-state";
 import { usePromptValues } from "./use-prompt-values";
@@ -82,22 +82,7 @@ export function PromptQueue({ prompts, records, steps = [] }: PromptQueueProps) 
           ))}
         </ol>
       ) : null}
-      {answered.length ? (
-        <ol
-          aria-label="Answered Prompts"
-          className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-x-4 border-t pt-2 text-xs"
-        >
-          {answered.map((row) => (
-            <li className="col-span-3 grid grid-cols-subgrid items-baseline py-1" data-answered-prompt={row.promptId} key={row.promptId}>
-              <span className="min-w-0 font-medium [overflow-wrap:anywhere]">{row.question}</span>
-              <span className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]">{row.answer}</span>
-              <time className="text-muted-foreground tabular-nums" dateTime={row.at}>
-                {absoluteTimestampLabel(row.at)}
-              </time>
-            </li>
-          ))}
-        </ol>
-      ) : null}
+      <PromptAnswers answered={answered} />
     </ExecutionSectionCard>
   );
 }

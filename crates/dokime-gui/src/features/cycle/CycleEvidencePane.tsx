@@ -31,6 +31,7 @@ import { CycleEvidenceView } from "./CycleEvidenceView";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { evidencePaneState } from "./document-query-model";
 import { usePlotWindow } from "./PlotWindowSlider";
+import { PromptQueue } from "./PromptQueue";
 import { useCycleDocumentQuery } from "./server-state";
 
 /* === Types === */
@@ -86,7 +87,11 @@ export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, pla
       documentView={DocumentView}
       lead={lead}
       pageActions={pageActions}
-      prompts={prompts}
+      promptQueue={
+        live ? (
+          <PromptQueue prompts={prompts ?? []} records={surface.view.records.filter((record) => !record.scope?.test_execution_id)} />
+        ) : undefined
+      }
       trail={trail}
     />
   );

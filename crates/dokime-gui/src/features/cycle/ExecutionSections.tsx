@@ -40,6 +40,7 @@ import { executionPagePrompts } from "./execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
 import type { ExecutionMenu } from "./NodeMenu";
 import { usePlotWindow } from "./PlotWindowSlider";
+import { PromptQueue } from "./PromptQueue";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
 
 /* === Types === */
@@ -168,7 +169,7 @@ export function ExecutionSections({
       onRetry={() => void documentQuery.refetch()}
       documentView={DocumentView}
       control={actions ? <ExecutionControl actions={actions} ordinal={row.ordinal} /> : null}
-      prompts={live ? pagePrompts : []}
+      promptQueue={live ? <PromptQueue prompts={pagePrompts} records={surface.view.records} steps={surface.view.stepRecords} /> : undefined}
       notesContent={live ? <OperatorNotesContent notes={surface.view.notes} scope={liveScope} /> : undefined}
       mediaContent={
         live ? (

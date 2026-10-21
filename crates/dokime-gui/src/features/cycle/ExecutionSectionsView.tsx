@@ -45,7 +45,7 @@ import { MediaGalleryView } from "@/components/MediaGalleryView";
 import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJsonDialog";
 import { Button } from "@/components/ui/button";
 import { parseTimestampMs } from "@/lib/time-format";
-import type { DocumentViewCard, PromptRequest, TestCyclePlan, TestExecution } from "@/lib/types";
+import type { DocumentViewCard, TestCyclePlan, TestExecution } from "@/lib/types";
 import { PageShell } from "@/shell/PageShell";
 import { type CycleExecutionRow, cycleRowStatus, isActiveExecutionStatus } from "./cycle-workspace-model";
 import {
@@ -63,7 +63,7 @@ import { ExecutionStepsCriteria } from "./ExecutionStepsCriteria";
 import { executionDocumentSections, executionParameterRows, executionSectionOf } from "./execution-sections-model";
 import { NodeHeader } from "./NodeHeader";
 import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
-import { PromptQueue } from "./PromptQueue";
+import { PromptHistory } from "./PromptHistory";
 import { RecordsSection } from "./RecordsSection";
 import { durationText, useElapsedSeconds } from "./use-elapsed";
 
@@ -89,7 +89,7 @@ export type ExecutionSectionsViewProps = {
   onRetry?: () => void;
   control?: ReactNode;
   /** The execution's answerable prompts, queued directly under Control; none in a file. */
-  prompts?: PromptRequest[];
+  promptQueue?: ReactNode;
   notesContent?: ReactNode;
   mediaContent?: ReactNode;
   artifactsContent?: ReactNode;
@@ -118,7 +118,7 @@ export function ExecutionSectionsView({
   plotWindow,
   onRetry,
   control,
-  prompts = [],
+  promptQueue,
   notesContent,
   mediaContent,
   artifactsContent,
@@ -155,7 +155,7 @@ export function ExecutionSectionsView({
         />
 
         {control}
-        <PromptQueue prompts={prompts} records={view.records} steps={view.stepRecords} />
+        {promptQueue ?? <PromptHistory records={view.records} />}
 
         <ExecutionSectionCard
           description={started ? null : UNSTARTED_NOTICE}
