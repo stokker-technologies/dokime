@@ -56,7 +56,11 @@ import { cycleSettingsReadOnly, SettingsFields } from "@/features/cycle/Settings
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import { archivedCycleGroups, type CycleRow, groupCycleRows } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
+import { sameFrontiers } from "@/lib/api/native-documents";
+import { appendRecordTail, RECORD_TAIL } from "@/lib/api/native-evidence";
 import { defaultCycleLabel } from "@/lib/time-format";
+import type { HubRecord } from "@/lib/types";
+import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
 import { reportFixturePayload } from "@/report/report-fixture";
 import { focusPresentation } from "@/shell/focus-mode";
 
@@ -142,6 +146,40 @@ test("Status Pill", () => {
   assert.doesNotMatch(markup, /pill-width|truncate|text-ellipsis/, "no fixed width or ellipsis can clip a label");
   assert.match(markup, /inline-grid/);
   assert.match(markup, /w-full \[grid-area:1\/1\]/, "the visible pill fills the widest label's track");
+});
+
+test("Live Data Flow", () => {
+  // A Record Tail Appends From Its Stream, Keeps The Latest And Never Duplicates
+  const record = (id: number) => ({ record_id: `r${id}` }) as HubRecord;
+  const cursor = (position: number) => ({ epoch: "e", position: BigInt(position), stream: "s" });
+  const tail = { cursor: cursor(2), records: [record(1), record(2)] };
+  const appended = appendRecordTail(tail, [record(2), record(3)], cursor(3));
+  assert.deepEqual(
+    appended.records.map((item) => item.record_id),
+    ["r1", "r2", "r3"],
+  );
+  assert.equal(appended.cursor?.position, 3n);
+  assert.equal(appendRecordTail(tail, [record(1)], null).records, tail.records, "a page of held records leaves the tail as it was");
+  const full = { cursor: cursor(1), records: Array.from({ length: RECORD_TAIL }, (_, index) => record(index)) };
+  const capped = appendRecordTail(full, [record(RECORD_TAIL)], cursor(2));
+  assert.equal(capped.records.length, RECORD_TAIL);
+  assert.equal(capped.records.at(-1)?.record_id, `r${RECORD_TAIL}`);
+
+  // A Capture With The Held Frontiers Is The Held Document
+  const frontiers = { artifactsSha256: "a", processEpoch: "p", stateRevision: 7n } as never;
+  assert.ok(sameFrontiers(frontiers, { ...(frontiers as object) } as never));
+  assert.ok(!sameFrontiers(frontiers, { ...(frontiers as object), stateRevision: 8n } as never));
+  assert.ok(!sameFrontiers(undefined, frontiers));
+
+  // Short Lists Render Whole; Long Ones Render The Viewport And Its Overscan
+  assert.deepEqual(rowWindow(50, 28, 0, 600), { after: 0, before: 0, first: 0, last: 50 });
+  assert.equal(rowWindow(ROW_WINDOW_THRESHOLD, null, 0, 600).last, 64, "a long list renders a first slice before its pitch is known");
+  const scrolled = rowWindow(1_000, 28, 28 * 500, 280);
+  assert.equal(scrolled.first, 484);
+  assert.equal(scrolled.last, 526);
+  assert.equal(scrolled.before, 484 * 28);
+  assert.equal(scrolled.after, (1_000 - 526) * 28);
+  assert.equal(rowWindow(1_000, 28, 28 * 2_000, 280).last, 1_000, "the window never runs past the end");
 });
 
 test("Settings Dialogs", () => {
