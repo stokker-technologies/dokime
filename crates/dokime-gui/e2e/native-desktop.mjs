@@ -28,6 +28,7 @@
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
 //   f'. plugin-install  native bundle picker, digest consent, restart activation and catalog
+//   f'. organization  native pack import, restart activation and invalid-pending retention
 //   f'. remote-access  TLS/key setup, saved credentials, restart, rotation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
@@ -464,6 +465,8 @@ async function startSession(work, endpoint, evidence) {
       ...(windows
         ? {
             WEBVIEW2_USER_DATA_FOLDER: join(home, "webview"),
+            APPDATA: join(home, "data"),
+            LOCALAPPDATA: join(home, "data"),
           }
         : {
             GDK_BACKEND: "x11",
@@ -678,7 +681,7 @@ async function startSession(work, endpoint, evidence) {
     await session.execute(`
       const style = document.createElement('style');
       style.id = 'dokime-secret-capture';
-      style.textContent = 'input[aria-label="Generated Access Key"] { visibility: hidden !important; }';
+      style.textContent = '[aria-label="Generated Access Key"] { visibility: hidden !important; }';
       document.head.append(style);
     `);
     try {
@@ -757,7 +760,21 @@ async function startSession(work, endpoint, evidence) {
   session.close = async () => {
     if (session.closed) return;
     try {
-      await session.request("DELETE", "/window");
+      await session.execute(`
+        globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
+      `);
+      await until(
+        "native window completes orderly close",
+        async () => {
+          try {
+            return (await session.request("GET", "/window/handles")).length === 0;
+          } catch (error) {
+            if (/invalid session id|disconnected|connection refused/i.test(error.message)) return true;
+            throw error;
+          }
+        },
+        40000,
+      );
     } finally {
       session.closed = true;
     }
@@ -1384,6 +1401,28 @@ async function startupJourney(session, notes) {
   }
   assert.ok(await session.exists("button", "New Cycle"), "Cycles home must offer New Cycle");
   assert.ok(await session.find("css selector", "nav[aria-label=Navigation]"), "The shell must render the sidebar");
+  if (!windows) await verifyLinuxRenderer();
+}
+
+async function verifyLinuxRenderer() {
+  const renderer = await until("owned WebKit renderer environment", async () => {
+    const pending = [driverProcess.pid];
+    for (let index = 0; index < pending.length && index < 64; index += 1) {
+      const pid = pending[index];
+      const executable = await realpath(`/proc/${pid}/exe`).catch(() => "");
+      if (basename(executable) === "WebKitWebProcess") {
+        const environment = (await readFile(`/proc/${pid}/environ`, "utf8")).split("\0");
+        const value = environment.find((entry) => entry.startsWith("WEBKIT_DISABLE_DMABUF_RENDERER="))?.split("=")[1];
+        return { value: value ?? null };
+      }
+      const children = await readFile(`/proc/${pid}/task/${pid}/children`, "utf8").catch(() => "");
+      pending.push(...children.trim().split(/\s+/).filter(Boolean).map(Number));
+    }
+    return null;
+  });
+  const expected = process.env.WEBKIT_DISABLE_DMABUF_RENDERER ?? "1";
+  assert.equal(renderer.value, expected, "The real renderer receives the default workaround or the explicit operator override");
+  await writeFile(join(evidence, "linux-renderer.json"), JSON.stringify({ expected, ...renderer }, null, 2));
 }
 
 /**
@@ -1967,15 +2006,17 @@ async function cycleJourney(session, cycleId) {
       ),
     30000,
   );
-  await session.execute(`
-    window.__plotSettingsEvents = [];
-    for (const name of ['pointerdown', 'pointerup', 'click']) {
-      document.addEventListener(name, event => {
-        window.__plotSettingsEvents.push({name, target: event.target.outerHTML?.slice(0, 500)});
-      }, {capture: true});
-    }
-  `);
-  await session.clickCss(settingsSelector);
+  // Use Keyboard Activation While The Running Prompt Can Move The Plot.
+  const reopenedSettings = await session.find("css selector", settingsSelector);
+  const focusedSettings = await session.execute(
+    `
+    arguments[0].focus();
+    return document.activeElement === arguments[0] && !arguments[0].disabled;
+  `,
+    [reopenedSettings],
+  );
+  assert.ok(focusedSettings, "The same plot settings control accepts keyboard focus after remounting");
+  await session.key("Enter");
   const persistedPoints = await until(
     "persisted display point budget",
     () =>
@@ -1984,10 +2025,7 @@ async function cycleJourney(session, cycleId) {
         return input ? {value: input.value} : null;
       `),
     30000,
-  ).catch(async (error) => {
-    const events = await session.execute("return window.__plotSettingsEvents");
-    throw new Error(`${error.message}; pointer events: ${JSON.stringify(events)}`);
-  });
+  );
   assert.equal(persistedPoints.value, "2500", "The backend must retain the plot budget after remounting");
   const cancelPlotSettings = await session.find("xpath", "//*[@role='dialog' and @data-state='open']//button[normalize-space(.)='Cancel']");
   await session.click(cancelPlotSettings);
@@ -2583,10 +2621,35 @@ async function remoteAccessJourney() {
   };
   const saveKey = async () => {
     await until("one-time key dialog", async () => hasText(await session.text(), "Save Your Access Key"));
-    const value = await session.execute("return document.querySelector('input[aria-label=\"Generated Access Key\"]').value;");
+    const value = await session.execute("return document.querySelector('[aria-label=\"Generated Access Key\"]').value;");
     assert.ok(typeof value === "string" && value.length > 0, "the one-time key is available");
     secrets.add(value);
     secrets.add(Buffer.from(`${value}\n`).toString("base64"));
+    await sizeViewport(session, { width: 1080, height: 760 });
+    const keyLayout = await session.execute(`
+      const input = document.querySelector('[aria-label="Generated Access Key"]');
+      const dialog = input.closest('[role=dialog]');
+      const bounds = dialog.getBoundingClientRect();
+      const controls = [...dialog.querySelectorAll('textarea, button')].map(node => {
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.left >= bounds.left && rect.right <= bounds.right
+          && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
+      });
+      return {controls, fits: bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight,
+        keyFits: input.scrollWidth <= input.clientWidth && input.scrollHeight <= input.clientHeight,
+        overflow: dialog.scrollWidth > dialog.clientWidth};
+    `);
+    await writeFile(join(evidence, "access-key-layout.json"), JSON.stringify(keyLayout, null, 2));
+    assert.ok(
+      keyLayout.fits && keyLayout.keyFits && !keyLayout.overflow,
+      "The access key and its dialog must fit the small native viewport",
+    );
+    assert.ok(keyLayout.controls.length >= 5 && keyLayout.controls.every(Boolean), "Every key action must remain inside the dialog");
+    assert.equal(
+      await session.execute("return document.hasFocus();"),
+      true,
+      "The native key dialog must own keyboard focus before copying",
+    );
     await session.clickNamed("button", "Copy Key");
     await until("native clipboard write", () => session.exists("button", "Copied"));
     await session.clickNamed("button", "Save Key File…");
@@ -2600,12 +2663,26 @@ async function remoteAccessJourney() {
     assert.ok((await readFile(key, "utf8")).trim() === value, "the saved key matches the one-time value");
     assert.match(await readFile(certificate, "utf8"), /-----BEGIN CERTIFICATE-----/);
     await session.clickNamed("button", "I Have Saved The Key");
+    await sizeViewport(session, densities.desktop);
     return { key, certificate };
   };
 
   // Enable TLS And Authentication Through The Native GUI.
   await session.goto("/settings/remote");
   await until("remote settings", async () => hasText(await session.text(), "Enable Remote Access"));
+  const settingsLayout = await session.execute(`
+    const card = title => [...document.querySelectorAll('main section')].find(section => section.querySelector('h2')?.textContent === title);
+    const listener = card('Listener').getBoundingClientRect();
+    const credentials = card('Credentials').getBoundingClientRect();
+    const sessions = card('Recent Remote Sessions').getBoundingClientRect();
+    return {columns: Math.abs(listener.top - credentials.top) < 2 && listener.right <= credentials.left,
+      equal: Math.abs(listener.width - credentials.width) < 2,
+      full: Math.abs(sessions.left - listener.left) < 2 && Math.abs(sessions.right - credentials.right) < 2};
+  `);
+  assert.ok(
+    settingsLayout.columns && settingsLayout.equal && settingsLayout.full,
+    "Remote settings must use two equal columns and a full-width sessions table",
+  );
   await commitField("Listen Address", "127.0.0.1:0");
   await notice("Certificate Generated", () => commitField("Certificate DNS Names And IP Addresses", "127.0.0.1, localhost"));
   await toggle("TLS Encryption", true);
@@ -2639,7 +2716,7 @@ async function remoteAccessJourney() {
   await session.goto("/settings/remote");
   address = await endpoint();
   assert.ok(await session.exists("button", "Rotate Access Key…"), "only the key verifier is restored");
-  assert.equal(await session.execute("return document.querySelector('input[aria-label=\"Generated Access Key\"]') === null;"), true);
+  assert.equal(await session.execute("return document.querySelector('[aria-label=\"Generated Access Key\"]') === null;"), true);
   const browserStorage = await session.execute("return JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]);");
   assert.ok(![...secrets].some((secret) => browserStorage.includes(secret)), "browser storage contains no access key");
   await connect(address, original.key, original.certificate, true);
@@ -2681,6 +2758,13 @@ async function remoteAccessJourney() {
     [STARTUP_TEMPLATE],
   );
   await until("the surviving prompt on its execution", async () => hasText(await session.text(), STARTUP_PROMPT), 30000);
+  const decision = await session.execute(`
+    const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
+    return {actions: [...panel.querySelectorAll('button')].map(button => button.innerText.trim()),
+      checkboxes: panel.querySelectorAll('[role=checkbox], input[type=checkbox]').length};
+  `);
+  assert.ok(decision.actions.includes("No") && decision.actions.includes("Yes"), "The inspection decision must offer No and Yes");
+  assert.equal(decision.checkboxes, 0, "The decision belongs in the footer without a duplicate checkbox");
   await session.clickNamed("button", "Stop Execution");
   await until("rotation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
 
@@ -2697,7 +2781,30 @@ async function remoteAccessJourney() {
 
   // Leave The Host In Its Verified TLS And Authentication Configuration.
   await toggle("TLS Encryption", true);
-  await connect(await endpoint(), replacement.key, certificate, true);
+  const restoredAddress = await endpoint();
+  await connect(restoredAddress, replacement.key, certificate, true);
+  for (let index = 0; index < 21; index += 1) await connect(restoredAddress, replacement.key, certificate, true);
+  await session.goto("/settings/remote");
+  const sessionRows = () =>
+    session.execute(`
+    const table = document.querySelector('table[aria-label="Recent Remote Sessions"]');
+    if (!table) return [];
+    table.scrollIntoView({block: 'center'});
+    return [...table.querySelectorAll('tbody tr[data-window-row]')].map(row => row.cells[0].innerText);
+  `);
+  const firstPage = await until("twenty remote sessions", async () => {
+    const rows = await sessionRows();
+    return rows.length === 20 ? rows : null;
+  });
+  await session.clickNamed("button", "Older");
+  await until("second remote sessions page", async () => hasText(await session.text(), "Page 2"));
+  const secondPage = await until("older remote sessions", async () => {
+    const rows = await sessionRows();
+    return rows.length > 0 && rows.every((row) => !firstPage.includes(row)) ? rows : null;
+  });
+  assert.ok(secondPage.length <= 20, "Every remote session page is bounded to twenty rows");
+  await session.clickNamed("button", "Newer");
+  await until("newest remote sessions restored", async () => JSON.stringify(await sessionRows()) === JSON.stringify(firstPage));
   await session.screenshot("remote-access");
 }
 
@@ -3334,13 +3441,47 @@ async function ownedStartupJourney() {
   assert.equal(closing.ownership, "owned_local", "the cycle's current backend remains owned by this shell");
   assert.ok(closing.connection?.endpoint, "the current owned companion has an endpoint before window close");
   assert.ok(await listening(closing.connection.endpoint), "the current owned listener is live immediately before window close");
+  const idleStarted = performance.now();
   await closeSession();
   await until("owned backend drains on window close", async () => !(await listening(closing.connection.endpoint)), 30000);
+  const idleMs = performance.now() - idleStarted;
   session = await startSession(work, undefined, evidence);
   await session.connected();
   await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", "owned_local");
+  await installSaveTap(session);
+  await stagePluginThroughPicker(session);
   await closeSession();
-  await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing }, null, 2));
+  session = await startSession(work, undefined, evidence);
+  await session.connected();
+  const runningCycle = await libraryJourney(session);
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "The owned backend starts its installed plugin");
+  await until("owned execution awaits its operator", async () => hasText(await session.text(), STARTUP_PROMPT), 60000);
+  const running = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.equal(running.ownership, "owned_local");
+  const runningStarted = performance.now();
+  await closeSession();
+  await until("running owned backend drains on close", async () => !(await listening(running.connection.endpoint)), 30000);
+  const runningMs = performance.now() - runningStarted;
+  session = await startSession(work, undefined, evidence);
+  await session.connected();
+  await session.goto(`/history/${runningCycle.id}`);
+  await until("cancelled owned execution survives restart", async () =>
+    session.execute(
+      `
+    const row = [...document.querySelectorAll('section')].find((node) =>
+      node.querySelector('h2')?.textContent.startsWith(arguments[0]));
+    return row?.innerText.includes('cancelled') && !row.innerText.toLowerCase().includes('interrupted');
+  `,
+      [STARTUP_TEMPLATE],
+    ),
+  );
+  assert.ok(await session.exists("button", "Open Report"), "Orderly close preserves the sealed cycle report");
+  await session.screenshot("owned-running-recovered");
+  await closeSession();
+  await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing, idleMs, runningMs }, null, 2));
 }
 
 async function emptyCycleHistory(session, cycleId, title, ownership) {
@@ -3494,7 +3635,7 @@ async function stagePluginThroughPicker(session) {
   await session.execute("globalThis.__dokimeInvokes.length = 0;");
   await session.clickNamed("button", "Choose File");
   const picker = { window: null };
-  await until("native plugin file picker", () => choosePluginFile(picker), 30000);
+  await until("native plugin file picker", () => chooseNativeFile(picker, pluginBundle), 30000);
   await until("inspected plugin consent", async () => hasText(await session.text(), "Review Plugin"), 300000);
   const digest = await sha256(pluginBundle);
   assert.ok(hasText(await session.text(), digest), "Consent must display the digest of the selected native file");
@@ -3511,7 +3652,7 @@ async function stagePluginThroughPicker(session) {
   await session.screenshot("plugin-install");
 }
 
-async function choosePluginFile(picker) {
+async function chooseNativeFile(picker, file) {
   if (!windows) {
     const children = await readFile(`/proc/${driverProcess.pid}/task/${driverProcess.pid}/children`, "utf8");
     const executable = await realpath(shellBinary);
@@ -3531,7 +3672,7 @@ async function choosePluginFile(picker) {
         return false;
       }
       await run(["windowfocus", "--sync", ids[0], "key", "--clearmodifiers", "ctrl+l"]);
-      await run(["type", "--clearmodifiers", "--delay", "0", "--", resolve(pluginBundle)]);
+      await run(["type", "--clearmodifiers", "--delay", "0", "--", resolve(file)]);
       picker.window = ids[0];
       return false;
     }
@@ -3557,10 +3698,89 @@ async function choosePluginFile(picker) {
         }
       }`;
   const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-    env: { ...process.env, DOKIME_PICKER_SHELL: resolve(shellBinary), DOKIME_PICKER_FILE: resolve(pluginBundle) },
+    env: { ...process.env, DOKIME_PICKER_SHELL: resolve(shellBinary), DOKIME_PICKER_FILE: resolve(file) },
     timeout: 10000,
   });
   return result.stdout.trim() === "selected";
+}
+
+async function organizationJourney() {
+  const compiled = JSON.parse(await readFile(join(workspace, "crates/dokime-gui/src-tauri/tauri.conf.json"), "utf8"));
+  const root = join(work, "shell", "data", compiled.identifier, "organization");
+  const archive = join(work, "organization.zip");
+  const manifest = `[app]
+label = "Validation Lab"
+title_template = "{app}"
+slug = "ignored-lab"
+identifier = "invalid.replacement.identity"
+deep_link_scheme = "ignored-lab"
+[app.logos.transparent]
+on_light = "mark.svg"
+`;
+  await promisify(execFile)(
+    "python",
+    [
+      "-c",
+      `import sys, zipfile
+with zipfile.ZipFile(sys.argv[1], "w") as archive:
+    archive.writestr("organization.toml", sys.argv[2])
+    archive.writestr("logos/mark.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="currentColor"/></svg>')
+`,
+      archive,
+      manifest,
+    ],
+    { timeout: 10000 },
+  );
+  const choose = async () => {
+    await session.goto("/settings/appearance");
+    await session.clickNamed("button", "Choose File…");
+    const picker = { window: null };
+    await until("native organization file picker", () => chooseNativeFile(picker, archive), 30000);
+    await until("pending organization pack", async () => hasText(await session.text(), "Applies on next start."));
+  };
+  const restart = async () => {
+    await closeSession();
+    session = await startSession(work, backend.endpoint, evidence);
+    await sizeViewport(session, densities.desktop);
+    await session.connected();
+    await session.goto("/settings/appearance");
+  };
+  await choose();
+  assert.equal(
+    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"),
+    null,
+    "Staging does not change this boot's appearance",
+  );
+  await restart();
+  await until("native organization activation", async () => hasText(await session.text(), "Active since this start."));
+  assert.ok(hasText(await session.text(), "Validation Lab"), "The mounted shell applies the imported label");
+  assert.equal(
+    await readFile(join(root, "active", "organization.toml"), "utf8"),
+    manifest,
+    "Compiled storage identity owns the active pack",
+  );
+  assert.equal(existsSync(join(root, "pending")), false, "Activation promotes the pending directory");
+  await session.screenshot("organization-active");
+
+  await choose();
+  await writeFile(join(root, "pending", "organization.toml"), "invalid [");
+  await restart();
+  assert.ok(hasText(await session.text(), "Validation Lab"), "An invalid pending pack retains the active appearance");
+  assert.equal(await readFile(join(root, "active", "organization.toml"), "utf8"), manifest);
+  assert.equal(
+    await readFile(join(root, "pending", "organization.toml"), "utf8"),
+    "invalid [",
+    "Rejected input remains available for diagnosis",
+  );
+  await session.goto("/settings/diagnostics");
+  await until("visible organization activation error", async () => /pending organization pack/i.test(await session.text()));
+  await session.screenshot("organization-invalid-pending");
+  await session.goto("/settings/appearance");
+  await session.clickNamed("button", "Remove");
+  await until("organization removal queued", async () => hasText(await session.text(), "Compiled brand applies on next start."));
+  await restart();
+  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"), null);
+  assert.ok(hasText(await session.text(), "Compiled Brand"), "Removal restores the compiled appearance on restart");
 }
 
 async function writeJunit() {
@@ -3662,6 +3882,7 @@ async function main() {
 
   await journey("settings", () => settingsJourney(session, notes));
   await journey("plugin-install", pluginInstallJourney);
+  await journey("organization", organizationJourney);
   await journey("remote-access", remoteAccessJourney);
 
   /* The ownership contract the redesign did not change: a shell attached to a

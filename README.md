@@ -1068,6 +1068,8 @@ and needs an X11 display (a private Xvfb display is suitable). Its native plugin
 picker uses `xdotool`; Windows uses PowerShell UI Automation.
 The installation journey selects a real bundle,
 checks its digest in the consent dialog and verifies the saved restart requirement.
+The organization journey imports a pack through the native picker, verifies next-start
+activation, and checks that an invalid pending pack preserves the active appearance.
 `mise run ci --event pr` simulates the rendered provider
 graph from committed source with cold dependency homes;
 `mise run ci:nightly` adds `test:coverage` and benches.

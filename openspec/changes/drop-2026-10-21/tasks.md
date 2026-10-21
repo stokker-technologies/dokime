@@ -49,14 +49,14 @@
 - [x] 32. Complete narrow operator-note persistence and measure latency. Proof: `domains::documents::capture::notes_until_seal`, `domains::evidence::notes::empty_cycle_datasets`; `workflow_adds_note/{idle_rows,during_cycle_report_rows}/100000` (10 samples each).
 - [x] 33. Fix access-key dialog overflow. Proof: `settings/access-key-dialog.test.ts`; `native-desktop.mjs / remote-access` (full key and all six controls fit a 1080×760 viewport).
 - [x] 34. Apply remote settings live, reflect actual status and generate missing TLS certificates. Proof: `native-desktop.mjs / remote-access` (live apply, bind rollback, TLS generation/rotation, key rotation during execution, independent auth/TLS and restart); `admitted_catalog_is_durable_before_exposure`.
-- [ ] 35. Use a shared two-column settings layout and repair affected dialogs.
-- [ ] 36. Page remote session history in groups of twenty.
-- [ ] 37. Answer single-boolean prompts through No/Yes footer actions.
-- [ ] 38. Share the page shell across Library, Cycles, History and Explore.
-- [ ] 39. Verify fast drag-and-drop bundle install.
-- [ ] 40. Persist runtime organization packs for next boot and retain compiled identity boundaries; prove pending-pack revalidation and rollback in `app::organization::tests`, then native activation.
-- [ ] 41. Verify the Linux WebView response-stall fix and operator override behavior.
-- [ ] 42. Complete orderly close, bounded force quit and measured idle/running exit.
+- [x] 35. Use a shared two-column settings layout and repair affected dialogs. Proof: `settings/access-key-dialog.test.ts`; `native-desktop.mjs / settings, remote-access` (equal columns, full-span sections and small-viewport dialog bounds).
+- [x] 36. Page remote session history in groups of twenty. Proof: `native-desktop.mjs / remote-access` (21 fresh connections, twenty-row page, disjoint older page and newer-page restoration).
+- [x] 37. Answer single-boolean prompts through No/Yes footer actions. Proof: `execution/nominal.test.ts / Prompt Decisions, Prompt Answering`; `native-desktop.mjs / remote-access, restart`.
+- [x] 38. Share the page shell across Library, Cycles, History and Explore. Proof: `shell/page-shell.test.ts`; `native-desktop.mjs / library, cycles-home, history`.
+- [x] 39. Verify fast drag-and-drop bundle install. Proof: `app::plugins::tests::a_drop_stages_once_and_only_a_single_bundle`; `integration/settings/plugins.test.ts`; `native-desktop.mjs / plugin-install` (shared native path staging of 36 MB in 254 ms, one sub-1-KB IPC request, consent and restart activation).
+- [x] 40. Persist runtime organization packs for next boot and retain compiled identity boundaries; prove pending-pack revalidation and rollback in `app::organization::tests`, then native activation. Proof: `app::organization::tests` (9 tests); `native-desktop.mjs / organization` (import, next-boot activation, invalid pending retention, diagnostics and removal).
+- [x] 41. Verify the Linux WebView response-stall fix and operator override behavior. Proof: `native-desktop.mjs / startup, settings` (owned renderer environment defaults to 1 and preserves explicit 0; responsive native workflows in both configurations).
+- [x] 42. Complete orderly close, bounded force quit and measured idle/running exit. Proof: `native_session::backend::tests::force_quit_reaps_unresponsive_backend`, `app::closing::tests`; `native-desktop.mjs / owned-startup, attachment, restart` (idle/running close measurements, cancelled execution and report recovery, remote host retained).
 - [ ] 43. Complete and run six system benchmark scenarios with native evidence.
 - [ ] 44. Verify optimized dev workspace profiles, package profile reporting and build costs.
 - [ ] 45. Complete bounded record tails/incremental updates, stream invalidation, document suppression, aggregate detail and virtualization; measure idle invokes.

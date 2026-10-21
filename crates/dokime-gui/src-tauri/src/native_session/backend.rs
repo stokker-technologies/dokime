@@ -337,3 +337,61 @@ fn no_console(command: &mut Command) {
 fn no_console(_command: &mut Command) {}
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "Child process fixture for force_quit_reaps_unresponsive_backend"]
+    fn unresponsive_backend() {
+        use std::io::{Read, Write};
+
+        let address = std::env::var("DOKIME_SHUTDOWN_TEST_ADDRESS").expect("parent listener");
+        std::io::stdin().read_to_end(&mut Vec::new()).expect("owner closes control pipe");
+        let mut connection = std::net::TcpStream::connect(address).expect("parent accepts shutdown acknowledgement");
+        connection.write_all(&[1]).expect("acknowledge control EOF");
+        loop {
+            std::thread::park();
+        }
+    }
+
+    #[tokio::test]
+    async fn force_quit_reaps_unresponsive_backend() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let mut child = Command::new(std::env::current_exe().expect("test executable"))
+            .args(["--ignored", "--exact", "native_session::backend::tests::unresponsive_backend", "--nocapture"])
+            .env("DOKIME_SHUTDOWN_TEST_ADDRESS", listener.local_addr().expect("address").to_string())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .expect("child fixture");
+        let events = BufReader::new(child.stdout.take().expect("events"));
+        let diagnostics = Capture::start(child.stderr.take().expect("diagnostics"), None, child.id()).await;
+        let mut process = Process { control: child.stdin.take(), child, events, diagnostics };
+        let abandon = tokio_util::sync::CancellationToken::new();
+        {
+            let shutdown = process.shutdown(&abandon);
+            tokio::pin!(shutdown);
+            tokio::select! {
+                result = &mut shutdown => panic!("backend exited before force quit: {result:?}"),
+                acknowledgement = tokio::time::timeout(std::time::Duration::from_secs(10), listener.accept()) => {
+                    let (mut connection, _) = acknowledgement.expect("control EOF deadline").expect("acknowledgement");
+                    let mut byte = [0];
+                    connection.read_exact(&mut byte).await.expect("control EOF acknowledged");
+                    assert_eq!(byte, [1]);
+                }
+            }
+            abandon.cancel();
+            let status = tokio::time::timeout(std::time::Duration::from_secs(5), shutdown)
+                .await
+                .expect("force quit deadline")
+                .expect("child reaped");
+            assert!(!status.success());
+        }
+        assert!(process.child.try_wait().expect("exit status").is_some());
+        process.diagnostics.settle().await;
+    }
+}
