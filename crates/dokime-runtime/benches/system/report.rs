@@ -30,6 +30,7 @@ use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
 // Local Imports
 use dokime_domain::model;
 use dokime_domain::model::identity::CommandId;
+use dokime_runtime::operations::reports::MaterializeReport;
 use dokime_runtime::{Runtime, RuntimeHandle, plugins::PluginBundle, runtime::command::CommandContext, transactions::CycleDefinition};
 use dokime_runtime::{TestCycleId, TestExecutionId, Value};
 
@@ -47,11 +48,37 @@ const POLL: Duration = Duration::from_millis(20);
 
 /* === Structs === */
 
+struct MaterializationFixture {
+    _root: tempfile::TempDir,
+    owner: Runtime,
+    runtime: RuntimeHandle,
+    cycle: TestCycleId,
+    request: MaterializeReport,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl MaterializationFixture {
+    async fn new(concurrency: usize, duration: f64) -> Self {
+        let root = tempfile::tempdir().unwrap();
+        let (owner, runtime, cycle, _) = started_cycle(root.path(), concurrency, duration).await;
+        let execution =
+            tokio::time::timeout(SETTLE, inspected_execution(&runtime, &cycle)).await.expect("steady execution reaches inspection");
+        let at = runtime.storage().flush().await.unwrap();
+        let request = MaterializeReport { subject: model::reports::wire::ReportSubject::Execution(execution.to_string()), at };
+        Self { _root: root, owner, runtime, cycle, request }
+    }
+
+    async fn close(mut self) {
+        self.runtime.seal_cycle(self.cycle, CommandContext::default()).await.unwrap();
+        drop(self.runtime);
+        self.owner.shutdown().await.unwrap();
+    }
+}
 
 /* === Public Functions === */
 
@@ -81,34 +108,35 @@ pub fn benchmark(criterion: &mut Criterion) {
 
 fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
     let mut group = criterion.benchmark_group("report_materializes_execution");
-    // Every iteration runs a cycle to inspection: equal iteration counts per sample.
+    // Every iteration materializes the same durable boundary of an unsealed execution.
     group.sampling_mode(SamplingMode::Flat);
     group.throughput(Throughput::Elements(1));
     for duration in [0.5, 2.0] {
         for concurrency in [1, 2, 4] {
+            let mut fixture = None;
             group.bench_function(BenchmarkId::new(format!("{duration}s"), concurrency), |bencher| {
+                let fixture = fixture.get_or_insert_with(|| executor.block_on(MaterializationFixture::new(concurrency, duration)));
+
                 bencher.iter_custom(|iterations| {
                     executor.block_on(async {
                         let mut elapsed = Duration::ZERO;
                         for _ in 0..iterations {
-                            elapsed += materialization(concurrency, duration).await;
+                            elapsed += materialization(&fixture.runtime, &fixture.request).await;
                         }
                         elapsed
                     })
                 });
             });
+            if let Some(fixture) = fixture {
+                executor.block_on(fixture.close());
+            }
         }
     }
     group.finish();
 }
 
-async fn materialization(concurrency: usize, duration: f64) -> Duration {
-    use {dokime_runtime::operations::reports::MaterializeReport, model::reports::wire::ReportSubject};
-    let root = tempfile::tempdir().unwrap();
-    let (mut owner, runtime, cycle, request) = started_cycle(root.path(), concurrency, duration).await;
-    let execution = tokio::time::timeout(SETTLE, inspected_execution(&runtime, &cycle)).await.expect("steady execution reaches inspection");
-    let at = runtime.storage().flush().await.unwrap();
-    let materialize = MaterializeReport { subject: ReportSubject::Execution(execution.to_string()), at };
+async fn materialization(runtime: &RuntimeHandle, request: &MaterializeReport) -> Duration {
+    let materialize = MaterializeReport { subject: request.subject.clone(), at: request.at.clone() };
     let started = Instant::now();
     let report = runtime.operations().call(materialize).await.unwrap();
     let elapsed = started.elapsed();
@@ -118,10 +146,6 @@ async fn materialization(concurrency: usize, duration: f64) -> Duration {
     let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;
     let payload: serde_json::Value = serde_json::from_str(json).unwrap();
     assert!(plot_payload_count(&payload) >= 5, "steady report must materialize its five measurement plots");
-    drop(report);
-    tokio::time::timeout(SETTLE, settle(&runtime, &cycle, &request)).await.expect("benchmark cycle seals after measurement");
-    drop(runtime);
-    owner.shutdown().await.unwrap();
     elapsed
 }
 
@@ -225,7 +249,8 @@ async fn settle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, request: &
         let cycle =
             runtime.cycles().await.into_iter().find(|cycle| &cycle.test_cycle_id == test_cycle_id).expect("the steady cycle exists");
         let settled = runtime.run_request(request).await.unwrap().is_some_and(|receipt| receipt.summary.phase.terminal());
-        if cycle.saved.is_some() && settled {
+        if settled && cycle.test_executions.iter().all(|execution| execution.saved.is_some()) {
+            runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();
             return cycle.test_executions.into_iter().map(|execution| execution.test_execution_id).collect();
         }
         tokio::time::sleep(POLL).await;

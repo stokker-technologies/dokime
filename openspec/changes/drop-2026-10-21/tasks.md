@@ -35,7 +35,7 @@
 - [x] 18. Prevent cycle/history status pill clipping. Proof: `cycle/nominal.test.ts / Status Pill`; `native-desktop.mjs / cycles-home, history` (mounted badge bounds).
 - [x] 19. Persist a visible destination cycle indicator and switcher. Proof: `native-desktop.mjs / active-cycle`; `cycle/nominal.test.ts / Active Containers Persist`.
 - [x] 20. Verify README CLI reference against actual commands and shipped examples. Proof: `CLI help audit` (37 built command paths); `test_remote_examples.py` (8 tests); shipped shell command/flag audit.
-- [ ] 21. Complete seal/report persistence improvements and measure materialization.
+- [x] 21. Complete seal/report persistence improvements and measure materialization. Proof: `domains::documents::reports` (5 tests), `domains::execution::storage::execution_save_sealing`; `report_materializes_execution/{0.5s,2s}/{1,2,4}` (10 samples each).
 - [ ] 22. Verify initial plot acknowledgement/keepalive, concurrency and waiting state.
 - [ ] 23. Show finalization immediately and preserve subsecond duration values.
 - [ ] 24. Remove continue-after-failure, share viewer settings and prevent duplicate continuation.

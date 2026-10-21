@@ -1017,6 +1017,9 @@ file durability confirmations and transferred payload bytes; SQLite autocommit
 statements and the separate Harmos state journal are outside these counters.
 Build with `mise run build:bench`, then run
 `mise run bench:system:rust`; ordinary product builds omit this fixture suite.
+Runtime report benchmarks separately measure fresh materialization at a fixed
+persisted operator checkpoint with query concurrency of one, two and four, plus rendering
+of already saved execution reports.
 
 `package --profile dev` consumes matching Product outputs without compiling;
 select `release` to package release Product bytes. Tests and Bench outputs are

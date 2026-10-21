@@ -109,10 +109,19 @@ impl Session {
             for prompt in client.prompts_list_pending(request).await.unwrap().prompts {
                 respond(client, prompt.prompt_id).await;
             }
-            let cycle = client.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.to_owned() }).await.unwrap();
-            use model::execution::wire::CycleStatus;
-            assert!(!matches!(cycle.status, CycleStatus::Failed | CycleStatus::Stopped), "benchmark cycle failed: {:?}", cycle.status);
-            (cycle.status == CycleStatus::Completed).then_some(())
+            let request = contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() };
+            let members = client.execution_list_executions(request).await.unwrap().executions;
+            assert!(!members.is_empty(), "the benchmark cycle has planned executions");
+            use model::execution::wire::ExecutionStatus;
+            for member in members.iter().filter(|member| member.sealed) {
+                assert!(
+                    member.status == ExecutionStatus::Passed,
+                    "benchmark execution {} failed: {:?}",
+                    member.execution_id,
+                    member.status
+                );
+            }
+            members.iter().all(|member| member.sealed && member.status == ExecutionStatus::Passed).then_some(())
         })
         .await;
     }
