@@ -102,8 +102,8 @@ execution never restarts; construct a new `Execution(test_case)` to repeat it.
 
 `create_cycle(..., continue_automatically=False)` defaults to explicit Starts.
 Setting it to `True` lets the server continue with the next unstarted member
-after natural completion and durable sealing. `continue_on_failure` selects
-failure continuation. Explicit `execution.stop()` durably sets the cycle's
+after natural completion and durable sealing, whatever the previous verdict.
+Explicit `execution.stop()` durably sets the cycle's
 `continue_automatically=False`. Later explicit Start runs only the selected
 attempt until the user explicitly re-enables that policy.
 Appending to an idle cycle starts no hardware. Executions seal independently;

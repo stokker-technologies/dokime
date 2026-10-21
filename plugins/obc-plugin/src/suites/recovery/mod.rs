@@ -47,7 +47,7 @@ pub enum Templates {
 
 /* === Implementations === */
 
-#[dokime_runtime::suite(id = SUITE, label = "Power-Loss Recovery", tags = ["device", "recovery"], templates = Templates, description = "Lose Charger power, clear the latched fault, and verify a controlled restart.")]
+#[dokime_runtime::suite(id = SUITE, label = "Charger Recovery", tags = ["device", "recovery"], templates = Templates, description = "Recover the Charger from a loss of power: clear the latched fault and verify a controlled restart.")]
 impl Suite {}
 
 /* === Public Functions === */

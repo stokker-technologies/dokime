@@ -27,9 +27,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
 import { useRecordsQuery } from "@/features/cycle/server-state";
-import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { ActiveCyclePicker, ActiveCycleSummary } from "@/features/library/ActiveCycle";
+import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
 import { cn } from "@/lib/utils";
@@ -45,11 +46,9 @@ import {
 } from "@/shell/status-bar-operations";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
-import { FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
+import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
 
 /* === Constants === */
-
-const ACTIVE_CYCLE_STATUSES = ["Running", "Paused", "Stopping"];
 
 const statusItemClassName =
   "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -66,7 +65,7 @@ const CONNECTION_LABEL = {
 export type StatusBarProps =
   | { live?: true }
   | {
-      frozen: { generatedAt: string | null; status: CycleLifecycle };
+      frozen: { generatedAt: string | null; status: FrozenCycleStatus };
       live: false;
     };
 
@@ -101,7 +100,7 @@ export function StatusBar(props: StatusBarProps) {
         <div className="flex min-w-0 items-stretch gap-6">
           <OperationsItem />
           <AttentionItem />
-          <ActivityItem />
+          <ActiveCycleItem />
           <ConsoleItem />
         </div>
       </div>
@@ -314,26 +313,29 @@ function AttentionItem() {
   );
 }
 
-function ActivityItem() {
-  const navigate = useNavigate();
-  const cycles = useCyclesQuery();
-  const active = (cycles.data ?? []).filter((cycle) => ACTIVE_CYCLE_STATUSES.includes(cycle.status?.HarmosVariant.case ?? ""));
-
-  if (!active.length) {
-    return <StatusReadout tone="neutral" value="No Active Cycles" />;
-  }
-
+/**
+ * The active cycle, the bar's last fact before the console: name, short
+ * identifier and state. It opens the picker, the one way it changes.
+ */
+export function ActiveCycleItem() {
+  const active = useActiveCycle();
   return (
-    <button
-      className={cn(statusItemClassName, "text-success")}
-      onClick={() => {
-        const only = active.length === 1 ? active[0] : undefined;
-        void (only ? navigate({ params: { cycleId: only.cycleId }, to: "/cycles/$cycleId" }) : navigate({ to: "/cycles" }));
-      }}
-      type="button"
-    >
-      {active.length} Active
-    </button>
+    <>
+      <button
+        aria-label={active.cycle ? `Active Cycle: ${active.cycle.label}, ${active.cycle.statusLabel}` : "Choose Active Cycle"}
+        className={cn(statusItemClassName, "min-w-0 max-w-96 gap-2")}
+        data-testid="status-active-cycle"
+        onClick={active.openPicker}
+        type="button"
+      >
+        {active.cycle ? (
+          <ActiveCycleSummary cycle={active.cycle} />
+        ) : (
+          <span>{active.cycles.length ? "Choose Active Cycle" : "No Open Cycles"}</span>
+        )}
+      </button>
+      <ActiveCyclePicker />
+    </>
   );
 }
 

@@ -101,7 +101,7 @@ async fn run_telemetry_kill_child(published: usize) {
 
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
-    let test_cycle_id = start_cycle(&handle, suite, false).await;
+    let test_cycle_id = start_cycle(&handle, suite).await;
     handle.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
 
@@ -139,7 +139,7 @@ async fn run_telemetry_kill_child(published: usize) {
         .unwrap();
 
     executor.release();
-    wait_for_cycle_lifecycle(&handle, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&handle, &test_cycle_id, ResultStatus::Passed).await;
     wait_for_record_type(&handle, "provider.execution.completed").await;
     let selection = TelemetrySelection {
         streams: vec![Identifier::new("tracking").unwrap().into()],

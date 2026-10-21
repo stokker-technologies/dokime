@@ -35,7 +35,7 @@ class Row3(_message.Message):
     def __init__(self, suite_id: _Optional[str] = ..., source: _Optional[str] = ..., metadata: _Optional[_Union[Row6, _Mapping]] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("template_id", "metadata", "parameters", "tags", "files", "steps", "parameter_groups", "continue_on_failure")
+    __slots__ = ("template_id", "metadata", "parameters", "tags", "files", "steps", "parameter_groups")
     TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
@@ -43,7 +43,6 @@ class Row4(_message.Message):
     FILES_FIELD_NUMBER: _ClassVar[int]
     STEPS_FIELD_NUMBER: _ClassVar[int]
     PARAMETER_GROUPS_FIELD_NUMBER: _ClassVar[int]
-    CONTINUE_ON_FAILURE_FIELD_NUMBER: _ClassVar[int]
     template_id: str
     metadata: Row6
     parameters: _containers.RepeatedCompositeFieldContainer[Row7]
@@ -51,8 +50,7 @@ class Row4(_message.Message):
     files: _containers.RepeatedCompositeFieldContainer[Row8]
     steps: _containers.RepeatedCompositeFieldContainer[Row9]
     parameter_groups: _containers.RepeatedCompositeFieldContainer[Row5]
-    continue_on_failure: bool
-    def __init__(self, template_id: _Optional[str] = ..., metadata: _Optional[_Union[Row6, _Mapping]] = ..., parameters: _Optional[_Iterable[_Union[Row7, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., files: _Optional[_Iterable[_Union[Row8, _Mapping]]] = ..., steps: _Optional[_Iterable[_Union[Row9, _Mapping]]] = ..., parameter_groups: _Optional[_Iterable[_Union[Row5, _Mapping]]] = ..., continue_on_failure: _Optional[bool] = ...) -> None: ...
+    def __init__(self, template_id: _Optional[str] = ..., metadata: _Optional[_Union[Row6, _Mapping]] = ..., parameters: _Optional[_Iterable[_Union[Row7, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., files: _Optional[_Iterable[_Union[Row8, _Mapping]]] = ..., steps: _Optional[_Iterable[_Union[Row9, _Mapping]]] = ..., parameter_groups: _Optional[_Iterable[_Union[Row5, _Mapping]]] = ...) -> None: ...
 
 class Row5(_message.Message):
     __slots__ = ("group_id", "metadata")

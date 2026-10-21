@@ -20,7 +20,7 @@ use super::*;
 use dokime_client::contracts::history::BrowseExecutions;
 use dokime_client::contracts::history::DeleteExecution;
 use dokime_domain::model;
-use {dokime_runtime::CycleStatus, dokime_runtime::runtime::command::CommandContext};
+use dokime_runtime::runtime::command::CommandContext;
 
 /* === Constants === */
 
@@ -99,7 +99,7 @@ async fn deletion_validates_unsupported() {
         .unwrap()
         .execution_id;
     gate.release.notify_one();
-    support::wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
+    support::wait_for_cycle_outcome(&handle, &cycle_id, dokime_domain::model::execution::result::ResultStatus::Passed).await;
     let checkpoint = checkpoint_for(&handle, &mut history, &live).await;
     let request = DeleteExecution { checkpoint: Some(checkpoint.clone()), request_identifier: "delete-request-1".into() };
 
@@ -177,7 +177,6 @@ async fn empty_cycles_retain_history() {
         let definition = dokime_runtime::transactions::CycleDefinition {
             metadata: support::metadata("history.empty", label),
             continue_automatically: false,
-            continue_on_failure: false,
         };
         let id = handle.create_cycle(definition, Default::default()).await.unwrap();
         handle.seal_cycle(id.clone(), Default::default()).await.unwrap();
@@ -195,7 +194,6 @@ async fn empty_cycles_retain_history() {
     let definition = dokime_runtime::transactions::CycleDefinition {
         metadata: support::metadata("history.later", "Later Empty"),
         continue_automatically: false,
-        continue_on_failure: false,
     };
     let later = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     handle.seal_cycle(later.clone(), Default::default()).await.unwrap();

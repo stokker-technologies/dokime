@@ -24,7 +24,9 @@
  * the cycle itself (`view: "cycle"`); a row selects its execution, or its case
  * while the runtime has none. The rows read the same query the workspace
  * reads, so the tree and the document never disagree. The running execution
- * carries a marker while Follow Active is following it.
+ * carries a marker while Follow Active is following it, and an execution whose
+ * prompt waits for an answer shows the input-needed glyph: the prompt itself
+ * is answered on that execution's page.
  *
  * With `live={false}` the same tree is the frozen report's outline: the same
  * grid and glyphs, no menus and no commands, and selection is handed back to
@@ -48,7 +50,6 @@ import {
   LoaderCircle,
   type LucideIcon,
   Minus,
-  Pause,
   Play,
   RotateCcw,
   Square,
@@ -83,7 +84,7 @@ import {
   caseActionTooltip,
   caseStatusLabel,
   cycleRowSelection,
-  cycleStatusLabel,
+  cycleState,
   executionStatusLabel,
   finishedCaseCount,
   isFollowing,
@@ -134,6 +135,8 @@ export type CycleSidebarCasesViewProps = {
   actions?: CycleSidebarActions;
   cycleId: string;
   selection: CycleSelection;
+  /** The executions a pending prompt waits on. */
+  inputNeeded?: ReadonlySet<string>;
 } & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
 
 type GlyphTone = "running" | "success" | "danger" | "warning" | "muted";
@@ -142,7 +145,15 @@ type Glyph = { icon: LucideIcon; tone: GlyphTone; spin?: boolean; label: string 
 
 /* === Components === */
 
-export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = true, onSelect, selection }: CycleSidebarCasesViewProps) {
+export function CycleSidebarCasesView({
+  cycleId,
+  detailQuery,
+  actions,
+  inputNeeded,
+  live = true,
+  onSelect,
+  selection,
+}: CycleSidebarCasesViewProps) {
   const navigate = useNavigate();
   const followActive = useSelectionStore((state) => state.followActive);
   const [pendingDelete, setPendingDelete] = useState<CycleExecutionRow | null>(null);
@@ -254,7 +265,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
         {plan ? (
           <li
             aria-expanded={expanded}
-            aria-label={`${plan.test_cycle.title}, ${cycleStatusLabel(plan.test_cycle.status)}`}
+            aria-label={`${plan.test_cycle.title}, ${cycleState(plan.test_cycle.phase, plan.test_cycle.status, false).label}`}
             aria-level={1}
             aria-selected={cycleSelected}
             className="grid min-w-0 gap-px outline-none [&:focus-visible>div]:ring-2 [&:focus-visible>div]:ring-ring"
@@ -272,7 +283,9 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
               >
                 {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
               </button>
-              <StatusGlyph glyph={cycleGlyph(plan.test_cycle.status)} />
+              <StatusGlyph
+                glyph={cycleGlyph(plan.test_cycle.phase, plan.test_cycle.status, inputNeeded !== undefined && inputNeeded.size > 0)}
+              />
               <button
                 className="min-w-0 truncate text-left text-sm font-medium"
                 data-tree-select
@@ -317,6 +330,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
                     <ExecutionTreeRow
                       active={plan?.test_cycle.phase === "active"}
                       following={following && row.execution !== null && row.execution.test_execution_id === activeExecutionId}
+                      inputNeeded={row.execution !== null && inputNeeded?.has(row.execution.test_execution_id) === true}
                       key={row.key}
                       live={live}
                       onDelete={setPendingDelete}
@@ -394,6 +408,7 @@ export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = tr
 function ExecutionTreeRow({
   active,
   following,
+  inputNeeded,
   live,
   onDelete,
   onRerun,
@@ -404,6 +419,7 @@ function ExecutionTreeRow({
 }: {
   active: boolean;
   following: boolean;
+  inputNeeded: boolean;
   live: boolean;
   onDelete: (row: CycleExecutionRow) => void;
   onRerun: () => void;
@@ -422,7 +438,7 @@ function ExecutionTreeRow({
   const reason = caseActionTooltip(row.case);
   const deleteAllowed = actions === null || actions.delete;
   const startAllowed = active && row.execution !== null && isPlannedExecution(row.execution.status);
-  const glyph = rowGlyph(row);
+  const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Waiting For Input", tone: "warning" } : rowGlyph(row);
   const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run Of #${row.rerunOf}`;
   const [menuOpen, setMenuOpen] = useState(false);
   const press = useLongPress(() => setMenuOpen(true));
@@ -644,25 +660,20 @@ function rowGlyph(row: CycleExecutionRow): Glyph {
   }
 }
 
-function cycleGlyph(status: CycleLifecycle): Glyph {
-  const label = cycleStatusLabel(status);
-  switch (status) {
-    case "running":
+/** The cycle's own state as a glyph: never an execution's outcome. */
+function cycleGlyph(phase: TestCyclePlan["test_cycle"]["phase"], status: CycleLifecycle, waiting: boolean): Glyph {
+  const { label } = cycleState(phase, status, waiting);
+  switch (label) {
+    case "Active · Running":
       return { icon: LoaderCircle, label, spin: true, tone: "running" };
-    case "stopping":
+    case "Active · Waiting":
+      return { icon: BellRing, label, tone: "warning" };
+    case "Sealing":
       return { icon: LoaderCircle, label, spin: true, tone: "warning" };
-    case "paused":
-      return { icon: Pause, label, tone: "warning" };
-    case "completed":
-      return { icon: Check, label, tone: "success" };
-    case "failed":
-      return { icon: X, label, tone: "danger" };
-    case "stopped":
-      return { icon: Square, label, tone: "muted" };
-    case "planned":
-      return { icon: Circle, label, tone: "muted" };
+    case "Sealed":
+      return { icon: Check, label, tone: "muted" };
     default:
-      return { icon: Minus, label, tone: "muted" };
+      return { icon: Circle, label, tone: "muted" };
   }
 }
 

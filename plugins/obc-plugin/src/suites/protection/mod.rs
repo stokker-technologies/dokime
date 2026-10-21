@@ -47,7 +47,7 @@ pub enum Templates {
 
 /* === Implementations === */
 
-#[dokime_runtime::suite(id = SUITE, label = "Overcurrent Protection", tags = ["device", "protection"], templates = Templates, description = "Increase the load and verify that the RMS protection latch disconnects the Charger.")]
+#[dokime_runtime::suite(id = SUITE, label = "Charger Protection", tags = ["device", "protection"], templates = Templates, description = "Verify that the Charger's protection disconnects it once the load draws too much current.")]
 impl Suite {}
 
 /* === Public Functions === */

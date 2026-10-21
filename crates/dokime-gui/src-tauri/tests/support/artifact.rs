@@ -111,7 +111,6 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         document: None,
         phases: vec![],
         criteria: vec![],
-        continue_on_failure: false,
         prompt_definitions: vec![],
         subscriptions: vec![],
         attributes: Default::default(),
@@ -165,10 +164,7 @@ pub async fn registered_cycle(
         })
         .collect::<Vec<_>>();
     let cycle_id = runtime
-        .create_cycle(
-            dokime_runtime::transactions::CycleDefinition { metadata, continue_automatically: false, continue_on_failure: false },
-            Default::default(),
-        )
+        .create_cycle(dokime_runtime::transactions::CycleDefinition { metadata, continue_automatically: false }, Default::default())
         .await
         .unwrap();
     let bindings = cases

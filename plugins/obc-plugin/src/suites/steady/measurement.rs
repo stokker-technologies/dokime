@@ -200,7 +200,7 @@ pub enum ObserverStreams {
 /* === Implementations === */
 
 #[dokime_runtime::template(
-    id = STEADY_TEMPLATE, label = "Charging Input Measurement",
+    id = STEADY_TEMPLATE, label = "Steady-State Measurement",
     requires = Required,
     template_id = TemplateId::from_uuid(STEADY_TEMPLATE_ID).expect("steady template UUID"),
     tags = ["device", "steady"], prompts = Prompts,
@@ -217,7 +217,7 @@ pub enum ObserverStreams {
     // this file, bound to this template.
     records = Records,
     attributes(path = "Testbench/Steady State", provider = "sidecar"),
-    parameters = Parameters, description = "Sweep AC voltage and load while the SDK samples one shared Charger.")]
+    parameters = Parameters, description = "Sweep AC voltage and load while the SDK samples the steady state of one shared Charger.")]
 impl Steady {
     async fn initialize(_: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<(Self, SteadyResources), Error> {
         readiness::ready(ctx).await?;
@@ -394,7 +394,7 @@ fn steady_document() -> Document {
     execution.plot(steady_voltage("obc.charger.steady.measurement.execution.signals"));
     execution.plot(steady_current());
 
-    let mut document = Document::new("default", "Charging Input Measurement");
+    let mut document = Document::new("default", "Steady-State Measurement");
     document.section(execution);
 
     let mut charging = Section::new("Battery Charging");

@@ -45,7 +45,7 @@ const ROUNDS: usize = 2;
 
 /* === Private Functions === */
 async fn start(handle: &RuntimeHandle, suite: &TestSuite, id: &str) -> TestCycleId {
-    start_cases(handle, metadata(id, id), materialize_cases(SUITE, suite), false).await
+    start_cases(handle, metadata(id, id), materialize_cases(SUITE, suite)).await
 }
 
 /* === Tests === */

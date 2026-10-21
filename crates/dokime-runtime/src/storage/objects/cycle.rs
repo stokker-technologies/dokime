@@ -61,7 +61,6 @@ pub struct Cycle {
     execution_ids: Vec<String>,
     records: Option<annotations::Set>,
     continue_automatically: bool,
-    continue_on_failure: bool,
     result: Option<Summary>,
 }
 
@@ -101,7 +100,6 @@ struct Input<'a> {
     execution_ids: &'a [TestExecutionId],
     records: &'a dokime_domain::state::records::set::TestRecordSet,
     continue_automatically: bool,
-    continue_on_failure: bool,
     result: &'a Option<ResultSummary>,
 }
 
@@ -127,7 +125,6 @@ impl<'a> From<&'a TestCycle> for Input<'a> {
             lifecycle: source.lifecycle,
             execution_ids: &source.execution_ids,
             continue_automatically: source.continue_automatically,
-            continue_on_failure: source.continue_on_failure,
         }
     }
 }
@@ -165,7 +162,6 @@ impl<'a> Input<'a> {
             lifecycle: source.lifecycle,
             execution_ids: ids,
             continue_automatically: source.continue_automatically,
-            continue_on_failure: source.continue_on_failure,
         }
     }
 }
@@ -309,7 +305,6 @@ impl Cycle {
             execution_ids,
             records: Some(records),
             continue_automatically: source.continue_automatically,
-            continue_on_failure: source.continue_on_failure,
             result: source.result.as_ref().map(Summary::from),
         })
     }
@@ -367,7 +362,6 @@ impl TryFrom<Cycle> for TestCycle {
             execution_ids,
             records: row.records.ok_or(Error::Invalid("cycle record ownership is missing"))?.restore_owned()?,
             continue_automatically: row.continue_automatically,
-            continue_on_failure: row.continue_on_failure,
             result: row.result.map(TryInto::try_into).transpose()?,
         };
         if let Some(saved) = &restored.saved {

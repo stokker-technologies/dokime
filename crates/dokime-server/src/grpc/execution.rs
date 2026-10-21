@@ -424,7 +424,6 @@ pub(super) fn summary(
         case_count: state.cases_for_cycle(cycle).count() as u64,
         execution_count: cycle.execution_ids.len() as u64,
         continue_automatically: cycle.continue_automatically,
-        continue_on_failure: cycle.continue_on_failure,
         observed_cursor: Some(cursor),
         created_at: Some(canonical::timestamp(&cycle.created_at)?),
         started_at: cycle.started_at.as_ref().map(canonical::timestamp).transpose()?,

@@ -475,8 +475,8 @@ remote work running; `execution stop EXECUTION_ID` requests a cooperative stop.
 Several cycles can stay Active, with one execution running server-wide.
 `continue_automatically` defaults to false. To let the server continue with
 the next unstarted member after natural completion and durable sealing, create
-the cycle with `--continue-automatically`. `--continue-on-failure` controls
-failure continuation. Explicit execution Stop durably sets the cycle's
+the cycle with `--continue-automatically`. A failed execution is a result, not
+a reason to halt: continuation proceeds regardless of verdicts. Explicit execution Stop durably sets the cycle's
 `continue_automatically=false`. Later explicit Start runs only the selected
 attempt until the user explicitly re-enables that policy.
 Appending to an idle cycle starts no hardware, and reaching the end keeps the
@@ -595,7 +595,6 @@ policy alongside its metadata:
     "updated_at": null
   },
   "continue_automatically": false,
-  "continue_on_failure": false,
   "context": null
 }
 ```

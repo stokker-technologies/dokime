@@ -50,9 +50,9 @@ pub enum Templates {
 
 #[dokime_runtime::suite(
     id = STARTUP_SUITE,
-    label = "Charger Power-Up",
+    label = "Charger Start-Up",
     tags = ["device", "startup", "ac"],
-    templates = Templates, description = "Observe AC startup current, inspect the Charger, and capture settled measurements.")]
+    templates = Templates, description = "Start the Charger on AC, inspect it, and capture its settled measurements.")]
 impl StartupSuite {}
 
 /* === Public Functions === */

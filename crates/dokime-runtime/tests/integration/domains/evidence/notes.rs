@@ -45,10 +45,8 @@ async fn fixture(root: &std::path::Path) -> (Runtime, CreateNote) {
     let metadata = Metadata::new(Identifier::new("notes.fixture").unwrap(), "Notes", None);
     let owner = Runtime::start(crate::service_support::budgets::runtime_config(root, metadata.clone())).await.unwrap();
     let handle = owner.handle();
-    let cycle_id = handle
-        .create_cycle(CycleDefinition { metadata, continue_automatically: false, continue_on_failure: false }, CommandContext::default())
-        .await
-        .unwrap();
+    let cycle_id =
+        handle.create_cycle(CycleDefinition { metadata, continue_automatically: false }, CommandContext::default()).await.unwrap();
     let request = CreateNote {
         epoch: handle.process_epoch(),
         mutation_id: dokime_runtime::model::identity::new_id::<CommandId>(),

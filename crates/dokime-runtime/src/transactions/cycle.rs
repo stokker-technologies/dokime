@@ -28,13 +28,9 @@ use crate::transactions::records::draft::BuiltinDraft;
 use crate::transactions::records::draft::Drafts;
 use crate::{runtime::Error, state::RuntimeState};
 use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_domain::model::execution::result::ResultStatus;
-use dokime_domain::model::execution::result::ResultSummary;
-use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
@@ -54,7 +50,6 @@ use dokime_domain::model::values::Value;
 pub struct UpdateCyclePolicy {
     pub test_cycle_id: TestCycleId,
     pub continue_automatically: bool,
-    pub continue_on_failure: bool,
     pub occurred_at: Timestamp,
 }
 
@@ -113,7 +108,6 @@ impl Transaction<RuntimeState> for UpdateCyclePolicy {
     fn apply(&self, state: &mut RuntimeState) {
         let cycle = state.cycles.get_mut(&self.test_cycle_id).expect("Harmos checked the cycle before applying its policy");
         cycle.continue_automatically = self.continue_automatically;
-        cycle.continue_on_failure = self.continue_on_failure;
         cycle.touch_at(self.occurred_at.clone());
     }
 }
@@ -224,7 +218,13 @@ fn prepare_cycle_control(state: &RuntimeState, control: &ControlCycle) -> Result
     match control.action {
         CycleControlAction::Pause => pause_cycle(&mut cycle, control.occurred_at.clone()),
         CycleControlAction::Resume => resume_cycle(&mut cycle, control.occurred_at.clone()),
-        CycleControlAction::Stop => stop_cycle(&mut cycle, control.occurred_at.clone()),
+        CycleControlAction::Stop => {
+            let live = state
+                .run_requests
+                .values()
+                .any(|request| request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal());
+            stop_cycle(&mut cycle, live, control.occurred_at.clone())
+        }
     }
     .map_err(conflict)?;
 
@@ -304,44 +304,13 @@ fn resume_cycle(cycle: &mut CycleView, at: Timestamp) -> Result<(), String> {
     Ok(())
 }
 
-fn stop_cycle(cycle: &mut CycleView, at: Timestamp) -> Result<(), String> {
-    if matches!(
-        cycle.lifecycle,
-        CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopping | CycleStatus::Stopped
-    ) {
-        return Err("cycle cannot be stopped from its current state".to_owned());
+// Stopping An Active Cycle Stops Its Requests; The Cycle Itself Returns To Idle Once They Settle.
+fn stop_cycle(cycle: &mut CycleView, live: bool, at: Timestamp) -> Result<(), String> {
+    if !live {
+        return Err("cycle has no run to stop".to_owned());
     }
-    if matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused) {
-        cycle.lifecycle = cycle.lifecycle.try_transition(CycleStatus::Stopping).map_err(|error| error.to_string())?;
-        cycle.touch_at(at);
-        return Ok(());
-    }
-    for execution in &mut cycle.test_executions {
-        if matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running) {
-            execution.status = ExecutionStatus::Cancelled;
-            execution.finished_at.get_or_insert_with(|| at.clone());
-            execution.result = Some(cancelled_summary());
-        }
-        for step in &mut execution.steps {
-            if matches!(step.status, StepStatus::Pending | StepStatus::Running) {
-                step.status = StepStatus::Cancelled;
-                step.finished_at.get_or_insert_with(|| at.clone());
-            }
-            for criterion in &mut step.criteria {
-                if criterion.status == CriterionStatus::Pending {
-                    criterion.status = CriterionStatus::Skipped;
-                }
-            }
-        }
-    }
-    cycle.lifecycle = cycle.lifecycle.try_transition(CycleStatus::Stopped).unwrap_or(CycleStatus::Stopped);
-    cycle.result = Some(cancelled_summary());
     cycle.touch_at(at);
     Ok(())
-}
-
-fn cancelled_summary() -> ResultSummary {
-    ResultSummary { status: ResultStatus::Cancelled, passed: 0, failed: 0, blocked: 0, skipped: 0 }
 }
 
 fn delete_cycle_case(cycle: &mut CycleView, test_case_id: &CaseId, at: Timestamp) -> Result<Vec<TestExecutionId>, String> {

@@ -329,10 +329,10 @@ async fn artifact_transfer(message_bytes: usize) {
         assert_eq!(events[item_count]["event"], "completion");
 
         artifacts.release.notify_one();
-        support::wait_for_cycle_lifecycle(
+        support::wait_for_cycle_outcome(
             &owner.handle(),
             records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-            dokime_domain::model::execution::result::CycleStatus::Completed,
+            dokime_domain::model::execution::result::ResultStatus::Passed,
         )
         .await;
         // Export Sealed Evidence Through The Same Runtime And Shared Client.
@@ -406,10 +406,10 @@ async fn artifact_transfer(message_bytes: usize) {
             dokime_client::Error::Rpc(status) if status.code() == Code::ResourceExhausted
         ));
         artifacts.release.notify_one();
-        support::wait_for_cycle_lifecycle(
+        support::wait_for_cycle_outcome(
             &owner.handle(),
             records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-            dokime_domain::model::execution::result::CycleStatus::Completed,
+            dokime_domain::model::execution::result::ResultStatus::Passed,
         )
         .await;
     }
@@ -760,7 +760,7 @@ async fn artifact_upload_owned() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(());
         }
         None
@@ -838,7 +838,7 @@ async fn finish_completion_harness(execution: WireClient, cycle_id: String, gate
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(());
         }
         None
@@ -994,7 +994,7 @@ async fn open_report_states() {
 
     // Completed Executions Leave Their Cycle Active Until Explicitly Sealed.
     gate.release.notify_one();
-    wait_for_watched_lifecycle(&owner, &cycle, dokime_domain::model::execution::result::CycleStatus::Completed).await;
+    support::wait_for_cycle_outcome(&owner.handle(), &cycle, dokime_domain::model::execution::result::ResultStatus::Passed).await;
     let (metadata, _) = execution_report(&execution, &execution_id).await;
     assert_eq!(metadata.origin, model::reports::wire::ReportOrigin::Sealed);
     let (metadata, _) = cycle_report(&execution, &cycle_id).await;
@@ -1099,8 +1099,11 @@ async fn large_artifact_buffering() {
             .await
             .unwrap()
             .into_inner();
-        assert_ne!(cycle.status, model::execution::wire::CycleStatus::Failed);
-        (cycle.status == model::execution::wire::CycleStatus::Completed).then_some(())
+        assert!(!cycle.result.as_ref().is_some_and(|result| matches!(
+            result.status,
+            model::execution::wire::ResultStatus::Failed | model::execution::wire::ResultStatus::Blocked
+        )));
+        (support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed)).then_some(())
     })
     .await;
     let content = WireClient::new(stream);

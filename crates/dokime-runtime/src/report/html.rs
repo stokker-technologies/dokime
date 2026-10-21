@@ -31,7 +31,7 @@ use std::{
 // Local Imports
 use super::{
     CapturedExecutionReportInput, CycleReportInput,
-    cycle::Index,
+    cycle::{CycleMember, Index},
     render::{cycle::Report, header::Header},
 };
 use crate::document::capture::Capture;
@@ -81,19 +81,27 @@ impl Deref for Member {
 }
 
 impl HtmlReport {
-    pub(super) fn from_cycle(
-        snapshot: CycleSnapshot, captured_members: Vec<CapturedExecutionReportInput>, operation: &Operation,
-    ) -> Result<Self> {
-        let count = captured_members.len();
+    pub(super) fn from_cycle(snapshot: CycleSnapshot, cycle_members: Vec<CycleMember>, operation: &Operation) -> Result<Self> {
+        let count = cycle_members.len();
         let documents = cycle_document(&snapshot)?;
         let mut members = Vec::with_capacity(count);
         let mut index = Index::new();
         // Compose Frozen Member Results Without Reading Pruned Raw Evidence.
-        for (materialized, mut captured) in captured_members.into_iter().enumerate() {
+        for (materialized, member) in cycle_members.into_iter().enumerate() {
+            operation.progress(materialized as u64, count as u64);
+            let mut captured = match member {
+                CycleMember::Captured(captured) => captured,
+                CycleMember::Planned(execution) => {
+                    if execution.test_cycle_id != snapshot.source().test_cycle_id {
+                        return Err(invalid("planned member belongs to another cycle"));
+                    }
+                    index.push_planned(&execution, snapshot.captured_at())?;
+                    continue;
+                }
+            };
             if captured.input.cycle.test_cycle_id != snapshot.source().test_cycle_id {
                 return Err(invalid("materialized member belongs to another cycle"));
             }
-            operation.progress(materialized as u64, count as u64);
             let own = captured.input.cycle.test_executions[0].test_case_id.clone();
             let id = captured.execution_id.clone();
             captured.record_contracts.clear();
@@ -104,7 +112,7 @@ impl HtmlReport {
             cycle.execution_order.retain(|candidate| *candidate == id);
             cycle.execution_order.shrink_to_fit();
             index.push_capture(&captured)?;
-            members.push(Arc::new(captured));
+            members.push(Arc::new(*captured));
         }
         operation.progress(count as u64, count as u64);
         index.sort();

@@ -99,9 +99,9 @@ impl Captured {
 /* === Private Functions === */
 // Run One Wide Cycle To Its Seal And Return Its Final Resident View
 async fn sealed_cycle(handle: &RuntimeHandle, suite: TestSuite) -> CycleView {
-    let cycle_id = start_cycle(handle, suite, false).await;
+    let cycle_id = start_cycle(handle, suite).await;
     handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(handle, &cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(handle, &cycle_id, ResultStatus::Passed).await;
     handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     until_state(handle, |state| state.cycle_views().any(|cycle| cycle.test_cycle_id == cycle_id && cycle.saved.is_some())).await;
     let cycle = cycle_snapshot(handle, &cycle_id).await;
@@ -262,7 +262,7 @@ async fn skipped_snapshot_recovery() {
     register_python_suite(&handle, suite.clone()).await;
     let second = sealed_cycle(&handle, suite.clone()).await;
     assert!(resident(&handle, &second.test_cycle_id).await);
-    let third = start_cycle(&handle, suite, false).await;
+    let third = start_cycle(&handle, suite).await;
     assert!(!resident(&handle, &second.test_cycle_id).await);
     assert!(resident(&handle, &third).await);
     let written = shut_down(owner, handle, &logs).await;

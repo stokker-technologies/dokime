@@ -7,31 +7,22 @@
  * ***
  */
 
-/* The cycle cockpit: the full-width band above the cycle document that says
- * what the cycle is and asks what its run needs.
- *
- * 1. Identity — one row on `--page-bar-height`: the title with its rename
- *    pencil, the status pill and case progress, and the cycle's own "…" menu.
- * 2. Prompts — the questions the run is waiting on, full width, answered in
- *    place.
- *
- * The execution page has no cockpit: its title is the plain header of its
- * sections and its prompts lead its Control section (`ExecutionSections`). It
- * borrows only the node menu from here, so both pages offer one menu of one
- * size. The run controls are not here: the workspace publishes the cycle's
- * into the page bar's action slot, beside Focus. With `live={false}` the
- * cockpit keeps the identity and drops the menu and the prompts, which a file
- * cannot honour.
+/**
+ * The node's "…" menu: one trigger of one size, the last control of the
+ * action cluster on the cycle and the execution viewer. The groups and their
+ * order are the model's (`nodeMenuGroups`), so a test can read what each
+ * viewer's menu offers without rendering it.
  */
 
-/* === External Imports === */
+/* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
 import { Archive, ArchiveRestore, Copy, Ellipsis, FileText, Plus, RotateCcw, Settings2 } from "lucide-react";
-import { type ComponentProps, Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 
-/* === Local Imports === */
-
-import { Badge } from "@/components/ui/badge";
+// Local Imports
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -41,25 +32,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { type NodeMenuItem, nodeMenuGroups, STATUS_PILL_CLASS } from "./cycle-workspace-model";
-import { EditableLabel } from "./EditableLabel";
+import { type NodeMenuItem, nodeMenuGroups } from "./cycle-workspace-model";
+
+/* === Re-Exports === */
+
+/* === Constants === */
 
 /* === Types === */
-
-/** One node's identity: what the cockpit row states about it. */
-export type CockpitIdentity = {
-  title: string;
-  /** The cycle's lifecycle pill and case progress. The execution row carries
-   *  neither: the sidebar glyph states its status and the Steps card its
-   *  progress. */
-  status?: {
-    label: string;
-    variant: ComponentProps<typeof Badge>["variant"];
-    progress: string;
-    /** The case and step the progress stream reports while the node runs. */
-    activity?: string | null;
-  };
-};
 
 /** Archive or Unarchive, as the node's menu offers it. */
 export type ArchiveAction = {
@@ -78,7 +57,8 @@ export type CycleMenu = {
   onCopyCycle: () => void;
   /** Opens the report the cycle has now: current or sealed. */
   onOpenReport: () => void;
-  onRuntimePolicy: () => void;
+  /** Opens the cycle's Settings: title, description, Continue Automatically. */
+  onSettings: () => void;
   onToggleFollowActive: () => void;
 };
 
@@ -94,63 +74,11 @@ export type ExecutionMenu = {
   onRerun: (() => void) | null;
   /** Why the runtime refuses the re-run, when it does. */
   rerunRefusal?: string;
-};
-
-export type CycleWorkspaceHeaderProps = {
-  identity: CockpitIdentity;
-  /** False in the frozen report: no menu, no prompts. */
-  live?: boolean;
-  menu: CycleMenu | ExecutionMenu | null;
-  /** Renames the node; absent once it sealed or archived, or with
-   *  `live={false}`, the title is plain. */
-  onRename?: (label: string) => Promise<unknown>;
-  /** The prompt band, full width under the identity row. */
-  prompts?: ReactNode;
+  /** Opens the execution's Settings; `null` for a case that has not run. */
+  onSettings: (() => void) | null;
 };
 
 /* === Components === */
-
-export function CycleWorkspaceHeader({ identity, live = true, menu, onRename, prompts }: CycleWorkspaceHeaderProps) {
-  return (
-    <section aria-label="Execution Cockpit" className="grid min-w-0 border-b bg-background">
-      {/* One row on the shell's bar token: its bottom edge lines up with the
-          sidebar brand bar and the page bar at every density, and like them
-          it carries no rule of its own. The title gives way first, so the
-          progress always reads whole. */}
-      <div className="grid min-h-[var(--page-bar-height)] min-w-0 grid-cols-[minmax(0,auto)_auto_minmax(0,1fr)_auto] items-center gap-x-3 px-[var(--shell-inset)] py-[var(--bar-pad-y)]">
-        <EditableLabel
-          label={identity.title}
-          onRename={live && onRename ? onRename : null}
-          subject={menu?.kind === "execution" ? "Execution" : "Cycle"}
-        />
-        {identity.status ? (
-          <>
-            <Badge className={STATUS_PILL_CLASS} variant={identity.status.variant}>
-              {identity.status.label}
-            </Badge>
-            <p className="min-w-0 truncate text-xs leading-6 text-muted-foreground">
-              <span className="whitespace-nowrap tabular-nums">{identity.status.progress}</span>
-              {identity.status.activity ? (
-                <span aria-live="polite">
-                  {" · "}
-                  {identity.status.activity}
-                </span>
-              ) : null}
-            </p>
-          </>
-        ) : (
-          <>
-            <span />
-            <span />
-          </>
-        )}
-        {live && menu ? <NodeMenu menu={menu} /> : <span />}
-      </div>
-
-      {live && prompts ? <div className="min-w-0 px-[var(--shell-inset)] pb-3">{prompts}</div> : null}
-    </section>
-  );
-}
 
 /** The selected node's own menu, behind one trigger of one size on both pages. */
 export function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
@@ -182,7 +110,11 @@ export function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
   );
 }
 
-/* === Private Components === */
+/* === Hooks === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 /** One menu entry, wired to the handler its node supplies. */
 function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | ExecutionMenu }) {
@@ -204,6 +136,13 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         <DropdownMenuItem disabled={!menu.onOpenReport} onSelect={() => menu.onOpenReport?.()}>
           <FileText />
           Open Report
+        </DropdownMenuItem>
+      );
+    case "Settings":
+      return (
+        <DropdownMenuItem disabled={!menu.onSettings} onSelect={() => menu.onSettings?.()}>
+          <Settings2 />
+          Settings
         </DropdownMenuItem>
       );
     case "Re-Run":
@@ -233,13 +172,6 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         <DropdownMenuItem onSelect={menu.onAddCases}>
           <Plus />
           Add Cases
-        </DropdownMenuItem>
-      );
-    case "Runtime Policy":
-      return (
-        <DropdownMenuItem onSelect={menu.onRuntimePolicy}>
-          <Settings2 />
-          Runtime Policy
         </DropdownMenuItem>
       );
     case "Follow Active":

@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
   applyFrozenOrder,
   archivedCycleGroups,
@@ -31,12 +32,20 @@ import {
   type CycleRow,
   cycleRows,
   groupCycleRows,
+  promptCountsByCycle,
 } from "@/features/cycles-home/cycles-model";
 import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { compactAgeLabel } from "@/lib/time-format";
 import { PageBleed, PageNotice, PageShell, PageToolbar } from "@/shell/PageShell";
+
+/* === Constants === */
+
+/* The Status track, in the pill's own type size so it follows every density:
+   room for the longest state label (16 characters at under 0.7em each), the
+   pill's padding and the cell's. */
+const STATUS_COLUMN_WIDTH = "w-[calc(var(--pill-text)_*_11_+_2_*_var(--pill-pad-x)_+_1.5rem)]";
 
 /* === Components === */
 
@@ -84,16 +93,7 @@ export function CyclesHome() {
     [],
   );
 
-  const attentionByCycleId = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const prompt of prompts.data ?? []) {
-      const cycleId = prompt.scope?.test_cycle_id;
-      if (cycleId) {
-        counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
-      }
-    }
-    return counts;
-  }, [prompts.data]);
+  const attentionByCycleId = useMemo(() => promptCountsByCycle(prompts.data ?? []), [prompts.data]);
 
   const rows = useMemo(() => cycleRows(cycles.data ?? [], attentionByCycleId), [attentionByCycleId, cycles.data]);
   const groups = useMemo(() => {
@@ -290,13 +290,9 @@ function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | nu
       meta: { label: "Attention", width: "w-32" },
     }),
     column.accessor("statusLabel", {
-      cell: ({ row }) => (
-        <Badge className={LIST_STATUS_PILL_CLASS} variant={badgeVariant(row.original.statusTone)}>
-          {row.original.statusLabel}
-        </Badge>
-      ),
+      cell: ({ row }) => <CycleStatusPill label={row.original.statusLabel} tone={row.original.statusTone} />,
       header: "Status",
-      meta: { filter: "facet", label: "Status", width: "w-36" },
+      meta: { filter: "facet", label: "Status", width: STATUS_COLUMN_WIDTH },
     }),
     column.accessor("finishedCount", {
       cell: ({ row }) => (
@@ -339,17 +335,4 @@ function instantsLabel(row: CycleRow): string | undefined {
 function relativeUpdatedLabel(updatedAtIso: string | null, now: number): string {
   const age = compactAgeLabel(updatedAtIso, now);
   return age === "-" ? age : `${age} Ago`;
-}
-
-function badgeVariant(tone: CycleRow["statusTone"]) {
-  switch (tone) {
-    case "good":
-      return "success" as const;
-    case "warn":
-      return "warning" as const;
-    case "bad":
-      return "destructive" as const;
-    default:
-      return "outline" as const;
-  }
 }

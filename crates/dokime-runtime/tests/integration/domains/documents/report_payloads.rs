@@ -106,7 +106,6 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
             test_executions: vec![execution],
             records: TestRecordSet::default(),
             continue_automatically: false,
-            continue_on_failure: false,
             result: None,
         },
         documents: BTreeMap::new(),
@@ -1144,7 +1143,7 @@ async fn latest_member_annotations() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     let members =
         cycle_snapshot(&runtime, &cycle_id).await.test_executions.iter().map(|member| member.test_execution_id.clone()).collect::<Vec<_>>();
     let note = runtime
@@ -1208,6 +1207,139 @@ async fn latest_member_annotations() {
     );
     drop(runtime);
     owner.shutdown().await.unwrap();
+}
+
+// A current cycle report lists every planned member in cycle order; a sealed one
+// lists the members sealing cancelled.
+#[tokio::test]
+async fn cycle_report_planned() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+    let suite = fixture_suite(&["passed", "passed", "passed"]);
+    register_custom_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
+    let members = cycle_snapshot(&runtime, &cycle_id).await.test_executions;
+    let receipt = runtime
+        .start_execution(
+            members[0].test_execution_id.clone(),
+            dokime_domain::model::execution::ExecutionMode::Automatic,
+            CommandContext::default(),
+        )
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    crate::service_support::native::checkpoint(&runtime, &members[0].test_execution_id).await;
+
+    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    assert_eq!(report.origin, dokime_runtime::ReportOrigin::Current);
+    let payload = parse(std::str::from_utf8(&report.html).unwrap());
+    let executions = payload["test_executions"].as_array().unwrap();
+    assert_eq!(
+        executions.iter().map(|row| row["test_execution_id"].as_str().unwrap()).collect::<Vec<_>>(),
+        members.iter().map(|member| member.test_execution_id.as_str()).collect::<Vec<_>>()
+    );
+    assert_eq!(executions.iter().map(|row| row["attempt_index"].as_u64().unwrap()).collect::<Vec<_>>(), [0, 1, 2]);
+    assert_eq!(executions.iter().map(|row| row["status"].as_str().unwrap()).collect::<Vec<_>>(), ["passed", "planned", "planned"]);
+    for row in &executions[1..] {
+        assert_eq!(row["parameters"]["fixture.result"], "passed", "a planned member carries its parameters: {row}");
+        assert!(row["started_at"].is_null());
+    }
+    let cases = payload["test_cycle_plan"]["cases"].as_array().unwrap();
+    assert_eq!(
+        cases.iter().map(|case| case["case_id"].as_str().unwrap()).collect::<Vec<_>>(),
+        members.iter().map(|member| member.test_case_id.as_str()).collect::<Vec<_>>()
+    );
+    assert!(cases.iter().all(|case| case["parameters"]["fixture.result"] == "passed"));
+    let queue = payload["test_cycle_plan"]["queue"].as_array().unwrap();
+    assert_eq!(queue.iter().map(|item| item["status"].as_str().unwrap()).collect::<Vec<_>>(), ["passed", "queued", "queued"]);
+    // Planned Members Carry No Evidence Of Their Own.
+    assert_eq!(payload["case_runs"].as_array().unwrap().len(), 1);
+
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let sealed = cycle_snapshot(&runtime, &cycle_id).await;
+    let payload = crate::service_support::reports::payload(runtime.storage(), &sealed.saved.as_ref().unwrap().report).await;
+    let executions = payload["test_executions"].as_array().unwrap();
+    assert_eq!(executions.iter().map(|row| row["status"].as_str().unwrap()).collect::<Vec<_>>(), ["passed", "stopped", "stopped"]);
+    assert_eq!(executions.iter().map(|row| row["attempt_index"].as_u64().unwrap()).collect::<Vec<_>>(), [0, 1, 2]);
+    assert_eq!(payload["test_cycle_plan"]["cases"].as_array().unwrap().len(), 3);
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
+// A report template carries its parameter definitions, so parameters read by label and unit.
+#[tokio::test]
+async fn template_parameter_units() {
+    use dokime_domain::model::values::{MeasurementUnit, UnitFamily, ValueType};
+    let mut input = fixture_input("Parameter Units");
+    let mut suite = fixture_suite(&["passed"]);
+    let template = &mut suite.test_case_templates[0];
+    let mut voltage = template.parameters[0].clone();
+    voltage.parameter_id = dokime_runtime::model::identity::new_id();
+    voltage.metadata = metadata("ac_voltage_v", "AC Voltage");
+    voltage.value_type = ValueType::Number;
+    voltage.unit = Some(MeasurementUnit { metadata: metadata("volt", "Volt"), family: UnitFamily::Voltage, symbol: "V".into() });
+    voltage.expression = dokime_runtime::definition::ParameterExpr::Literal { value: Value::from(230.0) };
+    template.parameters.push(voltage.clone());
+    let execution = &mut input.cycle.test_executions[0];
+    let mut case = execution.snapshot.case().clone();
+    case.test_case_template_id = template.test_case_template_id.clone();
+    case.parameters.insert("ac_voltage_v".into(), Value::from(230.0));
+    execution.snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
+        &case,
+        Some(&suite),
+        Default::default(),
+        None,
+        Default::default(),
+    )
+    .unwrap();
+
+    let payload = parse(&render(&input).await);
+    let templates = payload["test_cycle_plan"]["templates"].as_array().unwrap();
+    assert_eq!(templates.len(), 1);
+    let parameters = templates[0]["parameters"].as_array().unwrap();
+    let voltage_row = parameters.iter().find(|row| row["name"] == "ac_voltage_v").expect("the voltage definition is listed");
+    assert_eq!(voltage_row["label"], "AC Voltage");
+    assert_eq!(voltage_row["unit"], "V");
+    assert_eq!(voltage_row["value_type"], "number");
+    assert_eq!(voltage_row["parameter_id"], voltage.parameter_id.as_str());
+    let result_row = parameters.iter().find(|row| row["name"] == "fixture.result").expect("the result definition is listed");
+    assert_eq!(result_row["label"], "Fixture Result");
+    assert!(result_row["unit"].is_null());
+    assert_eq!(payload["test_cycle_plan"]["cases"][0]["parameters"]["ac_voltage_v"], 230.0);
+}
+
+// Criteria order by their step first, as the live execution numbers them.
+#[tokio::test]
+async fn criterion_step_order() {
+    use dokime_domain::model::execution::result::{CriterionResult, CriterionStatus, StepRecord, StepStatus};
+    let mut input = fixture_input("Criterion Order");
+    let step = |identifier: &str| StepRecord {
+        step_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepId>(),
+        metadata: metadata(identifier, identifier),
+        status: StepStatus::Passed,
+        started_at: None,
+        finished_at: None,
+        measurements: Vec::new(),
+        criteria: vec![CriterionResult {
+            criterion_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CriterionId>(),
+            metadata: metadata(&format!("{identifier}.criterion"), "Criterion"),
+            status: CriterionStatus::Passed,
+            observed: None,
+            message: None,
+        }],
+        detail: None,
+    };
+    input.cycle.test_executions[0].steps = vec![step("first"), step("second")];
+
+    let payload = parse(&render(&input).await);
+    let rows = payload["test_executions"][0]["steps"].as_array().unwrap();
+    let orders = |kind: &str| {
+        rows.iter()
+            .filter(|row| row["record_type"] == kind)
+            .map(|row| (row["method_name"].clone(), row["order"].clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(orders("step"), [("first".into(), 0.into()), ("second".into(), 1.into())]);
+    assert_eq!(orders("criterion"), [("first.criterion".into(), 0.into()), ("second.criterion".into(), 100.into())]);
 }
 
 #[tokio::test]

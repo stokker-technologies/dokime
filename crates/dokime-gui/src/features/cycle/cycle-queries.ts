@@ -29,6 +29,7 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { deliverNativeArtifact } from "@/lib/api/native-delivery";
 import {
   appendNativeCaseAttempt,
+  cancelNativeTestExecution,
   deleteNativeTestCycleCases,
   fetchNativeTestCycleDetail,
   pauseNativeTestExecution,
@@ -203,6 +204,10 @@ export function useCycleCommands(cycleId: string) {
       mutationFn: (executionId: string) => stopNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
+    cancelExecution: useMutation({
+      mutationFn: (executionId: string) => cancelNativeTestExecution(session().identity, executionId),
+      onSettled: invalidateAll,
+    }),
     startExecution: useMutation({
       mutationFn: (executionId: string) => startNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
@@ -216,8 +221,8 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     updatePolicy: useMutation({
-      mutationFn: ({ continueAutomatically, continueOnFailure }: { continueAutomatically: boolean; continueOnFailure: boolean }) =>
-        updateNativeTestCyclePolicy(session().identity, cycleId, continueAutomatically, continueOnFailure),
+      mutationFn: ({ continueAutomatically }: { continueAutomatically: boolean }) =>
+        updateNativeTestCyclePolicy(session().identity, cycleId, continueAutomatically),
       onSettled: invalidateAll,
     }),
   };

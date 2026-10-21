@@ -173,7 +173,6 @@ async fn listener_policy_isolation() {
             dokime_runtime::transactions::CycleDefinition {
                 metadata: support::metadata("remote.listeners", "Listener Isolation"),
                 continue_automatically: false,
-                continue_on_failure: false,
             },
             Default::default(),
         )
@@ -276,7 +275,6 @@ async fn remote_cycle_seal() {
     let definition = dokime_runtime::transactions::CycleDefinition {
         metadata: support::metadata("remote.seal", "Remote Campaign"),
         continue_automatically: false,
-        continue_on_failure: false,
     };
     let cycle = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     let other = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
@@ -313,7 +311,6 @@ async fn operation_response_files() {
     let definition = dokime_runtime::transactions::CycleDefinition {
         metadata: support::metadata("remote.operations", "Original"),
         continue_automatically: false,
-        continue_on_failure: false,
     };
     let cycle = handle.create_cycle(definition, Default::default()).await.unwrap();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();

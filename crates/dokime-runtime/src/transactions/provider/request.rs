@@ -295,14 +295,16 @@ pub(crate) fn sync_cycle_activity(state: &mut RuntimeState, cycle_id: &TestCycle
         .filter_map(|id| state.run_requests.get(id))
         .find(|request| &request.summary.cycle_id == cycle_id && !request.summary.phase.terminal());
     let Some(request) = request else { return };
-    let activity = if request.summary.stop_requested {
+    let cycle = state.cycles.get_mut(cycle_id).expect("request cycle exists");
+    // Stopping Is The Closing Cycle's Own Wind-Down; An Execution Stop Leaves An Active Cycle Running.
+    let closing = cycle.phase != dokime_domain::model::execution::result::CyclePhase::Active;
+    cycle.lifecycle = if closing && request.summary.stop_requested {
         CycleStatus::Stopping
     } else if request.summary.paused {
         CycleStatus::Paused
     } else {
         CycleStatus::Running
     };
-    state.cycles.get_mut(cycle_id).expect("request cycle exists").lifecycle = activity;
 }
 
 pub(super) fn queue_records(state: &RuntimeState, run: &RunProvider) -> crate::transactions::records::draft::Drafts {

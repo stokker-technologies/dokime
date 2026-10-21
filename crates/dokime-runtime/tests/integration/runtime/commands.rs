@@ -53,7 +53,6 @@ async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
         runtime,
         metadata(&format!("fixture.cycle.{suffix}"), &format!("Fixture Cycle {suffix}")),
         materialize_cases(&registration.suite_id, &registration.suite),
-        false,
     )
     .await
 }
@@ -122,8 +121,7 @@ async fn refusals_refuses_processor() {
 async fn idempotency_survives_restart() {
     let root = tempdir().unwrap();
     let context = CommandContext { idempotency_key: Some("restart-key-1".to_owned()), ..CommandContext::default() };
-    let definition =
-        CycleDefinition { metadata: metadata("fixture.cycle", "Fixture Cycle"), continue_automatically: false, continue_on_failure: false };
+    let definition = CycleDefinition { metadata: metadata("fixture.cycle", "Fixture Cycle"), continue_automatically: false };
 
     let cycle_id = {
         let (mut runtime, handle) = booted(root.path()).await;

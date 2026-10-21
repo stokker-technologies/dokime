@@ -267,10 +267,10 @@ async fn template_declarations_register() {
 
     // Both Templates Publish What They Declared
     let suite = Checks::definition().suite;
-    let cycle = start_cases(&handle, metadata("fixture.declaring.cycle", "Declaring Cycle"), materialize_cases(SUITE, &suite), false).await;
+    let cycle = start_cases(&handle, metadata("fixture.declaring.cycle", "Declaring Cycle"), materialize_cases(SUITE, &suite)).await;
     let receipt = handle.start_next_execution(cycle.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
-    wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&handle, &cycle, ResultStatus::Passed).await;
     let rows = handle
         .collect_telemetry(&TelemetrySelection {
             streams: vec![Identifier::new(Sample::ID).unwrap().into()],

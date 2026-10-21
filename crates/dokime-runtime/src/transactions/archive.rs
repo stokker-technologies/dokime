@@ -59,7 +59,9 @@ impl Transaction<RuntimeState> for SetArchived {
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         match &self.subject {
             ArchiveSubject::Cycle(id) => match state.cycles.get(id) {
-                Some(cycle) if !cycle_terminal(cycle.lifecycle) => Err("only a terminal cycle can be archived or unarchived".to_owned()),
+                Some(cycle) if cycle.phase != dokime_domain::model::execution::result::CyclePhase::Sealed => {
+                    Err("only a sealed cycle can be archived or unarchived".to_owned())
+                }
                 _ => Ok(()),
             },
             ArchiveSubject::Execution(id) => match state.executions.get(id) {

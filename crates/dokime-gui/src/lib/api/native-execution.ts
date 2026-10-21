@@ -140,6 +140,11 @@ export async function stopNativeTestExecution(session: SessionIdentity, executio
   await rpc.executionStopExecution(session, { executionId });
 }
 
+/** Skips One Unstarted Attempt; Cycle Continuation Is Unchanged */
+export async function cancelNativeTestExecution(session: SessionIdentity, executionId: string): Promise<void> {
+  await rpc.executionCancelExecution(session, { executionId });
+}
+
 export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
   await rpc.executionSealCycle(session, { cycleId });
 }
@@ -186,9 +191,8 @@ export async function updateNativeTestCyclePolicy(
   session: SessionIdentity,
   cycleId: string,
   continueAutomatically: boolean,
-  continueOnFailure: boolean,
 ): Promise<StartTestCycleResponse> {
-  await rpc.executionUpdateCyclePolicy(session, { cycleId, continueAutomatically, continueOnFailure });
+  await rpc.executionUpdateCyclePolicy(session, { cycleId, continueAutomatically });
   const plan = await fetchNativeTestCyclePlan(session, cycleId);
   if (!plan) throw new Error("The cycle disappeared after updating its policy.");
   return { plan };

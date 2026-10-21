@@ -13,16 +13,19 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
-
+import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
 // Local Imports
 import {
   archiveRefusal,
   buildCycleExecutionRows,
+  CYCLE_STATE_LABELS,
   type CycleCase,
   type CycleSelection,
   cycleRowSelection,
-  executionControlSet,
+  cycleState,
   followSelection,
   isCycleTerminal,
   isFollowing,
@@ -49,6 +52,8 @@ import {
   refuseLabel,
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
+import { cycleSettingsReadOnly, SettingsFields } from "@/features/cycle/SettingsForm";
+import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import { archivedCycleGroups, type CycleRow, groupCycleRows } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { defaultCycleLabel } from "@/lib/time-format";
@@ -63,7 +68,9 @@ import { focusPresentation } from "@/shell/focus-mode";
 
 type Execution = Parameters<typeof buildCycleExecutionRows>[1][number];
 
-type RunControl = Parameters<typeof executionControlSet>[1];
+type ControlInput = Parameters<typeof executionControlState>[0];
+
+type RunControl = ControlInput["controls"];
 
 type FollowInput = Parameters<typeof followSelection>[0];
 
@@ -100,28 +107,90 @@ test("Active Containers Persist", () => {
   );
 });
 
+test("Cycle State", () => {
+  // Stopping One Execution Leaves Its Active Cycle Idle
+  assert.deepEqual(cycleState("active", "stopped", false), { label: "Active · Idle", variant: "outline" });
+  assert.equal(cycleState("active", "completed", false).label, "Active · Idle");
+  assert.equal(cycleState("active", "planned", false).label, "Active · Idle");
+
+  // Running Covers Every Lifecycle That Still Produces Evidence
+  for (const lifecycle of ["running", "paused", "stopping"] as const) {
+    assert.equal(cycleState("active", lifecycle, false).label, "Active · Running");
+  }
+
+  // An Answerable Prompt Means The Cycle Waits On The Operator
+  assert.equal(cycleState("active", "running", true).label, "Active · Waiting");
+
+  // The Closing Phases Name Only Themselves
+  assert.equal(cycleState("sealing", "stopping", true).label, "Sealing");
+  assert.equal(cycleState("sealed", "failed", false).label, "Sealed");
+});
+
+test("Status Pill", () => {
+  // The Longest State Label Renders Whole, On A Track Every Label Sizes
+  const longest = CYCLE_STATE_LABELS.reduce((wide, label) => (label.length > wide.length ? label : wide));
+  const markup = renderToStaticMarkup(createElement(CycleStatusPill, { label: longest, tone: "good" }));
+  const badges = [...markup.matchAll(/<span ([^>]*data-slot="badge"[^>]*)>([^<]*)<\/span>/g)];
+  const visible = badges.filter(([, attributes]) => !attributes.includes("aria-hidden"));
+  assert.deepEqual(
+    visible.map(([, , text]) => text),
+    [longest],
+    "the visible pill states the full label",
+  );
+  const sizers = [...markup.matchAll(/aria-hidden="true"[^>]*>([^<]*)</g)].map((match) => match[1]);
+  assert.deepEqual(sizers, [...CYCLE_STATE_LABELS], "every label sizes the shared track");
+  assert.doesNotMatch(markup, /pill-width|truncate|text-ellipsis/, "no fixed width or ellipsis can clip a label");
+  assert.match(markup, /inline-grid/);
+  assert.match(markup, /w-full \[grid-area:1\/1\]/, "the visible pill fills the widest label's track");
+});
+
+test("Settings Dialogs", () => {
+  const render = (props: Parameters<typeof SettingsFields>[0]) => renderToStaticMarkup(createElement(SettingsFields, props));
+  const cycle = { continueAutomatically: true, description: "Bench run", title: "Test Cycle" };
+
+  // An Active Cycle Edits Its Title And Continuation; Its Description Was Written At Creation
+  const active = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("active", false), values: cycle });
+  assert.match(active, /Title/);
+  assert.match(active, /Continue Automatically/);
+  assert.doesNotMatch(active, /Continue after a failed case/);
+  assert.equal((active.match(/ disabled=""/g) ?? []).length, 1, "only the description is read-only");
+  assert.match(active, /Set when the cycle was created/);
+
+  // A Sealed Cycle Shows Its Settings Read-Only
+  const sealed = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("sealed", false), values: cycle });
+  assert.ok((sealed.match(/ disabled=""/g) ?? []).length >= 3, "title, description and continuation are all read-only");
+  assert.match(sealed, /role="switch"[^>]* disabled=""/);
+  assert.match(sealed, /Sealed cycles keep the settings they ran with/);
+
+  // An Execution's Settings Are Its Title Alone, The Same Form
+  const execution = render({ onChange: () => undefined, values: { title: "Charger Start-Up" } });
+  assert.match(execution, /Title/);
+  assert.doesNotMatch(execution, /Description|Continue Automatically/);
+});
+
 test("Node Menus", () => {
   // Cycle Menu Opens Its Report And Archives, With No Bundle, Folder Or Clearing
   const items: string[] = nodeMenuGroups("cycle", false).flat();
   assert.deepEqual(nodeMenuGroups("cycle", false), [
-    ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"],
-    ["Open Report"],
+    ["Copy Cycle", "Add Cases", "Follow Active"],
+    ["Open Report", "Settings"],
     ["Archive"],
   ]);
   for (const removed of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
     assert.ok(!items.includes(removed), removed);
   }
 
-  // Execution Menu Offers Re-Run, Open Report And Archive
-  assert.deepEqual(nodeMenuGroups("execution", false), [["Re-Run"], ["Open Report"], ["Archive"]]);
+  // Execution Menu Offers Re-Run, Open Report, Settings And Archive
+  assert.deepEqual(nodeMenuGroups("execution", false), [["Re-Run"], ["Open Report", "Settings"], ["Archive"]]);
 
   // An Archived Node Offers Unarchive In Place Of Archive
   assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
   assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive"]);
 
-  // Archiving Waits For A Terminal Run And Says So
-  assert.equal(archiveRefusal(true), undefined);
-  assert.match(archiveRefusal(false) ?? "", /once the run has ended/);
+  // Archiving Waits For A Sealed Cycle Or An Ended Run And Says So
+  assert.equal(archiveRefusal(true, "cycle"), undefined);
+  assert.match(archiveRefusal(false, "cycle") ?? "", /once the cycle is sealed/);
+  assert.match(archiveRefusal(false, "execution") ?? "", /once the run has ended/);
 
   // Download Report Waits Only For A Save In Progress
   assert.deepEqual(reportDownloadState(false), {
@@ -150,11 +219,15 @@ test("Node Menus", () => {
 });
 
 test("Execution Controls", () => {
-  // Unstarted Attempts Can Start Or Stop Without Dispatching
-  assert.deepEqual(executionControlSet("planned", null), ["Start", "Stop Execution"]);
-  assert.deepEqual(executionControlSet("created", null), ["Start", "Stop Execution"]);
-
-  // Start Leaves Once The Execution Runs Or Ends, In Start | Re-Run | Stop Order
+  const input = (patch: Partial<ControlInput>): ControlInput => ({
+    controls: null,
+    progress: null,
+    promptWaiting: false,
+    status: "running",
+    stepStatuses: [],
+    stopping: false,
+    ...patch,
+  });
   const running = {
     canPause: false,
     canResume: false,
@@ -164,11 +237,57 @@ test("Execution Controls", () => {
     requestId: "r",
     stopRequested: false,
   } as unknown as NonNullable<RunControl>;
-  assert.deepEqual(executionControlSet("running", running), ["Stop Execution"]);
-  assert.deepEqual(executionControlSet("running", { ...running, canPause: true }), ["Pause Execution", "Stop Execution"]);
-  assert.deepEqual(executionControlSet("passed", null), ["Re-Run"]);
-  assert.deepEqual(executionControlSet("failed", null), ["Re-Run"]);
-  assert.deepEqual(executionControlSet("running", null), []);
+
+  // An Unstarted Attempt Offers Start And Cancel, Never Stop
+  for (const status of ["planned", "created"] as const) {
+    const state = executionControlState(input({ status }));
+    assert.deepEqual(state.actions, ["Start", "Cancel"]);
+    assert.doesNotMatch(state.line, /No step in progress/);
+  }
+  assert.equal(executionControlState(input({ status: "planned" })).line, "Not started · waits for Start");
+
+  // Stop Shows Only While An Attempt Runs, After Pause When It Pauses
+  assert.deepEqual(executionControlState(input({ controls: running })).actions, ["Stop"]);
+  assert.deepEqual(executionControlState(input({ controls: { ...running, canPause: true } })).actions, ["Pause", "Stop"]);
+  assert.deepEqual(executionControlState(input({ controls: { ...running, canResume: true, paused: true } })), {
+    actions: ["Resume", "Stop"],
+    detail: null,
+    line: "Paused",
+    phase: "paused",
+  });
+  assert.deepEqual(executionControlState(input({})).actions, []);
+
+  // The Running Step Reads By Its Label, Its Id Muted After It, Its Count Beside The Bar
+  const step = executionControlState(
+    input({ controls: running, progress: { completed: 2, id: "publish", label: "Publish Evidence", total: 5 } }),
+  );
+  assert.equal(step.line, "Publish Evidence");
+  assert.equal(step.detail, "publish");
+
+  // A Waiting Prompt Is Named, Not Shown, In Control
+  assert.equal(executionControlState(input({ controls: running, promptWaiting: true })).line, "Waits on the prompt below");
+
+  // Once The Last Step Settles The Attempt Finalizes And Offers Nothing
+  const settled = executionControlState(input({ controls: { ...running, canPause: true }, stepStatuses: ["passed", "passed"] }));
+  assert.deepEqual(settled, { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" });
+  assert.equal(
+    executionControlState(input({ controls: running, progress: { completed: 5, id: "s", label: "S", total: 5 } })).phase,
+    "finalizing",
+  );
+  assert.equal(executionControlState(input({ controls: running, status: "finalizing" })).phase, "finalizing");
+  assert.equal(executionControlState(input({ controls: running, status: "passed" })).phase, "finalizing");
+  assert.equal(executionControlState(input({ controls: running, stepStatuses: ["passed", "running"] })).phase, "running");
+
+  // A Stop In Flight Offers Nothing Further
+  assert.equal(executionControlState(input({ controls: running, stopping: true })).line, "Stopping · saving evidence");
+
+  // An Ended Attempt Offers Re-Run
+  assert.deepEqual(executionControlState(input({ status: "passed" })).actions, ["Re-Run"]);
+  assert.equal(executionControlState(input({ status: "failed" })).line, "Ended · Failed");
+
+  // The Cycle Names The Executions Waiting On Input
+  assert.equal(inputNeededLabel([1, 3]), "Input needed on #1, #3");
+  assert.equal(inputNeededLabel([]), null);
 });
 
 test("Label Editing", () => {
@@ -405,11 +524,10 @@ test("New Cycle Form", () => {
   const opened = new Date(2026, 9, 16, 14, 5);
   const form = initialNewCycleForm(opened);
 
-  // The Title Opens As The Moment The Dialog Opened, Continuing Past Failures
+  // The Title Opens As The Moment The Dialog Opened
   assert.equal(form.title, defaultCycleLabel(opened));
   assert.notEqual(form.title, defaultCycleLabel(new Date(2026, 9, 17, 9, 30)));
   assert.equal(form.description, "");
-  assert.equal(form.continueOnFailure, true);
   assert.equal(form.continueAutomatically, false);
   assert.equal(newCycleFormError(form), null);
 
@@ -417,19 +535,14 @@ test("New Cycle Form", () => {
   assert.equal(newCycleFormError({ ...form, title: "   " }), EMPTY_TITLE_ERROR);
 
   // The Request Trims Its Text And Omits A Blank Description
-  assert.deepEqual(newCycleRequest({ continueAutomatically: false, continueOnFailure: false, description: "  ", title: "  Bench A  " }), {
+  assert.deepEqual(newCycleRequest({ continueAutomatically: false, description: "  ", title: "  Bench A  " }), {
     continueAutomatically: false,
-    continueOnFailure: false,
     description: undefined,
     label: "Bench A",
   });
-  assert.deepEqual(
-    newCycleRequest({ continueAutomatically: true, continueOnFailure: true, description: " Night run ", title: "Bench B" }),
-    {
-      continueAutomatically: true,
-      continueOnFailure: true,
-      description: "Night run",
-      label: "Bench B",
-    },
-  );
+  assert.deepEqual(newCycleRequest({ continueAutomatically: true, description: " Night run ", title: "Bench B" }), {
+    continueAutomatically: true,
+    description: "Night run",
+    label: "Bench B",
+  });
 });

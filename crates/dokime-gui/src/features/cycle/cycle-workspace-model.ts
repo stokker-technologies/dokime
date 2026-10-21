@@ -137,18 +137,7 @@ export type FollowState = {
 };
 
 /** One entry of a node's "…" menu. */
-export type NodeMenuItem =
-  | "Copy Cycle"
-  | "Add Cases"
-  | "Runtime Policy"
-  | "Follow Active"
-  | "Open Report"
-  | "Archive"
-  | "Unarchive"
-  | "Re-Run";
-
-/** One control of the execution page's page-bar group, in its order. */
-export type ExecutionControl = "Start" | "Re-Run" | "Pause Execution" | "Resume Execution" | "Stop Execution";
+export type NodeMenuItem = "Copy Cycle" | "Add Cases" | "Settings" | "Follow Active" | "Open Report" | "Archive" | "Unarchive" | "Re-Run";
 
 /** The page bar's Download Report button as it stands. */
 export type ReportDownloadState = {
@@ -336,33 +325,19 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
 export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
   const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
-    ? [["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"], ["Open Report"], [archive]]
-    : [["Re-Run"], ["Open Report"], [archive]];
-}
-
-/** Why a node cannot be archived yet, or `undefined` once it can. */
-export function archiveRefusal(terminal: boolean): string | undefined {
-  return terminal ? undefined : "Archiving becomes available once the run has ended.";
+    ? [["Copy Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
+    : [["Re-Run"], ["Open Report", "Settings"], [archive]];
 }
 
 /**
- * The execution page's run controls, in order: Start | Re-Run | Pause or
- * Resume | Stop Execution.
- *
- * Start belongs to an attempt that has not started — planned, or queued and
- * not yet dispatched — and leaves once it runs or ends. Re-Run belongs to an
- * ended attempt; Pause or Resume and Stop to one an execution-addressed run
- * controls, as the runtime's own `controls` admit.
+ * Why a node cannot be archived yet, or `undefined` once it can: a cycle
+ * once it is sealed, an execution once its attempt has ended.
  */
-export function executionControlSet(status: TestExecution["status"], controls: TestExecution["controls"]): ExecutionControl[] {
-  if (isUnstartedExecution(status)) return ["Start", "Stop Execution"];
-  const set: ExecutionControl[] = [];
-  if (isTerminalExecutionStatus(status) && !controls) set.push("Re-Run");
-  if (controls?.requestId && (controls.canPause || controls.canResume)) {
-    set.push(controls.paused ? "Resume Execution" : "Pause Execution");
-  }
-  if (controls && (controls.canStop || controls.stopRequested)) set.push("Stop Execution");
-  return set;
+export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution"): string | undefined {
+  if (allowed) return undefined;
+  return subject === "cycle"
+    ? "Archiving becomes available once the cycle is sealed."
+    : "Archiving becomes available once the run has ended.";
 }
 
 /** Download Report waits only for a save already in progress. */
@@ -386,6 +361,34 @@ export function reportFilename(label: string): string {
 /** Whether the cycle is still producing evidence: running, paused or stopping. */
 export function isCycleInFlight(status: CycleLifecycle): boolean {
   return status === "running" || status === "paused" || status === "stopping";
+}
+
+/** Every label `cycleState` gives, longest first; the Status column fits the first. */
+export const CYCLE_STATE_LABELS = ["Active · Waiting", "Active · Running", "Active · Idle", "Sealing", "Sealed"] as const;
+
+export type CycleState = {
+  label: (typeof CYCLE_STATE_LABELS)[number];
+  variant: "default" | "secondary" | "warning" | "outline";
+};
+
+/**
+ * The cycle's own state, as its pill and label say it.
+ *
+ * An Active cycle is Idle, Running or Waiting for an operator; Sealing and
+ * Sealed close it. An execution's outcome never reaches this label: a stopped
+ * or finished run leaves its Active cycle Idle.
+ */
+export function cycleState(phase: TestCycle["phase"], lifecycle: CycleLifecycle, waiting: boolean): CycleState {
+  if (phase === "sealing") return { label: "Sealing", variant: "warning" };
+  if (phase === "sealed") return { label: "Sealed", variant: "secondary" };
+  if (waiting) return { label: "Active · Waiting", variant: "warning" };
+  if (isCycleInFlight(lifecycle)) return { label: "Active · Running", variant: "default" };
+  return { label: "Active · Idle", variant: "outline" };
+}
+
+/** Whether the cycle has closed: prompts end with it, and only a sealed cycle archives. */
+export function isCycleSealed(phase: TestCycle["phase"]): boolean {
+  return phase === "sealed";
 }
 
 export function cycleStatusLabel(status: CycleLifecycle): string {

@@ -116,7 +116,7 @@ async fn plot_points_admission() {
 // in-memory window is empty, yet window All still opens with the stored rows.
 #[tokio::test]
 async fn sealed_window_all() {
-    use dokime_runtime::{CycleStatus, runtime::command::CommandContext};
+    use dokime_runtime::runtime::command::CommandContext;
     let root = tempfile::tempdir().unwrap();
     let config = || crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.plots", "Plots"));
     let gate = std::sync::Arc::new(Gate::default());
@@ -179,7 +179,7 @@ async fn sealed_window_all() {
     }
     drop(watch);
     gate.release.notify_one();
-    support::wait_for_cycle_lifecycle(&handle, &cycle, CycleStatus::Completed).await;
+    support::wait_for_cycle_outcome(&handle, &cycle, dokime_domain::model::execution::result::ResultStatus::Passed).await;
     support::on_state_change(&handle, async || handle.execution_saved_checkpoint(execution.clone()).await.ok()).await;
     server.shutdown().await.unwrap();
     drop(handle);

@@ -354,7 +354,6 @@ pub(super) fn grouping(cycle: &CycleView) -> CycleView {
         test_executions: Vec::new(),
         records: cycle.records.clone(),
         continue_automatically: cycle.continue_automatically,
-        continue_on_failure: cycle.continue_on_failure,
         result: cycle.result.clone(),
     }
 }
@@ -373,7 +372,6 @@ pub(super) fn grouping_memory(cycle: &CycleView) -> usize {
         test_executions: _,
         records,
         continue_automatically: _,
-        continue_on_failure: _,
         result: _,
     } = cycle;
     let fields = [
@@ -415,7 +413,6 @@ fn cycle_budget(cycle: &CycleView) -> Result<Budget> {
         &cycle.started_at,
         &cycle.updated_at,
         &cycle.records,
-        &cycle.continue_on_failure,
         &cycle.result,
     ))?;
     if cycle.test_executions.len() > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {

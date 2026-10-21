@@ -350,7 +350,6 @@ async fn get_suite(
             files: files(&template.files, &mut budget)?,
             steps: steps(&template.phases)?,
             parameter_groups: groups(&template.parameter_groups)?,
-            continue_on_failure: template.continue_on_failure,
         })
     }))?;
     Ok(dokime_domain::model::catalog::wire::SuiteDefinition {

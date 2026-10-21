@@ -221,11 +221,7 @@ fn planned() -> (RuntimeState, TestCycleId) {
 
 fn create_cycle(state: &mut RuntimeState, id: &TestCycleId, identifier: &str) {
     let create = dokime_runtime::transactions::CreateCycle {
-        definition: dokime_runtime::transactions::CycleDefinition {
-            metadata: metadata(identifier),
-            continue_automatically: false,
-            continue_on_failure: false,
-        },
+        definition: dokime_runtime::transactions::CycleDefinition { metadata: metadata(identifier), continue_automatically: false },
         test_cycle_id: id.clone(),
         occurred_at: dokime_runtime::model::time::now_utc(),
     };
@@ -934,7 +930,8 @@ fn terminal_traceability_history() {
     settle_request(&mut state, &CommandId::from_seed("snapshot.run"));
     let completed = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     assert_eq!(completed.status, ExecutionStatus::Passed);
-    assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Completed);
+    assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Ready);
+    assert_eq!(state.cycles[&cycle_id].result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Passed));
     assert_eq!(projected_status(&state, &cycle_id, &completed), Value::from("Passed"));
 
     // Aggregate values still arrive after the terminal transaction. Their
@@ -1064,7 +1061,7 @@ fn bounded_cycle_admission() {
 fn copied_cycle_reusing() {
     let (mut state, source_id) = admitted();
     let mut source = state.cycle_view(&source_id).unwrap();
-    source.continue_on_failure = true;
+    source.continue_automatically = true;
     source.test_executions[0].output_parameters.insert(
         "huge".into(),
         MaterializedParameter { value: Value::from("x".repeat(9 * 1024 * 1024)), ..parameter(1, ParameterSource::Output) },
@@ -1101,7 +1098,7 @@ fn copied_cycle_reusing() {
     }
     assert!(target.result.is_none());
     assert!(target.started_at.is_none());
-    assert!(target.continue_on_failure);
+    assert!(target.continue_automatically);
     assert!(copy.check(&state).is_err());
 
     // What the plan carries is checked before anything is cloned: an oversized
@@ -1509,7 +1506,8 @@ fn execution_selection_attempts() {
     let controls = dokime_runtime::runtime::query::execution_controls(&state, &selected).unwrap();
     assert!(controls.can_stop && !controls.can_pause && !controls.can_resume);
     assert!(controls.request_id.is_none(), "failed publication has no live provider owner");
-    assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Failed);
+    assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Ready);
+    assert_eq!(state.cycles[&cycle_id].result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Failed));
     assert_eq!(state.run_requests[&run.command_id].summary.finished, 1);
     run.command_id = dokime_runtime::model::identity::new_id::<CommandId>();
     assert!(run.check(&state).is_err(), "finished execution cannot reopen");
@@ -1537,7 +1535,8 @@ fn execution_selection_attempts() {
     assert_eq!(state.executions[&selected], failed);
     assert_eq!(state.run_requests[&run.command_id].summary.phase, dokime_runtime::transactions::provider::request::RunPhase::Failed);
     assert!(state.run_requests[&run.command_id].publication_failure.is_some(), "state-only fixture has no durable report seal");
-    assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Failed);
+    assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Ready);
+    assert_eq!(state.cycles[&cycle_id].result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Failed));
     state.validate_execution_ownership().unwrap();
 }
 

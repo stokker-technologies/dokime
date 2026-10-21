@@ -98,7 +98,6 @@ async fn report_publication_reopens() {
         execution_ids: Vec::new(),
         records: Default::default(),
         continue_automatically: false,
-        continue_on_failure: false,
         result: None,
     };
     let mut publication = reports::Prepared::new(

@@ -162,8 +162,6 @@ export type SuiteTemplateEntry = {
   description?: string | null;
   path: string[];
   tags: string[];
-  /** The template's own policy, as registered; not the suite's. */
-  continue_on_failure: boolean;
   parameter_definitions: ParameterDefinition[];
   file_definitions: FileDefinition[];
   steps: StepDefinition[];
@@ -178,7 +176,6 @@ export type TestSuiteEntry = {
   source: string;
   path: string[];
   tags: string[];
-  continue_on_failure: boolean;
   members: SuiteTemplateEntry[];
   metadata: JsonObject;
 };
@@ -229,7 +226,6 @@ export type TestCycle = {
   queue_count: number;
   current_test_execution_id?: string | null;
   current_queue_item_id?: string | null;
-  continue_on_failure: boolean;
   continue_automatically: boolean;
   started_at?: string | null;
   finished_at?: string | null;

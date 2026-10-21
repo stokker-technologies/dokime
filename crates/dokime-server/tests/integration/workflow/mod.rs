@@ -208,7 +208,7 @@ async fn registered_create_definitions() {
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status == model::execution::wire::CycleStatus::Completed {
+            if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
                 assert_eq!(cycle.execution_count, 1);
                 let attempts = execution
                     .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -429,7 +429,7 @@ async fn checkpoint_telemetry_queries() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(
                 history
                     .unary::<contracts::history::BrowseExecutions>(authenticated(contracts::history::BrowseExecutions {
@@ -517,14 +517,14 @@ async fn historical_checkpoint_content() {
     gate.started.notified().await;
     gate.release.notify_one();
     support::on_state_change(&owner.handle(), async || {
-        if execution
-            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &execution
+                .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None
@@ -839,14 +839,14 @@ async fn stalled_stream_execution() {
     let next = service.listen().await.unwrap();
     let client = WireClient::connect(next.local_endpoint()).await.unwrap();
     support::on_state_change(&owner.handle(), async || {
-        if client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() })
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &client
+                .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() })
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None
@@ -904,7 +904,7 @@ async fn run_cycle_targets() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(cycle);
         }
         None

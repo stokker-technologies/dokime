@@ -47,7 +47,7 @@ async fn empty_cycle_grows() {
     register_python_suite(&runtime, suite.clone()).await;
 
     // Created: Ready, Empty, And Visible
-    let cycle_id = start_cases(&runtime, metadata("cycle.explicit", "Explicit Cycle"), Vec::new(), false).await;
+    let cycle_id = start_cases(&runtime, metadata("cycle.explicit", "Explicit Cycle"), Vec::new()).await;
     let created = cycle_snapshot(&runtime, &cycle_id).await;
     assert_eq!(created.lifecycle, CycleStatus::Ready);
     assert_eq!(created.cases().count(), 0);
@@ -91,7 +91,7 @@ async fn empty_cycle_grows() {
     // Run: The Appended Cases Complete
     let accepted = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(accepted.status, CommandStatus::Accepted, "{accepted:?}");
-    let completed = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     assert_eq!(completed.test_executions.len(), 1);
     assert_eq!(completed.test_executions[0].status, ExecutionStatus::Passed);
 }
@@ -101,7 +101,7 @@ async fn empty_cycle_grows() {
 async fn empty_cycle_seals() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
-    let cycle_id = start_cases(&runtime, metadata("cycle.unused", "Unused Cycle"), Vec::new(), false).await;
+    let cycle_id = start_cases(&runtime, metadata("cycle.unused", "Unused Cycle"), Vec::new()).await;
 
     runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     let stopped = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Stopped).await;

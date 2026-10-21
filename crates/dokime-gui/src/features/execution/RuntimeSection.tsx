@@ -16,8 +16,8 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { Badge } from "@/components/ui/badge";
-import { formatBytes } from "@/lib/format";
-import { durationLabel, elapsedLabel } from "@/lib/time-format";
+import { formatBytes, formatDuration } from "@/lib/format";
+import { elapsedLabel } from "@/lib/time-format";
 import type { DiagnosticsSnapshot, DocumentCardLayout, HubLiveState } from "@/lib/types";
 import { useHubStore } from "@/stores/hub-store";
 
@@ -60,7 +60,7 @@ export function RuntimeSection({ connection, diagnostics, layout, snapshot }: Ru
           value={elapsedLabel(runStartedAt, now, runFinishedAt)}
           detail={
             lastStreamFrameAt !== null
-              ? `Live frame ${durationLabel(Math.max(0, Math.floor((now - lastStreamFrameAt) / 1000)))} ago`
+              ? `Live frame ${formatDuration(Math.max(0, Math.floor((now - lastStreamFrameAt) / 1000)))} ago`
               : "No live frames yet"
           }
         />

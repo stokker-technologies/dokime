@@ -81,9 +81,6 @@ pub struct TestCaseTemplate {
     pub criteria: Vec<CriterionDefinition>,
 
     #[serde(default)]
-    pub continue_on_failure: bool,
-
-    #[serde(default)]
     pub prompt_definitions: Vec<crate::model::prompts::PromptDefinition>,
 
     #[serde(default)]

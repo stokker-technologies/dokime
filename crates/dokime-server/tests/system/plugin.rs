@@ -88,15 +88,18 @@ async fn wait_prompt(changes: &mut Changes, prompts: &mut Client, cycle_id: &str
 async fn wait_completed(changes: &mut Changes, execution: &mut Client, cycle_id: &str) -> model::execution::wire::CycleSummary {
     on_change(changes, async || {
         let cycle = execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.to_owned() }).await.unwrap();
-        matches!(
-            cycle.status,
-            model::execution::wire::CycleStatus::Completed
-                | model::execution::wire::CycleStatus::Failed
-                | model::execution::wire::CycleStatus::Stopped
-        )
-        .then_some(cycle)
+        // An Active cycle has settled once it is idle again with every member run.
+        let settled = cycle.status == model::execution::wire::CycleStatus::Ready
+            && cycle.running_count == 0
+            && cycle.queued_count == 0
+            && cycle.result.is_some();
+        settled.then_some(cycle)
     })
     .await
+}
+
+fn passed(cycle: &model::execution::wire::CycleSummary) -> bool {
+    cycle.result.as_ref().is_some_and(|result| result.status == model::execution::wire::ResultStatus::Passed)
 }
 
 async fn execution_id(changes: &mut Changes, execution: &mut Client, cycle_id: &str) -> String {
@@ -396,9 +399,9 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         .unwrap();
 
     let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
-    if cycle.status != model::execution::wire::CycleStatus::Completed {
+    if !passed(&cycle) {
         let diagnosis = diagnosis::execution(client, &execution_id, STEADY_STREAM_LOG).await;
-        assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed, "{diagnosis}");
+        assert!(passed(&cycle), "{diagnosis}");
     }
     let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
     execution.cycle(id).seal().await.unwrap();
@@ -729,7 +732,6 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
         .execution_update_cycle_policy(contracts::execution::UpdateCyclePolicy {
             cycle_id: cycle_id.clone(),
             continue_automatically: true,
-            continue_on_failure: false,
             context: None,
         })
         .await
@@ -756,8 +758,15 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
                 .unwrap();
         }
         let cycle = execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap();
-        assert_ne!(cycle.status, model::execution::wire::CycleStatus::Failed);
-        (cycle.status == model::execution::wire::CycleStatus::Completed).then_some(())
+        assert!(!cycle.result.as_ref().is_some_and(|result| matches!(
+            result.status,
+            model::execution::wire::ResultStatus::Failed | model::execution::wire::ResultStatus::Blocked
+        )));
+        (cycle.status == model::execution::wire::CycleStatus::Ready
+            && cycle.running_count == 0
+            && cycle.queued_count == 0
+            && passed(&cycle))
+        .then_some(())
     })
     .await;
     let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
@@ -885,7 +894,7 @@ async fn open_report_while_cycle_runs() {
         .await
         .unwrap();
     let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
-    assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
+    assert!(passed(&cycle));
     drop(changes);
     host.stop(false).await;
 }
@@ -1016,9 +1025,9 @@ async fn plugin_host_walkthrough() {
         .unwrap();
 
     let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
-    if cycle.status != model::execution::wire::CycleStatus::Completed {
+    if !passed(&cycle) {
         let diagnosis = diagnosis::execution(&client, &execution_id, STARTUP_STREAM_LOG).await;
-        assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed, "{diagnosis}");
+        assert!(passed(&cycle), "{diagnosis}");
     }
     let telemetry = client.clone();
     let telemetry = telemetry

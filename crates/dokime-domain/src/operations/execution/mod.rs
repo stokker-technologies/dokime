@@ -10,6 +10,7 @@
 /* === Modules === */
 
 mod append_executions;
+mod cancel_execution;
 mod copy_cycle;
 mod create_cycle;
 mod delete_case;
@@ -41,6 +42,7 @@ mod update_cycle_policy;
 /* === Re-Exports === */
 
 pub use append_executions::{AppendExecutions, ExecutionBinding};
+pub use cancel_execution::CancelExecution;
 pub use copy_cycle::CopyCycle;
 pub use create_cycle::CreateCycle;
 pub use delete_case::DeleteCase;
@@ -172,6 +174,7 @@ pub enum Operations {
     PauseExecution(PauseExecution),
     ResumeExecution(ResumeExecution),
     StopExecution(StopExecution),
+    CancelExecution(CancelExecution),
     SubmitExecutionCommand(SubmitExecutionCommand),
     GetExecutionCommand(GetExecutionCommand),
     PauseCycle(PauseCycle),
@@ -255,6 +258,10 @@ impl Endpoint for ResumeExecution {
 
 impl Endpoint for StopExecution {
     const PATH: &'static str = "/dokime.v1.Execution/StopExecution";
+}
+
+impl Endpoint for CancelExecution {
+    const PATH: &'static str = "/dokime.v1.Execution/CancelExecution";
 }
 
 impl Endpoint for SubmitExecutionCommand {

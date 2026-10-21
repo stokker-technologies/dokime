@@ -93,11 +93,11 @@ const touch = { density: "touch", height: 1200, width: 1920 };
 const benchOperator = "Bench Operator";
 
 /** The suite the captures compose from, and a longer observation so the plots fill. */
-const SUITE = "Steady Charging";
+const SUITE = "Charger Steady State";
 
 const OBSERVATION_DURATION = "6";
 
-const PROTECTION_SUITE = "Overcurrent Protection";
+const PROTECTION_SUITE = "Charger Protection";
 
 const OPERATOR_NOTE = "Trace steady, no fault indicated.";
 

@@ -53,7 +53,7 @@ async fn prepared_start_refusal() {
     let (_owner, handle) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
-    let cycle_id = start_cycle(&handle, suite, false).await;
+    let cycle_id = start_cycle(&handle, suite).await;
     let execution_id = cycle_snapshot(&handle, &cycle_id).await.test_executions[0].test_execution_id.clone();
     let node = handle.identity().node.node_id;
     let command_id = CommandId::from_seed(format!("execution-start:{node}:{execution_id}"));
@@ -204,7 +204,7 @@ async fn admitted_progress_stop() {
     let (mut runtime, handle) = started_with_fixture(config(root.path()), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
-    let cycle = start_cycle(&handle, suite, false).await;
+    let cycle = start_cycle(&handle, suite).await;
     let receipt = handle.start_next_execution(cycle, CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
@@ -239,8 +239,8 @@ async fn shutdown_settles_requests() {
     let (mut runtime, handle) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
-    let active_cycle = start_cycle(&handle, suite.clone(), false).await;
-    let queued_cycle = start_cycle(&handle, suite, false).await;
+    let active_cycle = start_cycle(&handle, suite.clone()).await;
+    let queued_cycle = start_cycle(&handle, suite).await;
 
     let active = handle.start_next_execution(active_cycle, CommandContext::default()).await;
     assert_eq!(active.status, CommandStatus::Accepted);
@@ -276,8 +276,8 @@ async fn queued_execution_request() {
     let (mut runtime, handle) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
-    let active_cycle = start_cycle(&handle, suite.clone(), false).await;
-    let queued_cycle = start_cycle(&handle, suite, false).await;
+    let active_cycle = start_cycle(&handle, suite.clone()).await;
+    let queued_cycle = start_cycle(&handle, suite).await;
     let active = handle.start_next_execution(active_cycle, CommandContext::default()).await;
     assert_eq!(active.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;

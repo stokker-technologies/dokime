@@ -528,7 +528,6 @@ async fn settled_prompt_refused() {
             dokime_runtime::transactions::CycleDefinition {
                 metadata: support::metadata("cycle.prompt.settle", "Prompt Settle"),
                 continue_automatically: false,
-                continue_on_failure: false,
             },
             CommandContext::default(),
         )

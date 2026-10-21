@@ -438,7 +438,6 @@ async fn capture_failure_provider() {
         &handle,
         metadata,
         crate::service_support::suites::materialize_cases("provider:testdb:shutdown", &suite),
-        false,
     )
     .await;
     handle.start_next_execution(cycle, dokime_runtime::runtime::command::CommandContext::default()).await;
@@ -552,7 +551,6 @@ async fn native_entry_independent() {
         execution_ids: vec![],
         records: Default::default(),
         continue_automatically: false,
-        continue_on_failure: false,
         result: None,
     };
     let native = Cycle::try_from(&cycle).unwrap();

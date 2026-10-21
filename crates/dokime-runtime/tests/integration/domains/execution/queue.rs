@@ -48,7 +48,7 @@ async fn container_request_outcomes() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor).await;
     let suite = fixture_suite(&["failed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle = start_cycle(&runtime, suite.clone(), true).await;
+    let cycle = start_cycle(&runtime, suite.clone()).await;
     let failed = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &failed.command_id).await;
     let original = cycle_snapshot(&runtime, &cycle).await.test_executions[0].clone();
@@ -60,7 +60,8 @@ async fn container_request_outcomes() {
     assert_eq!(receipt.summary.phase, RunPhase::Completed);
     assert_eq!((receipt.summary.planned, receipt.summary.failed), (1, 0));
     let cycle = cycle_snapshot(&runtime, &cycle).await;
-    assert_eq!(cycle.lifecycle, CycleStatus::Failed);
+    assert_eq!(cycle.lifecycle, CycleStatus::Ready);
+    assert_eq!(cycle.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Failed));
     assert_eq!(cycle.test_executions[0], original);
     assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Passed);
 }
@@ -72,8 +73,8 @@ async fn container_request_order() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let first = start_cycle(&runtime, suite.clone(), true).await;
-    let other = start_cycle(&runtime, suite, true).await;
+    let first = start_cycle(&runtime, suite.clone()).await;
+    let other = start_cycle(&runtime, suite).await;
     let first_run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let other_run = runtime.start_next_execution(other.clone(), CommandContext::default()).await;
@@ -93,8 +94,8 @@ async fn container_request_order() {
     for request in [&first_run, &other_run, &last_run] {
         crate::service_support::waits::wait_for_run_settled(&runtime, &request.command_id).await;
     }
-    wait_for_cycle_lifecycle(&runtime, &first, CycleStatus::Completed).await;
-    wait_for_cycle_lifecycle(&runtime, &other, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &first, ResultStatus::Passed).await;
+    wait_for_cycle_outcome(&runtime, &other, ResultStatus::Passed).await;
     let first = cycle_snapshot(&runtime, &first).await;
     let other = cycle_snapshot(&runtime, &other).await;
     let members = &first.test_executions;
@@ -117,8 +118,8 @@ async fn container_seal_isolation() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let first = start_cycle(&runtime, suite.clone(), true).await;
-    let other = start_cycle(&runtime, suite, true).await;
+    let first = start_cycle(&runtime, suite.clone()).await;
+    let other = start_cycle(&runtime, suite).await;
     let first_run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let other_run = runtime.start_next_execution(other.clone(), CommandContext::default()).await;
@@ -156,7 +157,7 @@ async fn container_seal_isolation() {
     assert_eq!(cycle_snapshot(&runtime, &other).await.phase, CyclePhase::Active);
     executor.release();
     crate::service_support::waits::wait_for_run_settled(&runtime, &other_run.command_id).await;
-    wait_for_cycle_lifecycle(&runtime, &other, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &other, ResultStatus::Passed).await;
     let other = cycle_snapshot(&runtime, &other).await;
     assert!(other.test_executions.iter().all(|execution| execution.status == ExecutionStatus::Passed));
     assert_eq!(other.phase, CyclePhase::Active);
@@ -168,7 +169,7 @@ async fn unavailable_sidecar_context() {
     let (_owner, runtime) = booted(root.path()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
+    let test_cycle_id = start_cycle(&runtime, suite.clone()).await;
     let correlation_id = dokime_runtime::model::identity::new_id::<CorrelationId>();
     let context = CommandContext {
         correlation_id: Some(correlation_id.clone()),
@@ -182,7 +183,7 @@ async fn unavailable_sidecar_context() {
     assert_eq!(receipt.correlation_id, Some(correlation_id));
     assert!(receipt.idempotency_key.is_none());
     assert!(receipt.rejection.is_none());
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Failed).await;
 }
 
 #[tokio::test]
@@ -191,10 +192,10 @@ async fn append_retains_active() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::case_parameter())).await;
     let suite = fixture_suite(&["failed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
+    let test_cycle_id = start_cycle(&runtime, suite.clone()).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Failed).await;
+    wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Failed).await;
 
     let appended = materialized_case("provider:testdb:plt400.ract", Some(&suite), "append.after_failure", "Append After Failure", "passed");
     let append = runtime.append_fixture_cases(test_cycle_id.clone(), vec![appended.clone()], CommandContext::default()).await;
@@ -215,10 +216,10 @@ async fn duplicate_case_executions() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, true).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
 
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
-    let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let original = completed.test_executions[0].clone();
     let original_case = completed.cases().next().unwrap().clone();
     let original_case_id = original_case.test_case_id.clone();
@@ -240,7 +241,8 @@ async fn duplicate_case_executions() {
     let rerun = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &rerun.command_id).await;
     let completed = cycle_snapshot(&runtime, &test_cycle_id).await;
-    assert_eq!(completed.lifecycle, CycleStatus::Completed);
+    assert_eq!(completed.lifecycle, CycleStatus::Ready);
+    assert_eq!(completed.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Passed));
     assert_eq!(completed.test_executions.len(), 2);
     assert_eq!(completed.test_executions[0], original);
     assert_eq!(completed.test_executions[1].test_execution_id, appended.test_execution_id);
@@ -255,40 +257,58 @@ async fn run_queued_results() {
     let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::case_parameter())).await;
     let suite = fixture_suite(&["passed", "failed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let stop_on_failure = start_cycle(&runtime, suite.clone(), false).await;
-    let continue_on_failure = start_cycle(&runtime, suite, true).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
 
-    runtime.start_next_execution(stop_on_failure.clone(), CommandContext::default()).await;
-    runtime.start_next_execution(continue_on_failure.clone(), CommandContext::default()).await;
-    let stopped = wait_for_cycle_lifecycle(&runtime, &stop_on_failure, CycleStatus::Failed).await;
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     let mut changes = runtime.watch_state();
     let continued = changes
         .wait_until(|snapshot| {
-            snapshot.state().cycles[&continue_on_failure].execution_ids.iter().all(|id| snapshot.state().executions[id].saved.is_some())
+            snapshot.state().cycles[&test_cycle_id].execution_ids.iter().all(|id| snapshot.state().executions[id].saved.is_some())
         })
         .await
         .unwrap()
         .state()
-        .cycle_view(&continue_on_failure)
+        .cycle_view(&test_cycle_id)
         .unwrap();
 
-    assert_eq!(stopped.lifecycle, CycleStatus::Failed);
-    assert_eq!(stopped.test_executions.len(), 3);
-    assert_eq!(stopped.test_executions[2].status, ExecutionStatus::Skipped);
-    assert!(stopped.test_executions[2].started_at.is_none());
-    assert!(stopped.test_executions[2].saved.is_none());
-    assert_eq!(stopped.test_executions[0].status, ExecutionStatus::Passed);
-    assert_eq!(stopped.test_executions[1].status, ExecutionStatus::Failed);
-    assert_eq!(stopped.cases().count(), 3);
-    assert_eq!(stopped.result.as_ref().unwrap().passed, 1);
-    assert_eq!(stopped.result.as_ref().unwrap().failed, 1);
-    assert_eq!(stopped.result.as_ref().unwrap().blocked, 0);
-    assert_eq!(stopped.test_executions[0].steps.len(), 1);
-    assert_eq!(stopped.test_executions[0].steps[0].metadata.identifier.as_str(), "fixture.phase");
-    assert_eq!(stopped.test_executions[0].steps[0].metadata.label, "Fixture Phase");
+    assert_eq!(continued.cases().count(), 3);
     assert_eq!(continued.test_executions.len(), 3);
+    assert_eq!(continued.test_executions[0].status, ExecutionStatus::Passed);
+    assert_eq!(continued.test_executions[1].status, ExecutionStatus::Failed);
+    assert_eq!(continued.test_executions[2].status, ExecutionStatus::Passed);
+    assert_eq!(continued.test_executions[0].steps.len(), 1);
+    assert_eq!(continued.test_executions[0].steps[0].metadata.identifier.as_str(), "fixture.phase");
+    assert_eq!(continued.test_executions[0].steps[0].metadata.label, "Fixture Phase");
     assert_eq!(continued.result.as_ref().unwrap().passed, 2);
     assert_eq!(continued.result.as_ref().unwrap().failed, 1);
+    assert_eq!(continued.result.as_ref().unwrap().blocked, 0);
+}
+
+#[tokio::test]
+async fn continuation_ignores_failures() {
+    let root = tempdir().unwrap();
+    let (_owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::case_parameter())).await;
+    let suite = fixture_suite(&["failed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
+
+    runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
+    let mut changes = runtime.watch_state();
+    let continued = changes
+        .wait_until(|snapshot| {
+            snapshot.state().cycles[&test_cycle_id].execution_ids.iter().all(|id| snapshot.state().executions[id].saved.is_some())
+        })
+        .await
+        .unwrap()
+        .state()
+        .cycle_view(&test_cycle_id)
+        .unwrap();
+
+    assert!(continued.continue_automatically);
+    assert_eq!(continued.test_executions.len(), 2);
+    assert_eq!(continued.test_executions[0].status, ExecutionStatus::Failed);
+    assert_eq!(continued.test_executions[1].status, ExecutionStatus::Passed);
+    assert!(continued.test_executions[1].started_at.is_some());
 }
 
 #[tokio::test]
@@ -298,7 +318,7 @@ async fn later_cases_start() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
+    let test_cycle_id = start_cycle(&runtime, suite.clone()).await;
 
     let run = runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(run.status, CommandStatus::Accepted, "{:?}", run.rejection);
@@ -313,7 +333,7 @@ async fn later_cases_start() {
     assert!(second_execution.started_at.is_none());
 
     executor.release();
-    let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     let first_started_at = completed.test_executions[0].started_at.as_ref().expect("first execution started");
     let second_started_at = completed.test_executions[1].started_at.as_ref().expect("second execution started");
 
@@ -330,7 +350,7 @@ async fn running_queued_counts() {
     let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed", "passed", "passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let test_cycle_id = start_cycle(&runtime, suite).await;
     let tally = |runtime: &RuntimeHandle| {
         let snapshot = runtime.watch_state().latest();
         let state = snapshot.state();
@@ -368,7 +388,7 @@ async fn running_queued_counts() {
 
     // Settled Executions Have Nothing Running Or Waiting And All Passed.
     executor.release();
-    let completed = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    let completed = wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     for execution in &completed.test_executions {
         crate::service_support::native::checkpoint(&runtime, &execution.test_execution_id).await;
     }
@@ -390,7 +410,7 @@ async fn execution_retry_receipt() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
     let suite = fixture_suite(&["passed"; 3]);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, true).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
     let execution_id = cycle_snapshot(&runtime, &cycle_id).await.test_executions[0].test_execution_id.clone();
     let context =
         CommandContext { idempotency_key: Some("large-request".into()), submitted_by: Some("operator".into()), ..Default::default() };
@@ -400,9 +420,7 @@ async fn execution_retry_receipt() {
     let other = CommandContext { submitted_by: Some("another-listener".into()), ..Default::default() };
     let duplicate = runtime.start_execution(execution_id.clone(), mode, other).await;
     assert_eq!(duplicate.command_id, accepted.command_id);
-    let mut watch = runtime.watch_state();
-    let snapshot = watch.wait_until(|snapshot| snapshot.state().cycles[&cycle_id].lifecycle == CycleStatus::Completed).await.unwrap();
-    let cycle = snapshot.state().cycle_view(&cycle_id).unwrap();
+    let cycle = wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     assert_eq!(cycle.test_executions.len(), 3);
     // The cycle fold follows execution sealing; the durable receipt also waits
     // for the final cycle row to be published.

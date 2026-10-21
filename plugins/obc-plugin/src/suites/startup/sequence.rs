@@ -102,7 +102,7 @@ pub struct Started {}
 
 #[dokime_runtime::record(
     id = "obc.charger.startup.checkpoint",
-    label = "Review the charger status indicator and startup trace",
+    label = "Review the charger status indicator and start-up trace",
     description = "The operator was asked to look at the bench."
 )]
 #[derive(Clone, Debug)]
@@ -116,12 +116,12 @@ pub struct Checkpoint {
 
 #[dokime_runtime::record(
     id = "obc.charger.startup.completed",
-    label = "Startup measurement and operator decision captured",
-    description = "The startup measurement and the operator's decision, together."
+    label = "Start-up measurement and operator decision captured",
+    description = "The start-up measurement and the operator's decision, together."
 )]
 #[derive(Clone, Debug)]
 pub struct Completed {
-    #[record(description = "How many rows the startup measurement produced.")]
+    #[record(description = "How many rows the start-up measurement produced.")]
     pub sample_count: u64,
 
     #[record(description = "What the operator chose.")]
@@ -130,7 +130,7 @@ pub struct Completed {
     #[record(description = "What the operator wrote.")]
     pub operator_note: String,
 
-    #[record(description = "Whether the startup behaved the way this procedure required.")]
+    #[record(description = "Whether the start-up behaved the way this procedure required.")]
     pub accepted: bool,
 }
 
@@ -236,7 +236,7 @@ pub enum Streams {
 /* === Implementations === */
 
 #[dokime_runtime::template(
-    id = STARTUP_TEMPLATE, label = "Power Up the Charger",
+    id = STARTUP_TEMPLATE, label = "Start-Up Sequence",
     template_id = TemplateId::from_uuid(STARTUP_TEMPLATE_ID).expect("startup template UUID"),
     tags = ["device", "startup"], prompts = Prompts, graceful_stop = "continuous",
     requires = Required,
@@ -248,7 +248,7 @@ pub enum Streams {
     records = Records,
     streams = Streams,
     attributes(path = "Testbench/Startup", provider = "sidecar"),
-    parameters = Parameters, description = "Measure AC startup inrush, inspect the Charger, then observe settling.")]
+    parameters = Parameters, description = "Measure the AC start-up inrush, inspect the Charger, then observe settling.")]
 impl Startup {
     async fn initialize(inputs: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         // The route rather than the handle: a template names no plugin at all,
@@ -291,7 +291,7 @@ impl Startup {
         Ok(())
     }
 
-    #[dokime_runtime::step(label = "Initialize and Power Charger")]
+    #[dokime_runtime::step(label = "Initialize and Start Charger")]
     async fn setup(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Initialized {}).await;
         self.device.start().map_err(Error::Device)?;
@@ -342,7 +342,7 @@ impl Startup {
         Ok(())
     }
 
-    #[dokime_runtime::step(label = "Measure Startup Inrush")]
+    #[dokime_runtime::step(label = "Measure Start-Up Inrush")]
     async fn publish(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let inputs = ctx.parameters();
         let (total, interval_s) = (inputs.sample_count()?, inputs.sample_interval_s);
@@ -358,7 +358,7 @@ impl Startup {
             }
         } else {
             let remaining = sample_range(self.produced, checkpoint)?;
-            for index in ctx.progress("Measuring startup inrush", remaining) {
+            for index in ctx.progress("Measuring start-up inrush", remaining) {
                 let index = index as u64;
                 publish_runtime_sample(ctx, interval_s, &mut self.device, index, total, checkpoint).await?;
                 self.produced = index + 1;
@@ -441,7 +441,7 @@ impl Startup {
 
     #[dokime_runtime::criterion(
         id = "obc.charger.startup.acceptance",
-        label = "Startup trace and operator inspection",
+        label = "Start-up trace and operator inspection",
         description = "Passed once the trace is unfaulted and, for a bounded run, the operator accepted it."
     )]
     fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
@@ -561,7 +561,7 @@ fn signal_correlation(identifier: &str) -> PlotDefinition {
 }
 
 fn startup_document() -> Document {
-    let mut document = Document::new("default", "Power Up the Charger");
+    let mut document = Document::new("default", "Start-Up Sequence");
 
     // === What One Execution Shows === //
 

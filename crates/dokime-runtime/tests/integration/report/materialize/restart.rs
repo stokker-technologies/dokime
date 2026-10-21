@@ -46,8 +46,8 @@ async fn persisted_cycle_restart() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
-    let cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime.update_cycle_policy(cycle_id.clone(), false, false, CommandContext::default()).await.unwrap();
+    let cycle_id = start_cycle(&runtime, suite).await;
+    runtime.update_cycle_policy(cycle_id.clone(), false, CommandContext::default()).await.unwrap();
     let source = cycle_snapshot(&runtime, &cycle_id).await;
     let first = source.test_executions[0].test_execution_id.clone();
     let request =

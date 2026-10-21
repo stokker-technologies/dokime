@@ -130,7 +130,6 @@ async fn report_save_receipt() {
             test_executions: vec![original_execution.clone()],
             records: Default::default(),
             continue_automatically: false,
-            continue_on_failure: false,
             result: None,
         },
         documents: BTreeMap::new(),
@@ -314,7 +313,7 @@ async fn report_opens_anytime() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let id = start_cycle(&runtime, suite, false).await;
+    let id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].test_execution_id.clone();
@@ -331,7 +330,7 @@ async fn report_opens_anytime() {
 
     // Sealed: The Exact Bytes Finalization Published
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &id).await;
     let seal = cycle.saved.clone().unwrap();
@@ -362,7 +361,7 @@ async fn report_download_serves() {
     let first = plt400_suite();
     let second = plt400_diagnostics_suite();
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
-    let id = start_cycle(&runtime, first, false).await;
+    let id = start_cycle(&runtime, first).await;
     runtime
         .append_fixture_cases(id.clone(), materialize_cases("provider:testdb:plt400.diagnostics", &second), CommandContext::default())
         .await
@@ -403,7 +402,7 @@ async fn report_download_serves() {
 
     // Finalized: Both Downloads Serve The Sealed Artifacts
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &id).await;
     let cycle_seal = cycle.saved.clone().expect("the completed cycle is sealed");
@@ -425,7 +424,7 @@ async fn open_report_repeatedly() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let id = start_cycle(&runtime, suite, false).await;
+    let id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].clone();
@@ -464,7 +463,7 @@ async fn open_report_repeatedly() {
     assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
 
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     owner.shutdown().await.unwrap();
 }
 
@@ -513,19 +512,19 @@ async fn cycle_report_reboot() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let id = start_cycle(&runtime, suite, false).await;
+    let id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
     let waiting = tokio::spawn({
         let runtime = runtime.clone();
         let id = id.clone();
-        async move { wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await }
+        async move { wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await }
     });
     tokio::task::yield_now().await;
     waiting.abort();
     assert!(waiting.await.unwrap_err().is_cancelled());
     executor.release();
-    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &id).await;
     let original = cycle.saved.as_ref().unwrap().clone();

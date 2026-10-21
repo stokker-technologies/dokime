@@ -129,7 +129,6 @@ impl TryFrom<Context> for ExecutionContext {
             test_executions: Vec::new(),
             records: cycle.records,
             continue_automatically: cycle.continue_automatically,
-            continue_on_failure: cycle.continue_on_failure,
             result: cycle.result,
         };
         let mut documents = BTreeMap::new();

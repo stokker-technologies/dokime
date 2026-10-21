@@ -120,12 +120,12 @@ async fn record_position_writer(root: PathBuf) {
     let (_owner, runtime) = started_with_fixture(settings, executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle = start_cycle(&runtime, suite, false).await;
+    let cycle = start_cycle(&runtime, suite).await;
     for index in 0..32 {
         if index == 16 {
             // One record-free transaction makes both logical-position parities
             // available without relying on the number of boot transactions.
-            runtime.update_cycle_policy(cycle.clone(), true, true, CommandContext::default()).await.unwrap();
+            runtime.update_cycle_policy(cycle.clone(), true, CommandContext::default()).await.unwrap();
         }
         publish_position_record(&runtime, format!("Old Process {index}")).await;
     }

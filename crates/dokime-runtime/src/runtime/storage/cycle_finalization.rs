@@ -406,7 +406,6 @@ pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
         execution_ids: cycle.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect(),
         records: cycle.records.clone(),
         continue_automatically: cycle.continue_automatically,
-        continue_on_failure: cycle.continue_on_failure,
         result: cycle.result.clone(),
     }
 }
@@ -424,7 +423,6 @@ fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
         && left.execution_ids == right.execution_ids
         && left.records == right.records
         && left.continue_automatically == right.continue_automatically
-        && left.continue_on_failure == right.continue_on_failure
         && left.result == right.result
 }
 

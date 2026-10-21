@@ -13,12 +13,16 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
-
+import { PromptPanel } from "@/components/PromptPanel";
+import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
 // Local Imports
 import {
   executionDocumentSections,
   executionPagePrompts,
+  executionParameterColumns,
   executionParameterRows,
   executionSectionOf,
 } from "@/features/cycle/execution-sections-model";
@@ -33,15 +37,20 @@ import {
 } from "@/features/cycle/operator-notes-model";
 import {
   answerablePrompts,
+  answeredPrompts,
   highestPromptLevel,
   orderPendingPrompts,
   pendingPromptCountLabel,
   promptLevelTone,
+  queuePrompts,
   type RankedPrompt,
   type ScopedPrompt,
 } from "@/features/cycle/prompt-banner-model";
+import { durationText } from "@/features/cycle/use-elapsed";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";
-import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptRequest } from "@/lib/types";
+import { durationParts, formatDuration } from "@/lib/format";
+import { promptDecision } from "@/lib/prompts";
+import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptField, PromptRequest } from "@/lib/types";
 
 /* === Re-Exports === */
 
@@ -102,7 +111,7 @@ test("Page Sections", () => {
   // A Section The Document Leaves Out Stays Out
   assert.deepEqual(executionDocumentSections(cards("steps", "records")), ["steps-criteria", "records"]);
 
-  // The Execution Page Answers Its Own Prompts And The Cycle's, Not Another Execution's
+  // A Prompt Has One Home: The Execution That Asked It, Or The Cycle When No Execution Owns It
   const prompts = [
     { correlation_id: "own", scope: { test_execution_id: "e1" } },
     { correlation_id: "other", scope: { test_execution_id: "e2" } },
@@ -111,7 +120,11 @@ test("Page Sections", () => {
   ] as unknown as PromptRequest[];
   assert.deepEqual(
     executionPagePrompts(prompts, "e1").map((item) => item.correlation_id),
-    ["own", "cycle", "unscoped"],
+    ["own"],
+  );
+  assert.deepEqual(
+    executionPagePrompts(prompts, null).map((item) => item.correlation_id),
+    ["cycle", "unscoped"],
   );
 });
 
@@ -124,13 +137,75 @@ test("Parameter Rows", () => {
   ] as Pick<ParameterDefinition, "name" | "label" | "unit">[];
   const rows = executionParameterRows({ extra: true, current: 16, voltage: 230 }, definitions);
   assert.deepEqual(rows, [
-    { key: "voltage", label: "Supply Voltage", value: 230, unit: "V" },
-    { key: "current", label: "current", value: 16, unit: null },
-    { key: "extra", label: "extra", value: true, unit: null },
+    { key: "voltage", label: "Supply Voltage", value: 230, text: "230", unit: "V" },
+    { key: "current", label: "current", value: 16, text: "16", unit: null },
+    { key: "extra", label: "extra", value: true, text: "True", unit: null },
   ]);
 
   // A Case Without Parameters Has No Rows
   assert.deepEqual(executionParameterRows(null, []), []);
+
+  // Durations Read With The Precision Their Value Needs, In The Unit Column
+  const durations = executionParameterRows({ dwell_s: 90, outage_s: [0.05, 0.1, 0.2], sample_interval_s: 0.001, soak: 600 }, [
+    { name: "soak", label: "Soak Time", unit: "s" },
+  ]);
+  assert.deepEqual(
+    durations.map((row) => [row.label, row.text, row.unit]),
+    [
+      ["Soak Time", "10", "min"],
+      ["dwell_s", "1 min 30", "s"],
+      ["outage_s", "50, 100, 200", "ms"],
+      ["sample_interval_s", "1", "ms"],
+    ],
+  );
+
+  // Both Halves Share The Figure And Unit Widths Of The Longest Entry
+  assert.deepEqual(executionParameterColumns(durations), { value: 12, unit: 3 });
+  assert.deepEqual(executionParameterColumns([]), { value: 1, unit: 0 });
+
+  // The Grid Prints Label, Right-Aligned Figure And Dimmed Unit On One Column Template
+  const html = renderToStaticMarkup(createElement(ExecutionParameters, { rows: durations }));
+  assert.match(html, /--parameter-value:12ch/);
+  assert.match(html, /--parameter-unit:3ch/);
+  assert.match(
+    html,
+    /<dt[^>]*title="soak"[^>]*>Soak Time<\/dt><dd class="[^"]*text-right[^"]*">10<\/dd><dd class="text-muted-foreground">min<\/dd>/,
+  );
+  assert.doesNotMatch(html, /truncate/, "a label wraps, it is never clipped");
+});
+
+test("Duration Formatting", () => {
+  // One Helper Prints Every Duration With The Precision Its Value Needs
+  const cases: Array<[number, string]> = [
+    [0, "0 s"],
+    [0.000_25, "250 µs"],
+    [0.001, "1 ms"],
+    [0.05, "50 ms"],
+    [0.2, "200 ms"],
+    [0.9996, "1 s"],
+    [2.5, "2.5 s"],
+    [12.34, "12.3 s"],
+    [59.7, "1 min"],
+    [80, "1 min 20 s"],
+    [3_600, "1 h"],
+    [3_900, "1 h 5 min"],
+    [-0.5, "-500 ms"],
+  ];
+  for (const [seconds, label] of cases) assert.equal(formatDuration(seconds), label, `${seconds} s`);
+  assert.equal(formatDuration(null), null);
+  assert.equal(formatDuration(Number.NaN), null);
+  assert.deepEqual(durationParts(80), { figure: "1 min 20", unit: "s" });
+});
+
+test("Step Durations", () => {
+  // A Pending Step Has No Duration, A Running One Ticks Live, An Ended One Is Measured
+  assert.equal(durationText({ duration_s: 0, status: "pending" }, true, null), "");
+  assert.equal(durationText({ duration_s: 0.1, status: "running" }, true, 12.7), "12 s");
+  assert.equal(durationText({ duration_s: 2.5, status: "passed" }, true, null), "2.5 s");
+
+  // A File Never Ticks: Running And Pending Stay Empty, Measured Ones Print
+  assert.equal(durationText({ duration_s: 0.1, status: "running" }, false, 12.7), "");
+  assert.equal(durationText({ duration_s: 80, status: "failed" }, false, null), "1 min 20 s");
 });
 
 test("Operator Notes", () => {
@@ -269,6 +344,114 @@ test("Prompt Ordering", () => {
   assert.deepEqual(
     pending.map((item) => item.correlation_id),
     ["info", "error"],
+  );
+});
+
+test("Prompt Queue", () => {
+  // The Queue Answers In The Order The Run Asked, Whatever The Level
+  const queued = queuePrompts([
+    prompt("error-new", "error", "2026-10-13T08:10:00Z"),
+    prompt("info-old", "info", "2026-10-13T08:00:00Z"),
+    prompt("b-same", "warning", "2026-10-13T08:05:00Z"),
+    prompt("a-same", "warning", "2026-10-13T08:05:00Z"),
+  ]);
+  assert.deepEqual(
+    queued.map((item) => item.correlation_id),
+    ["info-old", "a-same", "b-same", "error-new"],
+  );
+
+  // Answered Prompts Read Back From Their Records: Question, Answer, Time
+  const records = [
+    {
+      details: { fields: [{ label: "Measured Voltage", name: "voltage" }], prompt_id: "p1", title: "Read The Meter" },
+      record_type: "prompt.request.form",
+      timestamp: "2026-10-13T08:00:00Z",
+    },
+    {
+      details: { action: "submit", prompt_id: "p1", values: { voltage: 230 } },
+      record_type: "prompt.response.submitted",
+      timestamp: "2026-10-13T08:01:00Z",
+    },
+    {
+      details: { prompt_id: "p2", title: "Confirm Wiring" },
+      record_type: "prompt.request.confirmation",
+      timestamp: "2026-10-13T08:02:00Z",
+    },
+    {
+      details: { action: "confirm", prompt_id: "p2", values: {} },
+      record_type: "prompt.response.submitted",
+      timestamp: "2026-10-13T08:03:00Z",
+    },
+    { details: { prompt_id: "p3", title: "Too Late" }, record_type: "prompt.request.form", timestamp: "2026-10-13T08:04:00Z" },
+    { details: { prompt_id: "p3" }, record_type: "prompt.response.expired", timestamp: "2026-10-13T08:05:00Z" },
+    { details: { prompt_id: "p4", title: "Still Open" }, record_type: "prompt.request.form", timestamp: "2026-10-13T08:06:00Z" },
+  ];
+  assert.deepEqual(answeredPrompts(records), [
+    { answer: "Measured Voltage: 230", at: "2026-10-13T08:01:00Z", promptId: "p1", question: "Read The Meter" },
+    { answer: "Confirm", at: "2026-10-13T08:03:00Z", promptId: "p2", question: "Confirm Wiring" },
+    { answer: "Expired", at: "2026-10-13T08:05:00Z", promptId: "p3", question: "Too Late" },
+  ]);
+});
+
+test("Prompt Decisions", () => {
+  const field = (name: string, kind: PromptField["kind"], patch: Partial<PromptField> = {}) =>
+    ({ kind, label: name, name, ...patch }) as PromptField;
+  const action = (id: string, emphasis = "primary") => ({ emphasis, id, label: id }) as PromptRequest["actions"][number];
+  const ask = (fields: PromptField[], actions = [action("cancel", "secondary"), action("submit")]) =>
+    ({
+      actions,
+      correlation_id: "p",
+      created_at: "2026-10-13T08:00:00Z",
+      fields,
+      kind: "form",
+      level: "info",
+      title: "Inspect The Charger",
+    }) as unknown as PromptRequest;
+
+  // Exactly One Boolean And One Answering Action Make The Prompt A Decision
+  const inspection = ask([field("passed", "boolean", { label: "Charger Inspection Passed" }), field("note", "text", { required: true })]);
+  assert.deepEqual(promptDecision(inspection), { action: "submit", field: inspection.fields[0] });
+  assert.equal(promptDecision(ask([field("a", "boolean"), field("b", "boolean")])), null);
+  assert.equal(promptDecision(ask([field("note", "text")])), null);
+  assert.equal(promptDecision(ask([field("a", "boolean")], [action("retry"), action("submit")])), null);
+
+  // A Decision Answers With No And Yes, Not A Checkbox, Cancel At The Far Left
+  const html = renderToStaticMarkup(
+    createElement(PromptPanel, { onAction: () => undefined, onValueChange: () => undefined, prompt: inspection, values: {} }),
+  );
+  assert.doesNotMatch(html, /role="checkbox"/);
+  assert.ok(html.indexOf(">cancel<") < html.indexOf(">No<") && html.indexOf(">No<") < html.indexOf(">Yes<"));
+
+  // An Untouched Field States No Error Before A Submit Attempt
+  assert.doesNotMatch(html, /Enter a value/);
+
+  // Several Booleans Keep Their Controls And Submit
+  const several = renderToStaticMarkup(
+    createElement(PromptPanel, {
+      onAction: () => undefined,
+      onValueChange: () => undefined,
+      prompt: ask([field("a", "boolean"), field("b", "boolean")]),
+      values: {},
+    }),
+  );
+  assert.match(several, /role="checkbox"/);
+  assert.match(several, />submit</);
+
+  // The Answered Row States A Decision As Yes Or No
+  assert.equal(
+    answeredPrompts([
+      {
+        details: { fields: [{ label: "Charger Inspection Passed", name: "passed" }], prompt_id: "d", title: "Inspect" },
+        record_type: "prompt.request.form",
+        timestamp: "2026-10-13T08:00:00Z",
+      },
+      {
+        details: { action: "submit", prompt_id: "d", values: { passed: false } },
+        record_type: "prompt.response.submitted",
+        timestamp: "2026-10-13T08:01:00Z",
+      },
+    ])[0].answer,
+    "Charger Inspection Passed: No",
   );
 });
 

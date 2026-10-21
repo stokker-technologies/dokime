@@ -54,7 +54,6 @@ use dokime_domain::state::records::set::TestRecordSet;
 pub struct CycleDefinition {
     pub metadata: Metadata,
     pub continue_automatically: bool,
-    pub continue_on_failure: bool,
 }
 
 #[harmos::transaction(id = "dokime.suite.cases.register", version = 1, irreversible)]
@@ -199,7 +198,7 @@ fn materialize_executions(
 fn empty_cycle(
     test_cycle_id: TestCycleId, session_id: dokime_domain::model::identity::SessionId, definition: CycleDefinition, at: Timestamp,
 ) -> CycleView {
-    let CycleDefinition { metadata, continue_automatically, continue_on_failure } = definition;
+    let CycleDefinition { metadata, continue_automatically } = definition;
     CycleView {
         saved: None,
         test_cycle_id,
@@ -213,7 +212,6 @@ fn empty_cycle(
         test_executions: Vec::new(),
         records: TestRecordSet::default(),
         continue_automatically,
-        continue_on_failure,
         result: None,
     }
 }
