@@ -41,11 +41,11 @@ dokime-client = { version = "0.1.0", path = "crates/dokime-client" }
 dokime-domain = { version = "0.1.0", path = "crates/dokime-domain" }
 dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-features = false }
 
-# Git
-harmos = { version = "0.1.0", git = "https://github.com/stokker-technologies/harmos.git", rev = "c6a88d737ac212fcc0d91367a6f120ca7da16971" }
-harmos-domain = { version = "0.1.0", git = "https://github.com/stokker-technologies/harmos.git", rev = "c6a88d737ac212fcc0d91367a6f120ca7da16971" }
-harmos-packaging = { version = "0.1.0", git = "https://github.com/stokker-technologies/harmos.git", rev = "c6a88d737ac212fcc0d91367a6f120ca7da16971" }
-harmos-sdk = { version = "0.1.0", git = "https://github.com/stokker-technologies/harmos.git", rev = "c6a88d737ac212fcc0d91367a6f120ca7da16971" }
+# Framework
+harmos = { version = "=0.1.2" }
+harmos-domain = { version = "=0.1.2" }
+harmos-packaging = { version = "=0.1.2" }
+harmos-sdk = { version = "=0.1.2" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
