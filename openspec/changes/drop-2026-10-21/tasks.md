@@ -42,10 +42,10 @@
 - [x] 25. Harmonize suite/template labels. Proof: `native-desktop.mjs / library, cycle, report` (authored suite/template labels through planning, execution and frozen evidence).
 - [x] 26. Verify active-cycle picker and shell destination behavior. Proof: `native-desktop.mjs / active-cycle`; `cycle/nominal.test.ts / Active Containers Persist`.
 - [x] 27. Repair live histograms with report parity. Proof: `native-desktop.mjs / cycle, report` (voltage bin ranges, counts and samples); `plots/nominal.test.ts / Histogram Axes`; `distribution_query_budget`; `grpc::plots::tests::histogram_definition_declared`.
-- [ ] 28. Show centered diagnostics in an erroring plot overlay.
-- [ ] 29. Harmonize progress row styling.
-- [ ] 30. Preserve FIFO prompts as self-contained cards.
-- [ ] 31. Show empty pending, ticking running and measured completed step durations.
+- [x] 28. Show centered diagnostics in an erroring plot overlay. Proof: `plots/nominal.test.ts / Stream Errors Replace Retained Charts, Plot Placeholders`; `native-desktop.mjs / report` (controlled analysis failure, centered tinted overlay and long diagnostic wrapping).
+- [x] 29. Harmonize progress row styling. Proof: `native-desktop.mjs / cycle` (state/bar/count/actions centers, nonoverlap and rounded bar); `cycle/nominal.test.ts / Execution Controls`.
+- [x] 30. Preserve FIFO prompts as self-contained cards. Proof: `execution/nominal.test.ts / Prompt Ordering, Prompt Queue, Prompt Decisions, Prompt Answering`; `native-desktop.mjs / cycle`.
+- [x] 31. Show empty pending, ticking running and measured completed step durations. Proof: `execution/nominal.test.ts / Step Durations, Duration Formatting`.
 - [ ] 32. Complete narrow operator-note persistence and measure latency.
 - [ ] 33. Fix access-key dialog overflow.
 - [ ] 34. Apply remote settings live, reflect actual status and generate missing TLS certificates.

@@ -30,7 +30,7 @@ import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
-import { plotUnavailableText, STREAM_ERROR } from "@/plots/plot-placeholder";
+import { plotPlaceholderText, plotUnavailableText, STREAM_ERROR } from "@/plots/plot-placeholder";
 import { type PlotDisplaySettings, usePlotSettingsEditor } from "@/plots/plot-settings";
 import { type PromptMarker, promptMarkers } from "@/plots/prompt-markers";
 import type { PlotViewportMode } from "@/plots/types";
@@ -187,6 +187,9 @@ function plotCardClassName(plot: PlotCardSpec): string {
 }
 
 function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotViewportMode = "fit", actions?: ReactNode) {
+  if (plot.stateLabel === STREAM_ERROR) {
+    return <PlotPlaceholder title={plot.title} actions={actions} {...plotPlaceholderText(plot)} />;
+  }
   if (plot.computed)
     return (
       <AnalysisResult

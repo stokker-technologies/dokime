@@ -13,9 +13,12 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
 // Local Imports
+import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import {
   formatStatValue,
   formatSummaryValue,
@@ -28,7 +31,7 @@ import {
   summaryInFlight,
   toggleTrace,
 } from "@/lib/statistics";
-import type { HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
+import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
 import { formatCursorX } from "@/plots/axis";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
@@ -806,4 +809,33 @@ test("Plot Placeholders", () => {
   assert.equal(plotPlaceholderText({ stateLabel: STREAM_ERROR, stateDetail: "plot query unavailable" }).tone, "error");
   assert.equal(stated.tone, undefined);
   assert.equal(plotPlaceholderText({}).tone, undefined);
+});
+
+test("Stream Errors Replace Retained Charts", () => {
+  const descriptor: DocumentViewPlot = {
+    plot_id: "pulse",
+    title: "Pulse",
+    stream: "pulse",
+    plot_type: "time_series",
+    style: "line",
+    x_scale: "linear",
+    y_scale: "linear",
+    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    x: "timestamp",
+    y: ["trace-0"],
+  };
+  const payload = hostFrame([0, 1], [[2, 3]]);
+  const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)], "auto");
+  const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["Voltage channel disconnected"] }], "auto");
+  assert.equal(failed.payload, ready.payload, "recovery retains the last frame in memory");
+  const html = renderToStaticMarkup(
+    createElement(LivePlotGroupGrid, {
+      documentPlots: [descriptor],
+      liveStates: { pulse: failed },
+      title: "Signals",
+    }),
+  );
+  assert.match(html, /role="alert"/);
+  assert.match(html, /Voltage channel disconnected/);
+  assert.doesNotMatch(html, /Trace statistics/);
 });

@@ -1150,7 +1150,15 @@ async function answerPendingPrompts(session) {
     if (!queue) return null;
     const cards = [...queue.querySelectorAll('li[data-prompt-level]')];
     const control = document.querySelector('[data-execution-section="Control"]');
+    const bar = control?.querySelector('[role=progressbar]');
+    const row = bar?.parentElement;
+    const tracks = row ? [...row.children].slice(0, 4).map(node => {
+      const bounds = node.getBoundingClientRect();
+      return {left: bounds.left, right: bounds.right, center: (bounds.top + bounds.bottom) / 2};
+    }) : [];
     return {
+      progress: bar ? {tracks, count: bar.nextElementSibling?.textContent,
+        radius: parseFloat(getComputedStyle(bar).borderRadius), height: bar.getBoundingClientRect().height} : null,
       executionId: new URL(location.href).searchParams.get('executionId'),
       cards: cards.map((card) => ({
         level: card.dataset.promptLevel,
@@ -1807,6 +1815,16 @@ async function cycleJourney(session, cycleId) {
     `The prompt queue must sit directly under the Control card (queue ${startupSighting.queueTop}px, control ${startupSighting.controlBottom}px)`,
   );
   assert.match(startupSighting.header ?? "", /\d+ prompts? waiting/, "The prompt queue must count the open prompts");
+  const progress = startupSighting.progress;
+  assert.ok(progress && progress.tracks.length === 4, "Control must mount state, progress, count and actions in one row");
+  assert.match(progress.count, /^\d+\/\d+$/);
+  assert.ok(progress.radius >= progress.height / 2, "The progress bar must have rounded ends");
+  const centers = progress.tracks.map((track) => track.center);
+  assert.ok(Math.max(...centers) - Math.min(...centers) < 3, "Progress row tracks must share a vertical center");
+  assert.ok(
+    progress.tracks.every((track, index) => index === 0 || track.left >= progress.tracks[index - 1].right),
+    "Progress row tracks must not overlap",
+  );
   /* The Cycle Page Names Where Input Is Needed And Answers Nothing Itself. */
   for (const seen of cycleInputSightings) {
     assert.match(seen.text, /Input needed on #\d+/, "The cycle page must name the execution waiting on input");
@@ -2906,9 +2924,23 @@ async function reportJourney(session, cycleId) {
       document.body.append(result);
     }, 50);
   </script>`;
-  const server = http.createServer((_request, response) => {
+  const diagnostic = `Voltage channel unavailable: ${"sensor/".repeat(70)}timeout`;
+  const marker = '<script id="hub-report-data" type="application/json">';
+  const payloadText = html.split(marker)[1].split("</script>")[0];
+  const faultPayload = JSON.parse(payloadText);
+  let injected = 0;
+  for (const run of faultPayload.case_runs) {
+    const plot = run.plots["obc.charger.startup.sequence.voltage_distribution"];
+    if (!plot) continue;
+    plot.analysis = { kind: "error", message: diagnostic };
+    injected += 1;
+  }
+  assert.ok(injected > 0, "The fault fixture must replace a captured voltage distribution");
+  const faultHtml = html.replace(payloadText, JSON.stringify(faultPayload));
+  const server = http.createServer((request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end(html.replace("</body>", `${selectExecution}</body>`));
+    const page = request.url === "/plot-error.html" ? faultHtml : html;
+    response.end(page.replace("</body>", `${selectExecution}</body>`));
   });
   await new Promise((ready) => server.listen(0, "127.0.0.1", ready));
   const served = `http://127.0.0.1:${server.address().port}/report.html`;
@@ -2980,6 +3012,31 @@ async function reportJourney(session, cycleId) {
         trace: Boolean(button.closest('table[aria-label="Trace statistics"]')),
       }))
     `);
+    // A Controlled Analysis Failure Uses The Packaged Report's Actual Renderer And Styles.
+    await evaluate(`location.assign(${JSON.stringify(served.replace("report.html", "plot-error.html"))}); true`);
+    const errorLayout = await until("report plot diagnostic", () =>
+      evaluate(`(() => {
+      const overlay = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"] [role=alert]');
+      if (!overlay) return null;
+      overlay.scrollIntoView({block: 'center'});
+      const bounds = overlay.getBoundingClientRect();
+      const detail = overlay.lastElementChild;
+      const text = detail.getBoundingClientRect();
+      const children = [...overlay.children].map(node => node.getBoundingClientRect());
+      const top = Math.min(...children.map(rect => rect.top));
+      const bottom = Math.max(...children.map(rect => rect.bottom));
+      return { text: detail.textContent, height: bounds.height,
+        centered: Math.abs((top + bottom) / 2 - (bounds.top + bounds.bottom) / 2) < 3,
+        contained: text.left >= bounds.left && text.right <= bounds.right && text.bottom <= bounds.bottom,
+        tint: getComputedStyle(overlay).backgroundColor,
+        overflow: overlay.scrollWidth > overlay.clientWidth };
+    })()`),
+    );
+    assert.equal(errorLayout.text, diagnostic);
+    assert.ok(errorLayout.height >= 230 && errorLayout.centered, "The diagnostic must occupy a centered full-height plot overlay");
+    assert.ok(errorLayout.contained && !errorLayout.overflow, "Long diagnostics must wrap inside the plot");
+    assert.notEqual(errorLayout.tint, "rgba(0, 0, 0, 0)");
+    await writeFile(join(evidence, "plot-error-overlay.json"), JSON.stringify(errorLayout, null, 2));
   } finally {
     socket?.close();
     await terminate(chromeProcess);

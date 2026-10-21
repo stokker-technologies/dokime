@@ -786,6 +786,8 @@ each trace over the window shown, computed by the backend over the exact rows
 rather than the reduced points the plot draws. Clicking a row hides or shows its
 trace, a live plot's table also reads the value under the cursor, and the report
 freezes the table with its plot.
+An unavailable plot shows its diagnostic in a centered, tinted overlay. A terminal
+stream error replaces the displayed chart while retaining its last frame for recovery.
 
 Open or download a cycle's or an execution's **self-contained report** to share
 the plots, verdicts, and context without requiring access to the testbench. A
