@@ -13,7 +13,9 @@
 # Standard Library Imports
 import argparse
 import hashlib
+import shutil
 import stat
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -128,12 +130,42 @@ def package(root: Path, profile: str) -> None:
     print(f"Packaged {destination.relative_to(root).as_posix()}")
 
 
+def relock(root: Path, profile: str) -> None:
+    """Refresh The Authored Tutorial Lock From A Built Candidate Wheel."""
+    built = paths.output(root, "build", profile, "any") / "python"
+    wheels = sorted(built.glob("dokime_client-*.whl"))
+    if len(wheels) != 1:
+        raise ValueError("relocking requires exactly one built candidate wheel")
+    wheel = wheels[0]
+    project = root / "packages/dokime-client/examples/remote/python"
+    candidate = _candidate(project)
+    if candidate.name != wheel.name:
+        raise ValueError("update the tutorial source and version before relocking a renamed candidate")
+
+    with temporary.directory() as scratch:
+        staged = scratch / "python"
+        staged.mkdir()
+        for name in ("pyproject.toml", "uv.lock"):
+            _regular(project / name)
+            shutil.copy2(project / name, staged / name)
+        bundled = scratch / "wheels" / wheel.name
+        stage_file(wheel, bundled)
+        subprocess.run(["uv", "lock", "--project", str(staged), "--upgrade-package", "dokime-client"], cwd=root, check=True)
+        _environment(staged, bundled)
+        stage_file(staged / "uv.lock", project / "uv.lock")
+    print(f"Relocked {project.relative_to(root).as_posix()}/uv.lock")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
     parser.add_argument("--target", choices=("any",), default="any")
+    parser.add_argument("--relock", action="store_true", help="refresh the authored tutorial lock from the built candidate wheel")
     options = parser.parse_args()
-    package(Path.cwd(), options.profile)
+    if options.relock:
+        relock(Path.cwd(), options.profile)
+    else:
+        package(Path.cwd(), options.profile)
 
 
 # === Private Functions === #

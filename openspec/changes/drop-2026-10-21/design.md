@@ -6,6 +6,8 @@
 
 The approved shared terminal surface stays in the entry library behind `terminal`, because the server and packaging library already consume it. Connection/installation errors are under `dokime::client_error`, while root `dokime::Error` and `dokime::Result` retain runtime identity independently of selected features. Macro expansion resolves either the entry dependency (including a renamed dependency) or the runtime's internal self path. Release assets use `dokime-cli-<version>-<triple>` while retaining executable name `dokime`.
 
+The integration owner also repairs the Python tutorial's exact candidate-wheel lock in `packages/dokime-client/examples/remote/python/uv.lock`. The packaging examples module owns explicit `--relock` authoring from an already built profile candidate, using uv in a temporary tutorial copy and validating before replacing the authored lock. Normal Build and Package retain exact byte validation. Acceptance requires dev Python Build and Package and comparing a freshly built release-profile wheel; different profile hashes require a design decision rather than weakening validation. README owns the contributor invocation. `prepare` restores the shared editable tooling binding to this integration workspace without editing primary-checkout source.
+
 ## Integration And Phase
 
 The sole integration workspace is `dokime.wt/drop-2026-10-21`, branch `feat/drop-2026-10-21`. Only this task branch is published; existing slice branches remain local and append-only. Current phase is implementation. Adopt existing dirty changes without resetting or rebasing published history. The entire current numbered inventory, including the watcher extension, requires source accounting before validation; source completion does not establish acceptance.

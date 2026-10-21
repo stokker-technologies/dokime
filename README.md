@@ -970,6 +970,15 @@ crates while retaining debug information and assertions. Package defaults to
 for release packages.
 Interactive `tauri dev` continues to use the Vite server.
 
+After an intentional Python client change, refresh the tutorial lock from the
+built candidate wheel, then rerun the Python Build and Package tasks:
+
+```sh
+uv run --locked --project tools/python python -m dokime_tools.package.examples --profile dev --relock
+mise run build:python --profile dev
+mise run package:python --profile dev
+```
+
 `build:tests --profile dev` separately compiles the shared test archive and
 test fixtures, requiring the matching Product outputs first. Use `release`
 instead for release-profile test preparation. Test lanes consume that archive,
