@@ -1553,7 +1553,7 @@ async function cycleJourney(session, cycleId) {
   await until("the cycle page", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
   const header = await session.text();
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
-  assert.ok(hasText(header, "Ready"), "A materialized cycle must render its Ready status");
+  assert.ok(hasText(header, "Active · Idle"), "A materialized cycle must render its Active · Idle state");
   assert.ok(await session.exists("button", "Cycle Actions"), "The header must carry the overflow menu");
   assert.ok(!(await session.exists("button", "Start Cycle")), "Containers have no Start control");
   assert.ok(!(await session.exists("button", "Stop Cycle")), "Containers have one Seal action");
@@ -2240,23 +2240,41 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
 
 /** Remote Access Uses Mounted Controls And Real TLS CLI Calls. */
 async function remoteAccessJourney() {
+  const settled = () =>
+    until("remote listener settings settled", () =>
+      session.execute("return [...document.querySelectorAll('input[id], button[role=switch]')].every(control => !control.disabled);"),
+    );
   const input = (label) =>
     until(label, () => session.find("xpath", `//input[@id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`));
+  const edit = async (label, value) => {
+    await settled();
+    await session.type(await input(label), value);
+    await session.key("Enter");
+    await settled();
+  };
   const toggle = async (label, checked) => {
+    await settled();
     const control = await until(label, () =>
       session.find("xpath", `//*[@role='switch' and @id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`),
     );
     const current = await session.execute("return arguments[0].getAttribute('aria-checked') === 'true';", [control]);
     if (current !== checked) await session.click(control);
+    await until(`${label} applied`, () =>
+      session.execute("return !arguments[0].disabled && (arguments[0].getAttribute('aria-checked') === 'true') === arguments[1];", [
+        control,
+        checked,
+      ]),
+    );
   };
-  const confirm = async (name, notice) => {
-    await session.clickNamed("button", name);
-    await session.clickNamed("button", "Confirm");
-    await until(notice, async () => hasText(await session.text(), notice));
+  const regenerate = async () => {
+    await settled();
+    await session.clickNamed("button", "Regenerate Certificate");
+    await until("certificate generated", async () => hasText(await toastText(session), "Certificate Generated"));
+    await settled();
   };
   const endpoint = () =>
     until("remote listening address", async () => {
-      const match = /Listening On (127\.0\.0\.1:\d+)/.exec(await session.text());
+      const match = /Listening on (127\.0\.0\.1:\d+)/i.exec(await session.text());
       return match ? `https://${match[1]}` : null;
     });
   const connect = async (address, keyFile, certificate, accepted) => {
@@ -2307,15 +2325,14 @@ async function remoteAccessJourney() {
   // Enable TLS And Authentication Through The Native GUI.
   await session.goto("/settings/remote");
   await until("remote settings", async () => hasText(await session.text(), "Enable Remote Access"));
-  await session.type(await input("Listen Address"), "127.0.0.1:0");
-  await session.type(await input("Certificate DNS Names And IP Addresses"), "127.0.0.1, localhost");
+  await edit("Listen Address", "127.0.0.1:0");
+  await edit("Certificate DNS Names And IP Addresses", "127.0.0.1, localhost");
   await toggle("TLS Encryption", true);
   await toggle("Require An Access Key", true);
-  await confirm("Regenerate Certificate…", "Certificate Regenerated");
+  await regenerate();
   await session.clickNamed("button", "Generate Access Key");
   const original = await saveKey();
   await toggle("Enable Remote Access", true);
-  await confirm("Apply…", "Settings Applied");
   let address = await endpoint();
   await connect(address, original.key, original.certificate, true);
   await connect(address, null, original.certificate, false);
@@ -2325,9 +2342,7 @@ async function remoteAccessJourney() {
   occupied.listen(0, "127.0.0.1");
   await once(occupied, "listening");
   try {
-    await session.type(await input("Listen Address"), `127.0.0.1:${occupied.address().port}`);
-    await session.clickNamed("button", "Apply…");
-    await session.clickNamed("button", "Confirm");
+    await edit("Listen Address", `127.0.0.1:${occupied.address().port}`);
     await until("listener rollback error", async () => hasText(await session.text(), "Change Failed"));
     assert.equal(await endpoint(), address, "failed listener replacement retains the original bound address");
     await connect(address, original.key, original.certificate, true);
@@ -2355,14 +2370,15 @@ async function remoteAccessJourney() {
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "the native GUI admits the rotation execution");
   await until("operator prompt before rotation", async () => hasText(await session.text(), STARTUP_PROMPT), 60000);
   await session.goto("/settings/remote");
-  await confirm("Rotate Access Key…", "Save Your Access Key");
+  await session.clickNamed("button", "Rotate Access Key…");
+  await session.clickNamed("button", "Rotate");
   const replacement = await saveKey();
   address = await endpoint();
   await connect(address, original.key, replacement.certificate, false);
   await connect(address, replacement.key, replacement.certificate, true);
   const previousCertificate = join(work, "credentials", "previous.pem");
   await copyFile(replacement.certificate, previousCertificate);
-  await confirm("Regenerate Certificate…", "Certificate Regenerated");
+  await regenerate();
   address = await endpoint();
   await session.clickNamed("button", "Save Certificate…");
   await until("saved regenerated certificate acknowledgement", async () => hasText(await session.text(), "Certificate Saved"));
@@ -2390,19 +2406,16 @@ async function remoteAccessJourney() {
   // Authentication And Encryption Are Independent Explicit Lab Choices.
   await session.goto("/settings/remote");
   await toggle("Require An Access Key", false);
-  await confirm("Apply…", "Settings Applied");
   address = await endpoint();
   await connect(address, null, certificate, true);
   await toggle("Require An Access Key", true);
   await toggle("TLS Encryption", false);
-  await confirm("Apply…", "Settings Applied");
   address = (await endpoint()).replace("https:", "http:");
   await connect(address, replacement.key, null, true);
   await connect(address, null, null, false);
 
   // Leave The Host In Its Verified TLS And Authentication Configuration.
   await toggle("TLS Encryption", true);
-  await confirm("Apply…", "Settings Applied");
   await connect(await endpoint(), replacement.key, certificate, true);
   await session.screenshot("remote-access");
 }
@@ -2636,7 +2649,9 @@ async function reportJourney(session, cycleId) {
   assert.ok(/Frozen Report .{0,3} Generated/.test(normalize(report)), "The report must state when it was generated");
   /* Step names may say "Start", so the controls are read off the buttons. */
   const controls = [...dom.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/g)].map((match) => normalize(match[1].replace(/<[^>]+>/g, " ")));
-  const runControls = controls.filter((label) => /\bStart\b|Run Again|Pause|Stop\b/.test(label));
+  const runControls = controls.filter((label) =>
+    /^(?:(?:Start|Stop|Pause|Resume|Restart|Cancel)(?: (?:Execution|Cycle))?|Run Again(?: .+)?|Re-run)$/i.test(label),
+  );
   assert.deepEqual(runControls, [], "A frozen report renders no run controls");
   assert.ok(hasText(report, "Records"), "The report renders its records section");
   assert.equal(

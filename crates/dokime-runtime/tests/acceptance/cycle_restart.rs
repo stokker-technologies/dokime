@@ -195,7 +195,7 @@ async fn cycle_crash_recovery() {
         assert!(state.cycle_report_finalizations.is_empty(), "startup finishes the frozen seal before admission");
         assert!(state.run_requests.values().all(|request| request.summary.phase.terminal()));
         assert!(runtime.storage().cursor_saved().covers(&intent.evidence_at).unwrap());
-        let children = state.cycles[&id].execution_ids.clone();
+        let children = intent.source.execution_ids.clone();
         drop(snapshot);
         for child in children {
             let native = dokime_runtime::runtime::ExecutionView::open(runtime.storage(), &child, harmos::storage::ObjectVersion::Latest)

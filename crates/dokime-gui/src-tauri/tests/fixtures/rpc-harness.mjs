@@ -146,6 +146,7 @@ export async function openHarness() {
   const rpc = resolve(temporary, "src/lib/rpc");
   const canonical = resolve(temporary, "canonical");
   await compile(resolve(gui, "src/lib/rpc"), rpc);
+  await compile(resolve(gui, "src/lib/desktop"), resolve(temporary, "src/lib/desktop"));
   await compile(generated, canonical);
   const uiMode = resolve(temporary, "src/lib/ui-mode.js");
   const uiInput = resolve(gui, "src/lib/ui-mode.ts");
