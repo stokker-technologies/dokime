@@ -56,7 +56,6 @@ pub struct Resources {
 struct Ready {
     execution: Option<String>,
     signal: tokio::sync::watch::Sender<Option<Result<FileWatchArmed, String>>>,
-    finished: bool,
 }
 
 struct Awaiting {
@@ -89,14 +88,9 @@ impl Operation for Watching {
         {
             let mut entries = resources.readiness.lock().expect("watch readiness lock is healthy");
             if entries.len() >= 256 {
-                let removable = entries.iter().find(|(_, entry)| entry.finished).map(|(id, _)| *id);
-                if let Some(id) = removable {
-                    entries.remove(&id);
-                } else {
-                    return Err(super::capped("at most 256 file watches may await readiness"));
-                }
+                return Err(super::capped("at most 256 file watches may await readiness"));
             }
-            entries.insert(context.id().value(), Ready { execution, signal: ready.clone(), finished: false });
+            entries.insert(context.id().value(), Ready { execution, signal: ready.clone() });
         }
         resources.changed.notify_waiters();
         Ok(Self { resources, watch: None, ready, id: context.id().value() })
@@ -174,9 +168,9 @@ impl Drop for Watching {
             self.ready.send_replace(Some(Err("file watch stopped before capture was armed; inspect its outcome".to_owned())));
         }
         let mut entries = self.resources.readiness.lock().expect("watch readiness lock is healthy");
-        if let Some(entry) = entries.get_mut(&self.id) {
-            entry.finished = true;
-        }
+        entries.remove(&self.id);
+        drop(entries);
+        self.resources.changed.notify_waiters();
     }
 }
 
@@ -212,7 +206,7 @@ impl Operation for Awaiting {
                     let id = harmos::operations::OperationInstanceId::new(request.instance_id);
                     let status = runtime.operations().status(id);
                     if status.is_none_or(|status| status.phase().is_terminal() || status.cancellation_requested()) {
-                        return Err(Error::conflict(super::UNREACHABLE, "file watch stopped before capture was armed"));
+                        return Err(Error::conflict(super::UNREACHABLE, "file watch is no longer active; inspect its outcome"));
                     }
                     changed.await;
                 }
@@ -264,3 +258,31 @@ fn collect_gaps(events: &mut Vec<WatchEvent>, gaps: &mut Vec<FileWatchGap>) {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settling_releases_registration_and_preserves_the_subscribed_outcome() {
+        let state = Resources { runtime: OnceLock::new(), readiness: Mutex::new(BTreeMap::new()), changed: tokio::sync::Notify::new() };
+        let resources = Arc::new(state);
+        let outcomes = [None, Some(Ok(FileWatchArmed { baseline: Vec::new() })), Some(Err("source refused".to_owned()))];
+        for outcome in outcomes {
+            let (ready, signal) = tokio::sync::watch::channel(outcome.clone());
+            let entry = Ready { execution: Some("execution".to_owned()), signal: ready.clone() };
+            resources.readiness.lock().unwrap().insert(1, entry);
+            let watching = Watching { resources: resources.clone(), watch: None, ready, id: 1 };
+
+            drop(watching);
+
+            assert!(resources.readiness.lock().unwrap().is_empty());
+            let received = signal.borrow().clone().expect("every settled watcher has a readiness outcome");
+            match outcome {
+                Some(expected) => assert_eq!(received, expected),
+                None => assert!(received.unwrap_err().contains("stopped before capture was armed")),
+            }
+            assert!(signal.has_changed().is_err(), "settlement releases every readiness sender");
+        }
+    }
+}
