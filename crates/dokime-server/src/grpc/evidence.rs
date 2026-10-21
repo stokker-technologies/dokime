@@ -17,6 +17,7 @@ mod selection;
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 // Third Party Imports
@@ -35,7 +36,7 @@ use selection::Selection;
 /* === Constants === */
 
 const SCAN_LIMIT: usize = 1000;
-const RECORD_LIMIT: usize = 100;
+const RECORD_LIMIT: usize = 1000;
 const PAGE_BYTES: usize = 512 * 1024;
 
 /* === Macros === */
@@ -57,6 +58,15 @@ struct Reader {
     scanned: u64,
     through: u64,
     bytes: usize,
+}
+
+// The newest matching records of a tail scan, bounded by count and bytes.
+struct Tail {
+    kept: VecDeque<(usize, dokime_domain::model::evidence::wire::CapturedRecord)>,
+    keep: usize,
+    budget: usize,
+    bytes: usize,
+    oversized: bool,
 }
 
 struct List {
@@ -147,6 +157,60 @@ impl Reader {
         self.scanned = scanned;
         Ok(page)
     }
+    // Scans the whole replay through the frontier fixed at construction and
+    // keeps the newest matching records that fit the count and byte budgets.
+    async fn tail(&mut self, latest: usize) -> Result<Page, Status> {
+        let mut page = dokime_domain::model::evidence::wire::RecordPage {
+            records: Vec::new(),
+            scanned: Some(self.cursor(self.through)),
+            through: Some(self.cursor(self.through)),
+            replay_complete: true,
+            retained_after: 0,
+        };
+        let overhead = page.wire_len()? + 32;
+        let Some(budget) = self.bytes.checked_sub(overhead) else {
+            return Err(Status::resource_exhausted("record page envelope exceeds transport limit"));
+        };
+
+        let mut window = Tail::new(latest.min(RECORD_LIMIT), budget);
+        let mut scanned = self.scanned;
+        while let Some(record) = self.source.next(scanned, self.through).await.map_err(capture_error)? {
+            scanned = record.sequence;
+            window.offer(&self.selection, &record)?;
+        }
+
+        self.scanned = self.through;
+        page.records = window.finish()?;
+        Ok(page)
+    }
+}
+
+impl Tail {
+    fn new(keep: usize, budget: usize) -> Self {
+        Self { kept: VecDeque::with_capacity(keep), keep, budget, bytes: 0, oversized: false }
+    }
+    fn offer(&mut self, selection: &Selection, record: &dokime_runtime::runtime::CapturedRecord) -> Result<(), Status> {
+        if !selection.matches(record) {
+            return Ok(());
+        }
+        let encoded = canonical::record(record)?;
+        let size = encoded.wire_len()?.saturating_add(10);
+        self.oversized = size > self.budget;
+        self.bytes = self.bytes.saturating_add(size);
+        self.kept.push_back((size, encoded));
+        while self.kept.len() > self.keep || self.bytes > self.budget {
+            let Some((evicted, _)) = self.kept.pop_front() else { break };
+            self.bytes -= evicted;
+        }
+        Ok(())
+    }
+    fn finish(self) -> Result<Vec<dokime_domain::model::evidence::wire::CapturedRecord>, Status> {
+        if self.oversized {
+            return Err(Status::resource_exhausted("newest captured record exceeds page limit"));
+        }
+        let records = self.kept.into_iter().map(|(_, record)| record);
+        Ok(records.collect())
+    }
 }
 
 impl Operation for List {
@@ -164,6 +228,9 @@ impl Operation for List {
         if request.after.is_some() != request.through.is_some() {
             return Err(Status::invalid_argument("pagination requires both after and through cursors"));
         }
+        if request.latest > 0 && request.after.is_some() {
+            return Err(Status::invalid_argument("a tail request takes no cursors"));
+        }
         let mut reader = Reader::new(
             &self.resources.runtime,
             request.selection.take(),
@@ -171,7 +238,11 @@ impl Operation for List {
             request.through.take(),
             self.resources.max_message_bytes,
         )?;
-        Ok(reader.page().await?.into())
+        let page = match request.latest {
+            0 => reader.page().await?,
+            latest => reader.tail(latest as usize).await?,
+        };
+        Ok(page.into())
     }
 }
 
