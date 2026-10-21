@@ -231,7 +231,7 @@ impl DesktopSession {
     pub async fn shutdown(&self) -> Result<DesktopSessionSnapshot, Error> {
         self.stop(true).await
     }
-    /// End the owned backend now, without the rest of its orderly stop.
+    // End the owned backend now, without the rest of its orderly stop.
     pub fn abandon(&self) {
         self.0.abandon.cancel();
     }

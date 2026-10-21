@@ -192,8 +192,8 @@ pub trait SamplerSession: Send {
 
     fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>>;
 
-    /// A stopping runtime keeps what was collected and stops waiting for
-    /// collections still in flight; their rows would postdate the stop.
+    // A stopping runtime keeps what was collected and stops waiting for
+    // collections still in flight; their rows would postdate the stop.
     fn abandon(&mut self) {}
 }
 

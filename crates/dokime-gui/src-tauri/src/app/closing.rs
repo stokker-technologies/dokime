@@ -34,12 +34,12 @@ use crate::native_session::{DesktopSessionControl, DesktopSessionError};
 
 /* === Constants === */
 
-/// The event the WebView follows (`src/lib/desktop/stopping.ts`).
+// The event the WebView follows (`src/lib/desktop/stopping.ts`).
 const STOPPING_EVENT: &str = "desktop://stopping";
-/// Keep An Idle Close Within Its One-Second Target Free Of Intermediate State.
+// Keep An Idle Close Within Its One-Second Target Free Of Intermediate State.
 const VISIBLE_AFTER: Duration = Duration::from_secs(1);
-/// The run's settle budget plus the backend's final checkpoint; past it the
-/// operator is offered an explicit choice to exit without finishing.
+// The run's settle budget plus the backend's final checkpoint; past it the
+// operator is offered an explicit choice to exit without finishing.
 const STOP_DEADLINE: Duration = Duration::from_secs(dokime_domain::STOP_SETTLEMENT_SECONDS + 30);
 const EXIT_WITHOUT_FINISHING: &str = "Exit Without Finishing";
 
@@ -49,7 +49,7 @@ const EXIT_WITHOUT_FINISHING: &str = "Exit Without Finishing";
 
 /* === Structs === */
 
-/// One per process: every close and exit request of every window lands here.
+// One per process: every close and exit request of every window lands here.
 #[derive(Clone, Default)]
 pub(crate) struct Closing(Arc<State>);
 
@@ -93,7 +93,7 @@ impl Closing {
         self.0.complete.load(Ordering::Acquire)
     }
 
-    /// Repeated close requests keep waiting until the stop's deadline passes.
+    // Repeated close requests keep waiting until the stop's deadline passes.
     pub(crate) fn request(&self, app: &tauri::AppHandle, code: i32) {
         match self.0.request() {
             CloseRequest::Start => {}

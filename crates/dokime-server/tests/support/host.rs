@@ -120,8 +120,8 @@ impl Host {
         self.child.id().expect("the host is running")
     }
 
-    /// Close stdin, the desktop's stop request, and wait for the exit: its
-    /// status, how long the stop took and the host's diagnostics.
+    // Close stdin, the desktop's stop request, and wait for the exit: its
+    // status, how long the stop took and the host's diagnostics.
     pub async fn shutdown(mut self) -> (std::process::ExitStatus, std::time::Duration, String) {
         let started = std::time::Instant::now();
         drop(self.child.stdin.take());

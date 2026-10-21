@@ -212,9 +212,9 @@ async fn current(
             Member::Sealed(seal) => {
                 CycleMember::Captured(Box::new(sealed_member(ctx, resources, storage, settings, &seal, at, progress).await?))
             }
-            Member::Captured(inspection, _guard) => CycleMember::Captured(Box::new(
-                crate::report::materialize::execution(ctx, settings, &inspection, false, progress).await?,
-            )),
+            Member::Captured(inspection, _guard) => {
+                CycleMember::Captured(Box::new(crate::report::materialize::execution(ctx, settings, &inspection, false, progress).await?))
+            }
         });
     }
     let captured = members.iter().find_map(|member| match member {
