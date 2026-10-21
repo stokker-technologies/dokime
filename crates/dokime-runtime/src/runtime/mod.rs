@@ -55,6 +55,9 @@ use query::RuntimeOverviewSnapshot;
 
 /* === Constants === */
 
+// How long a stopping plugin may take before its sidecar is ended.
+const PLUGIN_STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -78,6 +81,8 @@ pub(crate) struct BackgroundTask(pub(crate) tokio::task::JoinHandle<()>);
 
 #[derive(Default)]
 struct Shutdown {
+    // What the stop is doing now, for a host that bounds it.
+    stage: &'static str,
     providers: Vec<crate::runtime::operations::provider::ProviderTask>,
     prepared: bool,
     participant: Option<harmos::runtime::StopParticipant>,
@@ -208,6 +213,11 @@ impl Runtime {
         self.handle.clone()
     }
 
+    /// What an unfinished stop was doing when its host stopped waiting.
+    pub fn shutdown_stage(&self) -> &'static str {
+        self.shutdown.stage
+    }
+
     pub async fn shutdown(&mut self) -> Result<RuntimeOverviewSnapshot> {
         if self.shutdown.complete {
             self.handle.provider_completion_result()?;
@@ -221,6 +231,7 @@ impl Runtime {
         }
 
         let shutdown_started = std::time::Instant::now();
+        self.shutdown.stage = "settling running executions";
         self.handle.shutdown_requested.send_replace(true);
         let report_ids = self
             .handle
@@ -267,18 +278,10 @@ impl Runtime {
             // Cancellation Must Settle Even If Native Shutdown Admission Failed.
             shutdown_admission?;
 
-            let cycles = self
-                .handle
-                .state_read()
-                .cycles
-                .values()
-                .filter(|cycle| cycle.phase != dokime_domain::model::execution::result::CyclePhase::Sealed)
-                .map(|cycle| cycle.test_cycle_id.clone())
-                .collect::<Vec<_>>();
-            for cycle in cycles {
-                self.handle.seal_cycle_inner(cycle, crate::CommandContext::default()).await?;
-            }
+            // Active Cycles Stay Active: The Next Start Seals Them Without Replaying Device Work,
+            // So A Stop Never Renders A Cycle Report Its Members Already Wrote.
 
+            self.shutdown.stage = "stopping plugins";
             if let Some(manager) = &mut self.plugin_manager {
                 let mut lifecycle = plugins::lifecycle::Adapter {
                     handle: &self.handle,
@@ -286,7 +289,11 @@ impl Runtime {
                     packages: &mut self.plugins,
                     embedded: &mut self.embedded,
                 };
-                manager.shutdown(&mut lifecycle).await?;
+                // A plugin that outstays its grace loses its sidecar: dropping the manager ends it.
+                match tokio::time::timeout(PLUGIN_STOP_GRACE, manager.shutdown(&mut lifecycle)).await {
+                    Ok(stopped) => stopped?,
+                    Err(_) => tracing::warn!(grace_s = PLUGIN_STOP_GRACE.as_secs(), "plugins did not stop in time; ending their sidecars"),
+                }
             }
             self.embedded.clear();
             self.plugin_manager = None;
@@ -314,6 +321,7 @@ impl Runtime {
             report_inputs?;
         }
 
+        self.shutdown.stage = "writing the final checkpoint";
         if !self.shutdown.stopped {
             if self.shutdown.overview.is_none() {
                 let participant = self.shutdown.participant.get_or_insert_with(|| self.harmos.stop_participant());

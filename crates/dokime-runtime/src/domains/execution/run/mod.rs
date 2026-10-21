@@ -59,7 +59,7 @@ use session::Session;
 /* === Constants === */
 
 const WATCH_INTERVAL: Duration = Duration::from_millis(100);
-const STOP_SETTLEMENT: Duration = Duration::from_secs(30);
+const STOP_SETTLEMENT: Duration = Duration::from_secs(dokime_domain::STOP_SETTLEMENT_SECONDS);
 const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
 
 /* === Macros === */

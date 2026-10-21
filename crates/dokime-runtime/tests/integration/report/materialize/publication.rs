@@ -84,6 +84,8 @@ async fn dependency_publication_retry() {
         context,
     };
     drop(inspection);
+    // A Stop Leaves Its Active Cycles To The Next Start; This Story Needs The Parent Seal Now.
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
     drop(runtime);
     source_owner.shutdown().await.unwrap();
 

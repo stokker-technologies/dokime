@@ -47,6 +47,9 @@ use dokime_runtime::config::ApplicationOptions;
 
 /* === Constants === */
 
+// The run's settle budget plus the final checkpoint; the desktop waits ten seconds longer.
+const STOP_BUDGET: std::time::Duration = std::time::Duration::from_secs(dokime_domain::STOP_SETTLEMENT_SECONDS + 20);
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -131,7 +134,15 @@ pub async fn run(args: Args, server_config: crate::grpc::Config, terminal: dokim
     }
     arm_force_quit();
     let server_result = server.shutdown().await;
-    let runtime_result = runtime.shutdown().await.map(|_| ());
+    let runtime_result = match tokio::time::timeout(STOP_BUDGET, runtime.shutdown()).await {
+        Ok(stopped) => stopped.map(|_| ()),
+        Err(_) => {
+            let stage = runtime.shutdown_stage();
+            // Dropping the runtime ends every plugin sidecar it still owns.
+            drop(runtime);
+            return Err(crate::host::Error::StopIncomplete { stage, budget_s: STOP_BUDGET.as_secs() });
+        }
+    };
     crate::host::Error::shutdown(server_result, runtime_result)
 }
 

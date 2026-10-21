@@ -77,7 +77,10 @@ impl Host {
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
         let mut phases = Vec::new();
         let ready = loop {
-            let line = lines.next_line().await.unwrap().expect("the backend exited before reporting readiness");
+            let Some(line) = lines.next_line().await.unwrap() else {
+                let diagnostics = std::fs::read_to_string(&stderr).unwrap_or_default();
+                panic!("the backend exited before reporting readiness:\n{diagnostics}");
+            };
             let event: serde_json::Value =
                 serde_json::from_str(&line).unwrap_or_else(|error| panic!("unparseable readiness line {line:?}: {error}"));
             if event["event"] != "phase" {
@@ -111,6 +114,20 @@ impl Host {
 
     pub fn endpoint(&self) -> &str {
         &self.endpoint
+    }
+
+    pub fn pid(&self) -> u32 {
+        self.child.id().expect("the host is running")
+    }
+
+    /// Close stdin, the desktop's stop request, and wait for the exit: its
+    /// status, how long the stop took and the host's diagnostics.
+    pub async fn shutdown(mut self) -> (std::process::ExitStatus, std::time::Duration, String) {
+        let started = std::time::Instant::now();
+        drop(self.child.stdin.take());
+        let status = self.child.wait().await.unwrap();
+        let elapsed = started.elapsed();
+        (status, elapsed, std::fs::read_to_string(&self.stderr).unwrap())
     }
 
     pub async fn stop(mut self, signal: bool) {

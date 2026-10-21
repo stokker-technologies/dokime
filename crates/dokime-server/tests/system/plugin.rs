@@ -9,6 +9,7 @@
 
 /* === Modules === */
 mod diagnosis;
+mod shutdown;
 
 /* === Re-Exports === */
 

@@ -180,6 +180,15 @@ impl SamplerSession for HostSamplerSession {
         })
     }
 
+    fn abandon(&mut self) {
+        self.reap();
+        for pending in std::mem::take(&mut self.tasks) {
+            // A blocking collector runs out its own bound; nothing waits for it.
+            pending.task.abort();
+            self.working.remove(&pending.stream);
+        }
+    }
+
     fn collected(&mut self) -> std::result::Result<Vec<TelemetryBatch>, String> {
         self.reap();
         let ready = std::mem::take(&mut self.ready)

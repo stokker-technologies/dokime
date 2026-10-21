@@ -454,11 +454,16 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
                 continue;
             }
 
-            request.summary.phase = RunPhase::Interrupted;
             request.summary.finished_at = Some(self.at.clone());
             request.summary.paused = false;
             request.pending.clear();
             request.conclusion = Some(CycleStatus::Stopped);
+            if request.summary.provider_started_at.is_none() && request.summary.prepared == 0 {
+                // Never dispatched: the stop that ended the session stopped it before it began.
+                request.summary.phase = RunPhase::Stopped;
+                continue;
+            }
+            request.summary.phase = RunPhase::Interrupted;
             request.failure = Some("runtime restarted before request completion".into());
         }
 

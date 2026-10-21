@@ -27,9 +27,11 @@ use std::{path::PathBuf, process::ExitCode};
 // 2 Invalid input: arguments, environment file, plugin bundles, development commands.
 // 3 Any other failure: I/O, runtime, transport, cleanup.
 // 4 The data root holds storage this build cannot open; moving it aside lets the next launch start fresh.
+// 5 The stop outlasted its budget; the next start seals what it left unfinished.
 const EXIT_INPUT: u8 = 2;
 const EXIT_FAILURE: u8 = 3;
 const EXIT_INCOMPATIBLE_STORAGE: u8 = 4;
+const EXIT_STOP_INCOMPLETE: u8 = 5;
 
 /* === Macros === */
 
@@ -69,6 +71,9 @@ pub enum Error {
     #[error("server failed: {0}")]
     Server(#[from] crate::grpc::Error),
 
+    #[error("the stop did not finish within {budget_s} seconds while {stage}; the next start seals what it left unfinished")]
+    StopIncomplete { stage: &'static str, budget_s: u64 },
+
     #[error("server failed: {server}; runtime shutdown also failed: {runtime}")]
     Cleanup { server: Box<crate::grpc::Error>, runtime: Box<dokime_runtime::runtime::Error> },
 }
@@ -88,6 +93,7 @@ impl Error {
         ExitCode::from(match self {
             Self::Input(_) => EXIT_INPUT,
             Self::IncompatibleStorage { .. } => EXIT_INCOMPATIBLE_STORAGE,
+            Self::StopIncomplete { .. } => EXIT_STOP_INCOMPLETE,
             _ => EXIT_FAILURE,
         })
     }
