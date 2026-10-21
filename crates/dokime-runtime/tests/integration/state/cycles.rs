@@ -1661,3 +1661,46 @@ fn cycle_projection_atomic() {
     assert!(state.executions.is_empty());
     state.validate_execution_ownership().unwrap();
 }
+
+#[test]
+fn start_plan_matches_admission() {
+    let (mut state, cycle_id) = planned();
+    let run = RunProvider {
+        mode: Default::default(),
+        test_cycle_id: cycle_id.clone(),
+        test_execution_id: Some(state.cycles[&cycle_id].execution_ids[0].clone()),
+        context: Default::default(),
+        command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
+    };
+
+    // Start Plans Against The Live State, And The Commit Admits Exactly That Plan
+    let plan = dokime_runtime::transactions::provider::request::plan_queue(&state, &run).unwrap();
+    run.check(&state).unwrap();
+    run.apply(&mut state);
+    let admitted = &state.run_requests[&run.command_id];
+    assert_eq!(plan.summary, admitted.summary);
+    assert_eq!(plan.target, admitted.target);
+
+    // A Replayed Start Plans The Admitted Request Unchanged
+    let replay = dokime_runtime::transactions::provider::request::plan_queue(&state, &run).unwrap();
+    assert_eq!(replay.summary, admitted.summary);
+}
+
+#[test]
+fn reset_plan_matches_applied_reset() {
+    let (mut state, cycle_id) = planned();
+    let test_case_id = state.cycle_view(&cycle_id).unwrap().cases().next().unwrap().test_case_id.clone();
+    let reset = dokime_runtime::transactions::ResetCycle {
+        test_cycle_id: cycle_id.clone(),
+        action: dokime_runtime::transactions::CycleResetAction::Delete { test_case_id },
+        occurred_at: dokime_runtime::model::time::now_utc(),
+    };
+
+    let (cycle, removed) = dokime_runtime::transactions::cycle::plan_cycle_reset(&state, &reset).unwrap();
+    reset.check(&state).unwrap();
+    reset.apply(&mut state);
+    assert_eq!(state.cycle_view(&cycle_id).unwrap(), cycle);
+    assert!(!removed.is_empty());
+    assert!(removed.iter().all(|id| !state.executions.contains_key(id) && state.retired_executions.contains(id)));
+}

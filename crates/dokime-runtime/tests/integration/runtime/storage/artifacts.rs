@@ -41,6 +41,51 @@ use crate::service_support::prelude::*;
 /* === Tests === */
 
 #[tokio::test]
+async fn artifact_close_boundary() {
+    use dokime_runtime::artifacts::{ArtifactStatus, ArtifactUploadInput};
+
+    let root = tempdir().unwrap();
+    let (mut runtime, handle, cycle_id, provider) = blocked_cycle(root.path()).await;
+    let cycle = cycle_snapshot(&handle, &cycle_id).await;
+    let execution = &cycle.test_executions[0];
+    let mut records = Vec::new();
+    for name in ["first.bin", "second.bin"] {
+        let upload = handle
+            .begin_artifact_upload(ArtifactUploadInput {
+                scope: execution.scope.clone(),
+                filename: name.into(),
+                content_type: None,
+                size_bytes: 3,
+                sha256: None,
+            })
+            .await
+            .unwrap();
+        upload.send(b"abc").await.unwrap();
+        let record = upload.finish().await.unwrap();
+        assert_eq!(record.status, ArtifactStatus::Complete);
+        assert_eq!(upload.finish().await.unwrap(), record);
+        records.push(record);
+    }
+    let listed = handle.artifacts().await.unwrap();
+    for record in &records {
+        assert!(listed.contains(record));
+        let content = handle.read_artifact_content(&record.artifact_id, 3).await.unwrap().unwrap();
+        assert_eq!(content.bytes, b"abc");
+    }
+
+    provider.release();
+    let checkpoint = crate::service_support::native::checkpoint(&handle, &execution.test_execution_id).await;
+    for record in &records {
+        let mut reader = handle.checkpoint_artifact(checkpoint.clone(), &record.artifact_id).await.unwrap();
+        let mut bytes = [0; 3];
+        assert_eq!(reader.read(&mut bytes).await.unwrap(), 3);
+        assert_eq!(&bytes, b"abc");
+    }
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn concurrent_log_bytes() {
     use std::io::Write;
 

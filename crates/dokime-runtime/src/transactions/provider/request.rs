@@ -39,6 +39,15 @@ use dokime_domain::model::execution::result::CycleStatus;
 
 /* === Structs === */
 
+// The Admission A Run Request Would Make, Planned Against The State Without Applying It.
+pub struct QueuePlan {
+    pub target: ExecutionProviderTarget,
+    pub summary: RunSummary,
+
+    // The Execution A New Request Queues; An Admitted Request Queues Nothing.
+    execution_id: Option<TestExecutionId>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RunRequest {
     pub summary: RunSummary,
@@ -234,7 +243,7 @@ impl DispatchProvider {
 
 /* === Public Functions === */
 
-pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<ExecutionProviderTarget, Error> {
+pub fn plan_queue(state: &RuntimeState, run: &RunProvider) -> Result<QueuePlan, Error> {
     if let Some(request) = state.run_requests.get(&run.command_id) {
         if request.summary.cycle_id != run.test_cycle_id
             || request.test_execution_id != run.test_execution_id
@@ -242,10 +251,9 @@ pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<Execu
         {
             return Err(Error::conflict("request_identity_conflict", "request identity belongs to another selection"));
         }
-        return Ok(request.target.clone());
+        return Ok(QueuePlan { target: request.target.clone(), summary: request.summary.clone(), execution_id: None });
     }
     let current = prepare_run_provider(state, run)?;
-    let selected_execution_ids = vec![current.execution_id.clone()];
     // Admission Leaves The Execution Unstarted Until It Owns The Serial Lane.
     let summary = RunSummary {
         mode: run.mode,
@@ -263,18 +271,25 @@ pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<Execu
         provider_started_at: None,
         finished_at: None,
     };
+    Ok(QueuePlan { target: current.target, summary, execution_id: Some(current.execution_id) })
+}
+
+pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<ExecutionProviderTarget, Error> {
+    let QueuePlan { target, summary, execution_id } = plan_queue(state, run)?;
+    let Some(execution_id) = execution_id else {
+        return Ok(target);
+    };
     let records = queue_records(state, run);
-    let target = current.target.clone();
     let cycle = state.cycles.get_mut(&run.test_cycle_id).expect("checked cycle");
     cycle.touch_at(run.accepted_at.clone());
     state.run_requests.insert(
         run.command_id.clone(),
         RunRequest {
             summary,
-            target: current.target,
+            target: target.clone(),
             test_execution_id: run.test_execution_id.clone(),
-            selected_execution_ids,
-            pending: VecDeque::from([current.execution_id]),
+            selected_execution_ids: vec![execution_id.clone()],
+            pending: VecDeque::from([execution_id]),
             settled_execution_ids: Vec::new(),
             conclusion: None,
             failure: None,

@@ -21,7 +21,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use super::buffer::{BufferedFrame, Executions, LeaseOutcome, MAX_BUFFERED_ARTIFACT_BYTES, PROMPT_POLL_INTERVAL, PromptOutcome, lock};
+use super::buffer::{BufferedFrame, Executions, LeaseOutcome, MAX_BUFFERED_ARTIFACT_BYTES, PromptOutcome, lock, settled};
 use crate::artifacts::ArtifactSink;
 use crate::execution::lease::{LeaseHold, LeaseRelease};
 use crate::execution::{ExecutionProgress, ProgressSink};
@@ -336,23 +336,17 @@ impl ExecutionTransport for FrameTransport {
                 state.raise(prompt_id.clone(), encoded);
             }
 
-            loop {
-                tokio::time::sleep(PROMPT_POLL_INTERVAL).await;
-                let settled = {
-                    let executions = lock(&executions);
-                    match executions.get(&token) {
-                        None => Some(Err(crate::Error::PromptCancelled)),
-                        Some(state) => match state.settled(&prompt_id) {
-                            Some(PromptOutcome::Answered(response)) => Some(Ok((**response).clone())),
-                            Some(PromptOutcome::Cancelled) => Some(Err(crate::Error::PromptCancelled)),
-                            None => None,
-                        },
-                    }
-                };
-                if let Some(answer) = settled {
-                    return answer;
-                }
-            }
+            settled(
+                &executions,
+                &token,
+                || Err(crate::Error::PromptCancelled),
+                |state| match state.settled(&prompt_id) {
+                    Some(PromptOutcome::Answered(response)) => Some(Ok((**response).clone())),
+                    Some(PromptOutcome::Cancelled) => Some(Err(crate::Error::PromptCancelled)),
+                    None => None,
+                },
+            )
+            .await
         })
     }
 
@@ -377,32 +371,20 @@ impl ExecutionTransport for FrameTransport {
             // answer or the run's end may settle this, because a step that
             // guessed it had the hold would read somebody else's window as its
             // own evidence.
-            loop {
-                tokio::time::sleep(PROMPT_POLL_INTERVAL).await;
-                let settled = {
-                    let live = lock(&executions);
-                    match live.get(&token) {
-                        None => Some(Err(crate::Error::LeaseCancelled)),
-                        Some(state) => match state.lease_settled(&lease_token) {
-                            Some(LeaseOutcome::Granted) => Some(Ok(())),
-                            Some(LeaseOutcome::Refused(reason)) => Some(Err(crate::Error::LeaseRefused(reason.clone()))),
-                            Some(LeaseOutcome::Cancelled) => Some(Err(crate::Error::LeaseCancelled)),
-                            Some(LeaseOutcome::Pending) | None => None,
-                        },
-                    }
-                };
-                match settled {
-                    Some(Ok(())) => {
-                        return Ok(LeaseHold {
-                            lease_token,
-                            release: Arc::new(FrameLeaseRelease { executions: Arc::clone(&executions), token: token.clone() })
-                                as Arc<dyn LeaseRelease>,
-                        });
-                    }
-                    Some(Err(error)) => return Err(error),
-                    None => continue,
-                }
-            }
+            settled(
+                &executions,
+                &token,
+                || Err(crate::Error::LeaseCancelled),
+                |state| match state.lease_settled(&lease_token) {
+                    Some(LeaseOutcome::Granted) => Some(Ok(())),
+                    Some(LeaseOutcome::Refused(reason)) => Some(Err(crate::Error::LeaseRefused(reason.clone()))),
+                    Some(LeaseOutcome::Cancelled) => Some(Err(crate::Error::LeaseCancelled)),
+                    Some(LeaseOutcome::Pending) | None => None,
+                },
+            )
+            .await?;
+            let release = Arc::new(FrameLeaseRelease { executions: Arc::clone(&executions), token: token.clone() });
+            Ok(LeaseHold { lease_token, release: release as Arc<dyn LeaseRelease> })
         })
     }
 
@@ -461,21 +443,18 @@ impl ExecutionTransport for FrameTransport {
                 let mut live = lock(&executions);
                 let state =
                     live.get_mut(&token).ok_or_else(|| crate::diagnostics::Diagnostic::of("execution ended before step admission"))?;
+                if state.cancelled() {
+                    return Err(crate::diagnostics::Diagnostic::of("execution cancelled before step admission"));
+                }
                 state.request_step(step.as_str(), &start, encoded);
             }
-            loop {
-                let answer = {
-                    let live = lock(&executions);
-                    let state = live
-                        .get(&token)
-                        .ok_or_else(|| crate::diagnostics::Diagnostic::of("execution ended before step acknowledgement"))?;
-                    state.step_answer()
-                };
-                if let Some(answer) = answer {
-                    return answer.map_err(crate::diagnostics::Diagnostic::of);
-                }
-                tokio::time::sleep(PROMPT_POLL_INTERVAL).await;
-            }
+            settled(
+                &executions,
+                &token,
+                || Err(crate::diagnostics::Diagnostic::of("execution ended before step acknowledgement")),
+                |state| state.step_answer().map(|answer| answer.map_err(crate::diagnostics::Diagnostic::of)),
+            )
+            .await
         })
     }
 
@@ -539,3 +518,89 @@ fn park_at_gate<'a>(
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transport::buffer::ExecutionState;
+
+    #[tokio::test(start_paused = true)]
+    async fn prompt_waits_wake_on_settlement() {
+        let request = crate::transport::protocol::RunExecution {
+            execution_token: "fixture".into(),
+            test_cycle_id: crate::model::identity::new_id::<dokime_domain::model::identity::TestCycleId>().to_string(),
+            test_execution_id: crate::model::identity::new_id::<dokime_domain::model::identity::TestExecutionId>().to_string(),
+            template_identifier: "fixture".into(),
+            workflow: "fixture".into(),
+            parameters_json: "{}".into(),
+            secrets_json: "{}".into(),
+            mode: "interactive".into(),
+        };
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let state = ExecutionState::new(request.clone(), cancel);
+        let executions: Executions = Arc::new(std::sync::Mutex::new(BTreeMap::from([("fixture".to_owned(), state)])));
+        let mut transport = FrameTransport { executions: Arc::clone(&executions), token: "fixture".into(), prompts: 0 };
+        let question = || PromptRequest {
+            prompt_id: PromptId::from_seed("unused"),
+            prompt_type: Identifier::new("fixture.confirm").unwrap(),
+            values: BTreeMap::new(),
+            scope: RecordScope::default(),
+        };
+
+        // An Answer Wakes The Waiter Without Any Clock Advance
+        let waiting = tokio::spawn(async move {
+            let answer = transport.prompt(question()).await;
+            (transport, answer)
+        });
+        let asked = PromptId::from_seed("fixture:prompt:0");
+        raised(&executions, 1).await;
+        let before = tokio::time::Instant::now();
+        let response = PromptResponse {
+            prompt_id: asked.clone(),
+            action: "confirm".into(),
+            responder: "operator".into(),
+            submitted_at: crate::model::time::now_utc(),
+            values: BTreeMap::new(),
+            accepted: true,
+        };
+        lock(&executions).get_mut("fixture").unwrap().answer(asked.as_str(), response.clone());
+        let (mut transport, answer) = waiting.await.unwrap();
+        assert_eq!(answer.unwrap(), response);
+        assert_eq!(tokio::time::Instant::now(), before);
+
+        // Evicting The Run Cancels A Waiting Prompt At Once
+        let waiting = tokio::spawn(async move { transport.prompt(question()).await });
+        raised(&executions, 2).await;
+        lock(&executions).remove("fixture");
+        assert!(matches!(waiting.await.unwrap(), Err(crate::Error::PromptCancelled)));
+        assert_eq!(tokio::time::Instant::now(), before);
+
+        // Cancellation Settles Both A Prompt And Step Admission Without A Timer.
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        lock(&executions).insert("fixture".into(), ExecutionState::new(request, cancel));
+        let mut transport = FrameTransport { executions: Arc::clone(&executions), token: "fixture".into(), prompts: 0 };
+        let waiting = tokio::spawn(async move { transport.prompt(question()).await });
+        raised(&executions, 1).await;
+        let step = dokime_domain::model::execution::result::StepAttemptStart {
+            attempt_id: dokime_domain::model::identity::StepAttemptId::from_seed("fixture.step"),
+            step_id: dokime_domain::model::identity::StepId::from_seed("fixture.step"),
+            started_at: crate::model::time::now_utc(),
+        };
+        {
+            let mut live = lock(&executions);
+            let state = live.get_mut("fixture").unwrap();
+            state.request_step("fixture.step", &step, String::new());
+            state.cancel();
+            assert!(state.step_answer().unwrap().is_err());
+        }
+        assert!(matches!(waiting.await.unwrap(), Err(crate::Error::PromptCancelled)));
+        assert_eq!(tokio::time::Instant::now(), before);
+    }
+
+    // Yields Until The Spawned Prompts Have Raised `count` Request Frames.
+    async fn raised(executions: &Executions, count: usize) {
+        while lock(executions).get_mut("fixture").unwrap().drain_after(0).unwrap().prompt_requests.len() < count {
+            tokio::task::yield_now().await;
+        }
+    }
+}

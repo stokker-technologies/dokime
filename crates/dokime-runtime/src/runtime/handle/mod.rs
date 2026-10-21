@@ -471,7 +471,7 @@ impl RuntimeHandle {
                 .map_err(|error| Error::Operation(error.to_string()))?;
         }
         let contracts = self.state_read().telemetry_contracts();
-        crate::runtime::storage::telemetry::register_schemas(self.storage(), &contracts).await?;
+        self.execution_storage.register_schemas(&contracts).await?;
         crate::runtime::operations::runtime::register(self)?;
         crate::runtime::operations::reports::register(self)?;
         Ok(())

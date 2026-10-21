@@ -473,7 +473,17 @@ async fn prepare_attempts(
             continue;
         }
         let Some((execution_id, case_id)) = next else {
-            return Ok(());
+            let (cycle, targets) = {
+                let state = runtime.state_read();
+                let request = &state.run_requests[request_id];
+                let cycle = state.cycle_view(&summary.cycle_id).expect("request cycle exists");
+                (cycle, request.selected_execution_ids.clone())
+            };
+            return runtime
+                .execution_storage
+                .prepare_executions(&cycle, &targets)
+                .await
+                .map_err(|error| ProviderExecutionFailure::new("storage", error.to_string()));
         };
         let ordinal = summary.prepared;
         runtime
@@ -496,18 +506,6 @@ async fn prepare_attempts(
             }
             return Err(ProviderExecutionFailure::new("prepare", error.to_string()));
         }
-        let cycle = runtime.state_read().cycle_view(&summary.cycle_id).expect("request cycle exists");
-        let execution = cycle
-            .test_executions
-            .iter()
-            .find(|execution| execution.test_execution_id == execution_id)
-            .ok_or_else(|| ProviderExecutionFailure::new("prepare", "prepared execution disappeared"))?;
-
-        runtime
-            .execution_storage
-            .prepare_execution(&cycle, execution)
-            .await
-            .map_err(|error| ProviderExecutionFailure::new("storage", error.to_string()))?;
         let summary = runtime.state_read().run_requests[request_id].summary.clone();
         runtime
             .request_storage

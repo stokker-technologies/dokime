@@ -85,7 +85,7 @@ impl RuntimeHandle {
                 .value
                 .ok_or_else(|| crate::runtime::Error::Operation("admitted suite is absent".into()))?;
             let typed = registered.telemetry_contracts.into_iter().filter(|contract| contract.storage_schema.is_some()).collect::<Vec<_>>();
-            crate::runtime::storage::telemetry::register_schemas(self.storage(), &typed).await?;
+            self.execution_storage.register_schemas(&typed).await?;
             let stored = crate::storage::objects::suite::Suite::new(&registered.suite_id, &registered.suite)
                 .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
             self.storage().write_object(&stored).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;

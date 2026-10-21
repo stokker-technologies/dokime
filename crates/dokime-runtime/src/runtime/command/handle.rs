@@ -249,7 +249,7 @@ impl RuntimeHandle {
             }
         }
         let contracts = self.state_read().telemetry_contracts();
-        if let Err(error) = crate::runtime::storage::telemetry::register_schemas(self.storage(), &contracts).await {
+        if let Err(error) = self.execution_storage.register_schemas(&contracts).await {
             return rejected_receipt(command_id.clone(), &context, crate::model::time::now_utc(), unavailable_rejection(error.to_string()));
         }
         // Provider admission runs against the published plan, so a cycle whose
@@ -276,14 +276,14 @@ impl RuntimeHandle {
             command_id: command_id.clone(),
             accepted_at: accepted_at.clone(),
         };
-        let mut planned = (*self.state_read()).clone();
-        let job = match crate::execution_runtime::provider::admission::transition(&mut planned, &transaction) {
-            Ok(admission) => admission.job,
+        let planned = crate::execution_runtime::provider::admission::plan(&self.state_read(), &transaction);
+        let (job, summary) = match planned {
+            Ok((admission, summary)) => (admission.job, summary),
             Err(receipt) => return *receipt,
         };
         let receipt = crate::runtime::storage::requests::RunReceipt {
             node_id: node,
-            summary: planned.run_requests[&command_id].summary.clone(),
+            summary,
             fingerprint,
             submitted_by: context.submitted_by.clone(),
             claimed: 0,
@@ -291,7 +291,6 @@ impl RuntimeHandle {
             interruption: None,
             commands: Default::default(),
         };
-        drop(planned);
         if let Err(error) = self.request_storage.begin(receipt).await {
             return rejected_receipt(command_id, &context, accepted_at, unavailable_rejection(error.to_string()));
         }

@@ -74,6 +74,11 @@ pub(crate) struct ExecutionStorage {
     pub(super) cycle_reports:
         Mutex<BTreeMap<dokime_domain::model::identity::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>>,
     pub(super) active: Mutex<BTreeMap<TestExecutionId, Arc<Mutex<Acquisition>>>>,
+
+    // Scopes Of Owners Still Admitting Evidence; Telemetry Routes Through It Without Locking Each Owner.
+    pub(super) open_scopes: Arc<std::sync::Mutex<BTreeMap<TestExecutionId, dokime_domain::model::execution::RecordScope>>>,
+
+    pub(super) codecs: crate::storage::telemetry::CodecCache,
     pub(crate) tail_stops: Mutex<BTreeMap<String, Arc<TailStop>>>,
     pub(crate) captures: super::captures::Captures,
 }
@@ -218,6 +223,8 @@ impl ExecutionStorage {
             cycle_save: Arc::new(Mutex::new(())),
             cycle_reports: Mutex::new(BTreeMap::new()),
             active: Mutex::new(BTreeMap::new()),
+            open_scopes: Default::default(),
+            codecs: Default::default(),
             tail_stops: Mutex::new(BTreeMap::new()),
             captures: Default::default(),
         })
@@ -272,13 +279,83 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn prepare_execution(self: &Arc<Self>, cycle: &CycleView, execution: &TestExecution) -> Result<()> {
-        let owner = self.acquire(cycle, execution).await?;
+        validate_owner(cycle, execution)?;
+        self.prepare_executions(cycle, std::slice::from_ref(&execution.test_execution_id)).await
+    }
+
+    pub(crate) async fn prepare_executions(self: &Arc<Self>, cycle: &CycleView, targets: &[TestExecutionId]) -> Result<()> {
+        if targets.len() > MAX_ACTIVE_OWNERS {
+            return Err(invalid("execution preparation fanout exceeds its source bound"));
+        }
+        let mut selected = BTreeMap::new();
+        for id in targets {
+            let execution = cycle
+                .test_executions
+                .iter()
+                .find(|execution| &execution.test_execution_id == id)
+                .ok_or_else(|| invalid("execution preparation target is outside its cycle"))?;
+            validate_owner(cycle, execution)?;
+            selected.insert(id, execution);
+        }
+        let mut owners = Vec::with_capacity(selected.len());
+        for execution in selected.into_values() {
+            owners.push(self.acquire(cycle, execution).await?);
+        }
+        let storage = self.storage.clone();
         tokio::spawn(async move {
-            let mut acquisition = owner.lock().await;
-            if acquisition.working.is_some() && acquisition.pending.is_none() {
-                return Ok(());
+            let mut acquisitions = Vec::with_capacity(owners.len());
+            for owner in owners {
+                let mut acquisition = owner.lock_owned().await;
+                if acquisition.working.is_some() && acquisition.pending.is_none() {
+                    continue;
+                }
+                if acquisition.pending.is_none() {
+                    acquisition.pending = Some(PendingRevision { execution: acquisition.execution.clone(), receipt: None });
+                }
+                acquisitions.push(acquisition);
             }
-            save_working_revision(&mut acquisition).await
+            let mut objects = Vec::new();
+            for acquisition in &acquisitions {
+                let pending = acquisition.pending.as_ref().expect("preparation retained");
+                if pending.receipt.is_none() {
+                    objects.push(Execution::try_from(&*pending.execution)?);
+                }
+            }
+            if let Some(count) = std::num::NonZeroUsize::new(objects.len()) {
+                if storage.status().failure.is_some() {
+                    storage.flush().await?;
+                }
+                let settings = storage.settings();
+                let bytes = settings.max_batch_bytes().get().saturating_mul(4).min(settings.request.max_pending_write_bytes.get());
+                let allowance = std::num::NonZeroUsize::new(bytes).expect("storage admission allowance is positive");
+                let receipts = storage
+                    .write_object_group(allowance, count, |group| {
+                        for object in &objects {
+                            group.write(object)?;
+                        }
+                        Ok(())
+                    })
+                    .await?;
+                let mut receipts = receipts.into_iter();
+                for acquisition in &mut acquisitions {
+                    let pending = acquisition.pending.as_mut().expect("preparation retained");
+                    if pending.receipt.is_none() {
+                        pending.receipt = Some(receipts.next().expect("one receipt per prepared execution"));
+                    }
+                }
+            }
+            let through = acquisitions
+                .iter()
+                .filter_map(|acquisition| acquisition.pending.as_ref()?.receipt.as_ref())
+                .max_by_key(|receipt| receipt.position.sequence)
+                .map(|receipt| receipt.position.clone());
+            if let Some(through) = through {
+                let saved = storage.flush_until(&through).await?;
+                for acquisition in &mut acquisitions {
+                    accept_working_revision(acquisition, &saved)?;
+                }
+            }
+            Ok(())
         })
         .await
         .map_err(|source| Error::Join { source })?
@@ -327,6 +404,7 @@ impl ExecutionStorage {
             return Err(invalid("report request differs from its persisted finalization boundary"));
         }
         let report_boundary = at.clone();
+        let open_scopes = self.open_scopes.clone();
         let operation = async move {
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
@@ -342,6 +420,7 @@ impl ExecutionStorage {
                 // Retain The Exact Input Before Closing Admission Or Awaiting A Save
                 acquisition.finalizing = Some(frozen.clone());
                 acquisition.finish_requested = true;
+                open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&acquisition.execution_id);
             }
             let frozen =
                 if final_report { acquisition.finalizing.as_ref().expect("original finalization retained").clone() } else { frozen };
@@ -621,6 +700,10 @@ impl ExecutionStorage {
             let mut active = self.active.lock().await;
             match active.entry(id) {
                 std::collections::btree_map::Entry::Vacant(entry) => {
+                    self.open_scopes
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .insert(entry.key().clone(), execution.scope.clone());
                     entry.insert(owner.clone());
                     None
                 }
@@ -813,6 +896,13 @@ async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
     let receipt = pending.receipt.as_ref().expect("original execution receipt retained");
     receipt.version.check_position(&receipt.position)?;
     let saved = acquisition.storage.flush_until(&receipt.position).await?;
+    accept_working_revision(acquisition, &saved)
+}
+
+fn accept_working_revision(acquisition: &mut Acquisition, saved: &StorageCursor) -> Result<()> {
+    let pending = acquisition.pending.as_ref().expect("original execution save retained");
+    let receipt = pending.receipt.as_ref().expect("original execution receipt retained");
+    receipt.version.check_position(&receipt.position)?;
     if !saved.covers(&receipt.position)? {
         return Err(invalid("execution save does not cover its original admission"));
     }
@@ -871,3 +961,71 @@ fn invalid(reason: &'static str) -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime_domain::model::identity::{CaseId, Identifier, Metadata, TemplateId, TestCycleId};
+
+    #[tokio::test]
+    async fn preparation_group_retries() {
+        let root = tempfile::tempdir().unwrap();
+        let metadata = Metadata::new(Identifier::new("prepare.fixture").unwrap(), "Preparation", None);
+        let config = crate::RuntimeConfig::new(root.path(), metadata.clone());
+        let mut runtime = crate::Runtime::start(config).await.unwrap();
+        let handle = runtime.handle();
+        let id = TestCycleId::from_seed("prepare.cycle");
+        let now = crate::model::time::now_utc();
+        let mut cycle: CycleView = serde_json::from_value(serde_json::json!({
+            "test_cycle_id": id, "metadata": metadata, "phase": "active",
+            "created_at": now, "updated_at": now
+        }))
+        .unwrap();
+        for index in 0..3 {
+            let case = crate::definition::TestCase {
+                suite_id: "prepare.fixture".into(),
+                test_case_id: CaseId::from_seed(format!("prepare.case.{index}")),
+                test_case_template_id: TemplateId::from_seed("prepare.template"),
+                metadata: metadata.clone(),
+                suite: None,
+                parameters: BTreeMap::new(),
+                generation_index: index,
+                label_number: index,
+            };
+            let snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::from_captured(
+                case.clone(),
+                None,
+                Vec::new(),
+                None,
+                None,
+                BTreeMap::new(),
+                BTreeMap::new(),
+            );
+            let execution = serde_json::from_value(serde_json::json!({
+                "test_cycle_id": id, "test_execution_id": TestExecutionId::from_seed(format!("prepare.execution.{index}")),
+                "test_case_id": case.test_case_id, "status": "pending", "snapshot": snapshot, "scope": {}
+            }))
+            .unwrap();
+            cycle.test_executions.push(execution);
+        }
+        let targets = cycle.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect::<Vec<_>>();
+        handle.execution_storage.prepare_executions(&cycle, &targets).await.unwrap();
+        let saved = handle.storage().cursor_saved();
+        for id in &targets {
+            let owner = handle.execution_storage.acquisition(id).await.unwrap();
+            let acquisition = owner.lock().await;
+            let revision = acquisition.working.as_ref().unwrap();
+            assert!(saved.covers(&revision.position).unwrap());
+            assert!(acquisition.pending.is_none());
+            let stored =
+                handle.storage().read_object::<Execution>(id.as_str(), harmos::storage::ObjectVersion::Latest).await.unwrap().unwrap();
+            assert_eq!(stored.version, revision.version);
+        }
+        let accepted = handle.storage().cursor_accepted();
+        handle.execution_storage.prepare_executions(&cycle, &targets).await.unwrap();
+        assert_eq!(handle.storage().cursor_accepted(), accepted);
+        assert_eq!(handle.storage().cursor_saved(), saved);
+        drop(handle);
+        runtime.shutdown().await.unwrap();
+    }
+}

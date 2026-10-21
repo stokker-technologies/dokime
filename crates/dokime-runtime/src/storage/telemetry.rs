@@ -15,7 +15,7 @@ mod typed;
 /* === Re-Exports === */
 
 pub use sample::Sample;
-pub use typed::{TypedCodec, codec, decode_batch, decode_stream_values, decode_values, encode_batch};
+pub use typed::{CodecCache, TypedCodec, codec, decode_batch, decode_stream_values, decode_values, encode_batch};
 
 /* === Imports === */
 
