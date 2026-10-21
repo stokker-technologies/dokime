@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-validate-native.yml; sha256:0b3261a9e6d58235b5b03789e4098e65fba7029ec65d322cbe5f3aa63ece7f24
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-validate-native.yml; sha256:b84ba2a1079287692ed270e1b24c1f30ec9881f6b2d9c649229691daccf1e4f4
 name: Validate
 "on":
   workflow_call:
@@ -29,7 +29,9 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      SCCACHE_GHA_RW_MODE: >-
+        ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
       SCCACHE_GHA_VERSION: ${{ inputs.platform }}
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff,aqua:cargo-bins/cargo-binstall
@@ -44,8 +46,12 @@ jobs:
         path: |-
           .cache/cargo/registry/
           .cache/cargo/git/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-main
     - name: Cache / Pnpm
       id: pnpm
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -53,15 +59,21 @@ jobs:
         path: .cache/pnpm/
         key: >-
           ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-${{ github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-main
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-main
     - name: Resolve Mise Directory
       if: runner.os == 'Windows'
       shell: pwsh
@@ -72,11 +84,17 @@ jobs:
       if: runner.os != 'Windows'
       shell: bash
       run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    - name: Cache / Tools
       id: tools
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ${{ env.MISE_DATA_DIR }}
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-main
     - run: sudo apt-get update
       if: inputs.platform == 'linux'
       shell: bash
@@ -127,21 +145,24 @@ jobs:
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.pnpm.outputs.cache-hit != 'true'
       with:
         path: .cache/pnpm/
         key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
         key: ${{ steps.uv.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.tools.outputs.cache-hit != 'true'
       with:
         path: ${{ env.MISE_DATA_DIR }}
@@ -155,7 +176,9 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      SCCACHE_GHA_RW_MODE: >-
+        ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
       SCCACHE_GHA_VERSION: ${{ inputs.platform }}
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff,aqua:cargo-bins/cargo-binstall
@@ -170,8 +193,12 @@ jobs:
         path: |-
           .cache/cargo/registry/
           .cache/cargo/git/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-main
     - name: Cache / Pnpm
       id: pnpm
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -179,15 +206,21 @@ jobs:
         path: .cache/pnpm/
         key: >-
           ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-${{ github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-main
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-main
     - name: Resolve Mise Directory
       if: runner.os == 'Windows'
       shell: pwsh
@@ -198,11 +231,17 @@ jobs:
       if: runner.os != 'Windows'
       shell: bash
       run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    - name: Cache / Tools
       id: tools
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ${{ env.MISE_DATA_DIR }}
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-main
     - run: sudo apt-get update
       if: inputs.platform == 'linux'
       shell: bash
@@ -253,21 +292,24 @@ jobs:
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.pnpm.outputs.cache-hit != 'true'
       with:
         path: .cache/pnpm/
         key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
         key: ${{ steps.uv.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.tools.outputs.cache-hit != 'true'
       with:
         path: ${{ env.MISE_DATA_DIR }}
@@ -281,7 +323,9 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      SCCACHE_GHA_RW_MODE: >-
+        ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
       SCCACHE_GHA_VERSION: ${{ inputs.platform }}
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff,aqua:cargo-bins/cargo-binstall
@@ -296,8 +340,12 @@ jobs:
         path: |-
           .cache/cargo/registry/
           .cache/cargo/git/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-main
     - name: Cache / Pnpm
       id: pnpm
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -305,15 +353,21 @@ jobs:
         path: .cache/pnpm/
         key: >-
           ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-${{ github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-main
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-main
     - name: Resolve Mise Directory
       if: runner.os == 'Windows'
       shell: pwsh
@@ -324,11 +378,17 @@ jobs:
       if: runner.os != 'Windows'
       shell: bash
       run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    - name: Cache / Tools
       id: tools
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ${{ env.MISE_DATA_DIR }}
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-main
     - run: sudo apt-get update
       if: inputs.platform == 'linux'
       shell: bash
@@ -398,21 +458,24 @@ jobs:
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.pnpm.outputs.cache-hit != 'true'
       with:
         path: .cache/pnpm/
         key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
         key: ${{ steps.uv.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.tools.outputs.cache-hit != 'true'
       with:
         path: ${{ env.MISE_DATA_DIR }}
@@ -426,7 +489,9 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      SCCACHE_GHA_RW_MODE: >-
+        ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
       SCCACHE_GHA_VERSION: ${{ inputs.platform }}
       MISE_ENABLE_TOOLS: >-
         node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff,aqua:cargo-bins/cargo-binstall
@@ -441,8 +506,12 @@ jobs:
         path: |-
           .cache/cargo/registry/
           .cache/cargo/git/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}-main
     - name: Cache / Pnpm
       id: pnpm
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -450,15 +519,21 @@ jobs:
         path: .cache/pnpm/
         key: >-
           ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-${{ github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}-main
     - name: Cache / Uv
       id: uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}-main
     - name: Resolve Mise Directory
       if: runner.os == 'Windows'
       shell: pwsh
@@ -469,11 +544,17 @@ jobs:
       if: runner.os != 'Windows'
       shell: bash
       run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    - name: Cache / Tools
       id: tools
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ${{ env.MISE_DATA_DIR }}
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-${{
+          github.head_ref || github.ref_name }}
+        restore-keys: |-
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-dev
+          ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}-main
     - run: sudo apt-get update
       if: inputs.platform == 'linux'
       shell: bash
@@ -543,21 +624,24 @@ jobs:
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.pnpm.outputs.cache-hit != 'true'
       with:
         path: .cache/pnpm/
         key: ${{ steps.pnpm.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv/
         key: ${{ steps.uv.outputs.cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        success() && (github.event_name == 'pull_request' || (github.event_name ==
+        'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))) &&
         steps.tools.outputs.cache-hit != 'true'
       with:
         path: ${{ env.MISE_DATA_DIR }}

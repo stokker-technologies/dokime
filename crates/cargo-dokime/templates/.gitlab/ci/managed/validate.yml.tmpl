@@ -1,12 +1,15 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/validate.yml; sha256:6b9e768d0aeef4d2d5556a18cc68bd2489fa831c46c6c0479eb12c5466baef3c
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/validate.yml; sha256:16ca4caac793e96af69a8e9707679e8cf7015a18885a75d696d7e274bd07c579
 Validate / Unit / Rust (linux):
   stage: Validate
   tags:
-  - saas-linux-medium-amd64
+  - $STKR_RUNNER_LINUX_SMALL
   timeout: 30 minutes
   needs:
   - job: Build / Tests (linux)
     artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - tar --zstd -xf "target/ci/build-tests-$PROFILE-linux.tar.zst"
   - mise run test:unit:rust --profile $PROFILE
@@ -42,14 +45,24 @@ Validate / Unit / Rust (linux):
   variables:
     MISE_ENABLE_TOOLS: >-
       python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+  before_script:
+  - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - mise trust --yes
+  - mise install --yes
 Validate / Integration / Rust (linux):
   stage: Validate
   tags:
-  - saas-linux-medium-amd64
+  - $STKR_RUNNER_LINUX_SMALL
   timeout: 30 minutes
   needs:
   - job: Build / Tests (linux)
     artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - tar --zstd -xf "target/ci/build-tests-$PROFILE-linux.tar.zst"
   - mise run test:integration:rust --profile $PROFILE
@@ -85,14 +98,24 @@ Validate / Integration / Rust (linux):
   variables:
     MISE_ENABLE_TOOLS: >-
       python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+  before_script:
+  - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - mise trust --yes
+  - mise install --yes
 Validate / Unit / Rust (windows):
   stage: Validate
   tags:
-  - saas-windows-medium-amd64
+  - $STKR_RUNNER_WINDOWS_SMALL
   timeout: 30 minutes
   needs:
   - job: Build / Tests (windows)
     artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - tar --zstd -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst"
   - mise run test:unit:rust --profile $env:PROFILE
@@ -113,6 +136,10 @@ Validate / Unit / Rust (windows):
     default:
     - interruptible
   before_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
   - mise trust --yes
   - mise install --yes
   cache:
@@ -137,11 +164,14 @@ Validate / Unit / Rust (windows):
 Validate / Integration / Rust (windows):
   stage: Validate
   tags:
-  - saas-windows-medium-amd64
+  - $STKR_RUNNER_WINDOWS_SMALL
   timeout: 30 minutes
   needs:
   - job: Build / Tests (windows)
     artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
   script:
   - tar --zstd -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst"
   - mise run test:integration:rust --profile $env:PROFILE
@@ -162,6 +192,10 @@ Validate / Integration / Rust (windows):
     default:
     - interruptible
   before_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
   - mise trust --yes
   - mise install --yes
   cache:
@@ -186,7 +220,7 @@ Validate / Integration / Rust (windows):
 Validate / Coverage:
   stage: Validate
   tags:
-  - saas-linux-medium-amd64
+  - $STKR_RUNNER_NIGHTLY_COVERAGE
   timeout: 180 minutes
   needs:
   - job: Build / Product (linux)
@@ -222,4 +256,4 @@ Validate / Coverage:
     policy: pull
   variables:
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo

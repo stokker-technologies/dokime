@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/run.py; sha256:b9a994eaafafabb48dfe9e17269588652d3437783802d4e5403e21e9aad9192d
+# Rendered by stkr project update from templates/python/release/run.py; sha256:05fab73d6d6e89591fe28f3b1142ef19a6c5b968589f0a51187287747e1e3b78
 # ***
 #
 # Dokime
@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import base64
 import hashlib
 import json
 import os
@@ -90,8 +91,9 @@ def native_target(settings: dict) -> str:
     return selected
 
 
-def assets(directory: Path, settings: dict, selected: str, tag: str, profile: str = "release") -> list[dict]:
+def assets(directory: Path, settings: dict, selected: str, tag: str, profile: str | None = None) -> list[dict]:
     """The Declared Release Downloads Of One Target, From Its Existing Package Of The Profile."""
+    profile = policy.profile() if profile is None else profile
     result = []
     declared = settings.get("assets", []) + packages.packaged(directory, profile, selected)
     for definition in declared:
@@ -110,8 +112,9 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
     return result
 
 
-def stage(directory: Path, settings: dict, tag: str, targets: list[str], profile: str = "release") -> list[dict]:
+def stage(directory: Path, settings: dict, tag: str, targets: list[str], profile: str | None = None) -> list[dict]:
     """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ And Their SHA256SUMS Into any/."""
+    profile = policy.profile() if profile is None else profile
     root = _root(directory)
     # Only the staged targets and the shared checksums are replaced; another target's staging stays untouched.
     for owned in [*targets, SHARED]:
@@ -200,22 +203,14 @@ def review(directory: Path, settings: dict) -> None:
     tag = release_tag(directory)
     version.run(directory, "check")
     branch = registry.RELEASE_BRANCH + tag
-    remote = _push_remote(settings, token)
-    if _run(directory, ["git", "ls-remote", "--heads", remote, "refs/heads/" + branch], token).strip():
+    if settings["provider"] == "github":
+        os.environ["GH_TOKEN"] = token
+    endpoint = "git/ref/heads/" if settings["provider"] == "github" else "repository/branches/"
+    if registry.document(settings, endpoint + _quote(branch)):
         raise policy.ToolError(f"{branch} already exists; merge or close its review before preparing again")
     title = f"chore(release): prepare {tag}"
-    identity = [
-        "-c",
-        "user.name=" + os.environ.get("GITHUB_ACTOR", os.environ.get("GITLAB_USER_NAME", "Release")),
-        "-c",
-        "user.email=" + os.environ.get("GITLAB_USER_EMAIL", "release@users.noreply.github.com"),
-    ]
-    policy.execute(directory, ["git", "switch", "--create", branch])
     policy.execute(directory, ["git", "add", "--all"])
-    # A first release at the established version may change no carrier; its review still records the release.
-    policy.execute(directory, ["git", *identity, "commit", "--quiet", "--allow-empty", "--message", title])
-    # A push and a review made with the release token start the review's CI; the native job token's would not.
-    _run(directory, ["git", "push", remote, f"HEAD:refs/heads/{branch}"], token)
+    _commit_review(directory, settings, branch, title)
     body = policy.inside(directory, "target/release-notes.md")
     body.parent.mkdir(parents=True, exist_ok=True)
     body.write_text(notes(directory, tag, tagged=False), encoding="utf-8")
@@ -242,16 +237,15 @@ def review(directory: Path, settings: dict) -> None:
         environment = {**os.environ, "GITLAB_TOKEN": token}
     if subprocess.run(command, cwd=directory, env=environment, check=False).returncode:
         raise policy.ToolError(f"opening the release review failed; {branch} is pushed and can be reviewed by hand")
+    registry.arm_auto_merge(settings, branch, title)
 
 
 def dry(directory: Path, settings: dict) -> None:
-    """Stage The Development Packages Like A Release And Run The Native Downloads From Them, Offline."""
+    """Stage The Active Profile's Packages Like A Release And Run The Native Downloads From Them, Offline."""
     tag = release_tag(directory)
     version.run(directory, "check")
     # Release reviews package the release profile; every other run packages dev.
-    profile = os.environ.get("RELEASE_PROFILE", "dev") or "dev"
-    if profile not in ("dev", "release"):
-        raise policy.ToolError("RELEASE_PROFILE must be dev or release")
+    profile = policy.profile("dev")
     root = _root(directory)
     targets = list(settings.get("targets", []))
     present = [selected for selected in targets if (directory / "target/package" / profile / selected).is_dir()]
@@ -293,8 +287,7 @@ def publish(directory: Path, settings: dict) -> None:
     if not targets:
         raise policy.ToolError("release.targets must declare the required OS/architecture targets")
     root = _root(directory)
-    # GitLab rehearses the development packages of its release review; every other publication stages release ones.
-    profile = (os.environ.get("RELEASE_PROFILE") or "release") if rehearse else "release"
+    profile = policy.profile()
     files = stage(directory, settings, tag, targets, profile=profile)
     name = registry.rehearsal_name(sha) if rehearse else tag
     state = {"sha": sha, "tag": tag, "name": name, "files": {}}
@@ -546,6 +539,66 @@ def run(directory: Path, verb: str) -> None:
 
 
 # === Private Functions === #
+
+
+def _commit_review(directory: Path, settings: dict, branch: str, title: str) -> None:
+    """Create The Preparation Commit Through The Provider API, Signed By The Provider."""
+    head = _revision(directory)
+    changed = policy.execute(directory, ["git", "diff", "--cached", "--name-status", "--no-renames", "-z", "HEAD"], capture=True)
+    entries = changed.rstrip("\0").split("\0") if changed else []
+    additions, deletions, actions = [], [], []
+    for status, name in zip(entries[::2], entries[1::2], strict=True):
+        if status == "D":
+            deletions.append({"path": name})
+            actions.append({"action": "delete", "file_path": name})
+            continue
+        path = policy.inside(directory, name)
+        if status not in {"A", "M"} or path.is_symlink() or not path.is_file():
+            raise policy.ToolError(f"unsupported release file change: {status} {name}")
+        content = base64.b64encode(path.read_bytes()).decode("ascii")
+        additions.append({"path": name, "contents": content})
+        actions.append({"action": "create" if status == "A" else "update", "file_path": name, "content": content, "encoding": "base64"})
+    if settings["provider"] == "github":
+        registry.document(settings, "git/refs", "POST", {"ref": "refs/heads/" + branch, "sha": head})
+        payload = {
+            "query": "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid signature { isValid } } } }",
+            "variables": {
+                "input": {
+                    "branch": {
+                        "repositoryNameWithOwner": settings.get("repository", os.environ.get("GITHUB_REPOSITORY")),
+                        "branchName": branch,
+                    },
+                    "expectedHeadOid": head,
+                    "message": {"headline": title},
+                    "fileChanges": {"additions": additions, "deletions": deletions},
+                }
+            },
+        }
+        response = json.loads(registry.request(settings, "graphql", "POST", json.dumps(payload).encode(), graphql=True) or b"{}")
+        if response.get("errors"):
+            raise policy.ToolError("createCommitOnBranch failed: " + json.dumps(response["errors"]))
+        commit = response.get("data", {}).get("createCommitOnBranch", {}).get("commit", {})
+        verified = (commit.get("signature") or {}).get("isValid")
+    else:
+        # start_sha creates the new branch and its commit together; never force an existing branch.
+        commit = registry.document(
+            settings,
+            "repository/commits",
+            "POST",
+            {
+                "branch": branch,
+                "start_sha": head,
+                "commit_message": title,
+                "actions": actions,
+                "allow_empty": True,
+            },
+        )
+        signature = registry.document(settings, "repository/commits/" + _quote(commit["id"]) + "/signature")
+        verified = signature and signature.get("verification_status") in {"verified", "verified_system"}
+        if not verified:
+            registry.request(settings, "repository/branches/" + _quote(branch), "DELETE")
+    if not verified:
+        raise policy.ToolError("preparation API commit is not verified; GitLab requires web-based commit signing enabled")
 
 
 def _bytes(root: Path, item: dict) -> bytes:

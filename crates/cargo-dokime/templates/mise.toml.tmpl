@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:227329a11839720aa895134bc40e0321dfd198bb066a747c55c30e968918e62c
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:8e84e27b890ba65cca2a30f577eeac0601286f69fbdcab2d132958b5ea0a99c5
 # === Settings === #
 
 [settings]
@@ -17,6 +17,7 @@ uv = "0.13.0"
 # Rust Toolchain
 "aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
 "aqua:taiki-e/cargo-llvm-cov" = "0.9.1"
+"github:bnjbvr/cargo-machete" = "0.9.2"
 sccache = "0.18.0"
 
 # Formatting And Linting
@@ -104,6 +105,7 @@ description = "Check Rust"
 run = [
   { task = "format:rust --check" },
   { task = "lint:rust" },
+  "cargo-machete --skip-target-dir",
   "cargo check --workspace --all-targets --all-features",
   "cargo check --workspace --all-targets --no-default-features",
 ]

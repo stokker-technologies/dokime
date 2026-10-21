@@ -77,7 +77,7 @@
 
 ## Consolidation And Acceptance
 
-- [ ] Repair Windows compiled-fixture metadata retention and native executable naming; verify the unchanged client/module fixture layout through the Windows PR graph. Resolve the stkr 0.1.7 managed render drift first through authorized Hub regeneration; workflow edits remain excluded until that scope decision.
+- [ ] Repair Windows compiled-fixture metadata retention and native executable naming; verify the unchanged client/module fixture layout through the Windows PR graph after the authorized stkr 0.1.7 managed regeneration.
 - [x] Make native desktop clicks wait for stable scroll layout; prove the full Linux system lane under the provider's Xvfb setup and pass repository check.
 
 - [x] Stage generated TypeScript modules and the Python client wheel in the Tests export; resolve Python and TypeScript lanes from those fixtures and prove unit/integration without Product exports, desktop system with both exports, and repository check.
