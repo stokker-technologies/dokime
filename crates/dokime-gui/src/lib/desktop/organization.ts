@@ -48,6 +48,19 @@ export type BootOrganizationPack = {
   organization: { name: string; unit?: string | null; website?: string | null } | null;
   logos: Record<string, string>;
   css: string;
+  updates: OrganizationUpdatePolicy | null;
+};
+
+export type OrganizationUpdatePolicy = {
+  mode: "disabled" | "manual" | "automatic_check";
+  source: string | null;
+  sources: Record<
+    string,
+    | { kind: "direct"; manifest: string; plugins: string | null; connection: string | null }
+    | { kind: "github"; repository: string }
+    | { kind: "gitlab"; connection: string; project: string }
+  >;
+  connections: Record<string, { host: string; oauth_client_id: string }>;
 };
 
 export type BootOrganization = { pack: BootOrganizationPack | null; error: string | null };

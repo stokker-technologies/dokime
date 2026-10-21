@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub(crate) mod policy;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -87,6 +89,7 @@ pub(crate) struct LoadedPack {
     /// Logo variant to `data:` URI.
     logos: BTreeMap<String, String>,
     css: String,
+    pub(crate) updates: Option<policy::UpdatePolicy>,
     #[serde(skip)]
     ignored: Vec<String>,
 }
@@ -134,6 +137,8 @@ struct Manifest {
     app: AppSection,
     #[serde(default)]
     theme: Option<ThemeSection>,
+    #[serde(default)]
+    updates: Option<policy::UpdatePolicy>,
 }
 
 #[derive(Deserialize)]
@@ -427,7 +432,13 @@ fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Re
 /// Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
 fn load(dir: &Path) -> Result<LoadedPack, String> {
     let text = std::fs::read_to_string(dir.join(MANIFEST)).map_err(|error| format!("organization.toml could not be read: {error}"))?;
-    let manifest: Manifest = toml::from_str(&text).map_err(|error| format!("organization.toml does not parse: {error}"))?;
+    let manifest: Manifest = toml::from_str(&text).map_err(|error: toml::de::Error| {
+        let position = error.span().map_or(0, |span| span.start);
+        format!("organization.toml does not parse near byte {position}")
+    })?;
+    if let Some(updates) = &manifest.updates {
+        updates.validate()?;
+    }
     let app = manifest.app;
     if app.label.trim().is_empty() {
         return Err("organization.toml needs an app label".to_owned());
@@ -474,6 +485,7 @@ fn load(dir: &Path) -> Result<LoadedPack, String> {
         organization: app.organization,
         logos,
         css,
+        updates: manifest.updates,
         ignored,
     })
 }
@@ -708,5 +720,37 @@ mod tests {
         assert!(!files.contains_key(Path::new(LEGACY_MANIFEST)));
         let mixed = archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), (LEGACY_MANIFEST, MANIFEST_TEXT.as_bytes())]);
         assert!(validate_archive(&mixed).unwrap_err().contains("exactly one"));
+    }
+
+    #[test]
+    fn invalid_update_policy_preserves_the_previous_pending_pack() {
+        let root = tempfile::tempdir().unwrap();
+        let store = root.path().join("organization");
+        let archive_path = root.path().join("pack.zip");
+        let valid = format!("{MANIFEST_TEXT}\n[updates]\nmode = 'disabled'\n");
+        std::fs::write(&archive_path, archive(&[(MANIFEST, valid.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
+        stage(&store, &archive_path).unwrap();
+
+        let invalid = valid.replace("mode = 'disabled'", "mode = 'manual'\nsource = 'missing'");
+        std::fs::write(&archive_path, archive(&[(MANIFEST, invalid.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
+        assert!(stage(&store, &archive_path).unwrap_err().contains("does not exist"));
+        let booted = boot(&store);
+        let script = serde_json::to_value(BootScript { pack: booted.pack.as_ref(), error: booted.error.as_deref() }).unwrap();
+        assert_eq!(script["pack"]["updates"]["mode"], "disabled");
+        let updates = booted.pack.unwrap().updates.unwrap();
+        assert_eq!(updates.mode, policy::Mode::Disabled);
+        assert_eq!(std::fs::read_to_string(store.join(ACTIVE).join(MANIFEST)).unwrap(), valid);
+    }
+
+    #[test]
+    fn malformed_policy_diagnostics_do_not_echo_manifest_values() {
+        let root = tempfile::tempdir().unwrap();
+        let manifest = format!("{MANIFEST_TEXT}\n[updates]\nmode = 'private-value-42'\n");
+        std::fs::write(root.path().join(MANIFEST), manifest).unwrap();
+
+        let error = load(root.path()).unwrap_err();
+
+        assert!(error.contains("organization.toml does not parse near byte"));
+        assert!(!error.contains("private-value-42"));
     }
 }
