@@ -161,7 +161,7 @@ export function MediaGallerySurface({
           }
         }}
       >
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="sm:max-w-5xl">
           {selectedArtifact ? (
             <div className="grid gap-4">
               <DialogHeader>

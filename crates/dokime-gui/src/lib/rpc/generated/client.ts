@@ -323,6 +323,9 @@ export const queryAggregate = (session: SessionIdentity, request: Parameters<typ
 import { Row1Schema as remoteGenerateKeyRequest } from "@generated/dokime/v1/RemoteMessages/GenerateKey/messages_pb.js";
 import { Row2Schema as remoteGenerateKeyResponse } from "@generated/dokime/v1/RemoteMessages/GenerateKey/messages_pb.js";
 export const remoteGenerateKey = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteGenerateKeyRequest, typeof remoteGenerateKeyResponse>>[4]) => unary("/dokime.v1.Remote/GenerateKey", remoteGenerateKeyRequest, remoteGenerateKeyResponse, session, request, 300000);
+import { Row1Schema as remoteListSessionsRequest } from "@generated/dokime/v1/RemoteMessages/ListSessions/messages_pb.js";
+import { Row2Schema as remoteListSessionsResponse } from "@generated/dokime/v1/RemoteMessages/ListSessions/messages_pb.js";
+export const remoteListSessions = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteListSessionsRequest, typeof remoteListSessionsResponse>>[4]) => unary("/dokime.v1.Remote/ListSessions", remoteListSessionsRequest, remoteListSessionsResponse, session, request, 10000);
 import { Row1Schema as remoteReadListenerRequest } from "@generated/dokime/v1/RemoteMessages/ReadListener/messages_pb.js";
 import { Row2Schema as remoteReadListenerResponse } from "@generated/dokime/v1/RemoteMessages/ReadListener/messages_pb.js";
 export const remoteReadListener = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteReadListenerRequest, typeof remoteReadListenerResponse>>[4]) => unary("/dokime.v1.Remote/ReadListener", remoteReadListenerRequest, remoteReadListenerResponse, session, request, 10000);

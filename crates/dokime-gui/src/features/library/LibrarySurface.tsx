@@ -29,7 +29,7 @@ import { TemplateStepTimeline } from "@/features/library/TemplateStepTimeline";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { useBrand } from "@/lib/brand";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
-import { usePageChrome } from "@/shell/page-chrome";
+import { PageShell, PageToolbar } from "@/shell/PageShell";
 
 /* === Constants === */
 
@@ -107,8 +107,6 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     [destinationId, navigate],
   );
 
-  usePageChrome({ actions, title: "Library" });
-
   const suiteRows = useMemo(
     () => filterTestSuites(suites ?? [], suiteSearch, (suite) => pluginSearchText(plugins.get(suite.source), brand.label)),
     [brand.label, plugins, suiteSearch, suites],
@@ -116,7 +114,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const hasSearch = suiteSearch.trim().length > 0;
 
   return (
-    <div className="grid content-start gap-4 p-[var(--shell-inset)]">
+    <PageShell actions={actions} trail={["Library"]}>
       <label className="grid max-w-lg gap-2">
         <span>Destination Cycle</span>
         <select
@@ -144,7 +142,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
       )}
 
       <section aria-labelledby="library-suites" className="grid gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)] border-b">
+        <PageToolbar>
           <h2 className="font-heading font-semibold tracking-wide" id="library-suites">
             Suites
           </h2>
@@ -158,7 +156,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
               value={suiteSearch}
             />
           </div>
-        </div>
+        </PageToolbar>
 
         {suitesQuery.isError ? (
           <p className="text-destructive" role="alert">
@@ -279,7 +277,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         onOpenChange={setCreating}
         open={creating}
       />
-    </div>
+    </PageShell>
   );
 }
 

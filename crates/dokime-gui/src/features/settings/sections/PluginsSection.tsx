@@ -12,6 +12,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 /* === Local Imports === */
 
@@ -31,6 +32,8 @@ import {
   useSetPluginEnabledMutation,
   useStagePluginMutation,
 } from "@/features/settings/plugins/plugin-queries";
+import { SettingsCard } from "@/features/settings/SettingsCard";
+import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
@@ -147,25 +150,12 @@ export function PluginsSection() {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="grid gap-[var(--section-gap)] pb-4">
-        <header>
-          <h1 className="text-lg font-semibold">Plugins</h1>
-          <p className="mt-1 max-w-[var(--prose-measure)] text-sm text-muted-foreground">
-            Install and manage .dokime plugin bundles. New installs activate only after the next
-            {brand.label} restart.
-          </p>
-        </header>
-
-        <section className="grid gap-3" aria-labelledby="plugin-install-title">
-          <div>
-            <h2 className="text-sm font-semibold" id="plugin-install-title">
-              Install A Plugin
-            </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Files are staged for static inspection before {brand.label} asks for consent.
-            </p>
-          </div>
+    <>
+      <SettingsCard
+        title="Install A Plugin"
+        description={`Install and manage .dokime plugin bundles. Files are staged for static inspection before ${brand.label} asks for consent, and new installs activate after the next restart.`}
+      >
+        <div className="px-4 py-3">
           <PluginDropZone
             disabled={stageMutation.isPending}
             error={errorMessage(stageMutation.error, "The plugin could not be inspected.")}
@@ -174,14 +164,13 @@ export function PluginsSection() {
             onPick={() => void handleStage("pick", null)}
             progress={stageMutation.progress}
           />
-        </section>
-
+        </div>
         {restartPending ? (
-          <div className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 p-4 sm:flex-row sm:items-center">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">Restart Required</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Restart {brand.label} to apply pending plugin changes.</p>
-            </div>
+          <SettingsRow
+            label="Restart Required"
+            description={`Restart ${brand.label} to apply pending plugin changes.`}
+            error={restartMutation.isError ? errorMessage(restartMutation.error, `${brand.label} could not be restarted.`) : null}
+          >
             {desktop ? (
               <Button disabled={restartMutation.isPending} onClick={() => setRestartPrompt(true)} size="sm" variant="outline">
                 <RotateCcw className={restartMutation.isPending ? "animate-spin" : undefined} />
@@ -192,35 +181,25 @@ export function PluginsSection() {
                 Restart <code className="font-mono text-foreground">dokime serve</code> to apply.
               </p>
             )}
-            {restartMutation.isError ? (
-              <p className="text-sm text-destructive" role="alert">
-                {errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}
-              </p>
-            ) : null}
-          </div>
+          </SettingsRow>
         ) : null}
+      </SettingsCard>
 
-        {entries.length > 0 ||
-        pluginsQuery.isPending ||
-        pluginsQuery.isError ||
-        !programs.some((program) => program.owner?.kind === "bundle") ? (
-          <section className="grid gap-3" aria-labelledby="installed-plugins-title">
-            <div>
-              <h2 className="text-sm font-semibold" id="installed-plugins-title">
-                Installed Plugins
-              </h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">Active state reflects this application process.</p>
-            </div>
-
+      {entries.length > 0 ||
+      pluginsQuery.isPending ||
+      pluginsQuery.isError ||
+      !programs.some((program) => program.owner?.kind === "bundle") ? (
+        <SettingsCard span="full" title="Installed Plugins" description="Active state reflects this application process.">
+          <div className="px-4 py-3">
             {pluginsQuery.isPending ? (
-              <div className="grid min-h-44 place-items-center rounded-lg border text-sm text-muted-foreground">
+              <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="size-4 animate-spin" />
                   Loading plugins…
                 </span>
               </div>
             ) : pluginsQuery.isError ? (
-              <div className="grid min-h-44 place-items-center gap-3 rounded-lg border p-6 text-center">
+              <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
                 <div>
                   <p className="font-medium">Plugins could not be loaded</p>
                   <p className="mt-1 text-sm text-destructive" role="alert">
@@ -236,7 +215,16 @@ export function PluginsSection() {
                 entries={entries}
                 changingEnabled={enabledMutation.isPending}
                 onSetEnabled={(entry, enabled) =>
-                  enabledMutation.mutate({ installId: entry.install_id, enabled }, { onSuccess: () => setRestartPrompt(true) })
+                  enabledMutation.mutate(
+                    { installId: entry.install_id, enabled },
+                    {
+                      onSuccess: () => setRestartPrompt(true),
+                      onError: (error) =>
+                        toast.error("Plugin Change Failed", {
+                          description: errorMessage(error, "The plugin change could not be saved.") ?? undefined,
+                        }),
+                    },
+                  )
                 }
                 onOpenSettings={(entry) => {
                   const pluginId = settingsSectionOf(entry);
@@ -247,43 +235,47 @@ export function PluginsSection() {
                 removingId={removeMutation.isPending ? (removeMutation.variables ?? null) : null}
               />
             )}
-          </section>
-        ) : null}
-        {programsQuery.isError ? (
-          <div className="grid justify-items-start gap-2">
-            <p role="alert" className="text-sm text-destructive">
-              {errorMessage(programsQuery.error, "Program settings could not be loaded.")}
-            </p>
-            <Button onClick={() => void programsQuery.refetch()} size="sm" variant="outline">
-              Reload Programs
-            </Button>
           </div>
-        ) : null}
-        {programsQuery.isPending ? <p className="text-sm">Loading programs…</p> : null}
-        {Array.from(standalone, ([name, members]) => (
-          <section className="grid gap-3" key={name}>
-            <div>
-              <h2 className="text-sm font-semibold">{name}</h2>
-              <p className="text-xs text-muted-foreground">
-                {members[0]?.owner?.kind === "host"
-                  ? `Built-in ${brand.label} features.`
-                  : members[0]?.owner?.kind === "bundle"
-                    ? "Loaded from the launch configuration; managed outside the installation store."
-                    : members[0]?.owner?.kind === "embedded"
-                      ? "Registered by the application that started this backend."
-                      : "Catalog definitions without provider ownership."}
-              </p>
-            </div>
-            <PluginPrograms programs={members} />
-          </section>
-        ))}
-      </div>
-
-      {enabledMutation.isError ? (
-        <p role="alert" className="text-sm text-destructive">
-          {errorMessage(enabledMutation.error, "The plugin change could not be saved.")}
-        </p>
+        </SettingsCard>
       ) : null}
+      {programsQuery.isError || programsQuery.isPending ? (
+        <SettingsCard title="Programs">
+          <SettingsRow
+            label="Programs"
+            error={programsQuery.isError ? errorMessage(programsQuery.error, "Program settings could not be loaded.") : null}
+          >
+            {programsQuery.isPending ? (
+              <span className="text-sm text-muted-foreground" role="status">
+                Loading programs…
+              </span>
+            ) : (
+              <Button onClick={() => void programsQuery.refetch()} size="sm" variant="outline">
+                Reload Programs
+              </Button>
+            )}
+          </SettingsRow>
+        </SettingsCard>
+      ) : null}
+      {Array.from(standalone, ([name, members]) => (
+        <SettingsCard
+          key={name}
+          span="full"
+          title={name}
+          description={
+            members[0]?.owner?.kind === "host"
+              ? `Built-in ${brand.label} features.`
+              : members[0]?.owner?.kind === "bundle"
+                ? "Loaded from the launch configuration; managed outside the installation store."
+                : members[0]?.owner?.kind === "embedded"
+                  ? "Registered by the application that started this backend."
+                  : "Catalog definitions without provider ownership."
+          }
+        >
+          <div className="px-4 py-3">
+            <PluginPrograms programs={members} />
+          </div>
+        </SettingsCard>
+      ))}
       <Dialog open={restartPrompt} onOpenChange={setRestartPrompt}>
         <DialogContent>
           <DialogHeader>
@@ -352,7 +344,7 @@ export function PluginsSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 

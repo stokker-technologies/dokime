@@ -89,6 +89,7 @@ matrix! {
     "/dokime.v1.Remote/ReadListener", unary, contracts::remote::ReadListener = contracts::remote::ReadListener {};
     "/dokime.v1.Remote/UpdateListener", unary, contracts::remote::UpdateListener = contracts::remote::UpdateListener { settings: None };
     "/dokime.v1.Remote/GenerateKey", unary, contracts::remote::GenerateKey = contracts::remote::GenerateKey {};
+    "/dokime.v1.Remote/ListSessions", unary, contracts::remote::ListSessions = contracts::remote::ListSessions { cursor: None, limit: 20 };
     "/dokime.v1.Remote/RegenerateCertificate", unary, contracts::remote::RegenerateCertificate = contracts::remote::RegenerateCertificate { certificate_names: vec![] };
     "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {
         subject: model::reports::wire::ReportSubject::Execution(String::new()),

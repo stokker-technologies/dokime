@@ -84,6 +84,10 @@ impl Service {
         Ok(service)
     }
 
+    pub(super) fn sessions(&self) -> Arc<super::remote::sessions::SessionLog> {
+        self.listeners.sessions()
+    }
+
     pub(super) fn message_limit(&self) -> usize {
         self.config.max_message_bytes()
     }

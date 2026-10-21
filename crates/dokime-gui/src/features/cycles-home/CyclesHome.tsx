@@ -36,7 +36,7 @@ import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/f
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { compactAgeLabel } from "@/lib/time-format";
-import { usePageChrome } from "@/shell/page-chrome";
+import { PageBleed, PageNotice, PageShell, PageToolbar } from "@/shell/PageShell";
 
 /* === Components === */
 
@@ -83,7 +83,6 @@ export function CyclesHome() {
     ),
     [],
   );
-  usePageChrome({ actions, title: "Cycles" });
 
   const attentionByCycleId = useMemo(() => {
     const counts = new Map<string, number>();
@@ -119,10 +118,8 @@ export function CyclesHome() {
   }, []);
 
   return (
-    <div className="grid content-start gap-6 p-[var(--shell-inset)]" onPointerCancel={release} onPointerDown={freeze} onPointerUp={release}>
-      {/* A toolbar row: its controls are centred with the bar's own air above
-          and below, and the same 12px gap every other bar uses. */}
-      <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)]">
+    <PageShell actions={actions} onPointerCancel={release} onPointerDown={freeze} onPointerUp={release} trail={["Cycles"]}>
+      <PageToolbar>
         <Input
           aria-label="Filter Cycles"
           className="h-[var(--bar-control-height)] w-full sm:w-80"
@@ -139,12 +136,10 @@ export function CyclesHome() {
         >
           Archived
         </Button>
-      </div>
+      </PageToolbar>
 
       {cycles.isError ? (
-        <p className="text-destructive" role="alert">
-          The cycle list could not be read. Check the backend connection in the status bar.
-        </p>
+        <PageNotice tone="alert">The cycle list could not be read. Check the backend connection in the status bar.</PageNotice>
       ) : null}
 
       {groups.map((group) => (
@@ -175,7 +170,7 @@ export function CyclesHome() {
         onOpenChange={setCreating}
         open={creating}
       />
-    </div>
+    </PageShell>
   );
 }
 
@@ -224,15 +219,16 @@ function CycleGroupSection({
   return (
     <section aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
       {heading}
-      <DataTable
-        className="-mx-[var(--shell-inset)]"
-        columns={columns}
-        data={group.rows}
-        emptyText={group.emptyText}
-        getRowId={rowId}
-        onRowClick={(row) => onOpen(row.cycleId)}
-        stickyHeader={false}
-      />
+      <PageBleed>
+        <DataTable
+          columns={columns}
+          data={group.rows}
+          emptyText={group.emptyText}
+          getRowId={rowId}
+          onRowClick={(row) => onOpen(row.cycleId)}
+          stickyHeader={false}
+        />
+      </PageBleed>
     </section>
   );
 }
