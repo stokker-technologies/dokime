@@ -203,6 +203,7 @@ impl FixtureUnary for backend::GetIdentity {
             epoch: service.identity_epoch.lock().unwrap().clone(),
             display_name: "Fixture".into(),
             product_version: "0.1.0".into(),
+            target: "x86_64-unknown-linux-gnu".into(),
             started_at: None,
             source_revision: None,
             sdk_revision: None,

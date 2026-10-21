@@ -41,6 +41,7 @@ export type BackendSnapshot = {
   epoch: string;
   displayName: string;
   productVersion: string;
+  target: string;
   apiVersion: string;
   descriptorSha256: string;
   methods: string[];

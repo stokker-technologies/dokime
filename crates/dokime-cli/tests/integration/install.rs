@@ -154,6 +154,7 @@ operation!(Identity, backend::GetIdentity, (), host, _request, _input, {
             descriptor_sha256: host.descriptor_sha256.clone(),
         }),
         product_version: env!("CARGO_PKG_VERSION").into(),
+        target: "x86_64-unknown-linux-gnu".into(),
         display_name: "Installation Fixture".into(),
         ..Default::default()
     }

@@ -371,6 +371,9 @@ profile whose target changed during login. `auth logout` removes the local
 credential; it sends no revocation request. Use `--key-file` on individual
 commands for headless connections when an OS store is unavailable.
 
+Backend identity includes the server's compiled Rust `target` alongside its
+product version, even when the desktop runs on a different operating system.
+
 Credential precedence is `--key-file`, process `DOKIME_KEY`, then `DOKIME_KEY`
 from an explicitly selected `--env-file`. Dotenv values fill absent process
 variables; they never override them or search parent directories. Selected

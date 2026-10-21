@@ -174,6 +174,7 @@ fn identity_json(identity: &dokime::domain::model::backend::wire::BackendIdentit
             "descriptor_sha256": api.descriptor_sha256.iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
         })),
         "product_version": identity.product_version,
+        "target": identity.target,
         "source_revision": identity.source_revision,
         "sdk_revision": identity.sdk_revision,
         "display_name": identity.display_name,

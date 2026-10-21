@@ -54,6 +54,7 @@ pub struct BackendSnapshot {
     pub epoch: String,
     pub display_name: String,
     pub product_version: String,
+    pub target: String,
     pub api_version: String,
     pub descriptor_sha256: String,
     pub methods: Vec<String>,

@@ -100,6 +100,9 @@ pub struct BackendIdentity {
     pub sdk_revision: Option<String>,
     pub started_at: Option<Timestamp>,
     pub display_name: String,
+    // Rust target of the backend that admits plugin sidecars.
+    #[row(description = "Authoritative Rust target of the backend that admits plugin sidecars.")]
+    pub target: String,
 }
 
 #[harmos_domain::message]

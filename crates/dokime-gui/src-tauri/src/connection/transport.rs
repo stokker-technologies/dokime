@@ -59,6 +59,7 @@ pub(super) fn backend(value: &dokime::client::Backend) -> BackendSnapshot {
         epoch: value.epoch.clone(),
         display_name: value.display_name.clone(),
         product_version: value.product_version.clone(),
+        target: value.target.clone(),
         api_version: value.api_version.clone(),
         descriptor_sha256: value.descriptor_sha256.clone(),
         methods: value.methods.clone(),

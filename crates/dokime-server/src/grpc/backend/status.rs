@@ -277,6 +277,7 @@ pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -
             // Listener Start Time Is Not The Original Runtime's Boot Time.
             started_at: None,
             display_name: identity.display_name.clone(),
+            target: env!("DOKIME_BACKEND_TARGET").to_owned(),
         }
     })
     .map_err(crate::grpc::Error::OperationService)?;

@@ -117,6 +117,7 @@ pub(super) async fn discover(channel: Channel, authorization: Option<&MetadataVa
         epoch: identity.epoch,
         display_name: identity.display_name,
         product_version: identity.product_version,
+        target: identity.target,
         api_version,
         descriptor_sha256,
         methods: availability.methods,
