@@ -147,6 +147,7 @@ export async function fetchNativeDocument(
   session: NativeDocumentSession,
   request: NativeDocumentRequest,
   signal?: AbortSignal,
+  previous?: CompletedDocument | null,
 ): Promise<CompletedDocument> {
   const scope = createDocumentScope(request);
   let reader: Awaited<ReturnType<typeof rpc.documentsCaptureCurrentDocument>> | undefined;
@@ -167,8 +168,22 @@ export async function fetchNativeDocument(
     dispose = session.own(() => {
       void reader?.cancel().catch(() => undefined);
     });
+    /* The header comes first and states the inputs' frontiers: the same
+       frontiers as the document already held mean the same document, so the
+       transfer stops there and the held document is answered. */
+    const frames = reader[Symbol.asyncIterator]();
+    const first = await frames.next();
+    const header = first.done ? undefined : first.value.frame?.HarmosVariant;
+    if (previous && header?.case === "Header" && sameFrontiers(header.value.field0?.frontiers, previous.header.frontiers)) {
+      await reader.cancel();
+      return previous;
+    }
+    const replay = (async function* () {
+      if (!first.done) yield first.value;
+      for (let next = await frames.next(); !next.done; next = await frames.next()) yield next.value;
+    })();
     return await assembleDocument(
-      reader,
+      replay,
       {
         scope,
         documentId: request.documentId,
@@ -180,6 +195,12 @@ export async function fetchNativeDocument(
     signal?.removeEventListener("abort", abort);
     dispose?.();
   }
+}
+
+/** Whether two captures read the same inputs: same state revision, telemetry cut and artifacts. */
+export function sameFrontiers(left: DocumentHeader["frontiers"], right: DocumentHeader["frontiers"]): boolean {
+  if (!left || !right) return false;
+  return frontierKey(left) === frontierKey(right);
 }
 
 /** Decode Transport Values And Delegate Layout Assembly To The Shared Renderer. */
@@ -965,4 +986,8 @@ export async function assembleDocument(
     sections,
     warnings,
   };
+}
+
+function frontierKey(frontiers: NonNullable<DocumentHeader["frontiers"]>): string {
+  return JSON.stringify(frontiers, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
 }
