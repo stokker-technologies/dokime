@@ -272,6 +272,79 @@ function hasText(body, expected) {
   return normalize(body).toLowerCase().includes(normalize(expected).toLowerCase());
 }
 
+function parameterGeometry() {
+  return [...document.querySelectorAll('[data-testid="execution-parameters"] [data-parameter]')].map((row) => {
+    const [label, value, unit] = [...row.children].map((node) => {
+      const bounds = node.getBoundingClientRect();
+      return {
+        left: bounds.left,
+        right: bounds.right,
+        top: bounds.top,
+        width: bounds.width,
+        clipped: node.scrollWidth > node.clientWidth + 1,
+      };
+    });
+    return { name: row.dataset.parameter, left: row.getBoundingClientRect().left, label, value, unit };
+  });
+}
+
+function assertParameterGeometry(rows) {
+  assert.ok(rows.length > 1, "The parameter grid must contain multiple values");
+  for (const row of rows) {
+    assert.ok(!row.label.clipped && !row.value.clipped && !row.unit.clipped, `${row.name}: parameter content must fit`);
+    assert.ok(row.label.right <= row.value.left && row.value.right < row.unit.left, `${row.name}: columns must not overlap`);
+    assert.ok(row.unit.left - row.value.right <= 12, `${row.name}: units must sit beside their values`);
+    const peers = rows.filter((other) => Math.abs(other.left - row.left) < 1);
+    for (const peer of peers) {
+      assert.ok(Math.abs(peer.value.right - row.value.right) < 1, `${row.name}: figures must align within each column`);
+      assert.ok(Math.abs(peer.unit.left - row.unit.left) < 1, `${row.name}: units must align within each column`);
+    }
+  }
+}
+
+async function checkParameterGeometry(session) {
+  const rows = await until("mounted parameter grid", async () => {
+    const rows = await session.execute(`return (${parameterGeometry.toString()})();`);
+    return rows.length > 1 ? rows : null;
+  });
+  assertParameterGeometry(rows);
+}
+
+async function promptHoverLabels() {
+  const frame = document.querySelector('[data-plot-id="obc.charger.startup.sequence.signals"]');
+  const overlay = frame?.querySelector(".u-over");
+  if (!overlay) return [];
+  overlay.scrollIntoView({ block: "center", behavior: "instant" });
+  const labels = new Set();
+  const frameDrawn = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  await frameDrawn();
+  const bounds = overlay.getBoundingClientRect();
+  for (let offset = 0; offset <= bounds.width; offset += 4) {
+    overlay.dispatchEvent(
+      new MouseEvent("mousemove", {
+        bubbles: true,
+        clientX: bounds.left + offset,
+        clientY: bounds.top + bounds.height / 2,
+      }),
+    );
+    await frameDrawn();
+    const label = frame.querySelector("[role=tooltip]")?.textContent;
+    if (label) labels.add(label);
+  }
+  return [...labels];
+}
+
+function assertPromptHovers(labels) {
+  assert.ok(
+    labels.some((label) => label.includes(`Prompt asked: ${STARTUP_PROMPT}`)),
+    `Asked marker must name its prompt: ${labels}`,
+  );
+  assert.ok(
+    labels.some((label) => label.includes(`Prompt answered: ${STARTUP_PROMPT}`)),
+    `Answered marker must name its prompt: ${labels}`,
+  );
+}
+
 async function startBackend(work, evidence, endpoint, label = "backend", launchPlugin = true) {
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
@@ -469,7 +542,28 @@ async function startSession(work, endpoint, evidence) {
   };
   session.clickNamed = async (role, name, options) =>
     session.click(await until(`${role} ${name}`, () => session.named(role, name, options)));
-  session.clickCss = async (selector) => session.click(await until(selector, () => session.find("css selector", selector)));
+  session.clickCss = async (selector) => {
+    const element = await until(selector, () => session.find("css selector", selector));
+    await until(`stable pointer target ${selector}`, () =>
+      session.executeAsync(
+        `const element = arguments[0];
+         const done = arguments[arguments.length - 1];
+         element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+         requestAnimationFrame(() => {
+           const before = element.getBoundingClientRect();
+           requestAnimationFrame(() => {
+             const after = element.getBoundingClientRect();
+             const target = document.elementFromPoint(after.left + after.width / 2, after.top + after.height / 2);
+             done(element.isConnected && after.width > 0 && after.height > 0
+               && Math.abs(before.top - after.top) < 1 && Math.abs(before.left - after.left) < 1
+               && element.contains(target));
+           });
+         });`,
+        [element],
+      ),
+    );
+    await session.click(element);
+  };
   session.exists = async (role, name) => {
     try {
       await session.named(role, name, { enabled: false });
@@ -996,6 +1090,7 @@ async function answerPendingPrompts(session) {
     return {
       text: needed.innerText,
       respond: [...document.querySelectorAll('button')].some((button) => button.innerText.trim() === 'Respond'),
+      responsePanels: document.querySelectorAll('[aria-labelledby="active-prompt-title"]').length,
     };
   `);
   if (cycleSighting) {
@@ -1014,6 +1109,7 @@ async function answerPendingPrompts(session) {
     const cards = [...queue.querySelectorAll('li[data-prompt-level]')];
     const control = document.querySelector('[data-execution-section="Control"]');
     return {
+      executionId: new URL(location.href).searchParams.get('executionId'),
       cards: cards.map((card) => ({
         level: card.dataset.promptLevel,
         state: card.dataset.promptState,
@@ -1561,6 +1657,8 @@ async function cycleJourney(session, cycleId) {
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
   assert.ok(hasText(header, "Active · Idle"), "A materialized cycle that runs nothing must render its Active · Idle state");
   assert.ok(await session.exists("button", "Cycle Actions"), "The header must carry the overflow menu");
+  assert.ok(await session.exists("button", "Export Evidence"), "The cycle header must name its evidence export");
+  assert.ok(await session.exists("button", "Download Report"), "The cycle header must name its report download");
   assert.ok(!(await session.exists("button", "Start Cycle")), "Containers have no Start control");
   assert.ok(!(await session.exists("button", "Stop Cycle")), "Containers have one Seal action");
   /* Observe The Measuring Execution Before Admitting Its Work. */
@@ -1583,7 +1681,7 @@ async function cycleJourney(session, cycleId) {
   );
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "The prompting execution Start must be admitted");
 
-  /* The Overview Offers Every Answerable Prompt; Execution Pages Keep Their Own. */
+  /* The Overview Links To Each Execution That Needs Input. */
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
   await until(
     "the cycle selection for operator prompts",
@@ -1655,6 +1753,7 @@ async function cycleJourney(session, cycleId) {
   /* The Startup Prompt Was Queued On Its Execution, Under Control, At Warning. */
   const startupSighting = promptSightings.find((seen) => seen.cards.some((card) => hasText(card.text, STARTUP_PROMPT)));
   assert.ok(startupSighting, `The prompt queue must show "${STARTUP_PROMPT}" before it is answered`);
+  assert.ok(startupSighting.executionId, "A response panel must belong to a selected execution");
   const startupCard = startupSighting.cards.find((card) => hasText(card.text, STARTUP_PROMPT));
   assert.equal(startupCard.level, "warning", "The OBC plugin's startup prompt must render at its declared Warning level");
   assert.ok(
@@ -1670,6 +1769,7 @@ async function cycleJourney(session, cycleId) {
   for (const seen of cycleInputSightings) {
     assert.match(seen.text, /Input needed on #\d+/, "The cycle page must name the execution waiting on input");
     assert.ok(!seen.respond, "The cycle page must not offer Respond for an execution's prompt");
+    assert.equal(seen.responsePanels, 0, "The cycle page must link to execution prompts without mounting response controls");
   }
   /* The navigation badge follows its own query, so any sighting of the open
      prompt may carry it; one must. */
@@ -1723,6 +1823,9 @@ async function cycleJourney(session, cycleId) {
     60000,
   );
   assert.match(normalize(evidence), /Execution \d+/i);
+  await checkParameterGeometry(session);
+  assert.ok(await session.exists("button", "Export Evidence"), "The execution header must name its evidence export");
+  assert.ok(await session.exists("button", "Download Report"), "The execution header must name its report download");
   assert.ok(!(await session.exists("button", "Choose Attempt")), "Execution selection belongs to the list");
 
   /* A Re-Run Appends A New Row And Preserves The Earlier Evidence. */
@@ -1764,7 +1867,16 @@ async function cycleJourney(session, cycleId) {
   );
   assert.match(settingsText, /Display Points|Reduction/);
   const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
+  await session.execute(
+    `
+    window.__plotInputValues = [];
+    arguments[0].addEventListener('input', event => window.__plotInputValues.push(event.target.value));
+  `,
+    [pointsInput],
+  );
   await session.type(pointsInput, "2500");
+  const typedPoints = await session.execute("return {value: arguments[0].value, events: window.__plotInputValues}", [pointsInput]);
+  assert.equal(typedPoints.value, "2500", `The settings input must receive the requested budget: ${JSON.stringify(typedPoints)}`);
   await session.clickNamed("button", "Apply");
   /* A dialog still open names why the backend has not accepted the settings. */
   let openDialog = "";
@@ -1835,6 +1947,8 @@ async function cycleJourney(session, cycleId) {
     [rerunId],
   );
   assert.match(rerunOutcome, /\bPassed\b/, "Closing plot settings must leave the prompting re-run able to pass");
+  const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
+  assertPromptHovers(promptHovers);
   const statisticsHeaders = await until(
     "the native trace statistics headers",
     () =>
@@ -1916,6 +2030,36 @@ async function cycleJourney(session, cycleId) {
     }
   `);
   await delay(600);
+  const consoleLayout = await until("scrollable console records", () =>
+    session.execute(`
+    const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
+      .find(node => getComputedStyle(node).overflowY === 'scroll' && node.scrollHeight > node.clientHeight);
+    if (!viewport) return null;
+    const rows = [...viewport.querySelectorAll('button')];
+    if (!rows.length) return null;
+    const first = rows[0].firstElementChild.getBoundingClientRect();
+    const last = rows.at(-1).getBoundingClientRect();
+    const bounds = viewport.getBoundingClientRect();
+    return {inset: first.left - bounds.left, bottomPadding: bounds.bottom - last.bottom,
+      tailDistance: viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight};
+  `),
+  );
+  assert.ok(consoleLayout.inset >= 8, "Console rows must have horizontal padding");
+  assert.ok(consoleLayout.bottomPadding >= 4 && consoleLayout.tailDistance <= 1, "Console must initially follow its padded newest row");
+  await session.execute(`
+    const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
+      .find(node => getComputedStyle(node).overflowY === 'scroll' && node.scrollHeight > node.clientHeight);
+    viewport.scrollTop = 0;
+    viewport.dispatchEvent(new Event('scroll', {bubbles: true}));
+  `);
+  await session.clickNamed("button", "Jump to Latest");
+  await until("console follows newest row again", () =>
+    session.execute(`
+    const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
+      .find(node => getComputedStyle(node).overflowY === 'scroll' && node.scrollHeight > node.clientHeight);
+    return viewport && viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+  `),
+  );
   /* A real pointer, not `element.click()`. The level selector is a modal
      layer: opened by a script click it never sees the pointer sequence its own
      cleanup keys on, and it left `pointer-events: none` on the body after it
@@ -2040,6 +2184,7 @@ async function executionStopJourney(session, cycleId) {
     "An unstarted execution the operator selected must stay selected while another runs",
   );
   assert.ok(hasText(await session.text(), "This case has not run yet"), "An unstarted execution shows its planned parameters");
+  await checkParameterGeometry(session);
   /* An attempt that has not started is cancelled, not stopped: Stop belongs
      to a running attempt alone. */
   await until("Cancel Execution on the unstarted attempt", () => session.exists("button", "Cancel Execution"), 30000);
@@ -2671,8 +2816,29 @@ async function reportJourney(session, cycleId) {
   // Select An Execution Through The Frozen Outline Before Inspecting Its Evidence.
   const selectExecution = `<script>
     const selection = setInterval(() => {
-      const button = document.querySelector('[data-level="case"] button');
+      const row = [...document.querySelectorAll('[data-level="case"]')].find(row => row.innerText.includes(${JSON.stringify(STARTUP_TEMPLATE)}));
+      const button = row?.querySelector('button');
       if (button) { clearInterval(selection); button.click(); }
+    }, 50);
+    const markers = setInterval(async () => {
+      if (!document.querySelector('[data-plot-id="obc.charger.startup.sequence.signals"] .u-over')) return;
+      clearInterval(markers);
+      const labels = await (${promptHoverLabels.toString()})();
+      const result = document.createElement('pre');
+      result.id = 'prompt-hover-proof';
+      result.hidden = true;
+      result.textContent = JSON.stringify(labels);
+      document.body.append(result);
+    }, 50);
+    const geometry = setInterval(() => {
+      const rows = (${parameterGeometry.toString()})();
+      if (rows.length < 2) return;
+      clearInterval(geometry);
+      const result = document.createElement('pre');
+      result.id = 'parameter-geometry-proof';
+      result.hidden = true;
+      result.textContent = JSON.stringify(rows);
+      document.body.append(result);
     }, 50);
   </script>`;
   const server = http.createServer((_request, response) => {
@@ -2682,37 +2848,89 @@ async function reportJourney(session, cycleId) {
   await new Promise((ready) => server.listen(0, "127.0.0.1", ready));
   const served = `http://127.0.0.1:${server.address().port}/report.html`;
   let dom = "";
+  let reportButtons = [];
+  let chromeProcess;
+  let socket;
   try {
     const chrome = process.env.DOKIME_E2E_CHROME ?? (windows ? "msedge.exe" : "google-chrome");
-    /* Headless Chrome's virtual time budget is wall-clock blind: under build
-       load the bundle may still be hydrating when the budget runs out, so the
-       render is retried with a growing budget until the page bar has drawn. */
-    for (const budget of [8000, 20000, 45000]) {
-      const rendered = await promisify(execFile)(
-        chrome,
-        [
-          "--headless=new",
-          "--disable-gpu",
-          "--no-sandbox",
-          `--user-data-dir=${join(work, "chrome")}`,
-          `--virtual-time-budget=${budget}`,
-          "--dump-dom",
-          served,
-        ],
-        { maxBuffer: 64 * 1024 * 1024 },
-      );
-      dom = rendered.stdout;
-      if (/Frozen Report/.test(dom) && /Attempt 1 Of/.test(dom)) break;
-    }
+    const port = await unusedPort();
+    chromeProcess = spawn(
+      chrome,
+      [
+        "--headless=new",
+        "--disable-gpu",
+        "--no-sandbox",
+        "--window-size=1600,1000",
+        `--user-data-dir=${join(work, "chrome")}`,
+        `--remote-debugging-port=${port}`,
+        served,
+      ],
+      { stdio: "ignore", detached: !windows },
+    );
+    const page = await until(
+      "frozen report browser",
+      async () => {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+        return (await response.json()).find((page) => page.type === "page");
+      },
+      30000,
+    );
+    socket = new WebSocket(page.webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => {
+      socket.addEventListener("open", resolve, { once: true });
+      socket.addEventListener("error", reject, { once: true });
+    });
+    let sequence = 0;
+    const evaluate = (expression) =>
+      new Promise((resolve, reject) => {
+        const id = ++sequence;
+        const timer = setTimeout(() => finish(new Error("Frozen report evaluation timed out")), 30000);
+        const receive = (event) => {
+          const response = JSON.parse(event.data);
+          if (response.id !== id) return;
+          if (response.error || response.result.exceptionDetails) finish(new Error(JSON.stringify(response)));
+          else finish(null, response.result.result.value);
+        };
+        const finish = (error, value) => {
+          clearTimeout(timer);
+          socket.removeEventListener("message", receive);
+          if (error) reject(error);
+          else resolve(value);
+        };
+        socket.addEventListener("message", receive);
+        socket.send(JSON.stringify({ id, method: "Runtime.evaluate", params: { expression, returnByValue: true } }));
+      });
+    await until("frozen report prompt hover proof", () => evaluate("Boolean(document.getElementById('prompt-hover-proof'))"), 60000).catch(
+      async (error) => {
+        await writeFile(join(evidence, "failure-report-rendered.html"), await evaluate("document.documentElement.outerHTML"));
+        throw error;
+      },
+    );
+    dom = await evaluate("document.documentElement.outerHTML");
+    reportButtons = await evaluate(`
+      [...document.querySelectorAll('button')].map(button => ({
+        label: button.innerText.trim(),
+        trace: Boolean(button.closest('table[aria-label="Trace statistics"]')),
+      }))
+    `);
   } finally {
+    socket?.close();
+    await terminate(chromeProcess);
     await new Promise((closed) => server.close(closed));
   }
   const report = dom.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
+  const geometry = dom.match(/<pre id="parameter-geometry-proof"[^>]*>([^<]+)<\/pre>/);
+  assert.ok(geometry, "The frozen report must mount its parameter grid");
+  assertParameterGeometry(JSON.parse(geometry[1]));
+  const hovers = dom.match(/<pre id="prompt-hover-proof"[^>]*>([^<]+)<\/pre>/);
+  assert.ok(hovers, "The frozen report must mount its prompt markers");
+  assertPromptHovers(JSON.parse(hovers[1]));
   assert.ok(hasText(report, "Frozen Report"), "The report's page bar must name what the file is");
   assert.ok(/Frozen Report .{0,3} Generated/.test(normalize(report)), "The report must state when it was generated");
   /* Step names may say "Start", so the controls are read off the buttons; the
      member tree's buttons name cases such as "Start-Up Sequence #1". */
-  const controls = [...dom.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/g)].map((match) => normalize(match[1].replace(/<[^>]+>/g, " ")));
+  // Trace visibility buttons retain authored names, including a trace called "start".
+  const controls = reportButtons.filter((button) => !button.trace).map((button) => normalize(button.label));
   const runControls = controls.filter((label) =>
     /^(?:(?:Start|Stop|Pause|Resume|Restart|Cancel)(?: (?:Execution|Cycle))?|Run Again(?: .+)?|Re-run)$/i.test(label),
   );

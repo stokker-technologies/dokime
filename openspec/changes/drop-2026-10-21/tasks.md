@@ -19,15 +19,15 @@
 - [x] 2. Format plot X cursor timestamps consistently with axes. Proof: `plots/nominal.test.ts` / `Series Legend`.
 - [x] 3. Show statistics headers and units without clipping. Proof: `native-desktop.mjs / cycle` (mounted trace statistics header bounds).
 - [x] 4. Distinguish queued execution cancel from active stop. Proof: `cycle/nominal.test.ts` / `Execution Controls`.
-- [ ] 5. Align parameter labels, values and adjacent units across views.
-- [ ] 6. Keep prompt response controls only on their execution.
-- [ ] 7. Harmonize cycle/execution headers, controls, actions and records.
-- [ ] 8. Label Export Evidence and Download Report consistently.
-- [ ] 9. Preserve every planned execution in frozen reports.
-- [ ] 10. Reuse parameter labels, units and layout in reports; verify step order.
-- [ ] 11. Render prompt asked/answered plot markers with title hover in live/report views.
-- [ ] 12. Downsample full series per viewport preserving envelopes and avoid duplicate titles.
-- [ ] 13. Pad and scroll console content with newest-line following.
+- [x] 5. Align parameter labels, values and adjacent units across views. Proof: `execution/nominal.test.ts / Parameter Rows`; `native-desktop.mjs / cycle, execution-stop, report` (mounted column alignment and unclipped content).
+- [x] 6. Keep prompt response controls only on their execution. Proof: `execution/nominal.test.ts / Page Sections`; `native-desktop.mjs / cycle` (execution response panel and cycle links).
+- [x] 7. Harmonize cycle/execution headers, controls, actions and records. Proof: `cycle/nominal.test.ts / Node Menus, Execution Controls, Focus Keeps Controls`; `native-desktop.mjs / cycle`.
+- [x] 8. Label Export Evidence and Download Report consistently. Proof: `native-desktop.mjs / cycle` (cycle and execution action labels); `cycle/nominal.test.ts / Node Menus`.
+- [x] 9. Preserve every planned execution in frozen reports. Proof: `domains::documents::report_payloads::cycle_report_planned`; `native-desktop.mjs / report` (all planned members).
+- [x] 10. Reuse parameter labels, units and layout in reports; verify step order. Proof: `domains::documents::report_payloads::template_parameter_units`, `criterion_step_order`; `execution/nominal.test.ts / Parameter Rows`; `native-desktop.mjs / report` (mounted parameter columns).
+- [x] 11. Render prompt asked/answered plot markers with title hover in live/report views. Proof: `plots/nominal.test.ts / Prompt Markers`; `native-desktop.mjs / cycle, report` (asked and answered hover titles).
+- [x] 12. Downsample full series per viewport preserving envelopes and avoid duplicate titles. Proof: `plots/nominal.test.ts / LTTB Reduction, Window Resampling`.
+- [x] 13. Pad and scroll console content with newest-line following. Proof: `console/nominal.test.ts / Tail Follow`; `native-desktop.mjs / cycle` (padding, scroll release and Jump to Latest).
 - [ ] 14. Verify Dokime README CI, crate, PyPI, release and license badges.
 - [ ] 15. Preserve four surface-aware logo variants, native icons and themed README logo.
 - [ ] 16. Place the Prompt card separately beneath Control.
