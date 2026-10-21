@@ -72,7 +72,7 @@ pub fn plugin_bundle_digest(bytes: &[u8]) -> String {
 
 /* === Private Functions === */
 
-fn chunk_bytes(advertised: Option<u32>, request_limit: usize) -> usize {
+pub(super) fn chunk_bytes(advertised: Option<u32>, request_limit: usize) -> usize {
     let advertised = advertised.map_or(FALLBACK_CHUNK_BYTES, |bytes| bytes as usize);
     advertised.min(request_limit.saturating_sub(FRAME_OVERHEAD_BYTES))
 }

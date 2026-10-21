@@ -36,7 +36,6 @@ use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 
-const HTML_CHUNK_BYTES: usize = 64 * 1024;
 const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
 
 /* === Macros === */
@@ -187,7 +186,7 @@ async fn deliver(
         sha256: None,
         noun: "report HTML",
         read_failure: "report HTML could not be read",
-        chunk_bytes: HTML_CHUNK_BYTES.min(resources.max_message_bytes.saturating_sub(256)),
+        chunk_bytes: super::content::download_chunk_bytes(resources.max_message_bytes),
         message_limit: resources.max_message_bytes,
     }
     .run(output)

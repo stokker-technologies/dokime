@@ -25,8 +25,6 @@ use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 
-const CHUNK_BYTES: usize = 64 * 1024;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -103,7 +101,7 @@ pub(super) async fn deliver(
         sha256: Some(archive.sha256),
         noun: "diagnostics archive",
         read_failure: "diagnostics archive could not be read",
-        chunk_bytes: CHUNK_BYTES.min(maximum.saturating_sub(256)),
+        chunk_bytes: super::super::content::download_chunk_bytes(maximum),
         message_limit: maximum,
     }
     .run(output)

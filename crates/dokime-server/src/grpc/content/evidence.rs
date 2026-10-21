@@ -94,7 +94,7 @@ impl Operation for Download {
             sha256,
             noun: "evidence export",
             read_failure: "saved evidence export could not be read",
-            chunk_bytes: super::transfer_chunk_bytes(self.resources.maximum),
+            chunk_bytes: super::download_chunk_bytes(self.resources.maximum),
             message_limit: self.resources.maximum,
         }
         .run(output)

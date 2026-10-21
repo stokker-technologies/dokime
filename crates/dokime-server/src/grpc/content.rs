@@ -39,7 +39,10 @@ use dokime_runtime::{
 /* === Constants === */
 
 pub(super) const MAX_CONTENT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+// Uploads stay small: every call on a listener shares its decode retention budget.
 const MAX_TRANSFER_CHUNK_BYTES: usize = 64 * 1024;
+// Downloads are encoded once per frame and decoded by one client, so they use half a message.
+const MAX_DOWNLOAD_CHUNK_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
 
@@ -58,6 +61,10 @@ const MAX_TRANSFER_CHUNK_BYTES: usize = 64 * 1024;
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     evidence::register(runtime, maximum)?;
     artifacts::register(runtime, maximum)
+}
+
+pub(super) fn download_chunk_bytes(max_message_bytes: usize) -> usize {
+    MAX_DOWNLOAD_CHUNK_BYTES.min(max_message_bytes / 2).max(transfer_chunk_bytes(max_message_bytes))
 }
 
 pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {

@@ -28,7 +28,7 @@ use std::{
     io::{self, Read, Seek, SeekFrom, Write},
     num::NonZeroUsize,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 // Third Party Imports
@@ -55,7 +55,7 @@ use dokime_domain::model::{
 
 const MAX_INVENTORY_ENTRIES: usize = 65_536;
 const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
-const MAX_CHUNK_BYTES: usize = 64 * 1024;
+const MAX_CHUNK_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
 
@@ -71,12 +71,13 @@ pub(crate) struct Manager {
 
 pub struct Bundle {
     source: Arc<Source>,
+    // The archive is read front to back; a read in flight holds the file.
+    file: Option<File>,
     offset: u64,
     pending: Option<Pending>,
 }
 
 struct Source {
-    file: Mutex<File>,
     metadata: EvidenceExportMetadata,
     _directory: TempDir,
     _permit: OwnedSemaphorePermit,
@@ -85,7 +86,7 @@ struct Source {
 
 struct Pending {
     maximum: NonZeroUsize,
-    task: JoinHandle<Result<ArtifactChunk>>,
+    task: JoinHandle<(File, Result<ArtifactChunk>)>,
 }
 
 #[derive(Serialize)]
@@ -166,7 +167,7 @@ impl Bundle {
 
     pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<ArtifactChunk>> {
         if maximum.get() > MAX_CHUNK_BYTES {
-            return Err(Error::Invalid("export transfer chunk exceeds 64 KiB"));
+            return Err(Error::Invalid("export transfer chunk exceeds 1 MiB"));
         }
         if let Some(pending) = &self.pending {
             if pending.maximum != maximum {
@@ -176,15 +177,13 @@ impl Bundle {
             if self.offset == self.source.metadata.size_bytes {
                 return Ok(None);
             }
-            let source = self.source.clone();
+            let mut file = self.file.take().ok_or(Error::Invalid("export archive is unavailable"))?;
             let offset = self.offset;
-            let length = (source.metadata.size_bytes - offset).min(maximum.get() as u64) as usize;
+            let length = (self.source.metadata.size_bytes - offset).min(maximum.get() as u64) as usize;
             let task = tokio::task::spawn_blocking(move || {
                 let mut bytes = vec![0; length];
-                let mut file = source.file.lock().map_err(|_| Error::Invalid("export file lock poisoned"))?;
-                file.seek(SeekFrom::Start(offset))?;
-                file.read_exact(&mut bytes)?;
-                Ok(ArtifactChunk { offset, data: bytes })
+                let read = file.read_exact(&mut bytes).map(|()| ArtifactChunk { offset, data: bytes });
+                (file, read.map_err(Error::from))
             });
             self.pending = Some(Pending { maximum, task });
         }
@@ -192,7 +191,9 @@ impl Bundle {
         let pending = self.pending.as_mut().expect("accepted export read retained");
         let result = (&mut pending.task).await;
         self.pending = None;
-        let chunk = result??;
+        let (file, chunk) = result?;
+        self.file = Some(file);
+        let chunk = chunk?;
         self.offset = chunk.offset.checked_add(chunk.data.len() as u64).ok_or(Error::TooLarge)?;
         Ok(Some(chunk))
     }
@@ -270,8 +271,10 @@ async fn build(
         size_bytes,
         sha256,
     };
-    let source = Source { file: Mutex::new(file), metadata, _directory: directory, _permit: permit, _work: work };
-    Ok(Bundle { source: Arc::new(source), offset: 0, pending: None })
+    let mut file = file;
+    file.seek(SeekFrom::Start(0))?;
+    let source = Source { metadata, _directory: directory, _permit: permit, _work: work };
+    Ok(Bundle { source: Arc::new(source), file: Some(file), offset: 0, pending: None })
 }
 
 /* === Tests === */

@@ -79,7 +79,7 @@ impl Operation for Download {
         if source.metadata().size_bytes > super::MAX_CONTENT_BYTES {
             return Err(Status::resource_exhausted("execution output exceeds native content limit"));
         }
-        let maximum = NonZeroUsize::new(super::transfer_chunk_bytes(message_limit))
+        let maximum = NonZeroUsize::new(super::download_chunk_bytes(message_limit))
             .ok_or_else(|| Status::resource_exhausted("message limit cannot contain execution chunk"))?;
         let metadata = frames::metadata(source.metadata(), message_limit).map_err(|error| stream_failure(error.into()))?;
         output.send_owned(metadata.into()).await.map_err(|error| stream_failure(error.into()))?;

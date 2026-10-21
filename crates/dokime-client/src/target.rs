@@ -25,6 +25,9 @@ use super::{Error, Result};
 
 /* === Constants === */
 
+const STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
+const CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -107,6 +110,11 @@ impl Target {
             .http2_keep_alive_interval(Duration::from_secs(10))
             .keep_alive_timeout(Duration::from_secs(5))
             .keep_alive_while_idle(true)
+            // Hyper's 2 MiB stream window bounds one download at about 100 MB/s
+            // per 20 ms of round trip; the larger windows keep a fast remote
+            // link bandwidth-bound rather than window-bound.
+            .initial_stream_window_size(STREAM_WINDOW_BYTES)
+            .initial_connection_window_size(CONNECTION_WINDOW_BYTES)
             // Every RPC on this channel shares one deadline too; the
             // backend's own per-route `Deadlines` layer already fails fast
             // (10s) for ordinary calls and allows up to 300s for uploads and

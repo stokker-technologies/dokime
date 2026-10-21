@@ -83,7 +83,7 @@ impl Operation for Download {
                 detailed(status, &source)
             })?
             .ok_or_else(|| Status::not_found("artifact not found"))?;
-        deliver(reader, self.resources.maximum, super::transfer_chunk_bytes(self.resources.maximum), output).await?;
+        deliver(reader, self.resources.maximum, super::download_chunk_bytes(self.resources.maximum), output).await?;
         Ok(().into())
     }
 }
