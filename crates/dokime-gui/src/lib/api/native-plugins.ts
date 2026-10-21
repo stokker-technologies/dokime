@@ -17,7 +17,7 @@ import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 import type { NativeContentSession } from "./native-content";
-import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, safeNumber, sha256Hex, timestampIso } from "./native-values";
+import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, safeNumber, sha256Hex, timestampIso } from "./native-values";
 
 /* === Types === */
 
@@ -33,7 +33,7 @@ export async function listNativePlugins(session: SessionIdentity): Promise<Plugi
 
   for (let page = 0; page < NATIVE_MAX_PAGES; page += 1) {
     const response = await rpc.pluginsListInstallations(session, {
-      pageSize: NATIVE_PAGE_SIZE,
+      pageSize: NATIVE_SMALL_PAGE_SIZE,
       ...(after ? { after } : {}),
     });
     installations.push(...response.installations);
@@ -262,7 +262,7 @@ export async function listNativeAdmittedPlugins(session: SessionIdentity): Promi
 
   for (let page = 0; page < NATIVE_MAX_PAGES; page += 1) {
     const response = await rpc.pluginsListAdmittedPlugins(session, {
-      pageSize: NATIVE_PAGE_SIZE,
+      pageSize: NATIVE_SMALL_PAGE_SIZE,
       ...(after ? { after } : {}),
     });
     artifacts.push(...response.plugins);
