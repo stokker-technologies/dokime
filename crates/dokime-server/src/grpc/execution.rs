@@ -100,10 +100,6 @@ struct ListExecutionSteps {
     resources: Arc<Resources>,
 }
 
-struct ListStepCriteria {
-    resources: Arc<Resources>,
-}
-
 /* === Enums === */
 
 #[harmos::catalog]
@@ -113,7 +109,6 @@ enum Operations {
     ListCaseParameters(ListCaseParameters),
     ListExecutionParameters(ListExecutionParameters),
     ListExecutionSteps(ListExecutionSteps),
-    ListStepCriteria(ListStepCriteria),
 
     GetCycle(GetCycle),
     ListCycles(ListCycles),
@@ -202,22 +197,6 @@ impl Operation for ListExecutionSteps {
         &mut self, _: Self::Context<'a>, request: &mut wire::ListExecutionSteps, _: &mut (),
     ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListExecutionStepsReply>, Status> {
         steps::list(&self.resources, request).map(Into::into)
-    }
-}
-
-impl Operation for ListStepCriteria {
-    type Declaration = wire::ListStepCriteria;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::ListStepCriteria, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListStepCriteriaReply>, Status> {
-        steps::criteria(&self.resources, request).map(Into::into)
     }
 }
 

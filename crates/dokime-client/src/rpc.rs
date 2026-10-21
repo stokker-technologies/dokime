@@ -231,13 +231,6 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_list_step_criteria(
-        &self, message: contracts::execution::ListStepCriteria,
-    ) -> Result<dokime_domain::model::execution::wire::ListStepCriteriaReply> {
-        let reply = self.unary::<contracts::execution::ListStepCriteria>(contracts::execution::ListStepCriteria::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
     pub async fn execution_copy_cycle(
         &self, message: contracts::execution::CopyCycle,
     ) -> Result<dokime_domain::model::execution::wire::CreateCycleReply> {

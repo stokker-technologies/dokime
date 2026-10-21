@@ -171,7 +171,6 @@ matrix! {
     };
     "/dokime.v1.Execution/ListExecutionSteps", unary, contracts::execution::ListExecutionSteps;
     "/dokime.v1.Execution/ListExecutions", unary, contracts::execution::ListExecutions;
-    "/dokime.v1.Execution/ListStepCriteria", unary, contracts::execution::ListStepCriteria;
     "/dokime.v1.Execution/PauseCycle", unary, contracts::execution::PauseCycle;
     "/dokime.v1.Execution/ResumeCycle", unary, contracts::execution::ResumeCycle;
     "/dokime.v1.Execution/StartExecution", unary, contracts::execution::StartExecution = contracts::execution::StartExecution {

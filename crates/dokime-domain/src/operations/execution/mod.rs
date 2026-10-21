@@ -24,7 +24,6 @@ mod list_cycles;
 mod list_execution_parameters;
 mod list_execution_steps;
 mod list_executions;
-mod list_step_criteria;
 mod pause_cycle;
 mod pause_execution;
 mod rename_cycle;
@@ -56,7 +55,6 @@ pub use list_cycles::ListCycles;
 pub use list_execution_parameters::ListExecutionParameters;
 pub use list_execution_steps::ListExecutionSteps;
 pub use list_executions::ListExecutions;
-pub use list_step_criteria::ListStepCriteria;
 pub use pause_cycle::PauseCycle;
 pub use pause_execution::PauseExecution;
 pub use rename_cycle::RenameCycle;
@@ -158,7 +156,6 @@ use crate::model::planning::wire::*;
 #[harmos_domain::catalog]
 pub enum Operations {
     ListExecutionSteps(ListExecutionSteps),
-    ListStepCriteria(ListStepCriteria),
     CopyCycle(CopyCycle),
     CreateCycle(CreateCycle),
     GetCycle(GetCycle),
@@ -194,10 +191,6 @@ pub enum Operations {
 
 impl Endpoint for ListExecutionSteps {
     const PATH: &'static str = "/dokime.v1.Execution/ListExecutionSteps";
-}
-
-impl Endpoint for ListStepCriteria {
-    const PATH: &'static str = "/dokime.v1.Execution/ListStepCriteria";
 }
 
 impl Endpoint for CopyCycle {
