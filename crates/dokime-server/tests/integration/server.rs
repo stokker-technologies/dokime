@@ -223,6 +223,8 @@ async fn listener_policy_isolation() {
                 rules: vec![],
                 output: String::new(),
                 policy: model::files::wire::FileWatchPolicy::SnapshotAtStart,
+                selection: model::files::wire::FileWatchSelection::All,
+                wait_for_source_seconds: None,
                 poll_interval_ms: None,
                 maximum_seconds: None,
                 maximum_files: None,

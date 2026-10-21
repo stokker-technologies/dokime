@@ -40,16 +40,11 @@ export function SidebarFrame({ children }: { children: ReactNode }) {
       data-collapsed={collapsed || undefined}
       style={{ width }}
     >
-      {/* The mark and the product name, once, as one centred block at the top
-          of the one sidebar. It is exactly the page bar's height, so the brand
-          bar and the page title bar end on one line at every density. The
-          height is fixed, so the first destination starts on the same y
-          whether the rail is open or collapsed. */}
-      <div className="grid place-items-center px-[var(--shell-gap)]" style={{ height: "var(--page-bar-height)" }}>
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <BrandMark />
-          {collapsed ? null : <span className="truncate font-heading font-semibold tracking-wide">{label}</span>}
-        </div>
+      <div className="flex min-w-0 flex-col items-center gap-3 px-[var(--shell-gap)] pt-5 pb-8">
+        <BrandMark className={collapsed ? "h-7 max-w-full object-contain" : "h-[16.67vh] max-w-full object-contain"} />
+        {collapsed ? null : (
+          <span className="max-w-full truncate text-center font-heading text-xl font-semibold tracking-wide">{label}</span>
+        )}
       </div>
 
       {children}

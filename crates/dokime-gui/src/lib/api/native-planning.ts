@@ -23,12 +23,14 @@ import type {
   Row8 as GeneratedNativeCaseActions,
 } from "@generated/dokime/v1/ExecutionMessages/ListCases/messages_pb";
 import type { Row3 as GeneratedCursor } from "@generated/dokime/v1/ExecutionMessages/ListCycles/messages_pb";
-import type { Row8 as GeneratedStepStatus } from "@generated/dokime/v1/ExecutionMessages/ListExecutionSteps/messages_pb";
+import type {
+  Row23 as GeneratedCriterionStatus,
+  Row8 as GeneratedStepStatus,
+} from "@generated/dokime/v1/ExecutionMessages/ListExecutionSteps/messages_pb";
 import type {
   Row5 as GeneratedExecutionStatus,
   Row4 as GeneratedExecutionSummary,
 } from "@generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb";
-import type { Row8 as GeneratedCriterionStatus } from "@generated/dokime/v1/ExecutionMessages/ListStepCriteria/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";

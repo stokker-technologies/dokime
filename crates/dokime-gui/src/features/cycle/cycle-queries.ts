@@ -46,13 +46,7 @@ import {
 } from "@/lib/api/native-execution";
 import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import {
-  downloadNativeCycleReport,
-  downloadNativeExecutionReport,
-  downloadNativeReport,
-  type NativeReportHtml,
-  openNativeReport,
-} from "@/lib/api/native-reports";
+import { downloadNativeReport, type NativeReportSource, openNativeReport } from "@/lib/api/native-reports";
 import { reportFilename } from "./cycle-workspace-model";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
@@ -133,10 +127,8 @@ export function useCycleCommands(cycleId: string) {
      says so of run admission in particular — and a workspace that refuses to
      re-read after an error is the one that keeps showing the state before it. */
   const invalidateAll = () => invalidateWorkflowResourceQueries(queryClient);
-  const readReport = (executionId: string | null): Promise<NativeReportHtml> => {
-    const owner = { ...session().identity, own: session().own };
-    return executionId ? downloadNativeExecutionReport(owner, executionId) : downloadNativeCycleReport(owner, cycleId);
-  };
+  const reportSource = (executionId: string | null): NativeReportSource =>
+    executionId ? { kind: "execution_report", executionId } : { kind: "cycle_report", cycleId };
 
   return {
     exportEvidence: useMutation({
@@ -179,18 +171,14 @@ export function useCycleCommands(cycleId: string) {
     /* Saves the report Open Report would open, named after its node. */
     downloadReport: useMutation({
       mutationFn: async ({ executionId, label }: { executionId: string | null; label: string }) =>
-        downloadNativeReport(await readReport(executionId), reportFilename(label), session().identity),
+        downloadNativeReport(session().identity, reportSource(executionId), reportFilename(label)),
     }),
     /* The report the cycle, or one execution, has now: the runtime renders
        one from the run so far, reads the sealed one, or renders the sealed
        one again when its file is gone. Opening it never fails for want of a
        seal. */
     openReport: useMutation({
-      mutationFn: async (executionId: string | null) => {
-        const resource = await readReport(executionId);
-        await openNativeReport(resource, session().identity);
-        return resource.report.origin?.HarmosVariant.case;
-      },
+      mutationFn: (executionId: string | null) => openNativeReport(session().identity, reportSource(executionId)),
     }),
     pauseExecution: useMutation({
       mutationFn: (executionId: string) => pauseNativeTestExecution(session().identity, executionId),

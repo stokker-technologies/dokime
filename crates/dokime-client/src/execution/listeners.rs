@@ -208,7 +208,7 @@ where
 
     // Freeze The Final Live Frontier; Saved Storage Positions Are Separate.
     client.verify(true).await?;
-    let mut request = contracts::evidence::ListRecords { selection: Some(selection), after: None, through: None };
+    let mut request = contracts::evidence::ListRecords { selection: Some(selection), after: None, through: None, latest: 0 };
     let mut page = client.evidence_list_records(request.clone()).await?;
     validate_records(&scope, &patterns, &client.backend().epoch, &page, None)?;
     let frontier = page.through.clone();

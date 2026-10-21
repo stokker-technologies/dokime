@@ -404,7 +404,7 @@ pub struct MaterializedParameter {
 // remain separate entries; ordinals belong to this revision, not stable identity.
 // Continuation binds execution, step, collection and exact runtime revision.
 // Any state change aborts continuation; restart with no cursor. Limits: default
-// 50, maximum 100. A value exceeding the documented Value budget is an explicit
+// 50, maximum 500. A value exceeding the documented Value budget is an explicit
 // ResourceExhausted error, never truncated evidence.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -420,14 +420,6 @@ pub struct StepPageCursor {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListExecutionStepsReply {
     pub steps: Vec<ExecutionStep>,
-    pub next_cursor: Option<StepPageCursor>,
-    pub observed_cursor: Option<Cursor>,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListStepCriteriaReply {
-    pub criteria: Vec<StepCriterion>,
     pub next_cursor: Option<StepPageCursor>,
     pub observed_cursor: Option<Cursor>,
 }
@@ -451,6 +443,14 @@ pub struct ExecutionStep {
         description = "Why this step failed, for the one step that did. Present only on a failed step, and already redacted: the step is the row an event log renders with a status, so it is where the failure's own story belongs."
     )]
     pub detail: Option<Diagnostic>,
+
+    // Every criterion the step judged, in declaration order. The page ends
+    // early, with a continuation, when the next step's criteria would exceed
+    // the response budget.
+    #[row(
+        description = "Every criterion the step judged, in declaration order. The page ends early, with a continuation, when the next step's criteria would exceed the response budget."
+    )]
+    pub criteria: Vec<StepCriterion>,
 }
 
 #[harmos_domain::message]
@@ -614,7 +614,6 @@ pub enum StepPageKind {
     Unspecified,
     Steps,
     Measurements,
-    Criteria,
 }
 
 #[harmos_domain::message]

@@ -28,6 +28,8 @@ pub use policy::{StoragePolicy, StoragePolicyView};
 pub use runtime::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, SidecarNoticeHandler};
 pub use settings::{Appearance, Density, ReportDefaults, Settings, SettingsDocument, ThemeMode};
 pub use view::ApplicationSettingsView;
+
+#[cfg(test)]
 pub(crate) use view::MAX_PLOT_POINTS;
 
 /* === Imports === */

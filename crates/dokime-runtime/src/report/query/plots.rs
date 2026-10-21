@@ -42,10 +42,6 @@ use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
-// A Frozen Report Keeps Each Series Whole Up To The Plot Cap, So The Viewer Can
-// Zoom Into Captured Detail; It Reduces Per Visible Window When It Renders.
-const SERIES_POINTS: usize = crate::config::MAX_PLOT_POINTS as usize;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -167,8 +163,7 @@ async fn optimized(
     for key in &request.y_keys {
         let statistics = statistics::collect(read, at, scope, contract, key, x.clone()).await?;
         // Missing Values Preserve Existing Gap Semantics Through The Raw Path.
-        // Above The Cap The Most Recent Window Is Kept, In Sample Order Like The Raw Path.
-        if (statistics.count != statistics.rows && request.plot_type != Some(PlotType::Histogram)) || statistics.rows > SERIES_POINTS {
+        if statistics.count != statistics.rows && request.plot_type != Some(PlotType::Histogram) {
             let samples = telemetry::read(ctx, settings, at, scope, contract, vec![]).await?;
             return Ok(full(&samples, records, request, source.captured_at.as_str(), context));
         }
@@ -177,7 +172,7 @@ async fn optimized(
         let mut single = request.clone();
         single.y_keys = vec![key.clone()];
         single.max_points = Some(0);
-        let one = crate::plot::build_plot_payload(&samples, records, single, source.captured_at.as_str(), context);
+        let one = full(&samples, records, &single, source.captured_at.as_str(), context);
         for mut series in one.series {
             series.raw_points = statistics.count;
             series.downsampled = series.points.len() < statistics.count;
@@ -203,8 +198,8 @@ async fn optimized(
     Ok(payload)
 }
 
-// Every Series Whole, Or Its Most Recent `SERIES_POINTS` When Longer; `raw_points`
-// Keeps The Captured Count, So `downsampled` Says When A Window Was Cut.
+// Captured Series Stay Whole. Only The Viewer Applies A Display Budget To Its
+// Visible Window; Dropping An Earlier Point Here Would Make Zoom Irrecoverable.
 fn full(
     samples: &[crate::telemetry::TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, generated_at: &str,
     context: &PlotPayloadContext,
@@ -212,8 +207,6 @@ fn full(
     let mut payload = crate::plot::project_plot_payload(samples, records, request, generated_at, context);
     for series in &mut payload.series {
         series.raw_points = series.raw_points.max(series.points.len());
-        let cut = series.points.len().saturating_sub(SERIES_POINTS);
-        series.points.drain(..cut);
     }
     // The Display Budget Stays Stated; The Viewer Reduces To It Per Visible Window.
     let budget = std::mem::take(&mut payload.max_points);
@@ -226,3 +219,56 @@ fn full(
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Value;
+    use crate::model::identity::new_id;
+    use crate::telemetry::TelemetrySample;
+    use dokime_domain::model::time::Timestamp;
+
+    #[test]
+    fn frozen_series_retains_points_beyond_the_live_plot_cap() {
+        let count = crate::config::MAX_PLOT_POINTS as usize + 101;
+        let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
+        let stream = Identifier::new("fixture.capture").unwrap();
+        let samples = (0..count)
+            .map(|index| {
+                let mut sample = TelemetrySample::new(new_id(), stream.clone(), index as u64, timestamp.clone(), "fixture");
+                let value = if index == 25 { 1_000_000.0 } else { index as f64 };
+                sample.values.insert("index".into(), Value::Number(index as f64));
+                sample.values.insert("value".into(), Value::Number(value));
+                sample
+            })
+            .collect::<Vec<_>>();
+        let request = PlotPayloadRequest {
+            stream: stream.to_string(),
+            x_key: Some("index".into()),
+            y_keys: vec!["value".into()],
+            plot_type: Some(PlotType::TimeSeries),
+            max_points: Some(32),
+            technique: crate::plot::DownsampleTechnique::MinMax,
+            ..Default::default()
+        };
+
+        let mut payload = full(&samples, &[], &request, timestamp.as_str(), &PlotPayloadContext::default());
+        let series = &payload.series[0];
+        assert_eq!(series.points.len(), count);
+        assert_eq!(series.raw_points, count);
+        assert!(!series.downsampled);
+        assert_eq!(series.points.first().unwrap().y, Some(0.0));
+        assert_eq!(series.points.last().unwrap().y, Some((count - 1) as f64));
+        assert_eq!(payload.max_points, 32);
+
+        // An Early Viewport Can Still Recover Its Original Spike And Endpoints.
+        payload.series[0].points.retain(|point| point.x.as_f64().is_some_and(|x| x <= 100.0));
+        assert_eq!(payload.series[0].points.len(), 101);
+        let viewport = crate::plot::finish_plot_payload(payload, &request);
+        let points = &viewport.series[0].points;
+        assert!(points.len() <= 32);
+        assert!(points.iter().any(|point| point.y == Some(1_000_000.0)));
+        assert_eq!(points.first().unwrap().y, Some(0.0));
+        assert_eq!(points.last().unwrap().y, Some(100.0));
+    }
+}

@@ -46,7 +46,8 @@ use dokime_domain::operations::process::RunProcess;
 /* === Type Aliases === */
 
 pub(crate) type Served = Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + Send>>;
-pub(crate) type Serve = fn(Binding, Vec<u8>, signal::Receiver<bool>) -> Served;
+pub(crate) type Ready = signal::Sender<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>;
+pub(crate) type Serve = fn(Binding, Vec<u8>, signal::Receiver<bool>, Ready) -> Served;
 
 /* === Structs === */
 
@@ -73,10 +74,12 @@ pub(crate) struct Binding {
 // whether a host is there to serve the rest.
 pub(crate) fn served(operation: &str, hosted: bool) -> Option<Serve> {
     if operation == RunProcess::ID {
-        return Some(|binding, request, cancel| Box::pin(typed(request, move |request| process::run(binding, request, cancel))));
+        return Some(|binding, request, cancel, _| Box::pin(typed(request, move |request| process::run(binding, request, cancel))));
     }
     if operation == WatchFile::ID && !hosted {
-        return Some(|binding, request, cancel| Box::pin(typed(request, move |request| watch::run(binding, request, cancel))));
+        return Some(|binding, request, cancel, ready| {
+            Box::pin(typed(request, move |request| watch::run(binding, request, cancel, ready)))
+        });
     }
     None
 }

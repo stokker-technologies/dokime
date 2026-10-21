@@ -46,8 +46,10 @@
 //     cannot spawn a browser or a file manager over the session.
 //   * `desktop_save_document` opens a native GTK/portal save dialog no WebDriver
 //     session can reach, which would hang the gate on Download Report. The gate
-//     taps that one command at the Tauri IPC boundary and writes the bytes the application produced into `<evidence>/downloads`
-//     itself, which is what the picker would have done. Every domain RPC still
+//     taps inline document saves at the Tauri IPC boundary. Report saves instead
+//     use the real native verified pull into its private cache, then copy that
+//     file into `<evidence>/downloads` in place of choosing a picker destination.
+//     Every domain RPC still
 //     crosses the real transport, and so does `desktop_save_diagnostics_bundle`,
 //     which needs no picker: the throwaway home is given an xdg-user-dirs
 //     Downloads folder and the shell writes the archive there itself.
@@ -686,9 +688,10 @@ async function sizeViewport(session, target) {
  * Tap the save command so the gate plays the operating system's picker.
  *
  * `desktop_save_document` blocks on a native dialog WebDriver cannot see. The
- * tap records the document the application actually produced -- the same
- * verified bytes the picker would have written -- and nothing else: every
- * other command, and every domain RPC, still goes to the real backend.
+ * tap records inline documents the application produced. Report saves use
+ * the real native verified pull with its open action instead of the picker;
+ * the harness copies that verified cache file into its Downloads directory.
+ * Every domain RPC still goes to the real backend.
  *
  * The tap is on `fetch`, not on `invoke`, because `invoke` cannot be reached.
  * Tauri's bootstrap defines both `window.__TAURI_INTERNALS__` and its `invoke`
@@ -762,6 +765,15 @@ async function installSaveTap(session) {
         if (ledger.length >= 2000) ledger.shift();
         const entry = { command: command, at: Date.now(), state: 'pending' };
         ledger.push(entry);
+        let reportSave = null;
+        if (command === 'desktop_artifact_deliver') {
+          const payload = JSON.parse(String(init && init.body));
+          if (payload.request.kind === 'html_report' && payload.request.action === 'save') {
+            reportSave = { filename: payload.request.filename, kind: payload.request.kind };
+            payload.request.action = 'open';
+            init = { ...init, body: JSON.stringify(payload) };
+          }
+        }
         if (command === 'desktop_save_document') {
           let document = null;
           try {
@@ -807,6 +819,13 @@ async function installSaveTap(session) {
           function (value) {
             entry.state = 'settled';
             entry.ms = Date.now() - entry.at;
+            if (reportSave && value.headers.get('Tauri-Response') === 'ok') {
+              return value.clone().json().then((delivered) => {
+                if (!delivered?.path) throw new Error('native report pull returned no verified path');
+                saved.push({ ...reportSave, path: delivered.path });
+                return value;
+              });
+            }
             if (command === 'desktop_save_diagnostics_bundle' && value.headers.get('Tauri-Response') === 'ok') {
               return value.clone().json().then((path) => {
                 globalThis.__dokimeDiagnosticsPath = path;
@@ -839,11 +858,19 @@ async function drainSavedDocuments(session) {
     return (globalThis.__dokimeSavedDocuments ?? []).map((document) => ({
       filename: document.filename,
       kind: document.kind,
-      length: document.bytesBase64.length,
+      path: document.path ?? null,
+      length: document.bytesBase64?.length ?? 0,
     }));
   `);
   const written = [];
   for (const [index, document] of documents.entries()) {
+    assert.equal(basename(document.filename), document.filename, "saved documents have a plain filename");
+    if (document.path) {
+      const target = join(session.downloads, document.filename);
+      await copyFile(document.path, target);
+      written.push({ kind: document.kind, path: target });
+      continue;
+    }
     let base64 = "";
     for (let offset = 0; offset < document.length; offset += DOCUMENT_SLICE_CHARS) {
       base64 += await session.execute(
@@ -854,7 +881,6 @@ async function drainSavedDocuments(session) {
     if (base64.length !== document.length) {
       throw new Error(`The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`);
     }
-    assert.equal(basename(document.filename), document.filename, "saved documents have a plain filename");
     const bytes = Buffer.from(base64, "base64");
     let target = join(session.downloads, document.filename);
     if (document.kind === "remote_key") {
@@ -2913,13 +2939,13 @@ async function emptyCycleHistory(session, cycleId, title, ownership) {
 
   // Open The Actual Saved Report Through Native Delivery
   const openedBefore = await session.execute(
-    "return (globalThis.__dokimeInvokes ?? []).filter((entry) => entry.command === 'desktop_open_document').length;",
+    "return (globalThis.__dokimeInvokes ?? []).filter((entry) => entry.command === 'desktop_artifact_deliver').length;",
   );
   await session.clickNamed("button", "Open Report");
   await until("the saved empty-cycle report opened", () =>
     session.execute(
       `
-    const opened = (globalThis.__dokimeInvokes ?? []).filter((entry) => entry.command === 'desktop_open_document');
+    const opened = (globalThis.__dokimeInvokes ?? []).filter((entry) => entry.command === 'desktop_artifact_deliver');
     const button = [...document.querySelectorAll('button')].find((candidate) => candidate.innerText.trim() === 'Open Report');
     return opened.length > arguments[0] && opened.at(-1).state === 'settled' && button && !button.disabled;
   `,

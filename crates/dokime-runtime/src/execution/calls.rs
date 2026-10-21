@@ -141,20 +141,21 @@ impl Host for StepHost {
         if let Some(serve) = served(O::ID, self.caller.hosted()) {
             let binding = self.binding.clone();
             let payload = encoded.clone();
-            let run = LocalRun::spawn(move |cancel| serve(binding, payload, cancel), true);
+            let run = LocalRun::spawn(move |cancel, ready| serve(binding, payload, cancel, ready), true);
             return Ok(StepInstance::local(handles, run, &encoded));
         }
         match &self.caller.0 {
             Road::Unmounted => Err(CallError::Unavailable),
             Road::Host(host) => {
                 let instance = routed(host, &self.stage, O::ID).map_err(refusal)?.submit(request).await?;
-                Ok(StepInstance::host(handles, instance, &encoded))
+                let readiness_host = routed(host, &self.stage, O::ID).map_err(refusal)?;
+                Ok(StepInstance::host(handles, instance, &encoded, readiness_host))
             }
             Road::Local(operations) => {
                 let answer =
                     operations.get(O::ID).cloned().ok_or_else(|| step_refusal("the harness registered no answer for this operation"))?;
                 let payload = encoded.clone();
-                let run = LocalRun::spawn(move |_| answer(payload), false);
+                let run = LocalRun::spawn(move |_, _| answer(payload), false);
                 Ok(StepInstance::local(handles, run, &encoded))
             }
         }

@@ -172,7 +172,6 @@ matrix! {
     };
     "/dokime.v1.Execution/ListExecutionSteps", unary, contracts::execution::ListExecutionSteps;
     "/dokime.v1.Execution/ListExecutions", unary, contracts::execution::ListExecutions;
-    "/dokime.v1.Execution/ListStepCriteria", unary, contracts::execution::ListStepCriteria;
     "/dokime.v1.Execution/PauseCycle", unary, contracts::execution::PauseCycle;
     "/dokime.v1.Execution/ResumeCycle", unary, contracts::execution::ResumeCycle;
     "/dokime.v1.Execution/StartExecution", unary, contracts::execution::StartExecution = contracts::execution::StartExecution {
@@ -202,6 +201,8 @@ matrix! {
         rules: Vec::new(),
         output: String::new(),
         policy: model::files::wire::FileWatchPolicy::Unspecified,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: None,
         maximum_seconds: None,
         maximum_files: None,

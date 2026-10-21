@@ -58,7 +58,7 @@ import {
   Unplug,
   X,
 } from "lucide-react";
-import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type RefObject, useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 // Local Imports
@@ -73,6 +73,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { TestCyclePlan, TestExecution } from "@/lib/types";
+import { useRowWindow } from "@/lib/use-row-window";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/stores/selection-store";
 import {
@@ -164,6 +165,8 @@ export function CycleSidebarCasesView({
   const executions = useMemo(() => detailQuery.data?.executions ?? [], [detailQuery.data]);
   const cases = useMemo(() => buildCycleCases(plan), [plan]);
   const rows = useMemo(() => buildCycleExecutionRows(cases, executions), [cases, executions]);
+  // A long cycle renders only the rows in view (`useRowWindow`); every row is one height.
+  const rowWindow = useRowWindow(rows.length);
   /* A stale selection selects the cycle, so exactly one row is ever selected. */
   const selectedKey = selectedCycleRow(rows, selection)?.key ?? null;
   const activeExecutionId =
@@ -223,7 +226,10 @@ export function CycleSidebarCasesView({
           move(items[0]);
           break;
         case "End":
-          move(items.at(-1));
+          /* The last row may sit outside the rendered window; bring it in first. */
+          event.preventDefault();
+          if (rows.length) rowWindow.focusIndex(rows.length - 1, (row) => row.focus());
+          else move(items.at(-1));
           break;
         case "ArrowRight":
           if (isCycle && !expanded) {
@@ -245,7 +251,7 @@ export function CycleSidebarCasesView({
         default:
       }
     },
-    [expanded],
+    [expanded, rowWindow.focusIndex, rows.length],
   );
 
   const total = cases.length;
@@ -305,7 +311,7 @@ export function CycleSidebarCasesView({
 
             {expanded ? (
               // biome-ignore lint/a11y/useSemanticElements: a tree node's children are an ARIA group, which no native element expresses.
-              <ul className="grid min-w-0 gap-px" role="group">
+              <ul className="grid min-w-0 gap-px" ref={rowWindow.anchor as RefObject<HTMLUListElement | null>} role="group">
                 {detailQuery.isError ? (
                   <TreeNotice
                     action={{ label: "Try Again", onClick: () => void detailQuery.refetch?.() }}
@@ -326,34 +332,39 @@ export function CycleSidebarCasesView({
                     title="No Cases"
                   />
                 ) : (
-                  rows.map((row) => (
-                    <ExecutionTreeRow
-                      active={plan?.test_cycle.phase === "active"}
-                      following={following && row.execution !== null && row.execution.test_execution_id === activeExecutionId}
-                      inputNeeded={row.execution !== null && inputNeeded?.has(row.execution.test_execution_id) === true}
-                      key={row.key}
-                      live={live}
-                      onDelete={setPendingDelete}
-                      onRerun={() =>
-                        report({ done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" }, async () => {
-                          const created = await liveActions(actions).rerunCase(row.case.caseId);
-                          if (created) select({ executionId: created });
-                        })
-                      }
-                      onRun={() =>
-                        report({ done: "Execution Started", failed: "Execution Could Not Start" }, () => {
-                          const execution = row.execution;
-                          if (!execution || !isPlannedExecution(execution.status)) {
-                            throw new Error("No unstarted execution is available.");
-                          }
-                          return liveActions(actions).startExecution(execution.test_execution_id);
-                        })
-                      }
-                      onSelect={() => select(cycleRowSelection(row))}
-                      row={row}
-                      selected={row.key === selectedKey}
-                    />
-                  ))
+                  <>
+                    {rowWindow.window.before ? <li aria-hidden role="none" style={{ height: `${rowWindow.window.before}px` }} /> : null}
+                    {rows.slice(rowWindow.window.first, rowWindow.window.last).map((row, offset) => (
+                      <ExecutionTreeRow
+                        active={plan?.test_cycle.phase === "active"}
+                        following={following && row.execution !== null && row.execution.test_execution_id === activeExecutionId}
+                        inputNeeded={row.execution !== null && inputNeeded?.has(row.execution.test_execution_id) === true}
+                        key={row.key}
+                        live={live}
+                        onDelete={setPendingDelete}
+                        onRerun={() =>
+                          report({ done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" }, async () => {
+                            const created = await liveActions(actions).rerunCase(row.case.caseId);
+                            if (created) select({ executionId: created });
+                          })
+                        }
+                        onRun={() =>
+                          report({ done: "Execution Started", failed: "Execution Could Not Start" }, () => {
+                            const execution = row.execution;
+                            if (!execution || !isPlannedExecution(execution.status)) {
+                              throw new Error("No unstarted execution is available.");
+                            }
+                            return liveActions(actions).startExecution(execution.test_execution_id);
+                          })
+                        }
+                        onSelect={() => select(cycleRowSelection(row))}
+                        row={row}
+                        selected={row.key === selectedKey}
+                        windowIndex={rowWindow.window.first + offset}
+                      />
+                    ))}
+                    {rowWindow.window.after ? <li aria-hidden role="none" style={{ height: `${rowWindow.window.after}px` }} /> : null}
+                  </>
                 )}
               </ul>
             ) : null}
@@ -409,6 +420,7 @@ function ExecutionTreeRow({
   active,
   following,
   inputNeeded,
+  windowIndex,
   live,
   onDelete,
   onRerun,
@@ -427,6 +439,8 @@ function ExecutionTreeRow({
   onSelect: () => void;
   row: CycleExecutionRow;
   selected: boolean;
+  /** The row's position in the whole list, which windowing reads back. */
+  windowIndex: number;
 }) {
   /* Eligibility is the runtime's, not a guess from the row's own status: the
      projection computes it from the checks each mutation enforces, and its
@@ -454,6 +468,7 @@ function ExecutionTreeRow({
       data-following={following || undefined}
       data-level="case"
       data-rerun-of={row.rerunOf ?? undefined}
+      data-window-row={windowIndex}
       role="treeitem"
       tabIndex={selected ? 0 : -1}
       {...(menu ? press : {})}

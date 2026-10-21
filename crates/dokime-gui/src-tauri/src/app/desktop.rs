@@ -46,8 +46,6 @@ use crate::connection::ConnectionSession;
 
 /* === Constants === */
 
-const MAX_REPORT_BYTES: usize = 32 * 1024 * 1024;
-const MAX_REPORT_BASE64_CHARS: usize = MAX_REPORT_BYTES.div_ceil(3) * 4;
 const MAX_REPORT_FILENAME_CHARS: usize = 128;
 const MAX_DIAGNOSTICS_BUNDLE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS: usize = MAX_DIAGNOSTICS_BUNDLE_BYTES.div_ceil(3) * 4;
@@ -104,6 +102,16 @@ pub enum ArtifactSource {
     ExecutionFile { execution_id: String, relative_path: String },
     ExecutionEvidence { execution_id: String },
     CycleEvidence { cycle_id: String },
+    CycleReport { cycle_id: String },
+    ExecutionReport { execution_id: String },
+}
+
+// Where a delivery landed, and for a report whether it was sealed or rendered from current evidence.
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Delivered {
+    pub path: String,
+    pub origin: Option<&'static str>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -161,30 +169,6 @@ pub async fn desktop_save_document(
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-pub async fn desktop_open_document(
-    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, document: DesktopSaveDocument,
-) -> Result<(), String> {
-    ensure_main_window(&window)?;
-    ensure_picker_kind(document.kind)?;
-    if document.kind == DesktopSaveKind::RemoteKey {
-        return Err("Remote keys can only be saved through the file picker".into());
-    }
-    let (filename, bytes, _) = validate_save_document(&generation, &document)?;
-    let session = state.inner().clone();
-    ensure_document_session(&session, &generation)?;
-    let cache = app.path().app_cache_dir().map_err(|error| error.to_string())?.join("documents");
-    let path = cache.join(format!("dokime-{}-{}-{}", generation, random::<u64>(), filename));
-    write_document(&session, &generation, path.clone(), bytes, true).await?;
-    ensure_document_session(&session, &generation)?;
-    // The opener call itself forks/execs a launcher process; run it on the
-    // blocking pool so it never occupies a Tokio worker thread that other
-    // in-flight async commands (report streaming, connection I/O) need.
-    let path = path.to_string_lossy().into_owned();
-    tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))
-        .await
-        .map_err(|error| error.to_string())?
-}
-
 pub async fn desktop_save_diagnostics_bundle(
     window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, document: DesktopSaveDocument,
 ) -> Result<String, String> {
@@ -206,7 +190,7 @@ pub async fn desktop_save_diagnostics_bundle(
 
 pub async fn desktop_artifact_deliver(
     window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, request: ArtifactDeliveryRequest,
-) -> Result<bool, DeliveryError> {
+) -> Result<Option<Delivered>, DeliveryError> {
     let prepare = |message: String| DeliveryError::local(DeliveryStage::Prepare, message);
 
     // Prepare: Owning Window, Session Lease, Filename And Private Staging Cache
@@ -244,13 +228,14 @@ pub async fn desktop_artifact_deliver(
                 .map_err(prepare)?;
             let Some((destination, overwrite)) = selected else {
                 let _ = tokio::fs::remove_file(&verified.path).await;
-                return Ok(false);
+                return Ok(None);
             };
             ensure_document_session(&session, &generation).map_err(prepare)?;
-            move_verified_file(verified.path, destination, overwrite)
+            let origin = verified.report_origin();
+            move_verified_file(session, generation, verified.path, destination.clone(), overwrite)
                 .await
                 .map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
-            Ok(true)
+            Ok(Some(Delivered { path: destination.to_string_lossy().into_owned(), origin }))
         }
         DeliveryAction::Open => {
             let open = |message: String| DeliveryError::local(DeliveryStage::Open, message);
@@ -264,12 +249,18 @@ pub async fn desktop_artifact_deliver(
             // on the blocking pool so it never occupies a Tokio worker
             // thread other in-flight async commands need.
             let path = verified.path.to_string_lossy().into_owned();
-            tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))
-                .await
-                .map_err(|error| open(error.to_string()))?
-                .map_err(open)?;
+            let launched = path.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let opener = app.opener();
+                let opened = session.with_current(&generation, || opener.open_path(launched, None::<&str>));
+                let opened = opened.map_err(|error| format!("Native report delivery lost its owning connection: {error:?}"))?;
+                opened.map_err(|error| error.to_string())
+            })
+            .await
+            .map_err(|error| open(error.to_string()))?
+            .map_err(open)?;
             cleanup.keep().map_err(|error| open(error.to_string()))?;
-            Ok(true)
+            Ok(Some(Delivered { path, origin: verified.report_origin() }))
         }
     }
 }
@@ -321,7 +312,7 @@ fn set_window_title(window: &WebviewWindow, title: &str) -> tauri::Result<()> {
 fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> Result<(String, Vec<u8>, DesktopSaveKind), String> {
     ensure_generation_token(generation)?;
     let (max_encoded_chars, max_bytes, label) = match document.kind {
-        DesktopSaveKind::HtmlReport => (MAX_REPORT_BASE64_CHARS, MAX_REPORT_BYTES, "Report HTML"),
+        DesktopSaveKind::HtmlReport => return Err("Report HTML is delivered through desktop_artifact_deliver".into()),
         DesktopSaveKind::DiagnosticsBundle => (MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS, MAX_DIAGNOSTICS_BUNDLE_BYTES, "Diagnostics bundle"),
         DesktopSaveKind::JsonDocument => (MAX_JSON_DOCUMENT_BASE64_CHARS, MAX_JSON_DOCUMENT_BYTES, "JSON document"),
         DesktopSaveKind::RemoteKey => (4098usize.div_ceil(3) * 4, 4098, "Remote key"),
@@ -522,7 +513,9 @@ fn pick_destination(
     Ok(confirmed.then_some((destination, true)))
 }
 
-async fn move_verified_file(source: PathBuf, destination: PathBuf, overwrite: bool) -> Result<(), String> {
+async fn move_verified_file(
+    session: ConnectionSession, generation: String, source: PathBuf, destination: PathBuf, overwrite: bool,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let _source = tempfile::TempPath::try_from_path(source.clone()).map_err(|error| error.to_string())?;
         let parent = destination.parent().ok_or("destination has no parent directory")?;
@@ -530,12 +523,16 @@ async fn move_verified_file(source: PathBuf, destination: PathBuf, overwrite: bo
         let mut input = std::fs::File::open(source).map_err(|error| error.to_string())?;
         std::io::copy(&mut input, staged.as_file_mut()).map_err(|error| error.to_string())?;
         staged.as_file().sync_all().map_err(|error| error.to_string())?;
-        if overwrite {
-            harmos::filesystem::publication::replace(staged.path(), &destination)
-        } else {
-            harmos::filesystem::publication::install(staged.path(), &destination)
-        }
-        .map_err(|error| error.to_string())
+        let staged_path = staged.path();
+        let published = session.with_current(&generation, || {
+            if overwrite {
+                harmos::filesystem::publication::replace(staged_path, &destination)
+            } else {
+                harmos::filesystem::publication::install(staged_path, &destination)
+            }
+        });
+        let published = published.map_err(|error| format!("Native delivery lost its owning connection: {error:?}"))?;
+        published.map_err(|error| error.to_string())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -546,6 +543,17 @@ async fn move_verified_file(source: PathBuf, destination: PathBuf, overwrite: bo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reports_require_verified_native_delivery() {
+        let document = DesktopSaveDocument {
+            kind: DesktopSaveKind::HtmlReport,
+            filename: "report.html".into(),
+            bytes_base64: BASE64.encode("<html></html>"),
+        };
+        let error = validate_save_document("7", &document).unwrap_err();
+        assert!(error.contains("desktop_artifact_deliver"));
+    }
 
     #[test]
     fn remote_security_documents_are_bounded_and_redacted() {

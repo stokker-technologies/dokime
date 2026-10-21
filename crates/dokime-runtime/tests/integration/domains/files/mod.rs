@@ -83,6 +83,8 @@ pub(crate) fn request(
         rules,
         output: OUTPUT.to_owned(),
         policy,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: Some(50),
         maximum_seconds: None,
         maximum_files: None,

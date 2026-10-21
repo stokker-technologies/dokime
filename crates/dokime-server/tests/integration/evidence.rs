@@ -85,7 +85,7 @@ async fn fixed_pages_gap() {
     let root = tempfile::tempdir().unwrap();
     let (mut owner, server, client) = start(root.path()).await;
     let handle = owner.handle();
-    for _ in 0..105 {
+    for _ in 0..1005 {
         publish(&handle).await;
     }
     let first = client
@@ -93,7 +93,7 @@ async fn fixed_pages_gap() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(first.records.len(), 100);
+    assert_eq!(first.records.len(), 1000);
     assert!(!first.replay_complete);
     publish(&handle).await;
     let second = client
@@ -101,6 +101,7 @@ async fn fixed_pages_gap() {
             selection: Some(selection()),
             after: first.scanned,
             through: first.through.clone(),
+            latest: 0,
         })
         .await
         .unwrap()
@@ -161,6 +162,75 @@ async fn fixed_pages_gap() {
 }
 
 #[tokio::test]
+async fn tail_then_follow() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut owner, server, client) = start(root.path()).await;
+    let handle = owner.handle();
+    for _ in 0..7 {
+        publish(&handle).await;
+    }
+    let full = client
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords { selection: Some(selection()), ..Default::default() })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(full.records.len(), 7);
+    let tail = client
+        .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+            selection: Some(selection()),
+            latest: 3,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let ids = |page: &[model::evidence::wire::CapturedRecord]| page.iter().map(|record| record.record_id.clone()).collect::<Vec<_>>();
+    assert_eq!(ids(&tail.records), ids(&full.records[4..]), "the tail holds the newest records, oldest first");
+    assert!(tail.replay_complete);
+    assert_eq!(tail.scanned, tail.through);
+    let frontier = tail.through.clone().unwrap();
+    assert_eq!(frontier.position, handle.captured_records().frontier());
+    assert_eq!(Some(&frontier), full.through.as_ref());
+
+    for (after, through) in [(tail.scanned.clone(), tail.through.clone()), (tail.scanned.clone(), None)] {
+        let error = client
+            .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+                selection: Some(selection()),
+                after,
+                through,
+                latest: 3,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), Code::InvalidArgument);
+    }
+
+    let mut follow = client
+        .download::<contracts::evidence::WatchRecords>(contracts::evidence::WatchRecords {
+            selection: Some(selection()),
+            after: Some(frontier),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    publish(&handle).await;
+    let next = loop {
+        let frame = follow.message().await.unwrap().unwrap();
+        if !frame.records.is_empty() {
+            break frame;
+        }
+    };
+    assert_eq!(next.records.len(), 1);
+    assert!(next.records[0].sequence > tail.records[2].sequence);
+    assert!(!ids(&full.records).contains(&next.records[0].record_id));
+    drop(follow);
+    drop(client);
+    drop(handle);
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn filtered_scans_resync() {
     let root = tempfile::tempdir().unwrap();
     let (mut owner, server, client) = start(root.path()).await;
@@ -185,6 +255,7 @@ async fn filtered_scans_resync() {
             selection: Some(selection.clone()),
             after: first.scanned.clone(),
             through: first.through.clone(),
+            latest: 0,
         })
         .await
         .unwrap()
@@ -321,7 +392,12 @@ async fn capture_cursors_restarts() {
     fresh_cursor.position = 0;
     for (after, through) in [(Some(cursor.clone()), Some(cursor.clone())), (Some(fresh_cursor), Some(cursor.clone()))] {
         let error = client
-            .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords { selection: Some(selection()), after, through })
+            .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecords {
+                selection: Some(selection()),
+                after,
+                through,
+                latest: 0,
+            })
             .await
             .unwrap_err();
         assert_eq!(error.code(), Code::FailedPrecondition);

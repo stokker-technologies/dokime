@@ -240,6 +240,7 @@ impl Client {
         &self, request: contracts::reports::DownloadCycleReport, destination: PathBuf,
     ) -> Result<Download<dokime_domain::model::reports::wire::ReportMetadata>, Error> {
         let id = request.cycle_id.clone();
+        let identifier = request.identifier.clone();
         let stream = self.reports_download_cycle_report(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
@@ -248,7 +249,7 @@ impl Client {
                 use dokime_domain::model::reports::wire::ReportHtmlFramePayload as Payload;
                 Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
                     Payload::Report(metadata) => {
-                        if metadata.test_cycle_id != id {
+                        if metadata.test_cycle_id != id || metadata.identifier != identifier || metadata.test_execution_id.is_some() {
                             return Err(Error::Invalid("report belongs to another cycle"));
                         }
                         Frame::Header(*metadata, None)
@@ -275,7 +276,7 @@ impl Client {
                 use dokime_domain::model::reports::wire::ReportHtmlFramePayload as Payload;
                 Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
                     Payload::Report(metadata) => {
-                        if metadata.test_execution_id.as_deref() != Some(id.as_str()) {
+                        if metadata.test_execution_id.as_deref() != Some(id.as_str()) || metadata.identifier != "execution.report" {
                             return Err(Error::Invalid("report belongs to another execution"));
                         }
                         Frame::Header(*metadata, None)

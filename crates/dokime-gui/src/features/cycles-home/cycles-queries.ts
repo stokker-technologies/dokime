@@ -85,8 +85,8 @@ export function useCyclesQuery(selection: CyclesQuerySelection = {}): UseQueryRe
   return useQuery({
     queryFn: () => listNativeCycles(session.identity, cycleListSelection({ archived, text })),
     queryKey: cyclesHomeQueryKeys.cycles(session.identity.generation, { archived, text }),
-    refetchInterval: 5_000,
-    staleTime: 2_000,
+    // The runtime stream invalidates the lists on every runtime change; nothing polls.
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 
@@ -98,8 +98,7 @@ export function usePendingPromptsQuery(): UseQueryResult<PromptRequest[]> {
     // The workflow prompt key, so every runtime change that invalidates the
     // cycle's prompts refreshes the navigation and status counts at once.
     queryKey: [...workflowQueryKeys.prompts(), session.identity.generation],
-    refetchInterval: 5_000,
-    staleTime: 2_000,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 

@@ -705,7 +705,7 @@ simulated charger's log this way:
 ```rust
 let watch = ctx
     .host()
-    .submit_as::<WatchFile>(WatchFileRequest {
+    .submit(WatchFile {
         execution_id: None,
         source: Some(FileWatchSource {
             payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
@@ -715,6 +715,8 @@ let watch = ctx
         output: "charger".into(),
         artifact: Some("charger/device.log".into()),
         policy: FileWatchPolicy::Stream,
+        selection: FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: Some(100),
         maximum_seconds: Some(1),
         maximum_bytes: None,
@@ -724,9 +726,17 @@ let watch = ctx
         markers: Vec::new(),
     })
     .await?;
-// The watch takes its baseline first; the charger then logs its readings.
+watch.armed().await?;
+// The baseline is established; the charger can now start logging its readings.
 let captured = watch.join().await?.into_owned();
 ```
+
+`All` follows baseline files and later arrivals. `Latest` selects the newest
+baseline file, while `New` captures only files discovered after the baseline.
+Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
+file beneath an accessible root may appear later. Unavailable FTP roots fail
+immediately because FTP status 550 cannot distinguish missing roots from denied
+access. Permission and invalid-path failures remain immediate.
 
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.

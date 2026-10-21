@@ -24,6 +24,7 @@ use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, b
 use crate::suites::common::{measurement, system, verdicts};
 use crate::{error::Error, prompts::checkpoint};
 use dokime_domain::model::files::wire::FileWatchPolicy;
+use dokime_domain::model::files::wire::FileWatchSelection;
 use dokime_domain::model::files::wire::FileWatchSource;
 use dokime_domain::model::files::wire::FileWatchSourcePayload;
 use dokime_domain::model::files::wire::LineMatcher;
@@ -320,6 +321,8 @@ impl Startup {
                 output: "charger".into(),
                 artifact: Some("charger/device.log".into()),
                 policy: FileWatchPolicy::Stream,
+                selection: FileWatchSelection::All,
+                wait_for_source_seconds: None,
                 poll_interval_ms: Some(100),
                 maximum_seconds: Some(1),
                 maximum_bytes: None,
@@ -331,7 +334,7 @@ impl Startup {
             .await?;
         // The watch takes its baseline first; the charger then logs its
         // readings while it runs.
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        watch.armed().await?;
         let interval_s = ctx.parameters().sample_interval_s;
         for index in 0..5 {
             self.device.sample(f64::from(index) * interval_s);

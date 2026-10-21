@@ -110,6 +110,20 @@ impl ConnectionSession {
         state.lease.clone().ok_or(ConnectionError::NotConnected)
     }
 
+    // Keep A Final Native Side Effect Serialized With Generation Invalidation.
+    pub(crate) fn with_current<T>(&self, generation: &str, action: impl FnOnce() -> T) -> Result<T, ConnectionError> {
+        let state = self.inner.lock().expect("connection state poisoned");
+        if state.snapshot.generation != generation {
+            return Err(ConnectionError::Superseded);
+        }
+        if state.lease.is_none() {
+            return Err(ConnectionError::NotConnected);
+        }
+        let result = action();
+        drop(state);
+        Ok(result)
+    }
+
     pub fn disconnect(&self) -> Result<ConnectionSnapshot, ConnectionError> {
         let mut state = self.inner.lock().expect("connection state poisoned");
         state.advance()?;

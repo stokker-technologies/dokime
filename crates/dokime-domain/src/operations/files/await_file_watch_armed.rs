@@ -16,8 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 // Local Imports
 use super::*;
@@ -31,15 +30,11 @@ use super::*;
 /* === Structs === */
 
 #[harmos_domain::message]
-#[harmos_domain::operation(response = ListStepCriteriaReply, id = "dokime.execution.list_step_criteria", version = 1,
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
-        grpc(package = "dokime.v1", service = "Execution", method = "ListStepCriteria"))]
+#[harmos_domain::operation(response = FileWatchArmed, id = "dokime.files.await_file_watch_armed", version = 1,
+        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Shared)]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListStepCriteria {
-    pub execution_id: String,
-    pub step_id: String,
-    pub limit: u32,
-    pub cursor: Option<StepPageCursor>,
+pub struct AwaitFileWatchArmed {
+    pub instance_id: u64,
 }
 
 /* === Enums === */

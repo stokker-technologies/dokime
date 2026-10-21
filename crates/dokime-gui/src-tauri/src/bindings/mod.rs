@@ -118,12 +118,6 @@ native_commands! {
         (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<Option<String>, String>
         => crate::app::desktop::desktop_save_document;
 
-    // Open a verified document from the private native cache.
-    async desktop_open_document
-        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<(), String>
-        => crate::app::desktop::desktop_open_document;
-
     // Write a verified diagnostics bundle into the operator's Downloads folder;
     // returns the saved path.
     async desktop_save_diagnostics_bundle
@@ -135,7 +129,7 @@ native_commands! {
     // native destination.
     async desktop_artifact_deliver
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<bool, crate::app::content::DeliveryError>
+        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<Option<crate::app::desktop::Delivered>, crate::app::content::DeliveryError>
         => crate::app::desktop::desktop_artifact_deliver;
 
     // Materialize one verified artifact in the private media cache and return its preview URL path.

@@ -779,7 +779,10 @@ async fn invalid_admission_values() {
     );
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles { limit: 101, ..Default::default() })
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
+                limit: dokime_domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1,
+                ..Default::default()
+            })
             .await
             .unwrap_err()
             .code(),

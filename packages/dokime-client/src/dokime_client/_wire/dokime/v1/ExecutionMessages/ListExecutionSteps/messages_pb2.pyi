@@ -41,7 +41,7 @@ class Row3(_message.Message):
     def __init__(self, revision: _Optional[_Union[Row5, _Mapping]] = ..., execution_id: _Optional[str] = ..., step_id: _Optional[str] = ..., kind: _Optional[_Union[Row6, _Mapping]] = ..., next_ordinal: _Optional[int] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("step_id", "metadata", "status", "started_at", "finished_at", "measurement_count", "criterion_count", "ordinal", "detail")
+    __slots__ = ("step_id", "metadata", "status", "started_at", "finished_at", "measurement_count", "criterion_count", "ordinal", "detail", "criteria")
     STEP_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -51,6 +51,7 @@ class Row4(_message.Message):
     CRITERION_COUNT_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
+    CRITERIA_FIELD_NUMBER: _ClassVar[int]
     step_id: str
     metadata: Row7
     status: Row8
@@ -60,7 +61,8 @@ class Row4(_message.Message):
     criterion_count: int
     ordinal: int
     detail: Row10
-    def __init__(self, step_id: _Optional[str] = ..., metadata: _Optional[_Union[Row7, _Mapping]] = ..., status: _Optional[_Union[Row8, _Mapping]] = ..., started_at: _Optional[_Union[Row9, _Mapping]] = ..., finished_at: _Optional[_Union[Row9, _Mapping]] = ..., measurement_count: _Optional[int] = ..., criterion_count: _Optional[int] = ..., ordinal: _Optional[int] = ..., detail: _Optional[_Union[Row10, _Mapping]] = ...) -> None: ...
+    criteria: _containers.RepeatedCompositeFieldContainer[Row11]
+    def __init__(self, step_id: _Optional[str] = ..., metadata: _Optional[_Union[Row7, _Mapping]] = ..., status: _Optional[_Union[Row8, _Mapping]] = ..., started_at: _Optional[_Union[Row9, _Mapping]] = ..., finished_at: _Optional[_Union[Row9, _Mapping]] = ..., measurement_count: _Optional[int] = ..., criterion_count: _Optional[int] = ..., ordinal: _Optional[int] = ..., detail: _Optional[_Union[Row10, _Mapping]] = ..., criteria: _Optional[_Iterable[_Union[Row11, _Mapping]]] = ...) -> None: ...
 
 class Row5(_message.Message):
     __slots__ = ("epoch", "stream", "position")
@@ -73,16 +75,14 @@ class Row5(_message.Message):
     def __init__(self, epoch: _Optional[str] = ..., stream: _Optional[str] = ..., position: _Optional[int] = ...) -> None: ...
 
 class Row6(_message.Message):
-    __slots__ = ("Unspecified", "Steps", "Measurements", "Criteria")
+    __slots__ = ("Unspecified", "Steps", "Measurements")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     STEPS_FIELD_NUMBER: _ClassVar[int]
     MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
-    CRITERIA_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row11
-    Steps: Row12
-    Measurements: Row13
-    Criteria: Row14
-    def __init__(self, Unspecified: _Optional[_Union[Row11, _Mapping]] = ..., Steps: _Optional[_Union[Row12, _Mapping]] = ..., Measurements: _Optional[_Union[Row13, _Mapping]] = ..., Criteria: _Optional[_Union[Row14, _Mapping]] = ...) -> None: ...
+    Unspecified: Row12
+    Steps: Row13
+    Measurements: Row14
+    def __init__(self, Unspecified: _Optional[_Union[Row12, _Mapping]] = ..., Steps: _Optional[_Union[Row13, _Mapping]] = ..., Measurements: _Optional[_Union[Row14, _Mapping]] = ...) -> None: ...
 
 class Row7(_message.Message):
     __slots__ = ("identifier", "label", "description", "tags", "attributes", "created_at", "updated_at")
@@ -143,8 +143,20 @@ class Row10(_message.Message):
     def __init__(self, message: _Optional[str] = ..., chain: _Optional[_Iterable[str]] = ..., location: _Optional[str] = ..., span_trace: _Optional[_Iterable[str]] = ..., backtrace: _Optional[str] = ...) -> None: ...
 
 class Row11(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("criterion_id", "metadata", "status", "observed", "message", "ordinal")
+    CRITERION_ID_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    OBSERVED_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    ORDINAL_FIELD_NUMBER: _ClassVar[int]
+    criterion_id: str
+    metadata: Row7
+    status: Row23
+    observed: Row24
+    message: str
+    ordinal: int
+    def __init__(self, criterion_id: _Optional[str] = ..., metadata: _Optional[_Union[Row7, _Mapping]] = ..., status: _Optional[_Union[Row23, _Mapping]] = ..., observed: _Optional[_Union[Row24, _Mapping]] = ..., message: _Optional[str] = ..., ordinal: _Optional[int] = ...) -> None: ...
 
 class Row12(_message.Message):
     __slots__ = ()
@@ -163,8 +175,8 @@ class Row15(_message.Message):
     KEY_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     key: str
-    value: Row23
-    def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Row23, _Mapping]] = ...) -> None: ...
+    value: Row24
+    def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Row24, _Mapping]] = ...) -> None: ...
 
 class Row16(_message.Message):
     __slots__ = ()
@@ -195,18 +207,58 @@ class Row22(_message.Message):
     def __init__(self) -> None: ...
 
 class Row23(_message.Message):
-    __slots__ = ("nodes",)
-    NODES_FIELD_NUMBER: _ClassVar[int]
-    nodes: _containers.RepeatedCompositeFieldContainer[Row24]
-    def __init__(self, nodes: _Optional[_Iterable[_Union[Row24, _Mapping]]] = ...) -> None: ...
+    __slots__ = ("Unspecified", "Pending", "Passed", "Failed", "Indeterminate", "Skipped")
+    UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
+    PENDING_FIELD_NUMBER: _ClassVar[int]
+    PASSED_FIELD_NUMBER: _ClassVar[int]
+    FAILED_FIELD_NUMBER: _ClassVar[int]
+    INDETERMINATE_FIELD_NUMBER: _ClassVar[int]
+    SKIPPED_FIELD_NUMBER: _ClassVar[int]
+    Unspecified: Row25
+    Pending: Row26
+    Passed: Row27
+    Failed: Row28
+    Indeterminate: Row29
+    Skipped: Row30
+    def __init__(self, Unspecified: _Optional[_Union[Row25, _Mapping]] = ..., Pending: _Optional[_Union[Row26, _Mapping]] = ..., Passed: _Optional[_Union[Row27, _Mapping]] = ..., Failed: _Optional[_Union[Row28, _Mapping]] = ..., Indeterminate: _Optional[_Union[Row29, _Mapping]] = ..., Skipped: _Optional[_Union[Row30, _Mapping]] = ...) -> None: ...
 
 class Row24(_message.Message):
-    __slots__ = ("kind",)
-    KIND_FIELD_NUMBER: _ClassVar[int]
-    kind: Row25
-    def __init__(self, kind: _Optional[_Union[Row25, _Mapping]] = ...) -> None: ...
+    __slots__ = ("nodes",)
+    NODES_FIELD_NUMBER: _ClassVar[int]
+    nodes: _containers.RepeatedCompositeFieldContainer[Row31]
+    def __init__(self, nodes: _Optional[_Iterable[_Union[Row31, _Mapping]]] = ...) -> None: ...
 
 class Row25(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row26(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row27(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row28(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row29(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row30(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row31(_message.Message):
+    __slots__ = ("kind",)
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    kind: Row32
+    def __init__(self, kind: _Optional[_Union[Row32, _Mapping]] = ...) -> None: ...
+
+class Row32(_message.Message):
     __slots__ = ("Null", "Bool", "Integer", "Unsigned", "Number", "Text", "Datetime", "Array", "Object")
     NULL_FIELD_NUMBER: _ClassVar[int]
     BOOL_FIELD_NUMBER: _ClassVar[int]
@@ -217,82 +269,82 @@ class Row25(_message.Message):
     DATETIME_FIELD_NUMBER: _ClassVar[int]
     ARRAY_FIELD_NUMBER: _ClassVar[int]
     OBJECT_FIELD_NUMBER: _ClassVar[int]
-    Null: Row26
-    Bool: Row27
-    Integer: Row28
-    Unsigned: Row29
-    Number: Row30
-    Text: Row31
-    Datetime: Row32
-    Array: Row33
-    Object: Row34
-    def __init__(self, Null: _Optional[_Union[Row26, _Mapping]] = ..., Bool: _Optional[_Union[Row27, _Mapping]] = ..., Integer: _Optional[_Union[Row28, _Mapping]] = ..., Unsigned: _Optional[_Union[Row29, _Mapping]] = ..., Number: _Optional[_Union[Row30, _Mapping]] = ..., Text: _Optional[_Union[Row31, _Mapping]] = ..., Datetime: _Optional[_Union[Row32, _Mapping]] = ..., Array: _Optional[_Union[Row33, _Mapping]] = ..., Object: _Optional[_Union[Row34, _Mapping]] = ...) -> None: ...
+    Null: Row33
+    Bool: Row34
+    Integer: Row35
+    Unsigned: Row36
+    Number: Row37
+    Text: Row38
+    Datetime: Row39
+    Array: Row40
+    Object: Row41
+    def __init__(self, Null: _Optional[_Union[Row33, _Mapping]] = ..., Bool: _Optional[_Union[Row34, _Mapping]] = ..., Integer: _Optional[_Union[Row35, _Mapping]] = ..., Unsigned: _Optional[_Union[Row36, _Mapping]] = ..., Number: _Optional[_Union[Row37, _Mapping]] = ..., Text: _Optional[_Union[Row38, _Mapping]] = ..., Datetime: _Optional[_Union[Row39, _Mapping]] = ..., Array: _Optional[_Union[Row40, _Mapping]] = ..., Object: _Optional[_Union[Row41, _Mapping]] = ...) -> None: ...
 
-class Row26(_message.Message):
+class Row33(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
-class Row27(_message.Message):
+class Row34(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
     field_0: bool
     def __init__(self, field_0: _Optional[bool] = ...) -> None: ...
 
-class Row28(_message.Message):
+class Row35(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
     field_0: int
     def __init__(self, field_0: _Optional[int] = ...) -> None: ...
 
-class Row29(_message.Message):
+class Row36(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
     field_0: int
     def __init__(self, field_0: _Optional[int] = ...) -> None: ...
 
-class Row30(_message.Message):
+class Row37(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
     field_0: float
     def __init__(self, field_0: _Optional[float] = ...) -> None: ...
 
-class Row31(_message.Message):
+class Row38(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
     field_0: str
     def __init__(self, field_0: _Optional[str] = ...) -> None: ...
 
-class Row32(_message.Message):
+class Row39(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
     field_0: Row9
     def __init__(self, field_0: _Optional[_Union[Row9, _Mapping]] = ...) -> None: ...
 
-class Row33(_message.Message):
+class Row40(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row35
-    def __init__(self, field_0: _Optional[_Union[Row35, _Mapping]] = ...) -> None: ...
+    field_0: Row42
+    def __init__(self, field_0: _Optional[_Union[Row42, _Mapping]] = ...) -> None: ...
 
-class Row34(_message.Message):
+class Row41(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row36
-    def __init__(self, field_0: _Optional[_Union[Row36, _Mapping]] = ...) -> None: ...
+    field_0: Row43
+    def __init__(self, field_0: _Optional[_Union[Row43, _Mapping]] = ...) -> None: ...
 
-class Row35(_message.Message):
+class Row42(_message.Message):
     __slots__ = ("items",)
     ITEMS_FIELD_NUMBER: _ClassVar[int]
     items: _containers.RepeatedScalarFieldContainer[int]
     def __init__(self, items: _Optional[_Iterable[int]] = ...) -> None: ...
 
-class Row36(_message.Message):
+class Row43(_message.Message):
     __slots__ = ("fields",)
     FIELDS_FIELD_NUMBER: _ClassVar[int]
-    fields: _containers.RepeatedCompositeFieldContainer[Row37]
-    def __init__(self, fields: _Optional[_Iterable[_Union[Row37, _Mapping]]] = ...) -> None: ...
+    fields: _containers.RepeatedCompositeFieldContainer[Row44]
+    def __init__(self, fields: _Optional[_Iterable[_Union[Row44, _Mapping]]] = ...) -> None: ...
 
-class Row37(_message.Message):
+class Row44(_message.Message):
     __slots__ = ("key", "value")
     KEY_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]

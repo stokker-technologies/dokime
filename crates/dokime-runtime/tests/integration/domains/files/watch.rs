@@ -77,6 +77,325 @@ fn code(error: &Error) -> &str {
 }
 
 /* === Tests === */
+
+#[tokio::test(flavor = "multi_thread")]
+async fn failed_initial_admission_never_reports_armed() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    write(&tree.path().join("one.log"), b"one\n");
+    write(&tree.path().join("two.log"), b"two\n");
+    let request = FileWatch {
+        maximum_files: Some(1),
+        ..request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    let mut events = Vec::new();
+    assert!(watch.poll(&mut events).await.is_err());
+    assert!(!events.iter().any(|event| matches!(event, WatchEvent::Armed { .. })));
+    seal(&mut watch).await;
+
+    let single = WatchFile {
+        execution_id: Some(bench.execution.clone()),
+        source: Some(FileWatchSource { payload: Some(local(&tree.path().join("one.log"))) }),
+        output: "failed".into(),
+        artifact: None,
+        policy: FileWatchPolicy::Mirror,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
+        poll_interval_ms: Some(50),
+        maximum_seconds: None,
+        maximum_bytes: Some(1),
+        matchers: Vec::new(),
+        markers: Vec::new(),
+    };
+    let instance = bench.handle.operations().submit(single).unwrap();
+    let ready = dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: instance.id().value() };
+    assert!(instance.join().await.is_err());
+    assert!(bench.handle.operations().call(ready).await.is_err(), "failed hosted setup cannot report readiness success");
+    bench.stop().await;
+}
+
+#[tokio::test]
+async fn source_wait_does_not_consume_the_capture_budget() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let absent = tree.path().join("absent");
+    let request = FileWatch {
+        maximum_seconds: Some(2),
+        wait_for_source_seconds: Some(10),
+        ..request(&bench.execution, local(&absent), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    assert!(poll(&mut watch).await.is_empty());
+    assert!(watch.remaining().is_none());
+    tokio::time::pause();
+    tokio::time::advance(std::time::Duration::from_secs(6)).await;
+    write(&absent.join("appeared.log"), b"baseline\n");
+    let armed = poll(&mut watch).await;
+    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { .. })));
+    assert_eq!(watch.remaining(), Some(std::time::Duration::from_secs(2)));
+    tokio::time::advance(std::time::Duration::from_secs(1)).await;
+    assert_eq!(watch.remaining(), Some(std::time::Duration::from_secs(1)));
+    tokio::time::resume();
+    seal(&mut watch).await;
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn empty_baseline_arms_before_the_producer() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let request = FileWatch {
+        wait_for_source_seconds: Some(30),
+        ..request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    let first = poll(&mut watch).await;
+    assert!(matches!(first.as_slice(), [WatchEvent::Armed { baseline }] if baseline.is_empty()));
+
+    write(&tree.path().join("device.log"), b"first reading\n");
+    let captured = seal(&mut watch).await;
+    assert_artifact(&sealed(&captured)["device.log"], "device.log", b"first reading\n");
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn latest_selects_by_mtime_then_path_and_follows_rotation() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    for (path, seconds) in [("old.log", 1), ("a.log", 2), ("b.log", 2)] {
+        let path = tree.path().join(path);
+        write(&path, b"baseline\n");
+        let file = std::fs::File::options().write(true).open(path).unwrap();
+        file.set_modified(SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(seconds)).unwrap();
+    }
+    let request = FileWatch {
+        selection: model::files::wire::FileWatchSelection::Latest,
+        ..request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    let first = poll(&mut watch).await;
+    assert_eq!(phases(&first, Phase::Baseline), [("a.log".to_owned(), 0)]);
+    append(&tree.path().join("a.log"), b"one\n");
+    poll(&mut watch).await;
+    write(&tree.path().join("later.log"), b"do not switch\n");
+    std::fs::rename(tree.path().join("a.log"), tree.path().join("a.rotated")).unwrap();
+    write(&tree.path().join("a.log"), b"two\n");
+    let rotation = poll(&mut watch).await;
+    assert_artifact(&sealed(&rotation)["a.log"], "a.log", b"one\n");
+    let final_pass = seal(&mut watch).await;
+    assert_artifact(&sealed(&final_pass)["a.log"], "a.segment2.log", b"two\n");
+    assert_eq!(watch.sealed().len(), 2);
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn new_ignores_baseline_and_captures_first_discoveries_from_zero() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    write(&tree.path().join("existing.log"), b"before\n");
+    let request = FileWatch {
+        selection: model::files::wire::FileWatchSelection::New,
+        ..request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    let first = poll(&mut watch).await;
+    assert!(matches!(first.as_slice(), [WatchEvent::Armed { baseline }] if baseline == &["existing.log"]));
+    append(&tree.path().join("existing.log"), b"ignored\n");
+    write(&tree.path().join("new.log"), b"capture from zero\n");
+    let final_pass = seal(&mut watch).await;
+    let artifacts = sealed(&final_pass);
+    assert_eq!(artifacts.len(), 1);
+    assert_artifact(&artifacts["new.log"], "new.log", b"capture from zero\n");
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn new_with_empty_accessible_root_arms_despite_opt_in_source_wait() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let request = FileWatch {
+        selection: model::files::wire::FileWatchSelection::New,
+        wait_for_source_seconds: Some(30),
+        ..request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    let armed = poll(&mut watch).await;
+    assert!(matches!(armed.as_slice(), [WatchEvent::Armed { baseline }] if baseline.is_empty()));
+    write(&tree.path().join("new.log"), b"first bytes\n");
+    let final_pass = seal(&mut watch).await;
+    assert_artifact(&sealed(&final_pass)["new.log"], "new.log", b"first bytes\n");
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn latest_empty_baseline_is_fixed_unless_wait_was_requested() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let request = FileWatch {
+        selection: model::files::wire::FileWatchSelection::Latest,
+        ..request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut empty = bench.handle.open_file_watch(&request, None).await.unwrap();
+    let armed = poll(&mut empty).await;
+    assert!(matches!(armed.as_slice(), [WatchEvent::Armed { baseline }] if baseline.is_empty()));
+    let mut waiting = bench.handle.open_file_watch(&FileWatch { wait_for_source_seconds: Some(30), ..request }, None).await.unwrap();
+    assert!(poll(&mut waiting).await.is_empty());
+    write(&tree.path().join("appeared.log"), b"baseline\n");
+    let armed = poll(&mut waiting).await;
+    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { baseline } if baseline == &["appeared.log"])));
+    append(&tree.path().join("appeared.log"), b"after armed\n");
+    seal(&mut empty).await;
+    assert!(empty.sealed().is_empty(), "Latest does not switch from its empty baseline to a later arrival");
+    let final_pass = seal(&mut waiting).await;
+    assert_artifact(&sealed(&final_pass)["appeared.log"], "appeared.log", b"after armed\n");
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn vanished_paths_release_slots_before_new_paths_are_admitted() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    write(&tree.path().join("before.log"), b"baseline\n");
+    let request = FileWatch {
+        maximum_files: Some(1),
+        ..request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    poll(&mut watch).await;
+    append(&tree.path().join("before.log"), b"before\n");
+    poll(&mut watch).await;
+    std::fs::remove_file(tree.path().join("before.log")).unwrap();
+    write(&tree.path().join("after.log"), b"after\n");
+    let pass = poll(&mut watch).await;
+    assert_artifact(&sealed(&pass)["before.log"], "before.log", b"before\n");
+    let final_pass = seal(&mut watch).await;
+    assert_artifact(&sealed(&final_pass)["after.log"], "after.log", b"after\n");
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn single_file_retains_renamed_and_copy_truncated_segments_with_one_slot() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let log = tree.path().join("device.log");
+    write(&log, b"before\n");
+    let request = WatchFile {
+        execution_id: Some(bench.execution.clone()),
+        source: Some(FileWatchSource { payload: Some(local(&log)) }),
+        output: OUTPUT.to_owned(),
+        artifact: Some(format!("{OUTPUT}/named.log")),
+        policy: FileWatchPolicy::Stream,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
+        poll_interval_ms: Some(50),
+        maximum_seconds: None,
+        maximum_bytes: None,
+        matchers: Vec::new(),
+        markers: Vec::new(),
+    };
+    let mut watch = bench.handle.open_watch_file(&request, None).await.unwrap();
+    poll(&mut watch).await;
+    append(&log, b"one\n");
+    poll(&mut watch).await;
+    for segment in 2..=4 {
+        std::fs::rename(&log, tree.path().join(format!("rotated-{segment}"))).unwrap();
+        write(&log, format!("segment {segment}\n").as_bytes());
+        poll(&mut watch).await;
+    }
+    write(&log, b"x\n");
+    let truncated = poll(&mut watch).await;
+    assert!(gaps(&truncated).iter().any(|(_, _, reason)| *reason == GapReason::Truncated));
+    seal(&mut watch).await;
+    let artifacts = watch.sealed();
+    assert_eq!(artifacts.len(), 5);
+    let names = artifacts.iter().map(|record| record.filename.as_str()).collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(names.len(), 5);
+    for (index, record) in artifacts.iter().enumerate() {
+        let bytes = bench.handle.read_artifact_content(&record.artifact_id, 100).await.unwrap().unwrap().bytes;
+        let expected = match index {
+            0 => b"one\n".to_vec(),
+            4 => b"x\n".to_vec(),
+            _ => format!("segment {}\n", index + 1).into_bytes(),
+        };
+        assert_eq!(bytes, expected);
+    }
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn missing_source_waits_only_when_requested_and_can_seal_before_arming() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let absent = tree.path().join("absent");
+    let base = request(&bench.execution, local(&absent), vec![include("*.log")], FileWatchPolicy::Stream);
+    assert!(bench.handle.open_file_watch(&base, None).await.is_err());
+    let request = FileWatch { wait_for_source_seconds: Some(30), ..base };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    assert!(poll(&mut watch).await.is_empty());
+    assert!(seal(&mut watch).await.is_empty());
+    assert!(watch.is_complete());
+
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    assert!(poll(&mut watch).await.is_empty());
+    write(&absent.join("appeared.log"), b"baseline\n");
+    let armed = poll(&mut watch).await;
+    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { baseline } if baseline == &["appeared.log"])));
+    append(&absent.join("appeared.log"), b"captured\n");
+    let final_pass = seal(&mut watch).await;
+    assert_artifact(&sealed(&final_pass)["appeared.log"], "appeared.log", b"captured\n");
+    bench.stop().await;
+}
+
+#[tokio::test]
+async fn late_source_cannot_arm_after_the_wait_deadline() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let absent = tree.path().join("absent");
+    let request = FileWatch {
+        wait_for_source_seconds: Some(1),
+        ..request(&bench.execution, local(&absent), vec![include("*.log")], FileWatchPolicy::Stream)
+    };
+    let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+    assert!(poll(&mut watch).await.is_empty());
+    tokio::time::pause();
+    tokio::time::advance(std::time::Duration::from_secs(2)).await;
+    write(&absent.join("late.log"), b"too late\n");
+    let mut events = Vec::new();
+    let error = watch.poll(&mut events).await.unwrap_err();
+    assert!(error.to_string().contains("deadline"));
+    assert!(events.is_empty());
+    seal(&mut watch).await;
+    tokio::time::resume();
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancelled_wait_reports_failure_to_readiness_waiters() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let request = WatchFile {
+        execution_id: Some(bench.execution.clone()),
+        source: Some(FileWatchSource { payload: Some(local(&tree.path().join("missing/device.log"))) }),
+        output: OUTPUT.to_owned(),
+        artifact: None,
+        policy: FileWatchPolicy::Stream,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: Some(30),
+        poll_interval_ms: Some(50),
+        maximum_seconds: None,
+        maximum_bytes: None,
+        matchers: Vec::new(),
+        markers: Vec::new(),
+    };
+    let watch = bench.handle.operations().submit(request).unwrap();
+    let ready = dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() };
+    watch.cancel();
+    assert!(watch.join().await.is_err());
+    let result = tokio::time::timeout(std::time::Duration::from_secs(2), bench.handle.operations().call(ready)).await;
+    assert!(result.expect("readiness settles after cancellation").is_err());
+    bench.stop().await;
+}
 // Stream captures only bytes written after the start, follows rotation and
 // truncation with gaps, picks up new files, and seals vanished ones.
 #[tokio::test(flavor = "multi_thread")]
@@ -138,12 +457,12 @@ async fn stream_local_tree() {
     let last = seal(&mut watch).await;
     let sealed = sealed(&last);
     assert_eq!(sealed.len(), 2);
-    assert_artifact(&sealed["logs/charger.log"], "logs/charger.log", b"rotated\ntail\n");
-    assert_artifact(&sealed["logs/bench/inverter.log"], "logs/bench/inverter.log", b"born\nx\n");
+    assert_artifact(&sealed["logs/charger.log"], "logs/charger.segment2.log", b"rotated\ntail\n");
+    assert_artifact(&sealed["logs/bench/inverter.log"], "logs/bench/inverter.segment2.log", b"x\n");
     assert_eq!(sealed["logs/charger.log"].content_type.as_deref(), Some("text/plain"));
     assert_eq!(sealed["logs/charger.log"].scope.test_execution_id.as_ref().map(ToString::to_string), Some(bench.execution.clone()));
     assert!(watch.is_complete());
-    assert_eq!(watch.sealed().len(), 4);
+    assert_eq!(watch.sealed().len(), 5);
     assert!(seal(&mut watch).await.is_empty(), "sealing is idempotent");
 
     drop(watch);
@@ -177,13 +496,14 @@ async fn mirror_local_tree() {
     let changed = poll(&mut watch).await;
     assert_eq!(phases(&changed, Phase::Synced), vec![("report.csv".to_owned(), 8), ("runs/second.csv".to_owned(), 2)]);
 
-    // A Shrunk Source Is Mirrored Whole, Without A Gap
+    // A Shrunk Source Retains Its Previous Segment Before Mirroring A Fresh One
     write(&report, b"a\n");
     let shrunk = poll(&mut watch).await;
-    assert!(gaps(&shrunk).is_empty());
+    assert_eq!(gaps(&shrunk), [("report.csv".to_owned(), 8, GapReason::Truncated)]);
+    assert_artifact(&sealed(&shrunk)["report.csv"], "report.csv", b"a,b\n3,4\n");
 
     let sealed = sealed(&seal(&mut watch).await);
-    assert_artifact(&sealed["report.csv"], "report.csv", b"a\n");
+    assert_artifact(&sealed["report.csv"], "report.segment2.csv", b"a\n");
     assert_artifact(&sealed["runs/second.csv"], "runs/second.csv", b"x\n");
 
     drop(watch);
@@ -214,7 +534,7 @@ async fn snapshot_local_tree() {
         .open_file_watch(&request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::SnapshotAtStop), None)
         .await
         .unwrap();
-    assert!(poll(&mut stop).await.is_empty());
+    assert!(matches!(poll(&mut stop).await.as_slice(), [WatchEvent::Armed { .. }]));
     append(&log, b"end\n");
     write(&tree.path().join("late.log"), b"late\n");
     assert!(poll(&mut stop).await.is_empty());
@@ -313,10 +633,12 @@ async fn mirror_keeps_last() {
     write(&report, b"version two, longer\n");
     std::fs::set_permissions(&report, std::fs::Permissions::from_mode(0o000)).unwrap();
     let unreadable = std::fs::File::open(&report).is_err();
-    let refetch = poll(&mut watch).await;
+    let mut refetch = Vec::new();
+    let result = watch.poll(&mut refetch).await;
     let sealed = sealed(&seal(&mut watch).await);
     std::fs::set_permissions(&report, std::fs::Permissions::from_mode(0o644)).unwrap();
     if unreadable {
+        assert!(result.is_err(), "permission errors fail immediately");
         assert!(phases(&refetch, Phase::Synced).is_empty());
         assert_artifact(&sealed["report.csv"], "report.csv", b"v1\n");
     } else {
@@ -383,6 +705,8 @@ async fn watch_file_matchers() {
         output: OUTPUT.to_owned(),
         artifact: Some(format!("{OUTPUT}/device.log")),
         policy: FileWatchPolicy::Stream,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: Some(50),
         maximum_seconds: Some(2),
         maximum_bytes: None,
@@ -400,8 +724,12 @@ async fn watch_file_matchers() {
     let watch = bench.handle.operations().submit(request).unwrap();
 
     // Lines Written After The Start Are Captured And Matched
-    // TODO(source-hook): the WatchFile operation signals no readiness once it tails the file; this sleep stands in for it.
-    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    bench
+        .handle
+        .operations()
+        .call(dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() })
+        .await
+        .unwrap();
     append(&log, APPENDED);
     let outcome = watch.join().await.unwrap().into_owned();
     assert_eq!(outcome.artifacts, vec![WatchedArtifact { artifact: format!("{OUTPUT}/device.log"), size_bytes: APPENDED.len() as u64 }]);

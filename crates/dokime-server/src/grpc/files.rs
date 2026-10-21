@@ -17,7 +17,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 // Third Party Imports
 use harmos::{
@@ -82,7 +82,6 @@ impl Operation for FileWatch {
         let scoped = context.context().value::<dokime_runtime::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
         let watch = self.resources.runtime.open_file_watch(request, scoped.as_deref()).await.map_err(failure)?;
         let watch = self.watch.insert(watch);
-        let started = Instant::now();
 
         // Poll Until Complete, Bounded, Or Sealed By The Execution;
         // Cancellation Seals Through `stop`
@@ -102,7 +101,7 @@ impl Operation for FileWatch {
             if watch.is_complete() {
                 break;
             }
-            let remaining = watch.deadline().map(|deadline| deadline.saturating_sub(started.elapsed()));
+            let remaining = watch.remaining();
             if remaining.is_some_and(|remaining| remaining.is_zero()) {
                 break;
             }
@@ -162,26 +161,31 @@ async fn send_events(
 }
 
 fn frame(event: WatchEvent) -> Result<dokime_domain::model::files::wire::FileWatchFrame, Status> {
-    let payload =
-        match event {
-            WatchEvent::Progress { path, offset, phase } => {
-                dokime_domain::model::files::wire::FileWatchFramePayload::Progress(dokime_domain::model::files::wire::FileWatchProgress {
-                    path,
-                    offset,
-                    phase,
-                })
-            }
-            WatchEvent::Gap { path, offset, reason } => {
-                dokime_domain::model::files::wire::FileWatchFramePayload::Gap(dokime_domain::model::files::wire::FileWatchGap {
-                    path,
-                    offset,
-                    reason,
-                })
-            }
-            WatchEvent::Sealed { path, record } => dokime_domain::model::files::wire::FileWatchFramePayload::Sealed(Box::new(
-                dokime_domain::model::files::wire::FileWatchSealed { path, artifact: Some(metadata(&record)?) },
-            )),
-        };
+    let payload = match event {
+        WatchEvent::Armed { baseline } => {
+            dokime_domain::model::files::wire::FileWatchFramePayload::Armed(dokime_domain::model::files::wire::FileWatchArmed { baseline })
+        }
+        WatchEvent::Progress { path, offset, phase } => {
+            dokime_domain::model::files::wire::FileWatchFramePayload::Progress(dokime_domain::model::files::wire::FileWatchProgress {
+                path,
+                offset,
+                phase,
+            })
+        }
+        WatchEvent::Gap { path, offset, reason } => {
+            dokime_domain::model::files::wire::FileWatchFramePayload::Gap(dokime_domain::model::files::wire::FileWatchGap {
+                path,
+                offset,
+                reason,
+            })
+        }
+        WatchEvent::Sealed { path, record } => {
+            dokime_domain::model::files::wire::FileWatchFramePayload::Sealed(Box::new(dokime_domain::model::files::wire::FileWatchSealed {
+                path,
+                artifact: Some(metadata(&record)?),
+            }))
+        }
+    };
     Ok(dokime_domain::model::files::wire::FileWatchFrame { payload: Some(payload) })
 }
 

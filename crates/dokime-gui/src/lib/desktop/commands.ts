@@ -22,7 +22,7 @@ import type { StagePluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
 import type { BrandingStatus } from "./branding";
 import type { BackendProfiles } from "./connection";
-import type { ArtifactDeliveryRequest, ArtifactSource, DesktopSaveDocument } from "./delivery";
+import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
 import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
 import type { ParameterOverrides } from "./settings";
@@ -68,9 +68,6 @@ export const commands = {
   /** Save a verified document through the native file picker: the saved path, `null` when the operator cancels. */
   desktopSaveDocument: (generation: string, document: DesktopSaveDocument) =>
     invoke<string | null>("desktop_save_document", { generation, document }),
-  /** Open a verified document from the private native cache. */
-  desktopOpenDocument: (generation: string, document: DesktopSaveDocument) =>
-    invoke<null>("desktop_open_document", { generation, document }),
   /**
    * Write a verified diagnostics bundle into the operator's Downloads folder;
    * resolves with the saved path. The `document` kind must be
@@ -80,7 +77,7 @@ export const commands = {
     invoke<string>("desktop_save_diagnostics_bundle", { generation, document }),
   /** Stream one verified artifact, execution output or sealed evidence bundle to a native destination. */
   desktopArtifactDeliver: (generation: string, request: ArtifactDeliveryRequest) =>
-    invoke<boolean>("desktop_artifact_deliver", { generation, request }),
+    invoke<Delivered | null>("desktop_artifact_deliver", { generation, request }),
   /** Materialize one verified artifact in the private media cache; returns its preview URL path. */
   desktopMediaPrepare: (generation: string, source: ArtifactSource) => invoke<string>("desktop_media_prepare", { generation, source }),
   /** Release one generation's media cache. */

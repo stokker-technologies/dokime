@@ -424,20 +424,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         .await
         .unwrap()
         .steps;
-    let mut criteria = Vec::new();
-    for step in steps {
-        criteria.extend(
-            execution
-                .execution_list_step_criteria(contracts::execution::ListStepCriteria {
-                    execution_id: execution_id.clone(),
-                    step_id: step.step_id,
-                    ..Default::default()
-                })
-                .await
-                .unwrap()
-                .criteria,
-        );
-    }
+    let criteria = steps.into_iter().flat_map(|step| step.criteria).collect::<Vec<_>>();
     let acceptance = criteria
         .iter()
         .find(|criterion| criterion.metadata.as_ref().is_some_and(|metadata| metadata.identifier == STEADY_ACCEPTANCE))

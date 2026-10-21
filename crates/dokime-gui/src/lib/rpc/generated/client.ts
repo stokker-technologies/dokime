@@ -140,9 +140,6 @@ export const executionListExecutionSteps = (session: SessionIdentity, request: P
 import { Row1Schema as executionListExecutionsRequest } from "@generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb.js";
 import { Row2Schema as executionListExecutionsResponse } from "@generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb.js";
 export const executionListExecutions = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionListExecutionsRequest, typeof executionListExecutionsResponse>>[4]) => unary("/dokime.v1.Execution/ListExecutions", executionListExecutionsRequest, executionListExecutionsResponse, session, request, 10000);
-import { Row1Schema as executionListStepCriteriaRequest } from "@generated/dokime/v1/ExecutionMessages/ListStepCriteria/messages_pb.js";
-import { Row2Schema as executionListStepCriteriaResponse } from "@generated/dokime/v1/ExecutionMessages/ListStepCriteria/messages_pb.js";
-export const executionListStepCriteria = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionListStepCriteriaRequest, typeof executionListStepCriteriaResponse>>[4]) => unary("/dokime.v1.Execution/ListStepCriteria", executionListStepCriteriaRequest, executionListStepCriteriaResponse, session, request, 10000);
 import { Row1Schema as executionPauseCycleRequest } from "@generated/dokime/v1/ExecutionMessages/PauseCycle/messages_pb.js";
 import { Row2Schema as executionPauseCycleResponse } from "@generated/dokime/v1/ExecutionMessages/PauseCycle/messages_pb.js";
 export const executionPauseCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionPauseCycleRequest, typeof executionPauseCycleResponse>>[4]) => unary("/dokime.v1.Execution/PauseCycle", executionPauseCycleRequest, executionPauseCycleResponse, session, request, 10000);

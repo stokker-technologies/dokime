@@ -291,6 +291,7 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
         // The host's step built-in every template reaches through
         // `ctx.host()` without listing it.
         hosted.push(syn::parse_quote!(#sdk::operations::files::WatchFile));
+        hosted.push(syn::parse_quote!(#sdk::operations::files::AwaitFileWatchArmed));
     }
     if contributed.records {
         hosted.push(syn::parse_quote!(#sdk::records::RecordPublication));

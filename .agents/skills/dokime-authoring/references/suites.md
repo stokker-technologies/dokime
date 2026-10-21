@@ -27,7 +27,7 @@ let exit = ctx
 
 let watch = ctx
     .host()
-    .submit_as::<WatchFile>(WatchFile {
+    .submit(WatchFile {
         execution_id: None,
         source: Some(FileWatchSource {
             payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: log })),
@@ -35,6 +35,8 @@ let watch = ctx
         output: "device".into(),
         artifact: Some("device/charger.log".into()),
         policy: FileWatchPolicy::Stream,
+        selection: FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: Some(100),
         maximum_seconds: Some(30),
         maximum_bytes: None,
@@ -44,9 +46,16 @@ let watch = ctx
         markers: vec![LineMarker::new(r"FAULT (?P<code>\w+)", Fault::RECORD_TYPE)],
     })
     .await?;
+let baseline = watch.armed().await?; // Established even when baseline.baseline is empty.
 // … the work the log describes …
 let captured = watch.join().await?.into_owned(); // WatchFileOutcome { artifacts, gaps }
 ```
+
+Await `watch.armed()` before starting a producer; `submit` confirms admission and keeps its ordinary semantics. The streaming `FileWatch` API emits `Armed { baseline }` after successful initial setup has established the baseline, including an empty list. `maximum_seconds` starts at arming, independently of the source wait deadline. `selection` is independent of capture policy: `All` is the default; `Latest` chooses the baseline file with greatest modification time, breaking ties by ascending relative path, and follows that path through rotation without switching to later arrivals; `New` ignores baseline paths and captures files first discovered afterward from byte zero. Replacements retain distinct artifacts such as `device.segment2.log`, preserving the original extension; file limits count simultaneous tracked files, while byte limits include retained segments.
+
+Set `wait_for_source_seconds: Some(30)` to wait for an absent local root or file, or an absent matching FTP file beneath an accessible FTP root. Waiting ends at its deadline or cancellation. Strict missing-source errors remain the default; permission and invalid-path errors fail immediately. FTP directory reply 550 cannot distinguish absence from denied access, so an unavailable FTP root fails immediately with the required setup action. A refused FTP REST resume emits a `ResumeUnsupported` gap: extraction with matchers or markers fails and seals captured evidence; an artifact-only watch explicitly falls back to whole-file mirroring. The harness supports the same readiness and local capture semantics; FTP requires a hosted runtime.
+
+An accessible directory with `All` or `New` arms immediately, even when empty and source waiting was enabled. `Latest` without waiting can arm with an empty baseline: that watch selects no file and never switches to later arrivals. Opt-in waiting delays `Latest` arming until its first nonempty baseline. The single-file operation waits for its named file. Detected copy truncation also seals a retained segment before restarting at byte zero. FTP listings have no stable file identity: a same-size overwrite or a replacement that grows between polls cannot reliably be distinguished from append; this is no real-device compatibility guarantee.
 
 - Anything a step leaves running is cancelled when the step ends: a handle dropped unsettled cancels its instance at once, and a detached instance, or one still held past its step, is cancelled by the step-end sweep with a `test.step.handle_cancelled { step, kind, name }` warning, `kind` being `process`, `watch` or `operation`.
 - Two compile-time checks stand behind `requires = Required`. A `ctx.call` on an operation the template did not list is refused on the line the call is written. And serving a suite asserts, for every template, that each required operation is either named in the plugin's `requires(...)` or provided by the plugin itself with Private visibility, so an operation the plugin cannot reach is refused at build time rather than at run time.

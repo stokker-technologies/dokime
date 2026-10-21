@@ -176,7 +176,7 @@ async fn schemas_exact_pages() {
     assert_eq!(
         client
             .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(contracts::catalog::ListTelemetrySchemas {
-                limit: 101,
+                limit: dokime_domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1,
                 ..Default::default()
             }))
             .await

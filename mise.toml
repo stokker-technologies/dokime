@@ -34,6 +34,7 @@ taplo = "0.10.0"
 
 # Protocols And Code Generation
 protoc = "36.2"
+"npm:@fission-ai/openspec" = "1.14.3"
 
 # Release And Signing
 gh = "2.102.0"
@@ -47,7 +48,6 @@ minisign = "0.12"
 # === Environment === #
 
 [env]
-UV_PROJECT_ENVIRONMENT = "{{config_root}}/.venv"
 PYTHONDONTWRITEBYTECODE = "1"
 
 # === Variables === #

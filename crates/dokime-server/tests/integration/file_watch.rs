@@ -74,6 +74,8 @@ async fn file_watch_artifacts() {
         rules: vec![FileRule { glob: "**/*.log".into(), action: FileRuleAction::Include }],
         output: output.to_owned(),
         policy: FileWatchPolicy::Stream,
+        selection: dokime_domain::model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: Some(50),
         maximum_seconds,
         maximum_files: None,
@@ -84,8 +86,24 @@ async fn file_watch_artifacts() {
     let unscoped = watch(&client, FileWatch { execution_id: None, ..request("capture", Some(1)) }).await.unwrap_err();
     assert_eq!(unscoped.code(), Code::InvalidArgument, "{unscoped:?}");
 
+    // Refused Initial Admission Must Not Advertise Armed Readiness
+    let extra = tree.path().join("logs/second.log");
+    std::fs::write(&extra, b"second\n").unwrap();
+    let mut refused = watch(&client, FileWatch { maximum_files: Some(1), ..request("refused", Some(1)) }).await.unwrap();
+    let failure = loop {
+        match refused.message().await {
+            Ok(Some(frame)) => assert!(!matches!(frame.payload, Some(FileWatchFramePayload::Armed(_)))),
+            Err(error) => break error,
+            Ok(None) => panic!("initial admission unexpectedly succeeded"),
+        }
+    };
+    assert_eq!(failure.code(), Code::ResourceExhausted);
+    std::fs::remove_file(extra).unwrap();
+
     // A Bounded Watch Reports Progress, Seals, Then Completes
     let mut frames = watch(&client, request("capture", Some(2))).await.unwrap();
+    let armed = next(&mut frames).await;
+    assert!(matches!(armed.payload, Some(FileWatchFramePayload::Armed(ref ready)) if ready.baseline == ["logs/charger.log"]));
     let baseline = next(&mut frames).await;
     assert!(
         matches!(
