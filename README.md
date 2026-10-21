@@ -980,7 +980,8 @@ mise run package:python --profile dev
 ```
 
 `build:tests --profile dev` separately compiles the shared test archive and
-test fixtures, requiring the matching Product outputs first. Use `release`
+test fixtures and runs the macro compile contracts in the build tree,
+requiring the matching Product outputs first. Use `release`
 instead for release-profile test preparation. Test lanes consume that archive,
 its fixtures and, for acceptance and system lanes, the whole matching Product
 export; Product Build does not compile the
@@ -1032,7 +1033,7 @@ commit, publishes Rust crates and fast-forwards protected `main`. The tag
 pipeline publishes the signed packages and Python client, then verifies native
 installation. Release notes come from Conventional Commits at tag time.
 Generated TypeScript messages live under `target/generated/typescript/`.
-`test` runs the layers in order, each with its own task:
+`test` composes the layers as dependencies, each with its own task:
 
 | Task | Layer |
 | --- | --- |
@@ -1045,7 +1046,7 @@ Generated TypeScript messages live under `target/generated/typescript/`.
 The desktop walkthrough drives the built shell through WebKitWebDriver on Linux
 and needs a display. `mise run ci --event pr` simulates the rendered provider
 graph from committed source with cold dependency homes;
-`mise run ci:nightly` adds coverage and benches.
+`mise run ci:nightly` adds `test:coverage` and benches.
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
