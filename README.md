@@ -11,7 +11,7 @@
 [![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
 [![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
 [![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases/latest)
-[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE-APACHE)
+[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE)
 
 **Run repeatable engineering tests. Keep the evidence.**
 

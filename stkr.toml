@@ -198,7 +198,7 @@ profiles = ["dev", "release"]
 targets = ["any"]
 release = true
 inputs = [
-  { path = "target/build/{profile}/{target}/python/examples/remote/LICENSE-APACHE", destination = "remote/LICENSE-APACHE" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/LICENSE", destination = "remote/LICENSE" },
   { path = "target/build/{profile}/{target}/python/examples/remote/.env.example", destination = "remote/.env.example" },
   { path = "target/build/{profile}/{target}/python/examples/remote/README.md", destination = "remote/README.md" },
   { path = "target/build/{profile}/{target}/python/examples/remote/cli/README.md", destination = "remote/cli/README.md" },
