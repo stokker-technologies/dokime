@@ -23,7 +23,7 @@ use serde::Serialize;
 
 /* === Constants === */
 
-pub const MAX_PAGE_ITEMS: u32 = 100;
+pub const MAX_PAGE_ITEMS: u32 = 500;
 pub const DEFAULT_PAGE_ITEMS: u32 = 50;
 pub const MAX_AFTER_BYTES: usize = 4096;
 
@@ -57,7 +57,7 @@ pub enum Error {
     #[error("text exceeds 4096 bytes")]
     AfterTooLarge,
 
-    #[error("page limit exceeds 100")]
+    #[error("page limit exceeds 500")]
     Limit,
 
     #[error("subsequent page requires cursor")]

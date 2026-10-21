@@ -136,7 +136,7 @@ async fn step_pages_selections() {
     }
     evidence.step_id = "missing".into();
     assert_eq!(client.unary::<contracts::execution::ListStepCriteria>(authenticated(evidence)).await.unwrap_err().code(), Code::NotFound);
-    request.limit = 101;
+    request.limit = dokime_domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1;
     assert_eq!(
         client.unary::<contracts::execution::ListExecutionSteps>(authenticated(request.clone())).await.unwrap_err().code(),
         Code::InvalidArgument
