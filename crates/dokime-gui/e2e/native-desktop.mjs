@@ -345,6 +345,27 @@ function assertPromptHovers(labels) {
   );
 }
 
+function histogramPresentation() {
+  const plot = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"]');
+  if (!plot) return null;
+  const bins = [...plot.querySelectorAll("button[aria-label]")].map((button) => button.getAttribute("aria-label"));
+  return bins.length ? { bins, text: plot.innerText } : null;
+}
+
+function assertHistogram(presentation) {
+  assert.ok(presentation, "The voltage distribution must render bins");
+  assert.match(presentation.text, /Count/);
+  assert.match(presentation.text, /[1-9]\d* samples/);
+  assert.ok(
+    presentation.bins.every((label) => /V.* to .*V.*: \d+$/.test(label)),
+    "Histogram bins must name voltage ranges and counts",
+  );
+  assert.ok(
+    presentation.bins.some((label) => /: [1-9]\d*$/.test(label)),
+    "At least one histogram bin must contain samples",
+  );
+}
+
 async function checkStatusBounds(session) {
   const badges = await session.execute(`
     return [...document.querySelectorAll('main [data-slot=badge]')]
@@ -1970,6 +1991,7 @@ async function cycleJourney(session, cycleId) {
   assert.match(rerunOutcome, /\bPassed\b/, "Closing plot settings must leave the prompting re-run able to pass");
   const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
   assertPromptHovers(promptHovers);
+  assertHistogram(await until("live voltage histogram", () => session.execute(`return (${histogramPresentation.toString()})();`)));
   const statisticsHeaders = await until(
     "the native trace statistics headers",
     () =>
@@ -2873,6 +2895,16 @@ async function reportJourney(session, cycleId) {
       result.textContent = JSON.stringify(rows);
       document.body.append(result);
     }, 50);
+    const histogram = setInterval(() => {
+      const presentation = (${histogramPresentation.toString()})();
+      if (!presentation) return;
+      clearInterval(histogram);
+      const result = document.createElement('pre');
+      result.id = 'histogram-proof';
+      result.hidden = true;
+      result.textContent = JSON.stringify(presentation);
+      document.body.append(result);
+    }, 50);
   </script>`;
   const server = http.createServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -2933,12 +2965,14 @@ async function reportJourney(session, cycleId) {
         socket.addEventListener("message", receive);
         socket.send(JSON.stringify({ id, method: "Runtime.evaluate", params: { expression, returnByValue: true } }));
       });
-    await until("frozen report prompt hover proof", () => evaluate("Boolean(document.getElementById('prompt-hover-proof'))"), 60000).catch(
-      async (error) => {
-        await writeFile(join(evidence, "failure-report-rendered.html"), await evaluate("document.documentElement.outerHTML"));
-        throw error;
-      },
-    );
+    await until(
+      "frozen report mounted evidence",
+      () => evaluate("['prompt-hover-proof', 'parameter-geometry-proof', 'histogram-proof'].every(id => document.getElementById(id))"),
+      60000,
+    ).catch(async (error) => {
+      await writeFile(join(evidence, "failure-report-rendered.html"), await evaluate("document.documentElement.outerHTML"));
+      throw error;
+    });
     dom = await evaluate("document.documentElement.outerHTML");
     reportButtons = await evaluate(`
       [...document.querySelectorAll('button')].map(button => ({
@@ -2958,6 +2992,9 @@ async function reportJourney(session, cycleId) {
   const hovers = dom.match(/<pre id="prompt-hover-proof"[^>]*>([^<]+)<\/pre>/);
   assert.ok(hovers, "The frozen report must mount its prompt markers");
   assertPromptHovers(JSON.parse(hovers[1]));
+  const histogram = dom.match(/<pre id="histogram-proof"[^>]*>([^<]+)<\/pre>/);
+  assert.ok(histogram, "The frozen report must mount its histogram");
+  assertHistogram(JSON.parse(histogram[1]));
   assert.ok(hasText(report, "Frozen Report"), "The report's page bar must name what the file is");
   assert.ok(/Frozen Report .{0,3} Generated/.test(normalize(report)), "The report must state when it was generated");
   /* Step names may say "Start", so the controls are read off the buttons; the

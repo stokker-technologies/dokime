@@ -39,9 +39,9 @@
 - [x] 22. Verify initial plot acknowledgement/keepalive, concurrency and waiting state. Proof: `grpc::plots::tests::keepalive_ordering`, `pending_frame_names_the_plot`; `plots::sealed_window_all`, `plot_points_admission`, `batched_stream_queries`; `plots/nominal.test.ts / Waiting For Data`.
 - [x] 23. Show finalization immediately and preserve subsecond duration values. Proof: `cycle/nominal.test.ts / Execution Controls`; `execution/nominal.test.ts / Duration Formatting, Step Durations`; `domains::execution::storage::execution_save_sealing`.
 - [x] 24. Remove continue-after-failure, share viewer settings and prevent duplicate continuation. Proof: `continuation_is_frozen_before_later_appends`, `continuation_after_failure`, `continuation_ignores_failures`, `continuation_follows_seal`; `report_digest_is_stable`; `cycle/nominal.test.ts / Settings Dialogs`.
-- [ ] 25. Harmonize suite/template labels.
-- [ ] 26. Verify active-cycle picker and shell destination behavior.
-- [ ] 27. Repair live histograms with report parity.
+- [x] 25. Harmonize suite/template labels. Proof: `native-desktop.mjs / library, cycle, report` (authored suite/template labels through planning, execution and frozen evidence).
+- [x] 26. Verify active-cycle picker and shell destination behavior. Proof: `native-desktop.mjs / active-cycle`; `cycle/nominal.test.ts / Active Containers Persist`.
+- [x] 27. Repair live histograms with report parity. Proof: `native-desktop.mjs / cycle, report` (voltage bin ranges, counts and samples); `plots/nominal.test.ts / Histogram Axes`; `distribution_query_budget`; `grpc::plots::tests::histogram_definition_declared`.
 - [ ] 28. Show centered diagnostics in an erroring plot overlay.
 - [ ] 29. Harmonize progress row styling.
 - [ ] 30. Preserve FIFO prompts as self-contained cards.
