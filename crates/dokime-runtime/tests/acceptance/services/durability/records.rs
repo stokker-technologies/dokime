@@ -134,7 +134,8 @@ async fn record_position_writer(root: PathBuf) {
     runtime.storage().flush().await.unwrap();
     runtime.start_next_execution(cycle, CommandContext::default()).await;
     executor.wait_until_entered().await;
-    // The Shared Manager Saves Facts And Logical Recovery Before The Kill.
+    // Facts And Logical Recovery Are Saved Before The Kill; Batched Durability Defers Recovery To Its Own Flush.
+    runtime.storage().flush_recovery().await.unwrap();
     let temporary = root.join("saved-records.tmp");
     std::fs::write(&temporary, serde_json::to_vec(&old).unwrap()).unwrap();
     std::fs::rename(temporary, root.join("saved-records.json")).unwrap();

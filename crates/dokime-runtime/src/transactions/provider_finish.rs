@@ -344,6 +344,12 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
             Some(projection) => execution_from_outcome(&existing, case, projection, &finish.finished_at),
             None => missing_execution(&existing, &finish.finished_at),
         };
+        // A run the stop cancelled still returns its own outcome, which the stop decided: the
+        // operator's stop stays the truthful outcome of a member that was still running.
+        let ran = matches!(existing.status, ExecutionStatus::Pending | ExecutionStatus::Running);
+        if stopped && ran && execution.status != ExecutionStatus::Skipped {
+            finish_execution(&mut execution, ExecutionStatus::Cancelled, ResultStatus::Cancelled, finish.finished_at.clone());
+        }
         if let Some(projection) = projection
             && let Err(error) =
                 append_provider_evidence(state, &execution, projection, finish, &mut plan.evidence, &mut plan.effects.telemetry)

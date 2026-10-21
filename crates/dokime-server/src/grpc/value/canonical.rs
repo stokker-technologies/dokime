@@ -318,8 +318,11 @@ pub(in crate::grpc) fn metadata_memory(value: &Metadata) -> Result<usize, Status
     bounded(bytes)
 }
 
+// A reply holds at most one advertised page, which may be longer than a request's collections.
 pub(in crate::grpc) fn slots<T>(length: usize) -> Result<Vec<T>, Status> {
-    collection(length)?;
+    if length > dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS as usize {
+        return Err(Status::resource_exhausted("reply exceeds one page of items"));
+    }
     let mut values = Vec::new();
     values.try_reserve_exact(length).map_err(|_| Status::resource_exhausted("canonical projection allocation refused"))?;
     Ok(values)

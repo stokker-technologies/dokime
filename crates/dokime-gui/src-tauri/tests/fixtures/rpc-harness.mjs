@@ -147,10 +147,13 @@ export async function openHarness() {
   const canonical = resolve(temporary, "canonical");
   await compile(resolve(gui, "src/lib/rpc"), rpc);
   await compile(generated, canonical);
-  const uiMode = resolve(temporary, "src/lib/ui-mode.js");
-  const uiInput = resolve(gui, "src/lib/ui-mode.ts");
-  const uiOutput = await transpile(readFileSync(uiInput, "utf8"), uiInput);
-  writeFileSync(uiMode, resolvableSpecifiers(uiOutput, uiMode));
+  // The transport's runtime imports outside `src/lib/rpc`; type-only imports erase.
+  for (const module of ["src/lib/ui-mode", "src/lib/desktop/stopping"]) {
+    const input = resolve(gui, `${module}.ts`);
+    const output = resolve(temporary, `${module}.js`);
+    mkdirSync(dirname(output), { recursive: true });
+    writeFileSync(output, resolvableSpecifiers(await transpile(readFileSync(input, "utf8"), input), output));
+  }
   return {
     invoke,
     load: (path) => import(pathToFileURL(resolve(rpc, path))),

@@ -184,7 +184,8 @@ cargo run -p cargo-dokime -- build --package obc-plugin --output target/debug/pl
 
 An installed Dokime places `dokime`, `dokime-server` and `dokime-gui` side by
 side, and the CLI launches the other two: it looks beside itself, then in
-`DOKIME_HOME`, then in the platform's installation directories. Arguments after
+`DOKIME_HOME` when that is set and otherwise in the platform's installation
+directories. Arguments after
 `--` reach the launched program unchanged:
 
 ```sh

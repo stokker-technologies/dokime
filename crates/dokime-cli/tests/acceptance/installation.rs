@@ -68,7 +68,8 @@ fn server() -> PathBuf {
 fn dokime(directory: &Path) -> Command {
     let executable = directory.join(format!("dokime{}", std::env::consts::EXE_SUFFIX));
     let mut command = Command::new(executable);
-    command.env_remove("DOKIME_HOME");
+    // The story's own directory is the whole installation: a Dokime installed on the host is never found.
+    command.env("DOKIME_HOME", directory);
     command
 }
 

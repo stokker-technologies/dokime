@@ -140,13 +140,14 @@ try {
         assert.equal(metadata, null);
         metadata = frame.payload.HarmosVariant.value.field0;
         assert.equal(metadata.artifactId, process.env.DOKIME_TEST_ARTIFACT_ID);
-        assert.equal(metadata.sizeBytes, 150000n);
+        assert.equal(metadata.sizeBytes, 1200000n);
         break;
       case "Chunk": {
         assert.notEqual(metadata, null);
         const chunk = frame.payload.HarmosVariant.value.field0;
         assert.equal(chunk.offset, offset);
-        assert.ok(chunk.data.length > 0 && chunk.data.length <= 65536);
+        // A download chunk is at most half the fixture server's 1 MiB local message budget.
+        assert.ok(chunk.data.length > 0 && chunk.data.length <= 512 * 1024);
         offset += BigInt(chunk.data.length);
         received.push(chunk.data);
         break;
@@ -162,9 +163,10 @@ try {
   }
   // Reaching iterator EOF also proves an OK final gRPC status after completion.
   assert.equal(complete, true);
+  assert.ok(received.length > 1, "the artifact spans several contiguous chunks");
   const content = Buffer.concat(received);
   assert.equal(createHash("sha256").update(content).digest("hex"), metadata.sha256);
-  assert.deepEqual(content, Buffer.from(Array.from({ length: 150000 }, (_, i) => i % 251)));
+  assert.deepEqual(content, Buffer.from(Array.from({ length: 1200000 }, (_, i) => i % 251)));
   const values = create(value.Row19Schema, {
     nodes: [
       { kind: { HarmosVariant: { case: "Object", value: { field0: { fields: [

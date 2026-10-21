@@ -95,8 +95,10 @@ struct Filing;
 
 struct Lease;
 
-// The step built-in a suite plugin requires; this host watches no files.
+// The step built-ins a suite plugin requires; this host watches no files.
 struct Watching;
+
+struct AwaitingWatch;
 
 struct Publishing {
     hosting: Arc<Hosting>,
@@ -288,6 +290,24 @@ impl Operation for Watching {
     }
 }
 
+impl Operation for AwaitingWatch {
+    type Declaration = dokime::operations::files::AwaitFileWatchArmed;
+    type Resources = Hosting;
+    type Error = harmos::Error;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(_: Arc<Hosting>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
+        Ok(Self)
+    }
+
+    async fn run<'ctx>(
+        &mut self, _: Self::Context<'ctx>, _: &mut Self::Declaration, _: &mut (),
+    ) -> harmos::Result<harmos::operations::Response<dokime::domain::model::files::wire::FileWatchArmed>> {
+        Err(harmos::Error::InvalidInput { field: "file watch", reason: "the test host watches no files" })
+    }
+}
+
 impl harmos::operations::Declares for Lease {
     type Declaration = LeaseAsk;
 }
@@ -395,6 +415,7 @@ impl PluginLifecycle for Host {
                 self.operations.register_wire_operation::<Filing>("fixture.records", Lanes::Open, Arc::clone(&self.hosting)),
                 self.operations.register_wire_operation::<Publishing>("fixture.publications", Lanes::Open, Arc::clone(&self.hosting)),
                 self.operations.register_wire_operation::<Watching>("fixture.files", Lanes::Open, Arc::clone(&self.hosting)),
+                self.operations.register_wire_operation::<AwaitingWatch>("fixture.files", Lanes::Open, Arc::clone(&self.hosting)),
             ] {
                 registered?;
             }

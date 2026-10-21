@@ -54,11 +54,10 @@ impl Program {
 
         let file = format!("{}{}", self.name, std::env::consts::EXE_SUFFIX);
         let beside = std::env::current_exe().ok().and_then(|path| path.parent().map(Path::to_owned));
-        let home = std::env::var_os("DOKIME_HOME").map(PathBuf::from);
-        beside
-            .into_iter()
-            .chain(home)
-            .chain(installed_directories())
+        // DOKIME_HOME names the installation, so it replaces the platform's installation directories.
+        let installation = std::env::var_os("DOKIME_HOME").map_or_else(installed_directories, |home| vec![PathBuf::from(home)]);
+        let mut directories = beside.into_iter().chain(installation);
+        directories
             .find_map(|directory| executable(&directory.join(&file)))
             .ok_or_else(|| {
                 Error::Setup(format!(

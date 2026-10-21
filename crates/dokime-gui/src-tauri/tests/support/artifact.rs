@@ -60,12 +60,12 @@ impl dokime::ExecutionFixture for Provider {
                         .with_test_execution(execution.test_execution_id.clone()),
                     filename: "wire.bin".into(),
                     content_type: Some("application/octet-stream".into()),
-                    size_bytes: 150_000,
+                    size_bytes: 1_200_000,
                     sha256: None,
                 })
                 .await
                 .unwrap();
-            let bytes: Vec<_> = (0..150_000).map(|i| (i % 251) as u8).collect();
+            let bytes: Vec<_> = (0..1_200_000).map(|i| (i % 251) as u8).collect();
             for chunk in bytes.chunks(64 * 1024) {
                 upload.send(chunk).await.unwrap();
             }

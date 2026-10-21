@@ -124,6 +124,9 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
         if _pins(lock) != before:
             raise ValueError("the offline wheelhouse changed the starter's shipped Python pins")
 
+        # The Local SDK Path Varies With The Checkout, So Its Override Takes The Starter's Own TOML Layout.
+        subprocess.run(["mise", "run", "format:toml"], cwd=plugin, env=environment, check=True)
+
         # The Starter's Own Recipes Prove Its Feature Edges, Product, Test Archive And Unit Lane.
         subprocess.run(["mise", "run", "check"], cwd=plugin, env=environment, check=True)
         for task in ("build", "build:tests", "test:unit"):

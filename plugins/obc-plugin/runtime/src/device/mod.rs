@@ -123,6 +123,11 @@ impl Device {
             return Err(Error::FaultLatched);
         }
         self.power = Power::Running;
+        // A powered unit has its log open, so a watch started now takes it as its baseline.
+        let opened = self.log.as_ref().map(|log| std::fs::OpenOptions::new().create(true).append(true).open(log));
+        if let Some(Err(error)) = opened {
+            tracing::warn!(%error, "the charger log was not opened");
+        }
         Ok(())
     }
 
