@@ -179,7 +179,7 @@ def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> 
         installers.mkdir(parents=True, exist_ok=True)
         for name, source in sources.items():
             stage_file(source, installers / name)
-        print(f"Built Linux packages in {bundles}")
+        print(f"Packaged the {profile} profile: Linux packages in {installers}")
         return
     if sys.platform != "win32":
         raise ValueError("native installers require Windows or Linux")
@@ -217,7 +217,7 @@ def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> 
         for path in destination.parent.iterdir():
             if path.suffix == ".sig" or path.name == "latest.json":
                 path.unlink()
-    print(f"Built Windows installer: {destination}")
+    print(f"Packaged the {profile} profile: Windows installer {destination}")
 
 
 def check_package(
