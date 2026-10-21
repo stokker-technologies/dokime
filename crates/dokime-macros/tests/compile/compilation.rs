@@ -462,8 +462,8 @@ fn foreign_stream_unpublished() {
     for unsatisfied in [
         "the trait bound `GatewayRssi: Publishable` is not satisfied",
         "the trait bound `GatewayRssi: OwnedStream` is not satisfied",
-        "the trait bound `dokime_runtime::host::System: Publishable` is not satisfied",
-        "the trait bound `dokime_runtime::host::System: OwnedStream` is not satisfied",
+        "the trait bound `dokime::host::System: Publishable` is not satisfied",
+        "the trait bound `dokime::host::System: OwnedStream` is not satisfied",
     ] {
         assert!(diagnostics.contains(unsatisfied), "{diagnostics}");
     }
@@ -478,9 +478,9 @@ fn undeclared_call_refused() {
     let diagnostics = String::from_utf8_lossy(&built.stderr);
     // The plugin serves the operation; the template never said it would call it,
     // so the refusal is on the call and names the catalog to add it to.
-    assert!(diagnostics.contains("ProbeRequired: dokime_runtime::catalog::Contains<GetCurrent>"), "{diagnostics}");
+    assert!(diagnostics.contains("ProbeRequired: dokime::catalog::Contains<GetCurrent>"), "{diagnostics}");
     assert_eq!(
-        diagnostics.matches("ProbeRequired: dokime_runtime::catalog::Contains<GetVoltage>").count(),
+        diagnostics.matches("ProbeRequired: dokime::catalog::Contains<GetVoltage>").count(),
         0,
         "a declared request is not refused: {diagnostics}"
     );

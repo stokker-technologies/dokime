@@ -84,7 +84,17 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
         if len(selected) != 1:
             raise ValueError("the generated starter must have one SDK dependency declaration")
         local = json.dumps(str(root / "crates/dokime"))
-        lines[selected[0]] = f'dokime = {{ path = {local}, features = ["plugin"] }}\n'
+        declaration = f'dokime = {{ path = {local}, features = ["plugin"] }}\n'
+        formatted = subprocess.run(
+            ["mise", "exec", "--", "taplo", "fmt", "--option", "column_width=140", "-"],
+            input=declaration,
+            text=True,
+            capture_output=True,
+            cwd=plugin,
+            env=environment,
+            check=True,
+        )
+        lines[selected[0]] = formatted.stdout
         manifest.write_text("".join(lines), encoding="utf-8")
 
         # Resolve Every Cargo Source Against The Exported Vendor Tree, With An Empty Cargo Home.
