@@ -43,8 +43,8 @@ pub use read_checkpoint_output::ReadCheckpointOutput;
 
 // Local Imports
 use super::Endpoint;
-use super::ORDINARY;
 use super::TRANSFER;
+use super::{MUTATION, ORDINARY};
 
 #[allow(unused_imports)]
 use crate::model::appearance::wire::*;

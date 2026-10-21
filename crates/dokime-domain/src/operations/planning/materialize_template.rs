@@ -33,7 +33,7 @@ use super::*;
 
 #[harmos_domain::message]
 #[harmos_domain::operation(response = PreviewSelectionReply, id = "dokime.planning.materialize_template", version = 1,
-    policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+    policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Planning", method = "MaterializeTemplate"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

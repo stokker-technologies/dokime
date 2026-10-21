@@ -47,7 +47,7 @@ pub use update_storage_policy::UpdateStoragePolicy;
 
 // Local Imports
 use super::Endpoint;
-use super::ORDINARY;
+use super::{MUTATION, ORDINARY};
 use crate::model::settings::wire::*;
 use crate::model::values::wire::Value;
 

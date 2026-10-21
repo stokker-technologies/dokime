@@ -59,6 +59,10 @@ pub const PACKAGE: &str = "dokime.v1";
 // Bounds One Ordinary Request From Admission To Its Response.
 pub const ORDINARY: OperationPolicy = policy(Duration::from_secs(10));
 
+// Bounds A Mutation That Writes Many Rows Or Files, Such As Creating, Copying Or
+// Deleting Whole Cycles And Executions, Materializing Cases Or Moving Storage.
+pub const MUTATION: OperationPolicy = policy(Duration::from_secs(120));
+
 // Bounds A Transfer, Including Every Streamed Item.
 pub const TRANSFER: OperationPolicy = policy(Duration::from_secs(300));
 

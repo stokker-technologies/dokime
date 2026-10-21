@@ -79,7 +79,7 @@ pub use update_cycle_policy::UpdateCyclePolicy;
 
 // Local Imports
 use super::Endpoint;
-use super::ORDINARY;
+use super::{MUTATION, ORDINARY};
 
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
