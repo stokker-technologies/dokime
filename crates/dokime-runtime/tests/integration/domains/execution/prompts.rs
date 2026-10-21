@@ -314,7 +314,7 @@ async fn shutdown_preserves_prompts() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 
-    // Graceful Shutdown Seals The Cycle; Its Unanswered Prompt Stays Settled Across Restarts.
+    // The Next Start Seals The Cycle The Stop Left Active; Its Unanswered Prompt Expires And Stays Settled.
     for _ in 0..2 {
         let (mut owner, runtime) = started(prompt_config(root.path())).await;
         assert_eq!(runtime.pending_prompt_projection().await, vec![standalone.clone()]);
@@ -350,7 +350,7 @@ async fn shutdown_preserves_prompts() {
             }
         }
     }
-    assert_eq!(settlements, vec![("prompt.response.cancelled".to_owned(), Value::from("execution_stopped"))]);
+    assert_eq!(settlements, vec![("prompt.response.expired".to_owned(), Value::from("runtime_restarted"))]);
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

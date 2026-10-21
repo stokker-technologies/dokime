@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub(crate) mod branding;
+mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
 pub(crate) mod gitlab;
@@ -25,14 +26,10 @@ pub(crate) mod settings;
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::{Arc, Mutex};
 
 // Third Party Imports
 use tauri::Manager;
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogResult};
 
 // Local Imports
 use crate::bindings;
@@ -167,71 +164,17 @@ fn start_tauri_app() -> tauri::Result<()> {
         }
     };
     drop(retained);
-    let shutdown_started = Arc::new(AtomicBool::new(false));
-    let shutdown_complete = Arc::new(AtomicBool::new(false));
-    app.run(move |app, event| {
-        if let tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::CloseRequested { api, .. }, .. } = &event
-            && !shutdown_complete.load(Ordering::Acquire)
-        {
+    let closing = closing::Closing::default();
+    app.run(move |app, event| match event {
+        tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::CloseRequested { api, .. }, .. } if !closing.complete() => {
             api.prevent_close();
-            app.exit(0);
-            return;
+            closing.request(app, 0);
         }
-        if let tauri::RunEvent::ExitRequested { code, api, .. } = event
-            && !shutdown_complete.load(Ordering::Acquire)
-        {
+        tauri::RunEvent::ExitRequested { code, api, .. } if !closing.complete() => {
             api.prevent_exit();
-            if !shutdown_started.swap(true, Ordering::AcqRel) {
-                let app = app.clone();
-                let complete = Arc::clone(&shutdown_complete);
-                let started = Arc::clone(&shutdown_started);
-                for window in app.webview_windows().values() {
-                    let _ = window.set_title(&format!("{} — Finishing Reports…", crate::PRODUCT));
-                }
-                tauri::async_runtime::spawn(async move {
-                    loop {
-                        let result = app.state::<crate::native_session::DesktopSessionControl>().shutdown().await;
-                        if let Err(error) = result {
-                            tracing::error!(?error, "native desktop shutdown failed");
-                            for window in app.webview_windows().values() {
-                                let _ = window.set_title(&format!("{} — Report Finalization Failed", crate::PRODUCT));
-                            }
-                            let (send, receive) = tokio::sync::oneshot::channel();
-                            app.dialog()
-                                .message(format!(
-                                    "{} could not finish closing cleanly. Reports may be incomplete.\n\n{error:?}",
-                                    crate::PRODUCT
-                                ))
-                                .title("Report Finalization Failed")
-                                .buttons(MessageDialogButtons::YesNoCancelCustom(
-                                    "Retry".into(),
-                                    "Exit Without Completed Reports".into(),
-                                    "Keep Open".into(),
-                                ))
-                                .show_with_result(move |answer| {
-                                    let _ = send.send(answer);
-                                });
-                            match receive.await {
-                                Ok(MessageDialogResult::Yes) => continue,
-                                Ok(MessageDialogResult::Custom(answer)) if answer == "Retry" => continue,
-                                Ok(MessageDialogResult::No) => {}
-                                Ok(MessageDialogResult::Custom(answer)) if answer == "Exit Without Completed Reports" => {}
-                                _ => {
-                                    started.store(false, Ordering::Release);
-                                    return;
-                                }
-                            }
-                            complete.store(true, Ordering::Release);
-                            app.exit(1);
-                            return;
-                        }
-                        complete.store(true, Ordering::Release);
-                        app.exit(code.unwrap_or(0));
-                        return;
-                    }
-                });
-            }
+            closing.request(app, code.unwrap_or(0));
         }
+        _ => {}
     });
     Ok(())
 }

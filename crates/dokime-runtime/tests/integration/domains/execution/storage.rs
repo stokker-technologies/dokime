@@ -283,8 +283,7 @@ async fn permanent_finalization_settles() {
     drop(terminal);
     drop(watch);
     drop(runtime);
-    assert!(owner.shutdown().await.is_err(), "unsealable evidence cannot acknowledge successful shutdown");
-    refuse.store(false, std::sync::atomic::Ordering::SeqCst);
+    // The stop leaves the unsealable cycle to the next start, which seals it once its report encodes.
     owner.shutdown().await.unwrap();
     drop(owner);
 

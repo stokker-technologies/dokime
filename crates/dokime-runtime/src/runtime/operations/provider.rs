@@ -126,10 +126,10 @@ impl ProviderWork {
         outcome
     }
 
-    async fn finalize(&mut self) -> Option<ProviderExecutionFailure> {
+    async fn finalize(&mut self) -> Option<Result<ProviderCycleOutcome, ProviderExecutionFailure>> {
         self.cancellation.send_replace(true);
         let outcome = match self.future.as_mut() {
-            Some(future) => future.await.err(),
+            Some(future) => Some(future.await),
             None => None,
         };
         self.future = None;
@@ -224,13 +224,18 @@ impl Operation for ProviderState {
         };
         let settlement = std::time::Instant::now();
         tracing::debug!(request_id = %invocation.job.request_id, phase = "provider_settlement", "provider work settlement started");
-        if let Some(error) = self.work.finalize().await {
+        let finalized = self.work.finalize().await;
+        if let Some(Err(error)) = &finalized {
             tracing::warn!(
                 request_id = %invocation.job.request_id,
                 stage = %error.stage,
                 message = %error.message,
                 "cancelled provider work settled with an execution failure"
             );
+        }
+        // The work a stop cancelled still concluded; its monitor publishes that outcome.
+        if let Some(outcome) = finalized {
+            invocation.outcome.lock().expect("provider outcome lock poisoned").get_or_insert(outcome);
         }
         tracing::debug!(request_id = %invocation.job.request_id, phase = "provider_settlement", elapsed_ms = %settlement.elapsed().as_millis(), "provider work settlement finished");
         invocation
@@ -314,18 +319,22 @@ impl ProviderCycleRequest {
                 }
             };
             tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", elapsed_ms = %monitoring.elapsed().as_millis(), transport_ok = outcome.is_ok(), "provider monitor observed settled invocation");
-            match outcome {
-                Ok(_) => {
-                    let settled = settlement
-                        .lock()
-                        .expect("provider outcome lock poisoned")
-                        .take()
-                        .unwrap_or_else(|| Err(ProviderExecutionFailure::new("cancel", "provider run settled without an outcome")));
+            // A stop cancels the invocation, often after the run already settled its own outcome.
+            let settled = settlement.lock().expect("provider outcome lock poisoned").take();
+            match (outcome, settled) {
+                (Ok(_), settled) => {
+                    let settled =
+                        settled.unwrap_or_else(|| Err(ProviderExecutionFailure::new("cancel", "provider run settled without an outcome")));
                     let cycle = TestCycleId::from_uuid(&self.test_cycle_id).expect("journaled cycle id is valid");
                     let started = started_execution_ids_for(&runtime, &cycle);
                     submit_finish_provider_cycle(&runtime, &self, settled, started).await;
                 }
-                Err(error) if finalization.pending().await => {
+                (Err(_), Some(settled)) => {
+                    let cycle = TestCycleId::from_uuid(&self.test_cycle_id).expect("journaled cycle id is valid");
+                    let started = started_execution_ids_for(&runtime, &cycle);
+                    submit_finish_provider_cycle(&runtime, &self, settled, started).await;
+                }
+                (Err(error), None) if finalization.pending().await => {
                     tracing::error!(%error, "provider cleanup is unresolved; terminal publication remains blocked");
                     runtime.provider_completion_failure.lock().expect("provider completion failure lock poisoned").get_or_insert_with(
                         || PublicationFailure {
@@ -335,7 +344,7 @@ impl ProviderCycleRequest {
                         },
                     );
                 }
-                Err(error) => finish_interrupted_provider_job(&runtime, &self, error).await,
+                (Err(error), None) => finish_interrupted_provider_job(&runtime, &self, error).await,
             }
         });
         tasks.push(ProviderTask { request_id, settled, source, cycle, task, started, cancel });

@@ -191,6 +191,10 @@ pub trait SamplerSession: Send {
     fn collected(&mut self) -> std::result::Result<Vec<TelemetryBatch>, String>;
 
     fn settle(&mut self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<(), SettlementError>> + Send + '_>>;
+
+    /// A stopping runtime keeps what was collected and stops waiting for
+    /// collections still in flight; their rows would postdate the stop.
+    fn abandon(&mut self) {}
 }
 
 /* === Implementations === */
@@ -212,6 +216,9 @@ impl SamplingOwner {
     async fn drain(&mut self, runtime: &RuntimeHandle, key: &str) -> std::result::Result<(), ProduceError> {
         self.publish_returned(runtime).await?;
         if let Some(source) = self.source.as_mut() {
+            if runtime.is_shutting_down() {
+                source.abandon();
+            }
             let batches = settle_session(source.as_mut(), key).await?;
             if !batches.is_empty() {
                 self.returned = Some(CollectedSamples { batches, next: 0, accounted: 0, received_at: crate::model::time::now_utc() });

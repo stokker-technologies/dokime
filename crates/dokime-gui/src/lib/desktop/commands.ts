@@ -26,6 +26,7 @@ import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDoc
 import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
 import type { ParameterOverrides } from "./settings";
+import { settleUnlessStopping } from "./stopping";
 
 /* === Private Functions === */
 
@@ -41,7 +42,8 @@ function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> 
   if (isReportBuild()) {
     return Promise.reject(new Error(`A frozen report cannot call the desktop command "${command}".`));
   }
-  return invokeCommand<T>(command, args);
+  // Once the desktop stops, a refused or interrupted command belongs to the stop.
+  return invokeCommand<T>(command, args).catch(settleUnlessStopping<T>);
 }
 
 /* === Public Constants === */
