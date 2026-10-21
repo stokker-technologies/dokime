@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -30,13 +31,14 @@ use tonic::{
     transport::{Identity, Server, ServerTlsConfig},
 };
 // Local Imports
-use dokime_client::contracts::{Endpoint, backend, plugins, runtime};
-use dokime_client::credentials::{Error as CredentialError, SecretStore};
-use dokime_domain::model;
+use dokime::client::contracts::{Endpoint, backend, plugins, runtime};
+use dokime::client::credentials::{Error as CredentialError, SecretStore};
+use dokime::domain::model;
 use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
 use zeroize::Zeroizing;
 
 /* === Constants === */
+
 static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::new(|| {
     let generated = rcgen::generate_simple_self_signed(vec!["localhost".into(), "127.0.0.1".into()])
         .expect("a self-signed test certificate is generated");
@@ -44,7 +46,7 @@ static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::ne
 });
 
 static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
-    let contracts = harmos::operations::Contracts::of::<dokime_client::contracts::Operations>().unwrap();
+    let contracts = harmos::operations::Contracts::of::<dokime::client::contracts::Operations>().unwrap();
     let artifacts = harmos_packaging::proto::Artifacts::new(&contracts).unwrap();
     Sha256::digest(artifacts.descriptors()).to_vec()
 });
@@ -54,6 +56,7 @@ static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 pub struct MemorySecrets(pub Arc<Mutex<BTreeMap<String, String>>>);
 
@@ -98,6 +101,7 @@ pub struct Listener {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SecretStore for MemorySecrets {
     fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, CredentialError> {
         Ok(self.0.lock().unwrap().get(endpoint).cloned().map(Zeroizing::new))

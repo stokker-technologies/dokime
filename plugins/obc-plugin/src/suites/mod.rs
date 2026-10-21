@@ -36,7 +36,7 @@ pub mod steady;
 // The Catalog Attribute Requires Unconditional Variants.
 macro_rules! suites {
     ($($extra:tt)*) => {
-        #[dokime_runtime::catalog]
+        #[dokime::catalog]
         pub enum Suites {
             ObcChecks(checks::ObcChecks),
             StartupSuite(startup::StartupSuite),

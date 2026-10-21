@@ -24,11 +24,11 @@ use tonic::Status;
 
 // Local Imports
 use super::{Change, Controller, Error};
-use dokime_domain::{
+use dokime::RuntimeHandle;
+use dokime::domain::{
     model::remote::{GeneratedAccessKey, RemoteListenerStatus, RemoteSessionPage},
     operations::remote as wire,
 };
-use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 
@@ -163,11 +163,11 @@ impl Operation for ListSessions {
 
 pub(super) fn register(runtime: &RuntimeHandle, controller: Arc<Controller>) -> Result<(), Error> {
     let operations = runtime.operations();
-    operations.register_wire_operation::<ReadListener>("dokime", dokime_runtime::app::Lanes::Open, controller.clone())?;
-    operations.register_wire_operation::<UpdateListener>("dokime", dokime_runtime::app::Lanes::Open, controller.clone())?;
-    operations.register_wire_operation::<GenerateKey>("dokime", dokime_runtime::app::Lanes::Open, controller.clone())?;
-    operations.register_wire_operation::<RegenerateCertificate>("dokime", dokime_runtime::app::Lanes::Open, controller.clone())?;
-    operations.register_wire_operation::<ListSessions>("dokime", dokime_runtime::app::Lanes::Open, controller)?;
+    operations.register_wire_operation::<ReadListener>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<UpdateListener>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<GenerateKey>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<RegenerateCertificate>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<ListSessions>("dokime", dokime::app::Lanes::Open, controller)?;
     Ok(())
 }
 

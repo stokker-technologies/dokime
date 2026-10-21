@@ -22,7 +22,7 @@ use harmos::grpc::Attached;
 // Local Imports
 use super::access::Listeners;
 use super::{Config, Error, appearance, authorization, catalog, content, execution, history, observation, planning, reports};
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
 
 /* === Constants === */
 

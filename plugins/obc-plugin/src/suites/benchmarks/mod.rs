@@ -32,7 +32,7 @@ mod capture;
 pub struct Suite;
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Templates {
     Capture(capture::Capture),
 }
@@ -40,7 +40,7 @@ pub enum Templates {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::suite(
+#[dokime::suite(
     id = "obc.benchmarks", label = "Benchmark Fixtures", templates = Templates,
     description = "Generated high-volume evidence for system benchmarks; excluded from product builds."
 )]

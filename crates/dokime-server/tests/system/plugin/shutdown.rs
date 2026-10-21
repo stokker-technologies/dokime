@@ -26,7 +26,7 @@ use super::{
     selection, suite, wait_prompt,
 };
 use crate::support::{self, host::Host};
-use dokime_client::contracts;
+use dokime::client::contracts;
 
 /* === Constants === */
 

@@ -42,7 +42,7 @@ const ENVIRONMENT_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, clap::Args)]
 #[group(id = "connection")]
-pub(crate) struct Args {
+pub struct Args {
     #[arg(long, help = "Backend HTTP(S) Origin; Use Plain HTTP Only In An Isolated Lab.")]
     #[arg(conflicts_with = "backend")]
     endpoint: Option<String>,
@@ -69,10 +69,10 @@ pub(crate) struct Args {
     timeout_seconds: u64,
 }
 
-pub(crate) struct Resolved {
-    pub(crate) selection: Selection,
-    pub(crate) store: Option<Store>,
-    pub(crate) token: Option<Zeroizing<String>>,
+pub struct Resolved {
+    pub selection: Selection,
+    pub store: Option<Store>,
+    pub token: Option<Zeroizing<String>>,
 }
 
 /* === Enums === */
@@ -82,7 +82,7 @@ pub(crate) struct Resolved {
 /* === Implementations === */
 
 impl Args {
-    pub(crate) fn resolve(&self) -> crate::Result<Resolved> {
+    pub fn resolve(&self) -> crate::client_error::Result<Resolved> {
         let environment = read_environment(self.env_file.as_deref())?;
         let token = read_key(self.key_file.as_deref(), &environment)?;
         if let Some(endpoint) = &self.endpoint {
@@ -91,7 +91,7 @@ impl Args {
                 .as_deref()
                 .map(|path| {
                     let bytes = harmos::filesystem::input::read(path, 1024 * 1024)?;
-                    String::from_utf8(bytes).map_err(|_| crate::Error::Input("CA certificate must be UTF-8 PEM".into()))
+                    String::from_utf8(bytes).map_err(|_| crate::client_error::Error::Input("CA certificate must be UTF-8 PEM".into()))
                 })
                 .transpose()?;
             return Ok(Resolved {
@@ -112,15 +112,15 @@ impl Args {
         Ok(Resolved { selection, store: Some(store), token })
     }
 
-    pub(crate) fn has_key_file(&self) -> bool {
+    pub fn has_key_file(&self) -> bool {
         self.key_file.is_some()
     }
 
-    pub(crate) fn timeout(&self) -> Duration {
+    pub fn timeout(&self) -> Duration {
         Duration::from_secs(self.timeout_seconds)
     }
 
-    pub(crate) async fn connect_selected(&self, resolved: &Resolved, mut token: Option<Zeroizing<String>>) -> crate::Result<Client> {
+    pub async fn connect_selected(&self, resolved: &Resolved, mut token: Option<Zeroizing<String>>) -> crate::client_error::Result<Client> {
         let deadline = tokio::time::Instant::now() + self.timeout();
         if token.is_none() && resolved.selection.credential == Credential::Keyring {
             let endpoint = resolved.selection.target.endpoint().to_owned();
@@ -140,7 +140,7 @@ impl Args {
         Ok(client.with_timeout(self.timeout()))
     }
 
-    pub(crate) async fn connect(&self) -> crate::Result<Client> {
+    pub async fn connect(&self) -> crate::client_error::Result<Client> {
         let resolved = self.resolve()?;
         self.connect_selected(&resolved, resolved.token.clone()).await
     }
@@ -150,10 +150,12 @@ impl Args {
 
 // OS Stores Can Block. Detached Workers Keep The Invocation Deadline Bounded.
 // Dropping The Receiver Does Not Cancel An OS Operation Already In Progress.
-pub(crate) async fn credentials<T, E>(budget: Duration, operation: impl FnOnce() -> Result<T, E> + Send + 'static) -> crate::Result<T>
+pub async fn credentials<T, E>(
+    budget: Duration, operation: impl FnOnce() -> Result<T, E> + Send + 'static,
+) -> crate::client_error::Result<T>
 where
     T: Send + 'static,
-    E: Into<crate::Error> + Send + 'static,
+    E: Into<crate::client_error::Error> + Send + 'static,
 {
     let (sender, receiver) = tokio::sync::oneshot::channel();
     std::thread::Builder::new().name("dokime-credentials".into()).spawn(move || {
@@ -161,40 +163,44 @@ where
     })?;
     tokio::time::timeout(budget, receiver)
         .await
-        .map_err(|_| crate::Error::CredentialTimeout)?
-        .map_err(|_| crate::Error::Setup("Credential store worker failed".into()))?
+        .map_err(|_| crate::client_error::Error::CredentialTimeout)?
+        .map_err(|_| crate::client_error::Error::Setup("Credential store worker failed".into()))?
 }
 
 /* === Private Functions === */
 
-fn read_environment(path: Option<&Path>) -> crate::Result<BTreeMap<String, Zeroizing<String>>> {
+fn read_environment(path: Option<&Path>) -> crate::client_error::Result<BTreeMap<String, Zeroizing<String>>> {
     let Some(path) = path else { return Ok(BTreeMap::new()) };
     let bytes = Zeroizing::new(harmos::filesystem::input::read(path, ENVIRONMENT_BYTES)?);
     if bytes.contains(&0) {
-        return Err(crate::Error::Input("The selected dotenv file contains an invalid entry.".into()));
+        return Err(crate::client_error::Error::Input("The selected dotenv file contains an invalid entry.".into()));
     }
     let mut values = BTreeMap::new();
     for entry in dotenv::from_read_iter(std::io::Cursor::new(bytes.as_slice())) {
         // Parser Errors Can Contain The Original Secret-Bearing Line.
-        let (name, value) = entry.map_err(|_| crate::Error::Input("The selected dotenv file contains an invalid entry.".into()))?;
+        let (name, value) =
+            entry.map_err(|_| crate::client_error::Error::Input("The selected dotenv file contains an invalid entry.".into()))?;
         values.insert(name, Zeroizing::new(value));
     }
     Ok(values)
 }
 
-fn environment_value(name: &str, values: &BTreeMap<String, Zeroizing<String>>) -> crate::Result<Option<Zeroizing<String>>> {
+fn environment_value(name: &str, values: &BTreeMap<String, Zeroizing<String>>) -> crate::client_error::Result<Option<Zeroizing<String>>> {
     match std::env::var(name) {
         Ok(value) => Ok(Some(Zeroizing::new(value))),
         Err(std::env::VarError::NotPresent) => Ok(values.get(name).cloned()),
-        Err(_) => Err(crate::Error::Input(format!("{name} must be UTF-8"))),
+        Err(_) => Err(crate::client_error::Error::Input(format!("{name} must be UTF-8"))),
     }
 }
 
-fn read_key(path: Option<&Path>, environment: &BTreeMap<String, Zeroizing<String>>) -> crate::Result<Option<Zeroizing<String>>> {
+fn read_key(
+    path: Option<&Path>, environment: &BTreeMap<String, Zeroizing<String>>,
+) -> crate::client_error::Result<Option<Zeroizing<String>>> {
     let key = match path {
         Some(path) => {
             let bytes = Zeroizing::new(harmos::filesystem::input::read(path, 4098)?);
-            let text = std::str::from_utf8(&bytes).map_err(|_| crate::Error::Input("Remote key file must be UTF-8 text".into()))?;
+            let text =
+                std::str::from_utf8(&bytes).map_err(|_| crate::client_error::Error::Input("Remote key file must be UTF-8 text".into()))?;
             Some(Zeroizing::new(text.trim().to_owned()))
         }
         None => environment_value("DOKIME_KEY", environment)?,
@@ -202,7 +208,7 @@ fn read_key(path: Option<&Path>, environment: &BTreeMap<String, Zeroizing<String
     if let Some(key) = &key
         && (!(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()))
     {
-        return Err(crate::Error::Input("Remote key must contain 32–4096 visible ASCII characters.".into()));
+        return Err(crate::client_error::Error::Input("Remote key must contain 32–4096 visible ASCII characters.".into()));
     }
     Ok(key)
 }

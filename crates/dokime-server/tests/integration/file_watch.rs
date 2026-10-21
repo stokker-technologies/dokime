@@ -24,7 +24,7 @@ use std::sync::Arc;
 // Local Imports
 use super::content::UploadGate;
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use {
     contracts::files::FileWatch, model::files::wire::FileRule, model::files::wire::FileRuleAction, model::files::wire::FileWatchFrame,
     model::files::wire::FileWatchFramePayload, model::files::wire::FileWatchPhase, model::files::wire::FileWatchPolicy,
@@ -46,6 +46,7 @@ use {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 #[tokio::test]
 async fn file_watch_artifacts() {
     let root = tempfile::tempdir().unwrap();
@@ -74,7 +75,7 @@ async fn file_watch_artifacts() {
         rules: vec![FileRule { glob: "**/*.log".into(), action: FileRuleAction::Include }],
         output: output.to_owned(),
         policy: FileWatchPolicy::Stream,
-        selection: dokime_domain::model::files::wire::FileWatchSelection::All,
+        selection: dokime::domain::model::files::wire::FileWatchSelection::All,
         wait_for_source_seconds: None,
         poll_interval_ms: Some(50),
         maximum_seconds,
@@ -161,7 +162,7 @@ async fn file_watch_artifacts() {
         None
     })
     .await;
-    assert_eq!(stored.status, dokime_runtime::artifacts::ArtifactStatus::Complete);
+    assert_eq!(stored.status, dokime::artifacts::ArtifactStatus::Complete);
     assert_eq!(stored.size_bytes, 7);
 
     gate.release.notify_one();
@@ -170,6 +171,7 @@ async fn file_watch_artifacts() {
 }
 
 /* === Private Functions === */
+
 async fn watch(client: &WireClient, request: FileWatch) -> Result<WireStream<FileWatchFrame>, tonic::Status> {
     let mut frames = client.download::<contracts::files::FileWatch>(authenticated(request)).await?.into_inner();
 

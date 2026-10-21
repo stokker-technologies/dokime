@@ -36,9 +36,9 @@ use uuid::Uuid;
 
 // Local Imports
 use super::value;
-use dokime_domain::model::plugins::wire as plugins_model;
-use dokime_domain::operations::plugins as contract;
-use dokime_runtime::{
+use dokime::domain::model::plugins::wire as plugins_model;
+use dokime::domain::operations::plugins as contract;
+use dokime::{
     RuntimeHandle,
     plugins::{PluginError, PluginStore},
 };
@@ -121,7 +121,7 @@ impl Resources {
         }
         Ok(output.into())
     }
-    fn entry(&self, mut entry: dokime_runtime::plugins::PluginEntry) -> Result<Response<plugins_model::PluginInstallation>, Status> {
+    fn entry(&self, mut entry: dokime::plugins::PluginEntry) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         self.runtime.plugin_process_state(&mut entry);
         wire::normalize(&mut entry, self.max_message_bytes)?;
         self.produce(|| wire::entry(entry, self.max_message_bytes))
@@ -212,7 +212,7 @@ impl Operation for Stage {
 
 impl Stage {
     async fn stage(
-        &mut self, input: &mut StreamInput<plugins_model::StagePluginFrame>, operation: &dokime_runtime::runtime::progress::Operation,
+        &mut self, input: &mut StreamInput<plugins_model::StagePluginFrame>, operation: &dokime::runtime::progress::Operation,
     ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let permit = self.resources.permit().map_err(reject)?;
         let first = message(input).await?.ok_or_else(|| reject(Status::invalid_argument("stage header is required")))?;
@@ -390,13 +390,13 @@ impl Operation for ListAdmittedPlugins {
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), admission: Arc::new(Semaphore::new(1)), max_message_bytes: maximum });
-    runtime.operations().register_wire_operation::<ListInstallations>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<GetInstallation>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Stage>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Consent>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<SetEnabled>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Remove>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<ListAdmittedPlugins>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ListInstallations>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<GetInstallation>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Stage>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Consent>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<SetEnabled>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Remove>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ListAdmittedPlugins>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     Ok(())
 }
 

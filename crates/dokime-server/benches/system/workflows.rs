@@ -29,9 +29,9 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::server::{Server, StorageCounters};
-use dokime_client::{Client, ResponseStream, Target, contracts};
-use dokime_domain::model;
-use dokime_runtime::Value;
+use dokime::Value;
+use dokime::client::{Client, ResponseStream, Target, contracts};
+use dokime::domain::model;
 
 /* === Constants === */
 const CAPTURE_SUITE: &str = "obc.benchmarks";

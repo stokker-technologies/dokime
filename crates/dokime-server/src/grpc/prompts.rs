@@ -31,15 +31,15 @@ use super::{
     execution,
     value::{self, canonical as values},
 };
-use dokime_domain::model::execution::wire_cursor::Cursor as NativeCursor;
-use dokime_domain::model::execution::wire_cursor::Cursor;
-use dokime_domain::model::execution::wire_cursor::Error as CursorError;
-use dokime_domain::model::identity::PromptId;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::prompts as wire;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::runtime::query::RuntimeStateSnapshot;
+use dokime::RuntimeHandle;
+use dokime::domain::model::execution::wire_cursor::Cursor as NativeCursor;
+use dokime::domain::model::execution::wire_cursor::Cursor;
+use dokime::domain::model::execution::wire_cursor::Error as CursorError;
+use dokime::domain::model::identity::PromptId;
+use dokime::domain::model::identity::TestCycleId;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domain::operations::prompts as wire;
+use dokime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
 
@@ -93,7 +93,7 @@ impl Operation for ListDefinitions {
     }
     async fn run<'a>(
         &mut self, _context: Self::Context<'a>, request: &mut wire::ListDefinitions, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPromptDefinitionsReply>, Status> {
+    ) -> Result<Response<dokime::domain::model::prompts::wire::ListPromptDefinitionsReply>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let limit = page(request.limit, &request.after_prompt_type, request.cursor.as_ref(), &snapshot)?;
         let definitions = &snapshot.state().prompt_definitions;
@@ -105,7 +105,7 @@ impl Operation for ListDefinitions {
         self.resources.produce(|| {
             let definitions: Vec<_> = selected.into_iter().map(canonical::identity).collect();
             let next_after_prompt_type = entries.next().is_some().then(|| definitions.last().unwrap().prompt_type.clone());
-            Ok(dokime_domain::model::prompts::wire::ListPromptDefinitionsReply {
+            Ok(dokime::domain::model::prompts::wire::ListPromptDefinitionsReply {
                 definitions,
                 next_after_prompt_type,
                 cursor: Some(values::cursor(&snapshot)),
@@ -125,7 +125,7 @@ impl Operation for GetDefinition {
     }
     async fn run<'a>(
         &mut self, _context: Self::Context<'a>, request: &mut wire::GetDefinition, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::PromptDefinition>, Status> {
+    ) -> Result<Response<dokime::domain::model::prompts::wire::PromptDefinition>, Status> {
         value::text(&request.prompt_type)?;
         let snapshot = self.resources.runtime.watch_state().latest();
         let definition = snapshot
@@ -149,7 +149,7 @@ impl Operation for ListPending {
     }
     async fn run<'a>(
         &mut self, _context: Self::Context<'a>, request: &mut wire::ListPending, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::ListPendingPromptsReply>, Status> {
+    ) -> Result<Response<dokime::domain::model::prompts::wire::ListPendingPromptsReply>, Status> {
         let cycle = request
             .cycle_id
             .take()
@@ -160,7 +160,7 @@ impl Operation for ListPending {
             .take()
             .map(|id| TestExecutionId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid execution UUID")))
             .transpose()?;
-        let selection = dokime_runtime::prompts::pending_stream(cycle.as_ref(), execution.as_ref());
+        let selection = dokime::prompts::pending_stream(cycle.as_ref(), execution.as_ref());
         let snapshot = self.resources.runtime.watch_state().latest();
         let mut supplied = request.cursor.take();
         if let Some(cursor) = &mut supplied {
@@ -170,7 +170,7 @@ impl Operation for ListPending {
             cursor.stream = STREAM.into();
         }
         let limit = page(request.limit, &request.after_prompt_id, supplied.as_ref(), &snapshot)?;
-        let selected = |prompt: &&dokime_runtime::domains::prompts::PromptInstance| {
+        let selected = |prompt: &&dokime::domains::prompts::PromptInstance| {
             snapshot.state().prompt_open(prompt)
                 && cycle.as_ref().is_none_or(|id| prompt.scope.test_cycle_id.as_ref() == Some(id))
                 && execution.as_ref().is_none_or(|id| prompt.scope.test_execution_id.as_ref() == Some(id))
@@ -187,7 +187,7 @@ impl Operation for ListPending {
             let prompts: Vec<_> = selected
                 .into_iter()
                 .map(|prompt| {
-                    Ok(dokime_domain::model::prompts::wire::PendingPromptIdentity {
+                    Ok(dokime::domain::model::prompts::wire::PendingPromptIdentity {
                         prompt_id: prompt.prompt_id.to_string(),
                         definition: Some(canonical::identity(&prompt.definition)),
                         scope: Some(values::scope(&prompt.scope)?),
@@ -198,7 +198,7 @@ impl Operation for ListPending {
             let next_after_prompt_id = entries.next().is_some().then(|| prompts.last().unwrap().prompt_id.clone());
             let mut cursor = values::cursor(&snapshot);
             cursor.stream = selection;
-            Ok(dokime_domain::model::prompts::wire::ListPendingPromptsReply { prompts, next_after_prompt_id, cursor: Some(cursor) })
+            Ok(dokime::domain::model::prompts::wire::ListPendingPromptsReply { prompts, next_after_prompt_id, cursor: Some(cursor) })
         })
     }
 }
@@ -214,14 +214,14 @@ impl Operation for GetPrompt {
     }
     async fn run<'a>(
         &mut self, _context: Self::Context<'a>, request: &mut wire::GetPrompt, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::PromptView>, Status> {
+    ) -> Result<Response<dokime::domain::model::prompts::wire::PromptView>, Status> {
         let id = prompt_id(&request.prompt_id)?;
         let snapshot = self.resources.runtime.watch_state().latest();
         let prompt = snapshot.state().prompt_requests.get(&id).ok_or_else(|| Status::not_found("prompt not found"))?;
         let response = snapshot.state().prompt_responses.get(&id);
         self.resources.produce(|| {
             let response = response.map(canonical::response).transpose()?;
-            Ok(dokime_domain::model::prompts::wire::PromptView {
+            Ok(dokime::domain::model::prompts::wire::PromptView {
                 prompt: Some(canonical::instance(prompt)?),
                 response,
                 observed_cursor: Some(values::cursor(&snapshot)),
@@ -241,7 +241,7 @@ impl Operation for Respond {
     }
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::Respond, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::prompts::wire::PromptResponseReceipt>, Status> {
+    ) -> Result<Response<dokime::domain::model::prompts::wire::PromptResponseReceipt>, Status> {
         let context = execution::command_context(&context, request.context.as_ref())?;
         let responder = context.submitted_by.clone().ok_or_else(|| Status::unauthenticated("authentication required"))?;
 
@@ -250,7 +250,7 @@ impl Operation for Respond {
         let decoded = request.values.take().map(|value| values::decode(value, &mut value::Budget::new(), 0)).transpose()?;
         let values = match decoded {
             None => Default::default(),
-            Some(dokime_domain::model::values::Value::Object(fields)) => fields,
+            Some(dokime::domain::model::values::Value::Object(fields)) => fields,
             Some(_) => return Err(Status::invalid_argument("prompt values must be an object")),
         };
         let receipt = self
@@ -261,7 +261,7 @@ impl Operation for Respond {
             .map_err(execution::status)?;
         let snapshot = self.resources.runtime.watch_state().latest();
         self.resources.produce(|| {
-            Ok(dokime_domain::model::prompts::wire::PromptResponseReceipt {
+            Ok(dokime::domain::model::prompts::wire::PromptResponseReceipt {
                 command_id: receipt.command_id.to_string(),
                 prompt_id: id.to_string(),
                 committed_revision: receipt.runtime_revision,
@@ -288,11 +288,11 @@ impl Resources {
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    runtime.operations().register_wire_operation::<ListDefinitions>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<GetDefinition>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<ListPending>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<GetPrompt>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Respond>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ListDefinitions>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<GetDefinition>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<ListPending>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<GetPrompt>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Respond>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     Ok(())
 }
 

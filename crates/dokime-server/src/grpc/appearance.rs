@@ -26,9 +26,9 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
-use dokime_domain::operations::appearance as wire;
-use dokime_domain::operations::content;
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::operations::appearance as wire;
+use dokime::domain::operations::content;
 
 /* === Constants === */
 
@@ -74,26 +74,26 @@ impl Operation for Read {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, _: &mut wire::GetAppearance, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::appearance::wire::AppearanceSnapshot>, Status> {
+    ) -> Result<harmos::operations::Response<dokime::domain::model::appearance::wire::AppearanceSnapshot>, Status> {
         let captured = self
             .resources
             .runtime
             .capture_appearance(source_budget(self.resources.max_message_bytes))
-            .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
+            .map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
         let mut logos = Vec::with_capacity(captured.frame.logos.len());
         for (logo, source) in captured.frame.logos.iter().zip(captured.logos) {
-            let source = source.ok_or_else(|| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
+            let source = source.ok_or_else(|| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::AssetMissing))?;
             let asset = assets::capture(source, logo.plugin_id.to_string(), logo.asset_id.to_string()).await?;
-            logos.push(dokime_domain::model::appearance::wire::AppearanceLogo {
+            logos.push(dokime::domain::model::appearance::wire::AppearanceLogo {
                 variant: logo.variant,
                 asset: Some(asset.metadata),
                 alt: logo.alt.clone(),
             });
         }
         let frame = convert::appearance(captured.frame, logos)
-            .map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
+            .map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
         if frame.wire_len()? > self.resources.max_message_bytes {
-            return Err(failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
+            return Err(failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge));
         }
         Ok((frame).into())
     }
@@ -104,7 +104,7 @@ impl Operation for Download {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::content::wire::AppearanceAssetFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::content::wire::AppearanceAssetFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -121,17 +121,17 @@ impl Operation for Download {
 pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
     )?;
     Ok(())
 }
 
 pub(super) fn historical(
-    frame: dokime_runtime::domains::installed_plugins::RuntimeAppearanceFrame,
-) -> Result<dokime_domain::model::appearance::wire::AppearanceSnapshot, Status> {
-    convert::historical_memory(&frame).map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
-    convert::appearance(frame, Vec::new()).map_err(|_| failure(dokime_domain::model::appearance::wire::AppearanceFailureKind::TooLarge))
+    frame: dokime::domains::installed_plugins::RuntimeAppearanceFrame,
+) -> Result<dokime::domain::model::appearance::wire::AppearanceSnapshot, Status> {
+    convert::historical_memory(&frame).map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))?;
+    convert::appearance(frame, Vec::new()).map_err(|_| failure(dokime::domain::model::appearance::wire::AppearanceFailureKind::TooLarge))
 }
 
 /* === Private Functions === */
@@ -140,8 +140,8 @@ fn source_budget(max_message_bytes: usize) -> usize {
     max_message_bytes.min(4 * 1024 * 1024)
 }
 
-fn failure(kind: dokime_domain::model::appearance::wire::AppearanceFailureKind) -> Status {
-    use dokime_domain::model::appearance::wire::AppearanceFailureKind::*;
+fn failure(kind: dokime::domain::model::appearance::wire::AppearanceFailureKind) -> Status {
+    use dokime::domain::model::appearance::wire::AppearanceFailureKind::*;
     let (code, message) = match kind {
         AssetMissing => (tonic::Code::NotFound, "appearance asset is unavailable; refresh appearance"),
         AssetChanged => (tonic::Code::FailedPrecondition, "appearance asset changed; refresh appearance"),
@@ -153,7 +153,7 @@ fn failure(kind: dokime_domain::model::appearance::wire::AppearanceFailureKind) 
         code: code as i32,
         message: message.into(),
         // A Detail The Transcoder Refuses Is Omitted; The Status Itself Still Reaches The Caller.
-        details: crate::grpc::transcode::Transcode::wire_bytes(&dokime_domain::model::appearance::wire::AppearanceFailure { kind })
+        details: crate::grpc::transcode::Transcode::wire_bytes(&dokime::domain::model::appearance::wire::AppearanceFailure { kind })
             .ok()
             .map(|value| prost_types::Any { type_url: "type.googleapis.com/dokime.v1.AppearanceFailure".into(), value })
             .into_iter()

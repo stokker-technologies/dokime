@@ -23,9 +23,9 @@ use tonic::Status;
 // Local Imports
 use super::super::{content, value};
 use super::wire;
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::operations::history;
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::ArtifactId;
+use dokime::domain::operations::history;
 
 /* === Constants === */
 
@@ -55,7 +55,7 @@ impl Operation for Download {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::content::wire::ArtifactFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -78,7 +78,7 @@ impl Operation for Download {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())

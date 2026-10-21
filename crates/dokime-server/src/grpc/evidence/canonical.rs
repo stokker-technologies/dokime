@@ -20,9 +20,9 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
-use dokime_domain::model::identity::wire::Severity;
-use dokime_domain::model::records::evidence::RecordEntry;
-use dokime_runtime::records::RecordSeverity;
+use dokime::domain::model::identity::wire::Severity;
+use dokime::domain::model::records::evidence::RecordEntry;
+use dokime::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -42,7 +42,7 @@ use dokime_runtime::records::RecordSeverity;
 
 pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
     let record = &entry.record;
-    let mut bytes = std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedRecord>()
+    let mut bytes = std::mem::size_of::<dokime::domain::model::evidence::wire::CapturedRecord>()
         .saturating_add(record.record_id.as_str().len())
         .saturating_add(record.record_type.as_str().len())
         .saturating_add(record.source.len())
@@ -68,7 +68,7 @@ pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
             bytes = bytes.saturating_add(text.len());
         }
         bytes = bytes.saturating_add(
-            error.cause_chain.len().saturating_mul(4 * std::mem::size_of::<dokime_domain::model::evidence::wire::CapturedErrorCause>()),
+            error.cause_chain.len().saturating_mul(4 * std::mem::size_of::<dokime::domain::model::evidence::wire::CapturedErrorCause>()),
         );
         for cause in &error.cause_chain {
             bytes = bytes.saturating_add(cause.message.len());
@@ -93,7 +93,7 @@ pub(in crate::grpc) fn memory(entry: &RecordEntry) -> Result<usize, Status> {
     Ok(bytes)
 }
 
-pub(crate) fn record(entry: &RecordEntry) -> Result<dokime_domain::model::evidence::wire::CapturedRecord, Status> {
+pub(crate) fn record(entry: &RecordEntry) -> Result<dokime::domain::model::evidence::wire::CapturedRecord, Status> {
     let record = &entry.record;
     memory(entry)?;
     let details = canonical::object(&record.details, &mut Budget::new())?;
@@ -102,14 +102,14 @@ pub(crate) fn record(entry: &RecordEntry) -> Result<dokime_domain::model::eviden
         .as_ref()
         .map(|error| {
             value::collection(error.cause_chain.len())?;
-            Ok::<_, Status>(dokime_domain::model::evidence::wire::CapturedRecordError {
+            Ok::<_, Status>(dokime::domain::model::evidence::wire::CapturedRecordError {
                 message: error.message.clone(),
                 code: error.code.clone(),
                 source: error.source.clone(),
                 cause_chain: error
                     .cause_chain
                     .iter()
-                    .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
+                    .map(|cause| dokime::domain::model::evidence::wire::CapturedErrorCause {
                         message: cause.message.clone(),
                         code: cause.code.clone(),
                         source: cause.source.clone(),
@@ -121,7 +121,7 @@ pub(crate) fn record(entry: &RecordEntry) -> Result<dokime_domain::model::eviden
             })
         })
         .transpose()?;
-    Ok(dokime_domain::model::evidence::wire::CapturedRecord {
+    Ok(dokime::domain::model::evidence::wire::CapturedRecord {
         record_id: record.record_id.to_string(),
         sequence: entry.sequence,
         timestamp: Some(canonical::timestamp(&record.timestamp)?),

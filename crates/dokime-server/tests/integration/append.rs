@@ -12,12 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -36,7 +37,8 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn selection(suite: &dokime_runtime::definition::TestSuite, index: usize) -> model::planning::wire::RegisteredSelection {
+
+fn selection(suite: &dokime::definition::TestSuite, index: usize) -> model::planning::wire::RegisteredSelection {
     model::planning::wire::RegisteredSelection {
         suite_id: suite.metadata.identifier.to_string(),
         template_id: suite.test_case_templates[index].test_case_template_id.to_string(),
@@ -198,14 +200,8 @@ async fn explicit_append_retries() {
     assert_eq!(generated.cases.len(), 1);
     let case = &generated.cases[0];
     assert_eq!(handle.watch_state().latest().state().executions.len(), count);
-    let registered = handle
-        .watch_state()
-        .latest()
-        .state()
-        .suites
-        .case(&dokime_runtime::CaseId::from_wire(case.case_id.clone()).unwrap())
-        .cloned()
-        .unwrap();
+    let registered =
+        handle.watch_state().latest().state().suites.case(&dokime::CaseId::from_wire(case.case_id.clone()).unwrap()).cloned().unwrap();
     assert_eq!(registered.test_case_template_id.to_string(), case.template_id);
     assert_eq!(registered.metadata.label, case.metadata.as_ref().unwrap().label);
 
@@ -221,7 +217,7 @@ async fn explicit_append_retries() {
         .unwrap()
         .into_inner()
         .cycle_id;
-    let ids = (0..2).map(|_| dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>().to_string()).collect::<Vec<_>>();
+    let ids = (0..2).map(|_| dokime::model::identity::new_id::<dokime::TestExecutionId>().to_string()).collect::<Vec<_>>();
     let request = contracts::execution::AppendExecutions {
         cycle_id: cycle.clone(),
         executions: ids
@@ -253,8 +249,8 @@ async fn explicit_append_retries() {
     reordered.executions.reverse();
     assert!(wire.unary::<contracts::execution::AppendExecutions>(auth(reordered, TOKEN)).await.is_err());
     let mut invalid = request.clone();
-    invalid.executions[0].execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>().to_string();
-    invalid.executions[0].case_id = dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>().to_string();
+    invalid.executions[0].execution_id = dokime::model::identity::new_id::<dokime::TestExecutionId>().to_string();
+    invalid.executions[0].case_id = dokime::model::identity::new_id::<dokime::CaseId>().to_string();
     assert!(wire.unary::<contracts::execution::AppendExecutions>(auth(invalid, TOKEN)).await.is_err());
     let oversized = contracts::execution::AppendExecutions {
         cycle_id: cycle.clone(),
@@ -272,7 +268,7 @@ async fn explicit_append_retries() {
             .watch_state()
             .latest()
             .state()
-            .cycle_view(&dokime_runtime::TestCycleId::from_uuid(cycle.clone()).unwrap())
+            .cycle_view(&dokime::TestCycleId::from_uuid(cycle.clone()).unwrap())
             .unwrap()
             .test_executions
             .len(),
@@ -303,14 +299,11 @@ async fn explicit_append_retries() {
     // Changing A Definition Cannot Silently Reinterpret An Earlier Materialized Case.
     let mut changed = suite.clone();
     changed.test_case_templates[0].metadata.description = Some("Changed After Materialization".into());
-    handle
-        .set_suites("provider:fixture", dokime_runtime::definition::SuiteSet::new([support::fixture_registration(changed)]))
-        .await
-        .unwrap();
+    handle.set_suites("provider:fixture", dokime::definition::SuiteSet::new([support::fixture_registration(changed)])).await.unwrap();
     let stale = contracts::execution::AppendExecutions {
         cycle_id: other.clone(),
         executions: vec![contracts::execution::ExecutionBinding {
-            execution_id: dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>().to_string(),
+            execution_id: dokime::model::identity::new_id::<dokime::TestExecutionId>().to_string(),
             case_id: case.case_id.clone(),
         }],
     };

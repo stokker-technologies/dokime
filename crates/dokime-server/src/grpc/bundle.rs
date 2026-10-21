@@ -25,7 +25,7 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 
 // Local Imports
 use super::redaction;
-use dokime_domain::model::time::Timestamp;
+use dokime::domain::model::time::Timestamp;
 
 /* === Constants === */
 

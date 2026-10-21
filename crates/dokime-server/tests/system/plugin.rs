@@ -8,12 +8,14 @@
  */
 
 /* === Modules === */
+
 mod diagnosis;
 mod shutdown;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, HashSet},
@@ -23,11 +25,12 @@ use std::{
 // Third Party Imports
 // Local Imports
 use crate::support::{self, host::Host};
-use dokime_client::{Client, ResponseStream, contracts};
-use dokime_domain::model;
-use dokime_runtime::Value;
+use dokime::Value;
+use dokime::client::{Client, ResponseStream, contracts};
+use dokime::domain::model;
 
 /* === Constants === */
+
 const STARTUP_SUITE: &str = "obc.charger.startup";
 const PROTECTION_SUITE: &str = "obc.charger.protection";
 const PROTECTION_TEMPLATE: &str = "obc.charger.protection.overcurrent";
@@ -64,6 +67,7 @@ const HOST_STREAMS: &[&str] =
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 type Changes = ResponseStream<model::observation::wire::RuntimeStateFrame>;
 
 async fn on_change<T>(changes: &mut Changes, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
@@ -285,7 +289,7 @@ async fn installations(client: &Client) -> Vec<model::plugins::wire::PluginInsta
 }
 
 async fn install(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
-    let sha256 = dokime_client::plugin_bundle_digest(bytes);
+    let sha256 = dokime::client::plugin_bundle_digest(bytes);
     let staged = client.plugins_stage_bundle(bytes.to_vec(), sha256.clone(), |_, _| {}).await.unwrap();
     client.plugins_consent(contracts::plugins::Consent { install_id: staged.install_id, expected_sha256: sha256 }).await.unwrap()
 }
@@ -769,6 +773,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
 }
 
 /* === Tests === */
+
 // Open Report While The Cycle Runs, Over The Built Plugin: a cycle report opens
 // on every request from the measuring member's settlement, through the
 // prompting member's admission, to its pending question, and both reports open

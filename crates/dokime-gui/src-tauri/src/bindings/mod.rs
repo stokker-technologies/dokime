@@ -74,7 +74,7 @@ native_commands! {
 
     sync desktop_profiles_list
         []
-        () -> Result<dokime_client::profiles::Document, String>
+        () -> Result<dokime::client::profiles::Document, String>
         => crate::native_session::desktop_profiles_list;
 
     // Open the failed owned start's log; the shell supplies the path.

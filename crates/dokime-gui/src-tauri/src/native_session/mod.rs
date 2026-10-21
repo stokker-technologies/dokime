@@ -169,8 +169,8 @@ pub async fn desktop_open_backend_log(
     .map_err(|error| error.to_string())?
 }
 
-pub fn desktop_profiles_list() -> Result<dokime_client::profiles::Document, String> {
-    let store = dokime_client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
+pub fn desktop_profiles_list() -> Result<dokime::client::profiles::Document, String> {
+    let store = dokime::client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
     store.load().map_err(|error| error.to_string())
 }
 

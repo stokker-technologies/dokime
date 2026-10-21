@@ -28,8 +28,8 @@ use crate::domain::model::connections::Connections;
 
 /* === Structs === */
 
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
+#[dokime::message]
+#[dokime::operation(
     id = "obc-plugin.list_connections",
     response = Connections,
     version = 1,

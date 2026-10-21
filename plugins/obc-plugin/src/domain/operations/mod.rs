@@ -29,7 +29,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
+use dokime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 
 /* === Constants === */
 
@@ -50,7 +50,7 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 /* === Enums === */
 
 // The bench operations this plugin declares; each request is its operation.
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Operations {
     ReadDevice(ReadDevice),
     SetPower(SetPower),

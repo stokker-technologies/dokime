@@ -23,8 +23,8 @@ use std::time::Duration;
 // Third-Party Imports
 use crate::error::Error;
 use crate::suites::common::system::{self, SystemInputs};
-use dokime_runtime::document::{Document, Plot, PlotStyle, Section};
-use dokime_runtime::execution::{CriterionContext, ObserverContext, StepContext};
+use dokime::document::{Document, Plot, PlotStyle, Section};
+use dokime::execution::{CriterionContext, ObserverContext, StepContext};
 
 /* === Constants === */
 
@@ -44,7 +44,7 @@ const PROGRESS_POLL: Duration = Duration::from_millis(5);
 
 // Records
 
-#[dokime_runtime::record(
+#[dokime::record(
     id = "obc.run.started",
     label = "Run started",
     description = "The run has begun.\nDeclared here, beside the step that publishes it, and named once on the template's `records = Records`. The struct is the contract: there is no id to keep in agreement with a separate declaration."
@@ -52,11 +52,7 @@ const PROGRESS_POLL: Duration = Duration::from_millis(5);
 #[derive(Clone, Debug)]
 pub struct RunStarted {}
 
-#[dokime_runtime::record(
-    id = "obc.run.completed",
-    label = "Run completed",
-    description = "The run finished, and this is what it produced."
-)]
+#[dokime::record(id = "obc.run.completed", label = "Run completed", description = "The run finished, and this is what it produced.")]
 #[derive(Clone, Debug)]
 pub struct RunCompleted {
     #[record(description = "How many rows the declared stream produced before the run completed.")]
@@ -76,7 +72,7 @@ pub struct PulseResources {
 // every other reference to this stream names it by. A field's column type is
 // resolved from its Rust type, so `value: f64` is a number column because the
 // compiler said so.
-#[dokime_runtime::stream(
+#[dokime::stream(
     id = "obc.pulse",
     window = 4096,
     label = "OBC Pulse",
@@ -89,7 +85,7 @@ pub struct PulseRow {
     pub value: f64,
 }
 
-#[dokime_runtime::parameters]
+#[dokime::parameters]
 pub struct PulseParameters {
     #[parameter(
         label = "Sample Count",
@@ -122,7 +118,7 @@ pub struct PulseParameters {
     pub require_confirmation: bool,
 }
 
-#[dokime_runtime::prompt(
+#[dokime::prompt(
     id = "obc.checks.pulse.confirm",
     label = "Start Simulated Pulse",
     description = "Confirm that you want to start simulated pulse capture for this execution."
@@ -131,18 +127,18 @@ pub struct ConfirmPulse;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Records {
     RunStarted(RunStarted),
     RunCompleted(RunCompleted),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Prompts {
     ConfirmPulse(ConfirmPulse),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum ObserverStreams {
     PulseRow(PulseRow),
 }
@@ -151,7 +147,7 @@ pub enum ObserverStreams {
 
 /* === Implementations === */
 
-#[dokime_runtime::template(
+#[dokime::template(
     id = "obc.checks.pulse",
     label = LABEL,
     tags = ["example", "sidecar"],
@@ -165,7 +161,7 @@ pub enum ObserverStreams {
     parameters = PulseParameters, description = "Streams a short deterministic pulse from inside the sidecar.")]
 impl Pulse {
     async fn initialize(
-        _: &PulseParameters, _ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
+        _: &PulseParameters, _ctx: &mut dokime::execution::InitializationContext<'_>,
     ) -> Result<(Self, PulseResources), Error> {
         let template = Self;
         let shared = PulseResources::default();
@@ -190,7 +186,7 @@ impl Pulse {
         document
     }
 
-    #[dokime_runtime::step(
+    #[dokime::step(
         label = "Start",
         description = "The first phase: say the run has begun.\nThe host advances its checklist on the step's id, which the engine reports before it calls this. What the step itself does is emit the record this template declared."
     )]
@@ -209,7 +205,7 @@ impl Pulse {
         Ok(())
     }
 
-    #[dokime_runtime::step(
+    #[dokime::step(
         label = "Stream Samples",
         description = "Waits for the declared stream to produce the rows this case asked for.\nIt waits on a count rather than on a clock, so the evidence a run produced is what ended it. A cancellation ends the wait wherever it has got to, and the criterion below then decides over the rows that exist."
     )]
@@ -226,7 +222,7 @@ impl Pulse {
         Ok(())
     }
 
-    #[dokime_runtime::step(label = "Complete", description = "The last phase: say what the run produced.")]
+    #[dokime::step(label = "Complete", description = "The last phase: say what the run produced.")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let produced = ctx.resources().produced.load(Ordering::Acquire);
         ctx.publish(RunCompleted { samples: produced }).await;
@@ -234,7 +230,7 @@ impl Pulse {
         Ok(())
     }
 
-    #[dokime_runtime::criterion(id = ACCEPTANCE, label = "Pulse Completed", description = "Decides the run from the rows it produced.\nThree answers, not two: `true` passed, `false` failed, and an error is indeterminate — a sample this cannot read has told it nothing, which is not the same as telling it the run was wrong.")]
+    #[dokime::criterion(id = ACCEPTANCE, label = "Pulse Completed", description = "Decides the run from the rows it produced.\nThree answers, not two: `true` passed, `false` failed, and an error is indeterminate — a sample this cannot read has told it nothing, which is not the same as telling it the run was wrong.")]
     fn completed(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
         if ctx.parameters().capture_system && !ctx.gaps::<crate::observers::system::SystemRow>().is_empty() {
             return Ok(false);
@@ -254,7 +250,7 @@ impl Pulse {
         Ok(samples.len() as u64 >= ctx.parameters().sample_count)
     }
 
-    #[dokime_runtime::observer(interval_ms = SAMPLE_INTERVAL_MS, streams = ObserverStreams)]
+    #[dokime::observer(interval_ms = SAMPLE_INTERVAL_MS, streams = ObserverStreams)]
     async fn pulse(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         if !ctx.resources().armed.load(Ordering::Acquire) {
             return Ok(());

@@ -29,6 +29,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct SdkArtifact {
     library: std::path::PathBuf,
     serde: std::path::PathBuf,
@@ -44,10 +45,11 @@ struct SdkArtifact {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn sdk_artifact() -> &'static SdkArtifact {
     static SDK: std::sync::OnceLock<SdkArtifact> = std::sync::OnceLock::new();
     SDK.get_or_init(|| {
-        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dokime-runtime/Cargo.toml").canonicalize().unwrap();
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dokime/Cargo.toml").canonicalize().unwrap();
         let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
         let target = std::env::var_os("CARGO_TARGET_DIR").map(|path| workspace.join(path)).unwrap_or_else(|| workspace.join("target"));
         // Tests Build Records The Selected SDK And Dependency Graph Beside Its Archive.
@@ -105,7 +107,7 @@ fn sdk_artifact() -> &'static SdkArtifact {
 
             if value["reason"] != "compiler-artifact"
                 || !value["manifest_path"].as_str().is_some_and(|path| same_path(&manifest, path))
-                || value["target"]["name"] != "dokime_runtime"
+                || value["target"]["name"] != "dokime"
             {
                 continue;
             }

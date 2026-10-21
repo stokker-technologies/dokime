@@ -21,8 +21,8 @@ pub(super) use bounds::Budget;
 use tonic::Status;
 
 // Local Imports
-use dokime_runtime::definition::ParameterExpr;
-use dokime_runtime::definition::parameters::bounds;
+use dokime::definition::ParameterExpr;
+use dokime::definition::parameters::bounds;
 
 /* === Constants === */
 
@@ -44,11 +44,11 @@ pub(super) fn expression(expr: &ParameterExpr, budget: &mut Budget, depth: usize
     bounds::expression(expr, budget, depth).map_err(status)
 }
 
-pub(super) fn status(error: dokime_runtime::ApiError) -> Status {
-    let dokime_runtime::ApiError::ParameterLimit(error) = error else {
+pub(super) fn status(error: dokime::ApiError) -> Status {
+    let dokime::ApiError::ParameterLimit(error) = error else {
         return super::rejection("invalid_selection", error.to_string());
     };
-    use dokime_runtime::definition::parameters::limits::ParameterLimitError;
+    use dokime::definition::parameters::limits::ParameterLimitError;
     match error {
         ParameterLimitError::Structure => Status::resource_exhausted(error.to_string()),
         ParameterLimitError::Expansion => super::rejection("parameter_expansion_limit", error.to_string()),

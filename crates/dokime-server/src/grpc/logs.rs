@@ -29,7 +29,7 @@ use tonic::Status;
 // Local Imports
 use super::redaction;
 use crate::grpc::transcode::Transcode;
-use dokime_domain::model::identity::wire::Timestamp;
+use dokime::domain::model::identity::wire::Timestamp;
 
 /* === Constants === */
 
@@ -48,7 +48,7 @@ const MAX_LINE_BYTES: usize = 256 * 1024;
 
 pub(super) struct Watch {
     pub(super) path: PathBuf,
-    pub(super) min_level: dokime_domain::model::backend::wire::LogLevel,
+    pub(super) min_level: dokime::domain::model::backend::wire::LogLevel,
     pub(super) replay_lines: u32,
     pub(super) message_limit: usize,
 }
@@ -56,13 +56,13 @@ pub(super) struct Watch {
 struct Follow {
     pending_bytes: usize,
     path: PathBuf,
-    min_level: dokime_domain::model::backend::wire::LogLevel,
+    min_level: dokime::domain::model::backend::wire::LogLevel,
     replay_lines: u32,
     message_limit: usize,
     offset: u64,
     carry: Vec<u8>,
     discarding_line: bool,
-    pending: VecDeque<dokime_domain::model::backend::wire::LogFrame>,
+    pending: VecDeque<dokime::domain::model::backend::wire::LogFrame>,
     dropped: u64,
     replayed: bool,
 }
@@ -74,7 +74,7 @@ struct Follow {
 /* === Implementations === */
 
 impl Watch {
-    pub(super) async fn run(self, output: &mut StreamOutput<dokime_domain::model::backend::wire::LogFrame>) -> Result<(), Status> {
+    pub(super) async fn run(self, output: &mut StreamOutput<dokime::domain::model::backend::wire::LogFrame>) -> Result<(), Status> {
         let replay_lines = if self.replay_lines == 0 { DEFAULT_REPLAY_LINES } else { self.replay_lines.min(MAX_REPLAY_LINES) };
         let mut follow = Follow {
             pending_bytes: 0,
@@ -97,7 +97,7 @@ impl Watch {
 }
 
 impl Follow {
-    async fn next(&mut self) -> Result<Option<Response<dokime_domain::model::backend::wire::LogFrame>>, Status> {
+    async fn next(&mut self) -> Result<Option<Response<dokime::domain::model::backend::wire::LogFrame>>, Status> {
         loop {
             if !self.replayed {
                 self.replay().await?;
@@ -196,12 +196,12 @@ impl Follow {
         Ok(read as u64)
     }
 
-    fn pop(&mut self) -> Option<dokime_domain::model::backend::wire::LogFrame> {
+    fn pop(&mut self) -> Option<dokime::domain::model::backend::wire::LogFrame> {
         let frame = self.pending.pop_front()?;
         self.pending_bytes = self.pending_bytes.saturating_sub(frame.memory_size());
         Some(frame)
     }
-    fn push(&mut self, frame: dokime_domain::model::backend::wire::LogFrame) {
+    fn push(&mut self, frame: dokime::domain::model::backend::wire::LogFrame) {
         let bytes = frame.memory_size();
         let count = if self.replayed { MAX_PENDING_FRAMES } else { self.replay_lines as usize };
         while !self.pending.is_empty() && (self.pending.len() >= count || self.pending_bytes.saturating_add(bytes) > self.message_limit) {
@@ -214,7 +214,7 @@ impl Follow {
         self.pending_bytes = self.pending_bytes.saturating_add(bytes);
         self.pending.push_back(frame);
     }
-    fn frame(&self, line: &[u8]) -> Result<Option<dokime_domain::model::backend::wire::LogFrame>, Status> {
+    fn frame(&self, line: &[u8]) -> Result<Option<dokime::domain::model::backend::wire::LogFrame>, Status> {
         let Some(frame) = self.frame_wire(line) else {
             return Ok(None);
         };
@@ -223,7 +223,7 @@ impl Follow {
         }
         Ok(Some(frame))
     }
-    fn frame_wire(&self, line: &[u8]) -> Option<dokime_domain::model::backend::wire::LogFrame> {
+    fn frame_wire(&self, line: &[u8]) -> Option<dokime::domain::model::backend::wire::LogFrame> {
         let line = std::str::from_utf8(line).ok()?.trim();
         if line.is_empty() {
             return None;
@@ -249,14 +249,14 @@ impl Follow {
             fields.insert("spans".to_owned(), field("spans", spans));
         }
 
-        Some(dokime_domain::model::backend::wire::LogFrame {
+        Some(dokime::domain::model::backend::wire::LogFrame {
             time: record.get("timestamp").or_else(|| record.get("time")).and_then(Value::as_str).and_then(timestamp),
             level,
             target: record.get("target").and_then(Value::as_str).unwrap_or_default().to_owned(),
             message: redaction::text(message),
             fields: fields
                 .into_iter()
-                .map(|(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry { key, value })
+                .map(|(key, value)| dokime::domain::model::backend::wire::LogFrameFieldsEntry { key, value })
                 .collect(),
             dropped: 0,
         })
@@ -267,13 +267,13 @@ impl Follow {
 
 /* === Private Functions === */
 
-fn level(name: &str) -> Option<dokime_domain::model::backend::wire::LogLevel> {
+fn level(name: &str) -> Option<dokime::domain::model::backend::wire::LogLevel> {
     match name.trim().to_ascii_uppercase().as_str() {
-        "TRACE" => Some(dokime_domain::model::backend::wire::LogLevel::Trace),
-        "DEBUG" => Some(dokime_domain::model::backend::wire::LogLevel::Debug),
-        "INFO" => Some(dokime_domain::model::backend::wire::LogLevel::Info),
-        "WARN" | "WARNING" => Some(dokime_domain::model::backend::wire::LogLevel::Warn),
-        "ERROR" => Some(dokime_domain::model::backend::wire::LogLevel::Error),
+        "TRACE" => Some(dokime::domain::model::backend::wire::LogLevel::Trace),
+        "DEBUG" => Some(dokime::domain::model::backend::wire::LogLevel::Debug),
+        "INFO" => Some(dokime::domain::model::backend::wire::LogLevel::Info),
+        "WARN" | "WARNING" => Some(dokime::domain::model::backend::wire::LogLevel::Warn),
+        "ERROR" => Some(dokime::domain::model::backend::wire::LogLevel::Error),
         _ => None,
     }
 }

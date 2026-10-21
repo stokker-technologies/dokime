@@ -25,15 +25,15 @@ use tonic::Status;
 use super::{MAX_CONTENT_BYTES, metadata, transfer_chunk_bytes};
 use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::identity::CaseId;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::content as wire;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::domains::evidence::ArtifactUploadInput;
-use dokime_runtime::runtime::ArtifactUpload;
+use dokime::RuntimeHandle;
+use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::domain::model::execution::RecordScope;
+use dokime::domain::model::identity::CaseId;
+use dokime::domain::model::identity::TestCycleId;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domain::operations::content as wire;
+use dokime::domains::evidence::ArtifactUploadInput;
+use dokime::runtime::ArtifactUpload;
 
 /* === Constants === */
 
@@ -66,15 +66,15 @@ impl Operation for Upload {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>;
+    type Endpoints = StreamInput<dokime::domain::model::content::wire::UploadArtifactFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources, upload: None })
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, _: &mut wire::UploadArtifact, input: &mut Self::Endpoints,
-    ) -> Result<Response<dokime_domain::model::content::wire::ArtifactMetadata>, Status> {
+    ) -> Result<Response<dokime::domain::model::content::wire::ArtifactMetadata>, Status> {
         let first = receive_upload_frame(input).await?.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
-        let Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
+        let Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
             return Err(Status::invalid_argument("first artifact upload frame must be a header"));
         };
         let upload_size = header.size_bytes;
@@ -148,13 +148,13 @@ impl Upload {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Upload>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
 
-pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime_domain::model::content::wire::ArtifactScope>) -> Result<RecordScope, Status> {
+pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime::domain::model::content::wire::ArtifactScope>) -> Result<RecordScope, Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("artifact scope is required"))?;
     let cycle_id = scope
         .cycle_id
@@ -183,10 +183,10 @@ pub(in crate::grpc) fn artifact_scope(scope: Option<&dokime_domain::model::conte
     Ok(RecordScope { test_cycle_id: cycle_id, test_case_id: case_id, test_execution_id: execution_id, ..RecordScope::default() })
 }
 
-pub(in crate::grpc) fn content_failure(error: dokime_runtime::runtime::Error) -> Status {
-    use dokime_runtime::runtime::Error;
+pub(in crate::grpc) fn content_failure(error: dokime::runtime::Error) -> Status {
+    use dokime::runtime::Error;
     let status = match &error {
-        Error::ExportStorage { source: dokime_runtime::domains::exports::storage::StorageError::ArchiveTooLarge { .. } } => {
+        Error::ExportStorage { source: dokime::domains::exports::storage::StorageError::ArchiveTooLarge { .. } } => {
             Status::resource_exhausted("cycle bundle exceeds native content limit")
         }
         Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("artifact upload owner not found"),
@@ -209,19 +209,19 @@ pub(in crate::grpc) fn content_failure(error: dokime_runtime::runtime::Error) ->
 /* === Private Functions === */
 
 async fn receive_upload_frame(
-    input: &mut StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>,
-) -> Result<Option<StreamItem<dokime_domain::model::content::wire::UploadArtifactFrame>>, Status> {
+    input: &mut StreamInput<dokime::domain::model::content::wire::UploadArtifactFrame>,
+) -> Result<Option<StreamItem<dokime::domain::model::content::wire::UploadArtifactFrame>>, Status> {
     tokio::time::timeout(IDLE_TRANSFER_TIMEOUT, input.recv())
         .await
         .map_err(|_| Status::deadline_exceeded("artifact upload idle deadline exceeded"))
 }
 
 fn upload_header(
-    header: &dokime_domain::model::content::wire::UploadArtifactHeader,
+    header: &dokime::domain::model::content::wire::UploadArtifactHeader,
 ) -> Result<(RecordScope, String, Option<String>, Option<String>), Status> {
     let scope = artifact_scope(header.scope.as_ref())?;
     let filename = header.filename.trim();
-    dokime_runtime::artifacts::name::validate(filename).map_err(|source| Status::invalid_argument(source.to_string()))?;
+    dokime::artifacts::name::validate(filename).map_err(|source| Status::invalid_argument(source.to_string()))?;
     let content_type = header.content_type.as_deref().filter(|value| !value.is_empty());
     if content_type.as_ref().is_some_and(|value| value.len() > 255) {
         return Err(Status::invalid_argument("artifact content type must not exceed 255 bytes"));
@@ -241,13 +241,13 @@ fn valid_digest(value: &str) -> bool {
 }
 
 async fn receive_artifact(
-    input: &mut StreamInput<dokime_domain::model::content::wire::UploadArtifactFrame>, upload: ArtifactUpload, expected_size: u64,
+    input: &mut StreamInput<dokime::domain::model::content::wire::UploadArtifactFrame>, upload: ArtifactUpload, expected_size: u64,
     max_chunk_bytes: usize,
 ) -> Result<Option<String>, Status> {
     let mut offset = 0_u64;
     while let Some(frame) = receive_upload_frame(input).await? {
         match &frame.payload {
-            Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk)) => {
+            Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk)) => {
                 if chunk.data.is_empty() || chunk.data.len() > max_chunk_bytes || chunk.offset != offset {
                     return Err(Status::invalid_argument("invalid artifact chunk offset or size"));
                 }
@@ -257,7 +257,7 @@ async fn receive_artifact(
                 }
                 upload.send(&chunk.data).await.map_err(content_failure)?;
             }
-            Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(completion)) => {
+            Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Complete(completion)) => {
                 if completion.size_bytes != offset {
                     return Err(Status::invalid_argument("artifact completion size does not match the received bytes"));
                 }

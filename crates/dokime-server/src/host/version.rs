@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::DEV_PROTOCOL;
+use dokime::domain::DEV_PROTOCOL;
 
 /* === Constants === */
 

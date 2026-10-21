@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 mod upload;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -22,11 +24,12 @@ use sha2::Digest;
 // Local Imports
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
-use dokime_domain::model;
-use dokime_domain::operations::backend;
+use dokime::domain::model;
+use dokime::domain::operations::backend;
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES};
 
 /* === Constants === */
+
 const STAGE: &str = "/dokime.v1.Plugins/Stage";
 
 /* === Macros === */
@@ -34,6 +37,7 @@ const STAGE: &str = "/dokime.v1.Plugins/Stage";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct StageInput {
     entered: Option<tokio::sync::oneshot::Sender<()>>,
     dropped: Option<tokio::sync::oneshot::Sender<()>>,
@@ -44,6 +48,7 @@ struct StageInput {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl tokio_stream::Stream for StageInput {
     type Item = model::plugins::wire::StagePluginFrame;
 
@@ -73,8 +78,9 @@ impl Drop for StageInput {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn large_bundle(resource_bytes: usize) -> Vec<u8> {
-    bundle_for_target(resource_bytes, dokime_runtime::plugins::NATIVE_TARGET)
+    bundle_for_target(resource_bytes, dokime::plugins::NATIVE_TARGET)
 }
 
 fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
@@ -187,6 +193,7 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 /* === Tests === */
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn refuses_invalid_dispatch() {
     let fixture = Fixture::new().await;
@@ -333,7 +340,7 @@ async fn owner_cancellation_health() {
     let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
     assert_eq!(error["kind"], "cancelled");
     let client =
-        dokime_client::Client::connect(dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
+        dokime::client::Client::connect(dokime::client::Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
     assert!(client.backend_get_health(backend::GetHealth {}).await.is_ok());
     fixture.close().await;
 }
@@ -361,7 +368,7 @@ async fn generation_fences_streams() {
 
 #[tokio::test]
 async fn client_close_drops() {
-    use dokime_client::{Client, Error, Target};
+    use dokime::client::{Client, Error, Target};
 
     let fixture = Fixture::new().await;
     let client = Client::connect(Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();

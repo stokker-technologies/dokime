@@ -12,15 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::definition::{CriterionDefinition, ExecutionPhaseDefinition};
-use dokime_runtime::{CriterionId, StepId};
+use dokime::definition::{CriterionDefinition, ExecutionPhaseDefinition};
+use dokime::domain::model;
+use dokime::{CriterionId, StepId};
 
 /* === Constants === */
 
@@ -112,7 +113,7 @@ async fn step_pages_selections() {
         client.unary::<contracts::execution::ListExecutionSteps>(authenticated(wrong_kind)).await.unwrap_err().code(),
         Code::InvalidArgument
     );
-    request.limit = dokime_domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1;
+    request.limit = dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1;
     assert_eq!(
         client.unary::<contracts::execution::ListExecutionSteps>(authenticated(request.clone())).await.unwrap_err().code(),
         Code::InvalidArgument

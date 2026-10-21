@@ -26,8 +26,8 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::{error::detailed, value};
-use dokime_domain::operations::content as wire;
-use dokime_runtime::{RuntimeHandle, runtime::Error};
+use dokime::domain::operations::content as wire;
+use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -57,7 +57,7 @@ impl Operation for Download {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ExecutionFileDownloadFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::content::wire::ExecutionFileDownloadFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -112,7 +112,7 @@ impl Operation for Download {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())

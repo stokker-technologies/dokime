@@ -24,7 +24,7 @@ use std::sync::Arc;
 // Local Imports
 use super::content::UploadGate;
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -41,6 +41,7 @@ use dokime_domain::model;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 #[tokio::test]
 async fn media_capture_artifacts() {
     let root = tempfile::tempdir().unwrap();
@@ -126,7 +127,7 @@ async fn media_capture_artifacts() {
                 .expect("artifact query succeeds")
                 .iter()
                 .filter(|record| record.filename.starts_with("audio/"))
-                .filter(|record| record.status == dokime_runtime::artifacts::ArtifactStatus::Complete)
+                .filter(|record| record.status == dokime::artifacts::ArtifactStatus::Complete)
                 .count();
             (audio == 2).then_some(())
         })
@@ -183,6 +184,7 @@ async fn media_capture_artifacts() {
 }
 
 /* === Private Functions === */
+
 pub(super) async fn running_execution(owner: &Runtime, client: &WireClient, gate: &UploadGate) -> model::content::wire::ArtifactScope {
     let cycle_id = support::planned_cycle(
         client,

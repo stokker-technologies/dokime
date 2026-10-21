@@ -18,8 +18,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::document::{Column, PlotDefinition};
-use dokime_runtime::prelude::*;
+use dokime::document::{Column, PlotDefinition};
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -31,7 +31,7 @@ use dokime_runtime::prelude::*;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum SystemInputs {
     System(host::System),
     Network(host::Network),

@@ -38,7 +38,7 @@ pub struct Suite;
 
 /* === Enums === */
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Templates {
     PowerLoss(power::PowerLoss),
 }
@@ -47,7 +47,7 @@ pub enum Templates {
 
 /* === Implementations === */
 
-#[dokime_runtime::suite(id = SUITE, label = "Charger Recovery", tags = ["device", "recovery"], templates = Templates, description = "Recover the Charger from a loss of power: clear the latched fault and verify a controlled restart.")]
+#[dokime::suite(id = SUITE, label = "Charger Recovery", tags = ["device", "recovery"], templates = Templates, description = "Recover the Charger from a loss of power: clear the latched fault and verify a controlled restart.")]
 impl Suite {}
 
 /* === Public Functions === */

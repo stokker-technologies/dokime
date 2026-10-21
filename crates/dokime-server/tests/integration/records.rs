@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,12 +21,13 @@ use tokio::sync::Notify;
 use tokio_stream::StreamExt as _;
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_runtime::host::ToolConnectionAcquired;
-use dokime_runtime::runtime::command::CommandContext;
+use dokime::domain::model;
+use dokime::domain::model::execution::result::ExecutionStatus;
+use dokime::host::ToolConnectionAcquired;
+use dokime::runtime::command::CommandContext;
 
 /* === Constants === */
+
 const SOURCE: &str = "fixture-bench";
 const SUITE: &str = "fixture.bench";
 
@@ -34,6 +36,7 @@ const SUITE: &str = "fixture.bench";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Expectation {
     budget: Duration,
     listening: Notify,
@@ -51,12 +54,13 @@ struct Waiting {
 }
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 enum Templates {
     Waiting(Waiting),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 enum Subscriptions {
     ToolConnectionAcquired(ToolConnectionAcquired),
 }
@@ -64,22 +68,23 @@ enum Subscriptions {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::suite(id = "fixture.bench", label = "Fixture Bench", templates = Templates)]
+
+#[dokime::suite(id = "fixture.bench", label = "Fixture Bench", templates = Templates)]
 impl BenchSuite {}
 
-#[dokime_runtime::template(
+#[dokime::template(
     id = "fixture.bench.waiting",
     label = "Wait For The Unit",
     subscribes = Subscriptions
 )]
 impl Waiting {
-    async fn initialize(ctx: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
+    async fn initialize(ctx: &mut dokime::execution::InitializationContext<'_>) -> dokime::Result<Self> {
         let expectation = Arc::clone(ctx.environment().binding::<Arc<Expectation>>());
         Ok(Self { expectation })
     }
 
-    #[dokime_runtime::step(label = "Wait")]
-    async fn wait(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
+    #[dokime::step(label = "Wait")]
+    async fn wait(&mut self, ctx: &mut dokime::execution::StepContext<'_>) -> dokime::Result<()> {
         let mut connected = ctx.listen::<ToolConnectionAcquired>().timeout(self.expectation.budget);
         self.expectation.listening.notify_one();
         let connected = connected.next().await.transpose()?.expect("a live subscription yields until it is dropped");
@@ -89,13 +94,13 @@ impl Waiting {
 }
 
 #[async_trait::async_trait]
-impl dokime_runtime::runtime::EmbeddedProvider for Bench {
-    fn catalog(&self) -> dokime_runtime::InstalledPlugin {
-        dokime_runtime::InstalledPlugin {
+impl dokime::runtime::EmbeddedProvider for Bench {
+    fn catalog(&self) -> dokime::InstalledPlugin {
+        dokime::InstalledPlugin {
             source: SOURCE.into(),
             version: "0.1.0".into(),
             enabled: true,
-            suites: dokime_runtime::definition::SuiteSet::new([BenchSuite::definition()]),
+            suites: dokime::definition::SuiteSet::new([BenchSuite::definition()]),
             ..Default::default()
         }
     }
@@ -104,13 +109,16 @@ impl dokime_runtime::runtime::EmbeddedProvider for Bench {
         Vec::new()
     }
 
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn dokime_runtime::execution::Runnable>>> {
+    async fn start(&self) -> dokime::runtime::Result<Vec<Arc<dyn dokime::execution::Runnable>>> {
         let binding: Arc<dyn std::any::Any + Send + Sync> = Arc::new(Arc::clone(&self.expectation));
-        Ok(vec![Arc::new(dokime_runtime::execution::Workflow::<Waiting>::new(SUITE, SOURCE).bound(binding))
-            as Arc<dyn dokime_runtime::execution::Runnable>])
+        Ok(
+            vec![
+                Arc::new(dokime::execution::Workflow::<Waiting>::new(SUITE, SOURCE).bound(binding)) as Arc<dyn dokime::execution::Runnable>
+            ],
+        )
     }
 
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
+    async fn stop(&self) -> dokime::runtime::Result<()> {
         Ok(())
     }
 }
@@ -118,7 +126,8 @@ impl dokime_runtime::runtime::EmbeddedProvider for Bench {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn waiting_cycle(root: &std::path::Path, expectation: Arc<Expectation>) -> (Runtime, dokime_runtime::TestCycleId) {
+
+async fn waiting_cycle(root: &std::path::Path, expectation: Arc<Expectation>) -> (Runtime, dokime::TestCycleId) {
     let config =
         support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host")).register(Arc::new(Bench { expectation }));
     let owner = Runtime::start(config).await.unwrap();
@@ -135,7 +144,7 @@ async fn waiting_cycle(root: &std::path::Path, expectation: Arc<Expectation>) ->
 fn connection(resource: &str) -> model::records::publication::RecordPublishRequest {
     let mut record = model::records::publication::RecordPublishRequest::new(
         Identifier::new("tool.connection.acquired").expect("a builtin record type"),
-        dokime_runtime::records::RecordSeverity::Info,
+        dokime::records::RecordSeverity::Info,
     );
     record.message = Some("a unit reported itself on the bench".to_owned());
     record.details.extend([
@@ -147,6 +156,7 @@ fn connection(resource: &str) -> model::records::publication::RecordPublishReque
 }
 
 /* === Tests === */
+
 // A step waiting on a host record proceeds when the host publishes it from
 // outside the execution.
 #[tokio::test]
@@ -159,7 +169,7 @@ async fn step_awaits_record() {
     expectation.listening.notified().await;
     handle.publish_record(connection("unit-a")).await.unwrap();
 
-    let ended = support::wait_for_cycle_outcome(&handle, &cycle, dokime_domain::model::execution::result::ResultStatus::Passed).await;
+    let ended = support::wait_for_cycle_outcome(&handle, &cycle, dokime::domain::model::execution::result::ResultStatus::Passed).await;
     assert_eq!(ended.test_executions[0].status, ExecutionStatus::Passed);
     assert_eq!(expectation.heard.lock().unwrap().as_deref(), Some("unit-a"));
     drop(handle);
@@ -178,7 +188,7 @@ async fn record_wait_expires() {
     expectation.listening.notified().await;
     tokio::time::advance(Duration::from_secs(31)).await;
 
-    let ended = support::wait_for_cycle_outcome(&handle, &cycle, dokime_domain::model::execution::result::ResultStatus::Failed).await;
+    let ended = support::wait_for_cycle_outcome(&handle, &cycle, dokime::domain::model::execution::result::ResultStatus::Failed).await;
     assert_eq!(ended.test_executions[0].status, ExecutionStatus::Failed);
     assert!(expectation.heard.lock().unwrap().is_none());
     drop(handle);

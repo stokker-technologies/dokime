@@ -21,8 +21,8 @@ use std::sync::Arc;
 // Local Imports
 use crate::support;
 use crate::support::wire::*;
-use dokime_client::contracts;
-use dokime_domain::model;
+use dokime::client::contracts;
+use dokime::domain::model;
 use dokime_server::grpc::{Config, Server};
 
 /* === Constants === */
@@ -151,29 +151,28 @@ async fn crashed_run_replay() {
         restored.state().cycles.values().all(|cycle| cycle.phase == model::execution::result::CyclePhase::Sealed && cycle.saved.is_some()),
         "recovery seals previous-session cycles before serving admission"
     );
-    let cycle_id = dokime_runtime::TestCycleId::from_uuid(cycle_id).unwrap();
-    let cycle = dokime_runtime::storage::objects::cycle::read(owner.handle().storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
+    let cycle_id = dokime::TestCycleId::from_uuid(cycle_id).unwrap();
+    let cycle = dokime::storage::objects::cycle::read(owner.handle().storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .unwrap()
         .value;
-    assert_eq!(cycle.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
+    assert_eq!(cycle.phase, dokime::domain::model::execution::result::CyclePhase::Sealed);
     assert!(cycle.saved.is_some());
     assert_eq!(cycle.execution_ids.len(), 1);
-    let id = dokime_runtime::TestExecutionId::from_uuid(execution_id).unwrap();
+    let id = dokime::TestExecutionId::from_uuid(execution_id).unwrap();
     assert_eq!(cycle.execution_ids[0], id);
-    let execution =
-        dokime_runtime::storage::objects::execution::read(owner.handle().storage(), &id, harmos::storage::ObjectVersion::Latest)
-            .await
-            .unwrap()
-            .unwrap()
-            .value;
-    assert_eq!(execution.status, dokime_domain::model::execution::result::ExecutionStatus::Interrupted);
+    let execution = dokime::storage::objects::execution::read(owner.handle().storage(), &id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap()
+        .value;
+    assert_eq!(execution.status, dokime::domain::model::execution::result::ExecutionStatus::Interrupted);
     assert_eq!(execution.test_execution_id, receipt.last_claim.as_ref().unwrap().execution_id);
     assert!(execution.finished_at.is_some());
     assert_eq!(restored.state().run_requests.len(), 1);
     let recovered = restored.state().run_requests.values().next().unwrap();
-    assert_eq!(recovered.summary.phase, dokime_domain::model::execution::request::RunPhase::Interrupted);
+    assert_eq!(recovered.summary.phase, dokime::domain::model::execution::request::RunPhase::Interrupted);
     assert!(recovered.pending.is_empty());
     assert!(execution.saved.is_some());
     assert_eq!(owner.handle().run_request(&command).await.unwrap().unwrap(), receipt);

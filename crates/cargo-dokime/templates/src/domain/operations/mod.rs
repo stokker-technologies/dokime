@@ -8,24 +8,28 @@
  */
 
 /* === Modules === */
+
 pub mod chamber;
 pub mod status;
 
 /* === Re-Exports === */
+
 pub use chamber::{DetectPort, ReadChamber};
 pub use status::GetStatus;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
+use dokime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 
 /* === Constants === */
-/// The policy every bench operation declares.
+
+// The policy every bench operation declares.
 pub const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_millis(2_000),
     attempt_timeout: Duration::from_millis(2_000),
@@ -40,9 +44,10 @@ pub const POLICY: OperationPolicy = OperationPolicy {
 /* === Structs === */
 
 /* === Enums === */
-/// The operations this plugin provides, named by `provides`; each request is
-/// its operation.
-#[dokime_runtime::catalog]
+
+// The operations this plugin provides, named by `provides`; each request is
+// its operation.
+#[dokime::catalog]
 pub enum Operations {
     GetStatus(GetStatus),
     ReadChamber(ReadChamber),

@@ -25,9 +25,9 @@ use tonic::Status;
 use super::metadata;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use dokime_domain::operations::content as wire;
-use dokime_runtime::{RuntimeHandle, artifacts::ArtifactRecord};
+use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::domain::operations::content as wire;
+use dokime::{RuntimeHandle, artifacts::ArtifactRecord};
 
 /* === Constants === */
 
@@ -63,7 +63,7 @@ impl Operation for List {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListArtifacts, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::content::wire::ListArtifactsReply>, Status> {
+    ) -> Result<Response<dokime::domain::model::content::wire::ListArtifactsReply>, Status> {
         if request.limit > 100 {
             return Err(Status::invalid_argument("page limit exceeds 100"));
         }
@@ -91,7 +91,7 @@ impl Operation for List {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
@@ -99,17 +99,15 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 
-fn inventory_failure(error: dokime_runtime::runtime::Error) -> Status {
+fn inventory_failure(error: dokime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
+        dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("artifact inventory exceeds its read budget")
         }
-        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Overload { .. }) => {
-            Status::resource_exhausted("artifact inventory is busy")
-        }
-        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Unavailable { .. })
-        | dokime_runtime::runtime::Error::ShuttingDown
-        | dokime_runtime::runtime::Error::Interrupted => Status::unavailable("artifact inventory is unavailable"),
+        dokime::runtime::Error::Admission(AdmissionFailure::Overload { .. }) => Status::resource_exhausted("artifact inventory is busy"),
+        dokime::runtime::Error::Admission(AdmissionFailure::Unavailable { .. })
+        | dokime::runtime::Error::ShuttingDown
+        | dokime::runtime::Error::Interrupted => Status::unavailable("artifact inventory is unavailable"),
         _ => Status::internal("artifact inventory could not be read"),
     };
     detailed(status, &error)
@@ -117,7 +115,7 @@ fn inventory_failure(error: dokime_runtime::runtime::Error) -> Status {
 
 fn project(
     records: &[ArtifactRecord], request: &wire::ListArtifacts, epoch: &str, start: usize, count: usize, more: bool, maximum: usize,
-) -> Result<dokime_domain::model::content::wire::ListArtifactsReply, Status> {
+) -> Result<dokime::domain::model::content::wire::ListArtifactsReply, Status> {
     let mut selected = value::canonical::slots(count)?;
     let mut digest = Sha256::new();
     for (index, record) in records.iter().enumerate() {
@@ -150,10 +148,10 @@ fn project(
     } else {
         None
     };
-    let reply = dokime_domain::model::content::wire::ListArtifactsReply {
+    let reply = dokime::domain::model::content::wire::ListArtifactsReply {
         artifacts: selected,
         next_after_artifact_id,
-        cursor: Some(dokime_domain::model::content::wire::ArtifactCursor { epoch: epoch.to_owned(), metadata_sha256: fingerprint }),
+        cursor: Some(dokime::domain::model::content::wire::ArtifactCursor { epoch: epoch.to_owned(), metadata_sha256: fingerprint }),
     };
     if reply.wire_len()? > maximum {
         return Err(Status::resource_exhausted("artifact page exceeds configured message limit"));

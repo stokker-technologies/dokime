@@ -22,7 +22,7 @@ use std::sync::Arc;
 use crate::Resources;
 use crate::domain::model::readiness::Readiness;
 use crate::domain::operations::AskReadiness;
-use dokime_runtime::prelude::*;
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -42,14 +42,14 @@ pub struct ReadinessProbe {
 
 /* === Implementations === */
 
-#[dokime_runtime::operation]
+#[dokime::operation]
 impl ReadinessProbe {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 
     async fn run(&mut self, _: &Supervisor, _: &mut AskReadiness) -> Result<Readiness, Refusal> {
-        Ok(Readiness { stopped: dokime_runtime::plugin::refusal(self.resources.app().stopped().await)? })
+        Ok(Readiness { stopped: dokime::plugin::refusal(self.resources.app().stopped().await)? })
     }
 }
 

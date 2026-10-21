@@ -140,7 +140,7 @@ impl DesktopSession {
         // Resolve The Shared Profile Before Replacing An Active Session.
         let selection = match selection {
             BackendSelection::Profile { name } => {
-                let store = dokime_client::profiles::Store::discover(None)
+                let store = dokime::client::profiles::Store::discover(None)
                     .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
                 let document = store.load().map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
                 let profile = document.get(&name).map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
@@ -151,8 +151,8 @@ impl DesktopSession {
                     ConnectionTarget::Local { endpoint: profile.endpoint.clone() }
                 };
                 let credentials = match resolved.credential {
-                    dokime_client::profiles::Credential::None => ConnectionCredentials::None,
-                    dokime_client::profiles::Credential::Keyring => ConnectionCredentials::Saved,
+                    dokime::client::profiles::Credential::None => ConnectionCredentials::None,
+                    dokime::client::profiles::Credential::Keyring => ConnectionCredentials::Saved,
                 };
                 BackendSelection::Attach {
                     request: ConnectRequest { target, credentials, expected_backend_id: resolved.expected_backend_id },

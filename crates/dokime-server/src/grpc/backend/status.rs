@@ -27,10 +27,10 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
-use dokime_domain::model::identity::wire::Timestamp;
-use dokime_domain::operations::backend as wire;
-use dokime_domain::operations::runtime as native;
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::wire::Timestamp;
+use dokime::domain::operations::backend as wire;
+use dokime::domain::operations::runtime as native;
 
 /* === Constants === */
 
@@ -46,7 +46,7 @@ const DISCOVERY_WORK_BYTES: usize = 16 * 1024 * 1024;
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
-    identity: Response<dokime_domain::model::backend::wire::BackendIdentity>,
+    identity: Response<dokime::domain::model::backend::wire::BackendIdentity>,
 }
 
 struct Identity {
@@ -86,7 +86,7 @@ impl Operation for Identity {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, _: &mut wire::GetIdentity, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::backend::wire::BackendIdentity>, Status> {
+    ) -> Result<Response<dokime::domain::model::backend::wire::BackendIdentity>, Status> {
         Ok(self.resources.identity.clone())
     }
 }
@@ -102,17 +102,17 @@ impl Operation for Health {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, _: &mut wire::GetHealth, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::backend::wire::BackendHealth>, Status> {
+    ) -> Result<Response<dokime::domain::model::backend::wire::BackendHealth>, Status> {
         let instance = self.resources.runtime.operations().submit(native::GetHealth {}).map_err(health_failure)?;
         let health = harmos::grpc::response(instance).await.map_err(health_failure)?;
-        produce(self.resources.maximum, || dokime_domain::model::backend::wire::BackendHealth {
+        produce(self.resources.maximum, || dokime::domain::model::backend::wire::BackendHealth {
             backend_id: health.backend_id.clone(),
             epoch: health.epoch.clone(),
             readiness: match health.readiness {
-                dokime_domain::model::runtime::wire::Readiness::Starting => dokime_domain::model::backend::wire::Readiness::Starting,
-                dokime_domain::model::runtime::wire::Readiness::Ready => dokime_domain::model::backend::wire::Readiness::Ready,
-                dokime_domain::model::runtime::wire::Readiness::Degraded => dokime_domain::model::backend::wire::Readiness::Degraded,
-                dokime_domain::model::runtime::wire::Readiness::Stopping => dokime_domain::model::backend::wire::Readiness::Stopping,
+                dokime::domain::model::runtime::wire::Readiness::Starting => dokime::domain::model::backend::wire::Readiness::Starting,
+                dokime::domain::model::runtime::wire::Readiness::Ready => dokime::domain::model::backend::wire::Readiness::Ready,
+                dokime::domain::model::runtime::wire::Readiness::Degraded => dokime::domain::model::backend::wire::Readiness::Degraded,
+                dokime::domain::model::runtime::wire::Readiness::Stopping => dokime::domain::model::backend::wire::Readiness::Stopping,
             },
             observed_at: Some(Timestamp { seconds: health.observed_at_seconds, nanos: health.observed_at_nanoseconds as i32 }),
             message: health.message.clone(),
@@ -131,13 +131,13 @@ impl Operation for Availability {
     }
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, _: &mut wire::GetAvailability, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::backend::wire::BackendAvailability>, Status> {
+    ) -> Result<Response<dokime::domain::model::backend::wire::BackendAvailability>, Status> {
         use harmos::operations::host::{Catalog, CatalogKind, DiscoveredOperation};
         let maximum = self.resources.maximum;
         let mut methods = Vec::new();
         let mut after = None;
         let mut read_bytes = 0usize;
-        let mut required = std::mem::size_of::<dokime_domain::model::backend::wire::BackendAvailability>()
+        let mut required = std::mem::size_of::<dokime::domain::model::backend::wire::BackendAvailability>()
             .saturating_add(self.resources.identity.backend_id.len())
             .saturating_add(self.resources.identity.epoch.len());
         loop {
@@ -184,16 +184,16 @@ impl Operation for Availability {
         if methods.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(Status::data_loss("shared discovery repeats a gRPC binding"));
         }
-        let output = dokime_domain::model::backend::wire::BackendAvailability {
+        let output = dokime::domain::model::backend::wire::BackendAvailability {
             backend_id: self.resources.identity.backend_id.clone(),
             epoch: self.resources.identity.epoch.clone(),
             methods,
-            limits: Some(dokime_domain::model::backend::wire::BackendLimits {
+            limits: Some(dokime::domain::model::backend::wire::BackendLimits {
                 max_request_bytes: maximum as u64,
                 max_response_bytes: maximum as u64,
                 max_content_bytes: Some(super::super::content::MAX_CONTENT_BYTES),
-                max_evidence_bytes: Some(dokime_domain::model::exports::EVIDENCE_EXPORT_MAX_BYTES),
-                max_page_items: Some(dokime_domain::model::execution::wire_cursor::MAX_PAGE_ITEMS),
+                max_evidence_bytes: Some(dokime::domain::model::exports::EVIDENCE_EXPORT_MAX_BYTES),
+                max_page_items: Some(dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS),
                 max_stream_buffer_items: Some(1),
                 max_chunk_bytes: Some(super::super::content::transfer_chunk_bytes(maximum) as u32),
             }),
@@ -210,7 +210,7 @@ impl Operation for Logs {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::backend::wire::LogFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::backend::wire::LogFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -218,7 +218,7 @@ impl Operation for Logs {
         &mut self, _: Self::Context<'a>, request: &mut wire::WatchLogs, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let min_level = match request.min_level {
-            dokime_domain::model::backend::wire::LogLevel::Unspecified => dokime_domain::model::backend::wire::LogLevel::Trace,
+            dokime::domain::model::backend::wire::LogLevel::Unspecified => dokime::domain::model::backend::wire::LogLevel::Trace,
             level => level,
         };
         crate::grpc::logs::Watch {
@@ -238,7 +238,7 @@ impl Operation for Archive {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::backend::wire::DiagnosticsBundleFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::backend::wire::DiagnosticsBundleFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -263,12 +263,12 @@ pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -
     let instance = runtime.operations().submit(native::GetIdentity {})?;
     let identity = harmos::grpc::response(instance).await?;
     let identity = produce(maximum, || {
-        dokime_domain::model::backend::wire::BackendIdentity {
+        dokime::domain::model::backend::wire::BackendIdentity {
             backend_id: identity.backend_id.clone(),
             epoch: identity.epoch.clone(),
-            api: Some(dokime_domain::model::backend::wire::ApiIdentity {
-                package: dokime_domain::model::backend::wire::API_PACKAGE.into(),
-                version: dokime_domain::model::backend::wire::API_VERSION.into(),
+            api: Some(dokime::domain::model::backend::wire::ApiIdentity {
+                package: dokime::domain::model::backend::wire::API_PACKAGE.into(),
+                version: dokime::domain::model::backend::wire::API_VERSION.into(),
                 descriptor_sha256: Sha256::digest(super::super::FILE_DESCRIPTOR_SET).to_vec(),
             }),
             product_version: identity.product_version.clone(),
@@ -281,11 +281,11 @@ pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -
     })
     .map_err(crate::grpc::Error::OperationService)?;
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum, identity });
-    runtime.operations().register_wire_operation::<Identity>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Health>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Availability>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Logs>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Archive>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
+    runtime.operations().register_wire_operation::<Identity>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Health>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Availability>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Logs>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Archive>("dokime", dokime::app::Lanes::Open, resources)?;
     super::diagnostics::register(runtime, maximum)?;
     Ok(())
 }

@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 // Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
-use dokime_domain::operations::content as v1;
+use dokime::domain::operations::content as v1;
 
 /* === Constants === */
 
@@ -45,7 +45,7 @@ pub(crate) struct VerifiedContent {
 
     pub content_type: Option<String>,
 
-    pub report_origin: Option<dokime_domain::model::reports::wire::ReportOrigin>,
+    pub report_origin: Option<dokime::domain::model::reports::wire::ReportOrigin>,
 }
 
 #[derive(Debug, serde::Serialize, thiserror::Error)]
@@ -88,10 +88,10 @@ impl DeliveryError {
     }
 }
 
-impl From<dokime_client::DownloadError> for DeliveryError {
-    fn from(error: dokime_client::DownloadError) -> Self {
-        use dokime_client::DownloadError as Download;
-        let rpc = |stage: DeliveryStage, error: dokime_client::Error| {
+impl From<dokime::client::DownloadError> for DeliveryError {
+    fn from(error: dokime::client::DownloadError) -> Self {
+        use dokime::client::DownloadError as Download;
+        let rpc = |stage: DeliveryStage, error: dokime::client::Error| {
             let error = crate::Error::from(error);
             Self { stage, failure: DeliveryFailure::Rpc(error) }
         };
@@ -109,14 +109,14 @@ impl From<dokime_client::DownloadError> for DeliveryError {
 
 impl VerifiedContent {
     pub(crate) fn report_origin(&self) -> Option<&'static str> {
-        use dokime_domain::model::reports::wire::ReportOrigin;
+        use dokime::domain::model::reports::wire::ReportOrigin;
         self.report_origin.as_ref().map(|origin| match origin {
             ReportOrigin::Sealed => "sealed",
             ReportOrigin::Current => "current",
         })
     }
 
-    fn from_report(download: dokime_client::Download<dokime_domain::model::reports::wire::ReportMetadata>) -> Self {
+    fn from_report(download: dokime::client::Download<dokime::domain::model::reports::wire::ReportMetadata>) -> Self {
         let origin = download.metadata.origin;
         Self {
             path: download.path,
@@ -127,7 +127,7 @@ impl VerifiedContent {
         }
     }
 
-    fn from_download<T>(download: dokime_client::Download<T>, content_type: impl FnOnce(T) -> Option<String>) -> Self {
+    fn from_download<T>(download: dokime::client::Download<T>, content_type: impl FnOnce(T) -> Option<String>) -> Self {
         Self {
             path: download.path,
             size_bytes: download.size_bytes,
@@ -166,7 +166,7 @@ pub(crate) async fn fetch_verified(
             Ok(content)
         }
         ArtifactSource::ExecutionEvidence { execution_id } => {
-            let subject = dokime_domain::model::exports::EvidenceSubject::Execution(execution_id.clone());
+            let subject = dokime::domain::model::exports::EvidenceSubject::Execution(execution_id.clone());
             let request = v1::DownloadEvidence { subject: Some(subject) };
             let download = client.download_evidence(request, destination, false).await?;
             let content_type = Some("application/zip".into());
@@ -174,7 +174,7 @@ pub(crate) async fn fetch_verified(
             Ok(content)
         }
         ArtifactSource::CycleEvidence { cycle_id } => {
-            let subject = dokime_domain::model::exports::EvidenceSubject::Cycle(cycle_id.clone());
+            let subject = dokime::domain::model::exports::EvidenceSubject::Cycle(cycle_id.clone());
             let request = v1::DownloadEvidence { subject: Some(subject) };
             let download = client.download_evidence(request, destination, false).await?;
             let content_type = Some("application/zip".into());
@@ -183,14 +183,14 @@ pub(crate) async fn fetch_verified(
         }
         ArtifactSource::CycleReport { cycle_id } => client
             .download_cycle_report(
-                dokime_domain::operations::reports::DownloadCycleReport { cycle_id: cycle_id.clone(), identifier: CYCLE_REPORT.into() },
+                dokime::domain::operations::reports::DownloadCycleReport { cycle_id: cycle_id.clone(), identifier: CYCLE_REPORT.into() },
                 destination,
             )
             .await
             .map(VerifiedContent::from_report),
         ArtifactSource::ExecutionReport { execution_id } => client
             .download_execution_report(
-                dokime_domain::operations::reports::DownloadExecutionReport { execution_id: execution_id.clone() },
+                dokime::domain::operations::reports::DownloadExecutionReport { execution_id: execution_id.clone() },
                 destination,
             )
             .await
@@ -200,8 +200,8 @@ pub(crate) async fn fetch_verified(
 }
 
 pub(crate) async fn push_verified(
-    lease: &SessionLease, source: &Path, header: dokime_domain::model::content::wire::UploadArtifactHeader,
-) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, String> {
+    lease: &SessionLease, source: &Path, header: dokime::domain::model::content::wire::UploadArtifactHeader,
+) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, String> {
     let frame_limit = std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit");
     let client = lease.client().with_frame_limit(frame_limit);
     let result = client.upload_artifact_file(source, header).await;
@@ -224,8 +224,8 @@ mod tests {
         let refusal = tonic::Status::failed_precondition(
             "The evidence bundle becomes available when the cycle is terminal; this cycle is still running.",
         );
-        let refusal = dokime_client::Error::Rpc(refusal);
-        let refusal = dokime_client::DownloadError::Request(refusal);
+        let refusal = dokime::client::Error::Rpc(refusal);
+        let refusal = dokime::client::DownloadError::Request(refusal);
         let error = DeliveryError::from(refusal);
 
         let wire = serde_json::to_value(&error).unwrap();
@@ -252,8 +252,8 @@ mod tests {
     #[test]
     fn local_failures_name_their_stage() {
         let write_error = std::io::Error::other("disk full");
-        let staged = DeliveryError::from(dokime_client::DownloadError::Io(write_error));
-        let invalid = DeliveryError::from(dokime_client::DownloadError::Invalid("size or SHA-256 mismatch"));
+        let staged = DeliveryError::from(dokime::client::DownloadError::Io(write_error));
+        let invalid = DeliveryError::from(dokime::client::DownloadError::Invalid("size or SHA-256 mismatch"));
 
         assert_eq!(staged.stage, DeliveryStage::Write);
         assert_eq!(invalid.stage, DeliveryStage::Stream);

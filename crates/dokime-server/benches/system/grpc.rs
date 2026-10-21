@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::hint::black_box;
 
@@ -23,9 +24,10 @@ use futures_util::future::try_join_all;
 
 // Local Imports
 use super::server::Server;
-use dokime_client::{Client, Target, contracts::observation::GetRuntimeShell};
+use dokime::client::{Client, Target, contracts::observation::GetRuntimeShell};
 
 /* === Constants === */
+
 const PAGE_ITEMS: u32 = 50;
 
 /* === Macros === */
@@ -41,6 +43,7 @@ const PAGE_ITEMS: u32 = 50;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn benchmark(criterion: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let server = Server::start(None);

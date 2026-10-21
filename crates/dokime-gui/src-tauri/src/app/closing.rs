@@ -40,7 +40,7 @@ const STOPPING_EVENT: &str = "desktop://stopping";
 const VISIBLE_AFTER: Duration = Duration::from_secs(1);
 // The run's settle budget plus the backend's final checkpoint; past it the
 // operator is offered an explicit choice to exit without finishing.
-const STOP_DEADLINE: Duration = Duration::from_secs(dokime_domain::STOP_SETTLEMENT_SECONDS + 30);
+const STOP_DEADLINE: Duration = Duration::from_secs(dokime::domain::STOP_SETTLEMENT_SECONDS + 30);
 const EXIT_WITHOUT_FINISHING: &str = "Exit Without Finishing";
 
 /* === Macros === */

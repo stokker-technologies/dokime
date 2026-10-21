@@ -24,12 +24,12 @@ use tonic::Status;
 use super::wire;
 use crate::grpc::transcode::Transcode;
 use crate::grpc::{error::detailed, value};
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use dokime_domain::model::execution::wire_checkpoint as checkpoint;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::history;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::runtime::query::execution_history::ExecutionCheckpoint;
+use dokime::RuntimeHandle;
+use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::domain::model::execution::wire_checkpoint as checkpoint;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domain::operations::history;
+use dokime::runtime::query::execution_history::ExecutionCheckpoint;
 
 /* === Constants === */
 
@@ -80,7 +80,7 @@ impl Operation for Inspect {
         let id = TestExecutionId::from_uuid(request.execution_identifier.clone())
             .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         let response = self.resources.runtime.execution_saved_checkpoint(id).await.map_err(|source| match source {
-            dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => {
+            dokime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => {
                 detailed(Status::not_found("execution has no saved seal"), &source)
             }
             source => wire::query_failure(source),
@@ -100,7 +100,7 @@ impl Operation for Delete {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut history::DeleteExecution, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::history::wire::DeleteExecutionResponse>, Status> {
+    ) -> Result<Response<dokime::domain::model::history::wire::DeleteExecutionResponse>, Status> {
         if self.resources.runtime.watch_state().latest().state().shutting_down {
             return Err(Status::unavailable("listener is stopping"));
         }
@@ -124,7 +124,7 @@ pub(in crate::grpc) fn register(runtime: &RuntimeHandle, max_message_bytes: usiz
     super::context::register(runtime, max_message_bytes)?;
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
     )?;
     Ok(())

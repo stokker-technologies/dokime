@@ -21,7 +21,7 @@ use std::sync::Arc;
 // Local Imports
 use crate::Resources;
 use crate::domain::operations::GetStatus;
-use dokime_runtime::prelude::*;
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -41,14 +41,14 @@ pub struct StatusProbe {
 
 /* === Implementations === */
 
-#[dokime_runtime::operation]
+#[dokime::operation]
 impl StatusProbe {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 
     async fn run(&mut self, _: &Supervisor, _: &mut GetStatus) -> Result<StatusResponse, Refusal> {
-        let stopped = dokime_runtime::plugin::refusal(self.resources.app().stopped().await)?;
+        let stopped = dokime::plugin::refusal(self.resources.app().stopped().await)?;
         Ok(StatusResponse::new(if stopped { "disconnected" } else { "connected" }))
     }
 }

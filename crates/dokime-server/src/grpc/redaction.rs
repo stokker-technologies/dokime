@@ -62,7 +62,7 @@ pub(super) fn scrub(value: &mut Value) {
 }
 
 pub(crate) fn text(value: &str) -> String {
-    dokime_runtime::plugin::redacted(value)
+    dokime::plugin::redacted(value)
 }
 
 /* === Private Functions === */

@@ -12,15 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
+
 const PREPARATION_CASES: usize = 48;
 // Two Full Pages And A Partial One; Shutdown Seals A Durable Report Per Case.
 const PAGE_LIMIT: u32 = 4;
@@ -49,9 +51,9 @@ async fn large_cycles_order() {
     let mut owner = fixture(root.path(), gate.clone()).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let parameter = &mut suite.test_case_templates[0].parameters[0];
-    parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_runtime::ValueType::Integer;
-    parameter.expression = dokime_runtime::definition::ParameterExpr::Range { start: 0, stop: PAGED_CASES as i64 - 1, step: 1 };
+    parameter.expansion = dokime::definition::ParameterExpansion::Cartesian;
+    parameter.value_type = dokime::ValueType::Integer;
+    parameter.expression = dokime::definition::ParameterExpr::Range { start: 0, stop: PAGED_CASES as i64 - 1, step: 1 };
     support::register_fixture_execution(&owner.handle(), suite).await;
     let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
@@ -179,9 +181,9 @@ async fn queued_cycle_seals_every_member() {
     gate.started.notified().await;
     let mut suite = support::fixture_suite(&["passed"]);
     let parameter = &mut suite.test_case_templates[0].parameters[0];
-    parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_runtime::ValueType::Integer;
-    parameter.expression = dokime_runtime::definition::ParameterExpr::Range { start: 0, stop: PREPARATION_CASES as i64 - 1, step: 1 };
+    parameter.expansion = dokime::definition::ParameterExpansion::Cartesian;
+    parameter.value_type = dokime::ValueType::Integer;
+    parameter.expression = dokime::definition::ParameterExpr::Range { start: 0, stop: PREPARATION_CASES as i64 - 1, step: 1 };
     support::register_fixture_execution(&owner.handle(), suite).await;
     let id = support::planned_cycle(&client, Request::new(create()), selection_plan(&owner)).await.unwrap();
     let outcome = client.start_first(run(&id)).await.unwrap().into_inner().outcome.unwrap();
@@ -233,7 +235,7 @@ async fn queued_cycle_seals_every_member() {
     }
     assert_eq!(count, PREPARATION_CASES);
     gate.release.notify_one();
-    let blocker = dokime_runtime::TestCycleId::from_uuid(blocker).unwrap();
+    let blocker = dokime::TestCycleId::from_uuid(blocker).unwrap();
     support::on_state_change(&owner.handle(), async || {
         let snapshot = owner.handle().watch_state().latest();
         let id = &snapshot.state().cycles[&blocker].execution_ids[0];

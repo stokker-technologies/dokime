@@ -20,7 +20,7 @@
 // Local Imports
 use super::super::value::{Budget, canonical};
 use crate::grpc::transcode::Transcode;
-use dokime_runtime::runtime::query::aggregate::AggregateOutcome;
+use dokime::runtime::query::aggregate::AggregateOutcome;
 
 /* === Constants === */
 
@@ -38,7 +38,7 @@ use dokime_runtime::runtime::query::aggregate::AggregateOutcome;
 
 /* === Public Functions === */
 
-pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Result<dokime_domain::model::query::wire::AggregateReply> {
+pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Result<dokime::domain::model::query::wire::AggregateReply> {
     for column in &outcome.columns {
         super::super::value::text(column).map_err(failure)?;
     }
@@ -53,9 +53,9 @@ pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Res
         for item in row {
             values.push(canonical::encode(item, &mut budget, 0).map_err(failure)?);
         }
-        rows.push(dokime_domain::model::query::wire::QueryRow { values });
+        rows.push(dokime::domain::model::query::wire::QueryRow { values });
     }
-    let result = dokime_domain::model::query::wire::AggregateReply { columns, rows, complete: outcome.complete };
+    let result = dokime::domain::model::query::wire::AggregateReply { columns, rows, complete: outcome.complete };
     if result.wire_len()? > maximum {
         return Err(exhausted());
     }

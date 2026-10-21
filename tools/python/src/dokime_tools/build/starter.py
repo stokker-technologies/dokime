@@ -76,15 +76,15 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
         # Replace The Published SDK Reference Only In This Disposable Consumer.
         manifest = plugin / "Cargo.toml"
         authored = manifest.read_text(encoding="utf-8")
-        dependency = tomllib.loads(authored)["dependencies"]["dokime-runtime"]
+        dependency = tomllib.loads(authored)["dependencies"]["dokime"]
         if dependency.get("git") != REPOSITORY or dependency.get("branch") != "dev":
             raise ValueError("the generated starter must declare the published Dokime SDK")
         lines = authored.splitlines(keepends=True)
-        selected = [index for index, line in enumerate(lines) if line.startswith("dokime-runtime = ")]
+        selected = [index for index, line in enumerate(lines) if line.startswith("dokime = ")]
         if len(selected) != 1:
             raise ValueError("the generated starter must have one SDK dependency declaration")
-        local = json.dumps(str(root / "crates/dokime-runtime"))
-        lines[selected[0]] = f"dokime-runtime = {{ path = {local} }}\n"
+        local = json.dumps(str(root / "crates/dokime"))
+        lines[selected[0]] = f'dokime = {{ path = {local}, features = ["plugin"] }}\n'
         manifest.write_text("".join(lines), encoding="utf-8")
 
         # Resolve Every Cargo Source Against The Exported Vendor Tree, With An Empty Cargo Home.

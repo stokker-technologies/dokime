@@ -23,7 +23,7 @@ mod wire;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
 
 /* === Constants === */
 

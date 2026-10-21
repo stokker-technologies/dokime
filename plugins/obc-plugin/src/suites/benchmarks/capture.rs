@@ -22,7 +22,7 @@
 // Local Imports
 use crate::suites::common::measurement::{self, InputMeasurement};
 use crate::{error::Error, prompts::checkpoint::SteadyCheck};
-use dokime_runtime::prelude::*;
+use dokime::prelude::*;
 use obc_runtime::device::{Device, Supply};
 
 /* === Constants === */
@@ -35,7 +35,7 @@ const STREAM: &str = "obc.benchmarks.samples";
 /* === Structs === */
 pub struct Capture;
 
-#[dokime_runtime::parameters]
+#[dokime::parameters]
 pub struct Parameters {
     #[parameter(label = "Rows", default = 100_000, min = 1, max = 200_000)]
     pub rows: u64,
@@ -44,16 +44,16 @@ pub struct Parameters {
     pub member: u64,
 }
 
-#[dokime_runtime::stream(id = "obc.benchmarks.samples", row = InputMeasurement, window = 4096, label = "Benchmark Samples")]
+#[dokime::stream(id = "obc.benchmarks.samples", row = InputMeasurement, window = 4096, label = "Benchmark Samples")]
 pub struct Samples;
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Streams {
     Samples(Samples),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Prompts {
     Check(SteadyCheck),
 }
@@ -61,7 +61,7 @@ pub enum Prompts {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::template(
+#[dokime::template(
     id = "obc.benchmarks.capture", label = "High-Volume Capture", parameters = Parameters,
     streams = Streams, prompts = Prompts,
     description = "Capture generated measurements, then answer two checkpoints while the execution remains active."
@@ -75,7 +75,7 @@ impl Capture {
         measurement::document(STREAM, "Benchmark Capture")
     }
 
-    #[dokime_runtime::step(label = "Capture Generated Measurements")]
+    #[dokime::step(label = "Capture Generated Measurements")]
     async fn capture(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let supply = Supply {
             voltage_rms_v: 230.0 + ctx.parameters().member as f64,
@@ -95,12 +95,12 @@ impl Capture {
         Ok(())
     }
 
-    #[dokime_runtime::step(label = "First Operator Checkpoint")]
+    #[dokime::step(label = "First Operator Checkpoint")]
     async fn first(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         accept(ctx).await
     }
 
-    #[dokime_runtime::step(label = "Second Operator Checkpoint")]
+    #[dokime::step(label = "Second Operator Checkpoint")]
     async fn second(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         accept(ctx).await
     }

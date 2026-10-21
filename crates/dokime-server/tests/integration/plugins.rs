@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -23,10 +24,11 @@ use harmos::plugin::{
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use model::plugins::wire::StagePluginFrameFrame as Frame;
 
 /* === Constants === */
+
 const DYNAMIC_OWNER: &str = "grpc.dynamic-fixture";
 const DYNAMIC_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
     timeout: Duration::from_secs(5),
@@ -38,9 +40,11 @@ const DYNAMIC_POLICY: harmos::operations::OperationPolicy = harmos::operations::
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type DynamicBackend = PluginBackend<DynamicResources, DynamicResources, DynamicResources>;
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone)]
 struct DynamicNumber {
@@ -125,6 +129,7 @@ struct DynamicHost {
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum DynamicOperations {
     Unary(DynamicUnaryHandler),
@@ -141,6 +146,7 @@ enum DynamicReplacements {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::operations::Operation for DynamicReplacementHandler {
     type Declaration = DynamicReplacement;
     type Resources = std::sync::atomic::AtomicUsize;
@@ -284,9 +290,9 @@ impl PluginLifecycle for DynamicHost {
         let scope = endpoint.scope().expect("the manager issued an original plugin scope");
         resources.registration = Some(self.operations.stage_plugin(scope, |bindings| {
             if matches!(&definition.artifact, PluginArtifact::Embedded { revision } if revision == "replacement") {
-                bindings.register_wire_operations::<DynamicReplacements, _>(dokime_runtime::app::Lanes::Open, self.calls.clone())
+                bindings.register_wire_operations::<DynamicReplacements, _>(dokime::app::Lanes::Open, self.calls.clone())
             } else {
-                bindings.register_wire_operations::<DynamicOperations, _>(dokime_runtime::app::Lanes::Open, self.calls.clone())
+                bindings.register_wire_operations::<DynamicOperations, _>(dokime::app::Lanes::Open, self.calls.clone())
             }
         })?);
         resources.endpoint = Some(endpoint);
@@ -307,6 +313,7 @@ impl PluginLifecycle for DynamicHost {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn dynamic_grant(request: &DynamicUnary) -> Option<harmos::plugin::Grant> {
     match request.value {
         20 => Some(harmos::plugin::Grant::of(<DynamicUnary as harmos::operations::OperationDeclaration>::ID, "fixture.allowed")),
@@ -376,7 +383,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
             bytes: executable.as_bytes(),
             executable: Some(Executable {
                 facility: Facility::Sidecar,
-                target: dokime_runtime::plugins::NATIVE_TARGET.into(),
+                target: dokime::plugins::NATIVE_TARGET.into(),
                 registrations: vec![],
             }),
         }],
@@ -390,7 +397,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
 async fn fixture(root: &std::path::Path) -> Runtime {
     let mut config =
         crate::support::budgets::runtime_config(root, Metadata::new(Identifier::new("plugins.fixture").unwrap(), "Plugins", None));
-    config.installed_plugins.push(dokime_runtime::InstalledPlugin {
+    config.installed_plugins.push(dokime::InstalledPlugin {
         source: "grpc.host".into(),
         version: "1.0.0".into(),
         enabled: true,
@@ -488,7 +495,7 @@ async fn plugin_stage_identity() {
 
 #[tokio::test]
 async fn full_control_plugin_operations() {
-    use dokime_client::{Client, Target, dynamic::Event};
+    use dokime::client::{Client, Target, dynamic::Event};
     use harmos::operations::OperationDeclaration;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -501,10 +508,7 @@ async fn full_control_plugin_operations() {
     assert!(!allowed.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
 
     // A Host Provider Cannot Become A Plugin By Choosing Its Owner Name.
-    runtime
-        .operations()
-        .register_wire_operation::<DynamicUnaryHandler>(DYNAMIC_OWNER, dokime_runtime::app::Lanes::Open, calls.clone())
-        .unwrap();
+    runtime.operations().register_wire_operation::<DynamicUnaryHandler>(DYNAMIC_OWNER, dokime::app::Lanes::Open, calls.clone()).unwrap();
     assert!(!allowed.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
     let direct = WireClient::connect(server.local_endpoint()).await.unwrap();
     let refused = direct.unary::<DynamicUnary>(authenticated(DynamicUnary { value: 10 })).await.unwrap_err();

@@ -28,14 +28,14 @@ use super::{
     execution,
     value::{self, Budget, canonical},
 };
-use dokime_domain::model::identity::CaseId;
-use dokime_domain::model::identity::CommandId;
-use dokime_domain::model::identity::TemplateId;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::operations::planning as wire;
-use dokime_runtime::definition::{CaseMaterializationOptions, CaseMaterializationSelection, TestCase, materialize_template_cases};
-use dokime_runtime::state::RuntimeState;
-use dokime_runtime::{RuntimeHandle, runtime::Error};
+use dokime::definition::{CaseMaterializationOptions, CaseMaterializationSelection, TestCase, materialize_template_cases};
+use dokime::domain::model::identity::CaseId;
+use dokime::domain::model::identity::CommandId;
+use dokime::domain::model::identity::TemplateId;
+use dokime::domain::model::identity::TestCycleId;
+use dokime::domain::operations::planning as wire;
+use dokime::state::RuntimeState;
+use dokime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -59,7 +59,7 @@ struct Materialize {
 
 pub(super) struct ResolvedPlan {
     pub(super) cases: Vec<TestCase>,
-    pub(super) preview: Vec<dokime_domain::model::planning::wire::PlannedCase>,
+    pub(super) preview: Vec<dokime::domain::model::planning::wire::PlannedCase>,
     pub(super) revisions: BTreeMap<CaseId, String>,
 }
 
@@ -89,17 +89,17 @@ impl Operation for Materialize {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::MaterializeTemplate, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
         let selection = request.selection.take().ok_or_else(|| Status::invalid_argument("template selection is required"))?;
-        let registration_id = dokime_runtime::model::identity::new_id::<CommandId>();
+        let registration_id = dokime::model::identity::new_id::<CommandId>();
         let snapshot = self.runtime.watch_state().latest();
         let resolved = resolve(
             snapshot.state(),
-            Some(dokime_domain::model::planning::wire::SelectionPlan { selections: vec![selection], ..Default::default() }),
+            Some(dokime::domain::model::planning::wire::SelectionPlan { selections: vec![selection], ..Default::default() }),
             &registration_id,
         )?;
         self.runtime.register_cases_at(registration_id, resolved.cases, resolved.revisions).await.map_err(execution::status)?;
-        Ok(dokime_domain::model::planning::wire::PreviewSelectionReply {
+        Ok(dokime::domain::model::planning::wire::PreviewSelectionReply {
             cases: resolved.preview,
             observed_cursor: Some(canonical::cursor(&self.runtime.watch_state().latest())),
         }
@@ -120,8 +120,8 @@ impl Operation for Register {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::RegisterSelection, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>, Status> {
-        dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
+    ) -> Result<harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
+        dokime::domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
             .map_err(|error| Status::invalid_argument(error.to_string()))?;
         if request.plan.as_ref().is_some_and(|plan| !plan.case_ids.is_empty()) {
             return Err(Status::invalid_argument("registration requires template selections"));
@@ -131,7 +131,7 @@ impl Operation for Register {
             CommandId::from_seed(format!("suite-registration:{}:{}", snapshot.state().identity.node.node_id, request.idempotency_key,));
         let resolved = resolve(snapshot.state(), request.plan.take(), &registration_id)?;
         self.runtime.register_cases_at(registration_id, resolved.cases, resolved.revisions).await.map_err(execution::status)?;
-        Ok((dokime_domain::model::planning::wire::PreviewSelectionReply {
+        Ok((dokime::domain::model::planning::wire::PreviewSelectionReply {
             cases: resolved.preview,
             observed_cursor: Some(canonical::cursor(&self.runtime.watch_state().latest())),
         })
@@ -152,10 +152,10 @@ impl Operation for Preview {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::PreviewSelection, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
         let snapshot = self.runtime.watch_state().latest();
-        let resolved = resolve(snapshot.state(), request.plan.take(), &dokime_runtime::model::identity::new_id::<CommandId>())?;
-        Ok((dokime_domain::model::planning::wire::PreviewSelectionReply {
+        let resolved = resolve(snapshot.state(), request.plan.take(), &dokime::model::identity::new_id::<CommandId>())?;
+        Ok((dokime::domain::model::planning::wire::PreviewSelectionReply {
             cases: resolved.preview,
             observed_cursor: Some(canonical::cursor(&snapshot)),
         })
@@ -168,14 +168,14 @@ impl Operation for Preview {
 pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), super::Error> {
     runtime.operations().register_wire_operations::<Operations, RuntimeHandle>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(runtime.clone()),
     )?;
     Ok(())
 }
 
 pub(super) fn resolve(
-    state: &RuntimeState, plan: Option<dokime_domain::model::planning::wire::SelectionPlan>, registration_id: &CommandId,
+    state: &RuntimeState, plan: Option<dokime::domain::model::planning::wire::SelectionPlan>, registration_id: &CommandId,
 ) -> Result<ResolvedPlan, Status> {
     let registry = &state.suites;
     let plan = plan.ok_or_else(|| Status::invalid_argument("selection plan is required"))?;
@@ -255,11 +255,11 @@ pub(super) fn resolve(
             .map(|(name, file)| {
                 value::text(&name)?;
                 let file = match file.kind {
-                    Some(dokime_domain::model::planning::wire::SelectedFileKind::Value(value)) => {
+                    Some(dokime::domain::model::planning::wire::SelectedFileKind::Value(value)) => {
                         value::text(&value)?;
                         Some(value)
                     }
-                    Some(dokime_domain::model::planning::wire::SelectedFileKind::Clear) => None,
+                    Some(dokime::domain::model::planning::wire::SelectedFileKind::Clear) => None,
                     _ => {
                         return Err(Status::invalid_argument("file selection kind must be value or clear"));
                     }
@@ -284,9 +284,7 @@ pub(super) fn resolve(
         .map_err(|error| {
             if matches!(
                 error,
-                dokime_runtime::ApiError::CaseMaterialization(
-                    dokime_runtime::definition::CaseMaterializationError::CaseLimitExceeded { .. }
-                )
+                dokime::ApiError::CaseMaterialization(dokime::definition::CaseMaterializationError::CaseLimitExceeded { .. })
             ) && payload_limit < limit - cases.len()
             {
                 payload::limit()
@@ -300,7 +298,7 @@ pub(super) fn resolve(
             case.suite = Some(entry.suite.metadata.clone());
             case.generation_index = cases.len() as u64;
             let parameters = canonical::object(&case.parameters, &mut output_budget)?;
-            preview.push(dokime_domain::model::planning::wire::PlannedCase {
+            preview.push(dokime::domain::model::planning::wire::PlannedCase {
                 case_id: case.test_case_id.to_string(),
                 suite_id: selection.suite_id.clone(),
                 template_id: selection.template_id.clone(),
@@ -353,7 +351,7 @@ fn next_label_numbers(state: &RuntimeState, cycle_id: &str) -> Result<BTreeMap<T
     Ok(numbers)
 }
 
-fn resolve_registered(state: &RuntimeState, plan: dokime_domain::model::planning::wire::SelectionPlan) -> Result<ResolvedPlan, Status> {
+fn resolve_registered(state: &RuntimeState, plan: dokime::domain::model::planning::wire::SelectionPlan) -> Result<ResolvedPlan, Status> {
     let registry = &state.suites;
     if !plan.selections.is_empty() {
         return Err(Status::invalid_argument("case IDs and template selections are mutually exclusive"));
@@ -393,7 +391,7 @@ fn resolve_registered(state: &RuntimeState, plan: dokime_domain::model::planning
         target = Some(selected_target);
         payload::registered_case(case, &mut payload_budget)?;
         let parameters = canonical::object(&case.parameters, &mut budget)?;
-        preview.push(dokime_domain::model::planning::wire::PlannedCase {
+        preview.push(dokime::domain::model::planning::wire::PlannedCase {
             case_id: id.to_string(),
             suite_id: entry.suite_id.clone(),
             template_id: template.test_case_template_id.to_string(),
@@ -409,7 +407,7 @@ fn resolve_registered(state: &RuntimeState, plan: dokime_domain::model::planning
     Ok(resolved(cases, preview))
 }
 
-fn resolved(cases: Vec<TestCase>, preview: Vec<dokime_domain::model::planning::wire::PlannedCase>) -> ResolvedPlan {
+fn resolved(cases: Vec<TestCase>, preview: Vec<dokime::domain::model::planning::wire::PlannedCase>) -> ResolvedPlan {
     let revisions = cases.iter().zip(&preview).map(|(case, row)| (case.test_case_id.clone(), row.definition_revision.clone())).collect();
     ResolvedPlan { cases, preview, revisions }
 }

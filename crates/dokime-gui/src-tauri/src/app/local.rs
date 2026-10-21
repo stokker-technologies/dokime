@@ -20,7 +20,7 @@ use tauri::AppHandle;
 
 // Local Imports
 use crate::native_session::backend::{self, Backend};
-use dokime_runtime::paths::ApplicationPaths;
+use dokime::paths::ApplicationPaths;
 
 /* === Constants === */
 

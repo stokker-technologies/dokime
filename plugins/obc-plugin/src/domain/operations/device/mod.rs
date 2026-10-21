@@ -30,8 +30,8 @@ use crate::domain::model::device::DeviceState;
 
 /* === Structs === */
 
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
+#[dokime::message]
+#[dokime::operation(
     id = "obc.device.read",
     response = DeviceState,
     version = 1,
@@ -42,8 +42,8 @@ use crate::domain::model::device::DeviceState;
 #[derive(Clone, PartialEq)]
 pub struct ReadDevice {}
 
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
+#[dokime::message]
+#[dokime::operation(
     id = "obc.device.set_power",
     response = DeviceState,
     version = 1,

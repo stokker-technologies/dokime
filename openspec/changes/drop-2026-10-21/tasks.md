@@ -1,5 +1,10 @@
 # Feature Drop Tasks
 
+## Crate Layout
+
+- [x] 75. Make dokime the entry library and dokime-cli the CLI; migrate shipped interfaces, plugins, fixtures, templates, tooling and guidance.
+- [x] Resolve terminal ownership at `crates/dokime/src/terminal/`: keep shared output in the entry library for the shipped presentation consumers.
+
 ## Agreed Inventory
 
 - [ ] 1. Verify path-based plugin bundle installation without serial JSON chunks.

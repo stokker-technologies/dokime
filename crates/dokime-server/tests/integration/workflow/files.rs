@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -52,7 +53,7 @@ async fn live_file_rewrites() {
         .await
         .unwrap()
         .into_inner();
-    let id = dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
+    let id = dokime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
     let first = runtime.execution_file_target(&id, "files/a.bin".into(), false, true).await.unwrap().unwrap();
     let second = runtime.execution_file_target(&id, "files/b.bin".into(), false, false).await.unwrap().unwrap();
     let bytes = (0..90_000).map(|n| (n % 251) as u8).collect::<Vec<_>>();
@@ -432,7 +433,7 @@ async fn live_file_rewrites() {
     }
 }
 
-async fn producer_generation_follow(runtime: &dokime_runtime::RuntimeHandle) {
+async fn producer_generation_follow(runtime: &dokime::RuntimeHandle) {
     use harmos::storage::{FileMetadata, FilePhase, StagedFile};
     let storage = runtime.storage();
     let metadata = FileMetadata {
@@ -492,7 +493,7 @@ async fn live_follow_refusal(change: &str) {
         .await
         .unwrap()
         .into_inner();
-    let id = dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
+    let id = dokime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
     let target = runtime.execution_file_target(&id, "follow.bin".into(), false, true).await.unwrap().unwrap();
     let original = b"original retained prefix";
     std::fs::write(&target.absolute_path, original).unwrap();
@@ -605,15 +606,15 @@ async fn live_follow_refusal(change: &str) {
     server.shutdown().await.unwrap();
     drop(runtime);
     let failure = owner.shutdown().await.unwrap_err();
-    let dokime_runtime::runtime::Error::Harmos(shutdown) = &failure else {
+    let dokime::runtime::Error::Harmos(shutdown) = &failure else {
         panic!("{change}: expected retained service failure, got {failure:?}");
     };
     let mut cause: &(dyn std::error::Error + Send + Sync + 'static) = shutdown;
     while let Some(harmos::Error::TaskFailed { source, .. }) = cause.downcast_ref::<harmos::Error>() {
         cause = source.as_ref();
     }
-    let Some(harmos::services::Fault::Application(dokime_runtime::runtime::Error::Operation(reason))) =
-        cause.downcast_ref::<harmos::services::Fault<dokime_runtime::runtime::Error>>()
+    let Some(harmos::services::Fault::Application(dokime::runtime::Error::Operation(reason))) =
+        cause.downcast_ref::<harmos::services::Fault<dokime::runtime::Error>>()
     else {
         panic!("{change}: shutdown must retain the injected capture failure: {failure:?}");
     };
@@ -638,7 +639,7 @@ async fn execution_file_buffer() {
         .await
         .unwrap()
         .into_inner();
-    let id = dokime_runtime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
+    let id = dokime::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone()).unwrap();
     let target = runtime.execution_file_target(&id, "large.bin".into(), false, true).await.unwrap().unwrap();
     std::fs::OpenOptions::new().write(true).open(&target.absolute_path).unwrap().set_len(size_bytes).unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();

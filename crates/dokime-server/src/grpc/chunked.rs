@@ -25,7 +25,7 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::transcode::Transcode;
-use dokime_runtime::runtime::ArtifactReader;
+use dokime::runtime::ArtifactReader;
 
 /* === Constants === */
 
@@ -35,7 +35,7 @@ use dokime_runtime::runtime::ArtifactReader;
 
 /* === Structs === */
 
-pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<dokime_domain::model::content::wire::ArtifactFrame>);
+pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<dokime::domain::model::content::wire::ArtifactFrame>);
 
 pub(super) struct Download<F> {
     pub(super) frames: F,
@@ -53,7 +53,7 @@ pub(super) struct Download<F> {
 pub(super) enum Source {
     Bytes { data: Vec<u8>, read: usize },
     Artifact(Box<ArtifactReader>),
-    Evidence(Box<dokime_runtime::domains::exports::evidence::Bundle>),
+    Evidence(Box<dokime::domains::exports::evidence::Bundle>),
 }
 
 /* === Traits === */
@@ -72,10 +72,10 @@ pub(super) trait Frames: Send + 'static {
 /* === Implementations === */
 
 impl Frames for ArtifactFrames {
-    type Frame = dokime_domain::model::content::wire::ArtifactFrame;
+    type Frame = dokime::domain::model::content::wire::ArtifactFrame;
 
     fn metadata(&self) -> Self::Frame {
-        dokime_domain::model::content::wire::ArtifactFrame { payload: self.0.payload.clone() }
+        dokime::domain::model::content::wire::ArtifactFrame { payload: self.0.payload.clone() }
     }
 
     fn metadata_owned(&self) -> Option<harmos::operations::Response<Self::Frame>> {
@@ -83,17 +83,17 @@ impl Frames for ArtifactFrames {
     }
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(
-                dokime_domain::model::content::wire::ArtifactChunk { offset, data },
+        dokime::domain::model::content::wire::ArtifactFrame {
+            payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Chunk(
+                dokime::domain::model::content::wire::ArtifactChunk { offset, data },
             )),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Complete(
-                dokime_domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
+        dokime::domain::model::content::wire::ArtifactFrame {
+            payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Complete(
+                dokime::domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
             )),
         }
     }
@@ -216,10 +216,10 @@ fn checked_offset(offset: u64, count: usize, size: u64, noun: &str) -> Result<u6
         .ok_or_else(|| Status::data_loss(format!("{noun} exceeds its declared length")))
 }
 
-fn file_failure(source: dokime_runtime::runtime::Error, message: &'static str) -> Status {
+fn file_failure(source: dokime::runtime::Error, message: &'static str) -> Status {
     let status = match &source {
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => Status::resource_exhausted(message),
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => Status::unavailable(message),
+        dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => Status::resource_exhausted(message),
+        dokime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => Status::unavailable(message),
         _ => Status::internal(message),
     };
     super::error::detailed(status, &source)
