@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/package/run.py; sha256:5d940ea62f1ff29dd2323b1d7694c91368504360dbac2a6f496c3d83514c70ae
+# Rendered by stkr project update from templates/python/package/run.py; sha256:574e398f3690f4697e5e94f0b3d58ad7366ed918f237c536728a557cc7382149
 # ***
 #
 # Dokime
@@ -157,7 +157,8 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
 def verify(directory: Path, profile: str, target: str, root: Path | None = None) -> None:
     """Execute Packaged Native Bytes In An Isolated Installation Directory."""
     for item in definitions(directory, profile, target):
-        if "triple" not in item:
+        # Staged release downloads hold only the executables that ship.
+        if "triple" not in item or root is not None and not item["release"]:
             continue
         source = (root / item["output"]) if root else paths.output(directory, "package", profile, target) / "rust" / item["output"]
         if not source.is_file() or source.is_symlink():

@@ -8,7 +8,8 @@ Complete the existing remote-streamline delivery and publish the first usable Do
 
 - Replace four Harmos Git dependencies with registry version 0.1.1 and remove integration overrides.
 - Refresh affected lockfiles and validate existing starter, client and packaged workflows.
-- Integrate PR2 and license PR3, then prepare and verify v0.1.0 through existing protected workflows.
+- Adopt the published Hub linear-release generator, retiring the superseded release tooling and tracked changelog through its owner.
+- Integrate PR2 and license PR3, then prepare a release review into dev, rehearse it, squash-merge, tag that dev commit and fast-forward main through the protected Release stage.
 
 ## Capabilities
 
@@ -20,4 +21,4 @@ This release adopts existing product behavior without adding runtime contracts.
 
 ## Impact
 
-Cargo manifests and locks, dependency bootstrap, starter templates, README examples, release metadata and native publication. Existing feature-drop work is excluded.
+Cargo manifests and locks, dependency bootstrap, starter templates, README examples, release metadata, managed workflows and protected native publication. Existing feature-drop work is excluded. Existing candidate and source history remain preserved during migration.

@@ -30,7 +30,6 @@ from typing import Any
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.release.run import _override_source
 
 # Type Checking Imports
 
@@ -486,6 +485,37 @@ def _registry_pin(root: Path, dependencies: dict[str, Any], requirement: object)
         if locked[0].get("source") != CRATES_SOURCE or locked[0].get("version") != version:
             raise ValueError(f"{name} has no unambiguous matching locked public crates.io version")
     return {"registry": "crates-io", "version": version, "package": "cargo-harmos"}
+
+
+def _override_source(directory: Path) -> str:
+    """Bind A Local Tool Receipt To The External Checkout Contents."""
+    root = Path(
+        subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+        ).stdout.strip()
+    )
+    files = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    digest = hashlib.sha256()
+    for name in sorted(set(files) - {b""}):
+        path = root / os.fsdecode(name)
+        digest.update(name + b"\0")
+        if path.is_symlink():
+            digest.update(b"link\0" + os.fsencode(os.readlink(path)))
+        elif path.is_file():
+            digest.update(b"file\0" + hashlib.sha256(path.read_bytes()).digest())
+        else:
+            digest.update(b"missing\0")
+    return digest.hexdigest()
 
 
 def _source_key(identity: dict[str, str]) -> str:

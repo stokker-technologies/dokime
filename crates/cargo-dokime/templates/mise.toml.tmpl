@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:75c45b5257c7db945ba5b3fb4cbe35288978928c1ae8e0d0aa558b2b6735d40b
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:912725ce49736a8ca51fa63a2b4eba1b5e278837a8334602bca0934629225486
 # === Settings === #
 
 [settings]
@@ -194,28 +194,15 @@ run = "uv run --locked --project tools/python python -m project_tools.package.pl
 # === CI === #
 
 [tasks.ci]
-description = "Run The CI Flow Locally"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "check" },
-  { task = "build --profile {{usage.profile}}" },
-  { task = "build:tests --profile {{usage.profile}}" },
-  { task = "test --profile {{usage.profile}}" },
-]
+description = "Simulate The Rendered CI Locally"
+usage = 'flag "--event <event>" default="pr"'
+run = "stkr ci simulate --event {{usage.event}}"
 
 [tasks."ci:nightly"]
 description = "Run The Nightly Coverage And Bench Flow"
 run = [{ task = "build" }, { task = "build:tests" }, { task = "test:coverage" }]
 
 # === Release === #
-
-[tasks.release]
-description = "Prepare And Validate A Release"
-run = [{ task = "release:prepare" }, { task = "ci" }, { task = "release:publish:dry" }]
-
-[tasks."release:prepare"]
-description = "Prepare The Release Branch"
-run = "uv run --locked --project tools/python python -m project_tools.release.run prepare"
 
 [tasks."release:publish"]
 description = "Publish Through The Configured Native Release Policy"
@@ -225,10 +212,6 @@ run = [
   "uv run --locked --project tools/python python -m project_tools.release.run finalize",
 ]
 
-[tasks."release:publish:dry"]
-description = "Dry-Run Every Publication"
-run = "uv run --locked --project tools/python python -m project_tools.test.publish --rust"
-
 [tasks."release:publish:rust"]
 description = "Publish Rust Crates"
 run = "uv run --locked --project tools/python python -m project_tools.release.run crates"
@@ -237,7 +220,11 @@ run = "uv run --locked --project tools/python python -m project_tools.release.ru
 
 [tasks.housekeeping]
 description = "Clean Owned Build Outputs And State"
-run = "stkr project housekeeping"
+run = "uv run --locked --project tools/python python -m project_tools.stkr project housekeeping"
+
+[tasks."housekeeping:outdated"]
+description = "Report Available Dependency And Tool Updates Without Changing Anything"
+run = "mise outdated"
 
 [tasks."housekeeping:stats"]
 description = "Count Source Lines"

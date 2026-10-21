@@ -1,0 +1,101 @@
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:e465b1c362a83f16e5f1110a940ebf463b89fa560472d3e67c329c8e825bce17
+name: Release
+"on":
+  workflow_call:
+    inputs:
+      ready:
+        type: boolean
+        required: true
+        description: Every job of the calling graph succeeded or was skipped
+      bump:
+        type: string
+        default: auto
+        description: auto, minor or major; Release / Prepare only
+    secrets:
+      release_token:
+        required: false
+      CRATES_BOOTSTRAP_TOKEN:
+        required: false
+      mirror_deploy_key:
+        required: false
+      mirror_ssh_url:
+        required: false
+      runner_group_read_token:
+        required: false
+permissions:
+  contents: read
+env:
+  PROFILE: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}
+  MISE_LOCKED: "1"
+  CARGO_INCREMENTAL: "0"
+  CARGO_HOME: ${{ github.workspace }}/.cache/cargo
+  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+jobs:
+  publish:
+    name: Publish
+    runs-on:
+    - ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - name: Cache / Cargo
+      id: cargo
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: |-
+          .cache/cargo/registry/
+          .cache/cargo/git/
+        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+    - name: Resolve Mise Directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |-
+        $directory = Join-Path ([System.IO.Path]::GetTempPath()) 'stkr-mise'
+        "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Resolve Mise Directory
+      if: runner.os != 'Windows'
+      shell: bash
+      run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ env.MISE_DATA_DIR }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: package-release-*
+        merge-multiple: true
+        path: target/ci
+    - name: Extract Packages
+      shell: bash
+      run: for archive in target/ci/*.tar; do tar -xf "$archive"; done
+    - name: Show Trusted Publishing Identity
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        project_tools.release.run identity
+    - run: mise run release:publish
+      env:
+        GH_TOKEN: ${{ github.token }}
+    env:
+      MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab
+    if: ${{ inputs.ready && (startsWith(github.ref, 'refs/tags/v')) }}
+    environment: release
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    concurrency:
+      group: release-publication
+      cancel-in-progress: false

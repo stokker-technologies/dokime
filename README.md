@@ -826,7 +826,7 @@ The public introduction will grow with a complete on-board charger walkthrough
 and a downloadable self-contained example report. GitHub hosts the authoritative source and native validation workflows.
 
 Follow [issues](https://github.com/stokker-technologies/dokime/issues)
-for development discussions and [the changelog](CHANGELOG.md) for recorded changes.
+for development discussions and [releases](https://github.com/stokker-technologies/dokime/releases) for recorded changes.
 
 ## Development Setup
 
@@ -849,7 +849,7 @@ mise run test
 mise run build:bench
 mise run bench
 mise run package
-mise run ci
+mise run ci --event pr
 ```
 
 `check` covers every Rust feature combination and the WebAssembly domain build.
@@ -863,7 +863,8 @@ Interactive `tauri dev` continues to use the Vite server.
 `build:tests --profile dev` separately compiles the shared test archive and
 test fixtures, requiring the matching Product outputs first. Use `release`
 instead for release-profile test preparation. Test lanes consume that archive,
-its fixtures and matching Product hosts; Product Build does not compile the
+its fixtures and, for acceptance and system lanes, the whole matching Product
+export; Product Build does not compile the
 test archive. The archive lives under `tests/archive.tar.zst`, with its compiler
 messages and resolved dependency metadata beside it for authoring checks.
 Test fixtures live under `fixtures/` within the selected native Build output.
@@ -894,6 +895,13 @@ their signatures are verified against the configured public key and exact
 installer bytes. Development packages remain unsigned. Python publication
 selects the client wheel and source distribution; the examples ZIP is a
 separate downloadable bundle.
+
+`Release / Prepare` opens a `release/v<version>` review into `dev`. That review
+requires the native graph and unsigned `Release / Rehearsal`. Its squash merge
+starts `Release / Tag`, which checks the rehearsed tree, tags the merged `dev`
+commit, publishes Rust crates and fast-forwards protected `main`. The tag
+pipeline publishes the signed packages and Python client, then verifies native
+installation. Release notes come from Conventional Commits at tag time.
 Generated TypeScript messages live under `target/generated/typescript/`.
 `test` runs the layers in order, each with its own task:
 
@@ -906,7 +914,8 @@ Generated TypeScript messages live under `target/generated/typescript/`.
 | `mise run test:system` | Two walkthroughs: the server with the built OBC plugin, and the desktop shell over its backend. |
 
 The desktop walkthrough drives the built shell through WebKitWebDriver on Linux
-and needs a display. `mise run ci` runs the same flow as the provider pipeline;
+and needs a display. `mise run ci --event pr` simulates the rendered provider
+graph from committed source with cold dependency homes;
 `mise run ci:nightly` adds coverage and benches.
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
