@@ -116,6 +116,23 @@ test("Cancelled Picker Stages Nothing", async () => {
   assert.equal(fixture.getInstallation.mock.calls.length, 0);
 });
 
+test("Connection Change Discards The Staged Installation Reply", async () => {
+  const changed = { generation: "7", isCurrent: () => false };
+  fixture.invoke.mockResolvedValue("old-host-installation");
+
+  await assert.rejects(stageNativePlugin(changed, "pick"), /connection changed/i);
+  assert.equal(fixture.getInstallation.mock.calls.length, 0);
+});
+
+test("Native Staging Failure Preserves The Error Without Looking Up An Installation", async () => {
+  const failure = new Error("The plugin bundle could not be read: permission denied");
+  fixture.invoke.mockRejectedValue(failure);
+
+  await assert.rejects(stageNativePlugin(session, "drop"), (error) => error === failure);
+  assert.equal(fixture.invoke.mock.calls.length, 1);
+  assert.equal(fixture.getInstallation.mock.calls.length, 0);
+});
+
 test("Dropped Bundle Stages From The Shell's Recorded Drop", async () => {
   fixture.invoke.mockResolvedValue("dropped");
 

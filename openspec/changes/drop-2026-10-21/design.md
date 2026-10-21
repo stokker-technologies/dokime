@@ -16,7 +16,9 @@ The integration owner also repairs the Python tutorial's exact candidate-wheel l
 
 ## Integration And Phase
 
-The sole integration workspace is `dokime.wt/drop-2026-10-21`, branch `feat/drop-2026-10-21`. Only this task branch is published; existing slice branches remain local and append-only. Current phase is implementation. Adopt existing dirty changes without resetting or rebasing published history. The entire current numbered inventory, including the watcher extension, requires source accounting before validation; source completion does not establish acceptance.
+The sole integration workspace is `dokime.wt/drop-2026-10-21`, branch `feat/spec-completion`. The completion owner owns all remaining source, tests, generated bindings, configuration, examples and README in this combined tree; historical slice assignments below describe adoption provenance, not concurrent writers. Current phase is implementation. Work through the numbered inventory, preserving compiled identity, Harmos `=0.1.2` and the `plugin-sidecar` consumer surface. Source completion does not establish acceptance.
+
+The completion delivery is one signed feature-branch push after the complete Linux and local Windows graphs pass, followed by one draft review into `dev`. Do not change the existing drop review, protections or sibling worktrees. Windows uses the local executor with stkr 0.1.6; full validation follows the complete source cutover. Focused deterministic proofs precede task completion and relevant local gates precede each signed commit. The only authorized rebase moves the completion commits onto published `dev` after the original drop integrates.
 
 ## Source Ownership
 

@@ -15,10 +15,10 @@
 
 ## Agreed Inventory
 
-- [ ] 1. Verify path-based plugin bundle installation without serial JSON chunks.
-- [ ] 2. Format plot X cursor timestamps consistently with axes.
+- [ ] 1. Verify path-based plugin bundle installation without serial JSON chunks; native installation walkthrough proof remains required beyond the single-invoke adapter tests.
+- [x] 2. Format plot X cursor timestamps consistently with axes. Proof: `plots/nominal.test.ts` / `Series Legend`.
 - [ ] 3. Show statistics headers and units without clipping.
-- [ ] 4. Distinguish queued execution cancel from active stop.
+- [x] 4. Distinguish queued execution cancel from active stop. Proof: `cycle/nominal.test.ts` / `Execution Controls`.
 - [ ] 5. Align parameter labels, values and adjacent units across views.
 - [ ] 6. Keep prompt response controls only on their execution.
 - [ ] 7. Harmonize cycle/execution headers, controls, actions and records.

@@ -1818,6 +1818,48 @@ async function cycleJourney(session, cycleId) {
     [rerunId],
   );
   assert.match(rerunOutcome, /\bPassed\b/, "Closing plot settings must leave the prompting re-run able to pass");
+  const statisticsHeaders = await until(
+    "the native trace statistics headers",
+    () =>
+      session.execute(`
+        const tables = [...document.querySelectorAll('table[aria-label="Trace statistics"]')];
+        if (!tables.length) return null;
+        return tables.flatMap(table => [...table.querySelectorAll('th')].map(header => {
+          const leaves = [...header.querySelectorAll('span')].filter(node => !node.children.length && node.textContent.trim());
+          return {
+            text: header.innerText,
+            clipped: leaves.some(node => {
+              const range = document.createRange();
+              range.selectNodeContents(node);
+              const text = range.getBoundingClientRect();
+              let parent = node;
+              while (parent && parent !== table.parentElement) {
+                const style = getComputedStyle(parent);
+                const bounds = parent.getBoundingClientRect();
+                if (['hidden', 'clip'].includes(style.overflowX) && (text.left < bounds.left - 1 || text.right > bounds.right + 1)) return true;
+                if (['hidden', 'clip'].includes(style.overflowY) && (text.top < bounds.top - 1 || text.bottom > bounds.bottom + 1)) return true;
+                parent = parent.parentElement;
+              }
+              return false;
+            }),
+          };
+        }));
+      `),
+    30000,
+  );
+  assert.ok(
+    statisticsHeaders.some((header) => /Y Cursor/.test(header.text)),
+    "Native statistics include cursor headings",
+  );
+  assert.ok(
+    statisticsHeaders.some((header) => /\([^)]\S*\)/.test(header.text)),
+    "Native statistics include physical units",
+  );
+  assert.deepEqual(
+    statisticsHeaders.filter((header) => header.clipped),
+    [],
+    "Statistics titles and units remain readable without clipping",
+  );
   await session.execute(
     `
     const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')];
