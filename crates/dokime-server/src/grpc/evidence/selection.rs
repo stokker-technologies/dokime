@@ -106,7 +106,7 @@ impl Selection {
         }
         let stream = format!(
             "evidence.records:{}",
-            Sha256::digest(harmos::Message::encode_to_vec(&value)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+            Sha256::digest(dokime::harmos::Message::encode_to_vec(&value)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
         );
         Ok(Self { value, record_types, stream })
     }

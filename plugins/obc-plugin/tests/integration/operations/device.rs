@@ -73,8 +73,8 @@ async fn stopped_mutations_refused() {
     let stopped = client.device().await.unwrap();
     assert_eq!(stopped.power, Power::Off);
     assert!(client.stopped().await.unwrap());
-    assert!(matches!(client.set_power(true).await, Err(harmos::Error::Rejected(Error::Stopped))));
-    assert!(matches!(client.set_power(false).await, Err(harmos::Error::Rejected(Error::Stopped))));
+    assert!(matches!(client.set_power(true).await, Err(dokime::harmos::Error::Rejected(Error::Stopped))));
+    assert!(matches!(client.set_power(false).await, Err(dokime::harmos::Error::Rejected(Error::Stopped))));
     assert_eq!(client.device().await.unwrap(), stopped);
     runtime.stop().await.unwrap();
 }
@@ -86,7 +86,7 @@ async fn latched_fault_preserved() {
     let runtime = app::launch(Testbench { device: device.clone(), ..Default::default() }).await.unwrap();
     let client = Client::new(runtime.handle());
 
-    assert!(matches!(client.set_power(true).await, Err(harmos::Error::Rejected(Error::FaultLatched))));
+    assert!(matches!(client.set_power(true).await, Err(dokime::harmos::Error::Rejected(Error::FaultLatched))));
     assert_eq!(client.device().await.unwrap(), device);
     client.set_power(false).await.unwrap();
     assert_eq!(client.device().await.unwrap(), device);

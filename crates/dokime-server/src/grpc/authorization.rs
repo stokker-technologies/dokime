@@ -19,9 +19,9 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::catalog::{Catalog, Projection};
-use harmos::operations::CallContext;
-use harmos::operations::authorization::{Authorization, Authorizer, Provider};
+use dokime::harmos::catalog::{Catalog, Projection};
+use dokime::harmos::operations::CallContext;
+use dokime::harmos::operations::authorization::{Authorization, Authorizer, Provider};
 
 // Local Imports
 use super::Error;
@@ -43,7 +43,7 @@ struct Policy {
 
 struct Requirement {
     local_only: bool,
-    contract: harmos::operations::Contract,
+    contract: dokime::harmos::operations::Contract,
 }
 
 /* === Enums === */
@@ -68,7 +68,7 @@ impl Policy {
 }
 
 impl Authorizer for Policy {
-    fn authorize(&self, context: &CallContext, provider: Provider<'_>) -> harmos::Result<Option<Authorization>> {
+    fn authorize(&self, context: &CallContext, provider: Provider<'_>) -> dokime::harmos::Result<Option<Authorization>> {
         let Some(principal) = context.get::<Principal>() else {
             return Ok(None);
         };
@@ -99,7 +99,7 @@ pub(super) fn register(runtime: &dokime::RuntimeHandle) -> Result<Arc<Listeners>
     let authorizer = Arc::new(Policy::new()?);
     runtime.operations().register_authorizer(authorizer)?;
     let listeners = Arc::new(Listeners::default());
-    runtime.grpc().register_middleware(Arc::new(harmos::grpc::authentication::Authenticate::new(listeners.clone())))?;
+    runtime.grpc().register_middleware(Arc::new(dokime::harmos::grpc::authentication::Authenticate::new(listeners.clone())))?;
     Ok(listeners)
 }
 

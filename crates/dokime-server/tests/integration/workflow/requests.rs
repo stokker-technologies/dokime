@@ -223,7 +223,7 @@ async fn execution_admissions_restart() {
     let handle = rebooted.handle();
     assert!(handle.watch_state().latest().state().cycles.is_empty(), "shutdown seals every old cycle");
     let other_id = dokime::domain::model::identity::TestCycleId::from_uuid(other_cycle).unwrap();
-    let stored_cycle = dokime::storage::objects::cycle::read(handle.storage(), &other_id, harmos::storage::ObjectVersion::Latest)
+    let stored_cycle = dokime::storage::objects::cycle::read(handle.storage(), &other_id, dokime::harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .unwrap()
@@ -234,7 +234,7 @@ async fn execution_admissions_restart() {
     assert_eq!(stored_cycle.execution_ids.len(), 1);
     let execution_id = &stored_cycle.execution_ids[0];
     let stored_execution =
-        dokime::storage::objects::execution::read(handle.storage(), execution_id, harmos::storage::ObjectVersion::Latest)
+        dokime::storage::objects::execution::read(handle.storage(), execution_id, dokime::harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
             .unwrap()
@@ -250,13 +250,13 @@ async fn execution_admissions_restart() {
     assert_eq!(retried.command_id, admission.command_id);
     assert_eq!(retried.accepted_at, admission.accepted_at);
     assert!(handle.watch_state().latest().state().cycles.is_empty());
-    let restored_cycle = dokime::storage::objects::cycle::read(handle.storage(), &other_id, harmos::storage::ObjectVersion::Latest)
+    let restored_cycle = dokime::storage::objects::cycle::read(handle.storage(), &other_id, dokime::harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .unwrap()
         .value;
     let restored_execution =
-        dokime::storage::objects::execution::read(handle.storage(), execution_id, harmos::storage::ObjectVersion::Latest)
+        dokime::storage::objects::execution::read(handle.storage(), execution_id, dokime::harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
             .unwrap()

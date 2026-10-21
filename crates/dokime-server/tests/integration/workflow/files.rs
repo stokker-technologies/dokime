@@ -434,10 +434,10 @@ async fn live_file_rewrites() {
 }
 
 async fn producer_generation_follow(runtime: &dokime::RuntimeHandle) {
-    use harmos::storage::{FileMetadata, FilePhase, StagedFile};
+    use dokime::harmos::storage::{FileMetadata, FilePhase, StagedFile};
     let storage = runtime.storage();
     let metadata = FileMetadata {
-        id: harmos::Identifier::new(format!("follow-generation-{}", uuid::Uuid::now_v7())).unwrap(),
+        id: dokime::harmos::Identifier::new(format!("follow-generation-{}", uuid::Uuid::now_v7())).unwrap(),
         scope: None,
         media_type: "application/octet-stream".into(),
         expected_length: Some(13),
@@ -610,11 +610,11 @@ async fn live_follow_refusal(change: &str) {
         panic!("{change}: expected retained service failure, got {failure:?}");
     };
     let mut cause: &(dyn std::error::Error + Send + Sync + 'static) = shutdown;
-    while let Some(harmos::Error::TaskFailed { source, .. }) = cause.downcast_ref::<harmos::Error>() {
+    while let Some(dokime::harmos::Error::TaskFailed { source, .. }) = cause.downcast_ref::<dokime::harmos::Error>() {
         cause = source.as_ref();
     }
-    let Some(harmos::services::Fault::Application(dokime::runtime::Error::Operation(reason))) =
-        cause.downcast_ref::<harmos::services::Fault<dokime::runtime::Error>>()
+    let Some(dokime::harmos::services::Fault::Application(dokime::runtime::Error::Operation(reason))) =
+        cause.downcast_ref::<dokime::harmos::services::Fault<dokime::runtime::Error>>()
     else {
         panic!("{change}: shutdown must retain the injected capture failure: {failure:?}");
     };

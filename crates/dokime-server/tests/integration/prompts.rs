@@ -584,7 +584,7 @@ async fn prompt_runtime(root: &std::path::Path, definition: dokime::domains::pro
 }
 
 fn prompt_config(root: &std::path::Path, definition: dokime::domains::prompts::PromptDefinition) -> dokime::RuntimeConfig {
-    let mut declarations = harmos::sidecar::Registrar::new();
+    let mut declarations = dokime::harmos::sidecar::Registrar::new();
     declarations
         .register(
             dokime::plugin::registration::PROMPTS_NAMESPACE,

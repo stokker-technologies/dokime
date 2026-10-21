@@ -22,7 +22,7 @@ pub(super) use parameters::{memory as parameters_memory, unit, unit_memory, wire
 use std::{collections::BTreeSet, sync::Arc};
 
 // Third Party Imports
-use harmos::operations::{Context, Operation};
+use dokime::harmos::operations::{Context, Operation};
 use tonic::Status;
 
 // Local Imports
@@ -71,7 +71,7 @@ struct GetTelemetrySchema {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     ListSuites(ListSuites),
     GetSuite(GetSuite),
@@ -96,7 +96,7 @@ impl Operation for ListSuites {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListSuites, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::catalog::wire::ListSuitesReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::catalog::wire::ListSuitesReply>, Status> {
         list_suites(&self.resources, request).await.map(Into::into)
     }
 }
@@ -112,7 +112,7 @@ impl Operation for GetSuite {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetSuite, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::catalog::wire::SuiteDefinition>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::catalog::wire::SuiteDefinition>, Status> {
         get_suite(&self.resources, request).await.map(Into::into)
     }
 }
@@ -128,7 +128,7 @@ impl Operation for ListRecordSchemas {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListRecordSchemas, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::catalog::wire::ListRecordSchemasReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::catalog::wire::ListRecordSchemasReply>, Status> {
         list_record_schemas(&self.resources, request).await.map(Into::into)
     }
 }
@@ -144,7 +144,7 @@ impl Operation for GetRecordSchema {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetRecordSchema, _: &mut (),
-    ) -> Result<harmos::operations::Response<schema::RecordSchema>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<schema::RecordSchema>, Status> {
         get_record_schema(&self.resources, request).await.map(Into::into)
     }
 }
@@ -160,7 +160,7 @@ impl Operation for ListTelemetrySchemas {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListTelemetrySchemas, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::catalog::wire::ListTelemetrySchemasReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::catalog::wire::ListTelemetrySchemasReply>, Status> {
         list_telemetry_schemas(&self.resources, request).await.map(Into::into)
     }
 }
@@ -176,7 +176,7 @@ impl Operation for GetTelemetrySchema {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetTelemetrySchema, _: &mut (),
-    ) -> Result<harmos::operations::Response<schema::TelemetrySchema>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<schema::TelemetrySchema>, Status> {
         get_telemetry_schema(&self.resources, request).await.map(Into::into)
     }
 }

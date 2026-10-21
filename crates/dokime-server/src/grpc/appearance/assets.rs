@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::operations::StreamOutput;
+use dokime::harmos::operations::StreamOutput;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncReadExt;
 use tonic::Status;

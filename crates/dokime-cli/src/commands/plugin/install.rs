@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::plugin::inventory::CarrierSection;
+use dokime::harmos::plugin::inventory::CarrierSection;
 use harmos_packaging::bundle::{Bundle, Limits};
 
 // Local Imports
@@ -75,7 +75,7 @@ pub(crate) async fn run(args: Args) -> Result<()> {
 
     // Verify The Bundle Locally
     let limits = Limits::default();
-    let bytes = harmos::filesystem::input::read(&args.bundle, limits.archive_bytes)?;
+    let bytes = dokime::harmos::filesystem::input::read(&args.bundle, limits.archive_bytes)?;
     let review = review(&bytes, limits)?;
 
     // Stage It On The Backend

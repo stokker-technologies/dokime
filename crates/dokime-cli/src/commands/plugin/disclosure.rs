@@ -17,7 +17,7 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use harmos::plugin::inventory::CarrierSection;
+use dokime::harmos::plugin::inventory::CarrierSection;
 use harmos_packaging::bundle::Bundle;
 use serde::Deserialize;
 

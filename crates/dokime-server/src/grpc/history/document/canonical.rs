@@ -189,9 +189,9 @@ fn layout_count(nodes: &[dokime::document::DocumentNode]) -> usize {
     })
 }
 
-fn projection_failure(error: harmos::Error) -> Status {
+fn projection_failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("historical document construction exceeds its bound"),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("historical document construction exceeds its bound"),
         _ => Status::data_loss("historical document projection failed"),
     }
 }

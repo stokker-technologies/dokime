@@ -17,7 +17,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 // Third Party Imports
-use harmos::grpc::Attached;
+use dokime::harmos::grpc::Attached;
 
 // Local Imports
 use super::access::Listeners;

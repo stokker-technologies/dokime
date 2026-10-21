@@ -60,7 +60,7 @@ impl Client {
         Ok(device.value)
     }
 
-    pub async fn set_power(&self, enabled: bool) -> Result<(), harmos::Error<Error>> {
+    pub async fn set_power(&self, enabled: bool) -> Result<(), dokime::harmos::Error<Error>> {
         self.handle.state.commit(SetPower { enabled }).await?;
         Ok(())
     }

@@ -4,6 +4,9 @@
 
 - [x] 77. Rewrite the remote examples as linear learning exercises with explicit repeated calls.
 
+- [x] Expose `plugin-sidecar`, migrate all plugin consumers and generated starter dependencies, audit macro facade paths and update feature guidance.
+- [x] Pass repository check, entry/CLI/macro nextest, OBC bundle build and fresh starter Rust check for the plugin feature.
+
 - [x] 76. Reject duplicate suite, template and record stream identifiers across a plugin's catalogs at compile time.
 
 - [x] 75. Make dokime the entry library and dokime-cli the CLI; migrate shipped interfaces, plugins, fixtures, templates, tooling and guidance.

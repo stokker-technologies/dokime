@@ -30,11 +30,11 @@ use super::{Config, Server, runtime};
 
 /* === Constants === */
 
-const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+const POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(10),
     attempt_timeout: std::time::Duration::from_secs(10),
-    retries: harmos::operations::RetryPolicy::Never,
-    restart: harmos::operations::RestartPolicy::Never,
+    retries: dokime::harmos::operations::RetryPolicy::Never,
+    restart: dokime::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -43,15 +43,15 @@ const POLICY: harmos::operations::OperationPolicy = harmos::operations::Operatio
 
 /* === Structs === */
 
-#[harmos::message]
+#[dokime::harmos::message(harmos_path = dokime::harmos)]
 struct Receipt {
     calls: u32,
 }
 
-#[harmos::message]
-#[harmos::operation(response = Receipt, output = Receipt,
+#[dokime::harmos::message(harmos_path = dokime::harmos)]
+#[dokime::harmos::operation(harmos_path = dokime::harmos, response = Receipt, output = Receipt,
     id = "fixture.output.mutate", version = 1, policy = POLICY,
-    visibility = harmos::operations::Visibility::Host,
+    visibility = dokime::harmos::operations::Visibility::Host,
     grpc(package = "fixture.output.v1", service = "Device", method = "Mutate"))]
 struct Mutate {
     unavailable: bool,
@@ -74,12 +74,12 @@ struct Handler {
 
 /* === Implementations === */
 
-impl harmos::operations::Operation for Handler {
+impl dokime::harmos::operations::Operation for Handler {
     type Declaration = Mutate;
     type Resources = Gate;
     type Error = tonic::Status;
-    type Context<'a> = harmos::operations::Context<'a>;
-    type Endpoints = harmos::operations::StreamOutput<Receipt>;
+    type Context<'a> = dokime::harmos::operations::Context<'a>;
+    type Endpoints = dokime::harmos::operations::StreamOutput<Receipt>;
 
     async fn initialize<'ctx>(gate: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
         Ok(Self { gate })
@@ -87,7 +87,7 @@ impl harmos::operations::Operation for Handler {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut Mutate, output: &mut Self::Endpoints,
-    ) -> Result<harmos::operations::Response<Receipt>, Self::Error> {
+    ) -> Result<dokime::harmos::operations::Response<Receipt>, Self::Error> {
         let calls = self.gate.calls.fetch_add(1, Ordering::SeqCst) + 1;
         let size = std::mem::size_of::<Receipt>();
         let item = || Ok(Receipt { calls });

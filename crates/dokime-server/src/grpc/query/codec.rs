@@ -38,7 +38,9 @@ use dokime::runtime::query::aggregate::AggregateOutcome;
 
 /* === Public Functions === */
 
-pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Result<dokime::domain::model::query::wire::AggregateReply> {
+pub(super) fn project(
+    outcome: &AggregateOutcome, maximum: usize,
+) -> dokime::harmos::Result<dokime::domain::model::query::wire::AggregateReply> {
     for column in &outcome.columns {
         super::super::value::text(column).map_err(failure)?;
     }
@@ -64,15 +66,15 @@ pub(super) fn project(outcome: &AggregateOutcome, maximum: usize) -> harmos::Res
 
 /* === Private Functions === */
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical aggregate response" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical aggregate response" }
 }
 
-fn failure(error: tonic::Status) -> harmos::Error {
+fn failure(error: tonic::Status) -> dokime::harmos::Error {
     if error.code() == tonic::Code::ResourceExhausted {
         return exhausted();
     }
-    harmos::Error::backend("project original aggregate", harmos::BackendFailure::Corrupt, error)
+    dokime::harmos::Error::backend("project original aggregate", dokime::harmos::BackendFailure::Corrupt, error)
 }
 
 /* === Tests === */

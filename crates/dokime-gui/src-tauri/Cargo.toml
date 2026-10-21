@@ -29,7 +29,6 @@ console = []
 dokime = { workspace = true }
 
 # Git
-harmos = { workspace = true }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
@@ -43,7 +42,6 @@ tauri-build = { workspace = true, features = [] }
 dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 
 # Git
-harmos = { workspace = true, features = ["grpc"] }
 harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
@@ -99,11 +97,10 @@ windows = { workspace = true, features = ["Win32_System_Com"] }
 
 [dev-dependencies]
 # Local
-dokime = { path = "../../dokime", features = ["host", "fft", "plugin"] }
+dokime = { path = "../../dokime", features = ["host", "fft", "plugin-sidecar"] }
 dokime-server = { path = "../../dokime-server" }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Filesystem

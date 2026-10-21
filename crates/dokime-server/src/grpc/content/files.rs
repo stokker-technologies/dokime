@@ -19,7 +19,7 @@ pub(in crate::grpc) use super::super::enums::canonical::{execution_file_kind as 
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
@@ -110,13 +110,13 @@ pub(super) fn execution(runtime: &RuntimeHandle, id: &str) -> Result<(TestExecut
 
 pub(super) fn read_failure(error: dokime::runtime::Error) -> Status {
     let status = match &error {
-        dokime::runtime::Error::Harmos(harmos::Error::InvalidInput { field: "execution files cursor", .. }) => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::InvalidInput { field: "execution files cursor", .. }) => {
             Status::aborted("file listing changed; restart pagination")
         }
-        dokime::runtime::Error::Harmos(harmos::Error::InvalidInput { field: "execution files after path", .. }) => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::InvalidInput { field: "execution files after path", .. }) => {
             Status::invalid_argument("after path not found")
         }
-        dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) | dokime::runtime::Error::ExecutionFileTooLarge => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) | dokime::runtime::Error::ExecutionFileTooLarge => {
             Status::resource_exhausted("execution output exceeds its original budget")
         }
         _ => Status::internal("cannot read execution output"),

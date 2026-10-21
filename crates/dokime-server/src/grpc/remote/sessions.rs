@@ -203,7 +203,7 @@ fn read(path: &Path) -> Result<Option<Document>, String> {
         Ok(metadata) if !metadata.file_type().is_file() => return Err("not a regular file".into()),
         Ok(_) => {}
     }
-    let bytes = harmos::filesystem::input::read(path, MAXIMUM_BYTES).map_err(|error| error.to_string())?;
+    let bytes = dokime::harmos::filesystem::input::read(path, MAXIMUM_BYTES).map_err(|error| error.to_string())?;
     let document: Document = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
     if document.version != 1 {
         return Err(format!("unsupported version {}", document.version));
@@ -216,7 +216,7 @@ fn write(path: &Path, document: &Document) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         super::store::private_directory(parent).map_err(|error| error.to_string())?;
     }
-    harmos::filesystem::publication::write(path, &bytes).map_err(|error| error.to_string())
+    dokime::harmos::filesystem::publication::write(path, &bytes).map_err(|error| error.to_string())
 }
 
 /* === Tests === */

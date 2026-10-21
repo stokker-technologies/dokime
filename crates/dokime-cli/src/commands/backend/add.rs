@@ -64,7 +64,7 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
         .ca
         .as_deref()
         .map(|path| {
-            let bytes = harmos::filesystem::input::read(path, 1024 * 1024)?;
+            let bytes = dokime::harmos::filesystem::input::read(path, 1024 * 1024)?;
             String::from_utf8(bytes).map_err(|_| crate::Error::Input("CA certificate must be UTF-8 PEM".into()))
         })
         .transpose()?;

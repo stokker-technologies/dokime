@@ -243,7 +243,7 @@ async fn empty_cycles_retain_history() {
     let oversized =
         dokime::runtime::query::cycle_history::CycleBrowseQuery { at: None, after: 0, limit: 1, max_bytes: 1, filter: Default::default() };
     let refusal = handle.browse_cycles(oversized).await;
-    assert!(matches!(refusal, Err(dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }))));
+    assert!(matches!(refusal, Err(dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }))));
 
     // Restart And Preserve Archive Visibility And Labels
     drop(client);

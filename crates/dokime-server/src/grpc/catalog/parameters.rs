@@ -45,7 +45,7 @@ use dokime::domain::model::values::UnitFamily;
 
 /* === Public Functions === */
 
-pub(in crate::grpc) fn memory(parameters: &[ParameterDefinition], budget: &mut Budget) -> harmos::Result<usize> {
+pub(in crate::grpc) fn memory(parameters: &[ParameterDefinition], budget: &mut Budget) -> dokime::harmos::Result<usize> {
     value::collection(parameters.len()).map_err(|_| exhausted())?;
     let mut bytes = std::mem::size_of::<Vec<dokime::domain::model::catalog::wire::ParameterSchema>>()
         .saturating_add(parameters.len().saturating_mul(std::mem::size_of::<dokime::domain::model::catalog::wire::ParameterSchema>()));
@@ -91,7 +91,7 @@ pub(in crate::grpc) fn memory(parameters: &[ParameterDefinition], budget: &mut B
     Ok(bytes)
 }
 
-pub(in crate::grpc) fn unit_memory(source: &MeasurementUnit) -> harmos::Result<usize> {
+pub(in crate::grpc) fn unit_memory(source: &MeasurementUnit) -> dokime::harmos::Result<usize> {
     value::text(&source.symbol).map_err(|_| exhausted())?;
     let metadata = canonical::metadata_memory(&source.metadata).map_err(|_| exhausted())? - std::mem::size_of::<common::Metadata>();
     std::mem::size_of::<schema::MeasurementUnit>()
@@ -247,7 +247,7 @@ fn flatten(
     Ok(index)
 }
 
-fn expression_memory(expr: &ParameterExpr, budget: &mut Budget, depth: usize) -> harmos::Result<usize> {
+fn expression_memory(expr: &ParameterExpr, budget: &mut Budget, depth: usize) -> dokime::harmos::Result<usize> {
     budget.node(depth).map_err(|_| exhausted())?;
     // Includes Conservative Capacity For The Flat Node Vector, Not Nested Box Allocations.
     let mut bytes = 4usize.saturating_mul(std::mem::size_of::<dokime::domain::model::catalog::wire::ParameterNode>());
@@ -280,8 +280,8 @@ fn expression_memory(expr: &ParameterExpr, budget: &mut Budget, depth: usize) ->
     if bytes == usize::MAX { Err(exhausted()) } else { Ok(bytes) }
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical parameter construction" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical parameter construction" }
 }
 
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {

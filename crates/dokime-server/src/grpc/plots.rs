@@ -23,12 +23,12 @@ pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filte
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 // Third Party Imports
-use futures_util::{Stream, StreamExt, stream};
-use harmos::domain::Portable;
-use harmos::{
+use dokime::harmos::domain::Portable;
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
+use futures_util::{Stream, StreamExt, stream};
 use tokio::time::Instant;
 use tonic::Status;
 
@@ -558,8 +558,8 @@ fn plot_error_frame(
     }
 }
 
-fn failure(error: harmos::Error) -> Status {
-    let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
+fn failure(error: dokime::harmos::Error) -> Status {
+    let status = if matches!(error, dokime::harmos::Error::ResourceExhausted { .. }) {
         Status::resource_exhausted("plot admission failed")
     } else {
         Status::internal("plot admission failed")

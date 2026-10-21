@@ -90,18 +90,18 @@ pub struct Gate {
 pub trait WireMessage: Sized {
     fn wire_bytes(&self) -> Vec<u8>;
 
-    fn from_wire(bytes: &[u8]) -> Result<Self, harmos::MessageError>;
+    fn from_wire(bytes: &[u8]) -> Result<Self, dokime::harmos::MessageError>;
 }
 
-impl<T: harmos::domain::Portable> WireMessage for T {
+impl<T: dokime::harmos::domain::Portable> WireMessage for T {
     fn wire_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::encode(self, &mut bytes).expect("a story message transcodes");
+        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<T>>::encode(self, &mut bytes).expect("a story message transcodes");
         bytes
     }
 
-    fn from_wire(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<T>>::decode(harmos_sdk::grpc::DecodeInput::new(bytes))
+    fn from_wire(bytes: &[u8]) -> Result<Self, dokime::harmos::MessageError> {
+        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<T>>::decode(harmos_sdk::grpc::DecodeInput::new(bytes))
     }
 }
 
@@ -195,19 +195,21 @@ impl WireClient {
         self
     }
 
-    pub fn codec<D, E>(&self) -> Result<harmos::grpc::Codec<harmos::grpc::Transcoded, D, harmos::operations::Response<E>>, tonic::Status>
+    pub fn codec<D, E>(
+        &self,
+    ) -> Result<dokime::harmos::grpc::Codec<dokime::harmos::grpc::Transcoded, D, dokime::harmos::operations::Response<E>>, tonic::Status>
     where
-        harmos::grpc::Transcoded: harmos::grpc::Wire<D> + harmos::grpc::Wire<E>,
-        D: harmos::MemorySize + Send + 'static,
+        dokime::harmos::grpc::Transcoded: dokime::harmos::grpc::Wire<D> + dokime::harmos::grpc::Wire<E>,
+        D: dokime::harmos::MemorySize + Send + 'static,
         E: Send + Sync + 'static,
     {
         use std::num::NonZeroUsize;
-        harmos::grpc::Codec::new(
-            harmos::grpc::DecodeSettings {
+        dokime::harmos::grpc::Codec::new(
+            dokime::harmos::grpc::DecodeSettings {
                 message_bytes: NonZeroUsize::new(self.decoding).unwrap(),
                 retained_bytes: NonZeroUsize::new(self.decoding.saturating_mul(4)).unwrap(),
             },
-            harmos::grpc::EncodeSettings {
+            dokime::harmos::grpc::EncodeSettings {
                 message_bytes: NonZeroUsize::new(self.encoding).unwrap(),
                 buffer_bytes: NonZeroUsize::new(self.encoding.min(8192)).unwrap(),
             },
@@ -225,10 +227,10 @@ impl WireClient {
     pub async fn unary<O>(&self, request: impl tonic::IntoRequest<O>) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::domain::Portable + Sync,
-        O::Response: harmos::domain::Portable + harmos::MemorySize,
+        O: dokime::harmos::domain::Portable + Sync,
+        O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
     {
-        let request = request.into_request().map(harmos::operations::Response::new);
+        let request = request.into_request().map(dokime::harmos::operations::Response::new);
         let codec = self.codec::<O::Response, O>()?;
         let response = self.grpc().await?.unary(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
@@ -242,12 +244,12 @@ impl WireClient {
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::domain::Portable + harmos::schema::Described + Sync,
-        O::Response: harmos::domain::Portable + harmos::MemorySize,
-        E: harmos::schema::Described,
+        O: dokime::harmos::domain::Portable + dokime::harmos::schema::Described + Sync,
+        O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
+        E: dokime::harmos::schema::Described,
     {
         use prost::encoding::{DecodeContext, WireType, decode_key, encode_key, encode_varint, skip_field};
-        let tag = <O as harmos::schema::Described>::FIELDS
+        let tag = <O as dokime::harmos::schema::Described>::FIELDS
             .iter()
             .find(|entry| entry.name == field)
             .expect("canonical request declares the enum field")
@@ -290,17 +292,17 @@ impl WireClient {
 
     pub async fn download<O>(
         &self, request: impl tonic::IntoRequest<O>,
-    ) -> Result<tonic::Response<WireStream<<O::Output as harmos::operations::Direction>::Item>>, tonic::Status>
+    ) -> Result<tonic::Response<WireStream<<O::Output as dokime::harmos::operations::Direction>::Item>>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::domain::Portable + Sync,
-        O::Response: harmos::domain::Portable + harmos::MemorySize,
-        <O::Output as harmos::operations::Direction>::Item: harmos::domain::Portable + harmos::MemorySize,
+        O: dokime::harmos::domain::Portable + Sync,
+        O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
+        <O::Output as dokime::harmos::operations::Direction>::Item: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
     {
+        use dokime::harmos::grpc::OutputEnvelope;
         use futures_util::StreamExt;
-        use harmos::grpc::OutputEnvelope;
-        let request = request.into_request().map(harmos::operations::Response::new);
-        let codec = self.codec::<OutputEnvelope<<O::Output as harmos::operations::Direction>::Item, O::Response>, O>()?;
+        let request = request.into_request().map(dokime::harmos::operations::Response::new);
+        let codec = self.codec::<OutputEnvelope<<O::Output as dokime::harmos::operations::Direction>::Item, O::Response>, O>()?;
         let response = self.grpc().await?.server_streaming(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, incoming, extensions) = response.into_parts();
         let frames = futures_util::stream::unfold(Some(incoming), |state| async move {
@@ -327,22 +329,22 @@ impl WireClient {
     }
 
     pub async fn upload<O>(
-        &self, request: impl tonic::IntoStreamingRequest<Message = <O::Input as harmos::operations::Direction>::Item>,
+        &self, request: impl tonic::IntoStreamingRequest<Message = <O::Input as dokime::harmos::operations::Direction>::Item>,
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O: harmos::domain::Portable + Sync + Default,
-        O::Response: harmos::domain::Portable + harmos::MemorySize,
-        <O::Input as harmos::operations::Direction>::Item: harmos::domain::Portable + Sync,
+        O: dokime::harmos::domain::Portable + Sync + Default,
+        O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
+        <O::Input as dokime::harmos::operations::Direction>::Item: dokime::harmos::domain::Portable + Sync,
     {
+        use dokime::harmos::grpc::InputEnvelope;
+        use dokime::harmos::operations::Response;
         use futures_util::StreamExt;
-        use harmos::grpc::InputEnvelope;
-        use harmos::operations::Response;
         let request = request.into_streaming_request().map(|items| {
             let opening = futures_util::stream::once(async { Response::new(InputEnvelope::Request(O::default())) });
             opening.chain(items.map(|item| Response::new(InputEnvelope::Item(item))))
         });
-        let codec = self.codec::<O::Response, InputEnvelope<O, <O::Input as harmos::operations::Direction>::Item>>()?;
+        let codec = self.codec::<O::Response, InputEnvelope<O, <O::Input as dokime::harmos::operations::Direction>::Item>>()?;
         let response = self.grpc().await?.client_streaming(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
         let (value, _claims) = value.into_request().map_err(|error| tonic::Status::data_loss(error.to_string()))?;

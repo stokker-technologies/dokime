@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::MemorySize;
+use dokime::harmos::MemorySize;
 use tonic::Status;
 
 // Local Imports
@@ -173,7 +173,9 @@ pub(crate) fn record_memory(source: &RecordContract) -> Result<usize, Status> {
 
 pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Status> {
     if let Some(graph) = &source.storage_schema {
-        graph.preparation(&harmos::config::SchemaSettings::default()).map_err(|error| Status::resource_exhausted(error.to_string()))?;
+        graph
+            .preparation(&dokime::harmos::config::SchemaSettings::default())
+            .map_err(|error| Status::resource_exhausted(error.to_string()))?;
     }
     value::collection(source.columns.len())?;
     value::text(source.stream.as_str())?;
@@ -215,9 +217,9 @@ pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Stat
 
 /* === Private Functions === */
 
-fn failure(error: harmos::Error) -> Status {
+fn failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("canonical schema construction exceeds its bound"),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted("canonical schema construction exceeds its bound"),
         _ => Status::internal("canonical schema projection failed"),
     }
 }

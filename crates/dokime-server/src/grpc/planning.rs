@@ -20,7 +20,7 @@ mod payload;
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
-use harmos::operations::{Context, Operation};
+use dokime::harmos::operations::{Context, Operation};
 use tonic::Status;
 
 // Local Imports
@@ -65,7 +65,7 @@ pub(super) struct ResolvedPlan {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Materialize(Materialize),
     Register(Register),
@@ -89,7 +89,7 @@ impl Operation for Materialize {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::MaterializeTemplate, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
         let selection = request.selection.take().ok_or_else(|| Status::invalid_argument("template selection is required"))?;
         let registration_id = dokime::model::identity::new_id::<CommandId>();
         let snapshot = self.runtime.watch_state().latest();
@@ -120,7 +120,7 @@ impl Operation for Register {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::RegisterSelection, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
         dokime::domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
             .map_err(|error| Status::invalid_argument(error.to_string()))?;
         if request.plan.as_ref().is_some_and(|plan| !plan.case_ids.is_empty()) {
@@ -152,7 +152,7 @@ impl Operation for Preview {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::PreviewSelection, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::planning::wire::PreviewSelectionReply>, Status> {
         let snapshot = self.runtime.watch_state().latest();
         let resolved = resolve(snapshot.state(), request.plan.take(), &dokime::model::identity::new_id::<CommandId>())?;
         Ok((dokime::domain::model::planning::wire::PreviewSelectionReply {

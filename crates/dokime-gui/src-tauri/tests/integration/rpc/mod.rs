@@ -87,15 +87,15 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
     let owner = "fixture";
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"});
-    let policy = harmos::operations::OperationPolicy {
+    let policy = dokime::harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
-        retries: harmos::operations::RetryPolicy::Never,
-        restart: harmos::operations::RestartPolicy::Never,
+        retries: dokime::harmos::operations::RetryPolicy::Never,
+        restart: dokime::harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
+        dokime::harmos::operations::lifecycle::Descriptor::new(dokime::harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
+        dokime::harmos::operations::lifecycle::Descriptor::new(dokime::harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
     ];
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
@@ -104,7 +104,7 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
     let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
+        prefix = std::str::from_utf8(dokime::harmos::artifacts::PREFIX).unwrap()
     );
     let resource = vec![0xCDu8; resource_bytes];
     harmos_packaging::bundle::Bundle::build(

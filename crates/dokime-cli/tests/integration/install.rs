@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 // Third Party Imports
-use harmos::operations::{Context, Operation, OperationDeclaration, Response, StreamInput};
+use dokime::harmos::operations::{Context, Operation, OperationDeclaration, Response, StreamInput};
 use harmos_packaging::bundle::Bundle;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use sha2::{Digest, Sha256};
@@ -87,7 +87,7 @@ struct Outcome {
 
 /* === Enums === */
 
-#[harmos::lanes]
+#[dokime::harmos::lanes(harmos_path = dokime::harmos)]
 enum Lanes {
     #[default]
     Open,
@@ -106,9 +106,9 @@ impl Drop for ChildGuard {
     }
 }
 
-impl harmos::Application for Fixture {
+impl dokime::harmos::Application for Fixture {
     type State = ();
-    type Transaction = harmos::state::Never;
+    type Transaction = dokime::harmos::state::Never;
     type Record = ();
     type Streams = ();
     type Resources = ();
@@ -230,15 +230,15 @@ fn review_bundle(schema: u32) -> Bundle {
     let owner = "fixture.worker";
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Review fixture","config":"()"});
-    let policy = harmos::operations::OperationPolicy {
+    let policy = dokime::harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
-        retries: harmos::operations::RetryPolicy::Never,
-        restart: harmos::operations::RestartPolicy::Never,
+        retries: dokime::harmos::operations::RetryPolicy::Never,
+        restart: dokime::harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
+        dokime::harmos::operations::lifecycle::Descriptor::new(dokime::harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
+        dokime::harmos::operations::lifecycle::Descriptor::new(dokime::harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
     ];
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
@@ -247,9 +247,9 @@ fn review_bundle(schema: u32) -> Bundle {
     let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
+        prefix = std::str::from_utf8(dokime::harmos::artifacts::PREFIX).unwrap()
     );
-    let mut registrations = harmos::sidecar::Registrar::new();
+    let mut registrations = dokime::harmos::sidecar::Registrar::new();
     registrations
         .register(
             "dokime.settings",
@@ -391,12 +391,12 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
         calls: calls.clone(),
         consent_code,
         descriptor_sha256: {
-            let catalog = harmos::operations::Contracts::of::<contracts::Operations>().unwrap();
+            let catalog = dokime::harmos::operations::Contracts::of::<contracts::Operations>().unwrap();
             let artifacts = harmos_packaging::proto::Artifacts::new(&catalog).unwrap();
             Sha256::digest(artifacts.descriptors()).to_vec()
         },
     };
-    let runtime = harmos::Runtime::<Fixture>::builder((), ()).register(Lanes::catalog()).runtime().await.unwrap();
+    let runtime = dokime::harmos::Runtime::<Fixture>::builder((), ()).register(Lanes::catalog()).runtime().await.unwrap();
     let host = Arc::new(host);
     runtime.operations.register_wire_operation::<Stage>("dokime", Lanes::Open, host.clone()).unwrap();
     runtime.operations.register_wire_operation::<Consent>("dokime", Lanes::Open, host.clone()).unwrap();
@@ -406,8 +406,11 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
     runtime.operations.register_wire_operation::<Availability>("dokime", Lanes::Open, host.clone()).unwrap();
     runtime.operations.register_wire_operation::<RuntimeIdentity>("dokime", Lanes::Open, host.clone()).unwrap();
     runtime.operations.register_wire_operation::<RuntimeHealth>("dokime", Lanes::Open, host).unwrap();
-    let attachment =
-        runtime.grpc().attach(harmos::grpc::Settings { address: "127.0.0.1:0".parse().unwrap(), ..Default::default() }).await.unwrap();
+    let attachment = runtime
+        .grpc()
+        .attach(dokime::harmos::grpc::Settings { address: "127.0.0.1:0".parse().unwrap(), ..Default::default() })
+        .await
+        .unwrap();
     let endpoint = format!("http://{}", attachment.local_addr());
     let output = tokio::task::spawn_blocking(move || run_cli(file.path(), &endpoint, consent)).await;
     attachment.detach().await.unwrap();

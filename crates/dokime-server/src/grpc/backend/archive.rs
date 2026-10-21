@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::operations::{Response, StreamOutput};
+use dokime::harmos::operations::{Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports

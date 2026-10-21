@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamInput, StreamItem};
+use dokime::harmos::operations::{Context, Operation, Response, StreamInput, StreamItem};
 use tonic::Status;
 
 // Local Imports
@@ -192,7 +192,7 @@ pub(in crate::grpc) fn content_failure(error: dokime::runtime::Error) -> Status 
         Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("artifact upload owner not found"),
         Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
         Error::Admission(AdmissionFailure::Forbidden { .. }) => Status::permission_denied("artifact upload failed"),
-        Error::Harmos(harmos::Error::ResourceExhausted { .. }) | Error::Admission(AdmissionFailure::Overload { .. }) => {
+        Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) | Error::Admission(AdmissionFailure::Overload { .. }) => {
             Status::resource_exhausted("artifact upload failed")
         }
         Error::Admission(AdmissionFailure::Timeout { .. }) => Status::deadline_exceeded("artifact upload interrupted"),

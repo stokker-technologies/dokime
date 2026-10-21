@@ -373,7 +373,7 @@ async fn operation_response_files() {
 
 #[tokio::test]
 async fn discovery_shares_independently() {
-    use harmos::operations::OperationDeclaration;
+    use dokime::harmos::operations::OperationDeclaration;
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
@@ -437,7 +437,7 @@ async fn discovery_shares_independently() {
         })
         .collect::<std::collections::BTreeSet<_>>();
     // Runtime Startup Also Registers The Shared Storage Provider's Original Catalog.
-    let storage = harmos::operations::Contracts::of::<harmos::storage::operations::Operations>().unwrap();
+    let storage = dokime::harmos::operations::Contracts::of::<dokime::harmos::storage::operations::Operations>().unwrap();
     for contract in storage {
         if let Some(binding) = contract.grpc() {
             expected.insert(binding.path());

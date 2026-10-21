@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation};
+use dokime::harmos::operations::{Context, Operation};
 use tonic::Status;
 
 // Local Imports
@@ -108,7 +108,7 @@ struct CancelExecution {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Create(Create),
     Copy(Copy),
@@ -145,7 +145,7 @@ impl Operation for Create {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::CreateCycle, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::CreateCycleReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let mut metadata = request.metadata.take().ok_or_else(|| Status::invalid_argument("cycle metadata is required"))?;
         value::text(&metadata.label)?;
@@ -182,7 +182,7 @@ impl Operation for Copy {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::CopyCycle, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::CreateCycleReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let id = self.runtime.copy_cycle(cycle_id(&request.source_cycle_id)?, context).await.map_err(status)?;
         Ok((dokime::domain::model::execution::wire::CreateCycleReply {
@@ -206,7 +206,7 @@ impl Operation for AppendExecutions {
 
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::AppendExecutions, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::AppendCasesReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::AppendCasesReply>, Status> {
         if request.executions.len() > 1000 {
             return Err(Status::resource_exhausted("append exceeds 1000 execution limit"));
         }
@@ -245,7 +245,7 @@ impl Operation for Delete {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::DeleteCase, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let cycle = cycle_id(&request.cycle_id)?;
         value::text(&request.case_id)?;
@@ -268,7 +268,7 @@ impl Operation for ArchiveCycle {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::SetCycleArchived, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ArchiveReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ArchiveReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime.set_cycle_archived(cycle_id(&request.cycle_id)?, request.archived, context).await.map_err(status)?;
         Ok(dokime::domain::model::execution::wire::ArchiveReply { archived: request.archived }.into())
@@ -288,7 +288,7 @@ impl Operation for ArchiveExecution {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::SetExecutionArchived, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ArchiveReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ArchiveReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let execution =
@@ -311,7 +311,7 @@ impl Operation for RenameCycle {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::RenameCycle, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::RenameReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::RenameReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         label_bound(&request.label)?;
         let label =
@@ -333,7 +333,7 @@ impl Operation for RenameExecution {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::RenameExecution, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::RenameReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::RenameReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         label_bound(&request.label)?;
         value::text(&request.execution_id)?;
@@ -357,7 +357,7 @@ impl Operation for Policy {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::UpdateCyclePolicy, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime.update_cycle_policy(cycle_id(&request.cycle_id)?, request.continue_automatically, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
@@ -377,7 +377,7 @@ impl Operation for PauseCycle {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::PauseCycle, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime.pause_cycle(cycle_id(&request.cycle_id)?, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
@@ -397,7 +397,7 @@ impl Operation for ResumeCycle {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::ResumeCycle, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime.resume_cycle(cycle_id(&request.cycle_id)?, context).await.map_err(status)?;
         Ok((observed(&self.runtime)).into())
@@ -417,7 +417,7 @@ impl Operation for SealCycle {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::SealCycle, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime.seal_cycle(cycle_id(&request.cycle_id)?, context).await.map_err(status)?;
         Ok(observed(&self.runtime).into())
@@ -437,7 +437,7 @@ impl Operation for PauseExecution {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::PauseExecution, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution ID"))?;
@@ -459,7 +459,7 @@ impl Operation for ResumeExecution {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::ResumeExecution, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution ID"))?;
@@ -481,7 +481,7 @@ impl Operation for StopExecution {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::StopExecution, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution ID"))?;
@@ -503,7 +503,7 @@ impl Operation for CancelExecution {
 
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut wire::CancelExecution, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution ID"))?;

@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
@@ -61,7 +61,7 @@ struct Execution {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Download(Download),
     Execution(Execution),
@@ -198,7 +198,7 @@ fn report_failure(error: dokime::runtime::Error) -> Status {
     if let dokime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
         return Status::not_found(message.clone());
     }
-    let status = if matches!(&error, dokime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+    let status = if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
         Status::resource_exhausted(format!("report operation failed: {error}"))
     } else {
         Status::failed_precondition(format!("report operation failed: {error}"))

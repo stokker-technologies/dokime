@@ -21,7 +21,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
@@ -317,7 +317,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 
 /* === Private Functions === */
 
-fn memory_error(error: harmos::Error) -> Status {
+fn memory_error(error: dokime::harmos::Error) -> Status {
     let error = dokime::runtime::Error::from(error);
     detailed(Status::resource_exhausted(format!("captured record output unavailable: {error}")), &error)
 }

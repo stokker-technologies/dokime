@@ -78,7 +78,7 @@ async fn telemetry_pages_window() {
                 "fixture",
             );
             sample.values.insert("progress".into(), Value::Number(index as f64));
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
+            sample.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();

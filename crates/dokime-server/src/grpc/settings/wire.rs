@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::domain::Portable;
+use dokime::harmos::domain::Portable;
 use tonic::Status as TonicStatus;
 
 // Local Imports

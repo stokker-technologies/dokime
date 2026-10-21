@@ -105,7 +105,7 @@ pub async fn desktop_plugin_stage_file(
     };
 
     let _ = progress.send(StageProgress::Reading);
-    let reading = move || harmos::filesystem::input::read(&path, STAGE_ARCHIVE_MAX_BYTES as usize);
+    let reading = move || dokime::harmos::filesystem::input::read(&path, STAGE_ARCHIVE_MAX_BYTES as usize);
     let read = tauri::async_runtime::spawn_blocking(reading).await.map_err(text)?;
     let bytes = read.map_err(|error| format!("The plugin bundle could not be read: {error}"))?;
     stage(&lease, bytes, progress).await.map(Some)

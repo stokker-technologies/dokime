@@ -37,7 +37,7 @@
 
 /* === Public Functions === */
 
-pub(in crate::grpc) fn text(source: &str) -> harmos::Result<String> {
+pub(in crate::grpc) fn text(source: &str) -> dokime::harmos::Result<String> {
     let mut target = String::new();
     target.try_reserve_exact(source.len()).map_err(|_| exhausted())?;
     if target.capacity() > source.len() {
@@ -47,7 +47,7 @@ pub(in crate::grpc) fn text(source: &str) -> harmos::Result<String> {
     Ok(target)
 }
 
-pub(in crate::grpc) fn slots<T>(length: usize) -> harmos::Result<Vec<T>> {
+pub(in crate::grpc) fn slots<T>(length: usize) -> dokime::harmos::Result<Vec<T>> {
     let mut target = Vec::new();
     target.try_reserve_exact(length).map_err(|_| exhausted())?;
     if target.capacity() > length {
@@ -58,8 +58,8 @@ pub(in crate::grpc) fn slots<T>(length: usize) -> harmos::Result<Vec<T>> {
 
 /* === Private Functions === */
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical projection allocation" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical projection allocation" }
 }
 
 /* === Tests === */

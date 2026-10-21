@@ -20,7 +20,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -122,7 +122,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 fn stream_failure(error: Error) -> Status {
     let status = match &error {
-        Error::Harmos(harmos::Error::ResourceExhausted { resource }) => {
+        Error::Harmos(dokime::harmos::Error::ResourceExhausted { resource }) => {
             Status::resource_exhausted(format!("execution output exceeds its original {resource} budget"))
         }
         Error::ExecutionFileTooLarge => Status::resource_exhausted("execution output exceeds native content limit"),

@@ -60,7 +60,7 @@ async fn aggregate_answers_asked() {
             filters: Vec::new(),
             group_by: vec!["status".to_owned()],
             aggregates: vec![model::query::wire::QueryAggregate {
-                aggregate: harmos::Aggregate::Count,
+                aggregate: dokime::harmos::Aggregate::Count,
                 column: String::new(),
                 alias: "total".to_owned(),
             }],
@@ -87,7 +87,7 @@ async fn unknown_column_exist() {
             filters: Vec::new(),
             group_by: vec!["step_id".to_owned()],
             aggregates: vec![model::query::wire::QueryAggregate {
-                aggregate: harmos::Aggregate::Mean,
+                aggregate: dokime::harmos::Aggregate::Mean,
                 column: "duration_ms".to_owned(),
                 alias: "mean".to_owned(),
             }],
@@ -116,15 +116,20 @@ async fn percentile_rank_bounded() {
     };
 
     for rank in [101, 255] {
-        let status =
-            client.unary::<contracts::query::Aggregate>(authenticated(request(harmos::Aggregate::Percentile(rank)))).await.unwrap_err();
+        let status = client
+            .unary::<contracts::query::Aggregate>(authenticated(request(dokime::harmos::Aggregate::Percentile(rank))))
+            .await
+            .unwrap_err();
 
         assert_eq!(status.code(), tonic::Code::InvalidArgument, "{rank}");
         assert!(status.message().contains("rank exceeds 100"), "{rank}");
     }
 
-    let reply =
-        client.unary::<contracts::query::Aggregate>(authenticated(request(harmos::Aggregate::Percentile(95)))).await.unwrap().into_inner();
+    let reply = client
+        .unary::<contracts::query::Aggregate>(authenticated(request(dokime::harmos::Aggregate::Percentile(95))))
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(reply.columns, ["statistic"]);
     assert!(reply.complete);
 }
@@ -165,7 +170,7 @@ async fn detailed_status_directory() {
             source: model::query::wire::QuerySource::Steps,
             group_by: vec![format!("{home}/evidence")],
             aggregates: vec![model::query::wire::QueryAggregate {
-                aggregate: harmos::Aggregate::Count,
+                aggregate: dokime::harmos::Aggregate::Count,
                 column: String::new(),
                 alias: "total".into(),
             }],

@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -107,7 +107,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 fn project(
     entries: &[ExecutionFileEntry], id: &TestExecutionId, epoch: &str, request: &wire::ListExecutionFiles, maximum: usize,
-) -> harmos::Result<dokime::domain::model::content::wire::ListExecutionFilesReply> {
+) -> dokime::harmos::Result<dokime::domain::model::content::wire::ListExecutionFilesReply> {
     let counted = count(entries, request)?;
     let mut files = projection::slots(entries.len())?;
     for entry in entries {
@@ -123,7 +123,7 @@ fn project(
     }
     let digest = hash.finalize();
     if request.cursor.as_ref().is_some_and(|cursor| cursor.metadata_sha256.as_slice() != digest.as_slice()) {
-        return Err(harmos::Error::InvalidInput { field: "execution files cursor", reason: "metadata fingerprint differs" });
+        return Err(dokime::harmos::Error::InvalidInput { field: "execution files cursor", reason: "metadata fingerprint differs" });
     }
     let mut selected = projection::slots(counted.returned)?;
     selected.extend(files.into_iter().skip(counted.after).take(counted.returned));
@@ -146,7 +146,7 @@ fn project(
     Ok(page)
 }
 
-fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> harmos::Result<Count> {
+fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> dokime::harmos::Result<Count> {
     if entries.len() > INVENTORY_LIMIT {
         return Err(exhausted());
     }
@@ -160,7 +160,7 @@ fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> 
             .iter()
             .position(|entry| entry.relative_path == request.after_path)
             .map(|index| index + 1)
-            .ok_or(harmos::Error::InvalidInput { field: "execution files after path", reason: "after path not found" })?
+            .ok_or(dokime::harmos::Error::InvalidInput { field: "execution files after path", reason: "after path not found" })?
     };
     let limit = if request.limit == 0 { 50 } else { request.limit as usize };
     let returned = entries.len().saturating_sub(after).min(limit);
@@ -174,7 +174,7 @@ fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> 
     Ok(Count { after, returned, more })
 }
 
-fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<dokime::domain::model::content::wire::ExecutionFileMetadata> {
+fn metadata(entry: &ExecutionFileEntry) -> dokime::harmos::Result<dokime::domain::model::content::wire::ExecutionFileMetadata> {
     Ok(dokime::domain::model::content::wire::ExecutionFileMetadata {
         relative_path: projection::text(&entry.relative_path)?,
         content_type: entry.content_type.as_deref().map(projection::text).transpose()?,
@@ -185,18 +185,19 @@ fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<dokime::domain::model:
     })
 }
 
-fn timestamp(entry: &ExecutionFileEntry) -> harmos::Result<dokime::domain::model::identity::wire::Timestamp> {
-    let at = time::OffsetDateTime::parse(entry.updated_at.as_str(), &time::format_description::well_known::Rfc3339)
-        .map_err(|source| harmos::Error::backend("parse original output creation time", harmos::BackendFailure::Corrupt, source))?;
+fn timestamp(entry: &ExecutionFileEntry) -> dokime::harmos::Result<dokime::domain::model::identity::wire::Timestamp> {
+    let at = time::OffsetDateTime::parse(entry.updated_at.as_str(), &time::format_description::well_known::Rfc3339).map_err(|source| {
+        dokime::harmos::Error::backend("parse original output creation time", dokime::harmos::BackendFailure::Corrupt, source)
+    })?;
     Ok(dokime::domain::model::identity::wire::Timestamp { seconds: at.unix_timestamp(), nanos: at.nanosecond() as i32 })
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical execution inventory" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical execution inventory" }
 }
 
-fn invalid_wire() -> harmos::Error {
-    harmos::Error::InvalidInput { field: "canonical execution inventory", reason: "original order or encoded length differs" }
+fn invalid_wire() -> dokime::harmos::Error {
+    dokime::harmos::Error::InvalidInput { field: "canonical execution inventory", reason: "original order or encoded length differs" }
 }
 
 /* === Tests === */

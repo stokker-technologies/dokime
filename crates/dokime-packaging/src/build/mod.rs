@@ -29,8 +29,8 @@ use std::{
 
 // Third Party Imports
 use cargo_metadata::{Message, MetadataCommand, Package};
-use harmos::plugin::inventory::Declaration;
-use harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
+use dokime::harmos::plugin::inventory::Declaration;
+use dokime::harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source};
 
 // Local Imports
@@ -443,7 +443,7 @@ async fn collect_executable(
     path: &std::path::Path, package: &Package, target: &str, max_bytes: usize, catalog_remaining: &mut usize,
 ) -> Result<(String, Vec<u8>, Executable), Error> {
     let binary = files::read(path, max_bytes)?;
-    let declaration = Declaration::inspect(&binary, harmos::plugin::inventory::Facility::Sidecar)
+    let declaration = Declaration::inspect(&binary, dokime::harmos::plugin::inventory::Facility::Sidecar)
         .map_err(|error| Error::Invalid(format!("selected binary has no complete native declaration: {error}")))?;
     if declaration.version.to_string() != package.version.to_string() {
         return Err(Error::Invalid(format!(
@@ -560,14 +560,15 @@ mod tests {
     // A non-running executable carrying the minimal native declaration.
     fn inert_executable() -> String {
         let owner = "fixture";
-        let policy = harmos::operations::OperationPolicy {
+        let policy = dokime::harmos::operations::OperationPolicy {
             timeout: Duration::from_secs(5),
             attempt_timeout: Duration::from_secs(5),
-            retries: harmos::operations::RetryPolicy::Never,
-            restart: harmos::operations::RestartPolicy::Never,
+            retries: dokime::harmos::operations::RetryPolicy::Never,
+            restart: dokime::harmos::operations::RestartPolicy::Never,
         };
-        let lifecycle = [harmos::operations::lifecycle::Action::Initialize, harmos::operations::lifecycle::Action::Shutdown]
-            .map(|action| harmos::operations::lifecycle::Descriptor::new(action, policy).unwrap());
+        let lifecycle =
+            [dokime::harmos::operations::lifecycle::Action::Initialize, dokime::harmos::operations::lifecycle::Action::Shutdown]
+                .map(|action| dokime::harmos::operations::lifecycle::Descriptor::new(action, policy).unwrap());
         let sections = [
             serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"}),
             serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle}),
@@ -575,7 +576,7 @@ mod tests {
             serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]}),
             serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]}),
         ];
-        let prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap();
+        let prefix = std::str::from_utf8(dokime::harmos::artifacts::PREFIX).unwrap();
 
         sections.iter().fold("inert".to_owned(), |executable, section| format!("{executable}{prefix}{section}\0"))
     }

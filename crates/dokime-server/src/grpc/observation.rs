@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, StreamOutput},
 };
@@ -68,7 +68,7 @@ struct Progress {
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Traceability(Traceability),
     Shell(Shell),
@@ -91,7 +91,7 @@ impl Operation for Shell {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetRuntimeShell, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::observation::wire::RuntimeShellSnapshot>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::observation::wire::RuntimeShellSnapshot>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let state = snapshot.state();
         let observed = canonical::cursor(&snapshot);
@@ -148,7 +148,7 @@ impl Operation for Runtime {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::WatchRuntime, output: &mut Self::Endpoints,
-    ) -> Result<harmos::operations::Response<()>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<()>, Status> {
         let mut watch = self.resources.runtime.watch_state();
         let mut snapshot = watch.latest();
         canonical::cursor(&snapshot).validate(request.cursor.as_ref(), false).map_err(canonical::cursor_failure)?;
@@ -202,7 +202,7 @@ impl Operation for Progress {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::WatchExecutionProgress, output: &mut Self::Endpoints,
-    ) -> Result<harmos::operations::Response<()>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<()>, Status> {
         let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
             .map_err(|_| Status::invalid_argument("invalid test execution UUID"))?;
         let mut watch = self.resources.runtime.watch_execution_progress();
@@ -239,7 +239,7 @@ impl Operation for Traceability {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::GetTraceability, _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime::domain::model::observation::wire::TraceabilityPage>, Status> {
+    ) -> Result<dokime::harmos::operations::Response<dokime::domain::model::observation::wire::TraceabilityPage>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let observed = canonical::cursor(&snapshot);
         let limit =
@@ -271,7 +271,7 @@ impl Operation for Traceability {
         bounds.text(&observed.stream)?;
         bounds.text(&host_traceability_fingerprint)?;
         if let Some(scope) = &request.scope {
-            bounds.bytes(harmos::MemorySize::memory_size(scope))?;
+            bounds.bytes(dokime::harmos::MemorySize::memory_size(scope))?;
         }
         for snapshot in &source {
             bounds.bytes(super::history::traceability_memory(snapshot)?)?;
@@ -315,10 +315,10 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
 
 /* === Private Functions === */
 
-fn stream_failure(error: harmos::Error) -> Status {
+fn stream_failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
+        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
         error => Status::internal(error.to_string()),
     }
 }

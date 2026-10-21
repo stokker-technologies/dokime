@@ -41,7 +41,7 @@ use dokime::state::PluginOwner;
 
 pub(super) fn page(
     runtime: &RuntimeHandle, request: &mut v1::ListAdmittedPlugins, limit: usize, local_only: bool,
-) -> Result<harmos::operations::Response<plugins_model::AdmittedPluginPage>, Status> {
+) -> Result<dokime::harmos::operations::Response<plugins_model::AdmittedPluginPage>, Status> {
     let size = page_size(request.page_size)?;
     let snapshot = runtime.watch_state().latest();
     let state = snapshot.state();

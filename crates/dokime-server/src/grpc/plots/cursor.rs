@@ -253,7 +253,7 @@ fn histogram_options(value: dokime::domain::model::plots::wire::PlotHistogramOpt
 fn selection_key_wire(request: &dokime::domain::model::plots::wire::PlotRequest) -> String {
     let mut request = request.clone();
     request.cursor = None;
-    Sha256::digest(harmos::Message::encode_to_vec(&request)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+    Sha256::digest(dokime::harmos::Message::encode_to_vec(&request)).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
 }
 
 fn plot_filter(filter: dokime::domain::model::plots::wire::PlotFilter) -> Result<DocumentFilter, Status> {
