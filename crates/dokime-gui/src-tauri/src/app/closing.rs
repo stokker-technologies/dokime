@@ -36,10 +36,10 @@ use crate::native_session::{DesktopSessionControl, DesktopSessionError};
 
 /// The event the WebView follows (`src/lib/desktop/stopping.ts`).
 const STOPPING_EVENT: &str = "desktop://stopping";
-/// A stop shorter than this shows nothing: an idle close simply closes.
-const VISIBLE_AFTER: Duration = Duration::from_millis(400);
+/// Keep An Idle Close Within Its One-Second Target Free Of Intermediate State.
+const VISIBLE_AFTER: Duration = Duration::from_secs(1);
 /// The run's settle budget plus the backend's final checkpoint; past it the
-/// operator is asked, as a second close or Ctrl-C would.
+/// operator is offered an explicit choice to exit without finishing.
 const STOP_DEADLINE: Duration = Duration::from_secs(dokime_domain::STOP_SETTLEMENT_SECONDS + 30);
 const EXIT_WITHOUT_FINISHING: &str = "Exit Without Finishing";
 
@@ -59,6 +59,7 @@ struct State {
     complete: AtomicBool,
     asking: AtomicBool,
     abandoned: AtomicBool,
+    expired: AtomicBool,
     titles: Mutex<Vec<(String, String)>>,
 }
 
@@ -76,6 +77,13 @@ enum Failure {
     KeepOpen,
 }
 
+#[derive(Debug, PartialEq)]
+enum CloseRequest {
+    Start,
+    Wait,
+    OfferForceQuit,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -85,12 +93,12 @@ impl Closing {
         self.0.complete.load(Ordering::Acquire)
     }
 
-    /// The first request starts the orderly stop; one made during it offers to
-    /// exit without finishing.
+    /// Repeated close requests keep waiting until the stop's deadline passes.
     pub(crate) fn request(&self, app: &tauri::AppHandle, code: i32) {
-        if self.0.started.swap(true, Ordering::AcqRel) {
-            self.offer_force_quit(app);
-            return;
+        match self.0.request() {
+            CloseRequest::Start => {}
+            CloseRequest::Wait => return,
+            CloseRequest::OfferForceQuit => return self.offer_force_quit(app),
         }
         let closing = self.clone();
         let app = app.clone();
@@ -123,21 +131,23 @@ impl Closing {
     }
 
     async fn attempt(&self, app: &tauri::AppHandle) -> Result<(), DesktopSessionError> {
+        self.0.expired.store(false, Ordering::Release);
         let control = app.state::<DesktopSessionControl>();
         let shutdown = control.shutdown();
         let visible = tokio::time::sleep(VISIBLE_AFTER);
         let deadline = tokio::time::sleep(STOP_DEADLINE);
         tokio::pin!(shutdown, visible, deadline);
-        let (mut shown, mut expired) = (false, false);
+        let mut shown = false;
         loop {
             tokio::select! {
+                biased;
                 result = &mut shutdown => return result,
                 () = &mut visible, if !shown => {
                     shown = true;
                     self.show_stopping(app);
                 }
-                () = &mut deadline, if !expired => {
-                    expired = true;
+                () = &mut deadline, if !self.0.expired.load(Ordering::Acquire) => {
+                    self.0.expired.store(true, Ordering::Release);
                     self.offer_force_quit(app);
                 }
             }
@@ -164,7 +174,7 @@ impl Closing {
     }
 
     fn offer_force_quit(&self, app: &tauri::AppHandle) {
-        if self.0.asking.swap(true, Ordering::AcqRel) {
+        if !self.0.force_available() || self.0.asking.swap(true, Ordering::AcqRel) {
             return;
         }
         let closing = self.clone();
@@ -178,7 +188,7 @@ impl Closing {
             .buttons(MessageDialogButtons::OkCancelCustom(EXIT_WITHOUT_FINISHING.into(), "Keep Waiting".into()))
             .show_with_result(move |answer| {
                 closing.0.asking.store(false, Ordering::Release);
-                if exits(&answer) {
+                if closing.0.force_available() && exits(&answer) {
                     // The stop task sees the backend end and exits without a failure dialog.
                     closing.0.abandoned.store(true, Ordering::Release);
                     owner.state::<DesktopSessionControl>().abandon();
@@ -189,6 +199,23 @@ impl Closing {
     fn finish(&self, app: &tauri::AppHandle, code: i32) {
         self.0.complete.store(true, Ordering::Release);
         app.exit(code);
+    }
+}
+
+impl State {
+    fn request(&self) -> CloseRequest {
+        if self.complete.load(Ordering::Acquire) {
+            return CloseRequest::Wait;
+        }
+        if !self.started.swap(true, Ordering::AcqRel) {
+            self.expired.store(false, Ordering::Release);
+            return CloseRequest::Start;
+        }
+        if self.force_available() { CloseRequest::OfferForceQuit } else { CloseRequest::Wait }
+    }
+
+    fn force_available(&self) -> bool {
+        self.started.load(Ordering::Acquire) && self.expired.load(Ordering::Acquire) && !self.complete.load(Ordering::Acquire)
     }
 }
 
@@ -232,3 +259,40 @@ async fn failure_choice(app: &tauri::AppHandle, error: &DesktopSessionError) -> 
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::{CloseRequest, Ordering, State};
+
+    #[test]
+    fn close_deadline() {
+        let state = State::default();
+        assert_eq!(state.request(), CloseRequest::Start);
+        assert_eq!(state.request(), CloseRequest::Wait);
+        assert!(!state.force_available());
+
+        state.expired.store(true, Ordering::Release);
+        assert_eq!(state.request(), CloseRequest::OfferForceQuit);
+        assert!(state.force_available());
+
+        // A Dialog Answer Cannot Abandon A Completed Stop.
+        state.complete.store(true, Ordering::Release);
+        assert!(!state.force_available());
+        assert_eq!(state.request(), CloseRequest::Wait);
+    }
+
+    #[test]
+    fn stale_force_choice() {
+        let state = State::default();
+        assert_eq!(state.request(), CloseRequest::Start);
+        state.expired.store(true, Ordering::Release);
+        assert!(state.force_available());
+
+        state.started.store(false, Ordering::Release);
+        assert!(!state.force_available());
+
+        // A Retry Gets Its Own Full Deadline.
+        assert_eq!(state.request(), CloseRequest::Start);
+        assert_eq!(state.request(), CloseRequest::Wait);
+    }
+}
