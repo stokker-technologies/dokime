@@ -48,8 +48,8 @@ max_workspaces = 5
 windows = ["windows-latest"]
 
 [ci.budgets]
-# Measured on a hosted runner (run 39101116446): the dev build, the workspace check and clippy, without a warm cache.
-build = 2400
+# Two-Hour Build Jobs: 110 Minutes Plus The Renderer’s Ten-Minute Margin.
+build = 6600
 # User-approved two-hour Rust check job limit: 110 minutes plus the renderer's existing ten-minute margin.
 check = 6600
 # Measured on run 39135263053: the Linux acceptance lane spent about 10 minutes (download, extraction and
