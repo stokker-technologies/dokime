@@ -80,7 +80,7 @@ impl CancelExecution {
         let Some(execution) = state.executions.get(&self.test_execution_id) else {
             return refuse("execution_not_found", "execution not found");
         };
-        if execution.status == ExecutionStatus::Cancelled && execution.started_at.is_none() {
+        if execution.status == ExecutionStatus::Skipped && execution.started_at.is_none() && execution.finished_at.is_some() {
             return Ok(CancelAdmission::Cancelled);
         }
         let Some(cycle) = state.cycles.get(&execution.test_cycle_id) else {
@@ -165,8 +165,9 @@ impl Transaction<RuntimeState> for CancelExecution {
 
 /* === Private Functions === */
 
+// A Cancelled Member Is Skipped: It Never Ran, So It Has No Stopped Outcome.
 fn skip_unstarted(execution: &mut dokime_domain::model::execution::result::TestExecution, at: &Timestamp) {
-    execution.status = ExecutionStatus::Cancelled;
+    execution.status = ExecutionStatus::Skipped;
     execution.finished_at = Some(at.clone());
     execution.result = Some(ResultSummary { passed: 0, failed: 0, blocked: 0, skipped: 1, status: ResultStatus::Cancelled });
     let pending = execution.steps.iter_mut().filter(|step| step.status == StepStatus::Pending);
@@ -182,18 +183,12 @@ fn settle_cycle(state: &mut RuntimeState, cycle_id: &TestCycleId, cancelled_requ
         &request.summary.cycle_id == cycle_id && !request.summary.phase.terminal() && Some(&request.summary.request_id) != cancelled_request
     });
     let members = state.cycles[cycle_id].execution_ids.iter().map(|id| &state.executions[id]).collect::<Vec<_>>();
-    let unstarted = members.iter().any(|execution| execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none());
     let result = super::provider_finish::summarize(members);
 
+    // An Active Cycle Is Idle Between Runs; Its Outcome Lives In Its Result.
     let cycle = state.cycles.get_mut(cycle_id).expect("checked cycle");
     if !busy {
-        cycle.lifecycle = if result.failed > 0 || result.blocked > 0 {
-            CycleStatus::Failed
-        } else if unstarted {
-            CycleStatus::Ready
-        } else {
-            super::provider_finish::lifecycle_for(Some(&result))
-        };
+        cycle.lifecycle = CycleStatus::Ready;
     }
     cycle.result = Some(result);
     cycle.touch_at(at.clone());
@@ -259,7 +254,8 @@ mod tests {
         cancel.apply(&mut state);
 
         let cancelled = &state.executions[&first];
-        assert_eq!(cancelled.status, ExecutionStatus::Cancelled);
+        assert_eq!(cancelled.status, ExecutionStatus::Skipped);
+        assert!(cancelled.finished_at.is_some(), "a cancelled member is finished, unlike a planned one");
         assert_eq!(cancelled.result.as_ref().map(|result| (result.skipped, &result.status)), Some((1, &ResultStatus::Cancelled)));
         assert!(cancelled.steps.iter().all(|step| step.status != StepStatus::Pending));
         assert_eq!(state.executions[&second].status, ExecutionStatus::Skipped);

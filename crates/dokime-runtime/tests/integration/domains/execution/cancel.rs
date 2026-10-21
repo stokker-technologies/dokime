@@ -81,7 +81,8 @@ async fn cancel_skips_unstarted() {
     assert_eq!(cancelled_cycle.result.as_ref().map(|result| result.skipped), Some(1));
     let cancelled = &cancelled_cycle.test_executions[0];
     let outcome = cancelled.result.as_ref().map(|result| (result.skipped, &result.status));
-    assert_eq!(cancelled.status, ExecutionStatus::Cancelled);
+    assert_eq!(cancelled.status, ExecutionStatus::Skipped);
+    assert!(cancelled.finished_at.is_some(), "a cancelled member is finished, unlike a planned one");
     assert_eq!(outcome, Some((1, &ResultStatus::Cancelled)));
     assert!(cancelled.steps.iter().all(|step| step.status == StepStatus::Skipped));
     assert!(cancelled.saved.is_some(), "Cancel seals the skipped attempt");
@@ -107,7 +108,7 @@ async fn cancel_skips_unstarted() {
     assert_eq!(running, "execution_already_started");
     assert!(dequeued.is_ok(), "{dequeued:?}");
     assert_eq!(during.test_executions[1].status, ExecutionStatus::Running);
-    assert_eq!(during.test_executions[2].status, ExecutionStatus::Cancelled);
+    assert_eq!(during.test_executions[2].status, ExecutionStatus::Skipped);
     assert!(during.test_executions[2].saved.is_some());
     assert_eq!(dequeued_request.summary.prepared, 0);
     assert!(dequeued_request.summary.phase.terminal());

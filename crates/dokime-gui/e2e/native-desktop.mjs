@@ -2009,7 +2009,7 @@ async function executionStopJourney(session, cycleId) {
     session.execute(
       `const text = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
         .find((row) => row.dataset.executionId === arguments[0])?.innerText ?? '';
-       return /\\b(Stopped|Skipped|Cancelled)\\b/.test(text) ? text : null;`,
+       return /\\bSkipped\\b/.test(text) ? text : null;`,
       [cancelled],
     ),
   );
