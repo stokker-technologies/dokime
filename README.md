@@ -971,7 +971,9 @@ compiling the frontend, then builds the desktop shell with those assets
 embedded in both profiles. Dev applies basic optimization to the packaged Rust
 crates while retaining debug information and assertions. Package defaults to
 `dev` and prints the packaged profile; select `--profile release` explicitly
-for release packages.
+for release packages. Release test archives use the internal `release-tests`
+Cargo profile: release optimization and debug settings, with LTO disabled,
+sixteen codegen units and incremental compilation disabled.
 Interactive `tauri dev` continues to use the Vite server.
 
 After an intentional Python client change, refresh the tutorial lock from the
@@ -1048,7 +1050,11 @@ Generated TypeScript messages live under `target/generated/typescript/`.
 | `mise run test:system` | Two walkthroughs: the server with the built OBC plugin, and the desktop shell over its backend. |
 
 The desktop walkthrough drives the built shell through WebKitWebDriver on Linux
-and needs a display. `mise run ci --event pr` simulates the rendered provider
+and needs an X11 display (a private Xvfb display is suitable). Its native plugin
+picker uses `xdotool`; Windows uses PowerShell UI Automation.
+The installation journey selects a real bundle,
+checks its digest in the consent dialog and verifies the saved restart requirement.
+`mise run ci --event pr` simulates the rendered provider
 graph from committed source with cold dependency homes;
 `mise run ci:nightly` adds `test:coverage` and benches.
 

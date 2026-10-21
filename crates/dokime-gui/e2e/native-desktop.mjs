@@ -27,6 +27,7 @@
 //   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
+//   f'. plugin-install  native bundle picker, digest consent, restart activation and catalog
 //   f'. remote-access  TLS/key setup, saved credentials, restart, rotation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
@@ -66,7 +67,7 @@ import { once } from "node:events";
 
 import { createReadStream, existsSync } from "node:fs";
 
-import { copyFile, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 
 import http from "node:http";
 
@@ -271,15 +272,14 @@ function hasText(body, expected) {
   return normalize(body).toLowerCase().includes(normalize(expected).toLowerCase());
 }
 
-async function startBackend(work, evidence, endpoint, label = "backend") {
+async function startBackend(work, evidence, endpoint, label = "backend", launchPlugin = true) {
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
   const child = spawn(
     backendBinary,
     [
       "--shutdown-stdin",
-      "--plugin",
-      pluginBundle,
+      ...(launchPlugin ? ["--plugin", pluginBundle] : []),
       "--port",
       String(port),
       "--output-root",
@@ -351,6 +351,7 @@ async function startSession(work, endpoint, evidence) {
             WEBVIEW2_USER_DATA_FOLDER: join(home, "webview"),
           }
         : {
+            GDK_BACKEND: "x11",
             HOME: home,
             PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
             XDG_CACHE_HOME: join(home, "cache"),
@@ -764,6 +765,11 @@ async function installSaveTap(session) {
         }
         if (ledger.length >= 2000) ledger.shift();
         const entry = { command: command, at: Date.now(), state: 'pending' };
+        if (command === 'desktop_plugin_stage_file') {
+          const payload = String(init && init.body);
+          entry.keys = Object.keys(JSON.parse(payload));
+          entry.size = payload.length;
+        }
         ledger.push(entry);
         let reportSave = null;
         if (command === 'desktop_artifact_deliver') {
@@ -1789,6 +1795,14 @@ async function cycleJourney(session, cycleId) {
       ),
     30000,
   );
+  await session.execute(`
+    window.__plotSettingsEvents = [];
+    for (const name of ['pointerdown', 'pointerup', 'click']) {
+      document.addEventListener(name, event => {
+        window.__plotSettingsEvents.push({name, target: event.target.outerHTML?.slice(0, 500)});
+      }, {capture: true});
+    }
+  `);
   await session.clickCss(settingsSelector);
   const persistedPoints = await until(
     "persisted display point budget",
@@ -1798,7 +1812,10 @@ async function cycleJourney(session, cycleId) {
         return input ? {value: input.value} : null;
       `),
     30000,
-  );
+  ).catch(async (error) => {
+    const events = await session.execute("return window.__plotSettingsEvents");
+    throw new Error(`${error.message}; pointer events: ${JSON.stringify(events)}`);
+  });
   assert.equal(persistedPoints.value, "2500", "The backend must retain the plot budget after remounting");
   const cancelPlotSettings = await session.find("xpath", "//*[@role='dialog' and @data-state='open']//button[normalize-space(.)='Cancel']");
   await session.click(cancelPlotSettings);
@@ -3085,6 +3102,122 @@ async function restartJourney() {
   await session.screenshot("native-restart");
 }
 
+async function pluginInstallJourney() {
+  const previous = backend;
+  const root = join(work, "plugin-install");
+  await mkdir(root, { recursive: true });
+  await closeSession();
+  try {
+    backend = await startBackend(root, evidence, undefined, "plugin-install", false);
+    session = await startSession(root, backend.endpoint, evidence);
+    await sizeViewport(session, densities.desktop);
+    await installSaveTap(session);
+    await stagePluginThroughPicker(session);
+
+    await closeSession();
+    await stopBackend();
+    backend = await startBackend(root, evidence, undefined, "plugin-activation", false);
+    session = await startSession(root, backend.endpoint, evidence);
+    await sizeViewport(session, densities.desktop);
+    await session.goto("/settings/plugins");
+    await until(
+      "installed bundle active after restart",
+      () =>
+        session.execute(`
+      const row = [...document.querySelectorAll('[aria-label="Installed Plugins"] tbody tr')]
+        .find(row => row.innerText.includes('obc-plugin'));
+      return Boolean(row && [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
+    `),
+      60000,
+    );
+    await session.goto("/library");
+    await until("installed bundle contributes its catalog", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
+    await session.screenshot("plugin-activation");
+  } finally {
+    await closeSession();
+    if (backend !== previous) await stopBackend();
+    backend = previous;
+    session = await startSession(work, backend.endpoint, evidence);
+    await sizeViewport(session, densities.desktop);
+    await installSaveTap(session);
+  }
+}
+
+async function stagePluginThroughPicker(session) {
+  await session.goto("/settings/plugins");
+  await until("plugin installer", async () => hasText(await session.text(), "Install A Plugin"), 60000);
+  await session.execute("globalThis.__dokimeInvokes.length = 0;");
+  await session.clickNamed("button", "Choose File");
+  const picker = { window: null };
+  await until("native plugin file picker", () => choosePluginFile(picker), 30000);
+  await until("inspected plugin consent", async () => hasText(await session.text(), "Review Plugin"), 300000);
+  const digest = await sha256(pluginBundle);
+  assert.ok(hasText(await session.text(), digest), "Consent must display the digest of the selected native file");
+  const invokes = await session.execute(
+    "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_stage_file');",
+  );
+  assert.equal(invokes.length, 1, "A bundle uses one native staging invocation");
+  assert.deepEqual(invokes[0].keys.sort(), ["drop", "generation", "progress"], "Staging passes control arguments without bundle bytes");
+  assert.ok(invokes[0].size < 1024, "The staging invocation stays bounded independently of bundle size");
+  await session.clickNamed("button", "Install plugin");
+  await until("saved plugin consent", async () => hasText(await session.text(), "Plugin changes are saved"), 30000);
+  await session.clickNamed("button", "Later");
+  await until("plugin restart requirement", async () => hasText(await session.text(), "Restart Required"), 30000);
+  await session.screenshot("plugin-install");
+}
+
+async function choosePluginFile(picker) {
+  if (!windows) {
+    const children = await readFile(`/proc/${driverProcess.pid}/task/${driverProcess.pid}/children`, "utf8");
+    const executable = await realpath(shellBinary);
+    for (const pid of children.trim().split(/\s+/)) {
+      if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
+      const run = (args) => promisify(execFile)("xdotool", args, { timeout: 10000 });
+      const found = await run(["search", "--all", "--onlyvisible", "--pid", pid, "--name", "^Open File$"]).catch((error) => {
+        if (error.code === 1) return null;
+        throw error;
+      });
+      if (!found) return picker.window !== null;
+      const ids = found.stdout.trim().split(/\s+/);
+      assert.equal(ids.length, 1, "The owned desktop exposes exactly one native file picker");
+      if (picker.window !== null) {
+        assert.equal(ids[0], picker.window, "Selection remains with its original native dialog");
+        await run(["key", "--window", picker.window, "--clearmodifiers", "Return"]);
+        return false;
+      }
+      await run(["windowfocus", "--sync", ids[0], "key", "--clearmodifiers", "ctrl+l"]);
+      await run(["type", "--clearmodifiers", "--delay", "0", "--", resolve(pluginBundle)]);
+      picker.window = ids[0];
+      return false;
+    }
+    return false;
+  }
+  const script = `
+      Add-Type -AssemblyName UIAutomationClient
+      Add-Type -AssemblyName UIAutomationTypes
+      $root = [System.Windows.Automation.AutomationElement]::RootElement
+      $scope = [System.Windows.Automation.TreeScope]::Descendants
+      $condition = [System.Windows.Automation.Condition]::TrueCondition
+      foreach ($process in Get-Process | Where-Object { $_.Path -eq $env:DOKIME_PICKER_SHELL }) {
+        $pidCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
+        foreach ($window in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)) {
+          $field = $window.FindFirst($scope, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1148')))
+          $button = $window.FindFirst($scope, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')))
+          if ($field -and $button) {
+            $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($env:DOKIME_PICKER_FILE)
+            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            Write-Output 'selected'
+            exit 0
+          }
+        }
+      }`;
+  const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    env: { ...process.env, DOKIME_PICKER_SHELL: resolve(shellBinary), DOKIME_PICKER_FILE: resolve(pluginBundle) },
+    timeout: 10000,
+  });
+  return result.stdout.trim() === "selected";
+}
+
 async function writeJunit() {
   if (!options.junit) return;
   const escapeXml = (value) =>
@@ -3183,6 +3316,7 @@ async function main() {
   }
 
   await journey("settings", () => settingsJourney(session, notes));
+  await journey("plugin-install", pluginInstallJourney);
   await journey("remote-access", remoteAccessJourney);
 
   /* The ownership contract the redesign did not change: a shell attached to a

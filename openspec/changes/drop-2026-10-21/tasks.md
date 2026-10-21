@@ -15,9 +15,9 @@
 
 ## Agreed Inventory
 
-- [ ] 1. Verify path-based plugin bundle installation without serial JSON chunks; native installation walkthrough proof remains required beyond the single-invoke adapter tests.
+- [x] 1. Verify path-based plugin bundle installation without serial JSON chunks. Proof: `native-desktop.mjs / plugin-install` (native picker, single path-staging invocation, digest consent, saved install, restart activation and catalog).
 - [x] 2. Format plot X cursor timestamps consistently with axes. Proof: `plots/nominal.test.ts` / `Series Legend`.
-- [ ] 3. Show statistics headers and units without clipping; run the `cycle` native walkthrough's mounted header bounds proof.
+- [x] 3. Show statistics headers and units without clipping. Proof: `native-desktop.mjs / cycle` (mounted trace statistics header bounds).
 - [x] 4. Distinguish queued execution cancel from active stop. Proof: `cycle/nominal.test.ts` / `Execution Controls`.
 - [ ] 5. Align parameter labels, values and adjacent units across views.
 - [ ] 6. Keep prompt response controls only on their execution.
