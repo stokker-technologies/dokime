@@ -57,7 +57,7 @@ windows = { workspace = true, features = [
 
 [dev-dependencies]
 # Local
-dokime-runtime = { version = "0.1.0", path = "../dokime-runtime" }
+dokime-runtime = { path = "../dokime-runtime" }
 
 # Filesystem
 tempfile = { workspace = true }

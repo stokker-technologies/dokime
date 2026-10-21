@@ -1,0 +1,37 @@
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:b5e1cced49f2210a3533f05e078ef8ea2b0e7467e9c751f529f9d9da64f31651
+Release / Publish:
+  stage: Release
+  tags: []
+  timeout: 30 minutes
+  script:
+  - mise run release:publish
+  rules:
+  - if: $CI_COMMIT_TAG =~ /^v[0-9]/
+  variables:
+    MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab
+  cache:
+  - key:
+      prefix: linux-tools
+      files:
+      - mise.lock
+    paths:
+    - .cache/mise/
+    policy: pull-push
+  - key:
+      prefix: linux-cargo
+      files:
+      - Cargo.lock
+    paths:
+    - .cache/cargo/registry/
+    - .cache/cargo/git/
+    policy: pull
+  environment:
+    name: release
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+  dependencies:
+  - Package / Rust (linux)
+  - Package / Rust (windows)
+  resource_group: release-publication
+  interruptible: false

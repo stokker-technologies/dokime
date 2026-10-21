@@ -53,6 +53,24 @@ def build(profile: str) -> None:
         command = ["cargo", "metadata", "--locked", "--format-version", "1", "--features", features]
         subprocess.run(command, cwd=ROOT, stdout=written, check=True)
     staged.append(metadata)
+    subprocess.run(
+        [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--cargo-profile",
+            profile,
+            "--features",
+            features,
+            "-E",
+            "binary_id(dokime-macros::compile)",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
     # Compile The Starter Here; Ordinary Stories Consume Already Built Inputs.
     with temporary.directory() as directory:
         dependencies.cargo(ROOT, directory)

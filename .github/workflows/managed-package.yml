@@ -1,0 +1,141 @@
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package.yml; sha256:e51180e35a609b3138797a622b8acf1a7e6f5a40d1521c97007a55de3ce5a225
+name: Package
+"on":
+  workflow_call:
+    inputs:
+      runners:
+        type: string
+        required: true
+      budgets:
+        type: string
+        required: true
+env:
+  PROFILE: >-
+    ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref,
+    'release/v')) && 'release' || 'dev' }}
+  MISE_LOCKED: "1"
+  CARGO_INCREMENTAL: "0"
+  CARGO_HOME: ${{ github.workspace }}/.cache/cargo
+  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+jobs:
+  package_python:
+    name: Python
+    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
+    timeout-minutes: ${{ fromJSON(inputs.budgets).package_python }}
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      SCCACHE_GHA_VERSION: linux
+      MISE_ENABLE_TOOLS: >-
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff,aqua:cargo-bins/cargo-binstall
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+    - name: Cache / Cargo
+      id: cargo
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: |-
+          .cache/cargo/registry/
+          .cache/cargo/git/
+        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+    - name: Cache / Pnpm
+      id: pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/pnpm/
+        key: >-
+          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
+          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
+    - name: Cache / Uv
+      id: uv
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: .cache/uv/
+        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
+    - name: Resolve Mise Directory
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |-
+        $directory = Join-Path ([System.IO.Path]::GetTempPath()) 'stkr-mise'
+        "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Resolve Mise Directory
+      if: runner.os != 'Windows'
+      shell: bash
+      run: printf 'MISE_DATA_DIR=%s/stkr-mise\n' "${TMPDIR:-/tmp}" >> "$GITHUB_ENV"
+    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: tools
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ runner.os }}-${{ runner.arch }}-mise-v2-${{ hashFiles('mise.lock') }}
+    - run: sudo apt-get update
+    - run: >-
+        sudo apt-get install -y --no-install-recommends build-essential pkg-config
+        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
+        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
+        xvfb desktop-file-utils xdg-utils rpm
+    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+      env:
+        RUSTC_WRAPPER: ""
+      with:
+        install: true
+        cache: false
+        mise_dir: ${{ env.MISE_DATA_DIR }}
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+      with:
+        version: v0.18.0
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+    - run: mise run package:python --profile ${{ env.PROFILE }}
+    - name: Archive Package
+      shell: bash
+      run: |-
+        native=any
+        mkdir -p target/ci
+        tar -cf "target/ci/package-${{ env.PROFILE }}-python-any.tar" -- "target/package/${{ env.PROFILE }}/${native}/python"
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: package-${{ env.PROFILE }}-python-any
+        path: target/ci/package-${{ env.PROFILE }}-python-any.tar
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: true
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        path: .cache/pnpm/
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.uv.outputs.cache-hit != 'true'
+      with:
+        path: .cache/uv/
+        key: ${{ steps.uv.outputs.cache-primary-key }}
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
+        steps.tools.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.MISE_DATA_DIR }}
+        key: ${{ steps.tools.outputs.cache-primary-key }}
+    - run: sccache --show-stats
+      if: always()
+    if: >-
+      (github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
+      || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/dev'))

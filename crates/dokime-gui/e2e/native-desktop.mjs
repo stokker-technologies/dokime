@@ -2245,7 +2245,7 @@ async function remoteAccessJourney() {
   /* Every control commits to the host at once and stays disabled until the host has answered. */
   const settled = () =>
     until("remote settings settled", () =>
-      session.execute("return [...document.querySelectorAll('[role=switch]')].every((control) => !control.disabled);"),
+      session.execute("return [...document.querySelectorAll('input[id], button[role=switch]')].every((control) => !control.disabled);"),
     );
   const toggle = async (label, checked) => {
     const control = await until(label, () =>
@@ -2652,7 +2652,9 @@ async function reportJourney(session, cycleId) {
   /* Step names may say "Start", so the controls are read off the buttons; the
      member tree's buttons name cases such as "Start-Up Sequence #1". */
   const controls = [...dom.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/g)].map((match) => normalize(match[1].replace(/<[^>]+>/g, " ")));
-  const runControls = controls.filter((label) => /(?:^|\s)(?:Start|Run Again|Pause|Stop)(?:\s|$)/.test(label));
+  const runControls = controls.filter((label) =>
+    /^(?:(?:Start|Stop|Pause|Resume|Restart|Cancel)(?: (?:Execution|Cycle))?|Run Again(?: .+)?|Re-run)$/i.test(label),
+  );
   assert.deepEqual(runControls, [], "A frozen report renders no run controls");
   assert.ok(hasText(report, "Records"), "The report renders its records section");
   assert.equal(

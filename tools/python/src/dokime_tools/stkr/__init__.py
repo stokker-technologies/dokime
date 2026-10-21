@@ -1,13 +1,13 @@
-# Rendered by stkr project update from templates/python/docs/__init__.py; sha256:8263e38bab1e5f8743f3818e42add4539d9520b11985ac8a21420a6189b806aa
+# Rendered by stkr project update from templates/python/stkr/__init__.py; sha256:b6f278e0675c1795843bb94270384cb1ee6353d2a655abed35d6768798f72210
 # ***
 #
-# {{package}}
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-"""Hub-Rendered Documentation Tooling: Site, Artifacts And Registry"""
+"""Run The Hub CLI When This Machine Has It"""
 
 # === Imports === #
 
