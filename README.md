@@ -487,8 +487,10 @@ the cycle with `--continue-automatically`. A failed execution is a result, not
 a reason to halt: continuation proceeds regardless of verdicts. Explicit execution Stop durably sets the cycle's
 `continue_automatically=false`. Later explicit Start runs only the selected
 attempt until the user explicitly re-enables that policy.
-Appending to an idle cycle starts no hardware, and reaching the end keeps the
-cycle Active until it is explicitly sealed.
+Completion fixes the next eligible member before publishing its terminal receipt.
+Appending afterward cannot extend that continuation decision. Appending to an idle
+cycle starts no hardware, and reaching the end keeps the cycle Active until it is
+explicitly sealed.
 
 Sealed cycles remain in History after a server restart, including cycles with
 no executions. History lists their saved headers independently of execution

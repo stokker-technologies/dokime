@@ -97,12 +97,14 @@ impl Transaction<RuntimeState> for CompleteRun {
             return;
         }
         let status = conclusion(request);
+        let continuation_execution_id = self.continuation(state);
         if let Some(unsealed) = &self.unsealed {
             let records = self.unsealed_drafts(state, unsealed);
             record_publication_failure(state.run_requests.get_mut(&self.request_id).expect("checked request"), &unsealed.cause);
             records.apply(state);
         }
         let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
+        request.continuation_execution_id = continuation_execution_id;
         request.summary.phase = if self.unsealed.is_some() {
             RunPhase::Failed
         } else {
@@ -131,6 +133,23 @@ impl Transaction<RuntimeState> for CompleteRun {
 }
 
 impl CompleteRun {
+    fn continuation(&self, state: &RuntimeState) -> Option<TestExecutionId> {
+        let request = &state.run_requests[&self.request_id];
+        let cycle = &state.cycles[&request.summary.cycle_id];
+        if !cycle.continue_automatically || request.summary.stop_requested || cycle.ensure_active().is_err() {
+            return None;
+        }
+        let previous = request.test_execution_id.as_ref()?;
+        let position = cycle.execution_ids.iter().position(|id| id == previous)?;
+        for id in cycle.execution_ids.iter().skip(position + 1) {
+            let Some(execution) = state.executions.get(id) else { continue };
+            if crate::transactions::provider::execution_available(state, execution) {
+                return Some(id.clone());
+            }
+        }
+        None
+    }
+
     fn unsealed_drafts(&self, state: &RuntimeState, unsealed: &Unsealed) -> crate::transactions::records::draft::Drafts {
         let request = &state.run_requests[&self.request_id];
         let mut records = crate::transactions::records::draft::Drafts::new(state);
@@ -346,12 +365,61 @@ mod tests {
                 failure: None,
                 publication_failure: None,
                 completion_at: Some(at.clone()),
+                continuation_execution_id: None,
             },
         );
         (
             state,
             CompleteRun { request_id, at, unsealed: Some(Unsealed { cause: "report memory exhausted".into(), execution_ids: Vec::new() }) },
         )
+    }
+
+    #[test]
+    fn continuation_is_frozen_before_later_appends() {
+        for existing_next in [false, true] {
+            let (mut state, mut complete) = settled_request(false);
+            complete.unsealed = None;
+            let cycle_id = state.run_requests[&complete.request_id].summary.cycle_id.clone();
+            let first = append_case(&mut state, &cycle_id, "first");
+            let expected = existing_next.then(|| append_case(&mut state, &cycle_id, "second"));
+            state.cycles.get_mut(&cycle_id).unwrap().continue_automatically = true;
+            let request = state.run_requests.get_mut(&complete.request_id).unwrap();
+            request.test_execution_id = Some(first);
+            request.conclusion = Some(CycleStatus::Failed);
+
+            complete.check(&state).unwrap();
+            complete.apply(&mut state);
+            assert_eq!(state.run_requests[&complete.request_id].continuation_execution_id, expected);
+            append_case(&mut state, &cycle_id, "later");
+            complete.check(&state).unwrap();
+            complete.apply(&mut state);
+            assert_eq!(state.run_requests[&complete.request_id].continuation_execution_id, expected);
+        }
+    }
+
+    fn append_case(state: &mut RuntimeState, cycle_id: &TestCycleId, name: &str) -> TestExecutionId {
+        use dokime_domain::model::definition::suite::TestCase;
+        use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
+        use dokime_domain::model::identity::{CaseId, TemplateId};
+
+        let id = TestExecutionId::from_seed(name);
+        let case = TestCase {
+            suite_id: "continuation.suite".into(),
+            test_case_id: CaseId::from_seed(name),
+            test_case_template_id: TemplateId::from_seed("continuation-template"),
+            metadata: Metadata::new(Identifier::new("continuation.case").unwrap(), name, None),
+            suite: None,
+            parameters: Default::default(),
+            generation_index: 0,
+            label_number: 0,
+        };
+        let snapshot = ExecutionSnapshot::from_captured(case, None, Vec::new(), None, None, Default::default(), Default::default());
+        let mut execution = crate::transactions::provider::scheduled_execution_record(cycle_id, id.clone(), snapshot);
+        execution.status = dokime_domain::model::execution::result::ExecutionStatus::Skipped;
+        execution.result = None;
+        state.executions.insert(id.clone(), execution);
+        state.cycles.get_mut(cycle_id).unwrap().execution_ids.push(id.clone());
+        id
     }
 
     #[test]

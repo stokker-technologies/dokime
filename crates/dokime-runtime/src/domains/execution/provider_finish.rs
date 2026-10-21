@@ -215,20 +215,12 @@ impl RuntimeHandle {
                 if !cycle.continue_automatically || request.summary.stop_requested || cycle.ensure_active().is_err() {
                     return;
                 }
-                let Some(previous) = request.test_execution_id.as_ref() else { return };
-                let Some(position) = cycle.execution_ids.iter().position(|id| id == previous) else { return };
-                let next = cycle
-                    .execution_ids
-                    .iter()
-                    .skip(position + 1)
-                    .find(|id| {
-                        state
-                            .executions
-                            .get(*id)
-                            .is_some_and(|execution| crate::transactions::provider::execution_available(&state, execution))
-                    })
-                    .cloned();
-                next.map(|id| (id, request.summary.mode))
+                let Some(id) = request.continuation_execution_id.as_ref() else { return };
+                let Some(execution) = state.executions.get(id) else { return };
+                if !crate::transactions::provider::execution_available(&state, execution) {
+                    return;
+                }
+                Some((id.clone(), request.summary.mode))
             };
             let Some((execution_id, mode)) = next else { return };
             let receipt = self.submit_provider_admitted(cycle_id.clone(), execution_id, mode, crate::CommandContext::default()).await;

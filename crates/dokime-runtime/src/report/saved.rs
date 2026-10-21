@@ -424,7 +424,7 @@ mod tests {
     use super::*;
 
     // The Published Payload Of A Fixed Input; Changing It Changes Every Sealed Report Digest.
-    const PAYLOAD_SHA256: &str = "fdf7335e8c7d1e57c21ad4f5c5756c30fd778fdb36f6e03bd7c8ff73eb1beccd";
+    const PAYLOAD_SHA256: &str = "883c5bfc20def0e49b9e8ae8a3319d745fa65bf82fba9a7f387818888d14ef20";
 
     #[test]
     fn report_digest_is_stable() {

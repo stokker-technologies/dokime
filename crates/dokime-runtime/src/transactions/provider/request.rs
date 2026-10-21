@@ -66,6 +66,7 @@ pub struct RunRequest {
     pub publication_failure: Option<String>,
 
     pub completion_at: Option<Timestamp>,
+    pub continuation_execution_id: Option<TestExecutionId>,
 }
 
 #[harmos::transaction(id = "dokime.execution.request.prepare", version = 2, irreversible)]
@@ -100,6 +101,7 @@ impl harmos::MemorySize for RunRequest {
             (self.failure.memory_size(), std::mem::size_of_val(&self.failure)),
             (self.publication_failure.memory_size(), std::mem::size_of_val(&self.publication_failure)),
             (self.completion_at.memory_size(), std::mem::size_of_val(&self.completion_at)),
+            (self.continuation_execution_id.memory_size(), std::mem::size_of_val(&self.continuation_execution_id)),
         ];
         fields.into_iter().fold(
             std::mem::size_of::<Self>()
@@ -295,6 +297,7 @@ pub(super) fn queue(state: &mut RuntimeState, run: &RunProvider) -> Result<Execu
             failure: None,
             publication_failure: None,
             completion_at: None,
+            continuation_execution_id: None,
         },
     );
     state.run_queue.push_back(run.command_id.clone());
