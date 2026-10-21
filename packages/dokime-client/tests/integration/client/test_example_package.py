@@ -138,7 +138,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
     package = root / "packages/dokime-client"
     source = package / "examples/remote"
     for relative in examples.FILES:
-        path = package / relative if relative == "LICENSE-APACHE" else source / relative
+        path = package / relative if relative == "LICENSE" else source / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"Public Fixture: {relative}\n", encoding="utf-8")
         if path.suffix == ".sh":

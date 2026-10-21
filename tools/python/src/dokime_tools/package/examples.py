@@ -37,7 +37,7 @@ from dokime_tools.package.staging import clear_output, stage_file
 
 # Only Public Canonical Inputs Travel; Local Keys, Dotenv Files And Evidence Never Do.
 FILES = (
-    "LICENSE-APACHE",
+    "LICENSE",
     ".env.example",
     "README.md",
     "cli/README.md",
@@ -71,7 +71,7 @@ def stage(root: Path, destination: Path, *, wheel: Path) -> list[Path]:
     """Stage The Tutorial And Its Exact Locked Candidate Wheel."""
     package_root = root / "packages/dokime-client"
     source_root = package_root / "examples/remote"
-    sources = [package_root / relative if relative == "LICENSE-APACHE" else source_root / relative for relative in FILES]
+    sources = [package_root / relative if relative == "LICENSE" else source_root / relative for relative in FILES]
     for source in sources:
         _regular(source)
     _environment(source_root / "python", wheel)
