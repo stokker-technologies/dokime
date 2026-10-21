@@ -20,6 +20,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsRow } from "@/features/settings/SettingsRow";
+import { BrandingPackRow } from "@/features/settings/sections/BrandingPackRow";
 import { useAutosave } from "@/features/settings/settings-autosave";
 import { useAppearance } from "@/lib/appearance";
 import { type Appearance, applicationSettingsError, useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
@@ -171,6 +172,7 @@ function AppearanceControls({
             <span className="font-heading text-sm font-medium">{brand.label}</span>
           </div>
         </SettingsRow>
+        {isTauriDesktop() ? <BrandingPackRow /> : null}
       </SettingsCard>
     </>
   );

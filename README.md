@@ -929,6 +929,19 @@ After changing the pack, run `mise run prepare:branding` and rebuild. Desktop
 icons are regenerated from [the icon master](branding/icons/icon.png), which
 uses the contained light-surface artwork.
 
+An installed desktop can be rebranded without a rebuild. Zip the branding
+folder as is, then choose it under Settings › Appearance › Branding Pack. The
+zip can hold the files at its root or under one top folder. The pack applies
+on the next start and takes precedence over the compiled brand. It can set the
+app label, title template, organization, logos, theme CSS and fonts. The
+slug, bundle identifier, deep-link scheme and OS icon stay compiled into the
+build, so the pack's values for them are ignored. The `icons/` and
+`generated/` folders are skipped. A pack is refused unless it is a zip of at
+most 20 MiB and 200 entries holding only `.toml`, `.css`, `.woff2`, `.svg` and
+`.png` files. Licence `.txt` and `.md` files are skipped. If an active pack
+stops loading, the compiled brand applies and the reason shows under
+Settings › Diagnostics.
+
 ### Generated Clients
 
 The server contract producer generates the protobuf descriptors of every public operation;

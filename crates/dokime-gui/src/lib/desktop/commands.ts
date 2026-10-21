@@ -20,6 +20,7 @@ import { invoke as invokeCommand } from "@tauri-apps/api/core";
 
 import { isReportBuild } from "@/lib/ui-mode";
 
+import type { BrandingStatus } from "./branding";
 import type { BackendProfiles } from "./connection";
 import type { ArtifactDeliveryRequest, ArtifactSource, DesktopSaveDocument } from "./delivery";
 import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
@@ -88,6 +89,12 @@ export const commands = {
   desktopRecordingFinish: (generation: string, durationMs: number, mediaType: string) =>
     invoke<string>("desktop_recording_finish", { generation, durationMs, mediaType }),
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
+  /** The branding pack applied at boot and the one that applies on the next start. */
+  desktopBrandingStatus: () => invoke<BrandingStatus>("desktop_branding_status"),
+  /** Pick, validate and stage a branding pack zip; null when the picker is dismissed. */
+  desktopBrandingChoose: () => invoke<BrandingStatus | null>("desktop_branding_choose"),
+  /** Delete the pending and active packs; the compiled brand applies on the next start. */
+  desktopBrandingRemove: () => invoke<BrandingStatus>("desktop_branding_remove"),
   /** Drain all runtime resources before requesting Tauri's non-cancellable restart. */
   desktopRestart: () => invoke<null>("desktop_restart"),
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),
