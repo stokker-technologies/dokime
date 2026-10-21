@@ -345,6 +345,27 @@ function assertPromptHovers(labels) {
   );
 }
 
+async function checkStatusBounds(session) {
+  const badges = await session.execute(`
+    return [...document.querySelectorAll('main [data-slot=badge]')]
+      .filter(node => !node.closest('[aria-hidden=true]') && node.getBoundingClientRect().width > 0)
+      .map(node => {
+        const bounds = node.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const text = range.getBoundingClientRect();
+        return {label: node.innerText, clipped: text.left < bounds.left - 1 || text.right > bounds.right + 1
+          || text.top < bounds.top - 1 || text.bottom > bounds.bottom + 1};
+      });
+  `);
+  assert.ok(badges.length, "The mounted view must show status pills");
+  assert.deepEqual(
+    badges.filter((badge) => badge.clipped),
+    [],
+    "Status labels must fit inside their pills",
+  );
+}
+
 async function startBackend(work, evidence, endpoint, label = "backend", launchPlugin = true) {
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
@@ -2361,6 +2382,7 @@ async function cyclesHomeJourney(session, cycleTitle) {
     60000,
   );
   assert.ok(hasText(body, "Attention"), "The group must render its column headings");
+  await checkStatusBounds(session);
   assert.ok(/\d+ \/ \d+/.test(normalize(body)), "A row must state executions over cases");
   assert.ok(/\d+[smhd] Ago/.test(normalize(body)), "A row must state when the cycle last moved");
 
@@ -2397,10 +2419,21 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
      something: its primary cell is the control an operator clicks. */
   const opener = await until(
     "history rows",
-    () => session.find("xpath", `//tbody//button[normalize-space(.)=${xpathLiteral(cycleTitle)}]`),
+    () =>
+      session.execute(
+        `
+      const candidates = [...document.querySelectorAll('tbody tr')].filter(row =>
+        /\\b[1-9]\\d* passed\\b/.test(row.innerText)
+        && [...row.querySelectorAll('button')].some(button => button.innerText.trim() === arguments[0]));
+      if (candidates.length !== 1) return null;
+      return [...candidates[0].querySelectorAll('button')].find(button => button.innerText.trim() === arguments[0]);
+    `,
+        [cycleTitle],
+      ),
     120000,
   );
   assert.ok(hasText(await session.text(), "History"), "The page bar must name History");
+  await checkStatusBounds(session);
   await session.click(opener);
   await until("history detail", async () => (await session.location()).pathname === `/history/${cycleId}`, 30000);
   const checkpoint = await until(

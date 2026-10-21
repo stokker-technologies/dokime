@@ -29,12 +29,12 @@
 - [x] 12. Downsample full series per viewport preserving envelopes and avoid duplicate titles. Proof: `plots/nominal.test.ts / LTTB Reduction, Window Resampling`.
 - [x] 13. Pad and scroll console content with newest-line following. Proof: `console/nominal.test.ts / Tail Follow`; `native-desktop.mjs / cycle` (padding, scroll release and Jump to Latest).
 - [x] 14. Verify Dokime README CI, crate, PyPI, release and license badges. Proof: `README badge endpoint audit` (workflow API, registry/release absence, four HTTP-200 status badges and Apache-2.0 license).
-- [ ] 15. Preserve four surface-aware logo variants, native icons and themed README logo.
-- [ ] 16. Place the Prompt card separately beneath Control.
-- [ ] 17. Derive cycle status independently of an execution's stop outcome.
-- [ ] 18. Prevent cycle/history status pill clipping.
-- [ ] 19. Persist a visible destination cycle indicator and switcher.
-- [ ] 20. Verify README CLI reference against actual commands and shipped examples.
+- [x] 15. Preserve four surface-aware logo variants, native icons and themed README logo. Proof: `domains::installed_plugins::brand::runtime_appearance_brand`, `organization_toml_types`; `organization.test.ts / Brand Asset Lifecycle`; `test_organization_overlay_preserves_native_window_policy`; native icon digest audit (17 outputs); README picture source audit.
+- [x] 16. Place the Prompt card separately beneath Control. Proof: `native-desktop.mjs / cycle` (mounted prompt queue below Control).
+- [x] 17. Derive cycle status independently of an execution's stop outcome. Proof: `cycle/nominal.test.ts / Cycle State`; `native-desktop.mjs / execution-stop`.
+- [x] 18. Prevent cycle/history status pill clipping. Proof: `cycle/nominal.test.ts / Status Pill`; `native-desktop.mjs / cycles-home, history` (mounted badge bounds).
+- [x] 19. Persist a visible destination cycle indicator and switcher. Proof: `native-desktop.mjs / active-cycle`; `cycle/nominal.test.ts / Active Containers Persist`.
+- [x] 20. Verify README CLI reference against actual commands and shipped examples. Proof: `CLI help audit` (37 built command paths); `test_remote_examples.py` (8 tests); shipped shell command/flag audit.
 - [ ] 21. Complete seal/report persistence improvements and measure materialization.
 - [ ] 22. Verify initial plot acknowledgement/keepalive, concurrency and waiting state.
 - [ ] 23. Show finalization immediately and preserve subsecond duration values.

@@ -801,7 +801,7 @@ finalizes an empty cycle with its report.
 The `dokime-cli` package installs the `dokime` executable.
 
 `dokime` connects to a backend; `cargo dokime` authors plugin bundles. Every
-command prints its full flags with `--help`. Commands that connect accept
+command prints its full flags with `--help`. Backend RPC commands accept
 `--endpoint` or `--backend`, `--key-file` (or `DOKIME_KEY`), `--ca`,
 `--env-file` and `--timeout-seconds`; most accept `--json` for scripts.
 
@@ -835,9 +835,13 @@ and [control-prompt](packages/dokime-client/examples/remote/cli/control-prompt.s
 | `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
 | `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
 | `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |
-| `dokime execution start\|run` | Start one execution; `run` also waits for its seal. | `--mode`, `--wait-seconds`, `--samples` |
-| `dokime execution wait\|stop` | Wait for a durable outcome or stop one execution. | `--wait-seconds` |
-| `dokime execution prompt next\|show\|answer` | Find, inspect and answer an execution's prompts. | `--action`, `--values-json` |
+| `dokime execution start` | Start one execution without waiting. | `--mode` |
+| `dokime execution run` | Start one execution and wait for its seal. | `--mode`, `--wait-seconds`, `--records`, `--samples` |
+| `dokime execution wait` | Wait for a durable outcome. | `--wait-seconds` |
+| `dokime execution stop` | Request that one execution stop. | `--json` |
+| `dokime execution prompt next` | Wait for the next answerable prompt. | `--wait-seconds`, `--id-only`, `--id-file` |
+| `dokime execution prompt show` | Inspect one prompt. | `--json` |
+| `dokime execution prompt answer` | Answer one prompt. | `--action`, `--values-json` |
 | `dokime execution export` | Download a sealed execution's evidence. | `--output`, `--overwrite` |
 
 ### Operations And Plugins
