@@ -4061,7 +4061,7 @@ async function startSecretService() {
     return address.includes("\n");
   });
   process.env.DBUS_SESSION_BUS_ADDRESS = address.trim();
-  secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock"], {
+  secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock", "--control-directory", home], {
     env: { ...process.env, HOME: home, XDG_DATA_HOME: home, XDG_RUNTIME_DIR: home },
     detached: true,
     stdio: ["pipe", "ignore", "inherit"],
@@ -4214,8 +4214,13 @@ try {
     await backend.log.close().catch((error) => failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }));
   }
   for (const child of [secretKeyring, secretBus]) {
-    if (child)
-      await terminate(child).catch((error) => failures.push({ kind: "failure", name: "secret service cleanup", reason: error.message }));
+    if (!child) continue;
+    try {
+      await terminate(child);
+      await until("secret service stopped", () => child.exitCode !== null || child.signalCode !== null, 10000);
+    } catch (error) {
+      failures.push({ kind: "failure", name: "secret service cleanup", reason: error.message });
+    }
   }
   if (installerAttempted) {
     try {
