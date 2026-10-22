@@ -203,6 +203,15 @@ opt-level = 1
 [profile.dev.package.dokime-server]
 opt-level = 1
 
+[profile.dev.package.cargo-dokime]
+opt-level = 1
+
+[profile.dev.package.dokime-packaging]
+opt-level = 1
+
+[profile.dev.package.dokime-macros]
+opt-level = 1
+
 [profile.dev.package.obc-plugin]
 opt-level = 1
 

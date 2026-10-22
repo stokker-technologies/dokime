@@ -117,6 +117,38 @@ def test_development_unsigned_candidate(tmp_path: Path, monkeypatch: pytest.Monk
         installer.check_package(root, dist=dist, require_signed=True)
 
 
+@pytest.mark.parametrize("profile", ["dev", "release"])
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_package_collects_and_reports_matching_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], profile: str, platform: str
+) -> None:
+    root, _dist = _candidate(tmp_path, monkeypatch)
+    monkeypatch.setattr(installer.sys, "platform", platform)
+    monkeypatch.setattr(linux, "verify", lambda *_args: None)
+    bundles = tmp_path / "bundles"
+    names = ["deb/candidate.deb", "rpm/candidate.rpm", "rpm/Dokime.desktop"] if platform == "linux" else ["nsis/candidate-setup.exe"]
+    for name in names:
+        source = bundles / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(profile.encode())
+
+    for candidate in ("dev", "release"):
+        plugins = installer.paths.output(root, "build", candidate) / "plugins"
+        plugins.mkdir(parents=True)
+        (plugins / "fixture.dokime").write_bytes(candidate.encode())
+
+    installer.collect(root, profile=profile, signed=False, bundles=bundles)
+
+    packaged = installer.paths.output(root, "package", profile) / "rust"
+    assert (packaged / "plugins/fixture.dokime").read_bytes() == profile.encode()
+    outputs = list((packaged / "installers").iterdir())
+    assert len(outputs) == (2 if platform == "linux" else 1)
+    assert all(path.read_bytes() == profile.encode() for path in outputs)
+    other = "release" if profile == "dev" else "dev"
+    assert not installer.paths.output(root, "package", other).exists()
+    assert f"Packaged the {profile} profile:" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("scenario", ["valid", "missing", "wrong_name", "empty_payload", "wrong_launcher", "unsupported_digest"])
 def test_linux_launcher_icon(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scenario: str) -> None:
     launcher = tmp_path / "Dokime.desktop"
