@@ -196,7 +196,7 @@ impl SecretStore {
                 catalog::validate_value(value.expose()).map_err(SecretStoreError::Invalid)?;
             }
             let slot = match &change.value {
-                Some(_) => uuid::Uuid::new_v4().to_string(),
+                Some(_) => uuid::Uuid::now_v7().to_string(),
                 None => previous
                     .entries
                     .get(&change.metadata.name)
