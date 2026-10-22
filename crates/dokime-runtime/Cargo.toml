@@ -51,6 +51,7 @@ host = [
   "dep:sysinfo",
   "dep:tokio",
   "dep:tokio-util",
+  "dep:tonic",
   "dep:toml",
   "dep:walkdir",
   "dep:zip",
@@ -76,6 +77,7 @@ harmos = { workspace = true, features = ["plugin", "signal"] }
 harmos-packaging = { workspace = true }
 
 # Error Handling
+tonic = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 # Logging

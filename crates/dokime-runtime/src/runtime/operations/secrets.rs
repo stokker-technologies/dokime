@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use harmos::operations::{Context, Operation, Response};
+use tonic::Status;
 use zeroize::Zeroizing;
 
 // Local Imports
@@ -83,7 +84,7 @@ enum Operations {
 impl Operation for Lookup {
     type Declaration = wire::Lookup;
     type Resources = SecretStore;
-    type Error = SecretStoreError;
+    type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
@@ -103,7 +104,7 @@ impl Operation for Lookup {
 impl Operation for List {
     type Declaration = wire::List;
     type Resources = SecretStore;
-    type Error = SecretStoreError;
+    type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
@@ -121,7 +122,7 @@ impl Operation for List {
 impl Operation for Put {
     type Declaration = wire::Put;
     type Resources = SecretStore;
-    type Error = SecretStoreError;
+    type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
@@ -146,7 +147,7 @@ impl Operation for Put {
 impl Operation for Remove {
     type Declaration = wire::Remove;
     type Resources = SecretStore;
-    type Error = SecretStoreError;
+    type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
@@ -171,7 +172,7 @@ impl Operation for Remove {
 impl Operation for Adopt {
     type Declaration = wire::Adopt;
     type Resources = SecretStore;
-    type Error = SecretStoreError;
+    type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
@@ -197,7 +198,7 @@ impl Operation for Adopt {
 impl Operation for Export {
     type Declaration = wire::Export;
     type Resources = SecretStore;
-    type Error = SecretStoreError;
+    type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
@@ -220,7 +221,7 @@ impl Operation for Export {
 impl Operation for Preview {
     type Declaration = wire::Preview;
     type Resources = SecretStore;
-    type Error = SecretStoreError;
+    type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
@@ -244,7 +245,7 @@ impl Operation for Preview {
 impl Operation for Import {
     type Declaration = wire::Import;
     type Resources = SecretStore;
-    type Error = SecretStoreError;
+    type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
@@ -265,6 +266,18 @@ impl Operation for Import {
         .await
         .map_err(|_| SecretStoreError::Unavailable)??;
         Ok(snapshot.into())
+    }
+}
+
+// Store errors contain only fixed operator guidance, never input or keyring diagnostics.
+impl From<SecretStoreError> for Status {
+    fn from(error: SecretStoreError) -> Self {
+        match error {
+            SecretStoreError::Invalid(message) => Self::invalid_argument(message),
+            SecretStoreError::Conflict => Self::aborted(error.to_string()),
+            SecretStoreError::Unavailable => Self::unavailable(error.to_string()),
+            SecretStoreError::Persistence => Self::failed_precondition(error.to_string()),
+        }
     }
 }
 
