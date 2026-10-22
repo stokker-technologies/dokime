@@ -56,37 +56,43 @@ entry points are described in [`README.md`](README.md).
 - Use Conventional Commit subjects, such as `fix(runtime): preserve stopped
   execution evidence` or `docs: clarify sidecar setup`.
 
-Run the matching checks while iterating, then the local CI flow before opening a
-pull request:
+Run targeted checks while implementing. Once the complete source is ready,
+run the local CI flow before opening a pull request:
 
 ```sh
-mise run format --check
-mise run lint
-mise run check
-mise run build
-mise run test
+mise run ci
 ```
 
-`mise run ci` runs that sequence on the current tree; a failing lane fails the
-run, and that is the whole verdict. `build` compiles the workspace once into
-binaries, the OBC bundle, the frontend, the generated GUI client and the
-Nextest test archive under `dist/build/<platform>/`, and the Python wheel under
-`target/wheels/`; the test layers (`test:unit`, `test:integration`,
-`test:generated`, `test:acceptance`, `test:system`) run from those outputs and
-never rebuild. Each lane takes `--profile dev|release` and keeps its JUnit
-report under `target/tests/`. `test:generated` checks the generated Python and
-TypeScript clients (types, lint and an import smoke). `mise run package
---profile dev` bundles an unsigned development installer through the Tauri
-bundler in debug mode, with the CLI and server as companions, beside the
-client wheel and the plugin bundle under `target/package/<platform>/`.
+`ci` orders Check, shipping Product Build, Tests Build, generated-client Check,
+ordinary Test layers, Package and Release / Dry. A failed required command
+blocks delivery. Product exports live under `target/build/<profile>/<target>/`;
+Tests Build owns its archive and stamped fixtures there, including the offline
+starter dependency closure. Compile-contract stories run inside Tests Build.
+Test leaves such as `test:rust:integration` consume existing artifacts
+and retain JUnit under `target/tests/<profile>/<target>/<layer>-<language>/`.
+Generated-client types/lint/import checks are `check:<language>:generated`.
+Package consumes matching Product bytes without compiling, retaining unsigned
+development installers, companion executables, wheels and plugin bundles under
+`target/package/<profile>/<target>/<language>/`. Development installers embed
+their frontend and launch without a development server.
 
 `.github/workflows/ci.yml` is rendered from the shared pipeline shape: the
-Check, Build, Validate, Package and Publish stages, with Rust, Build, test lane
-and package jobs on both the Linux and Windows legs. A pull request runs Check,
-`Build / Dev` and Validate; pushes to `dev` add `Package / Dev` and
-`Publish / Dry`; tags build, package and publish the release profile.
+Check, Build, Test, Package and Release stages, with required Rust, native build
+and package jobs on Linux and Windows. Pull requests and development pushes
+run the same non-publishing proof, including Package and Release / Dry.
+Sparse `ci.jobs` declarations select Linux native/desktop prerequisites and
+exact whole-job limits; jobs without bootstrap receive none. The six
+`STKR_RUNNER_*` repository variables select configured native runners.
+Tags select release-profile packaging and protected publication.
 `nightly.yml` runs coverage and benches. `mise.toml` owns every recipe the
 workflows call.
+
+Windows signing runs only for stable-tag Package jobs under the protected
+release environment. Updater signatures and `latest.json` are required signed
+release assets and are excluded from unsigned candidate/rehearsal packages.
+Release verification checks their presence, installer/version/manifest
+consistency and downloaded checksums. The existing consistency check does not
+independently verify minisign cryptographic authenticity.
 
 Cut `release/<version>` from published `dev` and run `mise run release:prepare`
 to prepare the stable patch version, changelog and screenshots. The changelog

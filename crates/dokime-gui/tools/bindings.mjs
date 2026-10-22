@@ -131,7 +131,7 @@ function exported(path) {
   for (const line of readFileSync(path, "utf8").split("\n")) {
     if (!line.trim()) continue;
     const event = JSON.parse(line);
-    if (event.reason === "compiler-artifact" && event.target.name === "dokime-server" && event.target.kind.includes("bin"))
+    if (event.reason === "compiler-artifact" && event.target.name === "dokime_server" && event.target.kind.includes("lib"))
       servers.add(event.package_id);
     else if (event.reason === "build-script-executed")
       scripts.set(event.package_id, [...(scripts.get(event.package_id) ?? []), event.out_dir]);

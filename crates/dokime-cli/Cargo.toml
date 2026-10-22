@@ -1,0 +1,88 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Dokime command-line executable."
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# === Package Targets === #
+
+[[bin]]
+name = "dokime"
+path = "src/main.rs"
+doc = false
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+
+# Local
+dokime = { version = "0.1.0", path = "../dokime" }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
+
+# Configuration
+clap = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+
+# Local
+dokime-client = { version = "0.1.0", path = "../dokime-client" }
+
+# Git
+harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
+
+# Networking
+tonic = { workspace = true }
+
+# Serialization
+serde_json = { workspace = true }
+
+# Utilities
+sha2 = { workspace = true }
+
+# Filesystem
+tempfile = { workspace = true }
+
+# UI
+portable-pty = { workspace = true }
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

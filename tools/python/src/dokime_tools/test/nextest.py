@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/nextest.py; sha256:5c3614eba2fe477c48367e5b744c0e1b11600c1db7b77098f65d72e8a7aed23d
+# Rendered by stkr project update from templates/python/test/nextest.py; sha256:4ec42e67d3d8bff19261da07bb5962dad1a9f4f1a9291cf8167561ff2c9abb9f
 # ***
 #
 # Dokime
@@ -25,7 +25,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from . import policy
 

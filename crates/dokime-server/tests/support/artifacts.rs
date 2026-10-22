@@ -19,7 +19,6 @@ use std::path::{Path, PathBuf};
 // Local Imports
 
 /* === Constants === */
-const PLATFORM: &str = if cfg!(windows) { "windows" } else { "linux" };
 const EXECUTABLE_SUFFIX: &str = if cfg!(windows) { ".exe" } else { "" };
 
 /* === Macros === */
@@ -55,8 +54,9 @@ fn build_root() -> PathBuf {
         .ancestors()
         .find(|directory| directory.join("Cargo.lock").is_file())
         .expect("the workspace root holds Cargo.lock")
-        .join("dist/build")
-        .join(PLATFORM)
+        .join("target/build")
+        .join(if cfg!(debug_assertions) { "dev" } else { "release" })
+        .join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH))
 }
 
 /* === Tests === */

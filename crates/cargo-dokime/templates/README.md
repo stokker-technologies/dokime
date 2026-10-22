@@ -85,6 +85,10 @@ the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`
 to retain the resolved revisions.
 
 Run `mise install` once and commit the `mise.lock` it writes: CI installs
-exactly the locked tools. `mise run check` formats, lints and type-checks; `mise run test:unit` and
-`mise run test:integration:rust` run the tests; `mise run build` writes
-`dist/{{package}}.dokime`. The CI workflows run the same tasks, one per job.
+exactly the locked tools. `mise run check` formats, lints and type-checks.
+`mise run build` writes the shipping bundle under
+`target/build/<profile>/<target>/plugins/{{package}}.dokime`.
+`mise run build:rust:tests` builds the archive consumed by `test:rust:unit` and
+`test:rust:integration`. `mise run package:rust` copies and inspects the existing
+bundle under `target/package/<profile>/<target>/rust/` without recompiling.
+The CI workflows invoke those same producers and consumers.

@@ -24,7 +24,6 @@ use criterion::{criterion_group, criterion_main};
 // Local Imports
 
 /* === Constants === */
-const PLATFORM: &str = if cfg!(windows) { "windows" } else { "linux" };
 
 /* === Macros === */
 criterion_group!(benches, report::benchmark);
@@ -46,8 +45,8 @@ pub fn plugin_bundle() -> PathBuf {
         .ancestors()
         .find(|directory| directory.join("Cargo.lock").is_file())
         .expect("the workspace root holds Cargo.lock")
-        .join("dist/build")
-        .join(PLATFORM)
+        .join("target/build/bench")
+        .join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH))
         .join("plugins/obc-plugin.dokime");
     assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
     path

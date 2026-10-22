@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/vitest.py; sha256:40c6d7e214bee1642982227f15f579c406c8e3d1f49d1b70d0814314eefa82ca
+# Rendered by stkr project update from templates/python/test/vitest.py; sha256:b1ef52e10208604acc1b21cab59faa6456dbb9b9062f1732301ee9953e8beaa8
 # ***
 #
 # Dokime
@@ -23,7 +23,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from . import policy
 

@@ -9,6 +9,7 @@
 [workspace]
 members = [
   "crates/dokime",
+  "crates/dokime-cli",
   "crates/dokime-runtime",
   "crates/dokime-client",
   "crates/dokime-domain",
@@ -18,6 +19,7 @@ members = [
   "crates/dokime-host",
   "crates/dokime-macros",
   "crates/dokime-server",
+  "crates/dokime-server-cli",
   "plugins/obc-plugin",
   "crates/dokime-runtime/tests/fixtures",
   "plugins/obc-plugin/runtime",
@@ -35,10 +37,10 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-domain = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
+harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "b5b6aa5ba337828fcd18b5b41581ef21b065b995", version = "0.1.2" }
+harmos-domain = { git = "https://github.com/stokker-technologies/harmos.git", rev = "b5b6aa5ba337828fcd18b5b41581ef21b065b995", version = "0.1.2" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "b5b6aa5ba337828fcd18b5b41581ef21b065b995", version = "0.1.2" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "b5b6aa5ba337828fcd18b5b41581ef21b065b995", version = "0.1.2" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -181,3 +183,9 @@ lto = false
 incremental = false
 debug = "line-tables-only"
 strip = "none"
+
+[profile.release-tests]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = false

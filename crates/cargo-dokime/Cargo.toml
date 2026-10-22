@@ -1,5 +1,6 @@
 [package]
 name = "cargo-dokime"
+publish = false
 edition.workspace = true
 rust-version.workspace = true
 description = "Build, develop and inspect Dokime plugins"
@@ -9,9 +10,9 @@ version = { workspace = true }
 
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain" }
-dokime-packaging = { path = "../dokime-packaging" }
-dokime = { path = "../dokime" }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain" }
+dokime-packaging = { version = "0.1.0", path = "../dokime-packaging" }
+dokime = { version = "0.1.0", path = "../dokime" }
 
 # Git
 harmos = { workspace = true, features = ["plugin"] }

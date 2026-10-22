@@ -2,7 +2,7 @@
 
 Use the actual native WebView for desktop IPC and process ownership. Browser mocks and component tests do not prove native transport. Report precisely which mounted workflows and platforms were exercised; an unavailable platform remains unverified.
 
-Global guidance owns cadence. Run narrow scenarios only for concrete blockers during editing; run required checks, the full test aggregate and explicitly required native system tasks after cohesive implementation. Discover tasks in `mise.toml`; `mise run test:system` runs the desktop walkthrough (`test:system:typescript`) after the server walkthrough when its prerequisites are available. Preserve repository environment and preparation for filtered diagnosis.
+Global guidance owns cadence. Run narrow scenarios only for concrete blockers during editing; run the applicable full proof after source closure. Discover tasks in `mise.toml`; `mise run test:typescript:system` runs the Linux desktop walkthrough after Product and Tests Build. The Rust server walkthrough is `test:rust:system`. Preserve repository environment and preparation for filtered diagnosis.
 
 ## Live Native Desktop
 

@@ -1,0 +1,267 @@
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/build.yml; sha256:626656cff9898a9e1d876661d36e50659412db57cfa30b7d89fe478136eca3e1
+Build / Product (linux):
+  stage: Build
+  tags:
+  - $STKR_RUNNER_LINUX_LARGE
+  timeout: 30 minutes
+  needs:
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
+  script:
+  - mise run build --profile $PROFILE
+  - |-
+    native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile $PROFILE)"
+    native="${native##*/}"
+    mkdir -p target/ci
+    candidates=("target/build/$PROFILE/${native}/" "target/build/$PROFILE/any/" "target/generated/")
+    outputs=()
+    for path in "${candidates[@]}"; do
+      if [ -e "$path" ]; then outputs+=("$path"); fi
+    done
+    [ ${#outputs[@]} -gt 0 ]
+    tar --zstd -cf "target/ci/build-product-$PROFILE-linux.tar.zst" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- "${outputs[@]}"
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(dev|main)$/
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - if: $CI_COMMIT_TAG =~ /^v[0-9]/
+  artifacts:
+    expire_in: 7 days
+    paths:
+    - target/ci/build-product-$PROFILE-linux.tar.zst
+  variables:
+    MISE_ENABLE_TOOLS: >-
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+  before_script:
+  - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - mise trust --yes
+  - mise install --yes
+  cache:
+  - key:
+      prefix: stkr-v4-cargo-downloads-linux-$CI_RUNNER_ID
+      files:
+      - Cargo.lock
+    paths:
+    - .cache/cargo/registry/
+    - .cache/cargo/git/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-mise-linux-$CI_RUNNER_ID
+      files:
+      - mise.lock
+    paths:
+    - .cache/mise/downloads/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-uv-linux-$CI_RUNNER_ID
+      files:
+      - uv.lock
+      - mise.lock
+    paths:
+    - .cache/uv/
+    policy: $STKR_CACHE_POLICY
+Build / Tests (linux):
+  stage: Build
+  tags:
+  - $STKR_RUNNER_LINUX_LARGE
+  timeout: 30 minutes
+  needs:
+  - job: Build / Product (linux)
+    artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
+  script:
+  - tar --zstd -xf "target/ci/build-product-$PROFILE-linux.tar.zst"
+  - mise run build:rust:tests --profile $PROFILE
+  - |-
+    native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile $PROFILE)"
+    native="${native##*/}"
+    mkdir -p target/ci
+    candidates=("target/build/$PROFILE/${native}/tests" "target/build/$PROFILE/${native}/fixtures")
+    outputs=()
+    for path in "${candidates[@]}"; do
+      if [ -e "$path" ]; then outputs+=("$path"); fi
+    done
+    [ ${#outputs[@]} -gt 0 ]
+    tar --zstd -cf "target/ci/build-tests-$PROFILE-linux.tar.zst"  -- "${outputs[@]}"
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(dev|main)$/
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - if: $CI_COMMIT_TAG =~ /^v[0-9]/
+  artifacts:
+    expire_in: 7 days
+    paths:
+    - target/ci/build-tests-$PROFILE-linux.tar.zst
+  variables:
+    MISE_ENABLE_TOOLS: >-
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+  before_script:
+  - >-
+    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
+    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
+    review pipeline %s\n' "$review_run"; exit 0; fi
+  - mise trust --yes
+  - mise install --yes
+  cache:
+  - key:
+      prefix: stkr-v4-cargo-downloads-linux-$CI_RUNNER_ID
+      files:
+      - Cargo.lock
+    paths:
+    - .cache/cargo/registry/
+    - .cache/cargo/git/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-mise-linux-$CI_RUNNER_ID
+      files:
+      - mise.lock
+    paths:
+    - .cache/mise/downloads/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-uv-linux-$CI_RUNNER_ID
+      files:
+      - uv.lock
+      - mise.lock
+    paths:
+    - .cache/uv/
+    policy: $STKR_CACHE_POLICY
+Build / Product (windows):
+  stage: Build
+  tags:
+  - $STKR_RUNNER_WINDOWS_LARGE
+  timeout: 30 minutes
+  needs:
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
+  script:
+  - mise run build --profile $env:PROFILE
+  - |-
+    $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile $env:PROFILE)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    New-Item -ItemType Directory -Force target/ci | Out-Null
+    [string[]]$outputs = @("target/build/$env:PROFILE/${native}/", "target/build/$env:PROFILE/any/", "target/generated/") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
+    if (!$outputs) { throw 'No build outputs found' }
+    & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-product-$env:PROFILE-windows.tar.zst" --force-local --use-compress-program "zstd -T0" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- @outputs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(dev|main)$/
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - if: $CI_COMMIT_TAG =~ /^v[0-9]/
+  artifacts:
+    expire_in: 7 days
+    paths:
+    - target/ci/build-product-$PROFILE-windows.tar.zst
+  inherit:
+    default:
+    - interruptible
+  before_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
+  - mise trust --yes
+  - mise install --yes
+  variables:
+    MISE_ENABLE_TOOLS: >-
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+  cache:
+  - key:
+      prefix: stkr-v4-cargo-downloads-linux-$CI_RUNNER_ID
+      files:
+      - Cargo.lock
+    paths:
+    - .cache/cargo/registry/
+    - .cache/cargo/git/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-mise-linux-$CI_RUNNER_ID
+      files:
+      - mise.lock
+    paths:
+    - .cache/mise/downloads/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-uv-linux-$CI_RUNNER_ID
+      files:
+      - uv.lock
+      - mise.lock
+    paths:
+    - .cache/uv/
+    policy: $STKR_CACHE_POLICY
+Build / Tests (windows):
+  stage: Build
+  tags:
+  - $STKR_RUNNER_WINDOWS_LARGE
+  timeout: 30 minutes
+  needs:
+  - job: Build / Product (windows)
+    artifacts: true
+  - job: Validated / Repository
+    artifacts: true
+    optional: true
+  script:
+  - tar --zstd -xf "target/ci/build-product-$env:PROFILE-windows.tar.zst"
+  - mise run build:rust:tests --profile $env:PROFILE
+  - |-
+    $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile $env:PROFILE)
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    New-Item -ItemType Directory -Force target/ci | Out-Null
+    [string[]]$outputs = @("target/build/$env:PROFILE/${native}/tests", "target/build/$env:PROFILE/${native}/fixtures") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
+    if (!$outputs) { throw 'No build outputs found' }
+    & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/ci/build-tests-$env:PROFILE-windows.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  rules:
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(dev|main)$/
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+  - if: $CI_COMMIT_TAG =~ /^v[0-9]/
+  artifacts:
+    expire_in: 7 days
+    paths:
+    - target/ci/build-tests-$PROFILE-windows.tar.zst
+  inherit:
+    default:
+    - interruptible
+  before_script:
+  - >-
+    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
+    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
+    review pipeline $env:review_run"; exit 0 }
+  - mise trust --yes
+  - mise install --yes
+  variables:
+    MISE_ENABLE_TOOLS: >-
+      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+  cache:
+  - key:
+      prefix: stkr-v4-cargo-downloads-linux-$CI_RUNNER_ID
+      files:
+      - Cargo.lock
+    paths:
+    - .cache/cargo/registry/
+    - .cache/cargo/git/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-mise-linux-$CI_RUNNER_ID
+      files:
+      - mise.lock
+    paths:
+    - .cache/mise/downloads/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-uv-linux-$CI_RUNNER_ID
+      files:
+      - uv.lock
+      - mise.lock
+    paths:
+    - .cache/uv/
+    policy: $STKR_CACHE_POLICY

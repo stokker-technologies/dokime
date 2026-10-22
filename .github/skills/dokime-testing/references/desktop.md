@@ -1,10 +1,10 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-testing/references/desktop.md; sha256:782813437c760f41aad4c96a55a952b532aa1cbca2b7b33e5b9fa2941ee65f64 -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-testing/references/desktop.md; sha256:9147822d35976fc6b446d51f48da4c96bc5fd4ba0332c1d796cd4d26e14c78d9 -->
 
 # Dokime Desktop Validation
 
 Use the actual native WebView for desktop IPC and process ownership. Browser mocks and component tests do not prove native transport. Report precisely which mounted workflows and platforms were exercised; an unavailable platform remains unverified.
 
-Global guidance owns cadence. Run narrow scenarios only for concrete blockers during editing; run required checks, the full test aggregate and explicitly required native system tasks after cohesive implementation. Discover tasks in `mise.toml`; `mise run test:system` runs the desktop walkthrough (`test:system:typescript`) after the server walkthrough when its prerequisites are available. Preserve repository environment and preparation for filtered diagnosis.
+Global guidance owns cadence. Run narrow scenarios only for concrete blockers during editing; run the applicable full proof after source closure. Discover tasks in `mise.toml`; `mise run test:typescript:system` runs the Linux desktop walkthrough after Product and Tests Build. The Rust server walkthrough is `test:rust:system`. Preserve repository environment and preparation for filtered diagnosis.
 
 ## Live Native Desktop
 

@@ -58,7 +58,7 @@ fn workspace() -> PathBuf {
 
 // The offline closure the build stages beside its other outputs, so a lane runner's artifact carries it.
 fn dependencies() -> PathBuf {
-    workspace().join("dist/build").join(if cfg!(windows) { "windows" } else { "linux" }).join("dependencies")
+    super::support::build_root().join("fixtures/dependencies")
 }
 
 fn task(plugin: &Path, name: &str) {
@@ -76,11 +76,15 @@ fn run(plugin: &Path, program: &str, arguments: &[&str]) {
             command.env_remove(variable);
         }
     }
+    let tool = super::support::tool();
+    let mut paths = vec![tool.parent().unwrap().to_owned()];
+    paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()));
     let output = command
         .args(arguments)
         .current_dir(plugin)
         .env("MISE_TRUSTED_CONFIG_PATHS", plugin)
         .env("MISE_YES", "1")
+        .env("PATH", std::env::join_paths(paths).unwrap())
         .env_remove("UV_PROJECT_ENVIRONMENT")
         .env_remove("UV_PROJECT")
         .env_remove("UV_WORKING_DIR")
@@ -116,7 +120,8 @@ pub(super) fn generated_plugin_tasks() {
         ".github/workflows/ci.yml",
         ".gitlab-ci.yml",
         "tools/python/pyproject.toml",
-        "tools/python/uv.lock",
+        "pyproject.toml",
+        "uv.lock",
         "tools/python/src/project_tools/test/run.py",
         "tools/python/src/project_tools/test/archive.py",
     ] {
@@ -162,7 +167,7 @@ pub(super) fn generated_plugin_tasks() {
     std::fs::write(&manifest, authored.to_string()).unwrap();
     std::fs::write(plugin.join("uv.toml"), "no-index = true\n").unwrap();
     // The Staged Wheels Replace The Public Index: Rebind The Shipped Lock To Them Without Moving A Pin.
-    let lock = plugin.join("tools/python/uv.lock");
+    let lock = plugin.join("uv.lock");
     let shipped = pins(&std::fs::read_to_string(&lock).unwrap());
     run(&plugin, "mise", &["exec", "--", "uv", "lock", "--offline", "--project", "tools/python"]);
     assert_eq!(pins(&std::fs::read_to_string(&lock).unwrap()), shipped, "the staged wheels satisfy the shipped Python pins");
@@ -187,8 +192,12 @@ pub(super) fn generated_plugin_tasks() {
     );
 
     task(&plugin, "check");
+    assert!(plugin.join(".venv").is_dir(), "native uv workspace preparation creates the root environment");
+    assert!(!plugin.join("tools/python/.venv").exists(), "tooling does not create a nested environment");
     // Exercise The Generated Project's Actual Archive Producer Before Its
     // Unit Lane Reads That Archive. This Is Authoring Behavior Under Test.
     task(&plugin, "build");
-    task(&plugin, "test:unit");
+    task(&plugin, "build:rust:tests");
+    task(&plugin, "test:rust:unit");
+    task(&plugin, "package:rust");
 }

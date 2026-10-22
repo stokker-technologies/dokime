@@ -21,7 +21,7 @@ use std::sync::Arc;
 // Third Party Imports
 use harmos::catalog::{Catalog, Projection};
 use harmos::operations::CallContext;
-use harmos::operations::authorization::{Authorizer, Provider, Required};
+use harmos::operations::authorization::{Authorization as Selection, Authorizer, Provider, Required};
 
 // Local Imports
 use super::access::{Principal, Role};
@@ -76,7 +76,7 @@ impl Authorization {
 }
 
 impl Authorizer for Authorization {
-    fn required(&self, context: &CallContext, provider: Provider<'_>) -> harmos::Result<Option<Required>> {
+    fn authorize(&self, context: &CallContext, provider: Provider<'_>) -> harmos::Result<Option<Selection>> {
         let Some(principal) = context.get::<Principal>() else {
             return Ok(None);
         };
@@ -86,11 +86,11 @@ impl Authorizer for Authorization {
             let Some(permission) = principal.operation(provider.owner.as_str(), provider.definition.id.as_str()) else {
                 return Ok(None);
             };
-            return Ok(Some(Required {
+            return Ok(Some(Selection::Restricted(Required {
                 // Discovery And Invocation Share The Original Live Contract And Caller Grants.
                 contract: provider.contract.clone(),
                 grants: permission.grants.clone(),
-            }));
+            })));
         }
         let Ok(index) =
             self.requirements.binary_search_by(|requirement| requirement.required.contract.operation().id.cmp(&provider.definition.id))
@@ -105,7 +105,7 @@ impl Authorizer for Authorization {
         {
             return Ok(None);
         }
-        Ok(Some(requirement.required.clone()))
+        Ok(Some(Selection::Restricted(requirement.required.clone())))
     }
 }
 

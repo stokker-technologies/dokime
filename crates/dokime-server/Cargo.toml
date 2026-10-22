@@ -23,9 +23,9 @@ media-native = ["dokime-runtime/media-native"]
 
 [dependencies]
 # Local
-dokime-runtime = { path = "../dokime-runtime", features = ["host", "fft"] }
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime = { path = "../dokime" }
+dokime-runtime = { version = "0.1.0", path = "../dokime-runtime", features = ["host", "fft"] }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
+dokime = { version = "0.1.0", path = "../dokime" }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }
@@ -57,7 +57,6 @@ serde_json = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
-dotenv = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
@@ -77,7 +76,7 @@ tonic-types = { workspace = true }
 
 [build-dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain" }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain" }
 
 # Git
 harmos = { workspace = true }
@@ -85,8 +84,8 @@ harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 [dev-dependencies]
 # Local
-dokime-client = { path = "../dokime-client" }
-dokime-host = { path = "../dokime-host" }
+dokime-client = { version = "0.1.0", path = "../dokime-client" }
+dokime-host = { version = "0.1.0", path = "../dokime-host" }
 
 # Git
 harmos-packaging = { workspace = true }
@@ -110,8 +109,3 @@ criterion = { workspace = true }
 name = "system-server"
 path = "benches/system/main.rs"
 harness = false
-
-[[bin]]
-name = "dokime-server"
-path = "src/main.rs"
-doc = false

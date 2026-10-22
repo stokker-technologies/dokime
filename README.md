@@ -617,7 +617,7 @@ dokime-client = { git = "https://github.com/stokker-technologies/dokime", rev = 
 
 Replace `<tested-commit>` with the revision used by your integration.
 `dokime-client` owns remote connection, authentication, discovery, listening,
-recovery and profile access. The `dokime` crate owns plugin authoring; its
+recovery and profile access. The `dokime-runtime` crate owns plugin authoring; its
 `storage` feature does not enable `native` or `derive` when defaults are disabled.
 Disabling defaults retains the SDK's underlying Harmos dependency. See the
 [SDK manifest](crates/dokime-runtime/Cargo.toml) and
@@ -654,7 +654,7 @@ Use the source setup in [Quick Start](#quick-start). For a headless server:
 
 ```sh
 mise run build
-cargo run -p dokime-server --
+cargo run -p dokime-server-cli --
 ```
 
 The repository flows are mise tasks:
@@ -664,26 +664,40 @@ mise run format --check
 mise run lint
 mise run check
 mise run build
+mise run build:rust:tests
+mise run check:python:generated
+mise run check:typescript:generated
 mise run test
+mise run package
+mise run release:publish:dry
 mise run ci
 ```
 
-`check` covers every Rust feature combination and the WebAssembly domain build.
-`build` compiles once into binaries, the OBC bundle, the frontend, the
-generated clients, the Python wheel and the test archive; every test layer runs
-from those outputs. `test` runs the layers in order, each with its own task:
+`check` combines language formatting/linting, Rust feature checks and the
+WebAssembly domain build. `build` exports shipping binaries, the OBC bundle,
+frontend and generated clients under `target/build/<profile>/<target>/`.
+The `dokime-cli` and `dokime-server-cli` crates own the `dokime` and
+`dokime-server` executables and never publish to crates.io. The `dokime` and
+`dokime-server` library packages retain their public names and APIs.
+Raw release downloads use their Cargo package identities, for example
+`dokime-cli-<version>-<Rust-triple>[.exe]`; installation keeps the `dokime`
+command name. Desktop installer product names stay unchanged.
+`build:rust:tests` separately builds the test archive and fixtures and verifies
+compile contracts in their build tree. Generated-client static checks run as
+`check:python:generated` and `check:typescript:generated` after Product Build.
+`test` runs existing artifacts through language layers:
 
 | Task | Layer |
 | --- | --- |
-| `mise run test:unit` | Curated invariants inside the crates. |
-| `mise run test:integration` | In-process stories per crate, plus Python and TypeScript client stories. |
-| `mise run test:generated` | The generated Python and TypeScript clients: types, lint and an import smoke. |
-| `mise run test:acceptance` | Whole stories over one process and a client: the server, the CLI, the Python client. |
-| `mise run test:system` | Two walkthroughs: the server with the built OBC plugin, and the desktop shell over its backend. |
+| `mise run test:rust:unit` | Curated invariants inside the crates. |
+| `mise run test:rust:integration`, `test:python:integration`, `test:typescript:integration` | In-process crate and client stories. |
+| `mise run test:rust:acceptance`, `test:python:acceptance` | Stories over one process and a client: server, CLI and Python client. |
+| `mise run test:rust:system`, `test:typescript:system` | Server/OBC walkthrough and the Linux native desktop walkthrough. |
 
 The desktop walkthrough drives the built shell through WebKitWebDriver on Linux
-and needs a display. `mise run ci` runs the same flow as the provider pipeline;
-`mise run ci:nightly` adds coverage and benches.
+and needs a display. `mise run ci` runs the applicable local checks, producers,
+tests, packaging and dry publication; native provider CI proves every configured
+platform. `mise run ci:nightly` adds coverage and a separate benchmark producer.
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 

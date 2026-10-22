@@ -1,2519 +1,472 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:053e1fc2480c66dcb63cb43010d94c0209c5cc39d96a9b4842f0c9f8d179991d
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:3b4d9cc5e0bd616c5f07db9f1646986cf6a7e2b878187da9880bc3fa20b8b91b
 name: CI
 "on":
   push:
     branches:
     - dev
     - main
-    - release/v*
     tags:
     - v*
   pull_request: {}
-  workflow_dispatch: {}
-  schedule:
-  - cron: 0 2 * * *
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Release version bump: auto from the Conventional Commits, or a 0.x override"
+        type: choice
+        options:
+        - auto
+        - minor
+        - major
+        default: auto
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
-env:
-  MISE_LOCKED: "1"
-  CARGO_INCREMENTAL: "0"
-  MISE_DATA_DIR: ${{ github.workspace }}/.cache/mise
-  CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
-  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  source:
-    name: Check / Repository
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 10
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - run: mise run format:toml --check
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo,protoc
-  check_python:
-    name: Check / Python
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 10
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - run: mise run format:python --check
-    - run: mise run lint:python
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  check_typescript:
-    name: Check / TypeScript
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 10
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - run: mise run format:typescript --check
-    - run: mise run lint:typescript
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  check_rust:
-    name: Check / Rust
-    runs-on: >-
-      ${{
-      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 120
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
-    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ matrix.os }}-check_rust
-        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
-        cache-workspace-crates: false
-        cache-on-failure: false
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - run: mise run format:rust --check
-    - run: mise run lint:rust
-    - run: mise exec -- cargo check --locked --workspace --lib --bins --no-default-features
-    - run: >-
-        mise exec -- cargo check --locked -p dokime-domain --target
-        wasm32-unknown-unknown
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-        - linux
-        - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo,protoc
-  build_dev:
-    name: Build / Dev
-    runs-on: >-
-      ${{
-      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 50
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
-    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ matrix.os }}-build_dev
-        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
-        cache-workspace-crates: false
-        cache-on-failure: false
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - run: mise run build --profile dev
-    - run: mise run test:compile --profile dev
-    - name: Archive Build
-      if: matrix.os != 'windows'
-      shell: bash
-      run: |-
-        mkdir -p target/tmp
-        outputs=()
-        for path in 'target/nextest/' 'target/fixtures/' 'target/wheels/' 'dist/' 'packages/dokime/src/dokime/_wire' 'packages/dokime/src/dokime/operation.py' 'packages/dokime/src/dokime/dynamic.py' 'crates/dokime-gui/.generated' 'crates/dokime-gui/src/lib/rpc/generated'; do
-          if [ -e "$path" ]; then outputs+=("$path"); fi
-        done
-        [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/tmp/build-dev-${{ matrix.os }}.tar.zst" -- "${outputs[@]}"
-    - name: Archive Build
-      if: matrix.os == 'windows'
-      shell: pwsh
-      run: |-
-        New-Item -ItemType Directory -Force target/tmp | Out-Null
-        $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/', 'packages/dokime/src/dokime/_wire', 'packages/dokime/src/dokime/operation.py', 'packages/dokime/src/dokime/dynamic.py', 'crates/dokime-gui/.generated', 'crates/dokime-gui/src/lib/rpc/generated') | ForEach-Object { $_.TrimEnd('/','\') } | Where-Object { Test-Path -LiteralPath $_ }
-        if (!$outputs) { throw 'No build outputs found' }
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/tmp/build-dev-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0" -- @outputs
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-dev-${{ matrix.os }}
-        path: target/tmp/build-dev-${{ matrix.os }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: build-diagnostics-dev-${{ matrix.os }}
-        path: target/nextest/*/compiler.json
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-        - linux
-        - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo,protoc
-  build_release:
-    name: Build / Release
-    runs-on: >-
-      ${{
-      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 50
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
-    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ matrix.os }}-build_release
-        save-if: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' }}
-        cache-workspace-crates: false
-        cache-on-failure: false
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - run: mise run build --profile release
-    - run: mise run test:compile --profile release
-    - name: Archive Build
-      if: matrix.os != 'windows'
-      shell: bash
-      run: |-
-        mkdir -p target/tmp
-        outputs=()
-        for path in 'target/nextest/' 'target/fixtures/' 'target/wheels/' 'dist/' 'packages/dokime/src/dokime/_wire' 'packages/dokime/src/dokime/operation.py' 'packages/dokime/src/dokime/dynamic.py' 'crates/dokime-gui/.generated' 'crates/dokime-gui/src/lib/rpc/generated'; do
-          if [ -e "$path" ]; then outputs+=("$path"); fi
-        done
-        [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/tmp/build-release-${{ matrix.os }}.tar.zst" -- "${outputs[@]}"
-    - name: Archive Build
-      if: matrix.os == 'windows'
-      shell: pwsh
-      run: |-
-        New-Item -ItemType Directory -Force target/tmp | Out-Null
-        $outputs = @('target/nextest/', 'target/fixtures/', 'target/wheels/', 'dist/', 'packages/dokime/src/dokime/_wire', 'packages/dokime/src/dokime/operation.py', 'packages/dokime/src/dokime/dynamic.py', 'crates/dokime-gui/.generated', 'crates/dokime-gui/src/lib/rpc/generated') | ForEach-Object { $_.TrimEnd('/','\') } | Where-Object { Test-Path -LiteralPath $_ }
-        if (!$outputs) { throw 'No build outputs found' }
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -cf "target/tmp/build-release-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -T0" -- @outputs
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-release-${{ matrix.os }}
-        path: target/tmp/build-release-${{ matrix.os }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: build-diagnostics-release-${{ matrix.os }}
-        path: target/nextest/*/compiler.json
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: startsWith(github.ref, 'refs/tags/v')
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-        - linux
-        - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,sccache,aqua:rhysd/actionlint,taplo,protoc
-  validate_generated:
-    name: Validate / Generated
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 10
+  build_linux:
+    name: Build
+    uses: ./.github/workflows/managed-build-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"build_product_linux\":30,\"build_tests_linux\":30}"
+    secrets: inherit
     needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-linux.tar.zst"
-    - run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.test.archive --profile ${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }} --install-wheels
-    - run: >-
-        mise run test:generated --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-generated-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
-          }}-linux
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  validate_test_unit_rust:
-    name: Validate / Unit / Rust
-    runs-on: >-
-      ${{
-      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 10
-    needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
-      if: matrix.os != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: matrix.os == 'windows'
-    - run: >-
-        mise run test:unit:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-test_unit_rust-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-          'dev' }}-${{ matrix.os }}
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-        - linux
-        - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  validate_test_integration_python:
-    name: Validate / Integration / Python
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 10
-    needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-linux.tar.zst"
-    - run: >-
-        mise run test:integration:python --profile ${{ startsWith(github.ref,
-        'refs/tags/v') && 'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-test_integration_python-${{ startsWith(github.ref, 'refs/tags/v') &&
-          'release' || 'dev' }}-linux
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  validate_test_integration_rust:
-    name: Validate / Integration / Rust
-    runs-on: >-
-      ${{
-      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 10
-    needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
-      if: matrix.os != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: matrix.os == 'windows'
-    - run: >-
-        mise run test:integration:rust --profile ${{ startsWith(github.ref,
-        'refs/tags/v') && 'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-test_integration_rust-${{ startsWith(github.ref, 'refs/tags/v') &&
-          'release' || 'dev' }}-${{ matrix.os }}
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-        - linux
-        - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  validate_test_integration_typescript:
-    name: Validate / Integration / TypeScript
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 10
-    needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-linux.tar.zst"
-    - run: >-
-        mise run test:integration:typescript --profile ${{ startsWith(github.ref,
-        'refs/tags/v') && 'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-test_integration_typescript-${{ startsWith(github.ref, 'refs/tags/v') &&
-          'release' || 'dev' }}-linux
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  validate_test_acceptance_python:
-    name: Validate / Acceptance / Python
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 10
-    needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-linux.tar.zst"
-    - run: >-
-        mise run test:acceptance:python --profile ${{ startsWith(github.ref,
-        'refs/tags/v') && 'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-test_acceptance_python-${{ startsWith(github.ref, 'refs/tags/v') &&
-          'release' || 'dev' }}-linux
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  validate_test_acceptance_rust:
-    name: Validate / Acceptance / Rust
-    runs-on: >-
-      ${{
-      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 21
-    needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
-      if: matrix.os != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: matrix.os == 'windows'
-    - run: >-
-        mise run test:acceptance:rust --profile ${{ startsWith(github.ref,
-        'refs/tags/v') && 'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-test_acceptance_rust-${{ startsWith(github.ref, 'refs/tags/v') &&
-          'release' || 'dev' }}-${{ matrix.os }}
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-        - linux
-        - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  validate_test_system_rust:
-    name: Validate / System / Rust
-    runs-on: >-
-      ${{
-      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 10
-    needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
-      if: matrix.os != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: matrix.os == 'windows'
-    - run: >-
-        mise run test:system:rust --profile ${{ startsWith(github.ref, 'refs/tags/v')
-        && 'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-test_system_rust-${{ startsWith(github.ref, 'refs/tags/v') && 'release'
-          || 'dev' }}-${{ matrix.os }}
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-        - linux
-        - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  validate_test_system_typescript:
-    name: Validate / System / TypeScript
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 14
-    needs:
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-linux.tar.zst"
-    - run: >-
-        mise run test:system:typescript --profile ${{ startsWith(github.ref,
-        'refs/tags/v') && 'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          junit-test_system_typescript-${{ startsWith(github.ref, 'refs/tags/v') &&
-          'release' || 'dev' }}-linux
-        path: target/tests/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: always()
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  package_rust:
-    name: Package / Rust
-    runs-on: >-
-      ${{
-      fromJSON('{"linux":["ubuntu-latest"],"windows":["windows-latest"]}')[matrix.os] }}
-    timeout-minutes: 30
-    needs:
-    - source
-    - check_python
-    - check_typescript
-    - check_rust
-    - validate_generated
-    - validate_test_unit_rust
-    - validate_test_integration_python
-    - validate_test_integration_rust
-    - validate_test_integration_typescript
-    - validate_test_acceptance_python
-    - validate_test_acceptance_rust
-    - validate_test_system_rust
-    - validate_test_system_typescript
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-      if: matrix.os == 'linux'
-      shell: bash
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-      if: matrix.os == 'linux'
-      shell: bash
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: >-
-          build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{
-          matrix.os }}
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-${{ matrix.os }}.tar.zst"
-      if: matrix.os != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-${{ matrix.os }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: matrix.os == 'windows'
-    - run: >-
-        mise run package:rust --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
-          }}-rust-${{ matrix.os }}
-        path: |-
-          target/package/
-          target/release-assets/
-          dist/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
+    - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
-      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
-      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-        - linux
-        - windows
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: ${{ matrix.os }}
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  package_python:
-    name: Package / Python
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 30
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  build_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"build_product_windows\":30,\"build_tests_windows\":30}"
+    secrets: inherit
     needs:
-    - source
-    - check_python
-    - check_typescript
-    - check_rust
-    - validate_generated
-    - validate_test_unit_rust
-    - validate_test_integration_python
-    - validate_test_integration_rust
-    - validate_test_integration_typescript
-    - validate_test_acceptance_python
-    - validate_test_acceptance_rust
-    - validate_test_system_rust
-    - validate_test_system_typescript
-    - build_dev
-    - build_release
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}-linux
-    - name: Extract Build
-      shell: bash
-      run: >-
-        tar --zstd -xf "build-${{ startsWith(github.ref, 'refs/tags/v') && 'release' ||
-        'dev' }}-linux.tar.zst"
-    - run: >-
-        mise run package:python --profile ${{ startsWith(github.ref, 'refs/tags/v') &&
-        'release' || 'dev' }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: >-
-          package-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev'
-          }}-python-linux
-        path: |-
-          target/package/
-          target/release-assets/
-          dist/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
+    - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (startsWith(github.ref, 'refs/tags/v') || ((github.event_name ==
-      'push' || github.event_name == 'workflow_dispatch') && (github.ref ==
-      'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))))
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint
-  publish_dry:
-    name: Publish / Dry
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 30
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - run: mise run release:publish:dry
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/heads/release/v'))
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab
-  publish_release:
-    name: Publish / Release
-    runs-on:
-    - ubuntu-latest
-    timeout-minutes: 30
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  check:
+    name: Check
+    uses: ./.github/workflows/managed-check.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"check_python\":10,\"check_typescript\":10,\"source\":10}"
+    secrets: inherit
     needs:
-    - package_rust
-    - package_python
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  check_generated:
+    name: Check
+    uses: ./.github/workflows/managed-check-generated.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"check_generated_python\":10,\"check_generated_typescript\":10}"
+    secrets: inherit
+    needs:
+    - build_linux
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  check_linux:
+    name: Check
+    uses: ./.github/workflows/managed-check-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"check_rust_linux\":30}"
+    secrets: inherit
+    needs:
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  check_windows:
+    name: Check
+    uses: ./.github/workflows/managed-check-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"check_rust_windows\":30}"
+    secrets: inherit
+    needs:
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  package:
+    name: Package
+    uses: ./.github/workflows/managed-package.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"package_python\":30}"
+      validated: ${{ needs.validated.outputs.validated }}
+      review_run: ${{ needs.validated.outputs.review_run }}
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+    needs:
+    - build_linux
+    - build_windows
+    - check
+    - check_generated
+    - check_linux
+    - check_windows
+    - test
+    - test_linux
+    - test_windows
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && (needs.validated.outputs.validated != 'true' ||
+      startsWith(github.ref, 'refs/tags/v'))
+  package_linux:
+    name: Package
+    uses: ./.github/workflows/managed-package-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"package_rust_linux\":30}"
+      stable_release: >-
+        ${{ needs.check.outputs.stable_release ||
+        needs.validated.outputs.stable_release }}
+      validated: ${{ needs.validated.outputs.validated }}
+      review_run: ${{ needs.validated.outputs.review_run }}
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+    needs:
+    - build_linux
+    - check
+    - check_generated
+    - check_linux
+    - test
+    - test_linux
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && (needs.validated.outputs.validated != 'true' ||
+      startsWith(github.ref, 'refs/tags/v'))
+  package_windows:
+    name: Package
+    uses: ./.github/workflows/managed-package-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"package_rust_windows\":30,\"package_signing_windows_rust_windows\":30}"
+      stable_release: >-
+        ${{ needs.check.outputs.stable_release ||
+        needs.validated.outputs.stable_release }}
+      validated: ${{ needs.validated.outputs.validated }}
+      review_run: ${{ needs.validated.outputs.review_run }}
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+    needs:
+    - build_windows
+    - check
+    - check_generated
+    - check_windows
+    - test
+    - test_windows
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && (needs.validated.outputs.validated != 'true' ||
+      startsWith(github.ref, 'refs/tags/v'))
+  test:
+    name: Test
+    uses: ./.github/workflows/managed-test.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"validate_test_python_acceptance\":30,\"validate_test_python_integration\":30,\"validate_test_typescript_integration\":30,\"validate_test_typescript_system\":14}"
+    secrets: inherit
+    needs:
+    - build_linux
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  test_linux:
+    name: Test
+    uses: ./.github/workflows/managed-test-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"validate_test_rust_acceptance_linux\":30,\"validate_test_rust_integration_linux\":30,\"validate_test_rust_system_linux\":30,\"validate_test_rust_unit_linux\":30}"
+    secrets: inherit
+    needs:
+    - build_linux
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  test_windows:
+    name: Test
+    uses: ./.github/workflows/managed-test-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      timeouts: "{\"validate_test_rust_acceptance_windows\":30,\"validate_test_rust_integration_windows\":30,\"validate_test_rust_system_windows\":30,\"validate_test_rust_unit_windows\":30}"
+    secrets: inherit
+    needs:
+    - build_windows
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+  validated:
+    name: Validated / Repository
+    runs-on: ${{ vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    if: >-
+      github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+      startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      validated: ${{ steps.review.outputs.validated }}
+      review_run: ${{ steps.review.outputs.review_run }}
+      review_profile: ${{ steps.review.outputs.review_profile }}
+      review_sha: ${{ steps.review.outputs.review_sha }}
+      review_version: ${{ steps.review.outputs.review_version }}
+      stable_release: ${{ steps.review.outputs.stable_release }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         fetch-depth: 0
-    - name: Cache / Pnpm
-      id: pnpm
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/pnpm/
-        key: >-
-          ${{ runner.os }}-${{ runner.arch }}-pnpm-${{
-          hashFiles('crates/dokime-gui/pnpm-lock.yaml') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-
-    - name: Cache / Uv
-      id: uv
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .cache/uv/
-        key: ${{ runner.os }}-${{ runner.arch }}-uv-${{ hashFiles('uv.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-uv-
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
+    - id: review
+      shell: bash
       env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - name: Cache / Registry
-      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
-      with:
-        shared-key: ${{ runner.os }}-registry
-        cache-targets: false
-        cache-bin: false
-        save-if: "false"
-    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
-      with:
-        version: v0.18.0
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: package-release-*
-        merge-multiple: true
-    - id: crates
-      uses: rust-lang/crates-io-auth-action@v1
-    - run: mise run release:publish
-      env:
+        GITHUB_TOKEN: ${{ github.token }}
         GH_TOKEN: ${{ github.token }}
-        CARGO_REGISTRY_TOKEN: ${{ steps.crates.outputs.token }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.pnpm.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pnpm/
-        key: ${{ steps.pnpm.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv/
-        key: ${{ steps.uv.outputs.cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: >-
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main') &&
-        steps.tools.outputs.cache-hit != 'true'
-      with:
-        path: .cache/mise/
-        key: ${{ steps.tools.outputs.cache-primary-key }}
-    - run: sccache --show-stats
-      if: always()
-    if: startsWith(github.ref, 'refs/tags/v')
-    environment: release
+        REVIEW_RELEASE: "true"
+        REVIEW_BUILDS: "[\"build-product-PROFILE-windows\"]"
+        REVIEW_PACKAGES: "[\"package-PROFILE-python-linux\",\"package-PROFILE-rust-linux\",\"package-PROFILE-rust-windows\"]"
+      run: |-
+        python3 - <<'STKR_REVIEW' || { mkdir -p target/ci; printf 'validated=false\nreview_run=\nreview_profile=\n' >> "${GITHUB_OUTPUT:-target/ci/validated.env}"; }
+        # Standard Library Imports
+        import io
+        import json
+        import os
+        import re
+        import subprocess
+        import urllib.parse
+        import urllib.request
+        import zipfile
+        from datetime import datetime, timezone
+        from pathlib import Path
+        # Third Party Imports
+        # Local Imports
+        # Type Checking Imports
+        # === Public Exports === #
+        # === Constants === #
+        OID = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+        # === Types === #
+        # === Classes === #
+        class ProviderRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+                origin = urllib.parse.urlsplit(req.full_url)
+                destination = urllib.parse.urlsplit(newurl)
+                if destination.scheme != "https":
+                    raise ValueError("insecure artifact redirect")
+                if redirected is not None and (origin.scheme, origin.netloc) != (destination.scheme, destination.netloc):
+                    redirected.remove_header("PRIVATE-TOKEN")
+                return redirected
+        # === Public Functions === #
+        def command(*args):
+            return subprocess.run(args, check=True, capture_output=True, text=True, timeout=120).stdout.strip()
+        def request(endpoint, *, binary=False):
+            if os.environ.get("GITHUB_ACTIONS"):
+                return json.loads(command("gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/{endpoint}"))
+            token = os.environ["RELEASE_TOKEN"]
+            if not token:
+                raise ValueError("provider token unavailable")
+            base = os.environ["CI_API_V4_URL"]
+            project = urllib.parse.quote(os.environ["CI_PROJECT_ID"], safe="")
+            native = urllib.request.Request(f"{base}/projects/{project}/{endpoint}", headers={"PRIVATE-TOKEN": token})
+            with urllib.request.build_opener(ProviderRedirect()).open(native, timeout=60) as response:
+                data = response.read()
+            return data if binary else json.loads(data)
+        def pages(endpoint, key=None):
+            values = []
+            for page in range(1, 101):
+                separator = "&" if "?" in endpoint else "?"
+                response = request(f"{endpoint}{separator}per_page=100&page={page}")
+                batch = response[key] if key else response
+                if not isinstance(batch, list):
+                    raise ValueError("invalid provider page")
+                values.extend(batch)
+                if len(batch) < 100:
+                    return values
+            raise ValueError("provider pagination limit")
+        def same_tree(head, tree):
+            if not isinstance(head, str) or OID.fullmatch(head) is None:
+                return False
+            command("git", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "origin", head)
+            return command("git", "rev-parse", "--verify", head + "^{tree}") == tree
+        def lookup():
+            sha = command("git", "rev-parse", "HEAD")
+            tree = command("git", "rev-parse", "HEAD^{tree}")
+            if OID.fullmatch(tree) is None:
+                raise ValueError("invalid checkout tree")
+            github = bool(os.environ.get("GITHUB_ACTIONS"))
+            if github:
+                reviews = [review for review in pages(f"commits/{sha}/pulls") if review.get("merged_at")
+                           and review.get("merge_commit_sha") == sha and review.get("base", {}).get("ref") == "dev"]
+            else:
+                reviews = [review for review in pages(f"repository/commits/{sha}/merge_requests") if review.get("state") == "merged"
+                           and sha in (review.get("merge_commit_sha"), review.get("squash_commit_sha")) and review.get("target_branch") == "dev"]
+            if len(reviews) != 1:
+                raise ValueError("no unambiguous merged review")
+            review = reviews[0]
+            head = review["head"]["sha"] if github else review["sha"]
+            branch = review["head"]["ref"] if github else review["source_branch"]
+            if not same_tree(head, tree):
+                raise ValueError("review tree differs")
+            profile = "release" if branch.startswith("release/v") and os.environ.get("REVIEW_RELEASE") == "true" else "dev"
+            tag = os.environ.get("GITHUB_REF", "").startswith("refs/tags/") or bool(os.environ.get("CI_COMMIT_TAG"))
+            if tag and profile != "release":
+                raise ValueError("tag requires release-profile evidence")
+            required = json.loads(os.environ.get("REVIEW_PACKAGES", "[]"))
+            if tag:
+                required += json.loads(os.environ.get("REVIEW_BUILDS", "[]"))
+            if github:
+                runs = pages(f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={head}", "workflow_runs")
+                runs = [run for run in runs if run.get("head_sha") == head and any(pr.get("number") == review["number"] for pr in run.get("pull_requests", []))]
+                run = max(runs, key=lambda item: item["id"])
+                if run.get("status") != "completed" or run.get("conclusion") != "success":
+                    raise ValueError("review run is not green")
+                jobs = pages(f"actions/runs/{run['id']}/jobs?filter=latest", "jobs")
+                if not jobs or any(job.get("conclusion") not in ("success", "skipped") for job in jobs):
+                    raise ValueError("review jobs are not green")
+                artifacts = pages(f"actions/runs/{run['id']}/artifacts", "artifacts")
+                for name in required:
+                    matches = [artifact for artifact in artifacts if artifact.get("name") == name.replace("PROFILE", profile)]
+                    if len(matches) != 1 or matches[0].get("expired") is not False:
+                        raise ValueError("review package unavailable")
+            else:
+                review = request(f"merge_requests/{review['iid']}")
+                run = review["head_pipeline"]
+                if run.get("sha") != head or run.get("status") != "success" or run.get("source") != "merge_request_event":
+                    raise ValueError("review pipeline is not green")
+                jobs = pages(f"pipelines/{run['id']}/jobs?include_retried=false")
+                if any(job.get("name") == "Plan / Impact" for job in jobs):
+                    bridges = [bridge for bridge in pages(f"pipelines/{run['id']}/bridges") if bridge.get("name") == "CI / Required"]
+                    if len(bridges) != 1 or bridges[0].get("status") != "success":
+                        raise ValueError("review child gate is not green")
+                    child = bridges[0].get("downstream_pipeline")
+                    if not isinstance(child, dict) or child.get("sha") != head or child.get("status") != "success" or not isinstance(child.get("id"), int):
+                        raise ValueError("review child pipeline is not green for this exact revision")
+                    run = child
+                    jobs = pages(f"pipelines/{run['id']}/jobs?include_retried=false")
+                if not jobs or any(job.get("status") not in ("success", "skipped", "manual") for job in jobs):
+                    raise ValueError("review jobs are not green")
+                for name in required:
+                    matches = [job for job in jobs if job.get("name") == name]
+                    if len(matches) != 1 or matches[0].get("status") != "success" or not matches[0].get("artifacts_file", {}).get("filename"):
+                        raise ValueError("review package unavailable")
+                    expiry = matches[0].get("artifacts_expire_at")
+                    if expiry and datetime.fromisoformat(expiry.replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+                        raise ValueError("review package expired")
+            if not isinstance(run["id"], int) or run["id"] <= 0:
+                raise ValueError("invalid review run ID")
+            if tag and not any(job.get("name", "").endswith("Release / Rehearsal")
+                               and job.get("conclusion" if github else "status") == "success" for job in jobs):
+                raise ValueError("release review has no successful rehearsal")
+            protected = os.environ.get("GITHUB_REF_PROTECTED") == "true" or os.environ.get("CI_COMMIT_REF_PROTECTED") == "true"
+            version = branch.removeprefix("release/") if profile == "release" else f"dev.{run['id']}+{head[:8]}"
+            if re.fullmatch(r"(?:v\d+\.\d+\.\d+|dev\.\d+\+[0-9a-f]{8})", version) is None:
+                raise ValueError("invalid review version")
+            return {"validated": "true", "review_run": str(run["id"]), "review_profile": profile,
+                    "review_sha": head, "review_version": version, "stable_release": str(bool(tag and protected)).lower()}
+        def restore():
+            if os.environ.get("validated") != "true":
+                return
+            run = os.environ["review_run"]
+            if not run.isdecimal():
+                raise ValueError("invalid review pipeline")
+            jobs = pages(f"pipelines/{run}/jobs?include_retried=false")
+            for name in json.loads(os.environ["REVIEW_PACKAGES"]) + json.loads(os.environ.get("REVIEW_BUILDS", "[]")):
+                matches = [job for job in jobs if job.get("name") == name and job.get("status") == "success"]
+                if len(matches) != 1:
+                    raise ValueError("review package producer unavailable")
+                data = request(f"jobs/{matches[0]['id']}/artifacts", binary=True)
+                with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                    for member in archive.infolist():
+                        path = Path(member.filename)
+                        parent = member.is_dir() and member.filename in ("target/", "target/package/")
+                        if path.is_absolute() or ".." in path.parts or "\\" in member.orig_filename or (member.external_attr >> 16) & 0o170000 == 0o120000:
+                            raise ValueError("unsafe package archive path")
+                        if not parent and not member.filename.startswith(("target/package/", "target/ci/")):
+                            raise ValueError("unexpected package archive path")
+                    archive.extractall()
+            print(f"Reusing packages from review pipeline {run}")
+        # === Private Functions === #
+        # === Entry Point === #
+        if __name__ == "__main__":
+            if os.environ.get("REVIEW_RESTORE") == "true":
+                restore()
+            else:
+                result = {"validated": "false", "review_run": "", "review_profile": "", "review_sha": "", "review_version": "", "stable_release": "false"}
+                try:
+                    result = lookup()
+                except Exception as error:
+                    # Never print provider responses, commands or credentials on lookup failure.
+                    print(f"Review evidence unavailable ({type(error).__name__}); running the full pipeline")
+                if not os.environ.get("GITHUB_ACTIONS"):
+                    version = os.environ.get("CI_COMMIT_TAG") or f"dev.{os.environ.get('CI_PIPELINE_ID', '')}+{os.environ.get('CI_COMMIT_SHORT_SHA', '')}"
+                    result["DEPLOY_EXPECTED_VERSION"] = result.get("review_version") or version
+                output = os.environ.get("GITHUB_OUTPUT", "target/ci/validated.env")
+                Path(output).parent.mkdir(parents=True, exist_ok=True)
+                with open(output, "a", encoding="utf-8", newline="\n") as stream:
+                    stream.write("".join(f"{key}={value}\n" for key, value in result.items()))
+                print(f"validated={result['validated']} review_run={result['review_run']}")
+        STKR_REVIEW
+  release:
+    name: Release
+    needs:
+    - build_linux
+    - build_windows
+    - check
+    - check_generated
+    - check_linux
+    - check_windows
+    - package
+    - package_linux
+    - package_windows
+    - test
+    - test_linux
+    - test_windows
+    - validated
+    if: ${{ always() && !cancelled() }}
+    uses: ./.github/workflows/managed-release.yml
     permissions:
       contents: write
+      pull-requests: write
       actions: read
+      checks: read
       id-token: write
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_GHA_VERSION: linux
-      MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab
-  build_bench:
-    name: Build / Bench
-    runs-on:
-    - self-hosted
-    - linux
-    timeout-minutes: 180
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - run: mise run build --profile bench
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: build-bench
-        path: |-
-          target/nextest/
-          target/fixtures/
-          target/wheels/
-          dist/
-          packages/dokime/src/dokime/_wire
-          packages/dokime/src/dokime/operation.py
-          packages/dokime/src/dokime/dynamic.py
-          crates/dokime-gui/.generated
-          crates/dokime-gui/src/lib/rpc/generated
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    if: github.event_name == 'schedule'
-  bench_integration_rust:
-    name: Bench / Integration / Rust
-    runs-on:
-    - self-hosted
-    - linux
-    timeout-minutes: 180
-    needs:
-    - source
-    - check_python
-    - check_typescript
-    - check_rust
-    - validate_generated
-    - validate_test_unit_rust
-    - validate_test_integration_python
-    - validate_test_integration_rust
-    - validate_test_integration_typescript
-    - validate_test_acceptance_python
-    - validate_test_acceptance_rust
-    - validate_test_system_rust
-    - validate_test_system_typescript
-    - build_bench
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: build-bench
-        merge-multiple: true
-    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .stkr/benchmarks/
-        key: bench-bench_integration_rust-${{ runner.os }}-${{ github.run_id }}
-        restore-keys: bench-bench_integration_rust-${{ runner.os }}-
-    - run: mise run bench:integration:rust --refresh-baseline
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: bench-bench_integration_rust
-        path: .stkr/benchmarks/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    if: github.event_name == 'schedule'
-  bench_system_rust:
-    name: Bench / System / Rust
-    runs-on:
-    - self-hosted
-    - linux
-    timeout-minutes: 180
-    needs:
-    - source
-    - check_python
-    - check_typescript
-    - check_rust
-    - validate_generated
-    - validate_test_unit_rust
-    - validate_test_integration_python
-    - validate_test_integration_rust
-    - validate_test_integration_typescript
-    - validate_test_acceptance_python
-    - validate_test_acceptance_rust
-    - validate_test_system_rust
-    - validate_test_system_typescript
-    - build_bench
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: build-bench
-        merge-multiple: true
-    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .stkr/benchmarks/
-        key: bench-bench_system_rust-${{ runner.os }}-${{ github.run_id }}
-        restore-keys: bench-bench_system_rust-${{ runner.os }}-
-    - run: mise run bench:system:rust --refresh-baseline
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: bench-bench_system_rust
-        path: .stkr/benchmarks/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    if: github.event_name == 'schedule'
-  bench_unit_rust:
-    name: Bench / Unit / Rust
-    runs-on:
-    - self-hosted
-    - linux
-    timeout-minutes: 180
-    needs:
-    - source
-    - check_python
-    - check_typescript
-    - check_rust
-    - validate_generated
-    - validate_test_unit_rust
-    - validate_test_integration_python
-    - validate_test_integration_rust
-    - validate_test_integration_typescript
-    - validate_test_acceptance_python
-    - validate_test_acceptance_rust
-    - validate_test_system_rust
-    - validate_test_system_typescript
-    - build_bench
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - run: sudo apt-get update
-    - run: >-
-        sudo apt-get install -y --no-install-recommends build-essential pkg-config
-        libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
-        libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb desktop-file-utils xdg-utils
-    - run: Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
-    - run: echo DISPLAY=:99 >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      env:
-        TEMP: ${{ runner.temp }}
-        TMP: ${{ runner.temp }}
-        RUSTC_WRAPPER: ""
-      with:
-        install: true
-        cache: false
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: build-bench
-        merge-multiple: true
-    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: .stkr/benchmarks/
-        key: bench-bench_unit_rust-${{ runner.os }}-${{ github.run_id }}
-        restore-keys: bench-bench_unit_rust-${{ runner.os }}-
-    - run: mise run bench:unit:rust --refresh-baseline
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: bench-bench_unit_rust
-        path: .stkr/benchmarks/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    if: github.event_name == 'schedule'
+      attestations: write
+      packages: write
+    with:
+      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      review_run: ${{ needs.validated.outputs.review_run }}
+      review_profile: ${{ needs.validated.outputs.review_profile }}
+      review_sha: ${{ needs.validated.outputs.review_sha }}
+      review_version: ${{ needs.validated.outputs.review_version }}
+      ready: >-
+        ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') }}
+      bump: ${{ inputs.bump || 'auto' }}
+    secrets:
+      release_token: ${{ secrets.RELEASE_TOKEN }}
+      mirror_deploy_key: ${{ secrets.MIRROR_DEPLOY_KEY }}
+      mirror_ssh_url: ${{ secrets.MIRROR_SSH_URL }}
+      runner_group_read_token: ${{ secrets.RUNNER_GROUP_READ_TOKEN }}
+      CRATES_BOOTSTRAP_TOKEN: ${{ secrets.CRATES_BOOTSTRAP_TOKEN }}

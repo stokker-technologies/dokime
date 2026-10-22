@@ -49,6 +49,14 @@ pub fn workspace_root() -> std::path::PathBuf {
         .to_owned()
 }
 
+pub fn build_root() -> std::path::PathBuf {
+    workspace_root().join("target/build").join(if cfg!(debug_assertions) { "dev" } else { "release" }).join(format!(
+        "{}-{}",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    ))
+}
+
 pub fn standalone_directory() -> tempfile::TempDir {
     let preferred = std::env::temp_dir().canonicalize().unwrap();
     let mut parent = preferred.as_path();
@@ -69,8 +77,7 @@ pub fn standalone_directory() -> tempfile::TempDir {
 
 /* === Private Functions === */
 fn artifact(name: &str) -> std::path::PathBuf {
-    let platform = if cfg!(windows) { "windows" } else { "linux" };
-    let path = workspace_root().join("dist/build").join(platform).join("bin").join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+    let path = build_root().join("bin").join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
     assert!(path.is_file(), "{} is missing: run mise run build", path.display());
     path
 }

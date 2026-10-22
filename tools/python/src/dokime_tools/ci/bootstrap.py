@@ -24,13 +24,12 @@ import sys
 import tempfile
 import tomllib
 import urllib.parse
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.release.run import _override_source
 
 # Type Checking Imports
 
@@ -63,8 +62,7 @@ GUI_PACKAGES = (
     "libclang-dev",
 )
 HARMOS_REPOSITORY = "https://github.com/stokker-technologies/harmos.git"
-VC_TOOLSET_COMPONENT = "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
-VSWHERE_RELATIVE_PATH = Path("Microsoft Visual Studio/Installer/vswhere.exe")
+DESKTOP_PACKAGES = ("webkit2gtk-driver", "xvfb", "desktop-file-utils", "xdg-utils")
 
 # === Types === #
 
@@ -85,15 +83,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             cargo_config=arguments.cargo_config,
         )
         return 0
-    system = platform.system()
-    _step(f"host system is {system}")
-    _create_temporary_directory()
-    for step in platform_steps(system, gui_packages=arguments.gui_packages):
-        step()
-    for task in arguments.tasks:
-        _run_mise_task(task)
-    if arguments.role:
-        prepare_tools(arguments.role)
+    if arguments.gui_packages:
+        install_gui_packages(desktop=arguments.desktop)
+    if arguments.desktop:
+        if sys.platform != "linux":
+            raise ValueError("the declared WebKit desktop bootstrap requires Linux")
+        if not os.environ.get("DISPLAY"):
+            github_environment = os.environ.get("GITHUB_ENV")
+            if not github_environment:
+                raise ValueError("the desktop job needs DISPLAY or GitHub's environment file")
+            subprocess.Popen(["Xvfb", ":99", "-screen", "0", "1920x1080x24"])
+            with Path(github_environment).open("a", encoding="utf-8") as written:
+                written.write("DISPLAY=:99\n")
     _step("bootstrap complete")
     return 0
 
@@ -101,7 +102,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="bootstrap.py",
-        description="Prepare a CI runner and run the requested mise sync tasks.",
+        description="Prepare explicitly selected native prerequisites or the pinned Harmos tool.",
     )
     parser.add_argument(
         "--gui-packages",
@@ -111,102 +112,8 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--harmos-key", action="store_true")
     parser.add_argument("--harmos-tools", action="store_true")
     parser.add_argument("--cargo-config", type=Path)
-    parser.add_argument(
-        "--role",
-        choices=(
-            "check",
-            "contracts",
-            "build",
-            "test",
-            "coverage",
-            "catalog",
-            "typescript",
-            "publish",
-        ),
-    )
-    parser.add_argument(
-        "tasks",
-        nargs="*",
-        help="mise tasks to run once the host is prepared, in order.",
-    )
+    parser.add_argument("--desktop", action="store_true")
     return parser.parse_args(argv)
-
-
-def platform_steps(system: str, *, gui_packages: bool) -> list[Callable[[], None]]:
-    """Name the host-specific steps for a system, in the order they run."""
-    if system == "Linux":
-        return [install_gui_packages] if gui_packages else []
-    if system == "Windows":
-        # The GUI packages have no Windows counterpart; the MSVC toolset does,
-        # and every Rust job needs it.
-        return [verify_visual_cpp_toolset]
-    raise SystemExit(f"bootstrap.py supports Linux and Windows CI hosts, not {system}.")
-
-
-def selected_tools(role: str, system: str) -> list[str]:
-    pnpm = "npm:pnpm" if system == "Windows" else "pnpm"
-    common = ["python", "uv", "rust", "node", pnpm]
-    if role in {"check", "build"}:
-        return []  # Complete Maintained-Source Checks Use The Pinned Tool Set.
-    if role in {"catalog", "typescript"}:
-        return [*common, "sccache"]
-    if role == "publish":
-        return [
-            *common,
-            "sccache",
-            "gh",
-            *(["aqua:jedisct1/minisign"] if system == "Linux" else []),
-        ]
-    if role == "contracts":
-        return [*common, "sccache"]
-    if role in {"test", "coverage"}:
-        tools = [*common, "sccache", "aqua:nextest-rs/nextest/cargo-nextest"]
-        if role == "coverage":
-            tools.append("aqua:taiki-e/cargo-llvm-cov")
-        return tools
-    raise ValueError(f"unknown CI tool role: {role}")
-
-
-def prepare_tools(role: str) -> None:
-    _run(["mise", "install", "--locked", *selected_tools(role, platform.system())])
-    _run(["git", "diff", "--exit-code", "--", "mise.lock"])
-    if role == "build":
-        _run(["mise", "run", "--skip-tools", "sync"])
-    else:
-        _run(["mise", "run", "--skip-tools", "prepare:tools"])
-        if role == "check":
-            _run(
-                [
-                    "mise",
-                    "exec",
-                    "--",
-                    "pnpm",
-                    "--dir",
-                    "crates/dokime-gui",
-                    "install",
-                    "--frozen-lockfile",
-                ]
-            )
-        elif role in {"test", "coverage"}:
-            # Generated-Plugin And Incremental Scenarios Retain Their Own Compilation.
-            _run(["mise", "exec", "--", "cargo", "fetch", "--locked"])
-    if role in {"build", "contracts"}:
-        prepare_harmos(Path.cwd(), allow_install=role == "contracts")
-    if role == "typescript":
-        _run(
-            [
-                "mise",
-                "exec",
-                "--",
-                "pnpm",
-                "--dir",
-                "crates/dokime-gui",
-                "install",
-                "--frozen-lockfile",
-            ]
-        )
-    for tool in ("mise", "rustc", "cargo", "python", "uv", "node", "pnpm"):
-        _run(["mise", "exec", "--", tool, "--version"])
 
 
 def harmos_pin(root: Path) -> dict[str, str]:
@@ -308,7 +215,7 @@ def prepare_harmos(
             if local_source is not None
             else ["--git", identity["git"], "--rev", identity["rev"]]
         )
-        with tempfile.TemporaryDirectory(prefix="harmos-tool-", dir=destination.parent) as temporary:
+        with tempfile.TemporaryDirectory(prefix="harmos-tool-") as temporary:
             staged = Path(temporary)
             _run(
                 [
@@ -356,7 +263,7 @@ def prepare_harmos(
     return binary
 
 
-def install_gui_packages() -> None:
+def install_gui_packages(*, desktop: bool = False) -> None:
     """Install the Debian GUI development packages when they are missing.
 
     A CI host that is missing them and cannot install them is broken, and the
@@ -364,10 +271,11 @@ def install_gui_packages() -> None:
     host with no dpkg at all -- a developer machine, never the CI image --
     gets to skip quietly.
     """
-    if shutil.which("dpkg") is None:
+    if sys.platform != "linux" or shutil.which("dpkg") is None:
         _step("skipping GUI packages: no dpkg here, so this is not a Debian host")
         return
-    if all(_package_installed(package) for package in GUI_PACKAGES):
+    packages = (*GUI_PACKAGES, *(DESKTOP_PACKAGES if desktop else ()))
+    if all(_package_installed(package) for package in packages):
         _step("skipping GUI packages: all prerequisites are installed")
         return
     prefix = []
@@ -378,47 +286,7 @@ def install_gui_packages() -> None:
             f"{GUI_MARKER_PACKAGE} is missing and apt-get needs root; install the GUI development packages by hand or run this as root."
         )
     _run([*prefix, "apt-get", "update"])
-    _run([*prefix, "apt-get", "install", "-y", "--no-install-recommends", *GUI_PACKAGES])
-
-
-def verify_visual_cpp_toolset() -> None:
-    """Fail early when the MSVC toolset rustc links through is not installed.
-
-    The Windows setup script initializes the developer environment before
-    installing Cargo-based tools, then persists linker inputs for later jobs.
-    This check verifies that the requested native toolset is installed.
-    """
-    program_files = os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")
-    vswhere = Path(program_files) / VSWHERE_RELATIVE_PATH
-    if not vswhere.is_file():
-        raise SystemExit(
-            f"vswhere.exe not found at '{vswhere}'; install Visual Studio with the 'Desktop development with C++' workload on this runner."
-        )
-    _step(f"resolving the MSVC toolset through {vswhere}")
-    completed = subprocess.run(
-        [
-            str(vswhere),
-            "-utf8",
-            "-latest",
-            "-products",
-            "*",
-            "-requires",
-            VC_TOOLSET_COMPONENT,
-            "-property",
-            "installationPath",
-        ],
-        capture_output=True,
-        check=True,
-        text=True,
-        encoding="utf-8",
-    )
-    installation = completed.stdout.strip()
-    if not installation:
-        raise SystemExit(
-            f"no Visual Studio instance provides {VC_TOOLSET_COMPONENT}; install the "
-            "'Desktop development with C++' workload on this runner."
-        )
-    _step(f"MSVC toolset found at {installation}")
+    _run([*prefix, "apt-get", "install", "-y", "--no-install-recommends", *packages])
 
 
 # === Private Functions === #
@@ -440,13 +308,35 @@ def _locked_revision(root: Path, source: str) -> str:
     raise ValueError("the Harmos branch has no locked public revision; a local path override is active")
 
 
-def _create_temporary_directory() -> None:
-    temporary = os.environ.get("TMPDIR")
-    if not temporary:
-        _step("skipping temporary directory: TMPDIR is unset")
-        return
-    _step(f"creating {temporary}")
-    Path(temporary).mkdir(parents=True, exist_ok=True)
+def _override_source(directory: Path) -> str:
+    """Identify The Exact Local Harmos Checkout Used By An Explicit Development Override."""
+    root = Path(
+        subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+        ).stdout.strip()
+    )
+    files = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    digest = hashlib.sha256()
+    for name in sorted(set(files) - {b""}):
+        path = root / os.fsdecode(name)
+        digest.update(name + b"\0")
+        if path.is_symlink():
+            digest.update(b"link\0" + os.fsencode(os.readlink(path)))
+        elif path.is_file():
+            digest.update(b"file\0" + hashlib.sha256(path.read_bytes()).digest())
+        else:
+            digest.update(b"missing\0")
+    return digest.hexdigest()
 
 
 def _package_installed(name: str) -> bool:
@@ -460,10 +350,6 @@ def _package_installed(name: str) -> bool:
         ).returncode
         == 0
     )
-
-
-def _run_mise_task(task: str) -> None:
-    _run(["mise", "run", task])
 
 
 def _run(command: Sequence[str]) -> None:

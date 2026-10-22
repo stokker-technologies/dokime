@@ -106,3 +106,6 @@ Thumbs.db
 # BEGIN Stkr CI
 /.cache/
 # END Stkr CI
+
+# OpenSpec Changes And Specs Are Tracked; Uncomment To Keep Them Local.
+# /openspec/

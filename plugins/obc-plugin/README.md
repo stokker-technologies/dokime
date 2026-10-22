@@ -43,14 +43,15 @@ host identity are captured as traceability, not configured as template inputs.
 ## Build And Validate
 
 ```sh
-mise run build:plugins:dev
-mise run test:integration:rust
-mise run test:acceptance:rust
+mise run build
+mise run build:rust:tests
+mise run test:rust:integration
+mise run test:rust:acceptance
 ```
 
-The bundle is `target/debug/plugins/obc-plugin.dokime`. Install it through
+The bundle is `target/build/dev/<target>/plugins/obc-plugin.dokime`. Install it through
 **Settings → Plugins** and restart to admit its frozen catalog. The screenshot
-and native desktop scenarios build and install this same bundle.
+and native desktop scenarios consume this same built bundle.
 
 For a focused plugin check:
 

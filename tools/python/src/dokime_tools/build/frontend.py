@@ -21,6 +21,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output, sync_output
 
 # Type Checking Imports
@@ -71,7 +72,7 @@ def ensure_report() -> None:
     if is_stale(previous, current, REPORT.exists()):
         vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
         STAMP.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="report-", dir=STAMP.parent) as directory:
+        with tempfile.TemporaryDirectory(prefix="dokime-report-") as directory:
             output = Path(directory)
             subprocess.run(
                 [
@@ -98,16 +99,14 @@ def build_live(args: list[str]) -> None:
     if args:
         subprocess.run(command + args, cwd=WEB_ROOT, check=True)
         return
-    target = ROOT / "target"
-    target.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="dokime-gui-live-", dir=target) as directory:
+    with tempfile.TemporaryDirectory(prefix="dokime-gui-live-") as directory:
         subprocess.run(command + ["--outDir", directory], cwd=WEB_ROOT, check=True)
         sync_output(Path(directory), WEB_ROOT / "dist")
 
 
 def build(profile: str) -> Path:
     """Build The Live Frontend Once And Mirror It Where The Desktop Shell Serves It From."""
-    output = ROOT / "target/build" / profile / "frontend"
+    output = paths.output(ROOT, "build", profile) / "web"
     clear_output(output)
     subprocess.run(["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--outDir", str(output)], cwd=WEB_ROOT, check=True)
     sync_output(output, WEB_ROOT / "dist")

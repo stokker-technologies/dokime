@@ -1,5 +1,6 @@
 [package]
 name = "obc-runtime"
+publish = false
 edition.workspace = true
 rust-version.workspace = true
 description = "Deterministic onboard charger and testbench runtime for the OBC demo."

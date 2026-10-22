@@ -2,7 +2,7 @@
 # Native manifests own package metadata; mise owns executable recipes.
 # Defaults stay implicit. Commented sections do not declare configuration.
 
-# === Project === #
+# === === Project === === #
 
 [project]
 name = "{{package}}"
@@ -10,31 +10,18 @@ profile = "plugin"
 visibility = "public"
 platforms = ["linux", "windows"]
 
+# === === Languages === === #
+
 [languages.rust]
 roots = ["src", "tests"]
 
 [languages.python]
 roots = ["tools/python"]
 
-# === Repository === #
+# === === CI === === #
 
-# === CI === #
+# --- Impact --- #
 
-# === Agents === #
-
-# === Hooks === #
-
-# === Conventions === #
-
-# === Templates === #
-
-# === Release === #
-
-# === Documentation === #
-
-# === Screenshots === #
-
-# === Catalogs === #
-
-# === PyO3 === #
+[ci.impact]
+default = "full"
 

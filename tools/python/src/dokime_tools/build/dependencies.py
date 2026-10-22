@@ -52,9 +52,10 @@ def wheelhouse(root: Path, directory: Path) -> list[Path]:
     """Export The Starter's Actual Locked Backend And Tool Wheels."""
     root = root.resolve()
     tools = directory / "starter-tools"
-    templates = root / "crates/cargo-dokime/templates/tools/python"
-    for name in ("pyproject.toml", "uv.lock"):
-        stage_file(templates / f"{name}.tmpl", tools / name)
+    templates = root / "crates/cargo-dokime/templates"
+    clear_output(tools)
+    for relative in ("pyproject.toml", "uv.lock", "tools/python/pyproject.toml"):
+        stage_file(templates / f"{relative}.tmpl", tools / relative)
     requirements = directory / "starter-requirements.txt"
     wheels = directory / "wheels"
     clear_output(requirements)
@@ -64,7 +65,10 @@ def wheelhouse(root: Path, directory: Path) -> list[Path]:
         raise ValueError("the selected Python must supply one bundled ensurepip wheel")
     with requirements.open("w", encoding="utf-8") as output:
         subprocess.run(
-            ["uv", "export", "--locked", "--all-groups", "--no-emit-project", "--project", str(tools)], cwd=root, stdout=output, check=True
+            ["uv", "export", "--locked", "--all-groups", "--no-emit-project", "--project", str(tools / "tools/python")],
+            cwd=root,
+            stdout=output,
+            check=True,
         )
     loader = "import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); runpy.run_module('pip',run_name='__main__')"
     download = [sys.executable, "-c", loader, str(bundled[0]), "download", "--dest", str(wheels), "--require-hashes", "--only-binary=:all:"]

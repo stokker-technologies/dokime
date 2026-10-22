@@ -27,18 +27,19 @@ live operator shell and the self-contained report renderer.
 
 ## Validation
 
-- Install synchronized dependencies with `mise run sync`.
+- Install locked dependencies with `mise run prepare`.
 - After authored brand changes, rebuild the compiled theme and report with
   `mise run prepare:report`, then run the repository checks.
-- Run `mise run check:types` and `mise run test:integration:typescript` for frontend changes.
-- Run `mise run check` before committing. Use `mise run test:system:typescript` when a
-  running-stack workflow or browser interaction changes.
+- Run focused checks for changed frontend behavior while implementing. Generated
+  client type checks belong to `check:typescript:generated` after Product Build.
+  After source closure, run the applicable full proof, including TypeScript
+  integration and the Linux native desktop system gate.
 
 ## Canonical Bindings And Transport
 
-- `mise run bindings:generate` projects standard ES bindings and the typed facade
-  from one explicitly selected canonical Cargo export. `bindings:check` compares
-  that same export. Rust `dokime-contract::operations` declarations own the wire
+- `build:typescript` checks standard ES bindings and the typed facade
+  against the selected Product compiler export. The binding generator compares
+  that same export. Rust `dokime-domain::operations` declarations own the wire
   shape; do not maintain parallel domain DTOs or a second codec. Generation does
   not compile the GUI or runtime.
 - Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the

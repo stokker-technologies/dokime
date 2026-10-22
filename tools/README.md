@@ -11,5 +11,5 @@ performance workloads live under the owning crate's `benches/`.
 
 Each Python package carries its own `[tool.ty]` configuration. `lint:python`
 type-checks the repository tooling with `ty check --project tools/python`;
-`test:generated:python` type-checks the client package after the build has
+`check:python:generated` type-checks the client package after the build has
 verified its generated modules.

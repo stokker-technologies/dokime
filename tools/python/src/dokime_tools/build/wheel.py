@@ -18,6 +18,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.build import paths
 
 # Type Checking Imports
 
@@ -40,7 +41,7 @@ def build(root: Path, profile: str) -> Path:
     python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     if not python.is_file():
         raise ValueError("prepare the locked repository-root Python environment before building the wheel")
-    output = root / "target/wheels"
+    output = paths.output(root, "build", profile) / "python"
     output.mkdir(parents=True, exist_ok=True)
     for stale in output.glob("dokime-*"):
         stale.unlink()

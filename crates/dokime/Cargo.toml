@@ -17,8 +17,8 @@ version = { workspace = true }
 
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-client = { path = "../dokime-client" }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
+dokime-client = { version = "0.1.0", path = "../dokime-client" }
 
 # Git
 harmos = { workspace = true, features = ["plugin"] }
@@ -53,11 +53,6 @@ anstream = { workspace = true }
 anstyle = { workspace = true }
 indicatif = { workspace = true }
 
-[[bin]]
-name = "dokime"
-path = "src/main.rs"
-doc = false
-
 [dev-dependencies]
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
@@ -74,6 +69,3 @@ tempfile = { workspace = true }
 
 # Testing
 criterion = { workspace = true }
-
-# UI
-portable-pty = { workspace = true }

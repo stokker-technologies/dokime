@@ -88,8 +88,16 @@ const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
 
+const { values: options } = parseArgs({
+  options: { junit: { type: "string" }, release: { type: "boolean", default: false }, profile: { type: "string", default: "dev" } },
+});
+const profile = options.release ? "release" : options.profile;
+assert.ok(["dev", "release"].includes(profile), "the desktop gate requires a known build profile");
+
 /** The Single Build Stages The Development Candidates Together. */
-const built = join(workspace, "dist/build", process.platform === "win32" ? "windows" : "linux");
+const architecture = { x64: "x86_64", arm64: "aarch64" }[process.arch] ?? process.arch;
+const nativeTarget = `${process.platform === "win32" ? "windows" : "linux"}-${architecture}`;
+const built = join(workspace, "target/build", profile, nativeTarget);
 const executableSuffix = process.platform === "win32" ? ".exe" : "";
 let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(built, `bin/dokime-server${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
@@ -155,9 +163,6 @@ const selectedJourneys = new Set(
  */
 const DOCUMENT_SLICE_CHARS = 512 * 1024;
 
-const { values: options } = parseArgs({
-  options: { junit: { type: "string" }, release: { type: "boolean", default: false } },
-});
 const releaseValidation = options.release;
 const windows = process.platform === "win32";
 const results = [];
@@ -2101,10 +2106,7 @@ async function reportJourney(session, cycleId) {
           "--dump-dom",
           served,
         ],
-        /* Chrome's singleton socket lives under TMPDIR and must fit a Unix
-           socket path; the repository's TMPDIR is too deep in a worktree. The
-           profile itself stays in the run's work directory. */
-        { env: { ...process.env, TMPDIR: windows ? process.env.TMPDIR : "/tmp" }, maxBuffer: 64 * 1024 * 1024 },
+        { maxBuffer: 64 * 1024 * 1024 },
       );
       dom = rendered.stdout;
       if (/Frozen Report/.test(dom) && /Attempt 1 Of/.test(dom)) break;
@@ -2441,7 +2443,7 @@ async function writeJunit() {
 
 /** Serve Only The Built Frontend; The Native Shell Still Owns Every IPC Call. */
 async function serveDevelopmentAssets() {
-  const root = join(built, "frontend");
+  const root = join(built, "web");
   assert.ok(existsSync(join(root, "index.html")), "the development artifact supplies verified static frontend assets");
   const origin = new URL(configuredOrigin ?? "http://127.0.0.1:5173");
   assert.equal(origin.protocol, "http:");

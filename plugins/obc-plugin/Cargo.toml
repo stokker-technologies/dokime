@@ -9,6 +9,7 @@
 [package]
 description = "Demonstrates onboard charger validation on a simulated testbench."
 name = "obc-plugin"
+publish = false
 version = { workspace = true }
 edition.workspace = true
 rust-version.workspace = true
@@ -19,9 +20,9 @@ debuginfo = false
 
 [dependencies]
 # Local
-dokime-domain = { path = "../../crates/dokime-domain" }
-dokime-runtime = { path = "../../crates/dokime-runtime" }
-obc-runtime = { path = "runtime" }
+dokime-domain = { version = "0.1.0", path = "../../crates/dokime-domain" }
+dokime-runtime = { version = "0.1.0", path = "../../crates/dokime-runtime" }
+obc-runtime = { version = "0.1.0", path = "runtime" }
 
 # Error Handling
 thiserror = { workspace = true }

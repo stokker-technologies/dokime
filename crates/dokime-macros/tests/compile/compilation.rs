@@ -53,13 +53,21 @@ fn sdk_artifact() -> &'static SdkArtifact {
         // The build records its compiler messages beside its nextest archive, under the profile this story was built with.
         let directory =
             std::env::current_exe().unwrap().parent().and_then(std::path::Path::parent).unwrap().file_name().unwrap().to_owned();
-        let profile = if directory == "debug" { "dev".into() } else { directory.to_string_lossy().into_owned() };
-        let messages = target.join("nextest").join(&profile).join("compiler.json");
+        let profile = if directory == "debug" {
+            "dev"
+        } else if directory == "release-tests" {
+            "release"
+        } else {
+            panic!("unexpected compile-contract profile {directory:?}");
+        };
+        let built_tests =
+            workspace.join("target/build").join(profile).join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)).join("tests");
+        let messages = built_tests.join("compiler.json");
         let built = std::fs::read_to_string(&messages)
             .unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", messages.display()));
         // Only the SDK's own dependency closure links into a plugin: another member's build script output (the
         // desktop shell's import stub libraries) would shadow the platform's runtime libraries on the search path.
-        let closure = sdk_closure(&target.join("nextest").join(&profile).join("metadata.json"), &manifest);
+        let closure = sdk_closure(&built_tests.join("metadata.json"), &manifest);
         let mut artifacts = Vec::new();
         let mut serde = None;
         let mut native_paths = Vec::new();

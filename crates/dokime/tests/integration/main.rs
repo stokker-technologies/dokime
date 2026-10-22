@@ -11,7 +11,6 @@
 
 /* === Modules === */
 mod commands;
-mod install;
 
 /* === Re-Exports === */
 
