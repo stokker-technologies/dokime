@@ -14,6 +14,8 @@ description.workspace = true
 license.workspace = true
 repository.workspace = true
 version = { workspace = true }
+# Ships Inside The Installers And As A Raw Release Executable, Not Through crates.io.
+publish = false
 
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
