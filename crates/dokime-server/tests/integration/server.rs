@@ -145,7 +145,7 @@ async fn remote_sessions_recorded() {
     let refused = &page.sessions[1];
     assert_eq!((refused.principal.as_str(), refused.calls), ("anonymous", 1));
     assert_eq!(refused.outcome, model::remote::RemoteSessionOutcome::Rejected);
-    assert_eq!(refused.rejection.as_deref(), Some("invalid credentials"));
+    assert_eq!(refused.rejection.as_deref(), Some("invalid secrets"));
     assert!(page.next_cursor.is_none());
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
@@ -474,7 +474,7 @@ async fn discovery_shares_independently() {
 }
 
 #[tokio::test]
-async fn malformed_credentials_wire() {
+async fn malformed_secrets_wire() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let config = keyed();
@@ -488,7 +488,7 @@ async fn malformed_credentials_wire() {
         malformed.metadata_mut().insert("authorization", authorization.parse().unwrap());
         let error = client.unary::<contracts::backend::GetIdentity>(malformed).await.unwrap_err();
         assert_eq!(error.code(), Code::Unauthenticated);
-        assert_eq!(error.message(), "invalid credentials");
+        assert_eq!(error.message(), "invalid secrets");
     }
     let mut duplicate = authenticated(contracts::backend::GetIdentity {});
     duplicate.metadata_mut().append("authorization", format!("Bearer {TOKEN}").parse().unwrap());

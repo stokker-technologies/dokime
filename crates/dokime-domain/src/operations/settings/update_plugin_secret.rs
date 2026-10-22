@@ -31,13 +31,13 @@ use super::*;
 /* === Structs === */
 
 #[harmos_domain::message(skip_debug)]
-#[harmos_domain::operation(response = PluginRuntimeSettings, id = "dokime.settings.update_plugin_credential", version = 1,
+#[harmos_domain::operation(response = PluginRuntimeSettings, id = "dokime.settings.update_plugin_secret", version = 1,
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
-        grpc(package = "dokime.v1", service = "Settings", method = "UpdatePluginCredential"))]
+        grpc(package = "dokime.v1", service = "Settings", method = "UpdatePluginSecret"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpdatePluginCredential {
+pub struct UpdatePluginSecret {
     pub plugin_id: String,
-    pub credential_id: String,
+    pub secret_id: String,
     pub secret: String,
 }
 
@@ -47,12 +47,12 @@ pub struct UpdatePluginCredential {
 
 /* === Implementations === */
 
-impl std::fmt::Debug for UpdatePluginCredential {
+impl std::fmt::Debug for UpdatePluginSecret {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("UpdatePluginCredential")
+            .debug_struct("UpdatePluginSecret")
             .field("plugin_id", &self.plugin_id)
-            .field("credential_id", &self.credential_id)
+            .field("secret_id", &self.secret_id)
             .field("secret", &"<redacted>")
             .finish()
     }
@@ -66,13 +66,13 @@ impl std::fmt::Debug for UpdatePluginCredential {
 
 #[cfg(test)]
 mod tests {
-    use super::UpdatePluginCredential;
+    use super::UpdatePluginSecret;
 
     #[test]
     fn debug_redacts_values_without_changing_the_request() {
-        let request = UpdatePluginCredential {
+        let request = UpdatePluginSecret {
             plugin_id: "instrument".to_owned(),
-            credential_id: "connection".to_owned(),
+            secret_id: "connection".to_owned(),
             secret: "private-value-42".to_owned(),
         };
         for rendered in [format!("{request:?}"), format!("{request:#?}")] {

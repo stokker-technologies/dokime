@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Keep Updater Verification Independent Of Private Signing Credentials"""
+"""Keep Updater Verification Independent Of Private Signing Secrets"""
 
 # === Imports === #
 
@@ -96,7 +96,7 @@ def test_tag_refuses_unsigned_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyP
     _tag(monkeypatch, "github")
     monkeypatch.setattr(installer.sys, "platform", "win32")
 
-    # Missing Credentials Fail Before Reading Or Changing Build Outputs
+    # Missing Secrets Fail Before Reading Or Changing Build Outputs
     with pytest.raises(ValueError, match="signing key and password"):
         installer.bundle(root, profile="release")
     assert not (root / "target").exists()

@@ -97,7 +97,7 @@ impl Configuration {
         S::decode(&values, self)
     }
 
-    pub fn credentials_configured<S: PluginSettings>(&self) -> bool {
+    pub fn secrets_configured<S: PluginSettings>(&self) -> bool {
         S::catalog().secrets().filter(|declared| declared.required).all(|declared| self.secret(&declared.id).is_ok())
     }
 

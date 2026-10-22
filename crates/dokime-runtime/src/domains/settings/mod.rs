@@ -153,7 +153,7 @@ impl RuntimeHandle {
         }
 
         match self.action_dispatch_context(module) {
-            Ok(context) if context.credentials_configured => (RuntimeSettingsCardState::Ready, Some(context)),
+            Ok(context) if context.secrets_configured => (RuntimeSettingsCardState::Ready, Some(context)),
             Ok(context) => (RuntimeSettingsCardState::Disconnected, Some(context)),
             Err(_) => (RuntimeSettingsCardState::Error, None),
         }

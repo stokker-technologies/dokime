@@ -46,7 +46,7 @@ test("a rejected session row carries its outcome, reason and closed duration", (
     disconnectedAt: 61_000n,
     calls: 3n,
     outcome: { HarmosVariant: { case: "Rejected", value: {} } },
-    rejection: "invalid credentials",
+    rejection: "invalid secrets",
   } as RemoteSession;
   const row = sessionRow(session, (millis) => `t${millis}`);
   assert.deepEqual(row, {
@@ -58,7 +58,7 @@ test("a rejected session row carries its outcome, reason and closed duration", (
     duration: "1 min 0 s",
     calls: "3",
     outcome: "Rejected",
-    rejection: "invalid credentials",
+    rejection: "invalid secrets",
     open: false,
   });
   const open = sessionRow({ ...session, principal: "access-key", disconnectedAt: undefined }, String);

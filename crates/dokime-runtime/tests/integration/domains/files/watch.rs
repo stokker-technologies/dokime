@@ -636,7 +636,7 @@ async fn watch_refusals() {
     // FTP Sources Refuse Untrusted Plain FTP, SFTP And Inline Passwords
     let ftp = |url: &str| FileWatch {
         source: Some(model::files::wire::FileWatchSource {
-            payload: Some(FileWatchSourcePayload::Ftp(FtpWatchSource { url: url.to_owned(), credential_id: None })),
+            payload: Some(FileWatchSourcePayload::Ftp(FtpWatchSource { url: url.to_owned(), secret_id: None })),
         }),
         ..base()
     };

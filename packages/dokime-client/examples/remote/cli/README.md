@@ -3,7 +3,7 @@
 Control the simulated OBC device, run independent attempts with live observations,
 and answer a confirmation using an installed Dokime CLI on another computer.
 Start with the [shared candidate-artifact walkthrough](../README.md) to obtain
-the matching CLI and host plugin, configure the host and transfer credentials.
+the matching CLI and host plugin, configure the host and transfer secrets.
 A matching published release combination is not claimed; native execution and
 interruption behavior still require platform validation.
 
@@ -129,7 +129,7 @@ isolated lab endpoint. An empty key or dotenv path omits that file.
 An explicit `KEY_FILE` takes precedence over process `DOKIME_KEY`, which takes
 precedence over an explicitly selected `ENV_FILE`. Copy
 [`../.env.example`](../.env.example) when using dotenv, replace its placeholder,
-and clear `KEY_FILE`. No parent-directory search occurs. Keep credentials private.
+and clear `KEY_FILE`. No parent-directory search occurs. Keep secrets private.
 
 POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
 `set "NAME=value"`. Each test call shows one record filter and

@@ -33,7 +33,7 @@ use dokime::{
     schema::Described,
 };
 use dokime_gui::connection::ConnectionSession;
-use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
+use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
 use dokime_server::grpc::{Config, Server};
 
 /* === Constants === */
@@ -226,7 +226,7 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
     session
         .connect(ConnectRequest {
             target: ConnectionTarget::Local { endpoint: endpoint.into() },
-            credentials: ConnectionCredentials::None,
+            secrets: ConnectionSecrets::None,
             expected_backend_id: None,
         })
         .await

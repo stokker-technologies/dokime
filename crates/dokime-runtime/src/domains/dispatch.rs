@@ -40,7 +40,7 @@ pub type ActionDispatcherFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, A
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DispatchContext {
-    pub credentials_configured: bool,
+    pub secrets_configured: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

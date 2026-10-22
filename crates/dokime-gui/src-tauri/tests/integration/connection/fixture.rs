@@ -32,9 +32,9 @@ use tonic::{
 };
 // Local Imports
 use dokime::client::contracts::{Endpoint, backend, plugins, runtime};
-use dokime::client::credentials::{Error as CredentialError, SecretStore};
+use dokime::client::secrets::{Error as SecretError, SecretStore};
 use dokime::domain::model;
-use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
+use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
 use zeroize::Zeroizing;
 
 /* === Constants === */
@@ -103,16 +103,16 @@ pub struct Listener {
 /* === Implementations === */
 
 impl SecretStore for MemorySecrets {
-    fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, CredentialError> {
+    fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
         Ok(self.0.lock().unwrap().get(endpoint).cloned().map(Zeroizing::new))
     }
 
-    fn write(&self, endpoint: &str, token: &str) -> Result<(), CredentialError> {
+    fn write(&self, endpoint: &str, token: &str) -> Result<(), SecretError> {
         self.0.lock().unwrap().insert(endpoint.into(), token.into());
         Ok(())
     }
 
-    fn remove(&self, endpoint: &str) -> Result<(), CredentialError> {
+    fn remove(&self, endpoint: &str) -> Result<(), SecretError> {
         self.0.lock().unwrap().remove(endpoint);
         Ok(())
     }
@@ -156,7 +156,7 @@ impl Service {
         let token = request.metadata().get("authorization").map(|value| value.to_str().unwrap().to_owned());
         self.requests.lock().unwrap().push(token.clone());
         if self.token.as_ref().is_some_and(|expected| token.as_deref() != Some(format!("Bearer {expected}").as_str())) {
-            return Err(Status::unauthenticated("credentials rejected"));
+            return Err(Status::unauthenticated("secrets rejected"));
         }
         Ok(())
     }
@@ -564,15 +564,14 @@ impl Listener {
     pub fn local(&self) -> ConnectRequest {
         ConnectRequest {
             target: ConnectionTarget::Local { endpoint: self.endpoint.clone() },
-            credentials: ConnectionCredentials::None,
+            secrets: ConnectionSecrets::None,
             expected_backend_id: None,
         }
     }
     pub fn remote(&self, trust: bool, token: Option<&str>) -> ConnectRequest {
         ConnectRequest {
             target: ConnectionTarget::Remote { endpoint: self.endpoint.clone(), ca_certificate_pem: trust.then(|| IDENTITY.0.clone()) },
-            credentials: token
-                .map_or(ConnectionCredentials::None, |token| ConnectionCredentials::Bearer { token: token.into(), remember: false }),
+            secrets: token.map_or(ConnectionSecrets::None, |token| ConnectionSecrets::Bearer { token: token.into(), remember: false }),
             expected_backend_id: None,
         }
     }

@@ -739,11 +739,10 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn settings_update_plugin_credential(
-        &self, message: contracts::settings::UpdatePluginCredential,
+    pub async fn settings_update_plugin_secret(
+        &self, message: contracts::settings::UpdatePluginSecret,
     ) -> Result<dokime_domain::model::settings::wire::PluginRuntimeSettings> {
-        let reply =
-            self.unary::<contracts::settings::UpdatePluginCredential>(contracts::settings::UpdatePluginCredential::PATH, message).await?;
+        let reply = self.unary::<contracts::settings::UpdatePluginSecret>(contracts::settings::UpdatePluginSecret::PATH, message).await?;
         super::transport::value(reply)
     }
 

@@ -18,7 +18,7 @@ mod reorder_storage_sources;
 mod set_storage_source_enabled;
 mod update_appearance;
 mod update_data_root;
-mod update_plugin_credential;
+mod update_plugin_secret;
 mod update_plugin_settings;
 mod update_report_defaults;
 mod update_storage_policy;
@@ -34,7 +34,7 @@ pub use reorder_storage_sources::ReorderStorageSources;
 pub use set_storage_source_enabled::SetStorageSourceEnabled;
 pub use update_appearance::UpdateAppearance;
 pub use update_data_root::UpdateDataRoot;
-pub use update_plugin_credential::UpdatePluginCredential;
+pub use update_plugin_secret::UpdatePluginSecret;
 pub use update_plugin_settings::UpdatePluginSettings;
 pub use update_report_defaults::UpdateReportDefaults;
 pub use update_storage_policy::UpdateStoragePolicy;
@@ -73,7 +73,7 @@ pub enum Operations {
     SetStorageSourceEnabled(SetStorageSourceEnabled),
     GetPluginSettings(GetPluginSettings),
     UpdatePluginSettings(UpdatePluginSettings),
-    UpdatePluginCredential(UpdatePluginCredential),
+    UpdatePluginSecret(UpdatePluginSecret),
     ReadApplicationSettings(ReadApplicationSettings),
     UpdateAppearance(UpdateAppearance),
     UpdateDataRoot(UpdateDataRoot),
@@ -116,8 +116,8 @@ impl Endpoint for UpdatePluginSettings {
     const PATH: &'static str = "/dokime.v1.Settings/UpdatePluginSettings";
 }
 
-impl Endpoint for UpdatePluginCredential {
-    const PATH: &'static str = "/dokime.v1.Settings/UpdatePluginCredential";
+impl Endpoint for UpdatePluginSecret {
+    const PATH: &'static str = "/dokime.v1.Settings/UpdatePluginSecret";
 }
 
 impl Endpoint for ReadApplicationSettings {

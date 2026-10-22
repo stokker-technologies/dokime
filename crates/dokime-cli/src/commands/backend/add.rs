@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::profiles::{Credential, Error, Profile};
+use dokime::client::profiles::{Error, Profile, Secret};
 
 /* === Constants === */
 
@@ -47,7 +47,7 @@ pub(crate) struct Args {
     #[arg(long, help = "Read An Additional PEM CA Certificate From This Local File.")]
     ca: Option<std::path::PathBuf>,
 
-    #[arg(long, help = "Resolve Credentials From The OS Store On Connection.")]
+    #[arg(long, help = "Resolve Secrets From The OS Store On Connection.")]
     keyring: bool,
 }
 
@@ -73,7 +73,7 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
         endpoint: args.endpoint,
         expected_backend_id: args.expected_backend,
         ca_certificate_pem,
-        credential: if args.keyring { Credential::Keyring } else { Credential::None },
+        secret: if args.keyring { Secret::Keyring } else { Secret::None },
     };
     profile.selection()?;
     args.config.store()?.update(move |document| {

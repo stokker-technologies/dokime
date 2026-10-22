@@ -47,7 +47,7 @@ CA and expected backend identity for that connection; later default edits have
 no effect. An unexpected identity fails negotiation before workflow mutations.
 Profiles marked `keyring` require a key supplied by the Python caller.
 
-Credential precedence is explicit `key_file=`, process `DOKIME_KEY`, then the
+Secret precedence is explicit `key_file=`, process `DOKIME_KEY`, then the
 key in an explicitly selected `env_file=`. Selected files are validated before
 any connection, even when a higher-priority source supplies the key. Keys are
 UTF-8 text with 32–4096 visible ASCII characters. Dotenv files are bounded to
@@ -57,7 +57,7 @@ Constructor arguments read these local files; they open no network channel.
 The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
 while explicit `http://` permits plaintext for an isolated lab and exposes keys
 and data. The listener decides independently whether a key is required. A
-profile marked `keyring` still requires its selected credentials. Public CA
+profile marked `keyring` still requires its selected secrets. Public CA
 files apply only to HTTPS; certificate verification is never disabled.
 
 ```python

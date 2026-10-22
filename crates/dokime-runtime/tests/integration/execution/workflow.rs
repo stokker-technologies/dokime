@@ -514,7 +514,7 @@ impl Probe {
             if folder != "/captured" || token.expose() != "runtime-only-token" {
                 return Err(ProbeError::Declined("incorrect execution context".into()));
             }
-            let diagnostic = format!("credential {token:?}");
+            let diagnostic = format!("secret {token:?}");
             ctx.info(diagnostic);
         }
         if flag(ctx.raw_parameters(), "artifact_backpressure") {

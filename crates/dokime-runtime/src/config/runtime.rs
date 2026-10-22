@@ -24,9 +24,9 @@ use serde::{Deserialize, Serialize};
 use crate::Dokime;
 use crate::InstalledPlugin;
 use crate::domains::ActionDispatcher;
-use dokime_domain::model::credentials::CredentialBackendKind;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::secrets::SecretBackendKind;
 
 /* === Constants === */
 
@@ -55,7 +55,7 @@ pub struct RuntimeConfig {
     pub local_retention: Option<Duration>,
 
     pub hub_metadata: Metadata,
-    pub credential_backend: RuntimeCredentialConfig,
+    pub secret_backend: RuntimeSecretConfig,
 
     // A trusted bench is an isolated network where plain FTP sources are accepted.
     #[serde(default)]
@@ -78,8 +78,8 @@ pub struct RuntimeConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RuntimeCredentialConfig {
-    pub backend: CredentialBackendKind,
+pub struct RuntimeSecretConfig {
+    pub backend: SecretBackendKind,
 
     #[serde(default)]
     pub local_file: Option<PathBuf>,
@@ -103,7 +103,7 @@ impl RuntimeConfig {
             // shells always name a separate application root.
             application_root: storage_root.join("application"),
             hub_metadata,
-            credential_backend: RuntimeCredentialConfig::default(),
+            secret_backend: RuntimeSecretConfig::default(),
             trusted_bench: false,
             installed_plugins: Vec::new(),
             plugins: Vec::new(),
@@ -124,8 +124,8 @@ impl RuntimeConfig {
         self
     }
 
-    pub fn with_credential_backend(mut self, backend: RuntimeCredentialConfig) -> Self {
-        self.credential_backend = backend;
+    pub fn with_secret_backend(mut self, backend: RuntimeSecretConfig) -> Self {
+        self.secret_backend = backend;
         self
     }
 
@@ -180,7 +180,7 @@ impl fmt::Debug for RuntimeConfig {
             .field("storage", &self.storage)
             .field("application_root", &self.application_root)
             .field("hub_metadata", &self.hub_metadata)
-            .field("credential_backend", &self.credential_backend)
+            .field("secret_backend", &self.secret_backend)
             .field("installed_plugins", &self.installed_plugins)
             .field("plugins", &self.plugins)
             .field("action_dispatchers", &self.action_dispatchers.keys().collect::<Vec<_>>())
@@ -188,9 +188,9 @@ impl fmt::Debug for RuntimeConfig {
     }
 }
 
-impl Default for RuntimeCredentialConfig {
+impl Default for RuntimeSecretConfig {
     fn default() -> Self {
-        Self { backend: CredentialBackendKind::OsKeyring, local_file: None }
+        Self { backend: SecretBackendKind::OsKeyring, local_file: None }
     }
 }
 

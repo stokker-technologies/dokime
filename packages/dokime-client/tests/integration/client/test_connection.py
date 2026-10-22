@@ -165,7 +165,7 @@ def test_endpoint_refusals(endpoint: str) -> None:
 
 
 @pytest.mark.parametrize("endpoint", ["http://lab.example:8765", "https://lab.example:8765", "http://192.0.2.1:8765"])
-def test_transport_credentials(endpoint: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_transport_secrets(endpoint: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DOKIME_KEY", raising=False)
     client = DokimeClient(endpoint)
     assert client._transport._channel is None
@@ -177,7 +177,7 @@ def test_transport_credentials(endpoint: str, monkeypatch: pytest.MonkeyPatch, t
         trusted = DokimeClient(endpoint, ca_certificate_pem="certificate")
         assert trusted._transport._channel is None
 
-    with pytest.raises(ValueError, match="selected credential input must be a regular file"):
+    with pytest.raises(ValueError, match="selected secret input must be a regular file"):
         DokimeClient(endpoint, key_file=tmp_path / "missing.key")
 
 

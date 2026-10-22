@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Resolve Explicit Remote Credentials Without Changing Process Environment"""
+"""Resolve Explicit Remote Secrets Without Changing Process Environment"""
 
 # === Imports === #
 
@@ -59,17 +59,17 @@ def load_key(*, key_file: str | Path | None = None, env_file: str | Path | None 
 
 def _read(path: Path, limit: int) -> str:
     if not path.is_file():
-        raise ValueError("The selected credential input must be a regular file.")
+        raise ValueError("The selected secret input must be a regular file.")
     with path.open("rb") as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-            raise ValueError("The selected credential input must be a regular file.")
+            raise ValueError("The selected secret input must be a regular file.")
         data = stream.read(limit + 1)
     if len(data) > limit:
-        raise ValueError("The selected credential input exceeds its byte limit.")
+        raise ValueError("The selected secret input exceeds its byte limit.")
     try:
         return data.decode("utf-8")
     except UnicodeError:
-        raise ValueError("The selected credential input must be UTF-8 text.") from None
+        raise ValueError("The selected secret input must be UTF-8 text.") from None
 
 
 def _environment(path: str | Path) -> dict[str, str]:

@@ -190,7 +190,7 @@ impl ScopedFixture {
         session
             .connect(dokime_gui::connection::ConnectRequest {
                 target: dokime_gui::connection::ConnectionTarget::Local { endpoint: server.local_endpoint() },
-                credentials: dokime_gui::connection::ConnectionCredentials::None,
+                secrets: dokime_gui::connection::ConnectionSecrets::None,
                 expected_backend_id: None,
             })
             .await

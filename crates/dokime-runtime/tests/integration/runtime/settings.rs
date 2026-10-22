@@ -17,12 +17,12 @@
 use std::{collections::BTreeMap, fs, sync::Arc};
 // Third Party Imports
 use dokime_runtime::domains::{ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse};
-use dokime_runtime::{CredentialBackendKind, HostCardBlock, HostCardTone, Identifier, Metadata, RedactedCredentialBinding, Value};
+use dokime_runtime::{HostCardBlock, HostCardTone, Identifier, Metadata, RedactedSecretBinding, SecretBackendKind, Value};
 // Local Imports
 use dokime_runtime::domains::settings::RuntimeSettingsCardState;
-use dokime_runtime::{RuntimeCredentialConfig, RuntimeHandle};
+use dokime_runtime::{RuntimeHandle, RuntimeSecretConfig};
 
-use dokime_runtime::domains::installed_plugins::{PluginCredentialSecretUpdate, PluginSettingsUpdate};
+use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
 use dokime_runtime::settings::{SecretReference, SecretSetting, SettingValues, Settings, SettingsEntry, TextArea};
 
 /* === Constants === */
@@ -65,7 +65,7 @@ async fn fixture_runtime_with_dispatcher(
     let root = tempfile::tempdir().unwrap();
     let artifact_id = module.as_ref().map(|module| Identifier::new(&module.source).unwrap());
     let mut config = crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.fixture", "Runtime"))
-        .with_credential_backend(RuntimeCredentialConfig { backend: CredentialBackendKind::Memory, local_file: None })
+        .with_secret_backend(RuntimeSecretConfig { backend: SecretBackendKind::Memory, local_file: None })
         .with_installed_plugins(module);
     if let (Some(artifact_id), Some(dispatcher)) = (artifact_id, dispatcher) {
         config = config.with_action_dispatcher(artifact_id, dispatcher);
@@ -223,17 +223,14 @@ async fn resolves_one_record() {
     let mut artifact = installed_plugin("fabric");
     artifact.settings = settings;
     let (_root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
-    handle
-        .save_plugin_credential_secret(&artifact_id, "access_token", PluginCredentialSecretUpdate { secret: "secret-token".into() })
-        .await
-        .unwrap();
+    handle.save_plugin_secret(&artifact_id, "access_token", PluginSecretUpdate { secret: "secret-token".into() }).await.unwrap();
     handle
         .save_plugin_settings(
             &artifact_id,
             PluginSettingsUpdate {
                 values: BTreeMap::from([
                     ("workspace".into(), Value::from("team-prod")),
-                    ("access_token".into(), SecretReference::StoredCredential { credential_id: "fabric.access_token".into() }.into()),
+                    ("access_token".into(), SecretReference::StoredSecret { secret_id: "fabric.access_token".into() }.into()),
                 ]),
             },
         )
@@ -244,14 +241,10 @@ async fn resolves_one_record() {
 
     assert_eq!(resolved.values["workspace"], Value::from("team-prod"));
     assert_eq!(
-        resolved.credential_bindings.bindings["access_token"],
-        RedactedCredentialBinding {
-            credential_id: "fabric.access_token".to_owned(),
-            backend: CredentialBackendKind::Memory,
-            configured: true,
-        }
+        resolved.secret_bindings.bindings["access_token"],
+        RedactedSecretBinding { secret_id: "fabric.access_token".to_owned(), backend: SecretBackendKind::Memory, configured: true }
     );
-    assert!(resolved.credential_bindings.missing_required.is_empty());
+    assert!(resolved.secret_bindings.missing_required.is_empty());
     runtime.shutdown().await.unwrap();
 }
 
@@ -281,13 +274,10 @@ async fn secret_references_file() {
     let mut artifact = installed_plugin("fixture");
     artifact.settings = catalog;
     let (root, mut runtime, handle) = fixture_runtime(Some(artifact)).await;
-    handle
-        .save_plugin_credential_secret(&id, "token", PluginCredentialSecretUpdate { secret: "never-persist-plaintext-here".into() })
-        .await
-        .unwrap();
+    handle.save_plugin_secret(&id, "token", PluginSecretUpdate { secret: "never-persist-plaintext-here".into() }).await.unwrap();
     let resolved = handle.plugin_settings(&id).await.unwrap();
     assert_eq!(resolved.values["name"], "default-name".into());
-    assert!(resolved.credential_bindings.missing_required.is_empty());
+    assert!(resolved.secret_bindings.missing_required.is_empty());
     handle.save_plugin_settings(&id, PluginSettingsUpdate { values: resolved.values.clone() }).await.unwrap();
     let settings_file = root.path().join("application/settings.json");
     let saved = handle.plugin_settings(&id).await.unwrap();
@@ -311,9 +301,9 @@ async fn secret_references_file() {
 }
 
 #[tokio::test]
-async fn local_credentials_state() {
+async fn local_secrets_state() {
     let root = tempfile::tempdir().unwrap();
-    let path = root.path().join("credentials.json");
+    let path = root.path().join("secrets.json");
     let id = Identifier::new("zephyr").unwrap();
     let mut artifact = installed_plugin(id.as_str());
     artifact.settings = Settings {
@@ -325,23 +315,20 @@ async fn local_credentials_state() {
             default: None,
         })],
     };
-    let config = crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.credentials", "Credentials"))
-        .with_credential_backend(RuntimeCredentialConfig { backend: CredentialBackendKind::LocalFile, local_file: Some(path.clone()) })
+    let config = crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.secrets", "Secrets"))
+        .with_secret_backend(RuntimeSecretConfig { backend: SecretBackendKind::LocalFile, local_file: Some(path.clone()) })
         .with_installed_plugins([artifact]);
     let mut runtime = dokime_runtime::Runtime::start(config.clone()).await.unwrap();
-    let settings = runtime
-        .handle()
-        .save_plugin_credential_secret(&id, "api_token", PluginCredentialSecretUpdate { secret: "secret-token".into() })
-        .await
-        .unwrap();
+    let settings =
+        runtime.handle().save_plugin_secret(&id, "api_token", PluginSecretUpdate { secret: "secret-token".into() }).await.unwrap();
     assert_eq!(
-        settings.credential_bindings.bindings["api_token"],
-        RedactedCredentialBinding { credential_id: "zephyr.api_token".into(), backend: CredentialBackendKind::LocalFile, configured: true }
+        settings.secret_bindings.bindings["api_token"],
+        RedactedSecretBinding { secret_id: "zephyr.api_token".into(), backend: SecretBackendKind::LocalFile, configured: true }
     );
     assert!(!serde_json::to_string(&settings).unwrap().contains("secret-token"));
     runtime.shutdown().await.unwrap();
 
-    // The Secret Reopens From The Credential File, Never From Settings
+    // The Secret Reopens From The Secret File, Never From Settings
     let persisted: BTreeMap<String, String> = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     assert_eq!(persisted["zephyr.api_token"], "secret-token");
     let mut reopened = dokime_runtime::Runtime::start(config).await.unwrap();

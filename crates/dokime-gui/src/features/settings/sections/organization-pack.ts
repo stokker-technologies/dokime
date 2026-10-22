@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import { organizationPackError, type OrganizationPackSummary, type OrganizationStatus } from "@/lib/desktop/organization";
+import { type OrganizationPackSummary, type OrganizationStatus, organizationPackError } from "@/lib/desktop/organization";
 
 /* === Re-Exports === */
 

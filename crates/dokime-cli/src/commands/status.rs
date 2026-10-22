@@ -69,8 +69,8 @@ pub(super) async fn check(connection: crate::connection::Args, json: bool) -> cr
         Err(error) => {
             let status = match &error {
                 crate::Error::Client(error) => serde_json::to_value(error.connection_failure())?,
-                crate::Error::Credentials(_) | crate::Error::CredentialTimeout => {
-                    serde_json::json!("credentials_unavailable")
+                crate::Error::Secrets(_) | crate::Error::SecretTimeout => {
+                    serde_json::json!("secrets_unavailable")
                 }
                 crate::Error::Io(error) if error.kind() == std::io::ErrorKind::TimedOut => {
                     serde_json::json!("timed_out")
@@ -88,7 +88,7 @@ pub(super) async fn check(connection: crate::connection::Args, json: bool) -> cr
                     Some("timed_out") => "Timed Out",
                     Some("incompatible") => "Incompatible",
                     Some("not_ready") => "Not Ready",
-                    Some("credentials_unavailable") => "Credentials Unavailable",
+                    Some("secrets_unavailable") => "Secrets Unavailable",
                     _ => "Failed",
                 };
                 println!("{label}: {endpoint}");

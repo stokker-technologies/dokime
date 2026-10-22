@@ -15,13 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useAutosave } from "@/features/settings/settings-autosave";
-import type {
-  PluginRuntimeCredentialBindings,
-  SecretReference,
-  Settings,
-  SettingsEntry,
-  SettingValues,
-} from "./installed-plugin-contracts";
+import type { PluginRuntimeSecretBindings, SecretReference, Settings, SettingsEntry, SettingValues } from "./installed-plugin-contracts";
 
 type Props = {
   schema: Settings;
@@ -38,7 +32,7 @@ type Props = {
   onSubmit: (values: SettingValues) => Promise<void>;
   onSaveSecret: (id: string, secret: string) => void;
   savingSecret: boolean;
-  bindings: PluginRuntimeCredentialBindings;
+  bindings: PluginRuntimeSecretBindings;
 };
 
 /**
@@ -222,7 +216,7 @@ function SecretField({
   configured: boolean;
 }) {
   const [secret, setSecret] = useState("");
-  const kind = reference?.kind ?? "stored_credential";
+  const kind = reference?.kind ?? "stored_secret";
   return (
     <div className="grid gap-2">
       <select
@@ -230,30 +224,28 @@ function SecretField({
         aria-label="Secret reference source"
         value={kind}
         onChange={(event) =>
-          onChange(
-            event.target.value === "environment" ? { kind: "environment", variable: "" } : { kind: "stored_credential", credential_id: "" },
-          )
+          onChange(event.target.value === "environment" ? { kind: "environment", variable: "" } : { kind: "stored_secret", secret_id: "" })
         }
       >
-        <option value="stored_credential">Stored credential</option>
+        <option value="stored_secret">Stored secret</option>
         <option value="environment">Environment variable</option>
       </select>
       <Input
         id={id}
         autoComplete="off"
-        placeholder={kind === "environment" ? "ENVIRONMENT_VARIABLE" : "Stored credential ID"}
-        value={reference?.kind === "environment" ? reference.variable : (reference?.credential_id ?? "")}
+        placeholder={kind === "environment" ? "ENVIRONMENT_VARIABLE" : "Stored secret ID"}
+        value={reference?.kind === "environment" ? reference.variable : (reference?.secret_id ?? "")}
         onChange={(event) =>
           onChange(
             event.target.value === ""
               ? undefined
               : kind === "environment"
                 ? { kind, variable: event.target.value }
-                : { kind, credential_id: event.target.value },
+                : { kind, secret_id: event.target.value },
           )
         }
       />
-      {kind === "stored_credential" && (
+      {kind === "stored_secret" && (
         <Input
           aria-label="Secret value"
           type="password"
@@ -281,8 +273,8 @@ function secretReference(value: SettingValues[string] | undefined): SecretRefere
   if (value.kind === "environment" && typeof value.variable === "string") {
     return { kind: "environment", variable: value.variable };
   }
-  if (value.kind === "stored_credential" && typeof value.credential_id === "string") {
-    return { kind: "stored_credential", credential_id: value.credential_id };
+  if (value.kind === "stored_secret" && typeof value.secret_id === "string") {
+    return { kind: "stored_secret", secret_id: value.secret_id };
   }
   return undefined;
 }

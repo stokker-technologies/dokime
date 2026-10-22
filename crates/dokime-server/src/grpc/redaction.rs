@@ -68,7 +68,7 @@ pub(crate) fn text(value: &str) -> String {
 /* === Private Functions === */
 
 fn is_redacted_evidence(value: &Value) -> bool {
-    value.as_object().is_some_and(|fields| fields.contains_key("credential_id") && fields.contains_key("configured"))
+    value.as_object().is_some_and(|fields| fields.contains_key("secret_id") && fields.contains_key("configured"))
 }
 
 /* === Tests === */

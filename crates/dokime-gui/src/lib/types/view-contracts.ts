@@ -18,8 +18,8 @@ export type ActorId = string;
 
 export type ArtifactId = string;
 
-export type PluginRuntimeCredentialBindings = {
-  bindings?: { [key in string]: RedactedCredentialBinding };
+export type PluginRuntimeSecretBindings = {
+  bindings?: { [key in string]: RedactedSecretBinding };
   missing_required?: string[];
 };
 
@@ -37,7 +37,7 @@ export type Choice = {
   title: string;
 };
 
-export type CredentialBackendKind = "os_keyring" | "memory" | "local_file";
+export type SecretBackendKind = "os_keyring" | "memory" | "local_file";
 
 export type CriterionId = string;
 
@@ -469,9 +469,9 @@ export type RecordScope = {
   suite_id?: SuiteId | null;
 };
 
-export type RedactedCredentialBinding = {
-  credential_id: string;
-  backend: CredentialBackendKind;
+export type RedactedSecretBinding = {
+  secret_id: string;
+  backend: SecretBackendKind;
   configured: boolean;
 };
 
@@ -516,7 +516,7 @@ export type RuntimePluginSettings = {
    * a `Discovered` marker and no run uses it until it is saved.
    */
   discovered?: { [key in string]: Value };
-  credential_bindings: PluginRuntimeCredentialBindings;
+  secret_bindings: PluginRuntimeSecretBindings;
 };
 
 export type RuntimeSettingsCard = {
@@ -560,7 +560,7 @@ export type RuntimeThemeFamily = {
   dark: ThemeVariant;
 };
 
-export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_credential"; credential_id: string };
+export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_secret"; secret_id: string };
 
 export type SecretSetting = {
   id: string;

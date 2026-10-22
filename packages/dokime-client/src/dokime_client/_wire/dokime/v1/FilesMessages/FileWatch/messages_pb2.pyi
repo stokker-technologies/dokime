@@ -245,12 +245,12 @@ class Row34(_message.Message):
     def __init__(self, root: _Optional[str] = ...) -> None: ...
 
 class Row35(_message.Message):
-    __slots__ = ("url", "credential_id")
+    __slots__ = ("url", "secret_id")
     URL_FIELD_NUMBER: _ClassVar[int]
-    CREDENTIAL_ID_FIELD_NUMBER: _ClassVar[int]
+    SECRET_ID_FIELD_NUMBER: _ClassVar[int]
     url: str
-    credential_id: str
-    def __init__(self, url: _Optional[str] = ..., credential_id: _Optional[str] = ...) -> None: ...
+    secret_id: str
+    def __init__(self, url: _Optional[str] = ..., secret_id: _Optional[str] = ...) -> None: ...
 
 class Row36(_message.Message):
     __slots__ = ("Unspecified", "Baseline", "Capturing", "Synced")

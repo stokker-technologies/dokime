@@ -263,7 +263,7 @@ function ListenerControls({ session, status }: { session: ConnectedSession; stat
         </SettingsRow>
       </SettingsCard>
       <SettingsCard
-        title="Credentials"
+        title="Secrets"
         description="Clients present the access key and trust the public certificate. The TLS private key stays on this host."
       >
         <SettingsRow

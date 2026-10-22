@@ -10,7 +10,6 @@
 /* === Modules === */
 
 mod catalog;
-pub mod credentials;
 mod cycle;
 mod discovery;
 mod download;
@@ -23,6 +22,7 @@ mod plugins;
 pub mod profiles;
 mod raw;
 mod rpc;
+pub mod secrets;
 mod stream;
 mod target;
 mod transport;

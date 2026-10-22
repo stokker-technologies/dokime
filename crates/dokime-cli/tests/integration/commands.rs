@@ -341,7 +341,7 @@ async fn offline_backend_profiles() {
 }
 
 #[tokio::test]
-async fn credentials_precede_operations() {
+async fn secrets_precede_operations() {
     for option in ["--ca", "--expected-backend"] {
         assert!(Cli::try_parse_from(["dokime", "status", option, "value"]).is_err());
         assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "https://host:8765", option, "value",]).is_ok());

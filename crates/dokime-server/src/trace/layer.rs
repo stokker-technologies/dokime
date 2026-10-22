@@ -17,7 +17,7 @@
 // event time, so a plugin's line reads as the plugin wrote it.
 //
 // Secrets never enter the journal: a secret-looking field name keeps only a
-// redaction marker, and bearer credentials are cut out of every text.
+// redaction marker, and bearer secrets are cut out of every text.
 
 /* === Modules === */
 

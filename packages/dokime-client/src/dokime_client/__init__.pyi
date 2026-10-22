@@ -134,7 +134,7 @@ import dokime_client._wire.dokime.v1.SettingsMessages.ReorderStorageSources.mess
 import dokime_client._wire.dokime.v1.SettingsMessages.SetStorageSourceEnabled.messages_pb2 as _wire_127
 import dokime_client._wire.dokime.v1.SettingsMessages.UpdateAppearance.messages_pb2 as _wire_128
 import dokime_client._wire.dokime.v1.SettingsMessages.UpdateDataRoot.messages_pb2 as _wire_129
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginCredential.messages_pb2 as _wire_130
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSecret.messages_pb2 as _wire_130
 import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2 as _wire_131
 import dokime_client._wire.dokime.v1.SettingsMessages.UpdateReportDefaults.messages_pb2 as _wire_132
 import dokime_client._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy.messages_pb2 as _wire_133
@@ -907,11 +907,11 @@ DokimeSettingsUpdateDataRootResponse = _wire_129.Row2
 
 DOKIME_SETTINGS_UPDATE_DATA_ROOT: Operation[DokimeSettingsUpdateDataRootRequest, DokimeSettingsUpdateDataRootResponse, Message, Message]
 
-DokimeSettingsUpdatePluginCredentialRequest = _wire_130.Row1
-DokimeSettingsUpdatePluginCredentialResponse = _wire_130.Row2
+DokimeSettingsUpdatePluginSecretRequest = _wire_130.Row1
+DokimeSettingsUpdatePluginSecretResponse = _wire_130.Row2
 
-DOKIME_SETTINGS_UPDATE_PLUGIN_CREDENTIAL: Operation[
-    DokimeSettingsUpdatePluginCredentialRequest, DokimeSettingsUpdatePluginCredentialResponse, Message, Message
+DOKIME_SETTINGS_UPDATE_PLUGIN_SECRET: Operation[
+    DokimeSettingsUpdatePluginSecretRequest, DokimeSettingsUpdatePluginSecretResponse, Message, Message
 ]
 
 DokimeSettingsUpdatePluginSettingsRequest = _wire_131.Row1

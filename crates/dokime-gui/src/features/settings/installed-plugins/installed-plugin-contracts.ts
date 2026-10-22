@@ -40,10 +40,10 @@ export type RuntimeInstalledPluginRecord = {
 import type { RuntimePluginSettings as PluginRuntimeSettings } from "@/lib/types/view-contracts";
 
 export type {
-  CredentialBackendKind,
-  PluginRuntimeCredentialBindings,
-  RedactedCredentialBinding,
+  PluginRuntimeSecretBindings,
+  RedactedSecretBinding,
   RuntimePluginSettings as PluginRuntimeSettings,
+  SecretBackendKind,
   SecretReference,
   Settings,
   SettingsEntry,
@@ -54,7 +54,7 @@ export type SettingValues = PluginRuntimeSettings["values"];
 
 /**
  * Composite plugin detail: the code-defined plugin record and its current
- * host-owned settings and credential readiness.
+ * host-owned settings and secret readiness.
  */
 export type InstalledPluginDetail = RuntimeInstalledPluginRecord & PluginRuntimeSettings;
 

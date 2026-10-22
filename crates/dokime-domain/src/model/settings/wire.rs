@@ -205,7 +205,7 @@ pub struct OnDemandRefresh {}
 pub struct PluginRuntimeSettings {
     pub settings: Option<SettingsCatalog>,
     pub values: Option<Value>,
-    pub credential_bindings: Option<PluginRuntimeCredentialBindings>,
+    pub secret_bindings: Option<PluginRuntimeSecretBindings>,
 
     // Values a plugin's discovery routes computed, by setting id, for the fields
     // nobody saved. A value here is shown on the card with a `Discovered` marker
@@ -308,23 +308,23 @@ pub struct SecretReference {
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PluginRuntimeCredentialBindingsBindingsEntry {
+pub struct PluginRuntimeSecretBindingsBindingsEntry {
     pub key: String,
-    pub value: Option<RedactedCredentialBinding>,
+    pub value: Option<RedactedSecretBinding>,
 }
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PluginRuntimeCredentialBindings {
-    pub bindings: Vec<PluginRuntimeCredentialBindingsBindingsEntry>,
+pub struct PluginRuntimeSecretBindings {
+    pub bindings: Vec<PluginRuntimeSecretBindingsBindingsEntry>,
     pub missing_required: Vec<String>,
 }
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RedactedCredentialBinding {
-    pub credential_id: String,
-    pub backend: CredentialBackendKind,
+pub struct RedactedSecretBinding {
+    pub secret_id: String,
+    pub backend: SecretBackendKind,
     pub configured: bool,
 }
 
@@ -373,7 +373,7 @@ pub enum SettingsCardState {
 
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CredentialBackendKind {
+pub enum SecretBackendKind {
     Unspecified,
     OsKeyring,
     Memory,
@@ -419,7 +419,7 @@ pub enum SettingContributionKind {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum SecretReferenceKind {
     Environment(String),
-    StoredCredential(String),
+    StoredSecret(String),
 }
 
 /* === Traits === */

@@ -40,7 +40,7 @@ const STREAMING_CASES: &[Case] = &[
             Box::pin(async move {
                 let entries = Vec::<model::content::wire::UploadArtifactFrame>::new();
                 let frames = tokio_stream::iter(entries);
-                let request = credentialed(frames, token);
+                let request = secreted(frames, token);
                 let client = WireClient::new(stream);
                 let response = client.upload::<contracts::content::UploadArtifact>(request).await;
                 response.err()
@@ -53,7 +53,7 @@ const STREAMING_CASES: &[Case] = &[
             Box::pin(async move {
                 let entries = Vec::<model::plugins::wire::StagePluginFrame>::new();
                 let frames = tokio_stream::iter(entries);
-                let request = credentialed(frames, token);
+                let request = secreted(frames, token);
                 let client = WireClient::new(stream);
                 let response = client.upload::<contracts::plugins::Stage>(request).await;
                 response.err()
@@ -79,7 +79,7 @@ macro_rules! matrix {
                     let request: $operation =
                         matrix!(@request $($request)?);
                     WireClient::new(stream)
-                        .$method::<$operation>(credentialed(request, token))
+                        .$method::<$operation>(secreted(request, token))
                         .await
                         .err()
                 })
@@ -272,7 +272,7 @@ matrix! {
     "/dokime.v1.Settings/UpdateAppearance", unary, contracts::settings::UpdateAppearance;
     "/dokime.v1.Settings/UpdateDataRoot", unary, contracts::settings::UpdateDataRoot;
     "/dokime.v1.Settings/UpdateReportDefaults", unary, contracts::settings::UpdateReportDefaults;
-    "/dokime.v1.Settings/UpdatePluginCredential", unary, contracts::settings::UpdatePluginCredential;
+    "/dokime.v1.Settings/UpdatePluginSecret", unary, contracts::settings::UpdatePluginSecret;
     "/dokime.v1.Settings/UpdatePluginSettings", unary, contracts::settings::UpdatePluginSettings;
     "/dokime.v1.Telemetry/ListSamples", unary, contracts::telemetry::ListSamples;
 }
@@ -298,7 +298,7 @@ struct Case {
 
 /* === Private Functions === */
 
-fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
+fn secreted<T>(message: T, token: Option<&'static str>) -> Request<T> {
     match token {
         Some(token) => auth(message, token),
         None => Request::new(message),
@@ -331,7 +331,7 @@ where
         client.ready().await.unwrap();
         let declaration = O::default();
         let envelope = dokime::harmos::operations::Response::new(declaration);
-        let request = credentialed(envelope, token);
+        let request = secreted(envelope, token);
         let route = tonic::codegen::http::uri::PathAndQuery::from_static(path);
         let response = client.unary(request, route, codec).await;
         response.err()
@@ -393,7 +393,7 @@ async fn assert_remote_key_boundary(authenticated: bool) {
 
     // One Valid Key Or Explicit Authentication-Off Grants All Remote Product Methods.
     let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
-        .unary::<contracts::backend::GetAvailability>(credentialed(contracts::backend::GetAvailability {}, token))
+        .unary::<contracts::backend::GetAvailability>(secreted(contracts::backend::GetAvailability {}, token))
         .await
         .unwrap()
         .into_inner()

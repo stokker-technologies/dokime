@@ -23,13 +23,13 @@ from google.protobuf.message import Message
 from ..operation import Operation, ResponseStream
 from . import _wire
 from ._transport import DiscoveredOperation, Transport, _cursor
-from .credentials import load_key
 from .errors import ProtocolError, RpcError
 from .execution import Cycle, Execution
 from .execution.request import _identity
 from .models import Backend, Suite
 from .models import Template as TemplateSummary
 from .planning import Template
+from .secrets import load_key
 
 # Type Checking Imports
 
@@ -94,7 +94,7 @@ class DokimeClient:
             expected_backend_id=profile.expected_backend_id,
             ca_certificate_pem=profile.ca_certificate_pem,
         )
-        if profile.credential == "keyring" and not client._transport._metadata:
+        if profile.secret == "keyring" and not client._transport._metadata:
             raise ValueError("This profile requires --key-file or DOKIME_KEY supplied by the caller.")
         return client
 

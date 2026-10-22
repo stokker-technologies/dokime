@@ -67,9 +67,9 @@ pub struct FtpWatchSource {
     #[row(description = "`ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.")]
     pub url: String,
 
-    // The host credential store entry holding the password; absent logs in anonymously.
-    #[row(description = "The host credential store entry holding the password; absent logs in anonymously.")]
-    pub credential_id: Option<String>,
+    // The host secret store entry holding the password; absent logs in anonymously.
+    #[row(description = "The host secret store entry holding the password; absent logs in anonymously.")]
+    pub secret_id: Option<String>,
 }
 
 #[harmos_domain::message]

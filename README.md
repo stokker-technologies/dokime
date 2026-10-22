@@ -219,7 +219,7 @@ dokime-server --grpc-web --allowed-origin https://frontend.example
 ```
 
 Repeat `--allowed-origin` for additional origins. An origin contains only its
-scheme and authority; paths, credentials and wildcards are refused, and an
+scheme and authority; paths, secrets and wildcards are refused, and an
 origin without `--grpc-web` is an error. The standalone listener is native and
 requires a loopback address. Remote listeners use the persistent Remote Access
 settings, with TLS and access-key authentication selected independently;
@@ -369,20 +369,20 @@ save dialog. The Python handles provide `await execution.export(path)` and
 `await cycle.export(path)`, with `overwrite=True` for explicit replacement.
 
 Selection uses explicit `--backend` or `--endpoint`, then `DOKIME_BACKEND`, then
-that configuration's saved default. An explicit endpoint uses only credentials
+that configuration's saved default. An explicit endpoint uses only secrets
 supplied for that invocation. Profile edits affect future connections.
 `backend list`, `show`, `use`, and `remove` operate offline; removal clears a
-matching default and retains OS credentials. `auth login` negotiates backend
+matching default and retains OS secrets. `auth login` negotiates backend
 identity and the operations available to the caller with the supplied bearer, then saves it for
 that endpoint and marks the selected profile for keyring lookup. It refuses a
 profile whose target changed during login. `auth logout` removes the local
-credential; it sends no revocation request. Use `--key-file` on individual
+secret; it sends no revocation request. Use `--key-file` on individual
 commands for headless connections when an OS store is unavailable.
 
 Backend identity includes the server's compiled Rust `target` alongside its
 product version, even when the desktop runs on a different operating system.
 
-Credential precedence is `--key-file`, process `DOKIME_KEY`, then `DOKIME_KEY`
+Secret precedence is `--key-file`, process `DOKIME_KEY`, then `DOKIME_KEY`
 from an explicitly selected `--env-file`. Dotenv values fill absent process
 variables; they never override them or search parent directories. Selected
 files must be valid UTF-8 regular files, even when another source supplies the
@@ -403,18 +403,18 @@ operations still depend on the receiving listener's policy.
 
 `status` and `auth status` perform a bounded live check. JSON distinguishes
 `ready`, `unreachable`, `authentication`, `permission_denied`, `incompatible`,
-`not_ready`, `timed_out` and `credentials_unavailable`; failed checks return exit
-code 1. `--timeout-seconds` bounds connection and credential-store waits. A
+`not_ready`, `timed_out` and `secrets_unavailable`; failed checks return exit
+code 1. `--timeout-seconds` bounds connection and secret-store waits. A
 store operation already in progress can finish after its caller times out.
-Profile settings and OS credentials are separate writes: a file publication
-failure can leave the credential saved, and explicit logout removes it.
+Profile settings and OS secrets are separate writes: a file publication
+failure can leave the secret saved, and explicit logout removes it.
 
 Configuration lives at `$XDG_CONFIG_HOME/dokime/backends.json` (falling back to
 `$HOME/.config/dokime/backends.json`) on Linux, `$APPDATA/dokime/backends.json` on
 Windows, or `$HOME/Library/Application Support/dokime/backends.json` on macOS.
 `--profiles-file` overrides `DOKIME_PROFILES_FILE` and the standard location.
 
-The version 1 JSON contract keeps secrets in a separate OS credential store:
+The version 1 JSON contract keeps secrets in a separate OS secret store:
 
 ```json
 {
@@ -425,7 +425,7 @@ The version 1 JSON contract keeps secrets in a separate OS credential store:
     "endpoint": "https://dokime.example:8765",
     "expected_backend_id": "BACKEND_ID",
     "ca_certificate_pem": null,
-    "credential": "keyring"
+    "secret": "keyring"
   }]
 }
 ```
@@ -437,6 +437,11 @@ and atomically replace the file; contention refuses the edit for retry. Tokens
 stay outside JSON. Python reads explicitly named profiles with
 `DokimeClient.from_profile("lab", key_file="remote.key")`; it uses the same configuration
 location and accepts an explicit `path` override.
+
+Development profiles now name the association `secret`. For an older file,
+retain a backup and rename each profile's `credential` key to `secret`; do not
+change its endpoint or value. Existing endpoint-keyed OS entries remain in place.
+An incompatible file is rejected without being overwritten or reset.
 
 ## Planning And Creating Cycles
 
@@ -823,7 +828,7 @@ command prints its full flags with `--help`. Backend RPC commands accept
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
 | `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--expected-backend` |
-| `dokime auth login\|status\|logout` | Validate, save or remove local credentials. | `--key-file` |
+| `dokime auth login\|status\|logout` | Validate, save or remove local secrets. | `--key-file` |
 | `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--endpoint`, `--keyring`, `--profiles-file` |
 | `dokime serve` | Run the installed `dokime-server`; arguments after `--` pass through. | `--server` |
 | `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
@@ -1197,7 +1202,7 @@ attached: one `rpc` command for unary calls, and one Tauri channel per server,
 client or bidirectional stream. The bridge knows paths and bytes only, fences
 every request and reply with the connection generation, cancels a stream when
 its subscription or session ends, and bounds messages by the limits the backend
-advertises. Endpoints and credentials stay in the shell. Artifact uploads and
+advertises. Endpoints and secrets stay in the shell. Artifact uploads and
 recordings keep a native file-backed adapter, because their bytes are hashed and
 patched in the shell rather than framed by the WebView.
 

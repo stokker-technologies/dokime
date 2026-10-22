@@ -43,7 +43,7 @@ pub(crate) enum Command {
     #[command(about = "Check Authentication And Backend Readiness With A Deadline.")]
     Status(status::Args),
 
-    #[command(about = "Remove Only The Selected Endpoint's Local Credentials.")]
+    #[command(about = "Remove Only The Selected Endpoint's Local Secrets.")]
     Logout(logout::Args),
 }
 

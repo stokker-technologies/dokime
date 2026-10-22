@@ -17,7 +17,7 @@ try {
     return { generation, isCurrent };
   }
   const session = connected();
-  // The WebView holds no endpoint and no credential: every call crosses the
+  // The WebView holds no endpoint and no secret: every call crosses the
   // bridge, and the only fetches left are of blobs this page created.
   const pageFetch = globalThis.fetch;
   globalThis.fetch = (input, init) => {

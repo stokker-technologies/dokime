@@ -7,7 +7,7 @@
 # ***
 
 
-"""Verify Credential Precedence And Preflight Without A Connection"""
+"""Verify Secret Precedence And Preflight Without A Connection"""
 
 # === Imports === #
 
@@ -21,7 +21,7 @@ import pytest
 
 # Local Imports
 from dokime_client.client import DokimeClient
-from dokime_client.client.credentials import _environment, load_key
+from dokime_client.client.secrets import _environment, load_key
 
 # Type Checking Imports
 
@@ -29,7 +29,7 @@ from dokime_client.client.credentials import _environment, load_key
 # === Public Exports === #
 
 # === Constants === #
-_CASES = json.loads((Path(__file__).resolve().parents[5] / "crates/dokime-client/tests/fixtures/credentials.json").read_text())
+_CASES = json.loads((Path(__file__).resolve().parents[5] / "crates/dokime-client/tests/fixtures/secrets.json").read_text())
 
 # === Types === #
 
@@ -50,7 +50,7 @@ def test_dotenv_contract(case, tmp_path):
     assert "private" not in str(error.value)
 
 
-def test_credential_precedence(tmp_path, monkeypatch):
+def test_secret_precedence(tmp_path, monkeypatch):
     key_file = tmp_path / "remote.key"
     env_file = tmp_path / "selected.env"
     key_file.write_text("a" * 32 + "\r\n", encoding="utf-8")

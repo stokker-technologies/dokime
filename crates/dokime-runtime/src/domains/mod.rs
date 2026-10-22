@@ -11,9 +11,9 @@
 
 pub mod authoring;
 
-#[cfg(feature = "host")]
-pub(crate) mod credentials;
 mod dispatch;
+#[cfg(feature = "host")]
+pub(crate) mod secrets;
 
 #[cfg(feature = "host")]
 pub(crate) mod documents;

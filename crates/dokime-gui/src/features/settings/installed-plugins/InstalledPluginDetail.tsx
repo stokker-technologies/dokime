@@ -29,13 +29,13 @@ type InstalledPluginDetailProps = {
   detail: InstalledPluginDetailModel;
   /** Resolves when the write landed; each settings row states its own outcome. */
   onSaveSettings: (pluginId: string, values: SettingValues) => Promise<void>;
-  onSaveCredential: (pluginId: string, credentialId: string, secret: string) => void;
-  savingCredential: boolean;
+  onSaveSecret: (pluginId: string, secretId: string, secret: string) => void;
+  savingSecret: boolean;
 };
 
 /* === Components === */
 
-export function InstalledPluginDetail({ detail, onSaveSettings, onSaveCredential, savingCredential }: InstalledPluginDetailProps) {
+export function InstalledPluginDetail({ detail, onSaveSettings, onSaveSecret, savingSecret }: InstalledPluginDetailProps) {
   const brand = useBrand();
   const registration =
     detail.owner?.kind === "host"
@@ -62,9 +62,9 @@ export function InstalledPluginDetail({ detail, onSaveSettings, onSaveCredential
           schema={detail.settings}
           values={detail.values}
           discovered={detail.discovered ?? {}}
-          onSaveSecret={(id, secret) => onSaveCredential(detail.plugin_id, id, secret)}
-          savingSecret={savingCredential}
-          bindings={detail.credential_bindings}
+          onSaveSecret={(id, secret) => onSaveSecret(detail.plugin_id, id, secret)}
+          savingSecret={savingSecret}
+          bindings={detail.secret_bindings}
         />
       </SettingsCard>
     </>

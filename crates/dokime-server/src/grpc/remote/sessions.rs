@@ -234,15 +234,15 @@ mod tests {
         let log = SessionLog::default();
         log.record_at(peer(5000), "access-key", Outcome::Admitted, 1_000);
         log.record_at(peer(5000), "access-key", Outcome::Admitted, 2_000);
-        log.record_at(peer(5000), "anonymous", Outcome::Rejected("invalid credentials"), 2_500);
+        log.record_at(peer(5000), "anonymous", Outcome::Rejected("invalid secrets"), 2_500);
         let page = log.list_at(None, 20, 3_000).unwrap();
         assert_eq!(page.sessions.len(), 2);
         let rejected = &page.sessions[0];
-        assert_eq!((rejected.outcome, rejected.rejection.as_deref()), (RemoteSessionOutcome::Rejected, Some("invalid credentials")));
+        assert_eq!((rejected.outcome, rejected.rejection.as_deref()), (RemoteSessionOutcome::Rejected, Some("invalid secrets")));
         let admitted = &page.sessions[1];
         assert_eq!((admitted.calls, admitted.connected_at, admitted.last_seen_at), (2, 1_000, 2_000));
         assert_eq!(admitted.disconnected_at, None);
-        log.record_at(peer(5001), "anonymous", Outcome::Rejected("invalid credentials"), 2_600);
+        log.record_at(peer(5001), "anonymous", Outcome::Rejected("invalid secrets"), 2_600);
         let grouped = log.list_at(None, 20, 3_000).unwrap();
         assert_eq!(grouped.sessions.len(), 2, "refusals from fresh ports share the host's session");
         assert_eq!((grouped.sessions[0].peer_address.as_str(), grouped.sessions[0].calls), ("192.168.1.20", 2));

@@ -23,7 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDiagnosticsQuery } from "@/features/cycle/server-state";
 import { SettingsCard } from "@/features/settings/SettingsCard";
-import { organizationPackError } from "@/lib/desktop/organization";
 import { SettingsPathField } from "@/features/settings/SettingsPathField";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
@@ -31,6 +30,7 @@ import { saveNativeDiagnosticsBundle } from "@/lib/api/native-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
 import { useApplicationSettings } from "@/lib/application-settings";
 import { bootOrganization, organizationPack } from "@/lib/brand";
+import { organizationPackError } from "@/lib/desktop/organization";
 import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
 import { formatBytes } from "@/lib/format";
 import type { DiagnosticPathKey } from "@/lib/types/view-contracts";
@@ -219,7 +219,7 @@ export function DiagnosticsBundleRow() {
 
   return (
     <SettingsRow
-      description="Share this archive with the developers when reporting a problem. Credentials are redacted."
+      description="Share this archive with the developers when reporting a problem. Secrets are redacted."
       label="Diagnostics Bundle"
     >
       {supported ? (

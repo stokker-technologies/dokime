@@ -45,8 +45,8 @@ type Publishing = Publisher<Owner>;
 struct Probe {
     starts: AtomicUsize,
     checks: AtomicUsize,
-    credentials: AtomicBool,
-    credential_ticks: AtomicUsize,
+    secrets: AtomicBool,
+    secret_ticks: AtomicUsize,
     stops: AtomicUsize,
     cleaned: AtomicBool,
     failed: AtomicUsize,
@@ -79,23 +79,23 @@ pub struct OwnerSettings {
     pub probes: Probes,
 }
 
-#[dokime_runtime::section(label = "Required Credentials")]
-struct RequiredCredentials {
+#[dokime_runtime::section(label = "Required Secrets")]
+struct RequiredSecrets {
     #[setting(label = "Token", from_environment = "OBSERVER_FIXTURE_TOKEN")]
     token: dokime_runtime::plugin::Secret,
 }
 
 #[dokime_runtime::settings]
-struct MissingCredentialSettings {
-    credentials: RequiredCredentials,
+struct MissingSecretSettings {
+    secrets: RequiredSecrets,
 }
 
-struct MissingCredentials;
+struct MissingSecrets;
 
 struct Shared {
     probe: Arc<Probe>,
     token: String,
-    credentials: bool,
+    secrets: bool,
 }
 
 struct Owner {
@@ -146,7 +146,7 @@ struct GetCountResponse {
 #[derive(Clone, PartialEq)]
 struct GetProbeResponse {
     token: String,
-    credentials: bool,
+    secrets: bool,
 }
 
 /* === Enums === */
@@ -255,7 +255,7 @@ impl GetProbeHandler {
         Self(shared)
     }
     async fn run(&mut self, _: &Supervisor, _: &mut GetProbe) -> Result<GetProbeResponse, Refusal> {
-        Ok(GetProbeResponse { token: self.0.token.clone(), credentials: self.0.credentials })
+        Ok(GetProbeResponse { token: self.0.token.clone(), secrets: self.0.secrets })
     }
 }
 
@@ -287,7 +287,7 @@ impl dokime_runtime::Plugin for Owner {
             shared: Arc::new(Shared {
                 probe: probe(&settings.probes.token),
                 token: settings.probes.token,
-                credentials: config.credentials_configured::<OwnerSettings>(),
+                secrets: config.secrets_configured::<OwnerSettings>(),
             }),
             observers: None,
         })
@@ -346,9 +346,9 @@ impl Watch {
 
     async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>) -> Result<(), WatchError> {
         let host = ctx.host().supervisor();
-        let credentials = host.call(GetProbe {}).await.map(|response| response.into_owned())?.credentials;
-        self.0.credentials.store(credentials, Ordering::Release);
-        self.0.bump(&self.0.credential_ticks);
+        let secrets = host.call(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
+        self.0.secrets.store(secrets, Ordering::Release);
+        self.0.bump(&self.0.secret_ticks);
         let index = ctx.tick().ordinal() - 1;
         ctx.publish_on::<ObservationRow>(&ObservationRow { index }).await?;
         dokime_runtime::plugin::Publisher::new(host).publish(Observed { index }).await?;
@@ -362,26 +362,26 @@ impl Watch {
     }
 }
 
-impl dokime_runtime::harmos::operations::lifecycle::Policy for MissingCredentials {
+impl dokime_runtime::harmos::operations::lifecycle::Policy for MissingSecrets {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
 #[dokime_runtime::plugin(
-    id = "missing-observer-credentials",
+    id = "missing-observer-secrets",
     provides = (),
     requires(),
-    contributions(dokime_runtime::Settings<MissingCredentialSettings>),
+    contributions(dokime_runtime::Settings<MissingSecretSettings>),
     restart = "never", description = "A plugin whose card requires a secret nobody bound.")]
-impl dokime_runtime::Plugin for MissingCredentials {
+impl dokime_runtime::Plugin for MissingSecrets {
     type Config = Configuration;
     type Error = Refusal;
     type Context = Supervisor;
     type Resources = ();
 
     fn prepare(config: Configuration) -> Result<Self, Refusal> {
-        let settings = dokime_runtime::plugin::refusal(config.settings::<MissingCredentialSettings>())?;
-        let _ = settings.credentials.token;
+        let settings = dokime_runtime::plugin::refusal(config.settings::<MissingSecretSettings>())?;
+        let _ = settings.secrets.token;
         Ok(Self)
     }
 
@@ -583,7 +583,7 @@ fn probe(token: &str) -> Arc<Probe> {
     Arc::clone(PROBES.lock().expect("the probe registry is never poisoned").get(token).expect("a run names a probe this file registered"))
 }
 fn answered(token: String) -> impl Fn(GetProbe) -> GetProbeResponse + Send + Sync + 'static {
-    move |_| GetProbeResponse { token: token.clone(), credentials: true }
+    move |_| GetProbeResponse { token: token.clone(), secrets: true }
 }
 
 /* === Tests === */
@@ -607,15 +607,14 @@ async fn activation_starts_execution() {
     assert_eq!(owner, "observer-fixture");
     assert_eq!(filed.record_type.as_str(), "observer.observed");
 
-    let Err(refused) = <MissingCredentials as dokime_runtime::Plugin>::prepare(Configuration::declared::<MissingCredentialSettings>())
-    else {
-        panic!("the required credential is absent");
+    let Err(refused) = <MissingSecrets as dokime_runtime::Plugin>::prepare(Configuration::declared::<MissingSecretSettings>()) else {
+        panic!("the required secret is absent");
     };
     assert!(refused.to_string().contains("token"), "{refused}");
-    let previous = probe.credential_ticks.load(Ordering::Acquire);
+    let previous = probe.secret_ticks.load(Ordering::Acquire);
     // The original observer ticks after another preparation fails.
-    probe.until(|probe| probe.credential_ticks.load(Ordering::Acquire) > previous).await;
-    assert!(probe.credentials.load(Ordering::Acquire));
+    probe.until(|probe| probe.secret_ticks.load(Ordering::Acquire) > previous).await;
+    assert!(probe.secrets.load(Ordering::Acquire));
     assert_eq!(probe.starts.load(Ordering::SeqCst), 1);
     native.shutdown().await;
     assert_eq!(probe.stops.load(Ordering::SeqCst), 1);

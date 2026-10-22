@@ -21,8 +21,8 @@ use thiserror::Error;
 
 // Local Imports
 use crate::settings::{SettingValues, Settings};
-use dokime_domain::model::credentials::RedactedCredentialBinding;
 use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::secrets::RedactedSecretBinding;
 
 /* === Constants === */
 
@@ -40,7 +40,7 @@ pub struct RuntimePluginSettings {
     #[serde(default)]
     pub discovered: SettingValues,
 
-    pub credential_bindings: PluginRuntimeCredentialBindings,
+    pub secret_bindings: PluginRuntimeSecretBindings,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -50,14 +50,14 @@ pub struct PluginSettingsUpdate {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PluginCredentialSecretUpdate {
+pub struct PluginSecretUpdate {
     pub secret: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PluginRuntimeCredentialBindings {
+pub struct PluginRuntimeSecretBindings {
     #[serde(default)]
-    pub bindings: std::collections::BTreeMap<String, RedactedCredentialBinding>,
+    pub bindings: std::collections::BTreeMap<String, RedactedSecretBinding>,
 
     #[serde(default)]
     pub missing_required: Vec<String>,

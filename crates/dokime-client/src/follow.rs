@@ -102,7 +102,7 @@ impl Client {
 
     // Awaits Caller Receipt Persistence After Each Durable Local Commit.
     //
-    // The snapshot contains no credentials. Persistence failure stops the reader
+    // The snapshot contains no secrets. Persistence failure stops the reader
     // before the next frame; the caller's previous external receipt remains the
     // resume authority. The initial content identity is committed before data.
     pub async fn follow_execution_file_with_commit<F, Fut, E>(

@@ -1,7 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { useEffect } from "react";
 import { useApplicationSettings } from "@/lib/application-settings";
-import { organizationPack, defaultBrand } from "@/lib/brand";
+import { defaultBrand, organizationPack } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 import { applyThemeStylesheet, applyThemeVariables, themeCornerRadiusVariables } from "@/lib/theme";

@@ -188,7 +188,7 @@ async fn plugin_settings() {
         initial.values.as_ref().unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Lab".into()))
     ));
-    assert_eq!(initial.credential_bindings.as_ref().unwrap().missing_required, vec!["fixture.token"]);
+    assert_eq!(initial.secret_bindings.as_ref().unwrap().missing_required, vec!["fixture.token"]);
 
     let update = contracts::settings::UpdatePluginSettings {
         plugin_id: "fixture.settings".into(),
@@ -204,10 +204,10 @@ async fn plugin_settings() {
     ));
 
     let updated = client
-        .unary::<contracts::settings::UpdatePluginCredential>(auth(
-            contracts::settings::UpdatePluginCredential {
+        .unary::<contracts::settings::UpdatePluginSecret>(auth(
+            contracts::settings::UpdatePluginSecret {
                 plugin_id: "fixture.settings".into(),
-                credential_id: "fixture.token".into(),
+                secret_id: "fixture.token".into(),
                 secret: "secret-material".into(),
             },
             TOKEN,
@@ -216,9 +216,9 @@ async fn plugin_settings() {
         .unwrap()
         .into_inner();
     let response_debug = format!("{updated:?}");
-    let bindings = updated.credential_bindings.unwrap();
+    let bindings = updated.secret_bindings.unwrap();
     assert!(bindings.missing_required.is_empty());
-    let token = bindings.bindings.iter().find(|entry| entry.key == "fixture.token").expect("the updated credential is bound");
+    let token = bindings.bindings.iter().find(|entry| entry.key == "fixture.token").expect("the updated secret is bound");
     assert!(token.value.as_ref().unwrap().configured);
     assert!(!response_debug.contains("secret-material"));
 

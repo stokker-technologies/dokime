@@ -9,7 +9,7 @@
 
 // A Stream watch over an in-process FTP server: listing discovery, ranged
 // retrieval from the committed offset, and the password read from the host
-// credential store by reference. FTPS needs a certificate the platform
+// secret store by reference. FTPS needs a certificate the platform
 // verifier trusts, so it is checked manually against a real server.
 
 /* === Modules === */
@@ -28,14 +28,14 @@ use unftp_sbe_fs::Filesystem;
 // Local Imports
 use super::*;
 use dokime_domain::model;
-use dokime_runtime::config::RuntimeCredentialConfig;
+use dokime_runtime::config::RuntimeSecretConfig;
 use dokime_runtime::domains::files::{GapReason, Phase, UNREACHABLE};
 use {model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload, model::files::wire::FtpWatchSource};
 
 /* === Constants === */
 const USER: &str = "bench";
 const PASSWORD: &str = "bench-secret";
-const CREDENTIAL: &str = "bench-ftp";
+const SECRET: &str = "bench-ftp";
 
 /* === Macros === */
 
@@ -52,11 +52,11 @@ struct BenchLogin;
 /* === Implementations === */
 #[async_trait::async_trait]
 impl Authenticator for BenchLogin {
-    async fn authenticate(&self, username: &str, credentials: &Credentials) -> Result<Principal, AuthenticationError> {
+    async fn authenticate(&self, username: &str, secrets: &Credentials) -> Result<Principal, AuthenticationError> {
         if username != USER {
             return Err(AuthenticationError::BadUser);
         }
-        if credentials.password.as_deref() != Some(PASSWORD) {
+        if secrets.password.as_deref() != Some(PASSWORD) {
             return Err(AuthenticationError::BadPassword);
         }
         Ok(Principal { username: username.to_owned() })
@@ -83,8 +83,8 @@ async fn serve(root: &Path) -> u16 {
     port
 }
 
-fn ftp(url: String, credential: Option<&str>) -> FileWatchSourcePayload {
-    FileWatchSourcePayload::Ftp(FtpWatchSource { url, credential_id: credential.map(str::to_owned) })
+fn ftp(url: String, secret: Option<&str>) -> FileWatchSourcePayload {
+    FileWatchSourcePayload::Ftp(FtpWatchSource { url, secret_id: secret.map(str::to_owned) })
 }
 
 // Preserve The Real Server's Data Plane While Refusing REST On Its Control Plane
@@ -128,12 +128,11 @@ async fn refusing_resume(port: u16) -> (u16, tokio::task::JoinHandle<()>) {
 #[tokio::test(flavor = "multi_thread")]
 async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() {
     let bench = Bench::start(|config, root| {
-        let credentials = root.join("credentials.json");
-        std::fs::write(&credentials, serde_json::to_string(&BTreeMap::from([(CREDENTIAL, PASSWORD)])).unwrap()).unwrap();
-        config.with_trusted_bench(true).with_credential_backend(RuntimeCredentialConfig {
-            backend: dokime_runtime::CredentialBackendKind::LocalFile,
-            local_file: Some(credentials),
-        })
+        let secrets = root.join("secrets.json");
+        std::fs::write(&secrets, serde_json::to_string(&BTreeMap::from([(SECRET, PASSWORD)])).unwrap()).unwrap();
+        config
+            .with_trusted_bench(true)
+            .with_secret_backend(RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::LocalFile, local_file: Some(secrets) })
     })
     .await;
     let served = tempdir().unwrap();
@@ -144,7 +143,7 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     let url = format!("ftp://{USER}@127.0.0.1:{port}/bench/device.log");
     let request = dokime_domain::operations::files::WatchFile {
         execution_id: Some(bench.execution.clone()),
-        source: Some(model::files::wire::FileWatchSource { payload: Some(ftp(url, Some(CREDENTIAL))) }),
+        source: Some(model::files::wire::FileWatchSource { payload: Some(ftp(url, Some(SECRET))) }),
         output: OUTPUT.to_owned(),
         artifact: None,
         policy: FileWatchPolicy::Stream,
@@ -190,13 +189,12 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
 #[tokio::test(flavor = "multi_thread")]
 async fn stream_ftp_source() {
     let bench = Bench::start(|config, root| {
-        let credentials = root.join("credentials.json");
-        let stored = BTreeMap::from([(CREDENTIAL, PASSWORD)]);
-        std::fs::write(&credentials, serde_json::to_string(&stored).unwrap()).unwrap();
-        config.with_trusted_bench(true).with_credential_backend(RuntimeCredentialConfig {
-            backend: dokime_runtime::CredentialBackendKind::LocalFile,
-            local_file: Some(credentials),
-        })
+        let secrets = root.join("secrets.json");
+        let stored = BTreeMap::from([(SECRET, PASSWORD)]);
+        std::fs::write(&secrets, serde_json::to_string(&stored).unwrap()).unwrap();
+        config
+            .with_trusted_bench(true)
+            .with_secret_backend(RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::LocalFile, local_file: Some(secrets) })
     })
     .await;
     let served = tempdir().unwrap();
@@ -207,7 +205,7 @@ async fn stream_ftp_source() {
     let url = format!("ftp://{USER}@127.0.0.1:{port}/bench");
     let rules = vec![include("**/*.log")];
 
-    // A Wrong Or Missing Credential Is Refused At Open
+    // A Wrong Or Missing Secret Is Refused At Open
     let refused = bench
         .handle
         .open_file_watch(&request(&bench.execution, ftp(url.clone(), None), rules.clone(), FileWatchPolicy::Stream), None)
@@ -221,12 +219,12 @@ async fn stream_ftp_source() {
         .await
         .err()
         .unwrap();
-    assert_eq!(missing.code(), Some("credential_not_found"), "{missing}");
+    assert_eq!(missing.code(), Some("secret_not_found"), "{missing}");
 
-    // The Stored Credential Opens The Watch; Listing Baselines Existing Files
+    // The Stored Secret Opens The Watch; Listing Baselines Existing Files
     let mut watch = bench
         .handle
-        .open_file_watch(&request(&bench.execution, ftp(url, Some(CREDENTIAL)), rules, FileWatchPolicy::Stream), None)
+        .open_file_watch(&request(&bench.execution, ftp(url, Some(SECRET)), rules, FileWatchPolicy::Stream), None)
         .await
         .unwrap();
     let first = poll(&mut watch).await;

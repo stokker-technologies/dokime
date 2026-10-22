@@ -19,7 +19,7 @@
 use serde::Serialize;
 
 // Local Imports
-use crate::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
+use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
 
 /* === Constants === */
 
@@ -85,7 +85,7 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<Conne
                 .map_err(|_| "Invalid native backend endpoint".to_owned())?;
             Ok(Some(ConnectRequest {
                 target,
-                credentials: if remote { ConnectionCredentials::Saved } else { ConnectionCredentials::None },
+                secrets: if remote { ConnectionSecrets::Saved } else { ConnectionSecrets::None },
                 expected_backend_id: backend_id,
             }))
         }

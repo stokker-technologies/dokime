@@ -28,7 +28,7 @@ export function AppRoot() {
             request: {
               target: configuration.target,
               expectedBackendId: configuration.expectedBackendId,
-              credentials: { kind: configuration.target.kind === "remote" ? "saved" : "none" },
+              secrets: { kind: configuration.target.kind === "remote" ? "saved" : "none" },
             },
           });
         } else if (configuration.localBackendAvailable) {

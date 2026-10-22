@@ -21,7 +21,7 @@ use tonic::Status;
 use super::fixture::{Gate, Listener, MemorySecrets, Service, server_health};
 use dokime::client::contracts::runtime;
 use dokime::domain::model;
-use dokime_gui::connection::{ConnectionCredentials, ConnectionError, ConnectionPhase, ConnectionSession, ConnectionTarget};
+use dokime_gui::connection::{ConnectionError, ConnectionPhase, ConnectionSecrets, ConnectionSession, ConnectionTarget};
 
 /* === Constants === */
 
@@ -138,34 +138,34 @@ async fn api_negotiation_availability() {
 }
 
 #[tokio::test]
-async fn credentials_endpoint_bound() {
+async fn secrets_endpoint_bound() {
     let secrets = MemorySecrets::default();
     let entries = secrets.0.clone();
-    let session = ConnectionSession::with_credentials(Arc::new(secrets));
+    let session = ConnectionSession::with_secrets(Arc::new(secrets));
     let mut service = Service::new("backend");
     service.token = Some("private-token".into());
     let first = Listener::start(service.clone(), false, Ipv4Addr::LOCALHOST).await;
     let second = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
     let mut request = first.local();
-    request.credentials = ConnectionCredentials::Bearer { token: "private-token".into(), remember: true };
+    request.secrets = ConnectionSecrets::Bearer { token: "private-token".into(), remember: true };
     let connected = session.connect(request).await.unwrap();
     assert!(!serde_json::to_string(&connected).unwrap().contains("private-token"));
     let mut request = first.local();
     request.target = ConnectionTarget::Local { endpoint: first.endpoint.trim_end_matches('/').into() };
-    request.credentials = ConnectionCredentials::Saved;
+    request.secrets = ConnectionSecrets::Saved;
     session.connect(request).await.unwrap();
     let mut request = second.local();
-    request.credentials = ConnectionCredentials::Saved;
-    assert_eq!(session.connect(request).await.unwrap_err(), ConnectionError::CredentialsUnavailable);
+    request.secrets = ConnectionSecrets::Saved;
+    assert_eq!(session.connect(request).await.unwrap_err(), ConnectionError::SecretsUnavailable);
     let mut request = first.local();
-    request.credentials = ConnectionCredentials::Bearer { token: "wrong".into(), remember: true };
+    request.secrets = ConnectionSecrets::Bearer { token: "wrong".into(), remember: true };
     assert_eq!(session.connect(request).await.unwrap_err(), ConnectionError::Unauthenticated);
     assert_eq!(entries.lock().unwrap().len(), 1);
     assert_eq!(entries.lock().unwrap()[&first.endpoint], "private-token");
 }
 
 #[tokio::test]
-async fn transport_and_credentials() {
+async fn transport_and_secrets() {
     let key = "fixture-access-key-012345678901234567890123456789";
     for (tls, authenticated) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut service = Service::new("remote");
@@ -193,7 +193,7 @@ async fn transport_and_credentials() {
         let requests = requests.lock().unwrap();
         assert!(!requests.is_empty());
         if !authenticated {
-            assert!(requests.iter().all(Option::is_none), "TLS alone must not add or require credentials");
+            assert!(requests.iter().all(Option::is_none), "TLS alone must not add or require secrets");
         }
         drop(requests);
         session.disconnect().unwrap();

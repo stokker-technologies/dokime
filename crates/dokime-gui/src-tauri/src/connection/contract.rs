@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct ConnectRequest {
     pub target: ConnectionTarget,
-    pub credentials: ConnectionCredentials,
+    pub secrets: ConnectionSecrets,
     pub expected_backend_id: Option<String>,
 }
 
@@ -91,7 +91,7 @@ pub enum ConnectionTarget {
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ConnectionCredentials {
+pub enum ConnectionSecrets {
     None,
     Saved,
     Bearer { token: String, remember: bool },
@@ -110,7 +110,7 @@ pub enum ConnectionPhase {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConnectionError {
     InvalidTarget { message: String },
-    CredentialsUnavailable,
+    SecretsUnavailable,
     AuthenticationRequired,
     Unauthenticated,
     PermissionDenied,

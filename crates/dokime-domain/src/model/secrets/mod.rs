@@ -7,17 +7,22 @@
  * ***
  */
 
+// Host Secret Storage Metadata And Redacted Plugin Bindings.
+
 /* === Modules === */
 
+pub mod binding;
+
 /* === Re-Exports === */
+
+pub use binding::RedactedSecretBinding;
+pub use binding::SecretBackendKind;
 
 /* === Imports === */
 
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 
@@ -29,24 +34,7 @@ use serde::Serialize;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RedactedCredentialBinding {
-    pub credential_id: String,
-    pub backend: CredentialBackendKind,
-    pub configured: bool,
-}
-
 /* === Enums === */
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CredentialBackendKind {
-    #[default]
-    OsKeyring,
-
-    Memory,
-    LocalFile,
-}
 
 /* === Traits === */
 

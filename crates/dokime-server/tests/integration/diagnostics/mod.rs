@@ -23,14 +23,14 @@ use sha2::Digest as _;
 use super::*;
 use dokime::domain::model;
 use {
-    dokime::Identifier, dokime::InstalledPlugin, dokime::Value, dokime::domains::installed_plugins::PluginCredentialSecretUpdate,
+    dokime::Identifier, dokime::InstalledPlugin, dokime::Value, dokime::domains::installed_plugins::PluginSecretUpdate,
     dokime::settings::SecretSetting, dokime::settings::SettingValues, dokime::settings::Settings, dokime::settings::SettingsEntry,
     dokime::settings::TextArea,
 };
 
 /* === Constants === */
 
-const SECRET: &str = "diagnostics-fake-credential-material";
+const SECRET: &str = "diagnostics-fake-secret-material";
 
 const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 
@@ -55,9 +55,9 @@ async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let artifact_id = Identifier::new("fixture.diagnostics").unwrap();
     environment
         .runtime
-        .save_plugin_credential_secret(&artifact_id, "fixture.token", PluginCredentialSecretUpdate { secret: SECRET.to_owned() })
+        .save_plugin_secret(&artifact_id, "fixture.token", PluginSecretUpdate { secret: SECRET.to_owned() })
         .await
-        .expect("the fixture credential is declared and storable");
+        .expect("the fixture secret is declared and storable");
     environment
         .runtime
         .record_discovered_settings(
@@ -87,7 +87,7 @@ fn secret_module() -> InstalledPlugin {
                     required: true,
                 }),
                 // Declared as free text, so nothing reduces it to a reference:
-                // its name is the only thing that says it holds a credential.
+                // its name is the only thing that says it holds a secret.
                 SettingsEntry::TextArea(TextArea {
                     id: "api_token".to_owned(),
                     title: "API token".to_owned(),
@@ -200,12 +200,12 @@ async fn collected_archive_material() {
         }
     }
     // The binding is still there to read: redaction removed the material, not
-    // the evidence that a credential is configured.
+    // the evidence that a secret is configured.
     let settings: serde_json::Value = {
         let mut entry = zip.by_name("settings/artifacts/fixture.diagnostics.json").unwrap();
         serde_json::from_reader(&mut entry).unwrap()
     };
-    assert_eq!(settings["credential_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));
+    assert_eq!(settings["secret_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));
     // The discovered field is still reported as discovered; only its value went.
     assert_eq!(settings["discovered"]["api_token"], "<redacted>");
 

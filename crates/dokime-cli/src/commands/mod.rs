@@ -46,7 +46,7 @@ use crate::version;
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
-    #[command(subcommand, about = "Validate And Manage Local Backend Credentials.")]
+    #[command(subcommand, about = "Validate And Manage Local Backend Secrets.")]
     Auth(auth::Command),
 
     #[command(about = "Check Backend Identity, Authentication And Readiness With A Deadline.")]

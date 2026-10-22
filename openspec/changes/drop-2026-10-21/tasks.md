@@ -95,7 +95,7 @@
 ## Shared Secret Storage (absorbed from the shared-secret-storage change on 2026-10-21)
 
 - [x] 69. Inventory secret persistence/keyring keys, plugin bindings and deployed consumers; lock safe adoption and disjoint ownership before the naming cutover. Proof: source inventory of `domains/credentials`, `installed_plugins/module_preferences`, `config/settings`, `model/files/wire`, client keyring/profiles and organization OAuth, recorded under Shared Secret Storage Extension in design.md.
-- [ ] 70. Replace Dokime-owned credential terminology across public declarations, operation IDs, modules, fields, settings, FTP, clients, GUI, tests, examples and guidance; preserve foreign APIs and stored values.
+- [x] 70. Replace Dokime-owned credential terminology across public declarations, operation IDs, modules, fields, settings, FTP, clients, GUI, tests, examples and guidance; preserve foreign APIs and stored values. Proof: `runtime::settings::local_secrets_state`, `test_secret_precedence`, canonical Python/TypeScript regeneration, desktop TypeScript typecheck and `mise run check`.
 - [ ] 71. Add host-owned shared named-secret lookup for all plugins with clear missing/deleted/replaced behavior and existing requirement preflight, without plugin ACLs or org-pack bindings.
 - [ ] 72. Add Secret Storage UI with target-host attribution, freely managed names/labels/descriptions, masked values and honest known-usage indication.
 - [ ] 73. Add bounded password-encrypted authenticated selected-secret export/import, conflict preview and explicit replace/skip with atomic validated import and no writes on password/tamper failure.

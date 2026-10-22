@@ -40,11 +40,11 @@ pub enum Error {
     #[error("{0}")]
     Setup(String),
 
-    #[error("Credential store deadline elapsed; an already-started store operation may still complete.")]
-    CredentialTimeout,
+    #[error("Secret store deadline elapsed; an already-started store operation may still complete.")]
+    SecretTimeout,
 
     #[error(transparent)]
-    Credentials(#[from] dokime_client::credentials::Error),
+    Secrets(#[from] dokime_client::secrets::Error),
 
     #[error("{0}")]
     Check(#[source] Box<Error>),
@@ -85,7 +85,7 @@ impl From<dokime_client::profiles::Error> for Error {
             dokime_client::profiles::Error::Invalid(message) => Self::Input(message),
             dokime_client::profiles::Error::Io(error) => error.into(),
             dokime_client::profiles::Error::Filesystem(error) => std::io::Error::from(error).into(),
-            dokime_client::profiles::Error::Credentials(error) => error.into(),
+            dokime_client::profiles::Error::Secrets(error) => error.into(),
             dokime_client::profiles::Error::Busy => Self::Setup(error.to_string()),
         }
     }

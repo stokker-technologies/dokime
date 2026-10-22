@@ -54,7 +54,7 @@ impl NetworkArgs {
             .iter()
             .map(|value| {
                 dokime::harmos::grpc::Origin::parse(value)
-                    .map_err(|_| input("browser origins require a scheme and authority without path, credentials or wildcard"))
+                    .map_err(|_| input("browser origins require a scheme and authority without path, secrets or wildcard"))
             })
             .collect::<Result<Vec<_>, _>>()?;
         if origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {

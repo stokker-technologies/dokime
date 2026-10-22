@@ -115,7 +115,7 @@ SHA-256, then choose **Install plugin**.
 Choose **Restart Now** in the restart dialog. A staged installation has not
 activated until the host restarts. Return to Plugins and check that the
 installation is enabled and its programs loaded without an error. The simulated
-plugin needs no physical device or institute credentials.
+plugin needs no physical device or institute secrets.
 
 Do this before starting any tests: a host/server restart stops work and seals
 its Active cycles.
@@ -329,4 +329,4 @@ and captured files together. Use `.quit` to leave the SQLite CLI.
 For an institute plugin, install its matching host bundle and follow its own
 settings and hardware instructions. Discover its operation IDs and templates,
 then substitute those contracts in the examples. The OBC tutorial supplies no
-institute credentials or hardware settings.
+institute secrets or hardware settings.

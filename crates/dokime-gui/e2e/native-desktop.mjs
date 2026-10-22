@@ -29,7 +29,7 @@
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
 //   f'. plugin-install  native bundle picker, digest consent, restart activation and catalog
 //   f'. organization  native pack import, restart activation and invalid-pending retention
-//   f'. remote-access  TLS/key setup, saved credentials, restart, rotation and lab modes
+//   f'. remote-access  TLS/key setup, saved secrets, restart, rotation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
@@ -1050,7 +1050,7 @@ async function drainSavedDocuments(session) {
       assert.ok(bytes.toString("utf8").trim().length > 0, "the saved access key is nonempty");
       secrets.add(base64);
       secrets.add(bytes.toString("utf8").trim());
-      const directory = join(work, "credentials");
+      const directory = join(work, "secrets");
       await mkdir(directory, { recursive: true, mode: 0o700 });
       target = join(directory, `remote-${++savedKeyCount}.key`);
     }
@@ -2611,12 +2611,12 @@ async function remoteAccessJourney() {
     try {
       result = await promisify(execFile)(cliBinary, args, { cwd: work, env, timeout: 15000 });
     } catch (error) {
-      assert.ok(!accepted, "the saved remote credentials establish a real CLI connection");
-      assert.equal(error.killed, false, "credential refusal returns without killing the client");
-      assert.ok(Number.isInteger(error.code) && error.code !== 0, "credential refusal has a native failure exit code");
+      assert.ok(!accepted, "the saved remote secrets establish a real CLI connection");
+      assert.equal(error.killed, false, "secret refusal returns without killing the client");
+      assert.ok(Number.isInteger(error.code) && error.code !== 0, "secret refusal has a native failure exit code");
       return;
     }
-    assert.ok(accepted, "superseded or missing credentials must be refused");
+    assert.ok(accepted, "superseded or missing secrets must be refused");
     assert.ok(result.stdout.trim().length > 0, "the connected CLI reads the real catalog");
     assert.ok(
       ![...secrets].some((secret) => result.stdout.includes(secret) || result.stderr.includes(secret)),
@@ -2663,7 +2663,7 @@ async function remoteAccessJourney() {
     const documents = await drainSavedDocuments(session);
     const key = documents.find((document) => document.kind === "remote_key")?.path;
     const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
-    assert.ok(key && certificate, "the GUI produces both credential files");
+    assert.ok(key && certificate, "the GUI produces both secret files");
     assert.ok((await readFile(key, "utf8")).trim() === value, "the saved key matches the one-time value");
     assert.match(await readFile(certificate, "utf8"), /-----BEGIN CERTIFICATE-----/);
     await session.clickNamed("button", "I Have Saved The Key");
@@ -2677,11 +2677,11 @@ async function remoteAccessJourney() {
   const settingsLayout = await session.execute(`
     const card = title => [...document.querySelectorAll('main section')].find(section => section.querySelector('h2')?.textContent === title);
     const listener = card('Listener').getBoundingClientRect();
-    const credentials = card('Credentials').getBoundingClientRect();
+    const secrets = card('Secrets').getBoundingClientRect();
     const sessions = card('Recent Remote Sessions').getBoundingClientRect();
-    return {columns: Math.abs(listener.top - credentials.top) < 2 && listener.right <= credentials.left,
-      equal: Math.abs(listener.width - credentials.width) < 2,
-      full: Math.abs(sessions.left - listener.left) < 2 && Math.abs(sessions.right - credentials.right) < 2};
+    return {columns: Math.abs(listener.top - secrets.top) < 2 && listener.right <= secrets.left,
+      equal: Math.abs(listener.width - secrets.width) < 2,
+      full: Math.abs(sessions.left - listener.left) < 2 && Math.abs(sessions.right - secrets.right) < 2};
   `);
   assert.ok(
     settingsLayout.columns && settingsLayout.equal && settingsLayout.full,
@@ -2710,7 +2710,7 @@ async function remoteAccessJourney() {
     await new Promise((done) => occupied.close(done));
   }
 
-  // Restart Both Clients And Server To Prove Persisted Settings And Credentials.
+  // Restart Both Clients And Server To Prove Persisted Settings And Secrets.
   const nativeEndpoint = backend.endpoint;
   await closeSession();
   await stopBackend();
@@ -2736,7 +2736,7 @@ async function remoteAccessJourney() {
   address = await endpoint();
   await connect(address, original.key, replacement.certificate, false);
   await connect(address, replacement.key, replacement.certificate, true);
-  const previousCertificate = join(work, "credentials", "previous.pem");
+  const previousCertificate = join(work, "secrets", "previous.pem");
   await copyFile(replacement.certificate, previousCertificate);
   await notice("Certificate Generated", () => session.clickNamed("button", "Regenerate Certificate"));
   address = await endpoint();
@@ -3996,8 +3996,8 @@ try {
     }
   }
   if (work)
-    await rm(join(work, "credentials"), { force: true, recursive: true }).catch(() =>
-      failures.push({ kind: "failure", name: "credential cleanup", reason: "Private temporary credential removal failed" }),
+    await rm(join(work, "secrets"), { force: true, recursive: true }).catch(() =>
+      failures.push({ kind: "failure", name: "secret cleanup", reason: "Private temporary secret removal failed" }),
     );
   if (work && !failures.length)
     await rm(work, { force: true, recursive: true }).catch((error) =>

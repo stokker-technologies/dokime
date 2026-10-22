@@ -19,18 +19,16 @@ import {
   BrandProvider,
   bootOrganization,
   brandFromLogos,
-  organizationPack,
   defaultBrand,
   defaultTitleTemplate,
+  organizationPack,
   packLogos,
 } from "@/lib/brand";
-import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import { organizationPackError } from "@/lib/desktop/organization";
+import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
-
-import { isReportBuild } from "@/lib/ui-mode";
-
 import type { RuntimeAppearanceFrame, RuntimeAppLogo, ThemeModePolicy as RuntimeThemeModePolicy } from "@/lib/types/view-contracts";
+import { isReportBuild } from "@/lib/ui-mode";
 
 /* === Re-Exports === */
 

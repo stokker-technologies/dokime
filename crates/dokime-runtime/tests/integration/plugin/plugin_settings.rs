@@ -43,7 +43,7 @@ pub struct Bench;
 #[dokime_runtime::settings]
 pub struct BenchSettings {
     pub workspace: Workspace,
-    pub credentials: Credentials,
+    pub secrets: Secrets,
 }
 #[dokime_runtime::section(label = "Workspace",
     status = GetStatus,
@@ -74,8 +74,8 @@ pub struct Workspace {
     pub archive: Option<std::path::PathBuf>,
 }
 
-#[dokime_runtime::section(label = "Credentials", description = "The section nothing but a binding fills in.")]
-pub struct Credentials {
+#[dokime_runtime::section(label = "Secrets", description = "The section nothing but a binding fills in.")]
+pub struct Secrets {
     #[setting(label = "Bearer Token", from_environment = "BENCH_TOKEN")]
     pub token: Option<Secret>,
 }
@@ -287,7 +287,7 @@ fn field_type_required() {
 #[test]
 fn section_links_default() {
     assert_eq!(<Workspace as SettingsSection>::status_operation(), Some("bench.get_status"));
-    assert_eq!(<Credentials as SettingsSection>::status_operation(), None);
+    assert_eq!(<Secrets as SettingsSection>::status_operation(), None);
     assert_eq!(<Workspace as SettingsSection>::LABEL, "Workspace");
     let discovered = <BenchSettings as PluginSettings>::discoveries();
     assert_eq!(
@@ -316,7 +316,7 @@ fn admitted_values_handed() {
     assert_eq!(settings.workspace.archive, Some(std::path::PathBuf::from("/var/bench")));
     // A secret never travels in the values: it is read out of the binding the
     // host admitted, and an unbound one is absent rather than refused.
-    assert_eq!(settings.credentials.token, None);
+    assert_eq!(settings.secrets.token, None);
 }
 
 #[test]

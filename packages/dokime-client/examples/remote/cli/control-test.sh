@@ -23,7 +23,7 @@ STREAMS="obc.pulse"
 OUTPUT_DIRECTORY="test-evidence"
 OVERWRITE=false
 
-# Select Credentials Once; Each Call Below Shows Its Remote Command.
+# Select Secrets Once; Each Call Below Shows Its Remote Command.
 set -- --endpoint "$ENDPOINT"
 if [ -n "$CA_CERTIFICATE" ]; then set -- "$@" --ca "$CA_CERTIFICATE"; fi
 if [ -n "$KEY_FILE" ]; then set -- "$@" --key-file "$KEY_FILE"; fi

@@ -101,15 +101,15 @@ pub(super) fn encode_plugin_settings(
     let mut budget = Budget::new();
     value::collection(settings.settings.contributions.len())?;
     value::collection(settings.values.len())?;
-    value::collection(settings.credential_bindings.bindings.len())?;
-    value::collection(settings.credential_bindings.missing_required.len())?;
+    value::collection(settings.secret_bindings.bindings.len())?;
+    value::collection(settings.secret_bindings.missing_required.len())?;
     let values = canonical::encode(&dokime::domain::model::values::Value::Object(settings.values), &mut budget, 0)?;
     let discovered = canonical::encode(&dokime::domain::model::values::Value::Object(settings.discovered), &mut budget, 0)?;
     let response = dokime::domain::model::settings::wire::PluginRuntimeSettings {
         settings: Some(encode_settings(settings.settings)?),
         values: Some(values),
         discovered: Some(discovered),
-        credential_bindings: Some(encode_credentials(settings.credential_bindings, &mut budget)?),
+        secret_bindings: Some(encode_secrets(settings.secret_bindings, &mut budget)?),
     };
     ensure_size(&response, max_message_bytes, "plugin settings response")?;
     Ok(response)
@@ -364,54 +364,44 @@ fn encode_secret_reference(reference: SecretReference) -> Result<dokime::domain:
     use dokime::domain::model::settings::wire::SecretReferenceKind as Kind;
     let kind = match reference {
         SecretReference::Environment { variable } => Kind::Environment(bounded_text(variable, "environment variable")?),
-        SecretReference::StoredCredential { credential_id } => Kind::StoredCredential(bounded_text(credential_id, "credential id")?),
+        SecretReference::StoredSecret { secret_id } => Kind::StoredSecret(bounded_text(secret_id, "secret id")?),
     };
     Ok(dokime::domain::model::settings::wire::SecretReference { kind: Some(kind) })
 }
 
-fn encode_credentials(
-    credentials: dokime::domains::installed_plugins::PluginRuntimeCredentialBindings, _budget: &mut Budget,
-) -> Result<dokime::domain::model::settings::wire::PluginRuntimeCredentialBindings, TonicStatus> {
-    value::collection(credentials.bindings.len())?;
-    value::collection(credentials.missing_required.len())?;
-    let bindings = credentials
+fn encode_secrets(
+    secrets: dokime::domains::installed_plugins::PluginRuntimeSecretBindings, _budget: &mut Budget,
+) -> Result<dokime::domain::model::settings::wire::PluginRuntimeSecretBindings, TonicStatus> {
+    value::collection(secrets.bindings.len())?;
+    value::collection(secrets.missing_required.len())?;
+    let bindings = secrets
         .bindings
         .into_iter()
         .map(|(key, binding)| {
-            let key = bounded_text(key, "credential binding key")?;
-            Ok(dokime::domain::model::settings::wire::PluginRuntimeCredentialBindingsBindingsEntry {
+            let key = bounded_text(key, "secret binding key")?;
+            Ok(dokime::domain::model::settings::wire::PluginRuntimeSecretBindingsBindingsEntry {
                 key,
-                value: Some(dokime::domain::model::settings::wire::RedactedCredentialBinding {
-                    credential_id: bounded_text(binding.credential_id, "credential id")?,
-                    backend: encode_credential_backend(binding.backend),
+                value: Some(dokime::domain::model::settings::wire::RedactedSecretBinding {
+                    secret_id: bounded_text(binding.secret_id, "secret id")?,
+                    backend: encode_secret_backend(binding.backend),
                     configured: binding.configured,
                 }),
             })
         })
         .collect::<Result<Vec<_>, TonicStatus>>()?;
-    Ok(dokime::domain::model::settings::wire::PluginRuntimeCredentialBindings {
+    Ok(dokime::domain::model::settings::wire::PluginRuntimeSecretBindings {
         bindings,
-        missing_required: credentials
-            .missing_required
-            .into_iter()
-            .map(|id| bounded_text(id, "missing credential id"))
-            .collect::<Result<_, _>>()?,
+        missing_required: secrets.missing_required.into_iter().map(|id| bounded_text(id, "missing secret id")).collect::<Result<_, _>>()?,
     })
 }
 
-fn encode_credential_backend(
-    backend: dokime::domain::model::credentials::CredentialBackendKind,
-) -> dokime::domain::model::settings::wire::CredentialBackendKind {
+fn encode_secret_backend(
+    backend: dokime::domain::model::secrets::SecretBackendKind,
+) -> dokime::domain::model::settings::wire::SecretBackendKind {
     match backend {
-        dokime::domain::model::credentials::CredentialBackendKind::OsKeyring => {
-            dokime::domain::model::settings::wire::CredentialBackendKind::OsKeyring
-        }
-        dokime::domain::model::credentials::CredentialBackendKind::Memory => {
-            dokime::domain::model::settings::wire::CredentialBackendKind::Memory
-        }
-        dokime::domain::model::credentials::CredentialBackendKind::LocalFile => {
-            dokime::domain::model::settings::wire::CredentialBackendKind::LocalFile
-        }
+        dokime::domain::model::secrets::SecretBackendKind::OsKeyring => dokime::domain::model::settings::wire::SecretBackendKind::OsKeyring,
+        dokime::domain::model::secrets::SecretBackendKind::Memory => dokime::domain::model::settings::wire::SecretBackendKind::Memory,
+        dokime::domain::model::secrets::SecretBackendKind::LocalFile => dokime::domain::model::settings::wire::SecretBackendKind::LocalFile,
     }
 }
 

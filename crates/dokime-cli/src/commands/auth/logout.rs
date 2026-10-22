@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::credentials::{KeyringStore, SecretStore};
+use dokime::client::secrets::{KeyringStore, SecretStore};
 
 /* === Constants === */
 
@@ -54,11 +54,11 @@ pub(super) async fn run(args: Args) -> crate::Result<()> {
     let resolved = args.connection.resolve()?;
     let endpoint = resolved.selection.target.endpoint().to_owned();
     let stored_endpoint = endpoint.clone();
-    crate::connection::credentials(args.connection.timeout(), move || KeyringStore.remove(&stored_endpoint)).await?;
+    crate::connection::secrets(args.connection.timeout(), move || KeyringStore.remove(&stored_endpoint)).await?;
     if args.json {
-        println!("{}", serde_json::json!({"status": "local_credentials_removed", "endpoint": endpoint}));
+        println!("{}", serde_json::json!({"status": "local_secrets_removed", "endpoint": endpoint}));
     } else {
-        println!("Local Credentials Removed: {endpoint}");
+        println!("Local Secrets Removed: {endpoint}");
     }
     Ok(())
 }

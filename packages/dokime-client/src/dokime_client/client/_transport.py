@@ -113,7 +113,7 @@ class Transport:
             self._channel = (
                 grpc.aio.secure_channel(
                     self._target,
-                    grpc.ssl_channel_credentials(self._ca),
+                    grpc.ssl_channel_secrets(self._ca),
                     options=options,
                 )
                 if self._tls

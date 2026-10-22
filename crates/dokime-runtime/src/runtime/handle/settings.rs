@@ -24,13 +24,13 @@ use crate::plugin::Configuration;
 use crate::settings::SecretReference;
 use crate::settings::SettingValues;
 use crate::settings::Settings;
-use crate::{RuntimeHandle, credentials::CredentialStore, runtime::Error, runtime::Result};
+use crate::{RuntimeHandle, runtime::Error, runtime::Result, secrets::SecretStore};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-const CREDENTIAL_READ_TIMEOUT: Duration = Duration::from_secs(5);
+const SECRET_READ_TIMEOUT: Duration = Duration::from_secs(5);
 
 /* === Macros === */
 
@@ -51,7 +51,7 @@ impl RuntimeHandle {
 
     fn resolved_settings(&self, plugin: &InstalledPlugin) -> Result<(SettingValues, std::collections::BTreeSet<String>)> {
         self.plugin_preferences()
-            .read(&Identifier::new(&plugin.source).map_err(operation)?, &plugin.settings, &self.credential_store())
+            .read(&Identifier::new(&plugin.source).map_err(operation)?, &plugin.settings, &self.secret_store())
             .map(|resolved| (resolved.values, resolved.saved))
             .map_err(operation)
     }
@@ -67,7 +67,7 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn resolve_secrets(&self, catalog: &Settings, values: &SettingValues) -> Result<BTreeMap<String, Option<String>>> {
-        resolved_secrets(catalog, values, &self.credential_store()).await
+        resolved_secrets(catalog, values, &self.secret_store()).await
     }
 }
 
@@ -75,9 +75,7 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-async fn resolved_secrets(
-    catalog: &Settings, values: &SettingValues, credentials: &CredentialStore,
-) -> Result<BTreeMap<String, Option<String>>> {
+async fn resolved_secrets(catalog: &Settings, values: &SettingValues, store: &SecretStore) -> Result<BTreeMap<String, Option<String>>> {
     let mut secrets = BTreeMap::new();
     for definition in catalog.secrets() {
         let reference = values.get(&definition.id).map(SecretReference::try_from).transpose().map_err(operation)?;
@@ -89,9 +87,7 @@ async fn resolved_secrets(
                     return Err(Error::Operation(format!("secret setting {:?} references a non-text environment value", definition.id)));
                 }
             },
-            Some(SecretReference::StoredCredential { credential_id }) => {
-                read_stored_credential(credentials, &definition.id, &credential_id).await?
-            }
+            Some(SecretReference::StoredSecret { secret_id }) => read_stored_secret(store, &definition.id, &secret_id).await?,
             None => None,
         };
         secrets.insert(definition.id.clone(), secret);
@@ -120,25 +116,25 @@ fn apply_configured_settings(
 
 #[tracing::instrument(
     level = "info",
-    skip(credentials),
-    fields(setting_id = %setting_id, credential_id = %credential_id)
+    skip(secrets),
+    fields(setting_id = %setting_id, secret_id = %secret_id)
 )]
-async fn read_stored_credential(credentials: &CredentialStore, setting_id: &str, credential_id: &str) -> Result<Option<String>> {
-    let credentials = credentials.clone();
-    let credential_id = credential_id.to_owned();
-    let read = tokio::task::spawn_blocking(move || credentials.get_secret(&credential_id));
-    match tokio::time::timeout(CREDENTIAL_READ_TIMEOUT, read).await {
+async fn read_stored_secret(secrets: &SecretStore, setting_id: &str, secret_id: &str) -> Result<Option<String>> {
+    let secrets = secrets.clone();
+    let secret_id = secret_id.to_owned();
+    let read = tokio::task::spawn_blocking(move || secrets.get_secret(&secret_id));
+    match tokio::time::timeout(SECRET_READ_TIMEOUT, read).await {
         Ok(Ok(Ok(secret))) => Ok(secret.map(|secret| secret.expose().to_owned())),
         Ok(Ok(Err(_backend_error))) => {
-            Err(Error::Operation(format!("secret setting {setting_id:?} could not be resolved from credential storage")))
+            Err(Error::Operation(format!("secret setting {setting_id:?} could not be resolved from secret storage")))
         }
         Ok(Err(join_error)) => Err(Error::Operation(format!(
-            "secret setting {setting_id:?} could not be resolved from credential storage: \
+            "secret setting {setting_id:?} could not be resolved from secret storage: \
              the lookup task failed ({join_error})"
         ))),
         Err(_elapsed) => Err(Error::Operation(format!(
-            "secret setting {setting_id:?} could not be resolved from credential storage: \
-             timed out after {CREDENTIAL_READ_TIMEOUT:?}"
+            "secret setting {setting_id:?} could not be resolved from secret storage: \
+             timed out after {SECRET_READ_TIMEOUT:?}"
         ))),
     }
 }

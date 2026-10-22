@@ -22,8 +22,8 @@ use dokime_domain::model;
 
 // Installed-plugin runtime contract tests.
 use dokime_runtime::{
-    RuntimeCredentialConfig,
-    domains::installed_plugins::{PluginCredentialSecretUpdate, PluginSettingsUpdate},
+    RuntimeSecretConfig,
+    domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate},
 };
 
 /* === Constants === */
@@ -205,21 +205,17 @@ async fn artifact_registration_visible() {
 #[tokio::test]
 async fn composed_plugin_process() {
     let root = tempdir().unwrap();
-    let credential_file = root.path().join("credentials.json");
-    let config = config(root.path()).with_installed_plugins([settings_artifact()]).with_credential_backend(RuntimeCredentialConfig {
-        backend: dokime_runtime::CredentialBackendKind::LocalFile,
-        local_file: Some(credential_file),
-    });
+    let secret_file = root.path().join("secrets.json");
+    let config = config(root.path())
+        .with_installed_plugins([settings_artifact()])
+        .with_secret_backend(RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::LocalFile, local_file: Some(secret_file) });
     let artifact_id = Identifier::new("settings-fixture").unwrap();
     let (mut first, runtime) = started(config.clone()).await;
     let mut values = runtime.plugin_settings(&artifact_id).await.unwrap().values;
     values.insert("workspace_id".to_owned(), dokime_runtime::Value::from("recovered-workspace"));
 
     runtime.save_plugin_settings(&artifact_id, PluginSettingsUpdate { values }).await.unwrap();
-    runtime
-        .save_plugin_credential_secret(&artifact_id, "token", PluginCredentialSecretUpdate { secret: "first-run-secret".to_owned() })
-        .await
-        .unwrap();
+    runtime.save_plugin_secret(&artifact_id, "token", PluginSecretUpdate { secret: "first-run-secret".to_owned() }).await.unwrap();
     drop(runtime);
     first.shutdown().await.unwrap();
 

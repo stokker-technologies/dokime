@@ -240,7 +240,7 @@ impl FtpSource {
 
 impl Endpoint {
     // `ftps://[user@]host[:port]/root` or `ftp://…`; a password in the URL is
-    // refused because it belongs in the credential store.
+    // refused because it belongs in the secret store.
     fn parse(url: &str, password: Option<String>) -> Result<Self> {
         let (scheme, rest) = url.split_once("://").ok_or_else(|| invalid("an FTP source needs a URL with a scheme"))?;
         let secure = match scheme.to_ascii_lowercase().as_str() {
@@ -260,7 +260,7 @@ impl Endpoint {
         }
         let (user, host_port) = match authority.rsplit_once('@') {
             Some((user, _)) if user.contains(':') => {
-                return Err(invalid("an FTP source URL must not carry a password; name a credential instead"));
+                return Err(invalid("an FTP source URL must not carry a password; name a secret instead"));
             }
             Some((user, host_port)) => (Some(user.to_owned()), host_port),
             None => (None, authority),

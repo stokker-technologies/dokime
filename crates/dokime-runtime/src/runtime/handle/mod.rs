@@ -34,10 +34,10 @@ use crate::runtime::state::RuntimeState;
 use crate::transactions::Transactions;
 use crate::{
     config::RuntimeConfig,
-    credentials::CredentialStore,
     execution_runtime::provider::{ExecutionFixture, ProviderExecutorRegistry},
     installed_plugins::module_preferences::PluginPreferences,
     runtime::error::{Error, Result},
+    secrets::SecretStore,
     telemetry_runtime::Sampling,
 };
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
@@ -68,7 +68,7 @@ struct BootParts {
     node_identity: dokime_domain::model::identity::DokimeNodeIdentity,
     application_settings: crate::config::Settings,
     plugin_preferences: PluginPreferences,
-    credentials: CredentialStore,
+    secrets: SecretStore,
     sampling: Sampling,
     providers: ProviderExecutorRegistry,
     boot_started: std::time::Instant,
@@ -126,7 +126,7 @@ pub struct RuntimeHandle {
     config: Arc<RuntimeConfig>,
     settings: crate::config::Settings,
     plugin_preferences: Arc<PluginPreferences>,
-    credentials: Arc<CredentialStore>,
+    secrets: Arc<SecretStore>,
     pub(crate) brand: Arc<RwLock<Option<crate::installed_plugins::brand::ResolvedBrand>>>,
 }
 
@@ -238,7 +238,7 @@ impl RuntimeHandle {
         .await??;
         let node_identity = application_settings.read(|document| document.identity.clone());
         let plugin_preferences = PluginPreferences::new(application_settings.clone());
-        let credentials = CredentialStore::from_config(&config.credential_backend).map_err(|error| Error::Operation(error.to_string()))?;
+        let secrets = SecretStore::from_config(&config.secret_backend).map_err(|error| Error::Operation(error.to_string()))?;
         let mut state = RuntimeState::new(config.session_id.clone());
         state.record_namespace = crate::model::identity::new_id::<dokime_domain::model::identity::SessionId>();
         if install_builtins {
@@ -293,7 +293,7 @@ impl RuntimeHandle {
             node_identity,
             application_settings,
             plugin_preferences,
-            credentials,
+            secrets,
             sampling,
             providers,
             boot_started,
@@ -340,7 +340,7 @@ impl RuntimeHandle {
             node_identity,
             application_settings,
             plugin_preferences,
-            credentials,
+            secrets,
             sampling,
             providers,
             boot_started,
@@ -440,7 +440,7 @@ impl RuntimeHandle {
             config: Arc::new(config.clone()),
             settings: application_settings,
             plugin_preferences: Arc::new(plugin_preferences),
-            credentials: Arc::new(credentials),
+            secrets: Arc::new(secrets),
             brand,
         };
 
@@ -539,8 +539,8 @@ impl RuntimeHandle {
         Arc::clone(&self.plugin_preferences)
     }
 
-    pub(crate) fn credential_store(&self) -> Arc<CredentialStore> {
-        Arc::clone(&self.credentials)
+    pub(crate) fn secret_store(&self) -> Arc<SecretStore> {
+        Arc::clone(&self.secrets)
     }
 
     pub fn subscribe_records(&self) -> RecordSubscription {

@@ -25,7 +25,7 @@ use std::{
 use super::backend::{Backend, Process};
 use super::storage::StorageRoot;
 use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
-use crate::connection::{ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget};
+use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionSession, ConnectionTarget};
 
 /* === Constants === */
 
@@ -150,13 +150,11 @@ impl DesktopSession {
                 } else {
                     ConnectionTarget::Local { endpoint: profile.endpoint.clone() }
                 };
-                let credentials = match resolved.credential {
-                    dokime::client::profiles::Credential::None => ConnectionCredentials::None,
-                    dokime::client::profiles::Credential::Keyring => ConnectionCredentials::Saved,
+                let secrets = match resolved.secret {
+                    dokime::client::profiles::Secret::None => ConnectionSecrets::None,
+                    dokime::client::profiles::Secret::Keyring => ConnectionSecrets::Saved,
                 };
-                BackendSelection::Attach {
-                    request: ConnectRequest { target, credentials, expected_backend_id: resolved.expected_backend_id },
-                }
+                BackendSelection::Attach { request: ConnectRequest { target, secrets, expected_backend_id: resolved.expected_backend_id } }
             }
             selection => selection,
         };
@@ -297,7 +295,7 @@ impl DesktopSession {
                 (
                     ConnectRequest {
                         target: ConnectionTarget::Local { endpoint },
-                        credentials: ConnectionCredentials::None,
+                        secrets: ConnectionSecrets::None,
                         expected_backend_id: None,
                     },
                     BackendOwnership::OwnedLocal,

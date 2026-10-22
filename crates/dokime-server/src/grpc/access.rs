@@ -82,29 +82,29 @@ impl Policy {
         if matches!(self, Self::Key(_)) { "access-key" } else { "anonymous" }
     }
 
-    fn authenticate_values<'a>(&self, mut credentials: impl Iterator<Item = Option<&'a str>>) -> Result<Principal, Status> {
+    fn authenticate_values<'a>(&self, mut secrets: impl Iterator<Item = Option<&'a str>>) -> Result<Principal, Status> {
         if matches!(self, Self::TrustedLocal | Self::Open) {
             let subject = if matches!(self, Self::TrustedLocal) { "local" } else { "remote" };
             return Ok(Principal { subject, local: false });
         }
-        let value = credentials
+        let value = secrets
             .next()
             .ok_or_else(|| Status::unauthenticated("authentication required"))?
-            .ok_or_else(|| Status::unauthenticated("invalid credentials"))?;
-        if credentials.next().is_some() {
-            return Err(Status::unauthenticated("invalid credentials"));
+            .ok_or_else(|| Status::unauthenticated("invalid secrets"))?;
+        if secrets.next().is_some() {
+            return Err(Status::unauthenticated("invalid secrets"));
         }
         let (_, token) = value
             .split_once(' ')
             .filter(|(scheme, token)| scheme.eq_ignore_ascii_case("bearer") && valid_key(token))
-            .ok_or_else(|| Status::unauthenticated("invalid credentials"))?;
+            .ok_or_else(|| Status::unauthenticated("invalid secrets"))?;
         let digest: [u8; 32] = Sha256::digest(token.as_bytes()).into();
         let Self::Key(expected) = self else {
             return Err(Status::unauthenticated("invalid listener policy"));
         };
         bool::from(digest.ct_eq(expected))
             .then_some(Principal { subject: "remote", local: false })
-            .ok_or_else(|| Status::unauthenticated("invalid credentials"))
+            .ok_or_else(|| Status::unauthenticated("invalid secrets"))
     }
 }
 
@@ -204,10 +204,10 @@ mod tests {
         let (remote_policy, local) = listeners.policy("127.0.0.1:45671".parse().unwrap()).unwrap();
         assert!(!local, "a loopback peer cannot turn remote transport into native trust");
         assert!(remote_policy.authenticate_values(std::iter::empty()).is_err());
-        let credential = format!("Bearer {key}");
-        let principal = remote_policy.authenticate_values([Some(credential.as_str())].into_iter()).unwrap();
+        let secret = format!("Bearer {key}");
+        let principal = remote_policy.authenticate_values([Some(secret.as_str())].into_iter()).unwrap();
         assert_eq!(principal.subject(), "remote");
-        assert!(remote_policy.authenticate_values([Some(credential.as_str()), Some(credential.as_str())].into_iter()).is_err());
+        assert!(remote_policy.authenticate_values([Some(secret.as_str()), Some(secret.as_str())].into_iter()).is_err());
         assert!(remote_policy.authenticate_values([Some("Bearer wrong-key-012345678901234567890123456789")].into_iter()).is_err());
         assert!(listeners.policy("127.0.0.1:45672".parse().unwrap()).is_err());
         assert!(listeners.policy("[::1]:45671".parse().unwrap()).is_err());

@@ -170,8 +170,8 @@ impl RuntimeHandle {
         Ok(match source.and_then(|source| source.payload.as_ref()) {
             Some(FileWatchSourcePayload::Local(local)) => Source::local(&local.root, wait).await?,
             Some(FileWatchSourcePayload::Ftp(ftp)) => {
-                let password = match &ftp.credential_id {
-                    Some(id) => Some(self.watch_credential(id).await?),
+                let password = match &ftp.secret_id {
+                    Some(id) => Some(self.watch_secret(id).await?),
                     None => None,
                 };
                 Source::ftp(&ftp.url, password, self.config().trusted_bench).await?
@@ -254,19 +254,17 @@ impl RuntimeHandle {
         })
     }
 
-    // Reads the source password from the host credential store; it never
+    // Reads the source password from the host secret store; it never
     // travels in the request.
-    async fn watch_credential(&self, credential_id: &str) -> Result<String> {
-        let credentials = self.credential_store();
-        let id = credential_id.to_owned();
-        let read = tokio::task::spawn_blocking(move || credentials.get_secret(&id));
+    async fn watch_secret(&self, secret_id: &str) -> Result<String> {
+        let secrets = self.secret_store();
+        let id = secret_id.to_owned();
+        let read = tokio::task::spawn_blocking(move || secrets.get_secret(&id));
         match tokio::time::timeout(Duration::from_secs(5), read).await {
             Ok(Ok(Ok(Some(secret)))) => Ok(secret.expose().to_owned()),
-            Ok(Ok(Ok(None))) => {
-                Err(Error::not_found("credential_not_found", format!("credential {credential_id:?} is not stored on this host")))
-            }
+            Ok(Ok(Ok(None))) => Err(Error::not_found("secret_not_found", format!("secret {secret_id:?} is not stored on this host"))),
             Ok(Ok(Err(_))) | Ok(Err(_)) | Err(_) => {
-                Err(Error::unavailable(UNREACHABLE, format!("credential {credential_id:?} could not be read from credential storage")))
+                Err(Error::unavailable(UNREACHABLE, format!("secret {secret_id:?} could not be read from secret storage")))
             }
         }
     }
@@ -310,7 +308,7 @@ fn single_file(source: Option<&FileWatchSource>) -> Result<(FileWatchSource, Str
                 FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Ftp(dokime_domain::model::files::wire::FtpWatchSource {
                         url: parent,
-                        credential_id: ftp.credential_id.clone(),
+                        secret_id: ftp.secret_id.clone(),
                     })),
                 },
                 file,

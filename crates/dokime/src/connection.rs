@@ -26,8 +26,8 @@ use zeroize::Zeroizing;
 // Local Imports
 use dokime_client::{
     Client, Target,
-    credentials::{KeyringStore, SecretStore},
-    profiles::{Credential, Selection, Store},
+    profiles::{Secret, Selection, Store},
+    secrets::{KeyringStore, SecretStore},
 };
 
 /* === Constants === */
@@ -99,7 +99,7 @@ impl Args {
                     name: None,
                     target: Target::new(endpoint, ca)?,
                     expected_backend_id: self.expected_backend.clone(),
-                    credential: Credential::None,
+                    secret: Secret::None,
                 },
                 store: None,
                 token,
@@ -122,9 +122,9 @@ impl Args {
 
     pub async fn connect_selected(&self, resolved: &Resolved, mut token: Option<Zeroizing<String>>) -> crate::client_error::Result<Client> {
         let deadline = tokio::time::Instant::now() + self.timeout();
-        if token.is_none() && resolved.selection.credential == Credential::Keyring {
+        if token.is_none() && resolved.selection.secret == Secret::Keyring {
             let endpoint = resolved.selection.target.endpoint().to_owned();
-            token = credentials(self.timeout(), move || KeyringStore.read(&endpoint)).await?;
+            token = secrets(self.timeout(), move || KeyringStore.read(&endpoint)).await?;
             if token.is_none() {
                 return Err(dokime_client::Error::AuthenticationRequired.into());
             }
@@ -150,21 +150,19 @@ impl Args {
 
 // OS Stores Can Block. Detached Workers Keep The Invocation Deadline Bounded.
 // Dropping The Receiver Does Not Cancel An OS Operation Already In Progress.
-pub async fn credentials<T, E>(
-    budget: Duration, operation: impl FnOnce() -> Result<T, E> + Send + 'static,
-) -> crate::client_error::Result<T>
+pub async fn secrets<T, E>(budget: Duration, operation: impl FnOnce() -> Result<T, E> + Send + 'static) -> crate::client_error::Result<T>
 where
     T: Send + 'static,
     E: Into<crate::client_error::Error> + Send + 'static,
 {
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    std::thread::Builder::new().name("dokime-credentials".into()).spawn(move || {
+    std::thread::Builder::new().name("dokime-secrets".into()).spawn(move || {
         let _ = sender.send(operation().map_err(Into::into));
     })?;
     tokio::time::timeout(budget, receiver)
         .await
-        .map_err(|_| crate::client_error::Error::CredentialTimeout)?
-        .map_err(|_| crate::client_error::Error::Setup("Credential store worker failed".into()))?
+        .map_err(|_| crate::client_error::Error::SecretTimeout)?
+        .map_err(|_| crate::client_error::Error::Setup("Secret store worker failed".into()))?
 }
 
 /* === Private Functions === */
@@ -229,8 +227,7 @@ mod tests {
 
     #[test]
     fn dotenv_contract() {
-        let cases: Vec<EnvironmentCase> =
-            serde_json::from_str(include_str!("../../dokime-client/tests/fixtures/credentials.json")).unwrap();
+        let cases: Vec<EnvironmentCase> = serde_json::from_str(include_str!("../../dokime-client/tests/fixtures/secrets.json")).unwrap();
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("selected.env");
         for case in cases {

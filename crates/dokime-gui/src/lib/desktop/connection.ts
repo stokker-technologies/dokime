@@ -15,12 +15,12 @@
 /** Attaching to a caller-owned listener never starts a runtime. */
 export type ConnectionTarget = { kind: "local"; endpoint: string } | { kind: "remote"; endpoint: string; caCertificatePem: string | null };
 
-/** Input-only credentials. Secrets never appear in a connection snapshot. */
-export type ConnectionCredentials = { kind: "none" } | { kind: "saved" } | { kind: "bearer"; token: string; remember: boolean };
+/** Input-only secrets. Secrets never appear in a connection snapshot. */
+export type ConnectionSecrets = { kind: "none" } | { kind: "saved" } | { kind: "bearer"; token: string; remember: boolean };
 
 export type ConnectRequest = {
   target: ConnectionTarget;
-  credentials: ConnectionCredentials;
+  secrets: ConnectionSecrets;
   expectedBackendId: string | null;
 };
 
@@ -60,7 +60,7 @@ export type ConnectionSnapshot = {
 
 export type ConnectionError =
   | { kind: "invalid_target"; message: string }
-  | { kind: "credentials_unavailable" }
+  | { kind: "secrets_unavailable" }
   | { kind: "authentication_required" }
   | { kind: "unauthenticated" }
   | { kind: "permission_denied" }
@@ -88,6 +88,6 @@ export type BackendProfiles = {
     endpoint: string;
     expected_backend_id: string | null;
     ca_certificate_pem: string | null;
-    credential: "none" | "keyring";
+    secret: "none" | "keyring";
   }[];
 };

@@ -22,8 +22,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { type OrganizationPackPresentation, organizationPackPresentation } from "@/features/settings/sections/organization-pack";
-import type { OrganizationStatus } from "@/lib/desktop/organization";
 import { commands } from "@/lib/desktop/commands";
+import type { OrganizationStatus } from "@/lib/desktop/organization";
 
 /* === Re-Exports === */
 

@@ -12,7 +12,7 @@
  * A plugin does not earn a place in the shell's navigation; it earns a page
  * under Plugins. The page bar carries the breadcrumb and its own Back chevron,
  * so this page publishes no action of its own, and the
- * body is the artifact's own editable settings and credentials followed by the
+ * body is the artifact's own editable settings and secrets followed by the
  * status cards it contributes. The Plugins list therefore stays one row per
  * plugin, with nothing nested inside it.
  */
@@ -26,8 +26,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import {
-  useInstalledPluginCredentialMutation,
   useInstalledPluginDetailQuery,
+  useInstalledPluginSecretMutation,
   useInstalledPluginSettingsMutation,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
@@ -98,20 +98,20 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
 
 /* === Private Components === */
 
-/** The artifact's own editable settings and credential bindings. */
+/** The artifact's own editable settings and secret bindings. */
 function PluginDetailCard({ pluginId }: { pluginId: string }) {
   const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
   const settingsMutation = useInstalledPluginSettingsMutation();
-  const credentialMutation = useInstalledPluginCredentialMutation();
+  const secretMutation = useInstalledPluginSecretMutation();
 
-  async function saveCredential(operation: () => Promise<unknown>) {
+  async function saveSecret(operation: () => Promise<unknown>) {
     try {
       await operation();
-      toast.success("Credential Stored");
+      toast.success("Secret Stored");
     } catch (error) {
-      toast.error("Credential Not Stored", { description: error instanceof Error ? error.message : "Settings could not be saved." });
+      toast.error("Secret Not Stored", { description: error instanceof Error ? error.message : "Settings could not be saved." });
     } finally {
-      credentialMutation.reset();
+      secretMutation.reset();
     }
   }
 
@@ -153,15 +153,13 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
   return (
     <InstalledPluginDetail
       detail={detailQuery.data}
-      onSaveCredential={(id, credentialId, secret) =>
-        void saveCredential(() => credentialMutation.mutateAsync({ pluginId: id, credentialId, secret }))
-      }
+      onSaveSecret={(id, secretId, secret) => void saveSecret(() => secretMutation.mutateAsync({ pluginId: id, secretId, secret }))}
       /* Settings write themselves and each row reports its own outcome; a
-         credential, which is an explicit write, reports through a toast. */
+         secret, which is an explicit write, reports through a toast. */
       onSaveSettings={async (id, values) => {
         await settingsMutation.mutateAsync({ pluginId: id, values });
       }}
-      savingCredential={credentialMutation.isPending}
+      savingSecret={secretMutation.isPending}
     />
   );
 }

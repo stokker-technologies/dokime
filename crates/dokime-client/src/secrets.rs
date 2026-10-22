@@ -36,7 +36,7 @@ pub struct KeyringStore;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("The OS credential store is unavailable.")]
+    #[error("The OS secret store is unavailable.")]
     Unavailable,
 }
 

@@ -59,7 +59,7 @@ pub(super) fn run(args: Args) -> crate::Result<()> {
         if let Some(identity) = &profile.expected_backend_id {
             println!("Expected Backend: {identity}");
         }
-        println!("Credential Store: {:?}", profile.credential);
+        println!("Secret Store: {:?}", profile.secret);
     }
     Ok(())
 }

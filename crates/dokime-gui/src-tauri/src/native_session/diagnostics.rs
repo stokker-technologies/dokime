@@ -18,7 +18,7 @@
  *
  * A desktop launch has no console, so an inherited stderr vanishes and a
  * failed start leaves nothing to review. The pump reads stderr line by line,
- * redacts credentials, streams every line into one per-launch log file and
+ * redacts secrets, streams every line into one per-launch log file and
  * keeps a bounded tail for the startup error. Stdout stays the readiness
  * channel; nothing here reads it.
  */
@@ -231,7 +231,7 @@ fn redact(line: &str) -> String {
                 continue;
             }
             let value = skip(bytes, separator + 1, quote_or_blank);
-            // An authorization value carries a scheme and a credential.
+            // An authorization value carries a scheme and a secret.
             let end = if key == AUTHORIZATION { quoted_end(bytes, value) } else { value_end(bytes, value) };
             masks.push((value, end));
         }
@@ -244,7 +244,7 @@ fn redact(line: &str) -> String {
     let mut cursor = 0;
     for (start, end) in masks {
         // Overlapping secrets (an authorization header holding a bearer
-        // credential) extend the mask already written.
+        // secret) extend the mask already written.
         if start < cursor {
             cursor = cursor.max(end);
             continue;

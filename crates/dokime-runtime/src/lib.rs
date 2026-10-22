@@ -128,11 +128,11 @@ pub use dokime_domain::DEV_PROTOCOL;
 pub use dokime_domain::Error as ApiError;
 pub use dokime_domain::READINESS_PROTOCOL;
 pub use dokime_domain::model::appearance::{HostCardBlock, HostCardBody, HostCardKeyValue, HostCardMetric, HostCardTone};
-pub use dokime_domain::model::credentials::*;
 pub use dokime_domain::model::diagnostics::*;
 pub use dokime_domain::model::execution::*;
 pub use dokime_domain::model::expressions;
 pub use dokime_domain::model::identity::*;
+pub use dokime_domain::model::secrets::*;
 pub use dokime_domain::model::settings;
 pub use dokime_domain::model::time::*;
 pub use dokime_domain::model::validation::*;
@@ -183,8 +183,8 @@ pub use tokio as __tokio;
 
 #[cfg(feature = "host")]
 pub(crate) use domains::{
-    credentials, documents, evidence as evidence_runtime, execution as execution_runtime, exports, installed_plugins,
-    parameters as parameter_runtime, prompts as prompt_runtime, telemetry as telemetry_runtime, traceability as traceability_runtime,
+    documents, evidence as evidence_runtime, execution as execution_runtime, exports, installed_plugins, parameters as parameter_runtime,
+    prompts as prompt_runtime, secrets, telemetry as telemetry_runtime, traceability as traceability_runtime,
 };
 
 #[cfg(feature = "host")]
@@ -203,7 +203,7 @@ pub(crate) use runtime::{handle, state as runtime_state};
 pub use app::Dokime;
 
 #[cfg(feature = "host")]
-pub use config::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, SidecarNoticeHandler};
+pub use config::{InstalledSidecar, RuntimeConfig, RuntimeSecretConfig, SidecarNoticeHandler};
 
 #[cfg(feature = "host")]
 pub use dokime_domain::model::plugins::InstalledPlugin;

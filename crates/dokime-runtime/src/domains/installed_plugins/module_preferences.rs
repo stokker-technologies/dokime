@@ -26,9 +26,9 @@ use uuid::Uuid;
 use crate::settings::{SecretReference, SettingValues, Settings};
 use crate::{
     config::Settings as ApplicationSettings,
-    credentials::{CredentialStore, CredentialStoreError},
-    installed_plugins::{PluginRuntimeCredentialBindings, RuntimePluginManagementError},
+    installed_plugins::{PluginRuntimeSecretBindings, RuntimePluginManagementError},
     plugins::ProgramValues,
+    secrets::{SecretStore, SecretStoreError},
 };
 use dokime_domain::model::identity::Identifier;
 
@@ -52,7 +52,7 @@ pub(crate) struct ResolvedPluginPreferences {
     pub values: SettingValues,
     pub saved: BTreeSet<String>,
     pub discovered: SettingValues,
-    pub redacted_credentials: PluginRuntimeCredentialBindings,
+    pub redacted_secrets: PluginRuntimeSecretBindings,
 }
 
 /* === Enums === */
@@ -71,18 +71,18 @@ impl PluginPreferences {
     }
 
     pub(crate) fn read(
-        &self, plugin_id: &Identifier, settings: &Settings, credentials: &CredentialStore,
+        &self, plugin_id: &Identifier, settings: &Settings, secrets: &SecretStore,
     ) -> Result<ResolvedPluginPreferences, RuntimePluginManagementError> {
         let stored = self.stored(plugin_id);
         let saved_values =
             stored.values.iter().filter(|(id, _)| stored.saved.contains(*id)).map(|(id, value)| (id.clone(), value.clone())).collect();
         let values = settings.resolve(&saved_values).map_err(invalid_input)?;
-        let redacted_credentials = redacted_bindings(settings, &values, credentials)?;
+        let redacted_secrets = redacted_bindings(settings, &values, secrets)?;
         // Resolved against the catalog alone: a discovered value this plugin no
         // longer declares is dropped rather than shown.
         let discovered = stored.values.into_iter().filter(|(id, _)| settings.get(id).is_some() && !stored.saved.contains(id)).collect();
 
-        Ok(ResolvedPluginPreferences { saved: stored.saved, values, discovered, redacted_credentials })
+        Ok(ResolvedPluginPreferences { saved: stored.saved, values, discovered, redacted_secrets })
     }
 
     pub(crate) fn record_discovered(&self, plugin_id: &Identifier, discovered: SettingValues) -> Result<(), RuntimePluginManagementError> {
@@ -109,11 +109,9 @@ impl PluginPreferences {
         })
     }
 
-    pub(crate) fn bind_credential(
-        &self, plugin_id: &Identifier, handle: &str, credential_id: String,
-    ) -> Result<(), RuntimePluginManagementError> {
+    pub(crate) fn bind_secret(&self, plugin_id: &Identifier, handle: &str, secret_id: String) -> Result<(), RuntimePluginManagementError> {
         self.update(plugin_id, |stored| {
-            stored.values.insert(handle.to_owned(), SecretReference::StoredCredential { credential_id }.into());
+            stored.values.insert(handle.to_owned(), SecretReference::StoredSecret { secret_id }.into());
             stored.saved.insert(handle.to_owned());
         })
     }
@@ -153,14 +151,14 @@ impl PluginPreferences {
 /* === Private Functions === */
 
 fn redacted_bindings(
-    settings: &Settings, values: &SettingValues, credentials: &CredentialStore,
-) -> Result<PluginRuntimeCredentialBindings, RuntimePluginManagementError> {
+    settings: &Settings, values: &SettingValues, secrets: &SecretStore,
+) -> Result<PluginRuntimeSecretBindings, RuntimePluginManagementError> {
     let mut redacted = BTreeMap::new();
     let mut missing_required = Vec::new();
     for declaration in settings.secrets() {
         let configured = match values.get(&declaration.id).map(SecretReference::try_from).transpose().map_err(invalid_input)? {
-            Some(SecretReference::StoredCredential { credential_id }) => {
-                let binding = credentials.redacted_binding(credential_id).map_err(credential_error)?;
+            Some(SecretReference::StoredSecret { secret_id }) => {
+                let binding = secrets.redacted_binding(secret_id).map_err(secret_error)?;
                 let configured = binding.configured;
                 redacted.insert(declaration.id.clone(), binding);
                 configured
@@ -172,10 +170,10 @@ fn redacted_bindings(
             missing_required.push(declaration.id.clone());
         }
     }
-    Ok(PluginRuntimeCredentialBindings { missing_required, bindings: redacted })
+    Ok(PluginRuntimeSecretBindings { missing_required, bindings: redacted })
 }
 
-fn credential_error(error: CredentialStoreError) -> RuntimePluginManagementError {
+fn secret_error(error: SecretStoreError) -> RuntimePluginManagementError {
     RuntimePluginManagementError::Store(error.to_string())
 }
 

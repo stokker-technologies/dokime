@@ -28,7 +28,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use super::{Target, credentials::SecretStore};
+use super::{Target, secrets::SecretStore};
 
 /* === Constants === */
 
@@ -48,7 +48,7 @@ pub struct Profile {
     pub endpoint: String,
     pub expected_backend_id: Option<String>,
     pub ca_certificate_pem: Option<String>,
-    pub credential: Credential,
+    pub secret: Secret,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -68,14 +68,14 @@ pub struct Selection {
     pub name: Option<String>,
     pub target: Target,
     pub expected_backend_id: Option<String>,
-    pub credential: Credential,
+    pub secret: Secret,
 }
 
 /* === Enums === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Credential {
+pub enum Secret {
     None,
     Keyring,
 }
@@ -95,7 +95,7 @@ pub enum Error {
     Filesystem(#[from] harmos::filesystem::Error),
 
     #[error(transparent)]
-    Credentials(#[from] super::credentials::Error),
+    Secrets(#[from] super::secrets::Error),
 }
 
 /* === Traits === */
@@ -156,7 +156,7 @@ impl Document {
         }
         if let Some(endpoint) = endpoint {
             let target = Target::new(endpoint, None).map_err(|_| invalid("invalid endpoint"))?;
-            return Ok(Selection { name: None, target, expected_backend_id: None, credential: Credential::None });
+            return Ok(Selection { name: None, target, expected_backend_id: None, secret: Secret::None });
         }
         let name =
             backend.or(environment).or(self.default.as_deref()).ok_or_else(|| invalid("select a backend profile or explicit endpoint"))?;
@@ -179,12 +179,7 @@ impl Profile {
         }
         let target = Target::new(&self.endpoint, self.ca_certificate_pem.clone())
             .map_err(|_| invalid("invalid endpoint or CA certificate association"))?;
-        Ok(Selection {
-            name: Some(self.name.clone()),
-            target,
-            expected_backend_id: self.expected_backend_id.clone(),
-            credential: self.credential,
-        })
+        Ok(Selection { name: Some(self.name.clone()), target, expected_backend_id: self.expected_backend_id.clone(), secret: self.secret })
     }
 }
 
@@ -240,7 +235,7 @@ impl Store {
 
     // Called only after bearer authentication and backend identity negotiation.
     // Protect the original profile association across the preceding network IO.
-    // A file publication failure can leave the credential saved separately.
+    // A file publication failure can leave the secret saved separately.
     pub fn remember(&self, selection: &Selection, token: &str, secrets: &dyn SecretStore) -> Result<(), Error> {
         let name = selection.name.as_deref().ok_or_else(|| invalid("a named profile is required"))?;
         self.update(|document| {
@@ -249,7 +244,7 @@ impl Store {
                 return Err(invalid("profile target changed during login; retry explicitly"));
             }
             let profile = document.profiles.iter_mut().find(|profile| profile.name == name).expect("validated profile exists");
-            profile.credential = Credential::Keyring;
+            profile.secret = Secret::Keyring;
             // Refuse Schema And Capacity Failures Before Saving A Secret.
             document.encode()?;
             secrets.write(selection.target.endpoint(), token)?;

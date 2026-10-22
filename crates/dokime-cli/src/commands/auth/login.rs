@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::credentials::{KeyringStore, SecretStore};
+use dokime::client::secrets::{KeyringStore, SecretStore};
 
 /* === Constants === */
 
@@ -55,15 +55,15 @@ pub(super) async fn run(args: Args) -> crate::Result<()> {
     client.close_and_wait().await;
     let endpoint = resolved.selection.target.endpoint().to_owned();
     let stored_endpoint = endpoint.clone();
-    crate::connection::credentials(args.connection.timeout(), move || match resolved.store {
+    crate::connection::secrets(args.connection.timeout(), move || match resolved.store {
         Some(store) => store.remember(&resolved.selection, token.as_str(), &KeyringStore).map_err(crate::Error::from),
         None => KeyringStore.write(&stored_endpoint, token.as_str()).map_err(crate::Error::from),
     })
     .await?;
     if args.json {
-        println!("{}", serde_json::json!({"status": "credential_saved", "endpoint": endpoint, "backend_id": backend.backend_id}));
+        println!("{}", serde_json::json!({"status": "secret_saved", "endpoint": endpoint, "backend_id": backend.backend_id}));
     } else {
-        println!("Credentials Saved: {} ({endpoint})", backend.backend_id);
+        println!("Secrets Saved: {} ({endpoint})", backend.backend_id);
     }
     Ok(())
 }

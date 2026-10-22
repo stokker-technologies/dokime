@@ -40,7 +40,7 @@ test("settings cards share one two-column grid and tables span both columns", ()
       SettingsGrid,
       null,
       createElement(SettingsCard, { title: "Listener" } as CardProps, "rows"),
-      createElement(SettingsCard, { title: "Credentials" } as CardProps, "rows"),
+      createElement(SettingsCard, { title: "Secrets" } as CardProps, "rows"),
       createElement(SettingsCard, { span: "full", title: "Recent Remote Sessions" } as CardProps, "table"),
     ),
   );

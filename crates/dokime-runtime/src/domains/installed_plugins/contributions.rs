@@ -51,9 +51,9 @@ use crate::{runtime::Error, runtime::Result};
 pub(crate) fn decode_registrations(
     source: &str, version: &str, description: &str, registrations: &[harmos::sidecar::Registration],
 ) -> Result<InstalledPlugin> {
-    if registrations.iter().any(|registration| matches!(registration.namespace.as_str(), "dokime.config" | "dokime.credentials")) {
+    if registrations.iter().any(|registration| matches!(registration.namespace.as_str(), "dokime.config" | "dokime.secrets")) {
         return Err(Error::Operation(format!(
-            "plugin `{source}` uses retired configuration or credential catalogs; rebuild with the unified settings catalog"
+            "plugin `{source}` uses retired configuration or secret catalogs; rebuild with the unified settings catalog"
         )));
     }
     let settings = decode_once::<SettingsRegistration>(registrations, source, SETTINGS_NAMESPACE)?.unwrap_or_default();

@@ -13,16 +13,16 @@ class Row1(_message.Message):
     def __init__(self, plugin_id: _Optional[str] = ...) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("settings", "values", "credential_bindings", "discovered")
+    __slots__ = ("settings", "values", "secret_bindings", "discovered")
     SETTINGS_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
-    CREDENTIAL_BINDINGS_FIELD_NUMBER: _ClassVar[int]
+    SECRET_BINDINGS_FIELD_NUMBER: _ClassVar[int]
     DISCOVERED_FIELD_NUMBER: _ClassVar[int]
     settings: Row3
     values: Row4
-    credential_bindings: Row5
+    secret_bindings: Row5
     discovered: Row4
-    def __init__(self, settings: _Optional[_Union[Row3, _Mapping]] = ..., values: _Optional[_Union[Row4, _Mapping]] = ..., credential_bindings: _Optional[_Union[Row5, _Mapping]] = ..., discovered: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
+    def __init__(self, settings: _Optional[_Union[Row3, _Mapping]] = ..., values: _Optional[_Union[Row4, _Mapping]] = ..., secret_bindings: _Optional[_Union[Row5, _Mapping]] = ..., discovered: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
 
 class Row3(_message.Message):
     __slots__ = ("contributions",)
@@ -103,14 +103,14 @@ class Row10(_message.Message):
     def __init__(self, Null: _Optional[_Union[Row18, _Mapping]] = ..., Bool: _Optional[_Union[Row19, _Mapping]] = ..., Integer: _Optional[_Union[Row20, _Mapping]] = ..., Unsigned: _Optional[_Union[Row21, _Mapping]] = ..., Number: _Optional[_Union[Row22, _Mapping]] = ..., Text: _Optional[_Union[Row23, _Mapping]] = ..., Datetime: _Optional[_Union[Row24, _Mapping]] = ..., Array: _Optional[_Union[Row25, _Mapping]] = ..., Object: _Optional[_Union[Row26, _Mapping]] = ...) -> None: ...
 
 class Row11(_message.Message):
-    __slots__ = ("credential_id", "backend", "configured")
-    CREDENTIAL_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("secret_id", "backend", "configured")
+    SECRET_ID_FIELD_NUMBER: _ClassVar[int]
     BACKEND_FIELD_NUMBER: _ClassVar[int]
     CONFIGURED_FIELD_NUMBER: _ClassVar[int]
-    credential_id: str
+    secret_id: str
     backend: Row27
     configured: bool
-    def __init__(self, credential_id: _Optional[str] = ..., backend: _Optional[_Union[Row27, _Mapping]] = ..., configured: _Optional[bool] = ...) -> None: ...
+    def __init__(self, secret_id: _Optional[str] = ..., backend: _Optional[_Union[Row27, _Mapping]] = ..., configured: _Optional[bool] = ...) -> None: ...
 
 class Row12(_message.Message):
     __slots__ = ("field_0",)
@@ -359,12 +359,12 @@ class Row43(_message.Message):
     def __init__(self, key: _Optional[str] = ..., value: _Optional[int] = ...) -> None: ...
 
 class Row44(_message.Message):
-    __slots__ = ("Environment", "StoredCredential")
+    __slots__ = ("Environment", "StoredSecret")
     ENVIRONMENT_FIELD_NUMBER: _ClassVar[int]
-    STOREDCREDENTIAL_FIELD_NUMBER: _ClassVar[int]
+    STOREDSECRET_FIELD_NUMBER: _ClassVar[int]
     Environment: Row45
-    StoredCredential: Row46
-    def __init__(self, Environment: _Optional[_Union[Row45, _Mapping]] = ..., StoredCredential: _Optional[_Union[Row46, _Mapping]] = ...) -> None: ...
+    StoredSecret: Row46
+    def __init__(self, Environment: _Optional[_Union[Row45, _Mapping]] = ..., StoredSecret: _Optional[_Union[Row46, _Mapping]] = ...) -> None: ...
 
 class Row45(_message.Message):
     __slots__ = ("field_0",)

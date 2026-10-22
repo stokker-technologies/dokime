@@ -65,7 +65,7 @@ The shared walkthrough places `server.pem` and `remote.key` one directory above
 `Path` imported as supplied by the scripts. The endpoint speaks native gRPC;
 its `https://` scheme enables verified TLS.
 
-Credential precedence is explicit `KEY_FILE`, process `DOKIME_KEY`, then
+Secret precedence is explicit `KEY_FILE`, process `DOKIME_KEY`, then
 `DOKIME_KEY` in an explicitly selected `ENV_FILE`. Explicit files are validated
 even when another source supplies the key. For dotenv instead of a key file,
 copy the parent `.env.example` to `.env`, fill it privately, set
@@ -201,7 +201,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | A locked wheel hash differs | Obtain the complete same-candidate artifact again; do not relock arbitrary replacement bytes. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
 | `server.pem` or `remote.key` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
-| A credential/certificate is refused | Follow the shared [connection troubleshooting](../README.md#troubleshooting), including process-key precedence and certificate identity. |
+| A secret/certificate is refused | Follow the shared [connection troubleshooting](../README.md#troubleshooting), including process-key precedence and certificate identity. |
 | There is no record or sample output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
 | Previous evidence blocks a run | Select a new output directory or explicitly enable overwrite; preserve prior bundles. |
 
