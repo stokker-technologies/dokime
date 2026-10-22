@@ -104,3 +104,7 @@ Existing runtime keyring entries use service `dokime` and `<plugin_id>.<setting_
 ## Source Order
 
 Implement shared-secret declarations, secure catalog/storage, preservation and encrypted-transfer operations before their server/client/UI consumers.
+
+## Proof Budget
+
+Each item uses only its narrowest deterministic proof: one unit or integration test, one acceptance story, or one native benchmark scenario run once. Item 43 requires one native evidence run for each of its six scenarios. Whole lanes, CI graphs and benchmark builds are not individual-item proofs. Run the complete Linux lane set and Windows VM graph once at the end before publication; repair failures and rerun affected validation as required.
