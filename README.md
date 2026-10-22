@@ -1015,6 +1015,8 @@ for development discussions and [releases](https://github.com/stokker-technologi
 
 ## Development Setup
 
+Repository mise tasks limit Cargo to six parallel build jobs on Linux and Windows.
+
 Use the source setup in [Quick Start](#quick-start). For a headless server:
 
 ```sh

@@ -43,6 +43,7 @@ minisign = "0.12"
 # === Environment === #
 
 [env]
+CARGO_BUILD_JOBS = "6"
 PYTHONDONTWRITEBYTECODE = "1"
 
 # === Variables === #
