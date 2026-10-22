@@ -57,6 +57,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: "primary",
   },
   {
+    id: "secrets",
+    label: "Secret Storage",
+    description: "Shared named secrets on the connected host",
+    icon: CircleUser,
+    group: "primary",
+  },
+  {
     id: "diagnostics",
     label: "Diagnostics",
     description: "Server health, lanes, and run folder",

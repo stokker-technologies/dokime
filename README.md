@@ -451,6 +451,13 @@ an error. Replacing a value affects future lookups. A value already fetched by
 a running plugin remains its responsibility. Required secret settings are
 checked before execution starts.
 
+Open **Settings → Secret Storage** to see the owning host, add a name, edit
+its label or description, replace its value, or explicitly confirm deletion.
+Existing values are never fetched for display. Leave the replacement field
+empty to retain a value. Known references list saved plugin settings; plugins
+can also look up names dynamically, so this list is not exhaustive. Switching
+backends opens that backend's catalog and discards the previous edit form.
+
 Values are stored in the host's OS keyring, separately from backend login
 tokens, organization OAuth accounts and signing keys. New writes require that
 keyring; there is no plaintext fallback. The catalog stores names, labels,
@@ -459,7 +466,7 @@ letters, digits, dots, underscores or hyphens; values contain 1–65536 bytes,
 with at most 1024 catalog entries per host.
 
 Existing `LocalFile` configuration selects a legacy source for explicit
-`dokime.secrets.adopt` requests. Adoption copies one selected entry into secure
+`dokime.secrets.adopt` requests, exposed as **Adopt Legacy Secret**. Adoption copies one selected entry into secure
 storage and retains the original file and unknown entries unchanged. Deleting
 an adopted name never makes the old plaintext value available again. Back up
 development settings before converting old `stored_credential` references to

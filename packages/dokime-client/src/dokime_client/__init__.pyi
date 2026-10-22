@@ -125,21 +125,26 @@ import dokime_client._wire.dokime.v1.ReportsMessages.DownloadExecutionReport.mes
 import dokime_client._wire.dokime.v1.ReportsMessages.MaterializeReport.messages_pb2 as _wire_118
 import dokime_client._wire.dokime.v1.RuntimeMessages.GetHealth.messages_pb2 as _wire_119
 import dokime_client._wire.dokime.v1.RuntimeMessages.GetIdentity.messages_pb2 as _wire_120
-import dokime_client._wire.dokime.v1.SettingsMessages.GetPluginSettings.messages_pb2 as _wire_121
-import dokime_client._wire.dokime.v1.SettingsMessages.GetSettings.messages_pb2 as _wire_122
-import dokime_client._wire.dokime.v1.SettingsMessages.ListStorageSources.messages_pb2 as _wire_123
-import dokime_client._wire.dokime.v1.SettingsMessages.ReadApplicationSettings.messages_pb2 as _wire_124
-import dokime_client._wire.dokime.v1.SettingsMessages.ReadStoragePolicy.messages_pb2 as _wire_125
-import dokime_client._wire.dokime.v1.SettingsMessages.ReorderStorageSources.messages_pb2 as _wire_126
-import dokime_client._wire.dokime.v1.SettingsMessages.SetStorageSourceEnabled.messages_pb2 as _wire_127
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdateAppearance.messages_pb2 as _wire_128
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdateDataRoot.messages_pb2 as _wire_129
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSecret.messages_pb2 as _wire_130
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2 as _wire_131
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdateReportDefaults.messages_pb2 as _wire_132
-import dokime_client._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy.messages_pb2 as _wire_133
-import dokime_client._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_134
-import dokime_client._wire.harmos.host.v1.HostMessages.Catalog.messages_pb2 as _wire_135
+import dokime_client._wire.dokime.v1.SecretsMessages.Adopt.messages_pb2 as _wire_121
+import dokime_client._wire.dokime.v1.SecretsMessages.List.messages_pb2 as _wire_122
+import dokime_client._wire.dokime.v1.SecretsMessages.Lookup.messages_pb2 as _wire_123
+import dokime_client._wire.dokime.v1.SecretsMessages.Put.messages_pb2 as _wire_124
+import dokime_client._wire.dokime.v1.SecretsMessages.Remove.messages_pb2 as _wire_125
+import dokime_client._wire.dokime.v1.SettingsMessages.GetPluginSettings.messages_pb2 as _wire_126
+import dokime_client._wire.dokime.v1.SettingsMessages.GetSettings.messages_pb2 as _wire_127
+import dokime_client._wire.dokime.v1.SettingsMessages.ListStorageSources.messages_pb2 as _wire_128
+import dokime_client._wire.dokime.v1.SettingsMessages.ReadApplicationSettings.messages_pb2 as _wire_129
+import dokime_client._wire.dokime.v1.SettingsMessages.ReadStoragePolicy.messages_pb2 as _wire_130
+import dokime_client._wire.dokime.v1.SettingsMessages.ReorderStorageSources.messages_pb2 as _wire_131
+import dokime_client._wire.dokime.v1.SettingsMessages.SetStorageSourceEnabled.messages_pb2 as _wire_132
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdateAppearance.messages_pb2 as _wire_133
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdateDataRoot.messages_pb2 as _wire_134
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSecret.messages_pb2 as _wire_135
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2 as _wire_136
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdateReportDefaults.messages_pb2 as _wire_137
+import dokime_client._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy.messages_pb2 as _wire_138
+import dokime_client._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_139
+import dokime_client._wire.harmos.host.v1.HostMessages.Catalog.messages_pb2 as _wire_140
 
 # Local Imports
 from .operation import Invoker as Invoker
@@ -848,100 +853,125 @@ DokimeRuntimeIdentityResponse = _wire_120.Row2
 
 DOKIME_RUNTIME_IDENTITY: Operation[DokimeRuntimeIdentityRequest, DokimeRuntimeIdentityResponse, Message, Message]
 
-DokimeSettingsGetPluginSettingsRequest = _wire_121.Row1
-DokimeSettingsGetPluginSettingsResponse = _wire_121.Row2
+DokimeSecretsAdoptRequest = _wire_121.Row1
+DokimeSecretsAdoptResponse = _wire_121.Row2
+
+DOKIME_SECRETS_ADOPT: Operation[DokimeSecretsAdoptRequest, DokimeSecretsAdoptResponse, Message, Message]
+
+DokimeSecretsListRequest = _wire_122.Row1
+DokimeSecretsListResponse = _wire_122.Row2
+
+DOKIME_SECRETS_LIST: Operation[DokimeSecretsListRequest, DokimeSecretsListResponse, Message, Message]
+
+DokimeSecretsLookupRequest = _wire_123.Row1
+DokimeSecretsLookupResponse = _wire_123.Row2
+
+DOKIME_SECRETS_LOOKUP: Operation[DokimeSecretsLookupRequest, DokimeSecretsLookupResponse, Message, Message]
+
+DokimeSecretsPutRequest = _wire_124.Row1
+DokimeSecretsPutResponse = _wire_124.Row2
+
+DOKIME_SECRETS_PUT: Operation[DokimeSecretsPutRequest, DokimeSecretsPutResponse, Message, Message]
+
+DokimeSecretsRemoveRequest = _wire_125.Row1
+DokimeSecretsRemoveResponse = _wire_125.Row2
+
+DOKIME_SECRETS_REMOVE: Operation[DokimeSecretsRemoveRequest, DokimeSecretsRemoveResponse, Message, Message]
+
+DokimeSettingsGetPluginSettingsRequest = _wire_126.Row1
+DokimeSettingsGetPluginSettingsResponse = _wire_126.Row2
 
 DOKIME_SETTINGS_GET_PLUGIN_SETTINGS: Operation[
     DokimeSettingsGetPluginSettingsRequest, DokimeSettingsGetPluginSettingsResponse, Message, Message
 ]
 
-DokimeSettingsGetSettingsRequest = _wire_122.Row1
-DokimeSettingsGetSettingsResponse = _wire_122.Row2
+DokimeSettingsGetSettingsRequest = _wire_127.Row1
+DokimeSettingsGetSettingsResponse = _wire_127.Row2
 
 DOKIME_SETTINGS_GET_SETTINGS: Operation[DokimeSettingsGetSettingsRequest, DokimeSettingsGetSettingsResponse, Message, Message]
 
-DokimeSettingsListStorageSourcesRequest = _wire_123.Row1
-DokimeSettingsListStorageSourcesResponse = _wire_123.Row2
+DokimeSettingsListStorageSourcesRequest = _wire_128.Row1
+DokimeSettingsListStorageSourcesResponse = _wire_128.Row2
 
 DOKIME_SETTINGS_LIST_STORAGE_SOURCES: Operation[
     DokimeSettingsListStorageSourcesRequest, DokimeSettingsListStorageSourcesResponse, Message, Message
 ]
 
-DokimeSettingsReadApplicationSettingsRequest = _wire_124.Row1
-DokimeSettingsReadApplicationSettingsResponse = _wire_124.Row2
+DokimeSettingsReadApplicationSettingsRequest = _wire_129.Row1
+DokimeSettingsReadApplicationSettingsResponse = _wire_129.Row2
 
 DOKIME_SETTINGS_READ_APPLICATION_SETTINGS: Operation[
     DokimeSettingsReadApplicationSettingsRequest, DokimeSettingsReadApplicationSettingsResponse, Message, Message
 ]
 
-DokimeSettingsReadStoragePolicyRequest = _wire_125.Row1
-DokimeSettingsReadStoragePolicyResponse = _wire_125.Row2
+DokimeSettingsReadStoragePolicyRequest = _wire_130.Row1
+DokimeSettingsReadStoragePolicyResponse = _wire_130.Row2
 
 DOKIME_SETTINGS_READ_STORAGE_POLICY: Operation[
     DokimeSettingsReadStoragePolicyRequest, DokimeSettingsReadStoragePolicyResponse, Message, Message
 ]
 
-DokimeSettingsReorderStorageSourcesRequest = _wire_126.Row1
-DokimeSettingsReorderStorageSourcesResponse = _wire_126.Row2
+DokimeSettingsReorderStorageSourcesRequest = _wire_131.Row1
+DokimeSettingsReorderStorageSourcesResponse = _wire_131.Row2
 
 DOKIME_SETTINGS_REORDER_STORAGE_SOURCES: Operation[
     DokimeSettingsReorderStorageSourcesRequest, DokimeSettingsReorderStorageSourcesResponse, Message, Message
 ]
 
-DokimeSettingsSetStorageSourceEnabledRequest = _wire_127.Row1
-DokimeSettingsSetStorageSourceEnabledResponse = _wire_127.Row2
+DokimeSettingsSetStorageSourceEnabledRequest = _wire_132.Row1
+DokimeSettingsSetStorageSourceEnabledResponse = _wire_132.Row2
 
 DOKIME_SETTINGS_SET_STORAGE_SOURCE_ENABLED: Operation[
     DokimeSettingsSetStorageSourceEnabledRequest, DokimeSettingsSetStorageSourceEnabledResponse, Message, Message
 ]
 
-DokimeSettingsUpdateAppearanceRequest = _wire_128.Row1
-DokimeSettingsUpdateAppearanceResponse = _wire_128.Row2
+DokimeSettingsUpdateAppearanceRequest = _wire_133.Row1
+DokimeSettingsUpdateAppearanceResponse = _wire_133.Row2
 
 DOKIME_SETTINGS_UPDATE_APPEARANCE: Operation[
     DokimeSettingsUpdateAppearanceRequest, DokimeSettingsUpdateAppearanceResponse, Message, Message
 ]
 
-DokimeSettingsUpdateDataRootRequest = _wire_129.Row1
-DokimeSettingsUpdateDataRootResponse = _wire_129.Row2
+DokimeSettingsUpdateDataRootRequest = _wire_134.Row1
+DokimeSettingsUpdateDataRootResponse = _wire_134.Row2
 
 DOKIME_SETTINGS_UPDATE_DATA_ROOT: Operation[DokimeSettingsUpdateDataRootRequest, DokimeSettingsUpdateDataRootResponse, Message, Message]
 
-DokimeSettingsUpdatePluginSecretRequest = _wire_130.Row1
-DokimeSettingsUpdatePluginSecretResponse = _wire_130.Row2
+DokimeSettingsUpdatePluginSecretRequest = _wire_135.Row1
+DokimeSettingsUpdatePluginSecretResponse = _wire_135.Row2
 
 DOKIME_SETTINGS_UPDATE_PLUGIN_SECRET: Operation[
     DokimeSettingsUpdatePluginSecretRequest, DokimeSettingsUpdatePluginSecretResponse, Message, Message
 ]
 
-DokimeSettingsUpdatePluginSettingsRequest = _wire_131.Row1
-DokimeSettingsUpdatePluginSettingsResponse = _wire_131.Row2
+DokimeSettingsUpdatePluginSettingsRequest = _wire_136.Row1
+DokimeSettingsUpdatePluginSettingsResponse = _wire_136.Row2
 
 DOKIME_SETTINGS_UPDATE_PLUGIN_SETTINGS: Operation[
     DokimeSettingsUpdatePluginSettingsRequest, DokimeSettingsUpdatePluginSettingsResponse, Message, Message
 ]
 
-DokimeSettingsUpdateReportDefaultsRequest = _wire_132.Row1
-DokimeSettingsUpdateReportDefaultsResponse = _wire_132.Row2
+DokimeSettingsUpdateReportDefaultsRequest = _wire_137.Row1
+DokimeSettingsUpdateReportDefaultsResponse = _wire_137.Row2
 
 DOKIME_SETTINGS_UPDATE_REPORT_DEFAULTS: Operation[
     DokimeSettingsUpdateReportDefaultsRequest, DokimeSettingsUpdateReportDefaultsResponse, Message, Message
 ]
 
-DokimeSettingsUpdateStoragePolicyRequest = _wire_133.Row1
-DokimeSettingsUpdateStoragePolicyResponse = _wire_133.Row2
+DokimeSettingsUpdateStoragePolicyRequest = _wire_138.Row1
+DokimeSettingsUpdateStoragePolicyResponse = _wire_138.Row2
 
 DOKIME_SETTINGS_UPDATE_STORAGE_POLICY: Operation[
     DokimeSettingsUpdateStoragePolicyRequest, DokimeSettingsUpdateStoragePolicyResponse, Message, Message
 ]
 
-DokimeTelemetryListSamplesRequest = _wire_134.Row1
-DokimeTelemetryListSamplesResponse = _wire_134.Row2
+DokimeTelemetryListSamplesRequest = _wire_139.Row1
+DokimeTelemetryListSamplesResponse = _wire_139.Row2
 
 DOKIME_TELEMETRY_LIST_SAMPLES: Operation[DokimeTelemetryListSamplesRequest, DokimeTelemetryListSamplesResponse, Message, Message]
 
-HostCatalogRequest = _wire_135.Row1
-HostCatalogResponse = _wire_135.Row2
+HostCatalogRequest = _wire_140.Row1
+HostCatalogResponse = _wire_140.Row2
 
 HOST_CATALOG: Operation[HostCatalogRequest, HostCatalogResponse, Message, Message]
 
