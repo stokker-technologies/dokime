@@ -107,4 +107,4 @@ Implement shared-secret declarations, secure catalog/storage, preservation and e
 
 ## Proof Budget
 
-Each item uses only its narrowest deterministic proof: one unit or integration test, one acceptance story, or one native benchmark scenario run once. Item 43 requires one native evidence run for each of its six scenarios. Whole lanes, CI graphs and benchmark builds are not individual-item proofs. Run the complete Linux lane set and Windows VM graph once at the end before publication; repair failures and rerun affected validation as required.
+Each implementation change uses `mise run check` and only the unit or in-process integration tests its writer wrote or touched. Acceptance and system stories, benchmark builds, coverage and complete lanes wait for the single final combined-tree validation. Item 43 requires one native evidence run for each of its six explicitly requested scenarios; do not repeat completed scenarios. Run the complete Linux lane set and Windows VM graph once at the end before publication, then repair failures and rerun only failing lanes. Items whose proof requires final native acceptance remain unchecked until that proof passes.
