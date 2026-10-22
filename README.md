@@ -473,6 +473,10 @@ development settings before converting old `stored_credential` references to
 `stored_secret` and their `credential_id` field to `secret_id`; incompatible
 settings are rejected without being reset.
 
+The Linux native desktop acceptance story starts a private D-Bus session and
+unlocked GNOME Keyring in its disposable workspace; CI installs `dbus` and
+`gnome-keyring`. Windows uses its native Credential Manager.
+
 **Export Selected Secrets** saves a password-encrypted `.age` file through the
 native file picker. **Import Encrypted Secrets** authenticates the entire file
 before showing names and conflicts. Existing names start unchecked; select

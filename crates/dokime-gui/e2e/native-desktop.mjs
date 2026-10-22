@@ -3638,9 +3638,13 @@ async function sharedSecretsJourney() {
   const replacement = "native-replacement-value-94d2ac";
   const password = "native transfer password 2026";
   for (const hidden of [value, replacement, password]) secrets.add(hidden);
-  const field = (label) => until(`secret field ${label}`, () => session.execute(
-    "return [...document.querySelectorAll('label')].find(label => label.textContent.trim() === arguments[0])?.control ?? null;", [label],
-  ));
+  const field = (label) =>
+    until(`secret field ${label}`, () =>
+      session.execute(
+        "return [...document.querySelectorAll('label')].find(label => label.textContent.trim() === arguments[0])?.control ?? null;",
+        [label],
+      ),
+    );
   const type = async (label, text) => session.type(await field(label), text);
   const choose = async (archive) => {
     await session.clickNamed("button", "Choose Encrypted Archive");
@@ -3649,10 +3653,15 @@ async function sharedSecretsJourney() {
     await until("encrypted archive selected", async () => hasText(await session.text(), "Encrypted archive selected"));
   };
   const select = async (legend, entry) => {
-    const input = await until("secret selection", () => session.execute(`
+    const input = await until("secret selection", () =>
+      session.execute(
+        `
       const fieldset = [...document.querySelectorAll('fieldset')].find(node => node.querySelector('legend')?.textContent.trim() === arguments[0]);
       return [...(fieldset?.querySelectorAll('label') ?? [])].find(label => label.textContent.includes(arguments[1]))?.querySelector('input') ?? null;
-    `, [legend, entry]));
+    `,
+        [legend, entry],
+      ),
+    );
     await session.click(input);
   };
 
@@ -3676,7 +3685,11 @@ async function sharedSecretsJourney() {
   await type("Export Password", password);
   await type("Confirm Password", password);
   await session.clickNamed("button", "Encrypt And Save");
-  await until("encrypted secret export", () => session.execute("return (globalThis.__dokimeSavedDocuments ?? []).some(document => document.kind === 'secret_archive');"), 30000);
+  await until(
+    "encrypted secret export",
+    () => session.execute("return (globalThis.__dokimeSavedDocuments ?? []).some(document => document.kind === 'secret_archive');"),
+    30000,
+  );
   const files = await drainSavedDocuments(session);
   const archive = files.find((file) => file.kind === "secret_archive")?.path;
   assert.ok(archive, "the native flow produces an encrypted archive");
@@ -3699,10 +3712,14 @@ async function sharedSecretsJourney() {
   await type("Archive Password", password);
   await session.clickNamed("button", "Authenticate And Preview");
   await until("secret conflict preview", async () => hasText(await session.text(), "Review Every Name"));
-  assert.equal(await session.execute(`
+  assert.equal(
+    await session.execute(`
     const fieldset = [...document.querySelectorAll('fieldset')].find(node => node.querySelector('legend')?.textContent.trim() === 'Review Every Name');
     return fieldset?.querySelector('input')?.checked;
-  `), false, "existing names require explicit replacement");
+  `),
+    false,
+    "existing names require explicit replacement",
+  );
   await type("Password (Enter Again To Import)", password);
   await session.clickNamed("button", "Apply Reviewed Import");
   await until("skipped secret import", async () => hasText(await session.text(), "Selected secrets imported"));
@@ -3715,7 +3732,10 @@ async function sharedSecretsJourney() {
   await select("Review Every Name", name);
   await type("Password (Enter Again To Import)", password);
   await session.clickNamed("button", "Apply Reviewed Import");
-  await until("reviewed replacement applied", async () => hasText(await session.text(), "Selected secrets imported") && hasText(await session.text(), "Exported Bench Secret"));
+  await until(
+    "reviewed replacement applied",
+    async () => hasText(await session.text(), "Selected secrets imported") && hasText(await session.text(), "Exported Bench Secret"),
+  );
   await session.screenshot("shared-secret-imported");
   const persisted = await readFile(settingsPath, "utf8");
   for (const hidden of [value, replacement, password]) assert.ok(!persisted.includes(hidden));
@@ -3853,6 +3873,19 @@ identifier = "invalid.replacement.identity"
 deep_link_scheme = "ignored-lab"
 [app.logos.transparent]
 on_light = "mark.svg"
+[updates]
+mode = "disabled"
+source = "public"
+[updates.sources.public]
+kind = "direct"
+manifest = "https://127.0.0.1:1/missing.json"
+[updates.sources.private]
+kind = "gitlab"
+connection = "lab"
+project = "lab/dokime"
+[updates.connections.lab]
+host = "https://127.0.0.1:1"
+oauth_client_id = "native-validation"
 `;
   await promisify(execFile)(
     "python",
@@ -3898,6 +3931,54 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   );
   assert.equal(existsSync(join(root, "pending")), false, "Activation promotes the pending directory");
   await session.screenshot("organization-active");
+
+  await session.goto("/settings/account-updates");
+  await session.clickNamed("button", "Manage");
+  const selection = (label) => session.execute(`return document.querySelector('select[aria-label="${label}"]')?.value;`);
+  await until("disabled organization update policy", async () => (await selection("Update Checks")) === "disabled");
+  const checkDisabled = () =>
+    session.execute(
+      `return [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Check For Updates')?.disabled;`,
+    );
+  assert.equal(await checkDisabled(), true);
+  const select = async (label, value) => {
+    await session.execute(
+      `const select = document.querySelector('select[aria-label="${label}"]'); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event('change', {bubbles: true}));`,
+    );
+    await until(
+      `saved ${label}`,
+      async () =>
+        (await selection(label)) === value &&
+        (await session.execute(`return !document.querySelector('select[aria-label="${label}"]').disabled;`)),
+    );
+  };
+  await select("Release Source", "private");
+  await until("named release connection", async () => hasText(await session.text(), "Public Access"));
+  assert.ok(hasText(await session.text(), "Sign In With GitLab"));
+  assert.equal(await checkDisabled(), true);
+  await select("Release Source", "public");
+  await select("Update Checks", "manual");
+  await session.execute(
+    `const button = [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Check For Updates'); button.click();`,
+  );
+  await until("missing release source error", async () =>
+    session.execute(`return Boolean(document.querySelector('[role="dialog"] [role="alert"]')?.textContent);`),
+  );
+  assert.equal(
+    await session.execute(
+      `return [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Install Update')?.disabled;`,
+    ),
+    true,
+  );
+  await select("Update Checks", "disabled");
+  await select("Release Source", "private");
+  await session.screenshot("organization-update-policy");
+  await restart();
+  await session.goto("/settings/account-updates");
+  await session.clickNamed("button", "Manage");
+  await until("saved release source survives restart", async () => (await selection("Release Source")) === "private");
+  assert.equal(await selection("Update Checks"), "disabled");
+  await restart();
 
   await choose();
   await writeFile(join(root, "pending", "organization.toml"), "invalid [");
@@ -3955,6 +4036,59 @@ async function writeJunit() {
   );
 }
 
+let secretBus;
+let secretKeyring;
+
+async function startSecretService() {
+  if (windows) return;
+  const home = join(work, "secret-service");
+  await mkdir(home, { recursive: true, mode: 0o700 });
+  secretBus = spawn("dbus-daemon", ["--session", "--nofork", "--print-address=1"], {
+    detached: true,
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  let address = "";
+  let startupError;
+  secretBus.on("error", (error) => {
+    startupError = error;
+  });
+  secretBus.stdout.on("data", (data) => {
+    address += data.toString();
+  });
+  await until("isolated secret-service bus", () => {
+    if (startupError) throw startupError;
+    if (secretBus.exitCode !== null) throw new Error("The private D-Bus exited before startup");
+    return address.includes("\n");
+  });
+  process.env.DBUS_SESSION_BUS_ADDRESS = address.trim();
+  secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock"], {
+    env: { ...process.env, HOME: home, XDG_DATA_HOME: home, XDG_RUNTIME_DIR: home },
+    detached: true,
+    stdio: ["pipe", "ignore", "inherit"],
+  });
+  secretKeyring.on("error", (error) => {
+    startupError = error;
+  });
+  secretKeyring.stdin.end("native-fixture-keyring-password");
+  await until("isolated unlocked OS keyring", async () => {
+    if (startupError) throw startupError;
+    if (secretKeyring.exitCode !== null) throw new Error("The private keyring exited before startup");
+    const result = await promisify(execFile)(
+      "dbus-send",
+      [
+        "--session",
+        "--print-reply",
+        "--dest=org.freedesktop.DBus",
+        "/org/freedesktop/DBus",
+        "org.freedesktop.DBus.NameHasOwner",
+        "string:org.freedesktop.secrets",
+      ],
+      { timeout: 5000 },
+    );
+    return result.stdout.includes("boolean true");
+  });
+}
+
 async function main() {
   if (!windows && process.platform !== "linux") throw new Error("Native acceptance requires Windows WebView2 or Linux WebKitGTK.");
   if (releaseValidation && selectedJourneys.size) throw new Error("Installed release validation requires every maintained journey.");
@@ -3982,6 +4116,7 @@ async function main() {
     if (!existsSync(path)) throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
   }
 
+  await startSecretService();
   const owned = await journey("owned-startup", ownedStartupJourney);
   if (!owned.ok) throw new Error("Native ownership acceptance failed");
   backend = await startBackend(work, evidence);
@@ -4077,6 +4212,10 @@ try {
   if (backend) {
     await terminate(backend.child).catch((error) => failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }));
     await backend.log.close().catch((error) => failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }));
+  }
+  for (const child of [secretKeyring, secretBus]) {
+    if (child)
+      await terminate(child).catch((error) => failures.push({ kind: "failure", name: "secret service cleanup", reason: error.message }));
   }
   if (installerAttempted) {
     try {

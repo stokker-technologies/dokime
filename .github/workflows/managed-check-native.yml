@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-native.yml; sha256:69783429e4b91a0ecc354ffdf0a0ba652da09783a55bc452bac9f6353460c792
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-native.yml; sha256:860976c326c2cfdb03cf3bee3cd2aa2d794bd46fd20c66508c6d6869e0ce8211
 name: Check
 "on":
   workflow_call:
@@ -93,7 +93,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb xdotool desktop-file-utils xdg-utils rpm
+        xvfb xdotool desktop-file-utils xdg-utils rpm dbus gnome-keyring
       if: inputs.platform == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 -noreset >/dev/null 2>&1 &

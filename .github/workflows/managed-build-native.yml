@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-native.yml; sha256:0d1c2a24b6f79ad3a0f9f781290300344de8adf70ba08af0db0a17170c5f8c43
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-native.yml; sha256:a1ba8fdd3d409e65615657fd3efaa7905f81fb188dd97b2a86e39ef165f878a6
 name: Build
 "on":
   workflow_call:
@@ -103,7 +103,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb xdotool desktop-file-utils xdg-utils rpm
+        xvfb xdotool desktop-file-utils xdg-utils rpm dbus gnome-keyring
       if: inputs.platform == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 -noreset >/dev/null 2>&1 &
@@ -278,7 +278,7 @@ jobs:
         sudo apt-get install -y --no-install-recommends build-essential pkg-config
         libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev
         libjavascriptcoregtk-4.1-dev librsvg2-dev libasound2-dev linux-libc-dev libclang-dev webkit2gtk-driver
-        xvfb xdotool desktop-file-utils xdg-utils rpm
+        xvfb xdotool desktop-file-utils xdg-utils rpm dbus gnome-keyring
       if: inputs.platform == 'linux'
       shell: bash
     - run: Xvfb :99 -screen 0 1920x1080x24 -noreset >/dev/null 2>&1 &
