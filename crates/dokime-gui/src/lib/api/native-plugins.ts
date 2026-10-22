@@ -86,6 +86,8 @@ export interface StagePluginOptions {
   onProgress?(progress: StagePluginProgress): void;
 }
 
+export type PluginSource = "pick" | "drop" | { release: string };
+
 /** Render a byte count the way staging progress reports it: decimal megabytes. */
 export function formatStagePluginBytes(bytes: number): string {
   const megabytes = Math.round((bytes / 1_000_000) * 10) / 10;
@@ -102,11 +104,14 @@ export function formatStagePluginBytes(bytes: number): string {
  */
 export async function stageNativePlugin(
   session: SessionIdentity,
-  source: "pick" | "drop",
+  source: PluginSource,
   options: StagePluginOptions = {},
 ): Promise<PluginEntry | null> {
   const progress = new Channel<StagePluginProgress>((message) => options.onProgress?.(message));
-  const installId = await commands.desktopPluginStageFile(session.generation, source === "drop", progress);
+  const installId =
+    typeof source === "object"
+      ? await commands.desktopPluginReleaseStage(session.generation, source.release, progress)
+      : await commands.desktopPluginStageFile(session.generation, source === "drop", progress);
   if (installId === null) return null;
   if (!session.isCurrent()) throw new Error("The connection changed while the plugin was being staged.");
   return getNativePlugin(session, installId);

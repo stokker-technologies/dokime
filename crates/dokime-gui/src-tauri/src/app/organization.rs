@@ -171,6 +171,21 @@ struct ThemeSection {
 /* === Implementations === */
 
 impl OrganizationState {
+    pub(crate) fn update_policy(&self) -> Result<policy::UpdatePolicy, String> {
+        if let Some(updates) = self.boot.pack.as_ref().and_then(|pack| pack.updates.clone()) {
+            return Ok(updates);
+        }
+        #[derive(Deserialize)]
+        struct Compiled {
+            #[serde(default)]
+            updates: policy::UpdatePolicy,
+        }
+        let manifest = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../organization/organization.toml"));
+        let compiled: Compiled = toml::from_str(manifest).map_err(|_| "Compiled organization update policy is invalid")?;
+        compiled.updates.validate()?;
+        Ok(compiled.updates)
+    }
+
     fn status(&self) -> OrganizationStatus {
         let session = self.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         OrganizationStatus {

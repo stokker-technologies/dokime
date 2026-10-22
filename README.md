@@ -1122,6 +1122,65 @@ and stores it as `organization.toml`; it leaves the original folder untouched.
 Packs containing both manifest names are rejected. New packs use only
 `organization.toml` and are stored separately under `organization/`.
 
+Organization packs can also declare update defaults. Settings › Updates selects
+one source and `disabled`, `manual` or `automatic_check` locally. Automatic mode
+checks at startup and after a source change; installation always needs an explicit
+action. Disabled mode makes no update requests. Public sources need no account.
+
+```toml
+[updates]
+mode = "manual"
+source = "company"
+[updates.sources.company]
+kind = "direct"
+manifest = "https://updates.example.com/latest.json"
+plugins = "https://updates.example.com/plugins.json"
+```
+
+GitHub sources use `kind = "github"` and `repository = "owner/repository"`.
+GitLab sources use `kind = "gitlab"`, `project = "group/project"` and
+`connection = "company"`, referring to `[updates.connections.company]` with an
+HTTPS `host` and optional public `oauth_client_id`. Register the compiled callback
+`dokime-test-hub://auth/gitlab/callback` for OAuth. Packs never contain tokens.
+Accounts are stored in the OS keyring separately for each host, client and account;
+authorization is forwarded only to the account's origin. Changing a source or
+account invalidates its reviewed candidates. Desktop signatures use the compiled
+verification key, which packs cannot replace.
+
+Provider sources discover `latest.json` and `plugins.json` in their latest
+release. A direct source can omit `plugins` when it offers no plugin releases.
+The plugin feed has this shape:
+
+```json
+{
+  "format_version": 1,
+  "package": "instruments",
+  "version": "1.2.3",
+  "requires_dokime": ">=0.1.0, <0.2.0",
+  "assets": [{
+    "target": "x86_64-pc-windows-msvc",
+    "url": "https://updates.example.com/instruments.dokime",
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }]
+}
+```
+
+Generate a feed from already built bundles using the canonical inspector:
+
+```sh
+uv run --locked --project tools/python python -m dokime_tools.package.plugins \
+  --tool target/build/dev/linux-x86_64/bin/cargo-dokime \
+  --asset instruments.dokime https://updates.example.com/instruments.dokime \
+  --requires-dokime '=0.1.0' --output plugins.json
+```
+
+Repeat `--asset` for other targets of the same package and version, then publish
+the feed and those exact bundles together. Settings › Plugins checks compatibility
+against the connected backend's version and target, verifies the digest and
+inspected package identity, and opens the existing consent and restart flow.
+Discovery alone never grants installation consent. A missing feed or target is
+reported without substituting a different package.
+
 ### Generated Clients
 
 The server contract producer generates the protobuf descriptors of every public operation;

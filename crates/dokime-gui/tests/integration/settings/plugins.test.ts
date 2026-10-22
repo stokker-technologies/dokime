@@ -110,6 +110,19 @@ test("Picked Bundle Stages In One Native Invoke", async () => {
   assert.deepEqual(fixture.getInstallation.mock.calls, [[session, { installId: "picked" }]]);
 });
 
+test("Reviewed Release Reuses Native Staging And Leaves Consent Explicit", async () => {
+  fixture.invoke.mockResolvedValue("release-install");
+  const entry = await stageNativePlugin(session, { release: "reviewed-candidate" });
+
+  assert.equal(entry?.install_id, "release-install");
+  assert.equal(fixture.invoke.mock.calls.length, 1);
+  const [command, arguments_] = fixture.invoke.mock.calls[0];
+  assert.equal(command, "desktop_plugin_release_stage");
+  assert.equal(arguments_.candidate, "reviewed-candidate");
+  assert.equal(arguments_.generation, session.generation);
+  assert.equal(fixture.getInstallation.mock.calls.length, 1);
+});
+
 test("Cancelled Picker Stages Nothing", async () => {
   fixture.invoke.mockResolvedValue(null);
   assert.equal(await stageNativePlugin(session, "pick"), null);

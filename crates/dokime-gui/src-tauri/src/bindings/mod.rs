@@ -200,30 +200,45 @@ native_commands! {
         () -> Result<Option<String>, crate::app::settings::DesktopSettingsError>
         => crate::app::settings::desktop_pick_execution_directory;
 
-    async gitlab_auth_status
-        [state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabAuthStatus, String>
-        => crate::app::gitlab::gitlab_auth_status;
+    async desktop_updates_status
+        [state: tauri::State<'_, crate::app::updates::UpdateState>]
+        () -> Result<crate::app::updates::UpdateStatus, String>
+        => crate::app::updates::desktop_updates_status;
 
-    async gitlab_sign_in
-        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabAuthStatus, String>
-        => crate::app::gitlab::gitlab_sign_in;
+    async desktop_updates_configure
+        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        (selection: crate::app::updates::Selection) -> Result<crate::app::updates::UpdateStatus, String>
+        => crate::app::updates::desktop_updates_configure;
 
-    async gitlab_sign_out
-        [state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabAuthStatus, String>
-        => crate::app::gitlab::gitlab_sign_out;
+    async desktop_updates_sign_in
+        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        () -> Result<crate::app::updates::UpdateStatus, String>
+        => crate::app::updates::desktop_updates_sign_in;
 
-    async gitlab_check_for_updates
-        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabUpdateCheck, String>
-        => crate::app::gitlab::gitlab_check_for_updates;
+    async desktop_updates_sign_out
+        [state: tauri::State<'_, crate::app::updates::UpdateState>]
+        () -> Result<crate::app::updates::UpdateStatus, String>
+        => crate::app::updates::desktop_updates_sign_out;
 
-    async gitlab_install_update
-        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::gitlab::GitlabDesktopState>]
-        () -> Result<crate::app::gitlab::GitlabInstallResult, String>
-        => crate::app::gitlab::gitlab_install_update;
+    async desktop_updates_check
+        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        () -> Result<crate::app::updates::UpdateCheck, String>
+        => crate::app::updates::desktop_updates_check;
+
+    async desktop_updates_install
+        [state: tauri::State<'_, crate::app::updates::UpdateState>]
+        (candidate: String) -> Result<crate::app::updates::InstallResult, String>
+        => crate::app::updates::desktop_updates_install;
+
+    async desktop_plugin_release_check
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        (generation: String) -> Result<crate::app::updates::plugins::Release, String>
+        => crate::app::updates::plugins::desktop_plugin_release_check;
+
+    async desktop_plugin_release_stage
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        (generation: String, candidate: String, progress: tauri::ipc::Channel<crate::app::plugins::StageProgress>) -> Result<String, String>
+        => crate::app::updates::plugins::desktop_plugin_release_stage;
 }
 
 /* === Type Aliases === */

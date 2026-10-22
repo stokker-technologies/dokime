@@ -20,13 +20,13 @@ import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
 
 import type { StagePluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
-import type { OrganizationStatus } from "./organization";
 import type { BackendProfiles } from "./connection";
 import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
-import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
+import type { OrganizationStatus } from "./organization";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
 import type { ParameterOverrides } from "./settings";
 import { settleUnlessStopping } from "./stopping";
+import type { PluginRelease, UpdateCheck, UpdateSelection, UpdateStatus } from "./updates";
 
 /* === Private Functions === */
 
@@ -102,9 +102,13 @@ export const commands = {
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),
   desktopParametersWrite: (values: ParameterOverrides) => invoke<null>("desktop_parameters_write", { values }),
   desktopPickExecutionDirectory: () => invoke<string | null>("desktop_pick_execution_directory"),
-  gitlabAuthStatus: () => invoke<GitlabAuthStatus>("gitlab_auth_status"),
-  gitlabSignIn: () => invoke<GitlabAuthStatus>("gitlab_sign_in"),
-  gitlabSignOut: () => invoke<GitlabAuthStatus>("gitlab_sign_out"),
-  gitlabCheckForUpdates: () => invoke<GitlabUpdateCheck>("gitlab_check_for_updates"),
-  gitlabInstallUpdate: () => invoke<GitlabInstallResult>("gitlab_install_update"),
+  desktopUpdatesStatus: () => invoke<UpdateStatus>("desktop_updates_status"),
+  desktopUpdatesConfigure: (selection: UpdateSelection) => invoke<UpdateStatus>("desktop_updates_configure", { selection }),
+  desktopUpdatesSignIn: () => invoke<UpdateStatus>("desktop_updates_sign_in"),
+  desktopUpdatesSignOut: () => invoke<UpdateStatus>("desktop_updates_sign_out"),
+  desktopUpdatesCheck: () => invoke<UpdateCheck>("desktop_updates_check"),
+  desktopUpdatesInstall: (candidate: string) => invoke<{ version: string }>("desktop_updates_install", { candidate }),
+  desktopPluginReleaseCheck: (generation: string) => invoke<PluginRelease>("desktop_plugin_release_check", { generation }),
+  desktopPluginReleaseStage: (generation: string, candidate: string, progress: Channel<StagePluginProgress>) =>
+    invoke<string>("desktop_plugin_release_stage", { generation, candidate, progress }),
 };

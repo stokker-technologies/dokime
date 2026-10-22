@@ -19,6 +19,14 @@
 # Typography and palette values live in theme/. This TOML intentionally has no
 # font or color values.
 
+[updates]
+mode = "manual"
+source = "dokime"
+
+[updates.sources.dokime]
+kind = "github"
+repository = "stokker-technologies/dokime"
+
 [app]
 # Display name shown in the title bar and app shell.
 label = "Dokime"

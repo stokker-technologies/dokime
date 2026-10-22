@@ -16,7 +16,7 @@ import { useState } from "react";
 
 import { useNativeSession } from "@/app/native-session/context";
 import { restartDesktopApp } from "@/features/settings/plugins/plugin-data-source";
-import type { StagePluginProgress } from "@/lib/api/native-plugins";
+import type { PluginSource, StagePluginProgress } from "@/lib/api/native-plugins";
 import {
   consentNativePlugin,
   listNativePlugins,
@@ -24,6 +24,7 @@ import {
   setNativePluginEnabled,
   stageNativePlugin,
 } from "@/lib/api/native-plugins";
+import { commands } from "@/lib/desktop/commands";
 
 /* === Query Keys === */
 
@@ -49,7 +50,7 @@ export function useStagePluginMutation() {
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<StagePluginProgress | null>(null);
   const mutation = useMutation({
-    mutationFn: (source: "pick" | "drop") => {
+    mutationFn: (source: PluginSource) => {
       setProgress(null);
       return stageNativePlugin(session.identity, source, { onProgress: setProgress });
     },
@@ -59,6 +60,17 @@ export function useStagePluginMutation() {
     onSettled: () => setProgress(null),
   });
   return { ...mutation, progress };
+}
+
+export function usePluginReleaseMutation() {
+  const session = useNativeSession();
+  return useMutation({
+    mutationFn: async () => {
+      const release = await commands.desktopPluginReleaseCheck(session.identity.generation);
+      if (!session.identity.isCurrent()) throw new Error("The backend changed while checking plugin releases.");
+      return release;
+    },
+  });
 }
 
 export function useConsentPluginMutation() {

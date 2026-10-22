@@ -12,7 +12,6 @@
 mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
-pub(crate) mod gitlab;
 pub(crate) mod local;
 mod logging;
 pub(crate) mod media;
@@ -20,6 +19,7 @@ pub(crate) mod organization;
 pub(crate) mod plugins;
 pub(crate) mod recording;
 pub(crate) mod settings;
+pub(crate) mod updates;
 
 /* === Re-Exports === */
 
@@ -133,12 +133,12 @@ fn start_tauri_app() -> tauri::Result<()> {
     let app = builder
         .setup(move |app| {
             settings::setup(app);
-            gitlab::setup(app)?;
             let connection = app.state::<crate::connection::ConnectionSession>().inner().clone();
             let owner = crate::native_session::DesktopSession::with_local_configuration(connection, local::configuration(app.handle()));
             *setup_owner.lock().expect("setup owner poisoned") = Some(owner.clone());
             app.manage(crate::native_session::DesktopSessionControl::active(owner));
             organization::setup(app)?;
+            updates::setup(app)?;
             create_main_windows(app)?;
             if shutdown_stdin {
                 let handle = app.handle().clone();

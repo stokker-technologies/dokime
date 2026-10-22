@@ -26,6 +26,7 @@ import { PluginList } from "@/features/settings/plugins/PluginList";
 import { PluginPrograms } from "@/features/settings/plugins/PluginPrograms";
 import {
   useConsentPluginMutation,
+  usePluginReleaseMutation,
   usePluginsQuery,
   useRemovePluginMutation,
   useRestartAppMutation,
@@ -35,6 +36,7 @@ import {
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
+import type { PluginSource } from "@/lib/api/native-plugins";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import type { PluginEntry } from "@/lib/types/view-contracts";
@@ -49,6 +51,7 @@ export function PluginsSection() {
   const pluginsQuery = usePluginsQuery();
   const programsQuery = useInstalledPluginsQuery();
   const stageMutation = useStagePluginMutation();
+  const releaseMutation = usePluginReleaseMutation();
   const consentMutation = useConsentPluginMutation();
   const removeMutation = useRemovePluginMutation();
   const restartMutation = useRestartAppMutation();
@@ -95,7 +98,7 @@ export function PluginsSection() {
     [programs, settings.frame],
   );
 
-  async function handleStage(source: "pick" | "drop", filename: string | null): Promise<void> {
+  async function handleStage(source: PluginSource, filename: string | null): Promise<void> {
     stageMutation.reset();
     consentMutation.reset();
     setUploadingFilename(filename);
@@ -165,6 +168,36 @@ export function PluginsSection() {
             progress={stageMutation.progress}
           />
         </div>
+        <SettingsRow
+          label="Organization Release Source"
+          description={
+            releaseMutation.data
+              ? `${releaseMutation.data.package} ${releaseMutation.data.version} · ${releaseMutation.data.target} · Dokime ${releaseMutation.data.requiresDokime}`
+              : "Discover a compatible plugin from the source selected under Updates."
+          }
+          error={releaseMutation.isError ? errorMessage(releaseMutation.error, "The release feed could not be checked.") : null}
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!desktop || releaseMutation.isPending || stageMutation.isPending}
+            onClick={() => releaseMutation.mutate()}
+          >
+            Check Plugin Release
+          </Button>
+          {releaseMutation.data ? (
+            <Button
+              size="sm"
+              disabled={stageMutation.isPending}
+              onClick={() => {
+                const release = releaseMutation.data;
+                if (release) void handleStage({ release: release.candidate }, release.package);
+              }}
+            >
+              Inspect Release
+            </Button>
+          ) : null}
+        </SettingsRow>
         {restartPending ? (
           <SettingsRow
             label="Restart Required"

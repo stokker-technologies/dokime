@@ -56,6 +56,7 @@ tracing-subscriber = { workspace = true }
 # Utilities
 keyring = { workspace = true }
 rand = { workspace = true }
+semver = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 zeroize = { workspace = true }

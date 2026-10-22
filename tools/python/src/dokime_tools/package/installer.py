@@ -87,8 +87,10 @@ def check(root: Path = ROOT) -> None:
         if any(name.startswith("/usr/share/dokime/plugins/") for name in files):
             raise ValueError("Linux packages must not install plugin payloads")
     updater = config.get("plugins", {}).get("updater", {})
-    if not updater.get("pubkey") or not updater.get("endpoints"):
-        raise ValueError("updater public key and endpoints must be configured")
+    if not updater.get("pubkey"):
+        raise ValueError("the updater verification key must be compiled into the application")
+    if updater.get("endpoints") or config.get("plugins", {}).get("gitlab"):
+        raise ValueError("update sources must come from the organization policy")
     print("Tauri installer configuration is valid.")
 
 

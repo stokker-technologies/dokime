@@ -37,6 +37,29 @@ from dokime_tools.package import installer, linux
 # === Public Functions === #
 
 
+def test_installer_keeps_compiled_trust_and_organization_owned_sources(tmp_path: Path) -> None:
+    source = installer.ROOT / installer.TAURI
+    destination = tmp_path / installer.TAURI
+    destination.mkdir(parents=True)
+    for name in ("tauri.conf.json", "tauri.bundle.conf.json", "tauri.linux.conf.json"):
+        shutil.copyfile(source / name, destination / name)
+    for name in ("icons", "windows"):
+        shutil.copytree(source / name, destination / name)
+    installer.check(tmp_path)
+
+    path = destination / "tauri.conf.json"
+    config = json.loads(path.read_text())
+    config["plugins"]["updater"]["endpoints"] = ["https://example.test/obsolete.json"]
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(ValueError, match="organization policy"):
+        installer.check(tmp_path)
+    del config["plugins"]["updater"]["endpoints"]
+    del config["plugins"]["updater"]["pubkey"]
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(ValueError, match="verification key"):
+        installer.check(tmp_path)
+
+
 def test_organization_overlay_preserves_native_window_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assets = tmp_path / "organization"
     shutil.copytree(organization.BRAND, assets)

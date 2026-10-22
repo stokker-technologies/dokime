@@ -46,16 +46,7 @@
         ]
       }
     },
-    "gitlab": {
-      "host": "https://gitlab.com",
-      "oauthClientId": "",
-      "projectId": "83808544",
-      "redirectUri": "dokime-test-hub://auth/gitlab/callback"
-    },
     "updater": {
-      "endpoints": [
-        "https://github.com/stokker-technologies/dokime/releases/latest/download/latest.json"
-      ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1M0IzREQzMjg1MjExOUQKUldTZEVWSW8wejA3eFpFQVpuSXJnWFRHK1VEWjdmdTZTUVQ0ODBjejBnWHdwQk9lNVNxbHBRYnYK"
     }
   },

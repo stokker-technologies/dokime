@@ -108,12 +108,12 @@ pub async fn desktop_plugin_stage_file(
     let reading = move || dokime::harmos::filesystem::input::read(&path, STAGE_ARCHIVE_MAX_BYTES as usize);
     let read = tauri::async_runtime::spawn_blocking(reading).await.map_err(text)?;
     let bytes = read.map_err(|error| format!("The plugin bundle could not be read: {error}"))?;
-    stage(&lease, bytes, progress).await.map(Some)
+    stage(&lease, bytes, progress, None).await.map(|staged| Some(staged.install_id))
 }
 
 /* === Private Functions === */
 
-fn admit(window: &WebviewWindow, state: &ConnectionSession, generation: &str) -> Result<SessionLease, String> {
+pub(super) fn admit(window: &WebviewWindow, state: &ConnectionSession, generation: &str) -> Result<SessionLease, String> {
     ensure_main_window(window)?;
     ensure_generation_token(generation)?;
     state.lease(generation).map_err(|error| format!("Native plugin staging lost its owning connection: {error:?}"))
@@ -127,7 +127,9 @@ fn pick_bundle(app: AppHandle) -> Result<Option<PathBuf>, String> {
     path.into_path().map(Some).map_err(text)
 }
 
-async fn stage(lease: &SessionLease, bytes: Vec<u8>, progress: Channel<StageProgress>) -> Result<String, String> {
+pub(super) async fn stage(
+    lease: &SessionLease, bytes: Vec<u8>, progress: Channel<StageProgress>, expected_digest: Option<&str>,
+) -> Result<dokime::domain::model::plugins::wire::PluginInstallation, String> {
     // Hash Once, Off The Async Workers
     let started = Instant::now();
     let size_bytes = bytes.len();
@@ -136,6 +138,9 @@ async fn stage(lease: &SessionLease, bytes: Vec<u8>, progress: Channel<StageProg
         (bytes, sha256)
     };
     let (bytes, sha256) = tauri::async_runtime::spawn_blocking(hashing).await.map_err(text)?;
+    if expected_digest.is_some_and(|expected| !expected.eq_ignore_ascii_case(&sha256)) {
+        return Err("The downloaded plugin does not match the release SHA-256".into());
+    }
 
     // Stream The Advertised Chunk Size Over The Shared Client
     let frame_limit = NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit");
@@ -156,7 +161,7 @@ async fn stage(lease: &SessionLease, bytes: Vec<u8>, progress: Channel<StageProg
     let staged = lease.guard(staging).await.map_err(|error| format!("{error:?}"))?;
     let staged = staged.map_err(text)?;
     tracing::info!(size_bytes, elapsed_ms = started.elapsed().as_millis(), "plugin bundle staged from the desktop");
-    Ok(staged.install_id)
+    Ok(staged)
 }
 
 fn text(error: impl std::fmt::Display) -> String {
