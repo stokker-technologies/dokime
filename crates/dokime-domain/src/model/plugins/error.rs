@@ -41,9 +41,7 @@ use crate::model::time::Timestamp;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstalledPluginErrorRecord {
-    #[serde(alias = "artifact_id")]
     pub plugin_id: Identifier,
-
     pub contribution_id: Option<Identifier>,
     pub phase: InstalledPluginPhase,
     pub level: DebugLevel,

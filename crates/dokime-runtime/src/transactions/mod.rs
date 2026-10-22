@@ -85,19 +85,11 @@ pub enum Transactions {
     RequestReportFinalization(RequestReportFinalization),
     CaptureReportLifecycle(CaptureReportLifecycle),
     InvalidateExecutions(InvalidateExecutions),
-
-    #[serde(alias = "InstallArtifact")]
     InstallPlugin(InstallPlugin),
-
-    #[serde(alias = "InstallHostArtifact")]
     InstallHostPlugin(InstallHostPlugin),
-
     ReconcileProviders(ReconcileProviders),
     ReloadProviderCatalog(ReloadProviderCatalog),
-
-    #[serde(alias = "RemoveArtifact")]
     RemovePlugin(RemovePlugin),
-
     UpdateExecutionPhase(UpdateExecutionPhase),
     RecordStepAttempt(RecordStepAttempt),
     BeginStepAttempt(BeginStepAttempt),
