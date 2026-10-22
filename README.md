@@ -134,8 +134,9 @@ operations.
 
 The desktop reads a bounded record tail, then appends changes from its stream.
 Execution files refresh with runtime changes; an idle view does not poll the
-file list. Long record and execution lists render only the visible rows and
-their nearby rows.
+file list. The status bar follows the existing runtime subscription without
+periodic health queries. Long record and execution lists render only the visible
+rows and their nearby rows.
 
 For a charger campaign, one template might measure steady-state charging while
 another checks overcurrent protection. Cartesian expansion turns the operating
