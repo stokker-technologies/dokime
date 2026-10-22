@@ -65,7 +65,15 @@ def rust(profile: str) -> list[str]:
         "--message-format=json-render-diagnostics",
     ]
     with messages.open("w", encoding="utf-8") as written:
-        subprocess.run(command, cwd=ROOT, stdout=written, check=True)
+        subprocess.run(
+            command,
+            cwd=ROOT,
+            stdout=written,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+        )
     binaries = output / "bin"
     clear_output(binaries)
     staged = []
@@ -81,7 +89,15 @@ def rust(profile: str) -> list[str]:
 def typescript(profile: str) -> list[str]:
     """Generate The GUI Message Modules From The Server Export And Build The Live Frontend."""
     messages = _messages(profile)
-    subprocess.run(["node", str(frontend.WEB_ROOT / "tools/bindings.mjs"), str(messages), "--check"], cwd=ROOT, check=True)
+    subprocess.run(
+        ["node", str(frontend.WEB_ROOT / "tools/bindings.mjs"), str(messages), "--check"],
+        cwd=ROOT,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     generated.stage(profile)
     built = frontend.build(profile)
     return _relative([path for path in built.rglob("*") if path.is_file()])
@@ -113,7 +129,15 @@ def desktop(profile: str) -> list[str]:
         "--message-format=json-render-diagnostics",
     ]
     with messages.open("w", encoding="utf-8") as written:
-        subprocess.run(command, cwd=ROOT, stdout=written, check=True)
+        subprocess.run(
+            command,
+            cwd=ROOT,
+            stdout=written,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+        )
     source = outputs.executables(messages, ("dokime-gui",))["dokime-gui"]
     destination = output / "bin" / source.name
     stage_file(source, destination)
@@ -129,7 +153,15 @@ def tests(profile: str) -> list[str]:
     messages = archive.build(ROOT, profile, ["--features", "dokime-runtime/fault-injection"]).with_name(archive.MESSAGES)
     metadata = messages.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
-        subprocess.run(["cargo", "metadata", "--locked", "--format-version", "1"], cwd=ROOT, stdout=written, check=True)
+        subprocess.run(
+            ["cargo", "metadata", "--locked", "--format-version", "1"],
+            cwd=ROOT,
+            stdout=written,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+        )
     directory = output / "fixtures"
     staged = dependencies.cargo(ROOT, directory / "dependencies")
     staged += dependencies.wheelhouse(ROOT, directory / "dependencies")

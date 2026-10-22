@@ -17,7 +17,7 @@ lockfile = true
 # Languages And Runtimes
 node = "26.11.1"
 python = "3.15.0"
-rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools-preview", profile = "minimal", targets = "wasm32-unknown-unknown" }
+rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools", profile = "minimal", targets = "wasm32-unknown-unknown" }
 
 # Package Managers
 pnpm = "12.11.2"

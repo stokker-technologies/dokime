@@ -56,6 +56,8 @@ impl Host {
         let stderr = root.join("host.stderr.log");
         let diagnostics = std::fs::File::create(&stderr).unwrap();
         let mut command = Command::new(super::artifacts::host_binary());
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
         command
             .args(["--dev-control", "--shutdown-stdin", "--port", "0", "--output-root"])
             .arg(root.join("data"))

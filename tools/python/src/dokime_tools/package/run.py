@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/package/run.py; sha256:a77a49bc835069dada03cea90986e6287ca2131628750bec6ac9b6389a2b32a7
+# Rendered by stkr project update from templates/python/package/run.py; sha256:77a13f9965d5379aed007e16345e3acb88f04fdc3cb5207ef9f7d4401d1c6f91
 # ***
 #
 # Dokime
@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -168,7 +169,15 @@ def verify(directory: Path, profile: str, target: str, root: Path | None = None)
             executable = install / item["binary"]
             shutil.copy2(source, executable)
             executable.chmod(0o755)
-            subprocess.run([str(executable), *item["verify"]], cwd=install, check=True)
+            subprocess.run(
+                [str(executable), *item["verify"]],
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                cwd=install,
+                check=True,
+            )
 
 
 def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
@@ -185,7 +194,16 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
                     tool = f"{provider}:{repository}[asset_pattern={item['output']},bin={item['binary']}]@{version}"
                     environment = os.environ.copy()
                     environment.pop("MISE_ENABLE_TOOLS", None)
-                    subprocess.run(["mise", "install-into", tool, str(install)], cwd=install, env=environment, check=True)
+                    subprocess.run(
+                        ["mise", "install-into", tool, str(install)],
+                        stdin=sys.stdin,
+                        stdout=sys.stdout,
+                        stderr=sys.stderr,
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        cwd=install,
+                        env=environment,
+                        check=True,
+                    )
                     matches = list(install.rglob(item["binary"]))
                 else:
                     command = [
@@ -204,14 +222,30 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
                         "--strategies",
                         "crate-meta-data",
                     ]
-                    subprocess.run(command, cwd=install, check=True)
+                    subprocess.run(
+                        command,
+                        stdin=sys.stdin,
+                        stdout=sys.stdout,
+                        stderr=sys.stderr,
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        cwd=install,
+                        check=True,
+                    )
                     matches = [install / "bin" / item["binary"]]
                 if len(matches) != 1 or not matches[0].is_file():
                     raise policy.ToolError(f"{installer} did not install the declared executable")
                 expected = hashlib.sha256((root / item["output"]).read_bytes()).digest()
                 if hashlib.sha256(matches[0].read_bytes()).digest() != expected:
                     raise policy.ToolError(f"{installer} did not install the exact published asset")
-                subprocess.run([str(matches[0]), *item["verify"]], cwd=install, check=True)
+                subprocess.run(
+                    [str(matches[0]), *item["verify"]],
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    cwd=install,
+                    check=True,
+                )
 
 
 def main() -> None:
@@ -258,6 +292,10 @@ def main() -> None:
                     "--target-dir",
                     str(scratch),
                 ],
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 cwd=directory,
                 check=True,
             )

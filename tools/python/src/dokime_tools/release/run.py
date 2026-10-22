@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/run.py; sha256:7d16122b42b9b1bf44368dd7ee6535172e689289027df850f800400e42c40c9e
+# Rendered by stkr project update from templates/python/release/run.py; sha256:a9b25a32c0adf852bc419cd65f281dd8955142d075a780115d1b2fa99d5b4b91
 # ***
 #
 # Dokime
@@ -240,7 +240,16 @@ def review(directory: Path, settings: dict) -> None:
             "--yes",
         ]
         environment = {**os.environ, "GITLAB_TOKEN": token}
-    if subprocess.run(command, cwd=directory, env=environment, check=False).returncode:
+    if subprocess.run(
+        command,
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        cwd=directory,
+        env=environment,
+        check=False,
+    ).returncode:
         raise policy.ToolError(f"opening the release review failed; {branch} is pushed and can be reviewed by hand")
     registry.arm_auto_merge(settings, branch, title)
 
@@ -456,7 +465,15 @@ def tag(directory: Path, settings: dict) -> None:
     # Reject known divergence before any immutable tag or registry publication can occur.
     remote = _push_remote(settings, token)
     _run(directory, ["git", "fetch", "--quiet", remote, "refs/heads/main"], token)
-    if subprocess.run(["git", "merge-base", "--is-ancestor", "FETCH_HEAD", sha], cwd=directory, check=False).returncode:
+    if subprocess.run(
+        ["git", "merge-base", "--is-ancestor", "FETCH_HEAD", sha],
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        cwd=directory,
+        check=False,
+    ).returncode:
         raise policy.ToolError(f"main is not an ancestor of {name}; it must only ever fast-forward to release tags")
     if existing is None:
         # The release token's tag push starts the tag pipeline; the native job token's would not.
@@ -483,7 +500,16 @@ def rehearse(directory: Path, settings: dict) -> None:
     try:
         for task in chain:
             print(f"rehearsal: mise run {task}", flush=True)
-            if subprocess.run(["mise", "run", task], cwd=directory, env=environment, check=False).returncode:
+            if subprocess.run(
+                ["mise", "run", task],
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                cwd=directory,
+                env=environment,
+                check=False,
+            ).returncode:
                 raise policy.ToolError(f"rehearsal step failed: {task}")
     finally:
         discard(directory, settings)
@@ -746,7 +772,16 @@ def _rehearse_clean(directory: Path, settings: dict) -> None:
         print("rehearsal: " + " ".join(command), flush=True)
         if command[-1] == "release:rehearse":
             environment[REHEARSAL_CHECKOUT] = "1"
-        if subprocess.run(command, cwd=checkout, env=environment, check=False).returncode:
+        if subprocess.run(
+            command,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            cwd=checkout,
+            env=environment,
+            check=False,
+        ).returncode:
             raise policy.ToolError(f"local rehearsal step failed: {' '.join(command)}")
 
 
@@ -794,7 +829,15 @@ def _root(directory: Path) -> Path:
 
 def _run(directory: Path, command: list[str], secret: str) -> str:
     """Run A Command That Carries A Credential, Never Echoing It; Returns Its Scrubbed Standard Output."""
-    result = subprocess.run(command, cwd=directory, capture_output=True, text=True, encoding="utf-8", check=False)
+    result = subprocess.run(
+        command,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        cwd=directory,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
     scrub = (lambda text: text.replace(secret, "***")) if secret else (lambda text: text)
     print(scrub(result.stderr or ""), end="", file=sys.stderr)
     if result.returncode:

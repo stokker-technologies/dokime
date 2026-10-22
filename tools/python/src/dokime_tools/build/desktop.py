@@ -106,7 +106,18 @@ def supervise(commands: list[list[str]], *, cwd: Path, environment: dict[str, st
     previous = {signum: signal.signal(signum, stop) for signum in signals}
     try:
         for command in commands:
-            children.append(subprocess.Popen(command, cwd=cwd, env=environment, start_new_session=os.name != "nt"))
+            children.append(
+                subprocess.Popen(
+                    command,
+                    cwd=cwd,
+                    env=environment,
+                    start_new_session=os.name != "nt",
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
+                )
+            )
         while not stopped:
             for index, child in enumerate(children):
                 code = child.poll()
@@ -123,6 +134,8 @@ def supervise(commands: list[list[str]], *, cwd: Path, environment: dict[str, st
                     check=False,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    stdin=sys.stdin,
                 )
             else:
                 try:

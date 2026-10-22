@@ -13,6 +13,8 @@
 
 /* === Imports === */
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{fs, process::Command};
 // Third Party Imports
 
@@ -55,6 +57,8 @@ fn build_color_policy() {
         ("auto", None, false),
     ] {
         let mut command = Command::new(super::support::tool());
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
         command
             .current_dir(project.path())
             .args(["dokime", "build", "--offline", "--color", mode])

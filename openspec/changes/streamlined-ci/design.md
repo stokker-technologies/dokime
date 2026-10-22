@@ -38,3 +38,7 @@ The user approved separating executable targets from published libraries. Keep d
 
 ## Python Workspace
 Preserve Dokime's existing root uv workspace, product/tooling members and lock pins. Starters adopt the approved canonical root virtual workspace containing tools/python and a root uv.lock; retire the old managed nested lock after replacement. The offline starter wheelhouse and generated-project story consume that layout, proving root .venv creation without UV_PROJECT_ENVIRONMENT or temporary-environment redirects.
+
+## Background Windows
+
+The user requested suppression of flashing noninteractive terminal windows. Authored noninteractive Python launch sites use creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), preserving Unix behavior and explicit PTY/interactive stories. Bind inherited standard streams explicitly to sys.stdin/sys.stdout/sys.stderr because implicit handles lose output in this Windows environment; retain existing captures, redirections and input ownership. The canonical test runner retains a hidden real console for CTRL_BREAK cleanup. Native noninteractive story/compiler/benchmark launchers use Windows-only CommandExt/Command creation_flags(0x08000000); the existing GUI backend already applies that policy. Canonical runtime launchers are regenerated from the parent Hub fix; authored producers use the same standard-library keyword without a competing helper API.

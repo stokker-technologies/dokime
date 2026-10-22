@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/policy.py; sha256:92cccb2d2296bf6aa7efceff32edd9008b201a2568c71eaaf3e3da3b51b2fdef
+# Rendered by stkr project update from templates/python/release/policy.py; sha256:da830ae69ab4731d182f4fd9b0eda0872fd06a2966821a802567819dcb5def60
 # ***
 #
 # {{package}}
@@ -87,6 +87,7 @@ def command(value: object, name: str) -> list[str]:
 def execute(directory: Path, arguments: Sequence[str], *, capture: bool = False) -> str:
     result = subprocess.run(
         list(arguments),
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         cwd=directory,
         check=False,
         text=True,

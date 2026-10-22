@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/build/bench.py; sha256:cc42a47295d5d98b91e79a7bf0b24ccb5eefe5321dd35ce3de33bba7a7f82a6d
+# Rendered by stkr project update from templates/python/build/bench.py; sha256:517db7d15612d156a02e4a4a2ea44b9fc900ee3356cdc13511086512dfb150eb
 # ***
 #
 # {{package}}
@@ -59,7 +59,7 @@ def build(directory: Path, extra: Sequence[str] = ()) -> Path:
     with temporary.directory() as staging:
         raw = staging / "compiler.json"
         with raw.open("w", encoding="utf-8") as written:
-            subprocess.run(command, cwd=directory, stdout=written, check=True)
+            subprocess.run(command, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), cwd=directory, stdout=written, check=True)
         for kind in ("bin", "bench"):
             (staging / kind).mkdir()
 

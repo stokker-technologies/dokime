@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/publish.py; sha256:ef6950d825a1264cf3a3b0522c81e137e16aa2cdaeeed6d5c13acae713f1887f
+# Rendered by stkr project update from templates/python/test/publish.py; sha256:faef678125cf084a9bd0f364853d259e35647c347ea92b993589648b817273d4
 # ***
 #
 # {{package}}
@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
@@ -42,6 +43,7 @@ def commands(directory: Path, rust: bool, wheels: list[str], scratch: Path) -> l
         metadata = json.loads(
             subprocess.check_output(
                 ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 cwd=directory,
             )
         )
@@ -83,7 +85,16 @@ def main() -> None:
                 "CARGO_BUILD_BUILD_DIR",
             ):
                 environment[name] = target
-            subprocess.run(command, cwd=directory, check=True, env=environment)
+            subprocess.run(
+                command,
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                cwd=directory,
+                check=True,
+                env=environment,
+            )
 
 
 # === Private Functions === #

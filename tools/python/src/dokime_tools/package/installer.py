@@ -132,7 +132,15 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
         *bundle_args(sys.platform, signed=signed),
         *([] if release else ["--debug"]),
     ]
-    subprocess.run(command, cwd=root / WEB, check=True)
+    subprocess.run(
+        command,
+        cwd=root / WEB,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     if release:
         collect(root, signed=signed, bundles=bundles)
         plugins = paths.output(root, "build", profile) / "plugins"
@@ -324,6 +332,9 @@ def _target_directory(root: Path) -> Path:
         cwd=root,
         text=True,
         encoding="utf-8",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stderr=sys.stderr,
     )
     return Path(json.loads(output)["target_directory"])
 
@@ -336,7 +347,15 @@ def _built(directory: Path, name: str) -> Path:
 
 
 def _host_triple(root: Path) -> str:
-    output = subprocess.check_output(["mise", "exec", "--", "rustc", "-vV"], cwd=root, text=True, encoding="utf-8")
+    output = subprocess.check_output(
+        ["mise", "exec", "--", "rustc", "-vV"],
+        cwd=root,
+        text=True,
+        encoding="utf-8",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stderr=sys.stderr,
+    )
     return next(line.split(": ", 1)[1] for line in output.splitlines() if line.startswith("host: "))
 
 

@@ -16,6 +16,7 @@
 import argparse
 import hashlib
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -86,6 +87,10 @@ def ensure_report() -> None:
                 ],
                 cwd=WEB_ROOT,
                 check=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
             )
             if not (output / REPORT.name).is_file():
                 raise ValueError(f"report build did not produce {REPORT.name}")
@@ -97,10 +102,26 @@ def build_live(args: list[str]) -> None:
     vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
     command = ["node", str(vite), "build"]
     if args:
-        subprocess.run(command + args, cwd=WEB_ROOT, check=True)
+        subprocess.run(
+            command + args,
+            cwd=WEB_ROOT,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         return
     with tempfile.TemporaryDirectory(prefix="dokime-gui-live-") as directory:
-        subprocess.run(command + ["--outDir", directory], cwd=WEB_ROOT, check=True)
+        subprocess.run(
+            command + ["--outDir", directory],
+            cwd=WEB_ROOT,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         sync_output(Path(directory), WEB_ROOT / "dist")
 
 
@@ -108,7 +129,15 @@ def build(profile: str) -> Path:
     """Build The Live Frontend Once And Mirror It Where The Desktop Shell Serves It From."""
     output = paths.output(ROOT, "build", profile) / "web"
     clear_output(output)
-    subprocess.run(["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--outDir", str(output)], cwd=WEB_ROOT, check=True)
+    subprocess.run(
+        ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--outDir", str(output)],
+        cwd=WEB_ROOT,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     sync_output(output, WEB_ROOT / "dist")
     return output
 

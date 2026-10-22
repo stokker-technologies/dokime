@@ -2,6 +2,8 @@
 
 ## Implementation
 
+- [x] 1.13 Apply the requested Windows terminal-window suppression to canonical runtime launchers and authored noninteractive Python subprocess sites in build/{dependencies,desktop,frontend,product,wheel}.py, ci/bootstrap.py, package/{fixtures,installer}.py, prepare/bindings.py and the starter build/plugin.py.tmpl; cover Rust cargo-dokime acceptance helpers, CLI installation story, macro compiler/fixture execution and server host/benchmark launchers. Repair mise.toml's installed llvm-tools component spelling. Explicit inherited streams preserve captured/redirection ownership; native stdout/stderr/exit smoke, targeted Rust compilation and Python lint/format/type checks pass. PTY stories remain intact; final canonical regeneration has no conflicts.
+
 - [x] 1.12 Split the dokime and dokime-server executable entry points into non-publishable CLI crates while preserving published library names/APIs and executable names; migrate workspace/dependency metadata, Product/Bench/package selections, contract-export selectors, process-story ownership and README references. Locked all-feature CLI/test compilation and publication inventory pass; raw asset names carry package identity while command mappings and installer names stay unchanged.
 
 - [x] 1.1 Inventory authored/generated inputs and initial full baseline outcomes; preserve failures as work to repair.
@@ -14,7 +16,7 @@
 - [x] 1.10 Verify and adopt the newer released Harmos v0.1.2 dependency candidate with matching version requirements, migrate publishable manifest metadata and server Authorizer::authorize using Restricted(existing Required) to preserve grants/denials. Targeted consumer compilation passes; behavioral and dry-publication verdicts remain in final validation, with no release publication.
 - [x] 1.11 Adopt the approved canonical signed_only asset category for Windows updater outputs, protected package_signing and existing consistency checks; canonical regeneration recognizes the declarations without adding a publication path or cryptographic-verifier dependency.
 - [x] 1.6 Guard Debian prerequisites by the Linux platform before Unix-only os.geteuid access; targeted Ruff and Windows ty checks pass for the changed authored tooling.
-- [x] 1.5 Review complete product source inventory and close implementation before final full proof. All product writers and canonical Hub contracts are handed off; source is complete on the combined migration branch. Full proof and benchmark remain open.
+- [x] 1.5 Review complete product source inventory and reclose implementation after the requested background-window change; all writers handed off. The initial final graph attempt stopped before lane execution because mise startup stalled. A diagnostic unexpectedly executed nested formatting despite --dry-run and exposed a canonical formatting defect, now repaired; that diagnostic is not final proof. Source is complete; full proof and benchmark remain open.
 
 ## Validation
 

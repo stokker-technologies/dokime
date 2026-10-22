@@ -43,7 +43,15 @@ def cargo(root: Path, directory: Path) -> list[Path]:
     clear_output(vendor)
     clear_output(config)
     with config.open("w", encoding="utf-8") as output:
-        subprocess.run(["cargo", "vendor", "--locked", "--versioned-dirs", str(vendor)], cwd=root, stdout=output, check=True)
+        subprocess.run(
+            ["cargo", "vendor", "--locked", "--versioned-dirs", str(vendor)],
+            cwd=root,
+            stdout=output,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+        )
     # The Configuration Names The Closure; Its Thousands Of Vendored Files Stay Out Of The Stamp.
     return [config]
 
@@ -69,13 +77,32 @@ def wheelhouse(root: Path, directory: Path) -> list[Path]:
             cwd=root,
             stdout=output,
             check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
         )
     loader = "import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); runpy.run_module('pip',run_name='__main__')"
     download = [sys.executable, "-c", loader, str(bundled[0]), "download", "--dest", str(wheels), "--require-hashes", "--only-binary=:all:"]
-    subprocess.run([*download, "--requirement", str(requirements)], cwd=root, check=True)
+    subprocess.run(
+        [*download, "--requirement", str(requirements)],
+        cwd=root,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     # Hatchling Requests `editables` Only For Editable Installs, So No Lock Names It; The Hash-Checked
     # Requirement Is Tracked So Every Lane Runner Installs The Same Wheel.
-    subprocess.run([*download, "--no-deps", "--requirement", str(root / "tools/python/editables.txt")], cwd=root, check=True)
+    subprocess.run(
+        [*download, "--no-deps", "--requirement", str(root / "tools/python/editables.txt")],
+        cwd=root,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     return [requirements, *sorted(wheels.glob("*.whl"))]
 
 

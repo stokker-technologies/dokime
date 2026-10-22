@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/runners.py; sha256:1f3c52cf4815b1f263eab2762182c57315c2348559501e1cae25137709761e6f
+# Rendered by stkr project update from templates/python/test/runners.py; sha256:aa54fb2dce1d05a6da92735c45272b61daf01c7fe5756d98052c8da4f7218d66
 # ***
 #
 # Dokime
@@ -70,7 +70,12 @@ def main() -> None:
 
 
 def _pages(endpoint: str) -> list[dict]:
-    return json.loads(subprocess.check_output(["gh", "api", "--hostname", "github.com", "--paginate", "--slurp", endpoint]))
+    return json.loads(
+        subprocess.check_output(
+            ["gh", "api", "--hostname", "github.com", "--paginate", "--slurp", endpoint],
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    )
 
 
 # === Entry Point === #

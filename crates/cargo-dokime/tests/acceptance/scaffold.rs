@@ -13,6 +13,8 @@
 
 /* === Imports === */
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -68,6 +70,8 @@ fn task(plugin: &Path, name: &str) {
 fn run(plugin: &Path, program: &str, arguments: &[&str]) {
     let name = format!("{program} {}", arguments.join(" "));
     let mut command = Command::new(program);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
     // The Starter Runs As Its Author Would, Outside The Lane That Runs This Story.
     for (variable, _) in std::env::vars_os() {
         if variable.to_str().is_some_and(|variable| {
@@ -112,7 +116,10 @@ pub(super) fn generated_plugin_tasks() {
     let plugin = root.path().join("bench-plugin");
 
     // Generate The Plugin
-    let output = Command::new(super::support::tool()).args(["dokime", "new"]).arg(&plugin).output().unwrap();
+    let mut command = Command::new(super::support::tool());
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let output = command.args(["dokime", "new"]).arg(&plugin).output().unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     for file in [
         "mise.toml",

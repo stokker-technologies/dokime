@@ -15,6 +15,8 @@
 
 /* === Imports === */
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     env::consts::EXE_SUFFIX,
     io::{BufRead, BufReader},
@@ -51,6 +53,8 @@ impl Server {
     pub fn start(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
         let mut command = Command::new(artifact(&format!("bin/dokime-server{EXE_SUFFIX}")));
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
         command
             .args(["--dev-control", "--shutdown-stdin", "--no-seed-validation-artifact", "--port", "0", "--output-root"])
             .arg(root.path().join("data"))

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:23c0aac11ff3c2e8b6e384f714af4b90271dcb4e76abadcc56a3c5a34b622e96
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:01ae256f6b6d6e0b1ecb3079cad417cbee15539e557ad5725b8311d6b4f2a0ac
 # ***
 #
 # Dokime
@@ -45,6 +45,7 @@ MESSAGES = "compiler.json"
 def revision(directory: Path) -> str | None:
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         cwd=directory,
         capture_output=True,
         text=True,
@@ -79,7 +80,9 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         *extra,
     ]
     with path.with_name(MESSAGES).open("w", encoding="utf-8") as output:
-        result = subprocess.run(command, cwd=directory, stdout=output, check=False)
+        result = subprocess.run(
+            command, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), cwd=directory, stdout=output, check=False
+        )
     if result.returncode:
         path.unlink(missing_ok=True)
         for line in path.with_name(MESSAGES).read_text(encoding="utf-8").splitlines():
@@ -127,7 +130,9 @@ def binaries(directory: Path, profile: str) -> dict[str, str]:
             "--message-format",
             "json",
         ]
-        result = subprocess.run(command, cwd=directory, capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            command, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), cwd=directory, capture_output=True, text=True, check=False
+        )
         if result.returncode:
             raise policy.TestError(f"nextest could not list test binaries: {result.stderr.strip()}")
         return {identity: entry["binary-name"] for identity, entry in json.loads(result.stdout).get("rust-binaries", {}).items()}
@@ -161,6 +166,10 @@ def install_wheels(directory: Path, profile: str, native: str | None = None) -> 
                 "--reinstall",
                 *map(str, wheels),
             ],
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             cwd=directory,
             check=True,
         )
@@ -245,7 +254,9 @@ def _digest(path: Path) -> str:
 
 
 def _toolchain(directory: Path) -> str:
-    return subprocess.check_output(["rustc", "-Vv"], cwd=directory, text=True).strip()
+    return subprocess.check_output(
+        ["rustc", "-Vv"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), cwd=directory, text=True
+    ).strip()
 
 
 # === Entry Point === #

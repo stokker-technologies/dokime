@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/bootstrap.py; sha256:33e124434e552f00bbdf7b7f29902c08971ae34dc33756319ff5106727fb67de
+# Rendered by stkr project update from templates/python/release/bootstrap.py; sha256:4ab9dde7f293888055ce6117fb504d41dbe872e5c1b96064436e1e1cc7680e6e
 # ***
 #
 # {{package}}
@@ -157,6 +157,7 @@ def verify_stkr(directory: Path, executable: Path, version: str) -> None:
     try:
         result = subprocess.run(
             [str(executable), "--version"],
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             cwd=directory,
             text=True,
             capture_output=True,

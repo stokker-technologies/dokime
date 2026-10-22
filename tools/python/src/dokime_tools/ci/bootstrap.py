@@ -92,7 +92,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             github_environment = os.environ.get("GITHUB_ENV")
             if not github_environment:
                 raise ValueError("the desktop job needs DISPLAY or GitHub's environment file")
-            subprocess.Popen(["Xvfb", ":99", "-screen", "0", "1920x1080x24"])
+            subprocess.Popen(
+                ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
             with Path(github_environment).open("a", encoding="utf-8") as written:
                 written.write("DISPLAY=:99\n")
     _step("bootstrap complete")
@@ -179,7 +185,14 @@ def prepare_harmos(
         "profile": "dev",
         "platform": platform.system(),
         "architecture": platform.machine(),
-        "rustc": subprocess.check_output(["mise", "exec", "--", "rustc", "-vV"], text=True, encoding="utf-8").strip(),
+        "rustc": subprocess.check_output(
+            ["mise", "exec", "--", "rustc", "-vV"],
+            text=True,
+            encoding="utf-8",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+        ).strip(),
         "environment": {
             name: os.environ.get(name)
             for name in sorted(
@@ -239,7 +252,14 @@ def prepare_harmos(
             executable = staged / "bin" / binary.name
             if executable.is_symlink() or not executable.is_file():
                 raise ValueError("published Harmos package omitted its required CLI")
-            version = subprocess.check_output([str(executable), "--version"], text=True, encoding="utf-8").strip()
+            version = subprocess.check_output(
+                [str(executable), "--version"],
+                text=True,
+                encoding="utf-8",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stderr=sys.stderr,
+            ).strip()
             value = {
                 "identity": identity,
                 "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
@@ -318,6 +338,8 @@ def _override_source(directory: Path) -> str:
             text=True,
             encoding="utf-8",
             check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
         ).stdout.strip()
     )
     files = subprocess.run(
@@ -325,6 +347,8 @@ def _override_source(directory: Path) -> str:
         cwd=root,
         capture_output=True,
         check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
     ).stdout.split(b"\0")
     digest = hashlib.sha256()
     for name in sorted(set(files) - {b""}):
@@ -347,6 +371,8 @@ def _package_installed(name: str) -> bool:
             text=True,
             encoding="utf-8",
             check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
         ).returncode
         == 0
     )
@@ -354,7 +380,9 @@ def _package_installed(name: str) -> bool:
 
 def _run(command: Sequence[str]) -> None:
     _step(" ".join(command))
-    subprocess.run(command, check=True)
+    subprocess.run(
+        command, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr
+    )
 
 
 def _step(message: str) -> None:

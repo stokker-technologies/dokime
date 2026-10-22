@@ -13,6 +13,8 @@
 
 /* === Imports === */
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -62,6 +64,8 @@ fn server() -> PathBuf {
 fn dokime(directory: &Path) -> Command {
     let executable = directory.join(format!("dokime{}", std::env::consts::EXE_SUFFIX));
     let mut command = Command::new(executable);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
     command.env_remove("DOKIME_HOME");
     command
 }

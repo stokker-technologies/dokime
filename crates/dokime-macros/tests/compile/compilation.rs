@@ -17,6 +17,8 @@
 /* === Imports === */
 
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 // Third Party Imports
 
@@ -189,6 +191,8 @@ fn compile(source: &str) -> (std::process::Output, std::path::PathBuf) {
     std::fs::create_dir_all(&directory).unwrap();
     let output = directory.join(std::path::Path::new(source).file_stem().unwrap());
     let mut rustc = std::process::Command::new("rustc");
+    #[cfg(windows)]
+    rustc.creation_flags(0x0800_0000);
     // These inspection fixtures have empty mains; retain their uncalled
     // sidecar declarations instead of letting MSVC discard the metadata.
     #[cfg(target_env = "msvc")]
@@ -541,7 +545,10 @@ fn shared_stream_once() {
     .expect("shared producers produce a valid artifact");
     assert_eq!(declaration.streams.iter().filter(|stream| stream.id == "shared.sample").count(), 1,);
     assert_eq!(declaration.observers.len(), 2);
-    let ran = std::process::Command::new(&output).output().unwrap();
+    let mut command = std::process::Command::new(&output);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let ran = command.output().unwrap();
     std::fs::remove_file(output).unwrap();
     assert!(ran.status.success(), "{}", String::from_utf8_lossy(&ran.stderr));
 }

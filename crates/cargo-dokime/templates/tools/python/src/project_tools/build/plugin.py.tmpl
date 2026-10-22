@@ -15,6 +15,7 @@
 import argparse
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
@@ -51,6 +52,9 @@ def main() -> None:
                 ["cargo", "metadata", "--locked", "--format-version", "1"],
                 stdout=written,
                 check=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stderr=sys.stderr,
             )
         record = output / "product/plugin.json"
         command = [
@@ -66,7 +70,14 @@ def main() -> None:
             "--json",
         ]
         with record.open("w", encoding="utf-8") as written:
-            subprocess.run(command, stdout=written, check=True)
+            subprocess.run(
+                command,
+                stdout=written,
+                check=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stderr=sys.stderr,
+            )
         subprocess.run(
             [
                 "cargo",
@@ -78,6 +89,10 @@ def main() -> None:
                 str(source.parent),
             ],
             check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         return
     if not source.is_file():
@@ -85,7 +100,14 @@ def main() -> None:
     destination = paths.output(root, "package", options.profile) / "rust" / source.name
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, destination)
-    subprocess.run(["cargo", "dokime", "inspect", str(destination)], check=True)
+    subprocess.run(
+        ["cargo", "dokime", "inspect", str(destination)],
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
 
 
 # === Private Functions === #

@@ -14,6 +14,8 @@ use super::support;
 
 /* === Imports === */
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     fs,
     path::Path,
@@ -41,14 +43,10 @@ use std::{
 
 /* === Private Functions === */
 fn generate(root: &Path, args: &[&str]) -> Output {
-    Command::new(super::support::tool())
-        .current_dir(root)
-        .args(["dokime", "new"])
-        .args(args)
-        .env("CARGO_NET_OFFLINE", "true")
-        .env("PATH", "")
-        .output()
-        .unwrap()
+    let mut command = Command::new(super::support::tool());
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    command.current_dir(root).args(["dokime", "new"]).args(args).env("CARGO_NET_OFFLINE", "true").env("PATH", "").output().unwrap()
 }
 
 fn succeeded(output: Output) -> String {

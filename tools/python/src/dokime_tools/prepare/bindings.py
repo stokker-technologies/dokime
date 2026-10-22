@@ -94,6 +94,10 @@ def generate(
             ],
             cwd=root,
             check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         source = package / "src/dokime"
         generated = {}
@@ -233,6 +237,10 @@ def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
         ],
         cwd=root,
         check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
     stubs = [str(source / path) for path in selected if path.suffix == ".pyi"]
     if stubs:
@@ -251,11 +259,19 @@ def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
             ],
             cwd=root,
             check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
     subprocess.run(
         [sys.executable, "-m", "ruff", "format", "--config", configuration, *paths],
         cwd=root,
         check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
     for relative in selected:
         generated[relative] = (source / relative).read_bytes()

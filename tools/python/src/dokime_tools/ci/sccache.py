@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/sccache.py; sha256:0d659aab3f075ff24c29c51cdcd92df127a585cbc14774ca8ad4c6c8f3c89df8
+# Rendered by stkr project update from templates/python/ci/sccache.py; sha256:7f19e4524e10e8639c713343e4f48bb7652b9b72ac7380e426a8dd676bfe2560
 # ***
 #
 # Dokime
@@ -19,6 +19,7 @@ import os
 import queue
 import re
 import subprocess
+import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -88,7 +89,14 @@ def _execute(script: str, shell: str | None, environment: dict[str, str], backen
         "SCCACHE_IDLE_TIMEOUT": "0",
     }
     # Pinned 0.18.0 Logs This Only After Backend Readiness And Binding Port 0.
-    with subprocess.Popen(["sccache"], env=server_environment, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True) as server:
+    with subprocess.Popen(
+        ["sccache"],
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        env=server_environment,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    ) as server:
 
         def read_endpoint() -> None:
             assert server.stderr is not None
@@ -113,6 +121,7 @@ def _execute(script: str, shell: str | None, environment: dict[str, str], backen
                 try:
                     statistics = subprocess.run(
                         ["sccache", "--show-stats", "--stats-format", "json"],
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                         env=child_environment,
                         capture_output=True,
                         text=True,
@@ -131,7 +140,14 @@ def _execute(script: str, shell: str | None, environment: dict[str, str], backen
                 if shell == "pwsh"
                 else ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script]
             )
-            with subprocess.Popen(command, env=child_environment) as child:
+            with subprocess.Popen(
+                command,
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                env=child_environment,
+            ) as child:
                 while child.poll() is None:
                     if server.poll() is not None:
                         child.terminate()

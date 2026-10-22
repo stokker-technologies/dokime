@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/impact.py; sha256:c869b9f1f04991fee8af8bbe253f3b18c2bd7b23aeab8c944d0cec185db2fc35
+# Rendered by stkr project update from templates/python/ci/impact.py; sha256:882a24cd527557c27fdb6d5d8f8e035473a812b5b791acb9775764f4850bc8d1
 # ***
 #
 # Dokime
@@ -41,7 +41,9 @@ def changed_paths(target: str) -> set[str] | None:
     """Include Deleted, Added, Dirty And Untracked Paths Against One Merge Base."""
 
     def git(*arguments: str) -> str:
-        return subprocess.check_output(["git", *arguments], stderr=subprocess.DEVNULL, timeout=30).decode("utf-8")
+        return subprocess.check_output(
+            ["git", *arguments], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), stderr=subprocess.DEVNULL, timeout=30
+        ).decode("utf-8")
 
     try:
         if os.environ.get("GITLAB_CI") == "true" and target.startswith("origin/"):

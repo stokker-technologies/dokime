@@ -14,6 +14,7 @@
 # Standard Library Imports
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
@@ -48,7 +49,16 @@ def build(root: Path, profile: str) -> Path:
     command = ["uv", "build", "--no-build-isolation", "--offline", "--python", str(python), "--package", "dokime", "--out-dir", str(output)]
     if profile != "release":
         command += ["--wheel"]
-    subprocess.run(command, cwd=root, check=True, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    subprocess.run(
+        command,
+        cwd=root,
+        check=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     wheels = sorted(output.glob("dokime-*.whl"))
     if len(wheels) != 1:
         raise ValueError(f"expected one dokime wheel in {output}, found {len(wheels)}")

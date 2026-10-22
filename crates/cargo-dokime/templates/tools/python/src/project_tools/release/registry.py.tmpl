@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/registry.py; sha256:c5730d569d5a16736768b6a5dd5f77c6784a5a5918dea512ac889b55b9c773e0
+# Rendered by stkr project update from templates/python/release/registry.py; sha256:98aa9178f7b984c93345b40b5e4465b878a193c9a84e0c98baf2b563078f2c03
 # ***
 #
 # {{package}}
@@ -79,6 +79,7 @@ def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -
         while True:
             result = subprocess.run(
                 ["cargo", "publish", "--locked", "--package", name],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 cwd=directory,
                 capture_output=True,
                 text=True,
@@ -683,6 +684,7 @@ def _same_tree(directory: Path, head: str, merged: str) -> None:
         try:
             output = subprocess.run(
                 command,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 cwd=directory,
                 env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
                 capture_output=True,
