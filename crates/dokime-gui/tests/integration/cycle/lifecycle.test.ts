@@ -13,6 +13,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
@@ -20,8 +21,10 @@ import { beforeEach, test, vi } from "vitest";
 // Local Imports
 import { ControlCard } from "@/features/cycle/ControlCard";
 import { cycleControlState } from "@/features/cycle/control-model";
+import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import {
   appendNativeCaseAttempt,
+  fetchNativeTestCycleSteps,
   sealNativeTestCycle,
   startNativeTestExecution,
   stopNativeTestExecution,
@@ -36,6 +39,9 @@ const fixture = vi.hoisted(() => ({
   start: vi.fn(),
   stop: vi.fn(),
   seal: vi.fn(),
+  detail: vi.fn(),
+  parameters: vi.fn(),
+  steps: vi.fn(),
 }));
 
 const session = { generation: "lifecycle", isCurrent: () => true };
@@ -59,10 +65,34 @@ vi.mock("@/lib/rpc/generated/client", () => ({
   executionStartExecution: fixture.start,
   executionStopExecution: fixture.stop,
   executionSealCycle: fixture.seal,
+  executionGetExecution: fixture.detail,
+  executionListExecutionParameters: fixture.parameters,
+  executionListExecutionSteps: fixture.steps,
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+test("Execution Detail Uses Embedded Criteria", async () => {
+  fixture.detail.mockResolvedValue({ cycleId: "cycle", summary: { executionId: "execution", caseId: "case" } });
+  fixture.parameters.mockResolvedValue({ parameters: [] });
+  const steps = Array.from({ length: 20 }, (_, ordinal) => ({
+    stepId: `step-${ordinal}`,
+    ordinal: BigInt(ordinal),
+    measurementCount: 0n,
+    criterionCount: 1n,
+    criteria: [{ criterionId: `criterion-${ordinal}`, ordinal: 0n }],
+  }));
+  fixture.steps.mockResolvedValue({ steps });
+
+  const records = await fetchNativeTestCycleSteps(session, { cycleId: "cycle", executionId: "execution" });
+  assert.equal(records.length, 40);
+  assert.equal(records.filter((record) => record.record_type === "criterion").length, 20);
+  assert.equal(records[39].step_id, "criterion-19");
+  assert.equal(fixture.detail.mock.calls.length, 1);
+  assert.equal(fixture.parameters.mock.calls.length, 2);
+  assert.equal(fixture.steps.mock.calls.length, 1);
 });
 
 test("Append Without Start", async () => {
@@ -169,4 +199,35 @@ test("Container Seal Controls", () => {
     line: "Sealing · saving evidence",
   });
   assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], detail: null, line: "Sealed · evidence saved" });
+});
+
+test("Stream Refreshes Files And Preserves Sealed Detail", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  const calls = { files: 0, document: 0, sealed: 0, active: 0 };
+  const keys = {
+    files: workflowQueryKeys.executionFiles("active"),
+    document: workflowQueryKeys.executionDocument({ cycleId: "cycle", executionId: "active" }),
+    sealed: workflowQueryKeys.executionDetail("sealed"),
+    active: workflowQueryKeys.executionDetail("active"),
+  };
+  const observers = Object.entries(keys).map(([name, queryKey]) => {
+    const kind = name as keyof typeof calls;
+    return new QueryObserver(client, {
+      queryKey,
+      queryFn: async () => ({ revision: ++calls[kind], sealed: kind === "sealed" }),
+    });
+  });
+  const release = observers.map((observer) => observer.subscribe(() => {}));
+  try {
+    await Promise.all(observers.map((observer) => observer.refetch()));
+    assert.deepEqual(calls, { files: 1, document: 1, sealed: 1, active: 1 });
+
+    await invalidateRuntimeDocuments(client);
+    assert.deepEqual(calls, { files: 2, document: 2, sealed: 1, active: 1 });
+    await invalidateRuntimeProjectionQueries(client);
+    assert.deepEqual(calls, { files: 2, document: 2, sealed: 1, active: 2 });
+  } finally {
+    for (const unsubscribe of release) unsubscribe();
+    client.clear();
+  }
 });

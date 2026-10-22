@@ -220,15 +220,12 @@ export function useExecutionDetailQuery(executionId: string | null, enabled: boo
 export function useExecutionFilesQuery(executionId: string | null, enabled: boolean) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  // The execution_files topic is a hot counter (it ticks with every support
-  // log append), so key on the slow artifacts revision and refresh the file
-  // listing on a gentle interval instead of once per pushed frame.
+  // Runtime Changes Refresh Files Alongside Documents Through The Shared Throttle.
   const query = useQuery({
     enabled: Boolean(executionId) && enabled && session !== null,
     queryFn: () => fetchNativeExecutionFiles(identityOf(session), executionId ?? ""),
     queryKey: [...workflowQueryKeys.executionFiles(executionId), generationOf(session)],
-    refetchInterval: 5_000,
-    staleTime: 4_000,
+    staleTime: Infinity,
   });
   return snapshot ? frozenQuery(snapshot.executionFiles(executionId)) : query;
 }
@@ -335,7 +332,10 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
  * rather than on every runtime cursor.
  */
 export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
-  await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false }),
+    queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }, { cancelRefetch: false }),
+  ]);
 }
 
 export async function invalidateWorkflowDocuments(queryClient: QueryClient) {

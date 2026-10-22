@@ -918,6 +918,10 @@ async function installSaveTap(session) {
         }
         if (ledger.length >= 2000) ledger.shift();
         const entry = { command: command, at: Date.now(), state: 'pending' };
+        if (command === 'rpc' || command === 'rpc_stream_open') {
+          const headers = (init && init.headers) || {};
+          entry.path = typeof headers.get === 'function' ? headers.get('dokime-rpc-path') : headers['dokime-rpc-path'];
+        }
         if (command === 'desktop_plugin_stage_file') {
           const payload = String(init && init.body);
           entry.keys = Object.keys(JSON.parse(payload));
@@ -3484,6 +3488,45 @@ async function ownedStartupJourney() {
   await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing, idleMs, runningMs }, null, 2));
 }
 
+async function idleJourney() {
+  await session.goto("/library");
+  await installSaveTap(session);
+  const library = await idleInvokes("Library");
+  const cycleId = await createEmptyContainer(session, "Idle Refresh Evidence");
+  await cyclePhase(session, "Active");
+  const cycle = await idleInvokes("Active Cycle");
+  await writeFile(join(evidence, "idle-invokes.json"), JSON.stringify({ library, cycleId, cycle }, null, 2));
+  assert.deepEqual(library.queries, [], "An idle mounted Library does not poll backend queries");
+  assert.deepEqual(cycle.queries, [], "An idle mounted Active Cycle does not poll backend queries");
+}
+
+async function idleInvokes(surface) {
+  await until(`idle ${surface} requests settle`, () =>
+    session.execute(`
+    const calls = globalThis.__dokimeInvokes;
+    const pending = calls.some((entry) => entry.state === 'pending');
+    const latest = calls.at(-1)?.at ?? 0;
+    return !pending && Date.now() - latest >= 6000;
+  `),
+  );
+  const started = await session.execute("return Date.now();");
+  await delay(10000);
+  const measured = await session.execute(
+    `
+    const calls = globalThis.__dokimeInvokes.filter((entry) => entry.at >= arguments[0]);
+    const counts = {};
+    for (const entry of calls) {
+      const key = entry.path || entry.command;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return {elapsedMs: Date.now() - arguments[0], counts,
+      queries: calls.filter((entry) => entry.command === 'rpc').map((entry) => entry.path)};
+  `,
+    [started],
+  );
+  return measured;
+}
+
 async function emptyCycleHistory(session, cycleId, title, ownership) {
   const previous = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
@@ -3880,6 +3923,7 @@ async function main() {
     }
   }
 
+  await journey("idle", idleJourney);
   await journey("settings", () => settingsJourney(session, notes));
   await journey("plugin-install", pluginInstallJourney);
   await journey("organization", organizationJourney);
