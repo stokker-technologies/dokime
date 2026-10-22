@@ -347,3 +347,29 @@ fn plot_records(
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plot_refresh_follows_declared_inputs() {
+        let mut request =
+            PlotPayloadRequest { stream: "fixture.progress".to_owned(), y_keys: vec!["progress".to_owned()], ..Default::default() };
+        let telemetry = PlotWatchKeys::for_request(&request);
+        assert!(telemetry.reads_stream("fixture.progress"));
+        assert!(!telemetry.reads_stream("fixture.unrelated"));
+        assert!(!telemetry.follows_state());
+
+        request.marker_record_types.push("prompt.response.submitted".to_owned());
+        let mixed = PlotWatchKeys::for_request(&request);
+        assert!(mixed.reads_stream("fixture.progress"));
+        assert!(mixed.follows_state());
+
+        request.stream.clear();
+        request.y_keys.clear();
+        let records = PlotWatchKeys::for_request(&request);
+        assert!(!records.reads_stream("fixture.progress"));
+        assert!(records.follows_state());
+    }
+}

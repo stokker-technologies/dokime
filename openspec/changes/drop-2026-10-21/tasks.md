@@ -62,7 +62,7 @@
 - [ ] 45. Complete bounded record tails/incremental updates, stream invalidation, document suppression, aggregate detail and virtualization; measure idle invokes.
 - [ ] 46. Complete native report delivery and verify transfer sizes, plot budgets, deadlines and client flow control; measure export throughput.
 - [ ] 47. Complete telemetry/artifact durability batching, codec reuse, narrow state transitions and event-driven prompt waits with behavior tests and measurements; retain approved per-attempt preparation and verify cancellation/terminal evidence through the real public path.
-- [ ] 48. Verify batched changed-plot queries and telemetry-only refresh semantics.
+- [x] 48. Verify batched changed-plot queries and telemetry-only refresh semantics. Proof: `plot_refresh_follows_declared_inputs`, `batched_stream_queries`.
 - [x] 49. Enlarge sidebar logo to about one sixth window height, center wordmark beneath and separate navigation.
 
 ## Watcher Extension
@@ -77,7 +77,7 @@
 
 ## Consolidation And Acceptance
 
-- [ ] 50. Adopt all outstanding source slices and regenerate every affected client/binding from the combined tree.
+- [ ] 50. Adopt all outstanding source slices and regenerate every affected client/binding from the combined tree; remove superseded artifact serialization aliases in `crates/dokime-runtime/src/transactions/mod.rs:89`, `crates/dokime-runtime/src/state/ownership.rs:41` and `crates/dokime-domain/src/model/plugins/error.rs:44`, preserving foreign protocol field names and the explicit legacy pack importer.
 - [ ] 51. Account for source, tests, configuration, examples, README and superseded paths; declare source readiness only after all writers hand off.
 - [ ] 52. Run relevant local gates, development build, required native system walkthrough and affected lanes; repair every required failure.
 - [ ] 53. Verify published upstream pins and remote-streamline integration, complete required provider checks and authorized review into dev.
