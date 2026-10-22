@@ -41,7 +41,7 @@ fn capture_scrubs_secrets() {
         let span = tracing::info_span!("execution", cycle_id = "cycle-a", execution_id = tracing::field::Empty);
         let _entered = span.enter();
         span.record("execution_id", "execution-a");
-        tracing::info!(target: "sidecar", plugin_id = "plugin-a", api_token = "must-not-leak", line = "hello Bearer must-not-leak", timestamp = "2026-10-13T00:00:00Z");
+        tracing::info!(target: "sidecar", plugin_id = "plugin-a", api_token = "must-not-leak", credentials = "must-not-leak", line = "hello Bearer must-not-leak", timestamp = "2026-10-13T00:00:00Z");
         span.record("execution_id", "execution-b");
         tracing::warn!(message = "changed execution", details = %"x".repeat(40_000));
         let watch = tracing::info_span!(WATCH_SPAN);
@@ -56,7 +56,7 @@ fn capture_scrubs_secrets() {
     assert_eq!(first.plugin.as_deref(), Some("plugin-a"));
     assert_eq!(first.message, "hello Bearer <redacted>");
     assert_eq!(first.time.unix_timestamp(), 1791849600);
-    assert_eq!(first.fields, [("api_token".into(), "<redacted>".into())]);
+    assert_eq!(first.fields, [("api_token".into(), "<redacted>".into()), ("credentials".into(), "<redacted>".into())]);
     let second = &page.events[1].1;
     assert_eq!(second.execution.as_deref(), Some("execution-b"));
     assert!(second.fields[0].1.len() <= 1024);

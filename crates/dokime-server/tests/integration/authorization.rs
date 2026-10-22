@@ -261,6 +261,18 @@ matrix! {
     };
     "/dokime.v1.Reports/DownloadCycleReport", download, contracts::reports::DownloadCycleReport;
     "/dokime.v1.Reports/DownloadExecutionReport", download, contracts::reports::DownloadExecutionReport;
+    "/dokime.v1.Secrets/Lookup", unary, contracts::secrets::Lookup = contracts::secrets::Lookup { name: String::new() };
+    "/dokime.v1.Secrets/List", unary, contracts::secrets::List = contracts::secrets::List {};
+    "/dokime.v1.Secrets/Put", unary, contracts::secrets::Put = contracts::secrets::Put {
+        metadata: model::secrets::catalog::Metadata { name: String::new(), label: String::new(), description: None }, value: None, generation: 0,
+    };
+    "/dokime.v1.Secrets/Remove", unary, contracts::secrets::Remove = contracts::secrets::Remove { names: vec![], generation: 0 };
+    "/dokime.v1.Secrets/Adopt", unary, contracts::secrets::Adopt = contracts::secrets::Adopt {
+        metadata: model::secrets::catalog::Metadata { name: String::new(), label: String::new(), description: None }, legacy_id: String::new(), generation: 0,
+    };
+    "/dokime.v1.Secrets/Export", unary, contracts::secrets::Export = contracts::secrets::Export { names: vec![], password: String::new(), generation: 0 };
+    "/dokime.v1.Secrets/Preview", unary, contracts::secrets::Preview = contracts::secrets::Preview { ciphertext: vec![], password: String::new() };
+    "/dokime.v1.Secrets/Import", unary, contracts::secrets::Import = contracts::secrets::Import { ciphertext: vec![], password: String::new(), choices: vec![], generation: 0 };
     "/dokime.v1.Settings/GetPluginSettings", unary, contracts::settings::GetPluginSettings;
     "/dokime.v1.Settings/GetSettings", unary, contracts::settings::GetSettings;
     "/dokime.v1.Settings/ReadApplicationSettings", unary, contracts::settings::ReadApplicationSettings;

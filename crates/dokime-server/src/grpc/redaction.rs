@@ -24,7 +24,7 @@ use serde_json::Value;
 
 pub(crate) const REDACTED: &str = "<redacted>";
 const SECRET_FRAGMENTS: &[&str] =
-    &["secret", "password", "passphrase", "token", "apikey", "privatekey", "accesskey", "authorization", "cookie"];
+    &["secret", "credential", "password", "passphrase", "token", "apikey", "privatekey", "accesskey", "authorization", "cookie"];
 
 /* === Macros === */
 
@@ -68,7 +68,21 @@ pub(crate) fn text(value: &str) -> String {
 /* === Private Functions === */
 
 fn is_redacted_evidence(value: &Value) -> bool {
-    value.as_object().is_some_and(|fields| fields.contains_key("secret_id") && fields.contains_key("configured"))
+    if is_redacted_binding(value) {
+        return true;
+    }
+    let Some(fields) = value.as_object() else { return false };
+    fields.len() == 2
+        && fields.get("bindings").and_then(Value::as_object).is_some_and(|bindings| bindings.values().all(is_redacted_binding))
+        && fields.get("missing_required").and_then(Value::as_array).is_some_and(|names| names.iter().all(Value::is_string))
+}
+
+fn is_redacted_binding(value: &Value) -> bool {
+    let Some(fields) = value.as_object() else { return false };
+    fields.len() == 3
+        && fields.get("secret_id").is_some_and(Value::is_string)
+        && fields.get("backend").is_some_and(Value::is_string)
+        && fields.get("configured").is_some_and(Value::is_boolean)
 }
 
 /* === Tests === */
