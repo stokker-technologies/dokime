@@ -57,15 +57,11 @@ def build(root: Path, profile: str) -> list[Path]:
         "--out-dir",
         str(output),
     ]
-    if profile != "release":
-        command += ["--wheel"]
     subprocess.run(command, cwd=root, check=True, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
     wheels = sorted(output.glob("dokime_client-*.whl"))
     if len(wheels) != 1:
         raise ValueError(f"expected one dokime wheel in {output}, found {len(wheels)}")
-    if profile != "release":
-        return wheels
     sources = sorted(output.glob("dokime_client-*.tar.gz"))
     if len(sources) != 1:
         raise ValueError(f"expected one dokime source distribution in {output}, found {len(sources)}")
