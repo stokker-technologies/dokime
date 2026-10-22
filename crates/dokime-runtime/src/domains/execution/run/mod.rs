@@ -604,11 +604,20 @@ async fn execute_case(
         .map(|(name, parameter)| (name.clone(), parameter.value.clone()))
         .collect::<BTreeMap<String, Value>>();
     let secrets = match context.runtime.installed_plugins().get(source) {
-        Some(artifact) => context
-            .runtime
-            .resolve_secrets(&artifact.settings, &parameters)
-            .await
-            .map_err(|error| failure("sidecar_start", error.to_string()))?,
+        Some(artifact) => {
+            let settings = context.runtime.settings_snapshot(artifact).map_err(|error| failure("sidecar_start", error.to_string()))?;
+            let secrets = context
+                .runtime
+                .resolve_secrets(&artifact.settings, &settings)
+                .await
+                .map_err(|error| failure("sidecar_start", error.to_string()))?;
+            for definition in artifact.settings.secrets() {
+                if definition.required && secrets.get(&definition.id).is_none_or(|value| value.is_none()) {
+                    return Err(failure("sidecar_start", format!("required secret setting {:?} is missing", definition.id)));
+                }
+            }
+            secrets
+        }
         None => BTreeMap::new(),
     };
     let request = RunExecution {

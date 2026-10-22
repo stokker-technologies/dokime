@@ -12,6 +12,7 @@
 /* === Modules === */
 
 pub mod binding;
+pub mod catalog;
 
 /* === Re-Exports === */
 

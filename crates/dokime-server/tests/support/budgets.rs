@@ -42,7 +42,7 @@ use dokime::config::StorageSettings;
 /* === Public Functions === */
 
 pub fn runtime_config(root: impl Into<PathBuf>, hub_metadata: Metadata) -> RuntimeConfig {
-    RuntimeConfig::new(root, hub_metadata)
+    RuntimeConfig::new(root, hub_metadata).with_test_secret_store(dokime::SecretTestStore::default())
 }
 
 pub fn story_settings() -> StorageSettings {

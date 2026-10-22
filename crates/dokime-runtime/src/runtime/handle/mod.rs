@@ -238,7 +238,8 @@ impl RuntimeHandle {
         .await??;
         let node_identity = application_settings.read(|document| document.identity.clone());
         let plugin_preferences = PluginPreferences::new(application_settings.clone());
-        let secrets = SecretStore::from_config(&config.secret_backend).map_err(|error| Error::Operation(error.to_string()))?;
+        let secrets =
+            SecretStore::from_config(&config, application_settings.clone()).map_err(|error| Error::Operation(error.to_string()))?;
         let mut state = RuntimeState::new(config.session_id.clone());
         state.record_namespace = crate::model::identity::new_id::<dokime_domain::model::identity::SessionId>();
         if install_builtins {
@@ -473,6 +474,7 @@ impl RuntimeHandle {
         let contracts = self.state_read().telemetry_contracts();
         self.execution_storage.register_schemas(&contracts).await?;
         crate::runtime::operations::runtime::register(self)?;
+        crate::runtime::operations::secrets::register(self)?;
         crate::runtime::operations::reports::register(self)?;
         Ok(())
     }

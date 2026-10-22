@@ -78,6 +78,9 @@ pub struct SettingsDocument {
 
     #[serde(default)]
     pub plugins: BTreeMap<Uuid, PluginSettings>,
+
+    #[serde(default)]
+    pub secrets: dokime_domain::model::secrets::catalog::Catalog,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -220,6 +223,7 @@ impl Settings {
 
 impl SettingsDocument {
     fn validate(&self) -> std::io::Result<()> {
+        self.secrets.validate().map_err(invalid)?;
         if self.data_root.as_ref().is_some_and(|root| !root.is_absolute()) {
             return Err(invalid("data root must be an absolute path"));
         }
@@ -261,6 +265,7 @@ fn create(path: &Path) -> std::io::Result<SettingsDocument> {
         appearance: Appearance::default(),
         report: ReportDefaults::default(),
         plugins: BTreeMap::new(),
+        secrets: Default::default(),
     };
     let root = path.parent().expect("settings file has a parent");
     harmos::filesystem::publication::create_dir_all(root)?;

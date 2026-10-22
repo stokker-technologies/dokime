@@ -85,7 +85,7 @@ harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 [dev-dependencies]
 # Local
-dokime = { path = "../dokime" }
+dokime = { path = "../dokime", features = ["fault-injection"] }
 dokime-cli = { path = "../dokime-cli" }
 
 # Git

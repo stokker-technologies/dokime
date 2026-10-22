@@ -57,6 +57,10 @@ pub struct RuntimeConfig {
     pub hub_metadata: Metadata,
     pub secret_backend: RuntimeSecretConfig,
 
+    #[cfg(feature = "fault-injection")]
+    #[serde(skip)]
+    pub(crate) secret_test_store: Option<crate::secrets::TestStore>,
+
     // A trusted bench is an isolated network where plain FTP sources are accepted.
     #[serde(default)]
     pub trusted_bench: bool,
@@ -104,6 +108,9 @@ impl RuntimeConfig {
             application_root: storage_root.join("application"),
             hub_metadata,
             secret_backend: RuntimeSecretConfig::default(),
+
+            #[cfg(feature = "fault-injection")]
+            secret_test_store: None,
             trusted_bench: false,
             installed_plugins: Vec::new(),
             plugins: Vec::new(),
@@ -126,6 +133,12 @@ impl RuntimeConfig {
 
     pub fn with_secret_backend(mut self, backend: RuntimeSecretConfig) -> Self {
         self.secret_backend = backend;
+        self
+    }
+
+    #[cfg(feature = "fault-injection")]
+    pub fn with_test_secret_store(mut self, store: crate::SecretTestStore) -> Self {
+        self.secret_test_store = Some(store);
         self
     }
 

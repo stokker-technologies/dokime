@@ -242,7 +242,7 @@ async fn resolves_one_record() {
     assert_eq!(resolved.values["workspace"], Value::from("team-prod"));
     assert_eq!(
         resolved.secret_bindings.bindings["access_token"],
-        RedactedSecretBinding { secret_id: "fabric.access_token".to_owned(), backend: SecretBackendKind::Memory, configured: true }
+        RedactedSecretBinding { secret_id: "fabric.access_token".to_owned(), backend: SecretBackendKind::OsKeyring, configured: true }
     );
     assert!(resolved.secret_bindings.missing_required.is_empty());
     runtime.shutdown().await.unwrap();
@@ -302,8 +302,11 @@ async fn secret_references_file() {
 
 #[tokio::test]
 async fn local_secrets_state() {
+    use dokime_domain::{model::secrets::catalog, operations::secrets};
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("secrets.json");
+    let legacy = br#"{"old_token":"secret-token","unknown":"retain-me"}"#;
+    fs::write(&path, legacy).unwrap();
     let id = Identifier::new("zephyr").unwrap();
     let mut artifact = installed_plugin(id.as_str());
     artifact.settings = Settings {
@@ -319,20 +322,48 @@ async fn local_secrets_state() {
         .with_secret_backend(RuntimeSecretConfig { backend: SecretBackendKind::LocalFile, local_file: Some(path.clone()) })
         .with_installed_plugins([artifact]);
     let mut runtime = dokime_runtime::Runtime::start(config.clone()).await.unwrap();
-    let settings =
-        runtime.handle().save_plugin_secret(&id, "api_token", PluginSecretUpdate { secret: "secret-token".into() }).await.unwrap();
-    assert_eq!(
-        settings.secret_bindings.bindings["api_token"],
-        RedactedSecretBinding { secret_id: "zephyr.api_token".into(), backend: SecretBackendKind::LocalFile, configured: true }
-    );
-    assert!(!serde_json::to_string(&settings).unwrap().contains("secret-token"));
+    let handle = runtime.handle();
+    let snapshot = handle
+        .operations()
+        .call(secrets::Adopt {
+            metadata: catalog::Metadata { name: "zephyr.api_token".into(), label: "API Token".into(), description: None },
+            legacy_id: "old_token".into(),
+            generation: 0,
+        })
+        .await
+        .unwrap();
+    assert_eq!(snapshot.generation, 1);
+    assert!(!serde_json::to_string(&*snapshot).unwrap().contains("secret-token"));
+    let value = handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.unwrap();
+    assert_eq!(value.value.as_deref(), Some("secret-token"));
+    let reference = SecretReference::StoredSecret { secret_id: "zephyr.api_token".into() };
+    let values = BTreeMap::from([("api_token".into(), reference.into())]);
+    handle.save_plugin_settings(&id, PluginSettingsUpdate { values }).await.unwrap();
+    assert!(handle.plugin_settings(&id).await.unwrap().secret_bindings.missing_required.is_empty());
+
+    let replacement =
+        secrets::Put { metadata: snapshot.entries[0].metadata.clone(), value: Some("replacement-token".into()), generation: 1 };
+    handle.operations().call(replacement.clone()).await.unwrap();
+    assert!(handle.operations().call(replacement).await.is_err());
+    let fresh = handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.unwrap();
+    assert_eq!(fresh.value.as_deref(), Some("replacement-token"));
+    assert_eq!(value.value.as_deref(), Some("secret-token"));
+    drop(handle);
     runtime.shutdown().await.unwrap();
 
-    // The Secret Reopens From The Secret File, Never From Settings
-    let persisted: BTreeMap<String, String> = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    assert_eq!(persisted["zephyr.api_token"], "secret-token");
+    assert_eq!(fs::read(&path).unwrap(), legacy);
     let mut reopened = dokime_runtime::Runtime::start(config).await.unwrap();
     assert!(!fs::read_to_string(root.path().join("application/settings.json")).unwrap().contains("secret-token"));
+    let handle = reopened.handle();
+    assert_eq!(
+        handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.unwrap().value.as_deref(),
+        Some("replacement-token")
+    );
+    handle.operations().call(secrets::Remove { names: vec!["zephyr.api_token".into()], generation: 2 }).await.unwrap();
+    assert!(handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.is_err());
+    assert_eq!(handle.plugin_settings(&id).await.unwrap().secret_bindings.missing_required, vec!["api_token"]);
+    assert_eq!(fs::read(&path).unwrap(), legacy);
+    drop(handle);
     reopened.shutdown().await.unwrap();
 }
 

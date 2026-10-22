@@ -30,6 +30,7 @@ pub mod query;
 pub mod remote;
 pub mod reports;
 pub mod runtime;
+pub mod secrets;
 pub mod settings;
 pub mod telemetry;
 
@@ -153,6 +154,9 @@ pub enum Operations {
 
     #[nested]
     Remote(remote::Operations),
+
+    #[nested]
+    Secrets(secrets::Operations),
 
     #[nested]
     Settings(settings::Operations),

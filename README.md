@@ -443,6 +443,29 @@ retain a backup and rename each profile's `credential` key to `secret`; do not
 change its endpoint or value. Existing endpoint-keyed OS entries remain in place.
 An incompatible file is rejected without being overwritten or reset.
 
+## Shared Plugin Secrets
+
+Each backend owns a catalog of named secrets. Plugins use the shared
+`dokime.secrets.lookup` operation with a name; a missing or deleted name returns
+an error. Replacing a value affects future lookups. A value already fetched by
+a running plugin remains its responsibility. Required secret settings are
+checked before execution starts.
+
+Values are stored in the host's OS keyring, separately from backend login
+tokens, organization OAuth accounts and signing keys. New writes require that
+keyring; there is no plaintext fallback. The catalog stores names, labels,
+descriptions and opaque keyring slot identifiers. Names contain 1–128 ASCII
+letters, digits, dots, underscores or hyphens; values contain 1–65536 bytes,
+with at most 1024 catalog entries per host.
+
+Existing `LocalFile` configuration selects a legacy source for explicit
+`dokime.secrets.adopt` requests. Adoption copies one selected entry into secure
+storage and retains the original file and unknown entries unchanged. Deleting
+an adopted name never makes the old plaintext value available again. Back up
+development settings before converting old `stored_credential` references to
+`stored_secret` and their `credential_id` field to `secret_id`; incompatible
+settings are rejected without being reset.
+
 ## Planning And Creating Cycles
 
 Name a template by the readable ID that `dokime catalog show` lists. Preview

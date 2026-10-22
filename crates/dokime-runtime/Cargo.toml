@@ -53,6 +53,7 @@ host = [
   "dep:toml",
   "dep:walkdir",
   "dep:zip",
+  "dep:zeroize",
   "harmos/grpc",
   "harmos/plugin-sidecar",
 ]
@@ -62,6 +63,7 @@ media-native = ["host", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:
 simulation = ["host", "harmos/simulation"]
 
 [dependencies]
+zeroize = { workspace = true, optional = true }
 # Local
 dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
 dokime-host = { version = "0.1.0", path = "../dokime-host", optional = true }
