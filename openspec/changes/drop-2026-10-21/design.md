@@ -43,6 +43,10 @@ Report delivery uses cycle/execution ArtifactSource references and returns only 
 
 Frozen plot payloads retain all captured points, including series above the live query cap. Their display budget applies only after viewport selection, preserving early-window spikes and endpoints. Records use the existing row-window hook so bounded tail reads also stay bounded in rendered DOM size.
 
+## Combined Source Readiness
+
+SOURCE COMPLETE: the sole completion owner has adopted all authored slices into `feat/spec-completion`; there are no outstanding writers. The inventory covers domain contracts and catalogs; runtime execution, files, settings and secure storage; server/client transports and regenerated Python/TypeScript contracts; desktop delivery, organization/update policy and settings; plugin/starter consumers; benchmark and native walkthrough fixtures; CI keyring prerequisites; and affected README commands, examples, features, organization and secret-storage guidance. Superseded internal credential modules, serialization aliases and GitLab-only updater paths are removed. Explicit legacy organization import and secure secret adoption retain their specified boundaries. This records source accounting only; native measurements and the complete Linux/Windows validation remain required before delivery.
+
 ## Acceptance And Dependencies
 
 Run relevant checks and writer-owned tests before commits, and `env -u TMPDIR mise run check` before every integration push. Use signed Conventional Commits. No redirected environment roots or externally owned process termination. Run only one full lane per repository at a time and coordinate with the remote-streamline release owner.

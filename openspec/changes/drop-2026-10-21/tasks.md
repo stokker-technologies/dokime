@@ -78,7 +78,7 @@
 ## Consolidation And Acceptance
 
 - [x] 50. Adopt all outstanding source slices and regenerate every affected client/binding from the combined tree. Proof: `bundle_catalog_requires_plugin_inventory`, canonical Python/TypeScript generation from `secret-transfer-contracts.jsonl`, desktop TypeScript typecheck. Foreign protocol names and explicit legacy pack import remain.
-- [ ] 51. Account for source, tests, configuration, examples, README and superseded paths; declare source readiness only after all writers hand off.
+- [x] 51. Account for source, tests, configuration, examples, README and superseded paths; declare source readiness only after all writers hand off. Proof: combined source inventory and superseded-path audit, recorded in design.md; sole writer, no outstanding handoffs.
 - [ ] 52. Run relevant local gates, development build, required native system walkthrough and affected lanes; repair every required failure.
 - [ ] 53. Verify published upstream pins and remote-streamline integration, complete required provider checks and authorized review into dev.
 - [ ] 54. Finish the change after all acceptance and evidence tasks are satisfied.
