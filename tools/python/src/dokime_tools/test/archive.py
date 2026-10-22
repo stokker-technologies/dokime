@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:01ae256f6b6d6e0b1ecb3079cad417cbee15539e557ad5725b8311d6b4f2a0ac
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:5b3722daf0026cb1d22c0104f0c56649fd5b6c8357a7a44b70cf893a0f0d9a9e
 # ***
 #
 # Dokime
@@ -180,7 +180,7 @@ def stamp(directory: Path, profile: str, files: Sequence[str], metadata: Mapping
     record = {
         "profile": profile,
         "target": paths.target(),
-        "files": {name: _digest(_inside(directory, name)) for name in files},
+        "files": {Path(name).as_posix(): _digest(_inside(directory, name)) for name in files},
         "metadata": dict(metadata or {}),
     }
     target = paths.output(directory, "build", profile) / "fixtures/stamp.json"
@@ -196,6 +196,8 @@ def fixtures(
     roots: Sequence[str] | None = None,
 ) -> None:
     """Refuse stamped fixtures that changed, and required files the stamp does not cover."""
+    required = [Path(name).as_posix() for name in required]
+    roots = None if roots is None else [Path(name).as_posix() for name in roots]
     path = paths.output(directory, "build", profile) / "fixtures/stamp.json"
     if not path.is_file():
         if required:

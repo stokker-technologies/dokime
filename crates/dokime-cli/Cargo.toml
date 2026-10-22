@@ -48,7 +48,7 @@ tokio = { workspace = true }
 [dev-dependencies]
 
 # Local
-dokime-client = { version = "0.1.0", path = "../dokime-client" }
+dokime-client = { path = "../dokime-client" }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
