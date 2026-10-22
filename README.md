@@ -132,6 +132,11 @@ cycles continue. Shutdown stops running executions without regenerating cycle
 reports. Startup seals previous-session Active cycles without replaying device
 operations.
 
+The desktop reads a bounded record tail, then appends changes from its stream.
+Execution files refresh with runtime changes; an idle view does not poll the
+file list. Long record and execution lists render only the visible rows and
+their nearby rows.
+
 For a charger campaign, one template might measure steady-state charging while
 another checks overcurrent protection. Cartesian expansion turns the operating
 points into concrete cases:
@@ -743,7 +748,11 @@ let captured = watch.join().await?.into_owned();
 ```
 
 `All` follows baseline files and later arrivals. `Latest` selects the newest
-baseline file, while `New` captures only files discovered after the baseline.
+baseline file by modification time, breaking ties by path, while `New` captures
+only files discovered after the baseline, from byte zero. Accessible empty
+directories arm immediately for `All` and `New`. Detected replacement and
+copy-truncate boundaries retain separately named artifact segments; the file
+limit bounds simultaneous captures rather than the lifetime number of rotations.
 Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
 file beneath an accessible root may appear later. Unavailable FTP roots fail
 immediately because FTP status 550 cannot distinguish missing roots from denied
@@ -979,8 +988,9 @@ mise run ci --event pr
 binaries and libraries, the OBC bundle, generated clients, the frontend, the
 Python distribution and its tutorial. It resolves the server contracts before
 compiling the frontend, then builds the desktop shell with those assets
-embedded in both profiles. Dev applies basic optimization to the packaged Rust
-crates while retaining debug information and assertions. Package defaults to
+embedded in both profiles. Dev applies basic optimization to every workspace
+Rust crate, including authoring and packaging tools, while retaining debug
+information and assertions. Package defaults to
 `dev` and prints the packaged profile; select `--profile release` explicitly
 for release packages. Release test archives use the internal `release-tests`
 Cargo profile: release optimization and debug settings, with LTO disabled,
@@ -1016,6 +1026,10 @@ The server system benchmarks use a bench-only OBC capture suite with generated
 100k/200k-row telemetry and two operator prompts. They cover a 50 MiB plugin
 install, running execution and ten-member cycle reports, durable execution
 sealing, operator notes, and the first recovery plot frame containing points.
+Each large report and seal sample starts with a fresh private storage root;
+fixture preparation stays outside the measured operation.
+A separate export scenario delivers and verifies a ZIP containing a 200 MB
+artifact through the native client, including checksum and file publication.
 Counters distinguish explicit SQLite transaction commits, data batches, native
 file durability confirmations and transferred payload bytes; SQLite autocommit
 statements and the separate Harmos state journal are outside these counters.
