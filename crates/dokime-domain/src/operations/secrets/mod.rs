@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use super::{Endpoint, MUTATION, ORDINARY};
 use crate::model::secrets::catalog::{Metadata, Snapshot, Value};
+use crate::model::secrets::transfer::{Archive, Choice, Preview as ImportPreview};
 
 /* === Constants === */
 
@@ -78,6 +79,39 @@ pub struct Adopt {
     pub generation: u64,
 }
 
+#[harmos_domain::message(skip_debug)]
+#[harmos_domain::operation(response = Archive, id = "dokime.secrets.export", version = 1, policy = MUTATION,
+    visibility = harmos_domain::operations::Visibility::Host,
+    grpc(package = "dokime.v1", service = "Secrets", method = "Export"))]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Export {
+    pub names: Vec<String>,
+    pub password: String,
+    pub generation: u64,
+}
+
+#[harmos_domain::message(skip_debug)]
+#[harmos_domain::operation(response = ImportPreview, id = "dokime.secrets.preview", version = 1, policy = MUTATION,
+    visibility = harmos_domain::operations::Visibility::Host,
+    grpc(package = "dokime.v1", service = "Secrets", method = "Preview"))]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Preview {
+    pub ciphertext: Vec<u8>,
+    pub password: String,
+}
+
+#[harmos_domain::message(skip_debug)]
+#[harmos_domain::operation(response = Snapshot, id = "dokime.secrets.import", version = 1, policy = MUTATION,
+    visibility = harmos_domain::operations::Visibility::Host,
+    grpc(package = "dokime.v1", service = "Secrets", method = "Import"))]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Import {
+    pub ciphertext: Vec<u8>,
+    pub password: String,
+    pub choices: Vec<Choice>,
+    pub generation: u64,
+}
+
 /* === Enums === */
 
 #[harmos_domain::catalog]
@@ -87,6 +121,9 @@ pub enum Operations {
     Put(Put),
     Remove(Remove),
     Adopt(Adopt),
+    Export(Export),
+    Preview(Preview),
+    Import(Import),
 }
 
 /* === Traits === */
@@ -108,10 +145,35 @@ impl Endpoint for Remove {
 impl Endpoint for Adopt {
     const PATH: &'static str = "/dokime.v1.Secrets/Adopt";
 }
+impl Endpoint for Export {
+    const PATH: &'static str = "/dokime.v1.Secrets/Export";
+}
+impl Endpoint for Preview {
+    const PATH: &'static str = "/dokime.v1.Secrets/Preview";
+}
+impl Endpoint for Import {
+    const PATH: &'static str = "/dokime.v1.Secrets/Import";
+}
 
 impl std::fmt::Debug for Put {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("PutSecret(<redacted>)")
+    }
+}
+
+impl std::fmt::Debug for Export {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ExportSecrets(<redacted>)")
+    }
+}
+impl std::fmt::Debug for Preview {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("PreviewSecrets(<redacted>)")
+    }
+}
+impl std::fmt::Debug for Import {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ImportSecrets(<redacted>)")
     }
 }
 

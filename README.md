@@ -473,6 +473,21 @@ development settings before converting old `stored_credential` references to
 `stored_secret` and their `credential_id` field to `secret_id`; incompatible
 settings are rejected without being reset.
 
+**Export Selected Secrets** saves a password-encrypted `.age` file through the
+native file picker. **Import Encrypted Secrets** authenticates the entire file
+before showing names and conflicts. Existing names start unchecked; select
+each replacement explicitly, leave entries unchecked to skip them, and
+re-enter the password to apply the reviewed selection. A changed destination
+catalog requires a fresh preview. No values are written on a wrong password,
+tampering, invalid input or a failed secure-store staging step.
+
+Transfers use age password encryption with scrypt work factor 18 and permit
+one transfer at a time per host. The version 1 document is limited to 512 KiB,
+the encrypted file to 516 KiB, and passwords to 1024 UTF-8 bytes. Larger
+selections must be exported separately. Passwords are not saved. If catalog
+publication cannot be confirmed after a filesystem error, both generations'
+secure slots are retained; refresh the catalog before retrying.
+
 ## Planning And Creating Cycles
 
 Name a template by the readable ID that `dokime catalog show` lists. Preview

@@ -9,6 +9,10 @@
 
 /* === Modules === */
 
+#[cfg(test)]
+mod tests;
+mod transfer;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -47,6 +51,7 @@ pub(crate) struct SecretStore {
     backend: Arc<dyn Backend>,
     legacy: RuntimeSecretConfig,
     writer: Arc<Mutex<()>>,
+    transfer: Arc<Mutex<()>>,
     host: String,
     label: String,
 }
@@ -81,7 +86,7 @@ pub(crate) enum SecretStoreError {
     #[error("Secret catalog changed; refresh and review the change again")]
     Conflict,
 
-    #[error("The secret catalog could not be saved; its previous generation remains active")]
+    #[error("Secret catalog publication could not be confirmed; secure values were retained. Refresh the catalog before retrying")]
     Persistence,
 }
 
@@ -107,6 +112,7 @@ impl SecretStore {
             backend,
             legacy: config.secret_backend.clone(),
             writer: Arc::new(Mutex::new(())),
+            transfer: Arc::new(Mutex::new(())),
             host,
             label: config.hub_metadata.label.clone(),
         })
@@ -240,9 +246,8 @@ impl SecretStore {
             Ok(())
         });
         if let Err(error) = publication {
-            for slot in staged {
-                let _ = self.backend.remove(&slot);
-            }
+            // A Directory Flush Can Fail After Rename. Retain Both Generations' Slots
+            // So Either Complete Catalog Remains Readable After Recovery.
             return Err(error);
         }
 

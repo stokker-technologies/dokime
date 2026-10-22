@@ -118,6 +118,11 @@ native_commands! {
         (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<Option<String>, String>
         => crate::app::desktop::desktop_save_document;
 
+    async desktop_pick_secret_archive
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
+        (generation: String) -> Result<Option<String>, String>
+        => crate::app::desktop::desktop_pick_secret_archive;
+
     // Write a verified diagnostics bundle into the operator's Downloads folder;
     // returns the saved path.
     async desktop_save_diagnostics_bundle

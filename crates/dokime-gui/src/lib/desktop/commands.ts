@@ -70,6 +70,7 @@ export const commands = {
   /** Save a verified document through the native file picker: the saved path, `null` when the operator cancels. */
   desktopSaveDocument: (generation: string, document: DesktopSaveDocument) =>
     invoke<string | null>("desktop_save_document", { generation, document }),
+  desktopPickSecretArchive: (generation: string) => invoke<string | null>("desktop_pick_secret_archive", { generation }),
   /**
    * Write a verified diagnostics bundle into the operator's Downloads folder;
    * resolves with the saved path. The `document` kind must be

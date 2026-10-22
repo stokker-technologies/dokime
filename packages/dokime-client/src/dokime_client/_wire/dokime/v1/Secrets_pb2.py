@@ -22,8 +22,11 @@ from google.protobuf.internal import builder as _builder
 from dokime_client._wire import _pool
 # @@protoc_insertion_point(imports)
 from dokime_client._wire.dokime.v1.SecretsMessages.Adopt import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_SecretsMessages_dot_Adopt_dot_messages__pb2
+from dokime_client._wire.dokime.v1.SecretsMessages.Export import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_SecretsMessages_dot_Export_dot_messages__pb2
+from dokime_client._wire.dokime.v1.SecretsMessages.Import import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_SecretsMessages_dot_Import_dot_messages__pb2
 from dokime_client._wire.dokime.v1.SecretsMessages.List import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_SecretsMessages_dot_List_dot_messages__pb2
 from dokime_client._wire.dokime.v1.SecretsMessages.Lookup import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_SecretsMessages_dot_Lookup_dot_messages__pb2
+from dokime_client._wire.dokime.v1.SecretsMessages.Preview import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_SecretsMessages_dot_Preview_dot_messages__pb2
 from dokime_client._wire.dokime.v1.SecretsMessages.Put import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_SecretsMessages_dot_Put_dot_messages__pb2
 from dokime_client._wire.dokime.v1.SecretsMessages.Remove import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_SecretsMessages_dot_Remove_dot_messages__pb2
 
@@ -50,15 +53,15 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Secrets.proto\x12\tdokime.v1\x1a\x42\x64okime_client/_wire/dokime/v1/SecretsMessages/Adopt/messages.proto\x1a\x41\x64okime_client/_wire/dokime/v1/SecretsMessages/List/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Lookup/messages.proto\x1a@dokime_client/_wire/dokime/v1/SecretsMessages/Put/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Remove/messages.proto2\xb9\x03\n\x07Secrets\x12U\n\x05\x41\x64opt\x12%.dokime.v1.SecretsMessages.Adopt.Row1\x1a%.dokime.v1.SecretsMessages.Adopt.Row2\x12R\n\x04List\x12$.dokime.v1.SecretsMessages.List.Row1\x1a$.dokime.v1.SecretsMessages.List.Row2\x12X\n\x06Lookup\x12&.dokime.v1.SecretsMessages.Lookup.Row1\x1a&.dokime.v1.SecretsMessages.Lookup.Row2\x12O\n\x03Put\x12#.dokime.v1.SecretsMessages.Put.Row1\x1a#.dokime.v1.SecretsMessages.Put.Row2\x12X\n\x06Remove\x12&.dokime.v1.SecretsMessages.Remove.Row1\x1a&.dokime.v1.SecretsMessages.Remove.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Secrets.proto\x12\tdokime.v1\x1a\x42\x64okime_client/_wire/dokime/v1/SecretsMessages/Adopt/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Export/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Import/messages.proto\x1a\x41\x64okime_client/_wire/dokime/v1/SecretsMessages/List/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Lookup/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/SecretsMessages/Preview/messages.proto\x1a@dokime_client/_wire/dokime/v1/SecretsMessages/Put/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/SecretsMessages/Remove/messages.proto2\xca\x05\n\x07Secrets\x12U\n\x05\x41\x64opt\x12%.dokime.v1.SecretsMessages.Adopt.Row1\x1a%.dokime.v1.SecretsMessages.Adopt.Row2\x12X\n\x06\x45xport\x12&.dokime.v1.SecretsMessages.Export.Row1\x1a&.dokime.v1.SecretsMessages.Export.Row2\x12X\n\x06Import\x12&.dokime.v1.SecretsMessages.Import.Row1\x1a&.dokime.v1.SecretsMessages.Import.Row2\x12R\n\x04List\x12$.dokime.v1.SecretsMessages.List.Row1\x1a$.dokime.v1.SecretsMessages.List.Row2\x12X\n\x06Lookup\x12&.dokime.v1.SecretsMessages.Lookup.Row1\x1a&.dokime.v1.SecretsMessages.Lookup.Row2\x12[\n\x07Preview\x12\'.dokime.v1.SecretsMessages.Preview.Row1\x1a\'.dokime.v1.SecretsMessages.Preview.Row2\x12O\n\x03Put\x12#.dokime.v1.SecretsMessages.Put.Row1\x1a#.dokime.v1.SecretsMessages.Put.Row2\x12X\n\x06Remove\x12&.dokime.v1.SecretsMessages.Remove.Row1\x1a&.dokime.v1.SecretsMessages.Remove.Row2b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Secrets_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_SECRETS']._serialized_start=398
-  _globals['_SECRETS']._serialized_end=839
+  _globals['_SECRETS']._serialized_start=606
+  _globals['_SECRETS']._serialized_end=1320
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

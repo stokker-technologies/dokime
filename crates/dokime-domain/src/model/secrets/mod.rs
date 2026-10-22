@@ -13,6 +13,7 @@
 
 pub mod binding;
 pub mod catalog;
+pub mod transfer;
 
 /* === Re-Exports === */
 

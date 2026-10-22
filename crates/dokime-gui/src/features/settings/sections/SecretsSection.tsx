@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
+import { SecretTransfer } from "@/features/settings/sections/SecretTransfer";
 import { adoptSecret, putSecret, readSecrets, removeSecret, type SecretCatalog, type SecretEntry } from "@/lib/api/native-secrets";
 
 /* === Re-Exports === */
@@ -163,6 +164,15 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
                   : adoptSecret(session.identity, metadata, legacyId, editor.generation),
               )
             }
+          />
+        )}
+        {snapshot && (
+          <SecretTransfer
+            session={session.identity}
+            catalog={snapshot}
+            onImported={(next) => {
+              if (session.identity.isCurrent()) client.setQueryData(queryKey, next);
+            }}
           />
         )}
       </div>
