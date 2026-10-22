@@ -67,7 +67,7 @@
 
 ## Watcher Extension
 
-- [ ] 55. Expose observable capture-armed readiness after the watcher baseline across hosted, harness and streaming APIs, including empty baselines.
+- [x] 55. Expose observable capture-armed readiness after the watcher baseline across hosted, harness and streaming APIs, including empty baselines. Proof: `empty_baseline_arms_before_the_producer`, `failed_initial_admission_never_reports_armed`, `watch_file_matchers`, `harness_mirror_arms_before_rotation_and_retains_both_segments`, `file_watch_artifacts`, `test_armed_baseline_is_an_explicit_frame`.
 - [x] 56. Preserve uniquely named single-file rotation segments and correct simultaneous-file limits without cumulative replacement rejection. Proof: `domains::files::watch::single_file_retains_renamed_and_copy_truncated_segments_with_one_slot`, `vanished_paths_release_slots_before_new_paths_are_admitted`.
 - [x] 57. Fail explicitly on unsupported FTP resume when extraction requires it, preserving evidence and actionable gap/error; retain signalled artifact-only fallback. Proof: `domains::files::ftp::refused_resume_reports_extraction_failure_and_artifact_only_fallback`.
 - [ ] 58. Add opt-in bounded waiting for absent sources with cancellation/deadline; preserve strict defaults and immediate permission/invalid-path failures.
