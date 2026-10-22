@@ -69,7 +69,8 @@ pub(crate) struct ExecutionState {
     terminal: bool,
     prompt: Option<PromptExchange>,
     stream_rows: Vec<crate::telemetry::TelemetrySample>,
-    sample_positions: BTreeMap<dokime_domain::model::identity::TelemetrySampleId, usize>,
+    sample_positions: BTreeMap<dokime_domain::model::identity::TelemetrySampleId, SamplePosition>,
+    confirmed_samples: usize,
     samples_closed: bool,
     local_samples: Vec<crate::telemetry::TelemetrySample>,
     // How many of the held local samples a wait has already reported.
@@ -83,6 +84,11 @@ pub(crate) struct ExecutionState {
     dropped: usize,
     gaps: Vec<crate::telemetry::LeaseGap>,
     leases: BTreeMap<String, LeaseOutcome>,
+}
+
+struct SamplePosition {
+    index: usize,
+    confirmed: bool,
 }
 
 #[derive(Default)]
@@ -193,6 +199,7 @@ impl ExecutionState {
             prompt: None,
             stream_rows: Vec::new(),
             sample_positions: BTreeMap::new(),
+            confirmed_samples: 0,
             samples_closed: false,
             local_samples: Vec::new(),
             local_samples_announced: 0,
@@ -218,11 +225,11 @@ impl ExecutionState {
 
     pub(crate) fn validate_sample(&self, sample: &crate::telemetry::TelemetrySample) -> Result<(), String> {
         if let Some(position) = self.sample_positions.get(&sample.sample_id)
-            && let Some(field) = sample_difference(&self.stream_rows[*position], sample, self.local_inputs)
+            && let Some(field) = sample_difference(&self.stream_rows[position.index], sample, self.local_inputs)
         {
             let key = (field == "values")
                 .then(|| {
-                    let previous = &self.stream_rows[*position].values;
+                    let previous = &self.stream_rows[position.index].values;
                     previous.keys().chain(sample.values.keys()).find(|key| !value_equivalent(previous.get(*key), sample.values.get(*key)))
                 })
                 .flatten();
@@ -292,8 +299,8 @@ impl ExecutionState {
         self.subscriptions_settled
     }
 
-    pub(crate) fn staged_inputs(&self) -> usize {
-        self.stream_rows.len() + self.captured_records.len()
+    pub(crate) fn settlement_progress(&self) -> usize {
+        self.stream_rows.len() + self.captured_records.len() + self.confirmed_samples
     }
 
     pub(crate) fn settle_record_subscriptions(&mut self) {
@@ -532,11 +539,17 @@ impl ExecutionState {
             return Ok(false);
         }
         self.validate_sample(&sample)?;
-        if self.sample_positions.contains_key(&sample.sample_id) {
+        if let Some(position) = self.sample_positions.get_mut(&sample.sample_id) {
+            // Live Delivery May Precede Settlement. Its First Replay Confirms
+            // Durable Evidence; Repeated Replay Of That Identity Is Not Progress.
+            let confirmed = self.subscriptions_settling && !position.confirmed;
+            position.confirmed |= confirmed;
+            self.confirmed_samples += usize::from(confirmed);
             return Ok(false);
         }
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
-        self.sample_positions.insert(sample.sample_id.clone(), self.stream_rows.len());
+        let position = SamplePosition { index: self.stream_rows.len(), confirmed: self.subscriptions_settling };
+        self.sample_positions.insert(sample.sample_id.clone(), position);
         self.stream_rows.push(sample);
         Ok(true)
     }
@@ -939,6 +952,34 @@ mod tests {
     use dokime_domain::model::identity::TestExecutionId;
     use dokime_domain::model::time::Timestamp;
     use dokime_domain::model::values::Value;
+
+    #[test]
+    fn settlement_counts_each_live_sample_confirmation_once() {
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let mut state = super::ExecutionState::new(Default::default(), cancel);
+        let stream = Identifier::new("reading").unwrap();
+        let sample = TelemetrySample::new(crate::model::identity::new_id(), stream, 1, crate::model::time::now_utc(), "fixture");
+        assert!(state.receive(sample.clone()).unwrap());
+        assert!(!state.receive(sample.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 1);
+
+        state.begin_record_settle();
+        let mut changed = sample.clone();
+        changed.values.insert("value".into(), Value::from(2.0));
+        assert!(state.receive(changed).is_err());
+        assert_eq!(state.settlement_progress(), 1);
+        assert!(!state.receive(sample.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 2);
+        assert!(!state.receive(sample.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 2);
+
+        let mut late = sample;
+        late.sample_id = crate::model::identity::new_id();
+        assert!(state.receive(late.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 3);
+        assert!(!state.receive(late).unwrap());
+        assert_eq!(state.settlement_progress(), 3);
+    }
 
     #[test]
     fn sample_replay_preserves_producer_identity() {
