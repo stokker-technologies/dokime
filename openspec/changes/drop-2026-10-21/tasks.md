@@ -77,7 +77,7 @@
 
 ## Consolidation And Acceptance
 
-- [ ] 50. Adopt all outstanding source slices and regenerate every affected client/binding from the combined tree; remove superseded artifact serialization aliases in `crates/dokime-runtime/src/transactions/mod.rs:89`, `crates/dokime-runtime/src/state/ownership.rs:41` and `crates/dokime-domain/src/model/plugins/error.rs:44`, preserving foreign protocol field names and the explicit legacy pack importer.
+- [ ] 50. Adopt all outstanding source slices and regenerate every affected client/binding from the combined tree. Superseded artifact serialization aliases are removed from transactions, ownership and plugin errors (`bundle_catalog_requires_plugin_inventory`); shared-secret bindings still await their source cutover. Preserve foreign protocol field names and the explicit legacy pack importer.
 - [ ] 51. Account for source, tests, configuration, examples, README and superseded paths; declare source readiness only after all writers hand off.
 - [ ] 52. Run relevant local gates, development build, required native system walkthrough and affected lanes; repair every required failure.
 - [ ] 53. Verify published upstream pins and remote-streamline integration, complete required provider checks and authorized review into dev.
@@ -94,7 +94,7 @@
 
 ## Shared Secret Storage (absorbed from the shared-secret-storage change on 2026-10-21)
 
-- [ ] 69. Inventory secret persistence/keyring keys, plugin bindings and deployed consumers; lock safe adoption and disjoint ownership before the naming cutover.
+- [x] 69. Inventory secret persistence/keyring keys, plugin bindings and deployed consumers; lock safe adoption and disjoint ownership before the naming cutover. Proof: source inventory of `domains/credentials`, `installed_plugins/module_preferences`, `config/settings`, `model/files/wire`, client keyring/profiles and organization OAuth, recorded under Shared Secret Storage Extension in design.md.
 - [ ] 70. Replace Dokime-owned credential terminology across public declarations, operation IDs, modules, fields, settings, FTP, clients, GUI, tests, examples and guidance; preserve foreign APIs and stored values.
 - [ ] 71. Add host-owned shared named-secret lookup for all plugins with clear missing/deleted/replaced behavior and existing requirement preflight, without plugin ACLs or org-pack bindings.
 - [ ] 72. Add Secret Storage UI with target-host attribution, freely managed names/labels/descriptions, masked values and honest known-usage indication.
