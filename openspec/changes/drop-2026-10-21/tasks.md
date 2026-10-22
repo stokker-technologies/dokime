@@ -84,8 +84,8 @@
 - [ ] 54. Finish the change after all acceptance and evidence tasks are satisfied.
 
 ## Organization Packs (absorbed from the organization-packs change on 2026-10-21)
-- [ ] 62. Replace branding-pack layout/naming with organization/organization.toml across assets, generators, imports, UI, commands, examples and guidance; preserve compiled identity and restart activation.
-- [ ] 63. Preserve installed legacy pack data through safe migration or explicit import guidance; retain the last valid organization/update configuration on invalid input with a visible error.
+- [x] 62. Replace branding-pack layout/naming with organization/organization.toml across assets, generators, imports, UI, commands, examples and guidance; preserve compiled identity and restart activation. Proof: `the_repository_organization_folder_zipped_as_is_loads`, `a_staged_pack_activates_on_the_next_boot_and_an_invalid_one_falls_back`, `native-desktop.mjs / organization`.
+- [x] 63. Preserve installed legacy pack data through safe migration or explicit import guidance; retain the last valid organization/update configuration on invalid input with a visible error. Proof: `explicit_legacy_import_normalizes_only_the_manifest_name`, `invalid_pending_pack_preserves_the_last_valid_active_pack`, `invalid_update_policy_preserves_the_previous_pending_pack`, `native-desktop.mjs / organization`.
 - [ ] 64. Implement one disabled/manual/automatic-check update policy with direct manifest, GitHub Releases and GitLab Releases sources; installation stays explicit and signing trust stays compiled.
 - [ ] 65. Add named GitLab hosts/projects/OAuth connections and authenticated sources with host/account/client-scoped credentials, origin-safe forwarding and no secrets in packs.
 - [ ] 66. Implement the version-1 plugin release feed contract in design.md, organization-declared sources/links and authoritative backend target identity; check advertised package/version against inspected bytes, enforce host compatibility/target/digest and reuse Dokime staging/consent/install/restart. Missing feed and target source blocks source completion.
