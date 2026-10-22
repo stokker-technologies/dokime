@@ -57,6 +57,9 @@ pub struct StorageCounters {
 impl Server {
     pub fn start(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
+        let log = std::env::var("DOKIME_BENCH_LOG").ok();
+        let stderr = if log.is_some() { Stdio::inherit() } else { Stdio::null() };
+        let filter = log.as_deref().unwrap_or("off");
         let mut command = Command::new(artifact(&format!("bin/dokime-server{EXE_SUFFIX}")));
         command
             .args(["--dev-control", "--shutdown-stdin", "--no-seed-validation-artifact", "--port", "0", "--output-root"])
@@ -65,24 +68,21 @@ impl Server {
             .arg(root.path().join("application"))
             .arg("--plugins-root")
             .arg(root.path().join("plugins"))
-            .env("RUST_LOG", "off")
+            .env("RUST_LOG", filter)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(stderr);
         if let Some(plugin) = plugin {
             command.arg("--plugin").arg(plugin);
         }
         let mut child = command.spawn().unwrap();
         let mut stdout = BufReader::new(child.stdout.take().unwrap());
         // `--dev-control` prints one JSON line per startup phase, then `ready`.
-        let endpoint = loop {
-            let mut line = String::new();
-            assert!(stdout.read_line(&mut line).unwrap() > 0, "the server exited before reporting readiness");
-            let event: serde_json::Value = serde_json::from_str(&line).unwrap();
-            if event["event"] == "ready" {
-                break event["endpoint"].as_str().unwrap().to_owned();
-            }
-        };
+        let mut event = startup_event(&mut stdout);
+        while event["event"] != "ready" {
+            event = startup_event(&mut stdout);
+        }
+        let endpoint = event["endpoint"].as_str().unwrap().to_owned();
         Self { child, endpoint, stdout, _root: root }
     }
 
@@ -140,6 +140,12 @@ pub fn plugin_bundle() -> Option<PathBuf> {
 }
 
 /* === Private Functions === */
+fn startup_event(stdout: &mut BufReader<ChildStdout>) -> serde_json::Value {
+    let mut line = String::new();
+    assert!(stdout.read_line(&mut line).unwrap() > 0, "the server exited before reporting readiness");
+    serde_json::from_str(&line).unwrap()
+}
+
 fn artifact(relative: &str) -> PathBuf {
     let path = build_root().join(relative);
     assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
@@ -147,12 +153,16 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace = manifest
         .ancestors()
-        .find(|directory| directory.join("Cargo.lock").is_file())
-        .expect("the workspace root holds Cargo.lock")
-        .join("target/build/bench")
-        .join(format!("{PLATFORM}-{}", std::env::consts::ARCH))
+        .find(|directory| {
+            let lock = directory.join("Cargo.lock");
+            lock.is_file()
+        })
+        .expect("the workspace root holds Cargo.lock");
+    let target = format!("{PLATFORM}-{}", std::env::consts::ARCH);
+    workspace.join("target/build/bench").join(target)
 }
 
 /* === Tests === */

@@ -113,13 +113,9 @@ impl Session {
             let members = client.execution_list_executions(request).await.unwrap().executions;
             assert!(!members.is_empty(), "the benchmark cycle has planned executions");
             use model::execution::wire::ExecutionStatus;
-            for member in members.iter().filter(|member| member.sealed) {
-                assert!(
-                    member.status == ExecutionStatus::Passed,
-                    "benchmark execution {} failed: {:?}",
-                    member.execution_id,
-                    member.status
-                );
+            let failed = members.iter().find(|member| member.sealed && member.status != ExecutionStatus::Passed);
+            if let Some(member) = failed {
+                execution_failure(client, member).await;
             }
             members.iter().all(|member| member.sealed && member.status == ExecutionStatus::Passed).then_some(())
         })
@@ -219,11 +215,32 @@ pub fn benchmark(criterion: &mut Criterion) {
     seal(criterion, &executor, &mut session, &mut server);
     note(criterion, &executor, &mut session, &mut server);
     plot_stream(criterion, &executor, &mut session, &mut server);
+    export(criterion, &executor, &mut session);
     drop(session);
     server.stop();
 }
 
 /* === Private Functions === */
+
+async fn execution_failure(client: &Client, member: &model::execution::wire::ExecutionSummary) -> ! {
+    let request = contracts::execution::ListExecutionSteps { execution_id: member.execution_id.clone(), ..Default::default() };
+    let steps = client.execution_list_execution_steps(request).await.unwrap();
+    let request = contracts::content::ListExecutionFiles { execution_id: member.execution_id.clone(), ..Default::default() };
+    let files = client.content_list_execution_files(request).await.unwrap();
+
+    let logs = files.files.iter().filter(|file| file.relative_path.ends_with("stream.log"));
+    for file in logs {
+        let request = contracts::content::ReadExecutionFile {
+            execution_id: member.execution_id.clone(),
+            relative_path: file.relative_path.clone(),
+            offset: 0,
+            max_bytes: 65_536,
+        };
+        let content = client.content_read_execution_file(request).await.unwrap();
+        eprintln!("failed execution log: {}", String::from_utf8_lossy(&content.data));
+    }
+    panic!("benchmark execution {} failed: {:?}; steps: {steps:?}", member.execution_id, member.status);
+}
 
 // (a) Staging And Consenting The Built Bundle Through The Client Install Stream.
 fn install(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, bundle: &Path) {
@@ -265,6 +282,7 @@ fn running_report(criterion: &mut Criterion, executor: &tokio::runtime::Runtime,
                 executor.block_on(async {
                     let mut elapsed = Duration::ZERO;
                     for _ in 0..iterations {
+                        restart(session, server).await;
                         let plan = session.capture(rows, 1).await;
                         let (cycle_id, members) = session.cycle(&format!("bench.report.{rows}"), vec![plan]).await;
                         let execution_id = &members[0];
@@ -338,6 +356,7 @@ fn seal(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session: 
                 executor.block_on(async {
                     let mut elapsed = Duration::ZERO;
                     for _ in 0..iterations {
+                        restart(session, server).await;
                         let plan = session.capture(rows, 1).await;
                         let (cycle_id, members) = session.cycle(&format!("bench.seal.{rows}"), vec![plan]).await;
                         let prompt = session.prompt_of(&cycle_id, &members[0]).await;
@@ -421,15 +440,21 @@ async fn renew_note_fixture(
     // A New Private Server Root Keeps Every Measured Operation A New Note.
     if *notes == 1_024 {
         session.close_cycle(cycle_id).await;
-        let bundle = super::server::plugin_bundle().unwrap();
-        let previous = std::mem::replace(server, Server::start(Some(&bundle)));
-        previous.stop();
-        server.reload(&bundle);
-        *session = Session::open(server).await;
+        restart(session, server).await;
         (*cycle_id, *execution_id) = note_fixture(session).await;
         *notes = 0;
     }
     *notes += 1;
+}
+
+// Large Fixtures Start At The Same Retained History Size, Outside The Measured Operation.
+async fn restart(session: &mut Session, server: &mut Server) {
+    let bundle = super::server::plugin_bundle().unwrap();
+    let next = Server::start(Some(&bundle));
+    let previous = std::mem::replace(server, next);
+    server.reload(&bundle);
+    *session = Session::open(server).await;
+    previous.stop();
 }
 
 // (f) Time To The First Frame Of A Plot Watch On A Recovery Execution.
@@ -462,6 +487,56 @@ fn plot_stream(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, se
     });
     group.finish();
     executor.block_on(session.close_cycle(&cycle_id));
+}
+
+fn export(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session: &mut Session) {
+    const BYTES: u64 = 200_000_000;
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("payload.bin");
+    let payload = std::fs::File::create(&source).unwrap();
+    payload.set_len(BYTES).unwrap();
+    drop(payload);
+    let cycle_id = executor.block_on(async {
+        let plan = session.capture(1, 1).await;
+        let (cycle_id, members) = session.cycle("bench.export", vec![plan]).await;
+        session.prompt_of(&cycle_id, &members[0]).await;
+        let header = model::content::wire::UploadArtifactHeader {
+            scope: Some(model::content::wire::ArtifactScope {
+                cycle_id: Some(cycle_id.clone()),
+                execution_id: Some(members[0].clone()),
+                case_id: None,
+            }),
+            filename: "payload.bin".into(),
+            content_type: Some("application/octet-stream".into()),
+            size_bytes: BYTES,
+            sha256: None,
+        };
+        let uploaded = session.client.upload_artifact_file(&source, header).await.unwrap();
+        assert_eq!(uploaded.size_bytes, BYTES);
+        session.close_cycle(&cycle_id).await;
+        cycle_id
+    });
+
+    // The ZIP Stores Payload Bytes Without Compression; Verification Is Part Of Delivery.
+    let destination = root.path().join("evidence.zip");
+    let request = contracts::content::DownloadEvidence { subject: Some(model::exports::EvidenceSubject::Cycle(cycle_id)) };
+    let mut group = criterion.benchmark_group("workflow_exports_evidence");
+    group.sampling_mode(SamplingMode::Flat).sample_size(SAMPLES).throughput(Throughput::Bytes(BYTES));
+    group.bench_function("200MB", |bencher| {
+        bencher.iter_custom(|iterations| {
+            let mut elapsed = Duration::ZERO;
+            for _ in 0..iterations {
+                let started = Instant::now();
+                let download = session.client.download_evidence(request.clone(), destination.clone(), true);
+                let delivered = executor.block_on(download).unwrap();
+                elapsed += started.elapsed();
+                assert!(delivered.size_bytes >= BYTES, "the export includes the whole uncompressed payload");
+                assert_eq!(std::fs::metadata(&destination).unwrap().len(), delivered.size_bytes);
+            }
+            elapsed
+        });
+    });
+    group.finish();
 }
 
 async fn stage(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
