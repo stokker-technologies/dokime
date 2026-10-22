@@ -33,6 +33,13 @@ export type TimeFormatOrigin = {
 // IEC units: artifact sizes and memory readouts are counted in binary steps.
 const BYTE_UNITS = ["B", "KiB", "MiB", "GiB", "TiB"] as const;
 
+/** The units below a minute, each used while the rounded value stays under its limit (seconds). */
+const SUBSECOND_SCALES: ReadonlyArray<{ divisor: number; limit: number; unit: string }> = [
+  { divisor: 1e-6, limit: 1e-3, unit: "µs" },
+  { divisor: 1e-3, limit: 1, unit: "ms" },
+  { divisor: 1, limit: 59.5, unit: "s" },
+];
+
 // Exponent -> SI prefix symbol, in multiples of three; "" is the unprefixed magnitude.
 const SI_PREFIXES: ReadonlyArray<readonly [number, string]> = [
   [-24, "y"],
@@ -79,33 +86,52 @@ export function formatBytes(value: number | null | undefined): string {
   return `${scaled.toFixed(Math.abs(scaled) >= 10 ? 0 : 1)} ${BYTE_UNITS[unit]}`;
 }
 
+/** A duration split into the figure and the unit it is printed in. */
+export type DurationParts = { figure: string; unit: string };
+
 /**
  * Formats a duration **given in seconds** — the unit every stored duration in
  * the contracts uses, so a caller holding milliseconds divides at the call
  * site rather than reaching for a second function. Absent or non-finite input
  * returns `null`, leaving the placeholder to the surface that renders it.
+ * Every surface that prints a duration — parameters, step timings, elapsed
+ * and age labels, the report — prints it through this one helper.
  */
 export function formatDuration(seconds: number | null | undefined): string | null {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {
     return null;
   }
-  if (seconds > 0 && seconds < 1) {
-    return `${Math.round(seconds * 1000)} ms`;
+  const parts = durationParts(seconds);
+  return `${parts.figure} ${parts.unit}`;
+}
+
+/**
+ * A duration in seconds with the precision its magnitude needs: microseconds
+ * and milliseconds below a second, seconds to three significant digits below
+ * a minute, then minutes and seconds, then hours and minutes. "0.05" is
+ * "50 ms", "0.001" is "1 ms", "2.5" is "2.5 s" and "80" is "1 min 20 s"; a
+ * value that rounds up to the next unit is printed in that unit.
+ */
+export function durationParts(seconds: number): DurationParts {
+  const sign = seconds < 0 ? "-" : "";
+  const magnitude = Math.abs(seconds);
+  if (magnitude === 0) return { figure: "0", unit: "s" };
+  const signed = (parts: DurationParts): DurationParts => ({ ...parts, figure: `${sign}${parts.figure}` });
+  for (const scale of SUBSECOND_SCALES) {
+    const rounded = significant(magnitude / scale.divisor);
+    if (magnitude < scale.limit && rounded * scale.divisor < scale.limit) {
+      return signed({ figure: `${rounded}`, unit: scale.unit });
+    }
   }
-  if (seconds >= 3600) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
+  const whole = Math.round(magnitude);
+  if (whole < 3600) {
+    const minutes = Math.floor(whole / 60);
+    const remainder = whole % 60;
+    return signed(remainder > 0 ? { figure: `${minutes} min ${remainder}`, unit: "s" } : { figure: `${minutes}`, unit: "min" });
   }
-  if (seconds >= 60) {
-    const minutes = Math.floor(seconds / 60);
-    const remainder = Math.round(seconds % 60);
-    return remainder > 0 ? `${minutes} min ${remainder} s` : `${minutes} min`;
-  }
-  if (seconds > 0 && seconds < 10 && seconds % 1 !== 0) {
-    return `${seconds.toFixed(1)} s`;
-  }
-  return `${Math.round(seconds)} s`;
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  return signed(minutes > 0 ? { figure: `${hours} h ${minutes}`, unit: "min" } : { figure: `${hours}`, unit: "h" });
 }
 
 /**
@@ -217,6 +243,11 @@ export function defaultPlotNumber(value: number, increment?: number): string {
 }
 
 /* === Private Functions === */
+
+/** Three significant digits, without trailing zeros. */
+function significant(value: number): number {
+  return Number(value.toPrecision(3));
+}
 
 /** Elapsed seconds since the format's origin, rendered with the declared unit. */
 function elapsedText(elapsedSeconds: number, unit: "seconds" | "milliseconds" | "minutes"): string {

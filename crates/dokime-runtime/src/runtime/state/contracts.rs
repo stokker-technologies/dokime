@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -27,6 +29,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RuntimeContractLookup {
     telemetry: BTreeMap<Identifier, TelemetryContract>,
@@ -37,6 +40,7 @@ pub(crate) struct RuntimeContractLookup {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeContractLookup {
     pub(crate) fn from_registries(telemetry: &BTreeMap<Identifier, TelemetryContract>) -> Self {
         RuntimeContractLookup { telemetry: telemetry.clone() }

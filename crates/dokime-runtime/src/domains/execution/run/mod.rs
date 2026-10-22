@@ -8,24 +8,29 @@
  */
 
 /* === Modules === */
+
 mod artifacts;
 mod commands;
 pub(crate) mod host;
 mod session;
 
 /* === Re-Exports === */
+
 pub(crate) use host::Sessions;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
     sync::Arc,
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use harmos::Message;
 use harmos::operations::OperationManager;
+
 // Local Imports
 use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 use crate::definition::{CriterionDefinition, TestCase};
@@ -41,6 +46,7 @@ use crate::transport::{
 };
 use artifacts::DiscardedArtifact;
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::result::CyclePhase;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
@@ -51,8 +57,9 @@ use dokime_domain::model::values::Value;
 use session::Session;
 
 /* === Constants === */
+
 const WATCH_INTERVAL: Duration = Duration::from_millis(100);
-const STOP_SETTLEMENT: Duration = Duration::from_secs(30);
+const STOP_SETTLEMENT: Duration = Duration::from_secs(dokime_domain::STOP_SETTLEMENT_SECONDS);
 const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
 
 /* === Macros === */
@@ -60,6 +67,7 @@ const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct TemplateRunExecutor;
 
@@ -133,6 +141,7 @@ struct ProgressCleanup {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug)]
 enum DropReason {
     Abandoned,
@@ -142,6 +151,7 @@ enum DropReason {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFixture for TemplateRunExecutor {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, target: &'a ExecutionProviderTarget,
@@ -565,7 +575,19 @@ impl DropReason {
 
 /* === Public Functions === */
 
+pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in: Option<&str>) -> Vec<ProviderPhaseOutcome> {
+    let Some(stage) = failed_in else {
+        return phases;
+    };
+    if phases.iter().any(|phase| phase.identifier == stage) {
+        return phases;
+    }
+    phases.push(ProviderPhaseOutcome { identifier: stage.to_owned(), label: phase_label(stage), status: "failed".to_owned() });
+    phases
+}
+
 /* === Private Functions === */
+
 #[allow(clippy::too_many_arguments)]
 async fn execute_case(
     context: &ExecutionFixtureContext, cycle: &CycleView, case: &TestCase, execution: &TestExecution, workflow: &str, source: &str,
@@ -676,7 +698,7 @@ async fn execute_case(
         }
         if !cancelled
             && (session.refused().await
-                || cancellation_requested(context, cycle).await
+                || cancellation_requested(context, cycle)
                 || context.execution_stop_requested(&execution.test_execution_id))
         {
             cancelled = true;
@@ -713,7 +735,7 @@ async fn execute_case(
     // A run can wind down before the watch loop sees its stop, for instance
     // when the stop settled the question it was waiting on. It still ended
     // because it was stopped.
-    if !cancelled && (cancellation_requested(context, cycle).await || context.execution_stop_requested(&execution.test_execution_id)) {
+    if !cancelled && (cancellation_requested(context, cycle) || context.execution_stop_requested(&execution.test_execution_id)) {
         cancelled = true;
     }
     let Some(answered) = answered else {
@@ -771,23 +793,9 @@ async fn run_sidecar_cycle(
     let mut executions = Vec::new();
     let mut failures = Vec::new();
     let mut cancelled = false;
-    let mut stop_after_failure = false;
     for execution in runnable_executions(cycle) {
         let case = execution.snapshot.case();
-        if stop_after_failure {
-            executions.push(execution_outcome(
-                case,
-                execution,
-                &target.source,
-                "skipped",
-                Vec::new(),
-                Some("not dispatched because an earlier case failed".to_owned()),
-                Vec::new(),
-                None,
-            ));
-            continue;
-        }
-        if cancellation_requested(&context, cycle).await {
+        if cancellation_requested(&context, cycle) {
             cancelled = true;
             executions.push(execution_outcome(
                 case,
@@ -836,7 +844,6 @@ async fn run_sidecar_cycle(
             },
             Err(error) => return Err(error),
         };
-        stop_after_failure = !cycle.continue_on_failure && result.execution.status != "passed" && !stopped_alone;
         cancelled |= result.cancelled && !stopped_alone;
         failures.extend(result.execution.failures.iter().cloned());
         executions.push(result.execution);
@@ -862,17 +869,6 @@ async fn run_sidecar_cycle(
         executions,
         failures,
     })
-}
-
-pub(crate) fn with_failed_stage(mut phases: Vec<ProviderPhaseOutcome>, failed_in: Option<&str>) -> Vec<ProviderPhaseOutcome> {
-    let Some(stage) = failed_in else {
-        return phases;
-    };
-    if phases.iter().any(|phase| phase.identifier == stage) {
-        return phases;
-    }
-    phases.push(ProviderPhaseOutcome { identifier: stage.to_owned(), label: phase_label(stage), status: "failed".to_owned() });
-    phases
 }
 
 fn admit_prompt(declared: &[crate::prompts::PromptDefinition], prompt: &PromptRequest) -> Result<(), ProviderExecutionFailure> {
@@ -1094,15 +1090,10 @@ async fn update_phase(
         .map_err(|error| failure("sidecar_phase", format!("sidecar phase update was rejected: {error}")))
 }
 
-async fn cancellation_requested(context: &ExecutionFixtureContext, cycle: &CycleView) -> bool {
+// An Execution Stop Reaches The Provider Through Its Request; Only Closing The Cycle Stops The Whole Run.
+fn cancellation_requested(context: &ExecutionFixtureContext, cycle: &CycleView) -> bool {
     context.is_cancelled()
-        || matches!(
-            context.cycle_lifecycle(&cycle.test_cycle_id).await,
-            Some(
-                dokime_domain::model::execution::result::CycleStatus::Stopping
-                    | dokime_domain::model::execution::result::CycleStatus::Stopped
-            )
-        )
+        || context.runtime.state_read().cycles.get(&cycle.test_cycle_id).is_none_or(|cycle| cycle.phase != CyclePhase::Active)
 }
 
 fn runnable_executions(cycle: &CycleView) -> impl Iterator<Item = &TestExecution> {

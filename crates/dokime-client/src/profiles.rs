@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use super::{Target, credentials::SecretStore};
 
 /* === Constants === */
+
 pub const MAX_BYTES: usize = 1024 * 1024;
 const MAX_PROFILES: usize = 128;
 
@@ -39,6 +40,7 @@ const MAX_PROFILES: usize = 128;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Profile {
@@ -70,6 +72,7 @@ pub struct Selection {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Credential {
@@ -81,12 +84,16 @@ pub enum Credential {
 pub enum Error {
     #[error("Invalid backend profiles: {0}")]
     Invalid(String),
+
     #[error("Backend profile configuration is busy; retry the edit.")]
     Busy,
+
     #[error(transparent)]
     Io(#[from] io::Error),
+
     #[error(transparent)]
     Filesystem(#[from] harmos::filesystem::Error),
+
     #[error(transparent)]
     Credentials(#[from] super::credentials::Error),
 }
@@ -94,6 +101,7 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for Document {
     fn default() -> Self {
         Self { version: 1, default: None, profiles: Vec::new() }
@@ -273,6 +281,7 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: &str) -> Error {
     Error::Invalid(message.to_owned())
 }

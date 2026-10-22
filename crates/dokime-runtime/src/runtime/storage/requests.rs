@@ -8,18 +8,23 @@
  */
 
 /* === Modules === */
+
 mod native;
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::execution::request::AttemptClaim;
 pub use dokime_domain::model::execution::request::RunReceipt;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 use harmos::storage::StorageCursor;
 use tokio::sync::Mutex;
+
 // Local Imports
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::request::RunPhase;
@@ -30,6 +35,7 @@ use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const RECOVERY_INTERRUPTION: &str =
     "Previous runtime ended before request completion. Device actions are not replayed; claimed acquisition may be interrupted.";
 const INITIAL_INTERRUPTION: &str = "Initial receipt publication was interrupted; no provider work was submitted.";
@@ -40,6 +46,7 @@ const TERMINAL_INTERRUPTION: &str = "Run settled before command completion was r
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Active {
     receipt: Arc<RunReceipt>,
     pending: Option<Pending<Arc<RunReceipt>>>,
@@ -64,6 +71,7 @@ pub(crate) struct RequestStorage {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<R: Clone + std::ops::Deref<Target = RunReceipt>> Pending<R> {
     fn new(receipt: R) -> Self {
         Self { receipt, previous: None, position: None }
@@ -88,16 +96,16 @@ impl RequestStorage {
 
     pub(crate) async fn recover<'a>(&self, completed: impl Fn(&CommandId) -> Option<&'a RunSummary>) -> Result<()> {
         for id in native::pending(&self.storage, &self.node).await? {
-            self.get_recovered(&id, completed(&id)).await?;
+            self.get_recovered(&id, completed(&id), true).await?;
         }
         Ok(())
     }
 
     pub(crate) async fn get(&self, id: &CommandId) -> Result<Option<Arc<RunReceipt>>> {
-        self.get_recovered(id, None).await
+        self.get_recovered(id, None, false).await
     }
 
-    async fn get_recovered(&self, id: &CommandId, completed: Option<&RunSummary>) -> Result<Option<Arc<RunReceipt>>> {
+    async fn get_recovered(&self, id: &CommandId, completed: Option<&RunSummary>, boot: bool) -> Result<Option<Arc<RunReceipt>>> {
         let (mut active, stored) = self.lock_read(id).await?;
         if let Some(stored) = stored {
             let Some(receipt) = stored else {
@@ -121,6 +129,10 @@ impl RequestStorage {
                     receipt.summary = summary.clone();
                     receipt.interruption = None;
                     receipt.interrupt_step_commands(TERMINAL_INTERRUPTION, &now);
+                } else if boot && receipt.summary.provider_started_at.is_none() && receipt.summary.prepared == 0 {
+                    // Never dispatched: the stop that ended the session stopped it before it began.
+                    receipt.summary.phase = RunPhase::Stopped;
+                    receipt.summary.finished_at = Some(now);
                 } else {
                     interrupt(receipt, RECOVERY_INTERRUPTION, now);
                 }
@@ -260,6 +272,7 @@ impl RequestStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn revise(receipt: &Arc<RunReceipt>, change: impl FnOnce(&mut RunReceipt) -> Result<()>) -> Result<Arc<RunReceipt>> {
     let mut revised = (**receipt).clone();
     change(&mut revised)?;

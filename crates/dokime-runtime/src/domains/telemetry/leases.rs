@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
     time::Duration,
 };
+
 // Third Party Imports
+
 // Local Imports
 use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry::{SamplingScope, TelemetryCaptureLease, TelemetrySamplingRequest, TelemetrySourceKind};
@@ -30,8 +33,8 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
-pub(crate) const HOST_PRODUCER_KEY: &str = "host";
 
+pub(crate) const HOST_PRODUCER_KEY: &str = "host";
 const MAX_CLOSED_WINDOWS: usize = 4_096;
 
 /* === Macros === */
@@ -39,6 +42,7 @@ const MAX_CLOSED_WINDOWS: usize = 4_096;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 pub(crate) struct StreamLeases {
     state: Mutex<LeaseState>,
@@ -63,8 +67,10 @@ struct Hold {
 
 struct Instance {
     owner: StreamOwner,
+
     #[allow(dead_code, reason = "the declared cadence the running instance was started at")]
     interval: Duration,
+
     holders: BTreeSet<String>,
     captures: BTreeMap<String, String>,
     generation: u64,
@@ -108,6 +114,7 @@ pub(crate) struct LeasedRows {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum StreamOwner {
     Host,
@@ -117,6 +124,7 @@ enum StreamOwner {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for PendingLeases {
     fn drop(&mut self) {
         let mut state = self.table.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -626,6 +634,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn delivery_scope(source: Option<&RecordScope>, holder: &RecordScope) -> RecordScope {
     source
         .filter(|source| source.test_execution_id.is_some() && source.test_execution_id == holder.test_execution_id)
@@ -641,6 +650,7 @@ fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::delivery_scope;

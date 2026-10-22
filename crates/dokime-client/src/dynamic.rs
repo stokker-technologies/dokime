@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use harmos::grpc::dynamic::Event;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 
@@ -25,7 +27,8 @@ use super::operations::{Error, MAX_INPUT_BYTES, Result};
 use super::{Client, ResponseStream, stream::Input};
 
 /* === Constants === */
-const MAX_INPUT_FRAMES: usize = 4096;
+
+pub const MAX_INPUT_FRAMES: usize = 4096;
 
 /* === Macros === */
 
@@ -38,6 +41,7 @@ const MAX_INPUT_FRAMES: usize = 4096;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub async fn call_operation(
         &self, identifier: &str, owner: Option<&str>, request: &[u8], inputs: Vec<Vec<u8>>,

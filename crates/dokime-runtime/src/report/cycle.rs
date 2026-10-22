@@ -1,24 +1,30 @@
 /* ***
  *
  * Dokime
+ *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
 
 /* === Modules === */
+
 mod index;
 
 /* === Re-Exports === */
+
 pub(crate) use index::{AnnotationKind, Index, Member, Sample};
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use harmos::{
     operations::Host,
     storage::{FileMetadata, FileReference},
 };
+
 // Local Imports
 use super::html::HtmlReport;
 use crate::storage::Manager;
@@ -26,6 +32,7 @@ use crate::{
     runtime::Result,
     runtime::{progress::Operation, storage::cycle::CycleSnapshot},
 };
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
@@ -35,6 +42,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct CycleReport {
     manager: Manager,
     file: super::saved::ReportFile,
@@ -42,14 +50,21 @@ pub(crate) struct CycleReport {
 
 /* === Enums === */
 
+// One Cycle Member In Cycle Order: Captured Evidence, Or A Planned Row Nobody Started.
+pub(crate) enum CycleMember {
+    Captured(Box<super::CapturedExecutionReportInput>),
+    Planned(Box<TestExecution>),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl CycleReport {
     pub(crate) async fn prepare(
-        manager: &Manager, snapshot: CycleSnapshot, captured_members: Vec<super::CapturedExecutionReportInput>, operation: &Operation,
+        manager: &Manager, snapshot: CycleSnapshot, members: Vec<CycleMember>, operation: &Operation,
     ) -> Result<Self> {
-        let source = HtmlReport::from_cycle(snapshot, captured_members, operation)?;
+        let source = HtmlReport::from_cycle(snapshot, members, operation)?;
         let cycle = source.header().cycle.test_cycle_id.to_string();
         let metadata = FileMetadata {
             id: Identifier::new(format!("{cycle}.{}.cycle-report", uuid::Uuid::now_v7())).map_err(crate::storage::Error::from)?,

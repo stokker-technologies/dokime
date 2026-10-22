@@ -34,8 +34,8 @@ import { commands } from "@/lib/desktop/commands";
 import type { BackendProfiles, ConnectionCredentials, ConnectionTarget } from "@/lib/desktop/connection";
 import type { DesktopLaunch } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
-import { connectionError, startupDiagnostics } from "./errors";
 import { useNativeSessionController } from "./context";
+import { connectionError, startupDiagnostics } from "./errors";
 import { StartupDiagnostics } from "./StartupDiagnostics";
 import { BACKUP_RESET_LABEL, backupFailure, backupResetAvailable, backupSteps } from "./storage-backup-model";
 
@@ -149,9 +149,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   function submit(event: FormEvent) {
     event.preventDefault();
     const value = endpoint.trim();
-    const target: ConnectionTarget = value.startsWith("http://")
-      ? { kind: "local", endpoint: value }
-      : { kind: "remote", endpoint: value, caCertificatePem: ca.trim() || null };
+    const target: ConnectionTarget = { kind: "remote", endpoint: value, caCertificatePem: ca.trim() || null };
     const credentials: ConnectionCredentials = credential === "bearer" ? { kind: "bearer", token, remember } : { kind: credential };
     setToken("");
     void owner.select({
@@ -297,13 +295,13 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                       value={credential}
                     >
                       <option value="saved">Saved in System Keyring</option>
-                      <option value="bearer">Access Token</option>
+                      <option value="bearer">Access Key</option>
                       <option value="none">No Credentials</option>
                     </select>
                   </Field>
                   {credential === "bearer" && (
                     <>
-                      <Field htmlFor={tokenId} label="Access Token">
+                      <Field htmlFor={tokenId} label="Access Key">
                         <Input
                           autoComplete="off"
                           id={tokenId}
@@ -315,7 +313,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                       </Field>
                       <label className="col-span-full flex items-center justify-center gap-2 text-sm">
                         <input checked={remember} onChange={(event) => setRemember(event.target.checked)} type="checkbox" />
-                        Save Token in System Keyring
+                        Save Key in System Keyring
                       </label>
                     </>
                   )}
@@ -333,8 +331,8 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                     </div>
                   </details>
                   <p className="text-center text-xs text-muted-foreground">
-                    Remote connections require TLS. HTTP is allowed only for a literal loopback address. Attached backends continue running
-                    after disconnect.
+                    HTTPS verifies the server certificate. Explicit HTTP sends keys and data without encryption; use it only in an isolated
+                    lab. Choose No Credentials only when the listener does not require a key. Attached backends continue after disconnect.
                   </p>
                   <Button className="w-full" type="submit">
                     Connect

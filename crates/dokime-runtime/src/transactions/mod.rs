@@ -8,10 +8,12 @@
  */
 
 /* === Modules === */
+
 pub mod archive;
 pub mod cycle;
 pub mod documents;
 pub mod evidence;
+pub mod execution_cancel;
 pub mod execution_control;
 pub mod installation;
 pub mod invalidation;
@@ -25,41 +27,45 @@ mod plugins;
 pub mod prompts;
 pub mod provider;
 pub mod provider_finish;
-
 pub(crate) mod records;
 mod suite_sets;
 pub mod traceability;
 
 /* === Re-Exports === */
+
 pub use archive::{ArchiveSubject, SetArchived};
 pub use cycle::{ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy};
 pub use documents::{AddExecutionDocumentParts, UpdatePlotSettings};
 pub use evidence::{CloseRecordSubscriptions, PublishRecord, RecordHealth};
+pub use execution_cancel::CancelExecution;
 pub use execution_control::ControlExecution;
 pub use installation::{InstallPlugin, RemovePlugin};
 pub use invalidation::InvalidateExecutions;
 pub use labels::{LabelSubject, RenameLabel};
 pub use lifecycle::{
-    CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, MarkRuntimeStarted, RecoverInterruptedCycles,
-    ReportFinalization, ReportLifecycle, RequestCycleReportFinalization, RequestReportFinalization, SealCycle, StartShutdown,
+    BeginCycleSeal, CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, MarkRuntimeStarted, RecoverInterruptedCycles,
+    ReportFinalization, ReportLifecycle, RequestCycleReportFinalization, RequestReportFinalization, SealCycle, SealExecution,
+    StageQueuedStop, StartShutdown,
 };
 pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
 pub use parameters::UpsertScopedParameter;
-pub use planning::{AppendCycle, CopyCycle, CreateCycle, CycleDefinition, RegisterCases};
+pub use planning::{AppendExecutions, CopyCycle, CreateCycle, CycleDefinition, RegisterCases};
 pub use plugins::{InstallHostPlugin, ReconcileProviders, ReloadProviderCatalog};
 pub use prompts::{RequestPrompt, SubmitPromptResponse};
 pub use provider::RunProvider;
-pub use provider::request::{AdvanceRunGroup, CompleteRun, DispatchProvider, PrepareAttempt, SettleRun, Unsealed};
+pub use provider::request::{CompleteRun, DispatchProvider, PrepareAttempt, SettleRun, Unsealed};
 pub use provider_finish::FinishProvider;
 pub use suite_sets::{RemoveSuiteSet, SetSuiteSet};
 pub use traceability::{BeginStepAttempt, RecordExecutionTraceability, RecordStepAttempt, SetCapturePhase, UpdateExecutionPhase};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 
 /* === Constants === */
@@ -71,6 +77,7 @@ use serde::{Deserialize, Serialize};
 /* === Structs === */
 
 /* === Enums === */
+
 #[harmos::transactions(state = crate::state::RuntimeState, error = String)]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Transactions {
@@ -78,19 +85,25 @@ pub enum Transactions {
     RequestReportFinalization(RequestReportFinalization),
     CaptureReportLifecycle(CaptureReportLifecycle),
     InvalidateExecutions(InvalidateExecutions),
+
     #[serde(alias = "InstallArtifact")]
     InstallPlugin(InstallPlugin),
+
     #[serde(alias = "InstallHostArtifact")]
     InstallHostPlugin(InstallHostPlugin),
+
     ReconcileProviders(ReconcileProviders),
     ReloadProviderCatalog(ReloadProviderCatalog),
+
     #[serde(alias = "RemoveArtifact")]
     RemovePlugin(RemovePlugin),
+
     UpdateExecutionPhase(UpdateExecutionPhase),
     RecordStepAttempt(RecordStepAttempt),
     BeginStepAttempt(BeginStepAttempt),
     SetCapturePhase(SetCapturePhase),
     ControlExecution(ControlExecution),
+    CancelExecution(CancelExecution),
     RecordExecutionTraceability(RecordExecutionTraceability),
     AddExecutionDocumentParts(AddExecutionDocumentParts),
     UpdatePlotSettings(UpdatePlotSettings),
@@ -110,6 +123,9 @@ pub enum Transactions {
     MarkRuntimeStarted(MarkRuntimeStarted),
     RecoverInterruptedCycles(RecoverInterruptedCycles),
     SealCycle(SealCycle),
+    SealExecution(SealExecution),
+    BeginCycleSeal(BeginCycleSeal),
+    StageQueuedStop(StageQueuedStop),
     EstablishNodeIdentity(EstablishNodeIdentity),
     StartShutdown(StartShutdown),
     ControlCycle(ControlCycle),
@@ -118,13 +134,12 @@ pub enum Transactions {
     UpdateCyclePolicy(UpdateCyclePolicy),
     SetArchived(SetArchived),
     RenameLabel(RenameLabel),
-    AppendCycle(AppendCycle),
+    AppendExecutions(AppendExecutions),
     CreateCycle(CreateCycle),
     CopyCycle(CopyCycle),
     RunProvider(RunProvider),
     PrepareAttempt(PrepareAttempt),
     DispatchProvider(DispatchProvider),
-    AdvanceRunGroup(AdvanceRunGroup),
     CompleteRun(CompleteRun),
     SettleRun(SettleRun),
 }

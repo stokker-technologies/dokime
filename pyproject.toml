@@ -15,7 +15,7 @@ dependencies = []
 [dependency-groups]
 test = ["grpcio>=1.84.0,<2", "pytest==9.1.1", "pytest-cov==7.1.0", "pytest-timeout==2.4.0"]
 dev = [
-  "dokime",
+  "dokime-client",
   "dokime-tools",
   "git-cliff==2.14.2",
   "hatchling==1.32.4",
@@ -31,12 +31,12 @@ package = false
 system-certs = true
 
 [tool.uv.workspace]
-members = ["packages/dokime", "tools/python"]
+members = ["packages/dokime-client", "tools/python"]
 
 [[tool.uv.index]]
 name = "pypi"
 url = "https://pypi.org/simple"
 
 [tool.uv.sources]
-dokime = { workspace = true }
+dokime-client = { workspace = true }
 dokime-tools = { workspace = true }

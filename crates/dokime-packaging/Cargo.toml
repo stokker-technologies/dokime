@@ -5,15 +5,13 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Cargo-driven native Dokime plugin packaging"
-publish = false
 version = { workspace = true }
 
 [dependencies]
 # Local
-dokime = { path = "../dokime" }
+dokime = { workspace = true, features = ["terminal", "plugin-sidecar"] }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
 harmos-packaging = { workspace = true }
 
 # Error Handling

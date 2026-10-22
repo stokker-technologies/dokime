@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use tonic::Streaming as RawStreaming;
 
 /* === Imports === */
@@ -32,6 +33,7 @@ use super::{Client, Error, Result, stream::Input};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default)]
 struct RawCodec;
 
@@ -46,6 +48,7 @@ struct RawDecoder;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Codec for RawCodec {
     type Encode = Vec<u8>;
     type Decode = Vec<u8>;

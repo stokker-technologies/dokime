@@ -12,17 +12,20 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::{inspection, wire};
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{content::window, value};
-use dokime_domain::operations::history;
-use dokime_runtime::{ExecutionFileContent, RuntimeHandle, runtime::query::execution_history::ExecutionCheckpoint};
+use dokime::domain::operations::history;
+use dokime::{ExecutionFileContent, RuntimeHandle, runtime::query::execution_history::ExecutionCheckpoint};
 
 /* === Constants === */
 
@@ -31,10 +34,12 @@ use dokime_runtime::{ExecutionFileContent, RuntimeHandle, runtime::query::execut
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Read {
     resources: Arc<Resources>,
 }
@@ -44,6 +49,7 @@ struct Read {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Read {
     type Declaration = history::ReadCheckpointOutput;
     type Resources = Resources;
@@ -55,7 +61,7 @@ impl Operation for Read {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut history::ReadCheckpointOutput, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointFileWindow>, Status> {
+    ) -> Result<Response<dokime::domain::model::history::wire::CheckpointFileWindow>, Status> {
         value::text(&request.relative_path)?;
         if request.relative_path.is_empty() {
             return Err(Status::invalid_argument("output name is required"));
@@ -80,7 +86,7 @@ impl Operation for Read {
         let content_type = Some(output.file.metadata.media_type.clone());
         let offset = request.offset.min(output.file.length);
         let mut reader = view
-            .read_file(&output.file, harmos::storage::ByteRange { offset, limit: Some(limit as u64) })
+            .read_file(&output.file, dokime::harmos::storage::ByteRange { offset, limit: Some(limit as u64) })
             .await
             .map_err(wire::checkpoint_failure)?;
         let mut data = Vec::with_capacity(limit);
@@ -88,14 +94,12 @@ impl Operation for Read {
             data.extend_from_slice(&batch.bytes);
         }
         let state = match output.stream_state {
-            Some(dokime_domain::model::execution::saved::SavedStreamState::Interrupted) => {
-                dokime_runtime::ExecutionFileStreamState::Interrupted
-            }
-            _ => dokime_runtime::ExecutionFileStreamState::Finalized,
+            Some(dokime::domain::model::execution::saved::SavedStreamState::Interrupted) => dokime::ExecutionFileStreamState::Interrupted,
+            _ => dokime::ExecutionFileStreamState::Finalized,
         };
-        let content = dokime_runtime::ExecutionFileContent {
+        let content = dokime::ExecutionFileContent {
             relative_path: request.relative_path.clone(),
-            content_kind: dokime_runtime::ExecutionFileContentKind::from_metadata(&request.relative_path, content_type.as_deref()),
+            content_kind: dokime::ExecutionFileContentKind::from_metadata(&request.relative_path, content_type.as_deref()),
             content_type,
             stream_state: state,
             offset,
@@ -107,29 +111,32 @@ impl Operation for Read {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Read>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
 
 /* === Private Functions === */
+
 fn project(
     checkpoint: &ExecutionCheckpoint, content: ExecutionFileContent, maximum: usize,
-) -> harmos::Result<dokime_domain::model::history::wire::CheckpointFileWindow> {
+) -> dokime::harmos::Result<dokime::domain::model::history::wire::CheckpointFileWindow> {
     let checkpoint = inspection::project(checkpoint, maximum)?;
     let content = window::owned(content, maximum)?;
-    let response = dokime_domain::model::history::wire::CheckpointFileWindow { checkpoint: Some(checkpoint), content: Some(content) };
+    let response = dokime::domain::model::history::wire::CheckpointFileWindow { checkpoint: Some(checkpoint), content: Some(content) };
     if response.wire_len()? > maximum {
         return Err(exhausted());
     }
     Ok(response)
 }
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical checkpoint file window" }
+
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical checkpoint file window" }
 }
 
 /* === Tests === */

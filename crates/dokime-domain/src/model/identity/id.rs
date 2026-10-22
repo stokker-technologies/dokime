@@ -12,18 +12,23 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::fmt;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de;
+
 // Local Imports
 
 /* === Constants === */
+
 const DOKIME_ID_NAMESPACE: [u8; 16] = [0xd0, 0x11, 0xed, 0x1d, 0x5e, 0xed, 0x4d, 0xa7, 0x9c, 0x0f, 0xe1, 0xd5, 0xea, 0x11, 0xab, 0x1e];
 
 /* === Macros === */
+
 macro_rules! typed_uuid {
     ($name:ident) => {
         typed_uuid!(@shape $name, preserve_case, from_uuid);
@@ -183,6 +188,7 @@ product_error!(HubIdError, formatter {
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HubIdError {
     InvalidUuid { type_name: &'static str },
@@ -195,6 +201,7 @@ pub enum HubIdError {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn seeded_uuid(type_name: &str, seed: &str) -> String {
     let mut left = fnv1a64(&DOKIME_ID_NAMESPACE, 0xcbf29ce484222325);
     left = fnv1a64(type_name.as_bytes(), left);
@@ -206,6 +213,7 @@ pub(crate) fn seeded_uuid(type_name: &str, seed: &str) -> String {
 }
 
 /* === Private Functions === */
+
 fn validate_uuid(type_name: &'static str, value: &str) -> Result<(), HubIdError> {
     let valid = value.len() == 36
         && value.bytes().enumerate().all(

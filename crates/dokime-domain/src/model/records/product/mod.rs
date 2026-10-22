@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, str::FromStr};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::Identifier;
@@ -27,9 +30,11 @@ use crate::model::time::Timestamp;
 use crate::model::values::Value;
 
 /* === Constants === */
+
 pub const PRODUCT_RECORD_SCHEMA_VERSION: u32 = 2;
 
 /* === Macros === */
+
 macro_rules! product_enum {
     (
         $(#[$meta:meta])*
@@ -124,6 +129,7 @@ product_enum! {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProductConnectionDetails {
     pub resource_id: String,
@@ -184,6 +190,7 @@ pub struct ProductRecordDraft {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ProductConnectionDetails {
     pub fn new(resource_id: impl Into<String>, connection_state: ProductConnectionState) -> Self {
         Self {
@@ -358,6 +365,7 @@ impl ProductRecordDraft {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn normalize_state_value(value: &str) -> String {
     let normalized = value.trim().to_ascii_lowercase().replace(['-', ' '], "_");
 

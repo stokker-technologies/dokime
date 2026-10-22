@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn rename_cycle(&self, test_cycle_id: TestCycleId, label: String, context: CommandContext) -> Result<String, Error> {
         let label = admitted_label(&label)?;
@@ -82,6 +84,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn admitted_label(label: &str) -> Result<String, Error> {
     let label = label.trim();
     if label.is_empty() {

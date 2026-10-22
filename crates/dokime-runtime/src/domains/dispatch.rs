@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::{ActionDispatcherError, OptionProviderOption};
 use dokime_domain::model::values::Value;
@@ -25,10 +28,16 @@ use dokime_domain::model::values::Value;
 
 /* === Macros === */
 
+json_message!(StatusResponse);
+
+json_message!(OptionsResponse);
+
 /* === Type Aliases === */
+
 pub type ActionDispatcherFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ActionDispatcherError>> + Send + 'a>>;
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DispatchContext {
     pub credentials_configured: bool,
@@ -48,6 +57,7 @@ pub struct OptionsResponse {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait ActionDispatcher: Send + Sync + 'static {
     fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, StatusResponse>;
 
@@ -61,6 +71,7 @@ pub trait ActionDispatcher: Send + Sync + 'static {
 }
 
 /* === Implementations === */
+
 impl StatusResponse {
     pub fn ready() -> Self {
         Self::new("ready")
@@ -75,8 +86,6 @@ impl StatusResponse {
         self
     }
 }
-
-json_message!(StatusResponse);
 
 impl OptionsResponse {
     pub fn of(options: impl IntoIterator<Item = OptionProviderOption>) -> Self {
@@ -97,8 +106,6 @@ impl FromIterator<OptionProviderOption> for OptionsResponse {
         Self::of(options)
     }
 }
-
-json_message!(OptionsResponse);
 
 impl From<crate::Error> for ActionDispatcherError {
     fn from(error: crate::Error) -> Self {

@@ -84,11 +84,11 @@ async fn smoke_case(handle: &RuntimeHandle) -> TestCase {
 
 async fn start_smoke(handle: &RuntimeHandle, label: &str, members: usize) -> TestCycleId {
     let case = smoke_case(handle).await;
-    start_cases(handle, Metadata::new(Identifier::new(label).unwrap(), label, None), vec![case; members], false).await
+    start_cases(handle, Metadata::new(Identifier::new(label).unwrap(), label, None), vec![case; members]).await
 }
 
 async fn run(handle: &RuntimeHandle, cycle_id: &TestCycleId) -> CommandId {
-    let receipt = handle.run_cycle_cases(cycle_id.clone(), CommandContext::default()).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     receipt.command_id
 }
@@ -100,7 +100,7 @@ async fn settled(handle: &RuntimeHandle, run: &CommandId) -> Arc<RunReceipt> {
 
 async fn rows_saved(handle: &RuntimeHandle, cycle_id: &TestCycleId, stream: &str, rows: u32) {
     let selection = TelemetrySelection {
-        streams: vec![Identifier::new(stream).unwrap()],
+        streams: vec![Identifier::new(stream).unwrap().into()],
         scope: ScopeSelection { test_cycle_id: Some(cycle_id.clone()), ..ScopeSelection::default() },
         ..TelemetrySelection::default()
     };
@@ -145,11 +145,10 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize) {
     );
     let series = &plot["series"][0];
     assert_eq!(series["raw_points"], serde_json::json!(LARGE_PULSE_ROWS));
+    // The Report Keeps Every Captured Row; The Viewer Reduces To The Stated Budget.
     let points = series["points"].as_array().unwrap().len();
-    assert!(
-        points <= LIVE_DISPLAY_POINTS as usize && points > PULSE_DISPLAY_POINTS as usize,
-        "render {attempt} draws the live plot's {LIVE_DISPLAY_POINTS} points, not the authored {PULSE_DISPLAY_POINTS}: {points}"
-    );
+    assert_eq!(points, LARGE_PULSE_ROWS as usize, "render {attempt} keeps the whole series under the cap");
+    assert_eq!(series["downsampled"], serde_json::json!(false));
     // The frozen summary covers every pulse row, 0 to n - 1, not the drawn
     // points: the numbers the live table shows over the same window.
     let summaries = plot["summaries"].as_array().unwrap();
@@ -193,7 +192,7 @@ async fn paged_evidence_settles() {
     runtime.shutdown().await.unwrap();
 }
 
-// one case far larger than the report budget seals a reduced plot over every row.
+// one case far larger than the display budget seals its whole series up to the cap.
 #[tokio::test]
 async fn large_case_seals() {
     let root = tempdir().unwrap();
@@ -204,13 +203,11 @@ async fn large_case_seals() {
     let payload = crate::service_support::reports::parse(&html);
     let series = &payload["case_runs"][0]["plots"][PULSE_PLOT]["series"][0];
     let points = series["points"].as_array().expect("the sealed plot carries its points");
-    assert!(
-        !points.is_empty() && points.len() as u32 <= PULSE_DISPLAY_POINTS,
-        "the sealed plot shows {} points against its declared {PULSE_DISPLAY_POINTS}",
-        points.len()
-    );
-    assert_eq!(series["raw_points"], serde_json::json!(LARGE_PULSE_ROWS), "the plot was reduced from every captured row, none truncated");
-    assert_eq!(series["downsampled"], serde_json::json!(true));
+    const { assert!(LARGE_PULSE_ROWS > PULSE_DISPLAY_POINTS, "the series exceeds its declared display points") };
+    assert_eq!(points.len(), LARGE_PULSE_ROWS as usize, "the sealed plot keeps every captured row for zooming");
+    assert_eq!(series["raw_points"], serde_json::json!(LARGE_PULSE_ROWS));
+    assert_eq!(series["downsampled"], serde_json::json!(false));
+    assert_eq!(payload["case_runs"][0]["plots"][PULSE_PLOT]["max_points"], serde_json::json!(PULSE_DISPLAY_POINTS));
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
@@ -412,6 +409,7 @@ async fn pool_refusal_settles() {
     assert!(cycle.saved.is_none(), "refused report remains unsealed");
     assert!(handle.open_cycle_report(&cycle_id).await.is_err());
     drop(handle);
-    // The Refusal Is A Clean Failure: Nothing Remains Stuck To Report At Shutdown.
-    runtime.shutdown().await.unwrap();
+    // Shutdown Cannot Claim Durability While The Required Report Still Exceeds Its Budget.
+    let failure = runtime.shutdown().await.unwrap_err().to_string();
+    assert!(failure.contains(EXHAUSTED) || failure.contains("exhaust"), "shutdown retains the report refusal: {failure}");
 }

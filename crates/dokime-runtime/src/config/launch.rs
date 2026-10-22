@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{fmt, path::PathBuf, sync::Arc};
+
 // Third Party Imports
 
 // Local Imports
@@ -25,6 +27,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
+
 const HUB_IDENTIFIER: &str = "dokime.test_hub";
 
 /* === Macros === */
@@ -32,6 +35,7 @@ const HUB_IDENTIFIER: &str = "dokime.test_hub";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub title: String,
@@ -61,6 +65,7 @@ struct Registrations(Vec<Arc<dyn crate::runtime::EmbeddedProvider>>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl fmt::Debug for Registrations {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_tuple("Registrations").field(&self.0.len()).finish()

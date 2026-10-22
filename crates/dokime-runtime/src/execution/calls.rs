@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -25,20 +26,22 @@ use harmos::sidecar::{CallError, Supervisor};
 
 // Local Imports
 use super::builtins::{Binding, served};
+use super::instances::refusal_failure;
 use super::instances::{LocalRun, StepInstance, refused as step_refusal};
 
-use super::instances::refusal_failure;
-
 /* === Constants === */
+
 // The JSON-RPC server error code of a refusal raised on the step side of the call.
 const STEP_REFUSAL: i64 = -32_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Answering = Arc<dyn Fn(Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + Send>> + Send + Sync>;
 
 /* === Structs === */
+
 #[derive(Clone, Default)]
 pub struct Caller(Road);
 
@@ -54,10 +57,12 @@ pub struct StepHost {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Default)]
 enum Road {
     #[default]
     Unmounted,
+
     Host(Supervisor),
     Local(Arc<BTreeMap<String, Answering>>),
 }
@@ -65,6 +70,7 @@ enum Road {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Caller {
     pub fn host(host: Supervisor) -> Self {
         Self(Road::Host(host))
@@ -135,20 +141,21 @@ impl Host for StepHost {
         if let Some(serve) = served(O::ID, self.caller.hosted()) {
             let binding = self.binding.clone();
             let payload = encoded.clone();
-            let run = LocalRun::spawn(move |cancel| serve(binding, payload, cancel), true);
+            let run = LocalRun::spawn(move |cancel, ready| serve(binding, payload, cancel, ready), true);
             return Ok(StepInstance::local(handles, run, &encoded));
         }
         match &self.caller.0 {
             Road::Unmounted => Err(CallError::Unavailable),
             Road::Host(host) => {
                 let instance = routed(host, &self.stage, O::ID).map_err(refusal)?.submit(request).await?;
-                Ok(StepInstance::host(handles, instance, &encoded))
+                let readiness_host = routed(host, &self.stage, O::ID).map_err(refusal)?;
+                Ok(StepInstance::host(handles, instance, &encoded, readiness_host))
             }
             Road::Local(operations) => {
                 let answer =
                     operations.get(O::ID).cloned().ok_or_else(|| step_refusal("the harness registered no answer for this operation"))?;
                 let payload = encoded.clone();
-                let run = LocalRun::spawn(move |_| answer(payload), false);
+                let run = LocalRun::spawn(move |_, _| answer(payload), false);
                 Ok(StepInstance::local(handles, run, &encoded))
             }
         }
@@ -188,6 +195,7 @@ impl Host for StepHost {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // Scope a child of the step's host to the execution stage and the operation it
 // routes, so the host files its evidence and idempotency under the step.
 fn routed(host: &Supervisor, stage: &str, operation: &str) -> Result<Supervisor, ContextError> {

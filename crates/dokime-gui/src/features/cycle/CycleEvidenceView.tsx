@@ -7,7 +7,10 @@
  * ***
  */
 
-/* The cycle document: what the cycle itself holds, under the cycle cockpit.
+/* The cycle viewer's column: the lead blocks the viewer composes — the shared
+ * header and the Control card — then the cycle's own prompt queue, the cycle
+ * document, and the shared Records section, in the order the execution viewer
+ * uses.
  *
  * Shown when the cycle is selected, or nothing is. Records, telemetry, notes,
  * health, artifacts and plots all arrive through `useDocumentSurface` and
@@ -21,17 +24,22 @@
 
 /* === External Imports === */
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
+import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { Button } from "@/components/ui/button";
-import type { DocumentSurface } from "./document-view-model";
+import type { DocumentViewCard } from "@/lib/types";
+import { PageShell } from "@/shell/PageShell";
 import {
   DocumentViewPresentation,
   type DocumentViewProps,
   documentWindowElapsedUnit,
   FrozenDocumentConsole,
 } from "./DocumentViewPresentation";
-import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
-import { PlotWindowControl, usePlotWindow } from "./PlotWindowSlider";
+import { BUSY_NOTICE, type evidencePaneState } from "./document-query-model";
+import type { DocumentSurface } from "./document-view-model";
+import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
+import { PromptHistory } from "./PromptHistory";
+import { RecordsSection } from "./RecordsSection";
 
 /* === Types === */
 
@@ -42,6 +50,14 @@ export type CycleEvidenceViewProps = {
   plotWindow: ReturnType<typeof usePlotWindow>;
   onRetry?: () => void;
   documentView?: ComponentType<DocumentViewProps>;
+  /** The header and Control card the viewer composes above the document. */
+  lead?: ReactNode;
+  /** The prompts the cycle itself asked, which no execution owns; none in a file. */
+  promptQueue?: ReactNode;
+  /** The page bar's breadcrumb. */
+  trail: string[];
+  /** The page bar's action cluster; none in a file. */
+  pageActions?: ReactNode;
 };
 
 /* === Components === */
@@ -53,10 +69,17 @@ export function CycleEvidenceView({
   plotWindow,
   onRetry,
   documentView: DocumentContent = DocumentViewPresentation,
+  lead,
+  promptQueue,
+  trail,
+  pageActions,
 }: CycleEvidenceViewProps) {
+  const cycleRecords = surface.view.records.filter((record) => !record.scope?.test_execution_id);
   return (
     <div className="grid min-h-0">
-      <div className="min-h-0 overflow-y-auto px-4 py-4">
+      <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={trail}>
+        {lead}
+        {promptQueue ?? <PromptHistory records={cycleRecords} />}
         {pane.kind === "failed" ? (
           <PaneNotice
             action={onRetry ? { label: "Try Again", onClick: onRetry } : undefined}
@@ -71,15 +94,17 @@ export function CycleEvidenceView({
           <div className="grid gap-6">
             {pane.staleReason ? <p className="text-xs text-muted-foreground">Showing the last evidence read. {pane.staleReason}</p> : null}
             <DocumentContent
+              cardFilter={isDocumentCard}
               plotWindowControl={
                 <PlotWindowControl elapsedUnit={documentWindowElapsedUnit(surface.view.sections)} live={live} window={plotWindow} />
               }
               surface={surface}
             />
+            <RecordsSection live={live} records={surface.view.records} />
             <FrozenDocumentConsole surface={surface} />
           </div>
         )}
-      </div>
+      </PageShell>
     </div>
   );
 }
@@ -101,3 +126,8 @@ function PaneNotice({ action, message, title }: { action?: { label: string; onCl
 }
 
 /* === Private Functions === */
+
+/** The document's cards, Records excepted: the shared Records section closes the column. */
+function isDocumentCard(card: DocumentViewCard): boolean {
+  return isDocumentSurfaceCard(card) && card.kind !== "records";
+}

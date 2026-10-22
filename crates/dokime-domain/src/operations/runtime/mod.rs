@@ -24,10 +24,10 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-
 use crate::model::runtime::wire::*;
 
 /* === Constants === */
+
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
@@ -42,6 +42,7 @@ pub const SERVICE: &str = "Runtime";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = Health, id = "dokime.runtime.health", version = 1,
     description = "Read the current runtime identity and admission readiness",
@@ -63,19 +64,21 @@ pub struct GetIdentity {}
 /* === Traits === */
 
 /* === Implementations === */
+
 impl GetHealth {
     pub const PATH: &str = "/dokime.v1.Runtime/GetHealth";
 }
+
 impl GetIdentity {
     pub const PATH: &str = "/dokime.v1.Runtime/GetIdentity";
 }
+
 impl super::Endpoint for GetHealth {
     const PATH: &'static str = GetHealth::PATH;
-    const ACCESS: super::Access = super::Access::Read;
 }
+
 impl super::Endpoint for GetIdentity {
     const PATH: &'static str = GetIdentity::PATH;
-    const ACCESS: super::Access = super::Access::Read;
 }
 
 /* === Public Functions === */

@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::process::ExitCode;
+
 // Third Party Imports
 
 // Local Imports
@@ -23,36 +25,60 @@ use std::process::ExitCode;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
     Input(String),
+
     #[error("{0}")]
     Setup(String),
+
     #[error("Credential store deadline elapsed; an already-started store operation may still complete.")]
     CredentialTimeout,
+
     #[error(transparent)]
     Credentials(#[from] dokime_client::credentials::Error),
+
     #[error("{0}")]
     Check(#[source] Box<Error>),
+
     #[error("I/O failed: {0}")]
     Io(#[source] std::io::Error),
+
     #[error("JSON output failed: {0}")]
     Json(#[from] serde_json::Error),
+
     #[error(transparent)]
     Client(#[from] dokime_client::Error),
+
+    #[error(transparent)]
+    Download(#[from] dokime_client::DownloadError),
+
     #[error(transparent)]
     Operation(#[from] dokime_client::operations::Error),
+
+    #[error(
+        "The device outcome may be unknown. Check device state before manually resending; this command is never retried automatically. {source}"
+    )]
+    OperationUncertain { source: Box<Error> },
+
+    #[error(
+        "Operation response output failed. The device command will not be replayed; check device state before manually resending. {source}"
+    )]
+    OperationOutput { source: Box<Error> },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<dokime_client::profiles::Error> for Error {
     fn from(error: dokime_client::profiles::Error) -> Self {
         match error {

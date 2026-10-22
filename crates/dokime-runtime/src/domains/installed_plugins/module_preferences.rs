@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Mutex, PoisonError, RwLock},
 };
+
 // Third Party Imports
 use uuid::Uuid;
+
 // Local Imports
 use crate::settings::{SecretReference, SettingValues, Settings};
 use crate::{
@@ -36,6 +39,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug)]
 pub(crate) struct PluginPreferences {
     settings: ApplicationSettings,
@@ -56,6 +60,7 @@ pub(crate) struct ResolvedPluginPreferences {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PluginPreferences {
     pub(crate) fn new(settings: ApplicationSettings) -> Self {
         Self { settings, installs: RwLock::default(), transient: Mutex::default() }
@@ -146,6 +151,7 @@ impl PluginPreferences {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn redacted_bindings(
     settings: &Settings, values: &SettingValues, credentials: &CredentialStore,
 ) -> Result<PluginRuntimeCredentialBindings, RuntimePluginManagementError> {

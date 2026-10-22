@@ -137,6 +137,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
       <div className="plot-grid grid gap-3">
         <PlotInteractionProvider zoom>
           <LivePlotGroupGrid
+            {...plotMarkers(props.records)}
             documentPlots={props.card.plots}
             liveStates={reportPlotStates(props.card.plots, props.reportPlots)}
             parameters={props.plotParameterContext}
@@ -151,6 +152,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
     ) : (
       <div className="plot-grid grid gap-3">
         <LivePlotGroupGrid
+          {...plotMarkers(props.records)}
           documentPlots={props.card.plots}
           liveStates={props.livePlotStates}
           onPlotSettingsChange={props.onPlotSettingsChange}
@@ -407,6 +409,15 @@ export function RecordListContent({ live = true, records }: { live?: boolean; re
 }
 
 /* === Private Functions === */
+
+/**
+ * The records the plots mark, prompts among them. Spread rather than named,
+ * so this view passes them whether or not the grid it is built against
+ * declares the prop yet.
+ */
+function plotMarkers(records: HubRecord[]): { records: HubRecord[] } {
+  return { records };
+}
 
 /** Columns are the union of the row keys in first-appearance order, so a row
     that omits a field does not reorder or drop a column. */

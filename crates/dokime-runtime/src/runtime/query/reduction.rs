@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,6 +29,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct ReducedItems<T> {
     pub(crate) total: usize,
     pub(crate) returned: Vec<T>,
@@ -41,6 +43,7 @@ pub(crate) struct ReducedItems<T> {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn reduce_timestamped_items<T, F, S>(
     items: Vec<T>, window: &RuntimeWindow, resolution: &RuntimeResolution, timestamp: F, sequence: S,
 ) -> ReducedItems<T>
@@ -58,6 +61,7 @@ where
 }
 
 /* === Private Functions === */
+
 fn apply_window<T, F, S>(items: Vec<T>, window: &RuntimeWindow, timestamp: &F, sequence: &S) -> Vec<T>
 where
     F: Fn(&T) -> &Timestamp,

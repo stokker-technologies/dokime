@@ -12,17 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, PoisonError};
+
 // Third Party Imports
 use harmos::operations::{Context, Operation, OperationManager};
+
 // Local Imports
 use super::session::Session;
 use crate::execution::ExecutionScope;
 use crate::transport::{EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, TransportFuture};
 
 /* === Constants === */
+
 const OWNER: &str = "dokime.execution";
 
 /* === Macros === */
@@ -30,6 +34,7 @@ const OWNER: &str = "dokime.execution";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 pub(crate) struct Sessions {
     open: Mutex<BTreeMap<String, Arc<Session>>>,
@@ -51,6 +56,7 @@ struct Lease(Arc<Sessions>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Sessions {
     pub(super) fn insert(&self, execution: &str, session: Arc<Session>) {
         self.lock().insert(execution.to_owned(), session);
@@ -184,6 +190,7 @@ impl Operation for Lease {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn register(operations: &OperationManager, sessions: &Arc<Sessions>) -> harmos::Result<()> {
     operations.register_wire_operation::<Evidence>(OWNER, crate::app::Lanes::Open, Arc::clone(sessions))?;
     operations.register_wire_operation::<Question>(OWNER, crate::app::Lanes::Open, Arc::clone(sessions))?;

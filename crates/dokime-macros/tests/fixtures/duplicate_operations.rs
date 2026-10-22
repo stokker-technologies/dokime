@@ -132,7 +132,7 @@ impl sdk::Plugin for Duplicated {
 fn main() {
     // Schema markers link only through a reachable `markers()` call, as the
     // sidecar runtime makes; inspection resolves contracts against them.
-    let _ = <Duplicated as sdk::harmos::plugin::Declared>::markers();
+    std::hint::black_box(<Duplicated as sdk::harmos::plugin::Declared>::markers()).unwrap();
 }
 
 /* === Tests === */

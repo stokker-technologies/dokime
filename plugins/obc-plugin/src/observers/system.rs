@@ -12,14 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sysinfo::{Pid, System as Machine};
+
 // Local Imports
 // Third-Party Imports
 use crate::{ObcPlugin, Resources};
-use dokime_runtime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
+use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 
 /* === Constants === */
 
@@ -28,7 +30,8 @@ use dokime_runtime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime_runtime::stream(
+
+#[dokime::stream(
     id = "obc-plugin.system",
     window = 4096,
     label = "Testbench Health",
@@ -45,14 +48,9 @@ pub(crate) struct System {
     machine: Machine,
 }
 
-impl Default for System {
-    fn default() -> Self {
-        Self { machine: Machine::new() }
-    }
-}
-
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Streams {
     SystemRow(SystemRow),
 }
@@ -60,7 +58,14 @@ pub enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
+
+impl Default for System {
+    fn default() -> Self {
+        Self { machine: Machine::new() }
+    }
+}
+
+#[dokime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
 impl System {
     async fn observe(&mut self, ctx: &ObserverContext<'_, Resources, Publisher<ObcPlugin>>) -> Result<(), PublishError> {
         self.machine.refresh_all();
@@ -83,6 +88,7 @@ impl System {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn integer(value: u64) -> i64 {
     i64::try_from(value).unwrap_or(i64::MAX)
 }

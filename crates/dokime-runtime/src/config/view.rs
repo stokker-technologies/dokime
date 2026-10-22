@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::PathBuf;
+
 // Third Party Imports
 
 // Local Imports
@@ -22,6 +24,7 @@ use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
 /* === Constants === */
+
 pub const MAX_PLOT_POINTS: u64 = 100_000;
 
 /* === Macros === */
@@ -29,6 +32,7 @@ pub const MAX_PLOT_POINTS: u64 = 100_000;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApplicationSettingsView {
     pub appearance: Appearance,
@@ -45,6 +49,7 @@ pub struct ApplicationSettingsView {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl crate::RuntimeHandle {
     pub fn application_settings(&self) -> ApplicationSettingsView {
         let settings = self.settings();
@@ -121,6 +126,7 @@ impl crate::RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn preflight(root: &std::path::Path) -> std::io::Result<()> {
     harmos::filesystem::publication::create_dir_all(root)?;
     let probe = root.join(format!(".dokime-probe-{}", std::process::id()));

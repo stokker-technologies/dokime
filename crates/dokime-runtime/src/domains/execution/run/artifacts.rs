@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -19,9 +20,11 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
+
 // Local Imports
 use super::{ExecutionFixtureContext, failure};
 use crate::artifacts::ArtifactUploadInput;
@@ -32,14 +35,12 @@ use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const MAX_TRANSFER_BYTES: u64 = MAX_ARTIFACT_BYTES;
 
+const MAX_TRANSFER_BYTES: u64 = MAX_ARTIFACT_BYTES;
 const MAX_EXECUTION_ARTIFACT_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_TRANSFERS: usize = 32;
-
 const MAX_REPLAY_FINGERPRINTS: usize = 1024;
 const MAX_EXECUTION_ARTIFACT_CHUNKS: usize = 262_144;
-
 const MAX_INCOMPLETE_TRANSFERS: usize = 16;
 const MAX_TRANSFER_ID_BYTES: usize = 128;
 const MAX_ARTIFACT_NAME_BYTES: usize = 255;
@@ -50,6 +51,7 @@ const MAX_ARTIFACT_MIME_BYTES: usize = 255;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct ArtifactBridge {
     state: Arc<Mutex<Transfers>>,
 }
@@ -103,6 +105,7 @@ struct ChunkFingerprint {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TransferState {
     Open,
@@ -112,6 +115,7 @@ enum TransferState {
 }
 
 /* === Traits === */
+
 trait SpillStorage {
     type File: Read + Write + Seek;
 
@@ -122,6 +126,7 @@ trait SpillStorage {
 }
 
 /* === Implementations === */
+
 impl ArtifactBridge {
     pub(super) fn new(spill_root: PathBuf) -> Self {
         Self { state: Arc::new(Mutex::new(Transfers::new(spill_root))) }
@@ -534,6 +539,7 @@ impl<S: SpillStorage> Transfer<S> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_chunk(chunk: &ArtifactChunk) -> Result<(), ProviderExecutionFailure> {
     if chunk.transfer_id.trim().is_empty() {
         return Err(artifact_failure("artifact transfer identity is empty"));

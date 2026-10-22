@@ -12,18 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::Path;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
-use dokime_domain::model::identity::DokimeIdentity;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::identity::SessionId;
-use dokime_domain::model::time::Timestamp;
-use dokime_runtime::domains::exports::storage::{DiagnosticPathConvention, path_conventions};
-use dokime_runtime::domains::installed_plugins::InstalledPluginErrorRecord;
-use dokime_runtime::runtime::query::RuntimeOverviewSnapshot;
+use dokime::domain::model::identity::DokimeIdentity;
+use dokime::domain::model::identity::Metadata;
+use dokime::domain::model::identity::SessionId;
+use dokime::domain::model::time::Timestamp;
+use dokime::domains::exports::storage::{DiagnosticPathConvention, path_conventions};
+use dokime::domains::installed_plugins::InstalledPluginErrorRecord;
+use dokime::runtime::query::RuntimeOverviewSnapshot;
 
 /* === Constants === */
 
@@ -32,6 +35,7 @@ use dokime_runtime::runtime::query::RuntimeOverviewSnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsSnapshot {
     pub captured_at: Timestamp,
@@ -74,6 +78,7 @@ pub struct StartupDoctorCheck {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticCheckStatus {
@@ -92,9 +97,10 @@ pub enum StartupDoctorCheckKey {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DiagnosticsSnapshot {
     pub fn from_runtime(snapshot: RuntimeOverviewSnapshot, storage_root: &Path, application_root: &Path) -> Self {
-        let captured_at = dokime_runtime::model::time::now_utc();
+        let captured_at = dokime::model::time::now_utc();
         let startup_doctor = StartupDoctorSnapshot::from_runtime(&snapshot, storage_root, captured_at.clone());
         let counts = DiagnosticsCounts::from_runtime(&snapshot);
 
@@ -140,6 +146,7 @@ impl StartupDoctorSnapshot {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn storage_root_check(storage_root: &Path) -> StartupDoctorCheck {
     let detail = Some(path_to_string(storage_root));
 

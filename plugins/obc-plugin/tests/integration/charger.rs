@@ -18,8 +18,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::execution::Workflow;
-use dokime_runtime::transport::{RunExecution, StepAdmission};
+use dokime::execution::Workflow;
+use dokime::transport::{RunExecution, StepAdmission};
 use obc_plugin::{SOURCE, suites::steady};
 
 /* === Constants === */
@@ -41,6 +41,7 @@ use obc_plugin::{SOURCE, suites::steady};
 /* === Private Functions === */
 
 /* === Tests === */
+
 // Observer callbacks run on independent runtime threads, so the story keeps
 // the real clock: a paused one would spin the drain poll while they run.
 
@@ -58,13 +59,13 @@ async fn cleanup_drains_input() {
                 workflow: steady::STEADY_SUITE.into(),
                 secrets_json: "{}".into(),
                 parameters_json: serde_json::json!({
-                    "ac_voltage_v": dokime_runtime::Value::from(230.0),
-                    "load_ohm": dokime_runtime::Value::from(100.0),
-                    "frequency_hz": dokime_runtime::Value::from(50.0),
-                    "phase_deg": dokime_runtime::Value::from(15.0),
-                    "current_limit_a": dokime_runtime::Value::from(5.0),
-                    "duration_s": dokime_runtime::Value::from(0.002),
-                    "sample_interval_s": dokime_runtime::Value::from(0.001),
+                    "ac_voltage_v": dokime::Value::from(230.0),
+                    "load_ohm": dokime::Value::from(100.0),
+                    "frequency_hz": dokime::Value::from(50.0),
+                    "phase_deg": dokime::Value::from(15.0),
+                    "current_limit_a": dokime::Value::from(5.0),
+                    "duration_s": dokime::Value::from(0.002),
+                    "sample_interval_s": dokime::Value::from(0.001),
                 })
                 .to_string(),
             },
@@ -77,7 +78,7 @@ async fn cleanup_drains_input() {
     loop {
         let reply = workflow.next("finalize", cursor).await.unwrap();
         for encoded in &reply.step_begins {
-            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+            let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             workflow.admit("finalize", &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
         }
         cursor = reply.cursor;

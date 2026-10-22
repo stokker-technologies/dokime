@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
 };
+
 // Third Party Imports
 
 // Local Imports
@@ -30,6 +32,7 @@ use crate::Error;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Project {
     options: Options,
     metadata: cargo_metadata::Metadata,
@@ -45,6 +48,7 @@ pub struct Project {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Project {
     pub async fn resolve(options: Options) -> Result<Self, Error> {
         let metadata = metadata(&options, true).await?;

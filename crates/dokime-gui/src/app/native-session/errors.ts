@@ -60,6 +60,8 @@ export function backendExitMeaning(code: number | null): string | null {
       return "Runtime failure: I/O, runtime, transport or cleanup";
     case 4:
       return "Incompatible storage: the data root holds data this build cannot open";
+    case 5:
+      return "Stop incomplete: the next start seals what the stop left unfinished";
     default:
       return null;
   }

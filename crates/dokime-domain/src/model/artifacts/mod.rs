@@ -8,10 +8,12 @@
  */
 
 /* === Modules === */
+
 pub mod name;
 pub mod record;
 
 /* === Re-Exports === */
+
 pub use record::ArtifactRecord;
 pub use record::ArtifactStatus;
 pub use record::ArtifactUploadInput;
@@ -19,6 +21,7 @@ pub use record::MediaKind;
 pub use record::media_kind_for;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

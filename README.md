@@ -1,5 +1,18 @@
 # Dokime
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/logos/transparent-on-dark.svg">
+    <img src="branding/logos/transparent-on-light.svg" alt="Dokime logo" width="240">
+  </picture>
+</p>
+
+[![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml?query=branch%3Adev)
+[![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
+[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
+[![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases/latest)
+[![License](https://img.shields.io/github/license/stokker-technologies/dokime)](LICENSE)
+
 **Run repeatable engineering tests. Keep the evidence.**
 
 Dokime turns hardware and software test procedures into operator workflows,
@@ -102,8 +115,22 @@ Each execution identifies exactly one case and one cycle. Repeating a case
 creates another execution; retrying a step is recorded as a step attempt within
 that execution. A cycle can bring together cases from different templates and
 suites—it is not a copy of one suite. A cycle is created explicitly, starts
-empty and grows only as cases are appended to it; running an empty cycle is
-refused.
+empty and grows as explicit execution attempts are appended. Appending never
+starts hardware; an execution is the Start/Stop unit.
+
+Several cycles can stay **Active** at once, with one execution running across
+the server. Start admits an execution once by its durable identity. Optional
+server-owned ordered continuation can start the next unstarted member after
+natural completion and sealing; it defaults to false. Stop durably disables that
+continuation policy. Each execution saves and seals its evidence while its cycle stays
+Active. Select the destination cycle in the Library before adding attempts.
+
+**Seal Cycle** closes admission immediately, stops that cycle's running work,
+cancels unrun executions and waits for every execution and the cycle report to
+be durably saved. The phase advances through **Sealing** to **Sealed**. Other
+cycles continue. Shutdown stops running executions without regenerating cycle
+reports. Startup seals previous-session Active cycles without replaying device
+operations.
 
 For a charger campaign, one template might measure steady-state charging while
 another checks overcurrent protection. Cartesian expansion turns the operating
@@ -121,6 +148,11 @@ A list can also be one parameter value. An ordered load sequence such as
 mean three separate cases. Expansion is declared explicitly.
 
 ## Quick Start
+
+For an installed host and a second PC, follow the
+[candidate-artifact OBC walkthrough](packages/dokime-client/examples/remote/README.md).
+It uses matching CI installers, plugin and examples without a source checkout;
+a matching published release combination remains separate.
 
 Dokime is pre-1.0 and currently supports Windows and Linux. To launch from
 source, install [mise](https://mise.jdx.dev) and use the pinned toolchain:
@@ -152,7 +184,8 @@ cargo run -p cargo-dokime -- build --package obc-plugin --output target/debug/pl
 
 An installed Dokime places `dokime`, `dokime-server` and `dokime-gui` side by
 side, and the CLI launches the other two: it looks beside itself, then in
-`DOKIME_HOME`, then in the platform's installation directories. Arguments after
+`DOKIME_HOME` when that is set and otherwise in the platform's installation
+directories. Arguments after
 `--` reach the launched program unchanged:
 
 ```sh
@@ -179,42 +212,45 @@ dokime-server --grpc-web --allowed-origin https://frontend.example
 
 Repeat `--allowed-origin` for additional origins. An origin contains only its
 scheme and authority; paths, credentials and wildcards are refused, and an
-origin without `--grpc-web` is an error. Remote listeners still require
-explicit remote configuration, TLS and bearer credentials; browser-origin
-permission does not grant operation access. A GUI built with
+origin without `--grpc-web` is an error. The standalone listener is native and
+requires a loopback address. Remote listeners use the persistent Remote Access
+settings, with TLS and access-key authentication selected independently;
+browser-origin permission does not grant operation access. A GUI built with
 `DOKIME_TRANSPORT=grpc-web` is such a browser client.
 
-## Plugin Operation Permissions
+## Native Remote Access
 
-Remote plugin calls require an explicit permission on the existing server
-`--auth-file` bearer grant. Product operations keep their declared role policy:
+Settings → Remote Access owns persistent listener settings, one-time key
+generation, public certificate download and explicit key/certificate rotation.
+Management operations are available only through the native local listener.
+The access key is shown once and can be copied or saved through the native
+file picker. The application root's private `remote/access.json` retains its
+SHA-256 verifier and the TLS certificate/private key; it never retains the
+access key. Certificate DNS/IP identities change only through explicit
+regeneration. TLS and authentication are independent choices, with separate
+isolated-lab warnings.
 
-```json
-{
-  "grants": [{
-    "subject": "operator",
-    "role": "control",
-    "token": "REPLACE_WITH_A_PRIVATE_TOKEN_OF_AT_LEAST_32_BYTES",
-    "operations": [
-      { "owner": "chamber", "id": "chamber.read", "grants": [] },
-      {
-        "owner": "chamber",
-        "id": "chamber.stream",
-        "grants": [{ "operation": "chamber.stream", "scope": "chamber.temperature" }]
-      }
-    ]
-  }]
-}
-```
+The remote listener shares the runtime with the native listener and has its own
+transport and authentication settings. Reconfiguring it does not stop admitted
+executions. A rotated key can recover their receipts and control them without
+repeating execution. Remote connections through loopback retain remote access
+rules, including native-only management and host-path restrictions.
 
-The owner and operation ID are exact; wildcards and duplicate permissions are
-refused. Unlisted plugin operations remain denied, including trusted-local
-connections. Listing an operation grants it; `grants` adds only the scopes a
-request may resolve to, such as the channel, stream or source it names. Each grant
-names the listed operation and one exact scope; an empty list admits only requests
-that resolve to no scope. The same permission
-filters live discovery and actual invocation. Rediscover after a provider changes;
-metadata does not promise admission or bypass request-dependent grants.
+## Full-Control Access And Plugin Capabilities
+
+A valid access key grants full control over remote product operations and
+installed plugins, including request-dependent channel, stream and source scopes.
+An authentication-off listener grants the same control to every connection;
+use that setting only in an isolated lab. There are no per-user roles or server
+permission files. TLS controls transport encryption and certificate verification
+independently of access-key authentication.
+
+Native-only operations and internal host providers remain unavailable remotely.
+Plugin identity comes from the original runtime registration, never an owner
+name supplied by a caller. Plugins still declare their own requirements for
+calls into other plugins or host services; an operator's key cannot expand those
+capabilities. A grant must name the operation being called. Discovery and
+invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
 
@@ -223,7 +259,7 @@ The CLI connects to an existing server. Save and select a backend with:
 ```sh
 dokime backend add lab --endpoint https://dokime.example:8765 --expected-backend BACKEND_ID --ca /path/to/ca.pem --keyring
 dokime backend use lab
-dokime auth login --backend lab --token-file /path/to/token
+dokime auth login --backend lab --key-file /path/to/remote.key
 dokime status --backend lab --json
 dokime operation list --backend lab
 dokime operation show dokime.runtime.health --backend lab --json
@@ -240,13 +276,28 @@ provider explicitly for metadata or a call:
 
 ```sh
 dokime operation show OPERATION_ID --owner OWNER --backend lab --json
-dokime operation call OPERATION_ID --owner OWNER --backend lab --input-file request.json --json
-dokime operation call OPERATION_ID --owner OWNER --backend lab --input-file request.json --input-stream-file items.jsonl --json
+dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.json --output response.json
+dokime operation call OPERATION_ID --owner OWNER --backend lab --json '{"enabled":true}'
+dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.json --input-stream-file items.jsonl --output response.json
 ```
 
-Inputs use the discovered contract's protobuf JSON shape. Streaming input is one
-item per line; output emits item and completion events. Ctrl+C closes the local
-call. From Rust, `dokime_client::Client::call_operation` uses the same live
+`--input` and `--json` are mutually exclusive request sources; omitting both
+sends `{}`. Inputs use the discovered contract's protobuf JSON shape. Streaming
+input is one item per line. Without `--output`, stdout emits one JSON item or
+completion event per line. A response file contains one JSON array of those
+events, including the final completion; a unary call has only that completion.
+
+Existing response files require `--overwrite`. Predictable output conflicts are
+rejected before dispatch. The complete response is written to a temporary sibling
+and published atomically after successful completion. A failed output write
+never replays the device command. Diagnostics go to stderr and failures return
+nonzero.
+
+Ctrl+C stops waiting locally. A timeout or disconnection after dispatch can leave
+the device outcome unknown, even when no response was received. Check device
+state before manually resending; calls are never retried automatically. Manual
+operations can affect a running test and are not logged into its execution
+evidence. From Rust, `dokime::client::Client::call_operation` uses the same live
 contract discovery and shared Harmos codec:
 
 ```rust
@@ -260,25 +311,54 @@ while let Some(event) = stream.message().await? {
 stream.close().await;
 ```
 
-Browse the registered suite catalog, stop work explicitly and re-run a case:
+Browse the registered suite catalog, start an attempt and stop work explicitly:
 
 ```sh
 dokime catalog list --backend lab --json
 dokime catalog show REGISTERED_SUITE_ID --backend lab --json
+dokime execution start EXECUTION_UUID --backend lab --json
 dokime execution stop EXECUTION_UUID --backend lab --json
-dokime cycle stop CYCLE_UUID --backend lab --json
-dokime cycle rerun CYCLE_UUID CASE_UUID --key rerun-1 --backend lab --json
+dokime cycle seal CYCLE_UUID --backend lab --json
 ```
 
 Replace the identifiers with those returned by the backend. `catalog list
 --json` emits one complete suite definition per line; a later read failure
 returns a nonzero exit status after any earlier lines. `execution stop` stops
-one execution while the rest of its cycle keeps running; `cycle stop` stops
-every execution of the cycle. Both return the observed cursor and do not wait
-for a sealed report. `cycle rerun` appends the case's next attempt as a new
-execution, leaving earlier attempts and their evidence untouched, and admits it
-once under the given key. Cancelling a local request wait leaves backend work running;
-query the durable request again to observe settlement.
+the selected execution and halts its cycle's automatic continuation. Wait for
+its saved outcome before downloading evidence. To repeat a case, append a new
+execution identity and Start that attempt; earlier evidence remains unchanged.
+Cancelling an ordinary local wait leaves admitted backend work running.
+
+`cycle seal` waits for the durable cycle seal. Repeating it is safe, including
+after a lost response. Other cycles remain available. The Python
+client provides the same durable boundary with `await cycle.seal()`.
+
+Download saved evidence without running any work again:
+
+```sh
+dokime execution export EXECUTION_UUID --backend lab --output execution.zip
+dokime cycle seal CYCLE_UUID --backend lab --json
+dokime cycle export CYCLE_UUID --backend lab --output cycle.zip
+```
+
+A sealed execution is exportable while its cycle stays Active. A cycle export
+requires its durable seal and includes every exact member revision. The ZIP
+contains `manifest.json`, `evidence.sqlite`, captured files and saved HTML
+reports. The manifest records source identities, revisions, row counts and
+payload checksums; SQLite exposes inputs, definitions, outcomes, records and
+typed stream columns. Query `streams` and `stream_columns` to find each stream's
+tables, field names and units. Wide streams use partitions joined by `m_row`.
+Canonical JSON retains nested values and unsigned integer identity.
+
+Exports use saved storage snapshots and survive server restart. Missing
+required evidence fails the export. The server admits one export at a time,
+with an 8 GiB archive limit. The client verifies contiguous chunks, size,
+SHA-256 and final transport success before publishing the ZIP atomically.
+Existing destinations require `--overwrite`. Failed downloads preserve the
+previous output; retry starts a fresh download and never repeats execution.
+The desktop's **Export Evidence** action uses the same exporter and a native
+save dialog. The Python handles provide `await execution.export(path)` and
+`await cycle.export(path)`, with `overwrite=True` for explicit replacement.
 
 Selection uses explicit `--backend` or `--endpoint`, then `DOKIME_BACKEND`, then
 that configuration's saved default. An explicit endpoint uses only credentials
@@ -288,8 +368,27 @@ matching default and retains OS credentials. `auth login` negotiates backend
 identity and the operations available to the caller with the supplied bearer, then saves it for
 that endpoint and marks the selected profile for keyring lookup. It refuses a
 profile whose target changed during login. `auth logout` removes the local
-credential; it sends no revocation request. Use `--token-file` on individual
+credential; it sends no revocation request. Use `--key-file` on individual
 commands for headless connections when an OS store is unavailable.
+
+Credential precedence is `--key-file`, process `DOKIME_KEY`, then `DOKIME_KEY`
+from an explicitly selected `--env-file`. Dotenv values fill absent process
+variables; they never override them or search parent directories. Selected
+files must be valid UTF-8 regular files, even when another source supplies the
+key. Keys contain 32–4096 visible ASCII characters; dotenv input is bounded to
+64 KiB. Copy [.env.example](.env.example) to the ignored `.env`, replace its
+placeholder and select it explicitly:
+
+```sh
+dokime status --endpoint https://dokime.example:8765 --ca server.pem --env-file .env
+```
+
+Clients also accept an explicitly selected `http://` origin for native gRPC in
+an isolated lab whose listener has TLS disabled. Plaintext exposes both keys
+and data. The receiving listener decides whether authentication is required,
+independently of TLS; omitting a key never bypasses that check. HTTPS always
+verifies certificates, and a CA file is refused for HTTP. Local-only native
+operations still depend on the receiving listener's policy.
 
 `status` and `auth status` perform a bounded live check. JSON distinguishes
 `ready`, `unreachable`, `authentication`, `permission_denied`, `incompatible`,
@@ -325,67 +424,166 @@ fields, duplicate names, unsupported versions, invalid endpoints and dangling
 defaults are refused. Files are limited to 1 MiB and 128 profiles. CLI edits lock
 and atomically replace the file; contention refuses the edit for retry. Tokens
 stay outside JSON. Python reads explicitly named profiles with
-`DokimeClient.from_profile("lab", token=token)`; it uses the same configuration
+`DokimeClient.from_profile("lab", key_file="remote.key")`; it uses the same configuration
 location and accepts an explicit `path` override.
 
 ## Planning And Creating Cycles
 
-Name a template by its readable ID, `<suite id>.<segment>`, as `dokime catalog
-show` lists it:
+Name a template by the readable ID that `dokime catalog show` lists. Preview
+its cases, then materialize them before constructing execution attempts:
 
 ```sh
 dokime plan preview --template obc.charger.steady.measurement --backend lab --json
+dokime plan materialize --template obc.charger.steady.measurement --backend lab --json
 dokime cycle create --label "Campaign 1" --backend lab --json
-dokime cycle append CYCLE_ID --template obc.charger.steady.measurement --backend lab --json
+dokime cycle append CYCLE_ID --case-id CASE_ID --backend lab --json
 ```
 
-A cycle is always created explicitly and empty; `cycle append` adds the cases a
-plan generates to an existing cycle and never creates one. An omitted
-`--identifier` is derived by the backend.
+Materialization captures the case's definition and provider revision. Append
+refuses stale cases and creates distinct execution UUIDs for each repeated
+`--case-id`, preserving order. A cycle is explicitly created empty; append
+registers attempts without starting hardware. An omitted cycle `--identifier`
+is derived by the backend.
 
-Preview leaves registration unchanged. `plan register` materializes cases
-without a cycle; append them by ID with `cycle append CYCLE_ID --case-id CASE_ID`. Registration returns case IDs; retain its
-key and repeat the same request to recover registration after an uncertain
-response. Repeated selections and `--case-id` arguments preserve order and
-create distinct attempts. Omitted parameters and files use registered backend
-defaults. `--selection-json` accepts a canonical `RegisteredSelection` and can
-be repeated for parameter sweeps and file selections.
+For a linear script, `--id-only` prints materialized case IDs, the created cycle
+UUID, or execution UUIDs from that exact append. This pulse selection produces
+one case and one attempt:
 
-Each `--input-file` takes the operation's canonical JSON request and refuses
-selection or metadata flag overrides. For example, `plan register` accepts:
+```sh
+case_id=$(dokime plan materialize --template obc.checks.pulse --parameters-json '{"sample_count":8}' --backend lab --id-only)
+cycle_id=$(dokime cycle create --label "Remote Pulse" --backend lab --id-only)
+execution_id=$(dokime cycle append "$cycle_id" --case-id "$case_id" --backend lab --id-only)
+dokime execution run "$execution_id" --records --samples --record-type 'obc.run.*' --stream obc.pulse --wait-seconds 60 --backend lab
+dokime execution export "$execution_id" --output pulse.zip --backend lab
+dokime cycle seal "$cycle_id" --backend lab
+dokime cycle export "$cycle_id" --output cycle.zip --backend lab
+```
+
+`execution start` admits one execution and returns without waiting.
+`execution run` composes that same Start with a durable wait and requested
+listener drain. Both use the execution's identity for idempotency: reconnect
+with the same UUID and mode after an uncertain Start response. A finished
+execution never restarts; append a fresh attempt to run its case again.
+There are no caller-managed Start keys or cycle Run/Stop commands.
+
+`--records` and `--samples` observe all captured records and samples.
+Repeated `--record-type` and `--stream` flags restrict their respective
+selection with case-sensitive whole-identifier globs. Observations and the final
+drain summary appear on stderr; the final result appears on stdout.
+`execution wait` observes an already admitted execution without starting it.
+A saved nonpassing outcome returns nonzero. Interrupting an ordinary wait leaves
+remote work running; `execution stop EXECUTION_ID` requests a cooperative stop.
+
+Several cycles can stay Active, with one execution running server-wide.
+`continue_automatically` defaults to false. To let the server continue with
+the next unstarted member after natural completion and durable sealing, create
+the cycle with `--continue-automatically`. A failed execution is a result, not
+a reason to halt: continuation proceeds regardless of verdicts. Explicit execution Stop durably sets the cycle's
+`continue_automatically=false`. Later explicit Start runs only the selected
+attempt until the user explicitly re-enables that policy.
+Appending to an idle cycle starts no hardware, and reaching the end keeps the
+cycle Active until it is explicitly sealed.
+
+Sealed cycles remain in History after a server restart, including cycles with
+no executions. History lists their saved headers independently of execution
+results; an empty cycle has no passing or failing outcome and its saved report
+can still be opened.
+
+Scripts can opt into cancellation and evidence recovery while running or waiting:
+
+```sh
+mkdir -p recovery
+dokime execution wait "$execution_id" --backend lab \
+  --cancel-on-interrupt --owned-cycle "$cycle_id" --recovery-directory recovery
+```
+
+The same options work with `cycle append`, `execution start`, `execution run`,
+`execution export` and prompt `next/show/answer`.
+They verify exact cycle membership before mutation. Use `--owned-cycle` only
+for a cycle created and reserved by the script: Ctrl+C stops that execution,
+seals that cycle and downloads `execution-<UUID>.zip` and `cycle-<UUID>.zip`.
+Sealing cancels its unstarted members; other cycles and the shared server remain
+available. Existing recovery files are refused before connection. A lost
+connection cannot confirm cancellation or a completed download; retain the
+original identities and inspect them before resubmitting.
+PowerShell terminates a native command whose output it captures when Ctrl+C
+arrives, before recovery can finish. Run recovery-armed commands uncaptured and
+read their UUIDs from `--id-file <path>`, which `cycle append` and prompt `next`
+truncate before connecting and fill with one confirmed UUID per line.
+Batch recovery applies while these native commands are observing an interrupt;
+it cannot reliably cover connection setup or gaps between commands. A lost
+Create reply leaves the cycle identity unknown and requires manual inspection.
+
+The [Remote CLI Workflows](packages/dokime-client/examples/remote/cli/README.md) include
+linear device, test and confirmation exercises for POSIX shell, PowerShell 7.3+ and
+Command Prompt. Edit their connection, execution, observation and file globals,
+then run without arguments. Their names, grouping and meanings match the
+[Python examples](packages/dokime-client/examples/remote/python/control-test.py).
+The scripts require the matching CLI and simulated OBC plugin; a matching
+first-party release combination and native workflow validation remain pending.
+The [candidate walkthrough](packages/dokime-client/examples/remote/README.md) explains
+how to obtain one matching CI artifact set and use its bundled Python wheel.
+
+`--parameters-json` supplies single template parameter values as a plain
+JSON object. The default pulse has no prompt. To require one confirmation,
+materialize that case and explicitly Start its attempt so the script can answer:
+
+```sh
+case_id=$(dokime plan materialize --template obc.checks.pulse \
+  --parameters-json '{"require_confirmation":true}' --backend lab --id-only)
+cycle_id=$(dokime cycle create --label "Remote Confirmation" --backend lab --id-only)
+execution_id=$(dokime cycle append "$cycle_id" --case-id "$case_id" --backend lab --id-only)
+dokime execution start "$execution_id" --backend lab
+prompt_id=$(dokime execution prompt next "$execution_id" --wait-seconds 60 --backend lab --id-only)
+dokime execution prompt show "$execution_id" "$prompt_id" --backend lab
+dokime execution prompt answer "$execution_id" "$prompt_id" --action yes --backend lab
+dokime execution wait "$execution_id" --wait-seconds 60 --backend lab
+```
+
+Prompt reads and answers require both exact identities. The server refuses stale
+or duplicate answers. After an ambiguous response, inspect `prompt show`
+before deciding what to do. Actions `cancel` and `abort` submit a cancelled
+response. Seal the script-owned cycle before exporting its complete bundle.
+
+`--input-file` takes the operation's canonical JSON without flag overrides.
+For `plan materialize`, the request contains one registered template selection:
 
 ```json
 {
-  "plan": {
-    "selections": [{
-      "suite_id": "SUITE_ID",
-      "template_id": "TEMPLATE_ID",
-      "parameters": [],
-      "files": []
-    }],
-    "max_cases": 0,
-    "case_ids": [],
-    "cycle_id": ""
-  },
-  "idempotency_key": "campaign-1"
+  "selection": {
+    "suite_id": "SUITE_ID",
+    "template_id": "TEMPLATE_ID",
+    "parameters": [],
+    "files": []
+  }
 }
 ```
 
-`plan preview` uses the same `plan` without `idempotency_key`, and `cycle
-append` takes it with the target `cycle_id`. The backend
-validates expansion and materializes cases; zero `max_cases` selects its limit
-of 1000. A plan selects templates or registered case IDs. Each materialized
-case is labelled `<Template Label> #<n>`, numbered per template from `#1`; a
-cycle being appended to continues its own numbering, and
-the case's parameter values stay on the case rather than in its label.
+For an append whose exact identities must survive a lost response, retain its
+canonical `AppendExecutions` input before calling `cycle append --input-file`:
+
+```json
+{
+  "cycle_id": "CYCLE_UUID",
+  "executions": [
+    { "execution_id": "EXECUTION_UUID", "case_id": "CASE_UUID" }
+  ]
+}
+```
+
+Repeating that append with the same bindings cannot duplicate attempts;
+conflicting identity reuse fails. Flag-based appends print their registration
+identities to stderr before transmission. Retain those identities if the reply
+is lost.
+
 Until a cycle or execution seals, operators can rename it with the pencil
-beside its title in the desktop app or with `Execution/RenameCycle` and
-`Execution/RenameExecution`; a sealed, archived or History subject refuses with
-`FailedPrecondition`. Renaming an execution renames its case, every attempt
-included, and each rename is recorded as an `operator.label_edited` record
-carrying the old and new label. Numbering continues from each case's stored
-ordinal, so a renamed `#2` is never reused. For `cycle create`, save this
-canonical request as `cycle.json`:
+beside its desktop title or with `Execution/RenameCycle` and
+`Execution/RenameExecution`. Sealed, archived and History subjects refuse
+with `FailedPrecondition`. Renaming an execution renames its case, including
+other attempts, and records an `operator.label_edited` record with both labels.
+
+For `cycle create --input-file cycle.json`, retain the explicit continuation
+policy alongside its metadata:
 
 ```json
 {
@@ -398,22 +596,17 @@ canonical request as `cycle.json`:
     "created_at": null,
     "updated_at": null
   },
-  "continue_on_failure": false,
+  "continue_automatically": false,
   "context": null
 }
 ```
 
 ```sh
-dokime cycle create --input-file cycle.json --case-id CASE_ID --request-key run-1 --wait-seconds 60 --backend lab --json
+dokime cycle create --input-file cycle.json --backend lab --id-only
 ```
 
-For scripts, `--case-id` appends registered cases right after creation and
-`--request-key` then runs the cycle. Creation prints and flushes the cycle ID
-before appending or submitting work. Retain the
-cycle ID and run key to recover an uncertain admission. Creation, admission and
-an optional terminal receipt are separate JSON lines; a later failure leaves
-already emitted recovery identities available. Creating a cycle does not
-itself run it. Waiting locally does not seal a report or cancel backend work.
+Cycle creation is a separate non-idempotent mutation. If its response is
+uncertain, inspect the backend before creating another container.
 
 ## Examples
 
@@ -435,9 +628,10 @@ A shortened version of OBC's
 nine-case voltage/load sweep:
 
 ```rust
-use dokime_runtime::definition::ParameterDefault;
+// Cargo.toml: dokime = { git = "https://github.com/stokker-technologies/dokime", features = ["plugin-sidecar"] }
+use dokime::definition::ParameterDefault;
 
-#[dokime_runtime::parameters]
+#[dokime::parameters]
 pub struct Parameters {
     #[parameter(
         label = "AC Voltage (RMS)", unit = "V",
@@ -469,7 +663,7 @@ This excerpt is the template's measurement observer. `InputMeasurement`,
 `Samples`, `ObserverStreams`, and `reading` belong to the example:
 
 ```rust
-#[dokime_runtime::observer(interval_ms = 5, streams = ObserverStreams)]
+#[dokime::observer(interval_ms = 5, streams = ObserverStreams)]
 async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
     let row = reading(ctx.resources())?;
     ctx.stream::<InputMeasurement>()
@@ -485,7 +679,7 @@ summary through `ctx.artifacts()`. Its criterion checks that enough samples
 were captured and that the completion record accepted the run:
 
 ```rust
-#[dokime_runtime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
+#[dokime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
 fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
     Ok(
         ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
@@ -514,7 +708,7 @@ simulated charger's log this way:
 ```rust
 let watch = ctx
     .host()
-    .submit_as::<WatchFile>(WatchFileRequest {
+    .submit(WatchFile {
         execution_id: None,
         source: Some(FileWatchSource {
             payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
@@ -524,6 +718,8 @@ let watch = ctx
         output: "charger".into(),
         artifact: Some("charger/device.log".into()),
         policy: FileWatchPolicy::Stream,
+        selection: FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: Some(100),
         maximum_seconds: Some(1),
         maximum_bytes: None,
@@ -533,9 +729,17 @@ let watch = ctx
         markers: Vec::new(),
     })
     .await?;
-// The watch takes its baseline first; the charger then logs its readings.
+watch.armed().await?;
+// The baseline is established; the charger can now start logging its readings.
 let captured = watch.join().await?.into_owned();
 ```
+
+`All` follows baseline files and later arrivals. `Latest` selects the newest
+baseline file, while `New` captures only files discovered after the baseline.
+Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
+file beneath an accessible root may appear later. Unavailable FTP roots fail
+immediately because FTP status 550 cannot distinguish missing roots from denied
+access. Permission and invalid-path failures remain immediate.
 
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
@@ -582,21 +786,104 @@ reports retain their original HTML and frozen execution context. A cycle report
 queries each member's retained evidence at its original persisted boundary. Missing or damaged report artifacts
 produce an explicit error. Stopping a test preserves the last persisted evidence
 boundary for report finalization. If publication fails, the recorded test
-verdicts stand and no partial report is kept; stopping the cycle again publishes
-from the same persisted boundary, including after a restart. Stopping a cycle no
-run will finish, even an empty one, seals it with its report.
+verdicts stand and no partial report is kept. Retrying cycle sealing publishes
+from the same persisted boundary, including after a restart. Cycle Seal also
+finalizes an empty cycle with its report.
+
+## CLI Reference
+
+The `dokime-cli` package installs the `dokime` executable.
+
+`dokime` connects to a backend; `cargo dokime` authors plugin bundles. Every
+command prints its full flags with `--help`. Commands that connect accept
+`--endpoint` or `--backend`, `--key-file` (or `DOKIME_KEY`), `--ca`,
+`--env-file` and `--timeout-seconds`; most accept `--json` for scripts.
+
+### Connection And Backends
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--expected-backend` |
+| `dokime auth login\|status\|logout` | Validate, save or remove local credentials. | `--key-file` |
+| `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--endpoint`, `--keyring`, `--profiles-file` |
+| `dokime serve` | Run the installed `dokime-server`; arguments after `--` pass through. | `--server` |
+| `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
+
+### Catalog And Plans
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime catalog list\|show` | Browse registered suites and their templates. | `--json` |
+| `dokime plan preview` | Preview cases without registering them. | `--template`, `--parameters-json` |
+| `dokime plan register` | Register cases with a caller-retained idempotency key. | `--template`, `--request-key`, `--max-cases` |
+| `dokime plan materialize` | Materialize template cases without creating executions. | `--template`, `--parameters-json`, `--id-only` |
+
+### Cycles And Executions
+
+Exercised by [control-test](packages/dokime-client/examples/remote/cli/control-test.sh)
+and [control-prompt](packages/dokime-client/examples/remote/cli/control-prompt.sh).
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime cycle create` | Create an empty active cycle. | `--label`, `--continue-automatically`, `--id-only` |
+| `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
+| `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
+| `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |
+| `dokime execution start\|run` | Start one execution; `run` also waits for its seal. | `--mode`, `--wait-seconds`, `--samples` |
+| `dokime execution wait\|stop` | Wait for a durable outcome or stop one execution. | `--wait-seconds` |
+| `dokime execution prompt next\|show\|answer` | Find, inspect and answer an execution's prompts. | `--action`, `--values-json` |
+| `dokime execution export` | Download a sealed execution's evidence. | `--output`, `--overwrite` |
+
+### Operations And Plugins
+
+Exercised by [control-device](packages/dokime-client/examples/remote/cli/control-device.sh).
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `dokime operation list\|show` | Discover operations and their provider contracts. | `--json` |
+| `dokime operation call` | Call a provider and read its items and completion. | `--json`, `--input`, `--output` |
+| `dokime plugin install` | Stage a bundle, review it and authorize next-boot activation. | `--yes` |
+
+### Plugin Authoring
+
+| Command | Purpose | Key Flags |
+| --- | --- | --- |
+| `cargo dokime new` | Create a native plugin offline. | `--name` |
+| `cargo dokime build` | Compile a plugin and freeze it into a `.dokime` bundle. | `-p`, `--release`, `-o` |
+| `cargo dokime package` | Bundle a collected build without compiling. | `--build-json`, `-o` |
+| `cargo dokime dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
+| `cargo dokime inspect` | Verify a bundle and print its manifest as JSON. | |
+
+## Crate Layout
+
+| Crate | Responsibility |
+| --- | --- |
+| `dokime` | Entry library for plugins, Rust consumers and shipped interfaces. |
+| `dokime-cli` | Installs the `dokime` command; owns parsing and commands. |
+| `dokime-domain` | Internal pure definitions, exposed as `dokime::domain`. |
+| `dokime-runtime` | Internal runtime implementation, re-exported by `dokime`. |
+| `dokime-client` | Remote implementation, exposed as `dokime::client`. |
+| `dokime-server`, `dokime-gui` | Server and desktop interfaces. |
+| `dokime-packaging`, `cargo-dokime` | Plugin packaging and authoring tools. |
+
+The entry library also owns connection, installation and version helpers. With
+`client` enabled, connection errors live under `dokime::client_error`; root
+`dokime::Error` and `dokime::Result` always name the runtime's error contract.
 
 ## Cargo Features
 
-These flags configure the `dokime-runtime` plugin SDK dependency. Desktop
-application users do not need to select them. The default SDK includes native
-plugin support and authoring macros; operation, model and record definitions
-live in `dokime-domain`, which every feature set shares.
+These flags configure the `dokime` entry library. Defaults are empty; plugin
+authors enable `plugin` for native support and authoring macros. Shared
+definitions are available under `dokime::domain` in every feature set.
 
 | Feature | Default | Enables |
 | --- | --- | --- |
-| `native` | Yes | Native plugin SDK, sidecar support, and plugin prelude. |
-| `derive` | Yes | Suite, template, step, observer, and other authoring macros. |
+| `plugin` | No | Native plugin support and authoring macros (`native`, `derive`). |
+| `client` | No | Remote access under `dokime::client` and connection/installation helpers. |
+| `diagnostics` | No | Captured error chains, span traces and backtraces. |
+| `terminal` | No | Shared terminal output used by command-line interfaces and packaging. |
+| `native` | No | Native plugin SDK, sidecar support, and plugin prelude. |
+| `derive` | No | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
 | `host` | No | The application host the server embeds: storage, gRPC and host collectors. |
 | `fft` | No | Spectrum analyses on top of `host`. |
@@ -608,26 +895,27 @@ state backend; SQLite holds the data catalog and evidence. A root written by an
 earlier storage layout is refused as incompatible with this build and needs a
 fresh storage root. Existing data is never silently reset.
 
-For remote automation, depend on the reusable client crate:
+For remote automation, enable the entry library's client surface:
 
 ```toml
 [dependencies]
-dokime-client = { git = "https://github.com/stokker-technologies/dokime", rev = "<tested-commit>" }
+dokime = { git = "https://github.com/stokker-technologies/dokime", rev = "<tested-commit>", features = ["client"] }
 ```
 
 Replace `<tested-commit>` with the revision used by your integration.
-`dokime-client` owns remote connection, authentication, discovery, listening,
-recovery and profile access. The `dokime` crate owns plugin authoring; its
+`dokime::client` exposes remote connection, authentication, discovery, listening,
+recovery and profile access. The `dokime` crate also exposes plugin authoring; its
 `storage` feature does not enable `native` or `derive` when defaults are disabled.
 Disabling defaults retains the SDK's underlying Harmos dependency. See the
-[SDK manifest](crates/dokime-runtime/Cargo.toml) and
+[Entry Library Manifest](crates/dokime/Cargo.toml) and
 [client manifest](crates/dokime-client/Cargo.toml) for details.
 
 ## Documentation
 
+- [Remote OBC Walkthrough](packages/dokime-client/examples/remote/README.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
 - [OBC Plugin](plugins/obc-plugin/) — the charger simulation and complete test templates.
 - [Plugin Starter](crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
-- [Runtime And Plugin SDK](crates/dokime-runtime/src/lib.rs) — public authoring APIs and module documentation.
+- [Entry Library And Plugin SDK](crates/dokime/src/lib.rs) — public entry point for authoring APIs.
 - [Client API](crates/dokime-client/src/) — programmatic access to cycles and executions.
 - [Contributing](CONTRIBUTING.md) — repository setup and development workflow.
 
@@ -646,7 +934,7 @@ The public introduction will grow with a complete on-board charger walkthrough
 and a downloadable self-contained example report. GitHub hosts the authoritative source and native validation workflows.
 
 Follow [issues](https://github.com/stokker-technologies/dokime/issues)
-for development discussions and [the changelog](CHANGELOG.md) for recorded changes.
+for development discussions and [releases](https://github.com/stokker-technologies/dokime/releases) for recorded changes.
 
 ## Development Setup
 
@@ -664,36 +952,136 @@ mise run format --check
 mise run lint
 mise run check
 mise run build
+mise run build:tests
 mise run test
-mise run ci
+mise run build:bench
+mise run bench
+mise run package
+mise run ci --event pr
 ```
 
 `check` covers every Rust feature combination and the WebAssembly domain build.
-`build` compiles once into binaries, the OBC bundle, the frontend, the
-generated clients, the Python wheel and the test archive; every test layer runs
-from those outputs. `test` runs the layers in order, each with its own task:
+`build` produces packageable Product outputs in `dev` or `release`: shipping
+binaries and libraries, the OBC bundle, generated clients, the frontend, the
+Python distribution and its tutorial. It resolves the server contracts before
+compiling the frontend, then builds the desktop shell with those assets
+embedded in both profiles. Dev applies basic optimization to the packaged Rust
+crates while retaining debug information and assertions. Package defaults to
+`dev` and prints the packaged profile; select `--profile release` explicitly
+for release packages.
+Interactive `tauri dev` continues to use the Vite server.
+
+After an intentional Python client change, refresh the tutorial lock from the
+built candidate wheel, then rerun the Python Build and Package tasks:
+
+```sh
+uv run --locked --project tools/python python -m dokime_tools.package.examples --profile dev --relock
+mise run build:python --profile dev
+mise run package:python --profile dev
+```
+
+`build:tests --profile dev` separately compiles the shared test archive and
+test fixtures and runs the macro compile contracts in the build tree,
+requiring the matching Product outputs first. Use `release`
+instead for release-profile test preparation. Test lanes consume that archive,
+its fixtures and, for acceptance and system lanes, the whole matching Product
+export; Product Build does not compile the
+test archive. The archive lives under `tests/archive.tar.zst`, with its compiler
+messages and resolved dependency metadata beside it for authoring checks.
+Test fixtures live under `fixtures/` within the selected native Build output.
+
+`build:bench` uses the fixed `bench` profile and separately builds benchmark
+executables, their matching server/packaging hosts and plugin fixture. It does
+not build a test archive or a desktop GUI. Benchmark executables and compiler
+metadata live under `bench/`, hosts under `bin/`, and plugin fixtures under
+`fixtures/plugins/` within the native bench Build output.
+
+The server system benchmarks use a bench-only OBC capture suite with generated
+100k/200k-row telemetry and two operator prompts. They cover a 50 MiB plugin
+install, running execution and ten-member cycle reports, durable execution
+sealing, operator notes, and the first recovery plot frame containing points.
+Counters distinguish explicit SQLite transaction commits, data batches, native
+file durability confirmations and transferred payload bytes; SQLite autocommit
+statements and the separate Harmos state journal are outside these counters.
+Build with `mise run build:bench`, then run
+`mise run bench:system:rust`; ordinary product builds omit this fixture suite.
+
+`package --profile dev` consumes matching Product outputs without compiling;
+select `release` to package release Product bytes. Tests and Bench outputs are
+separate preparation inputs for their own lanes.
+Build exports live under `target/build/<profile>/<target>/`; packages use
+`target/package/<profile>/<target>/`. Native targets include `linux-x86_64`
+and `windows-x86_64`; the pure Python distributions and remote examples use
+`any`. One canonical Python Build runs before native Product builds; both
+platforms consume that same wheel. Packages are separated by language: raw
+`dokime`, `dokime-server` and `cargo-dokime` executables, installers and plugin
+carriers live under the native `rust/` subtree; Python distributions and the
+declared tutorial ZIP live under `any/python/`. Raw executable names include
+the package version and ABI-accurate Rust target triple.
+Linux packaging requires `rpm` for payload inspection and rejects a desktop
+launcher whose icon is missing from the assembled RPM. The installers use the
+existing generated application icons.
+Stable Windows release packages require the protected updater signing key;
+their signatures are verified against the configured public key and exact
+installer bytes. Development packages remain unsigned. Python publication
+selects the client wheel and source distribution; the examples ZIP is a
+separate downloadable bundle.
+
+`Release / Prepare` opens a `release/v<version>` review into `dev`. That review
+requires the native graph and unsigned `Release / Rehearsal`. Its squash merge
+starts `Release / Tag`, which checks the rehearsed tree, tags the merged `dev`
+commit, publishes Rust crates and fast-forwards protected `main`. The tag
+pipeline publishes the signed packages and Python client, then verifies native
+installation. Release notes come from Conventional Commits at tag time.
+Generated TypeScript messages live under `target/generated/typescript/`.
+`test` composes the layers as dependencies, each with its own task:
 
 | Task | Layer |
 | --- | --- |
-| `mise run test:unit` | Curated invariants inside the crates. |
+| `mise run test:unit` | Curated Rust, Python and TypeScript invariants. |
 | `mise run test:integration` | In-process stories per crate, plus Python and TypeScript client stories. |
 | `mise run test:generated` | The generated Python and TypeScript clients: types, lint and an import smoke. |
 | `mise run test:acceptance` | Whole stories over one process and a client: the server, the CLI, the Python client. |
 | `mise run test:system` | Two walkthroughs: the server with the built OBC plugin, and the desktop shell over its backend. |
 
 The desktop walkthrough drives the built shell through WebKitWebDriver on Linux
-and needs a display. `mise run ci` runs the same flow as the provider pipeline;
-`mise run ci:nightly` adds coverage and benches.
+and needs a display. `mise run ci --event pr` simulates the rendered provider
+graph from committed source with cold dependency homes;
+`mise run ci:nightly` adds `test:coverage` and benches.
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
+### Branding
+
+Brand identity is configured in [branding/brand.toml](branding/brand.toml).
+The [logo pack](branding/logos) provides SVG and PNG exports in four categories:
+`transparent-on-light`, `transparent-on-dark`, `contained-on-light`, and
+`contained-on-dark`. The suffix identifies the intended background. The shell
+and captured reports select artwork for the current light or dark surface.
+After changing the pack, run `mise run prepare:branding` and rebuild. Desktop
+icons are regenerated from [the icon master](branding/icons/icon.png), which
+uses the contained light-surface artwork.
+
+An installed desktop can be rebranded without a rebuild. Zip the branding
+folder as is, then choose it under Settings › Appearance › Branding Pack. The
+zip can hold the files at its root or under one top folder. The pack applies
+on the next start and takes precedence over the compiled brand. It can set the
+app label, title template, organization, logos, theme CSS and fonts. The
+slug, bundle identifier, deep-link scheme and OS icon stay compiled into the
+build, so the pack's values for them are ignored. The `icons/` and
+`generated/` folders are skipped. A pack is refused unless it is a zip of at
+most 20 MiB and 200 entries holding only `.toml`, `.css`, `.woff2`, `.svg` and
+`.png` files. Licence `.txt` and `.md` files are skipped. If an active pack
+stops loading, the compiled brand applies and the reason shows under
+Settings › Diagnostics.
+
 ### Generated Clients
 
-The Rust build generates the protobuf descriptors of every public operation;
+The server contract producer generates the protobuf descriptors of every public operation;
 `mise run build` regenerates the Python package's contract files from them with
 Harmos's `cargo harmos bindings python` exporter and refuses a stale tracked
 copy. The desktop's TypeScript client is generated from the same descriptors
-by the Buf generator after the Cargo build. Ordinary wheel and source-package
+by the Buf generator before compiling its frontend and packaged shell. Ordinary wheel and source-package
 installation uses the tracked files and needs no Rust compiler.
 
 The desktop WebView never talks to the network. Every call from the generated
@@ -716,4 +1104,4 @@ submitting changes.
 
 ## License
 
-Dokime is licensed under [Apache-2.0](LICENSE-APACHE).
+Dokime is licensed under [Apache-2.0](LICENSE).

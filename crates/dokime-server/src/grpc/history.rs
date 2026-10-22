@@ -10,10 +10,12 @@
 // History operations: browsing, reading and inspecting recorded executions.
 
 /* === Modules === */
+
 mod browse;
 mod capture;
 mod construction;
 mod context;
+mod cycles;
 pub(super) mod document;
 mod evidence;
 mod inspection;
@@ -24,10 +26,12 @@ mod window;
 mod wire;
 
 /* === Re-Exports === */
+
 pub(super) use inspection::register;
 pub(crate) use wire::{traceability, traceability_memory};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

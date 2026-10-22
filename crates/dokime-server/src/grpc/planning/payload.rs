@@ -12,18 +12,22 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use super::rejection;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::values::Value;
-use dokime_runtime::definition::parameters::limits;
-use dokime_runtime::definition::{ParameterDefinition, TestCase, TestCaseTemplate};
+use dokime::definition::parameters::limits;
+use dokime::definition::{ParameterDefinition, TestCase, TestCaseTemplate};
+use dokime::domain::model::identity::Metadata;
+use dokime::domain::model::values::Value;
 
 /* === Constants === */
+
 // Conservative native allocation estimate, shared by expression intermediates
 // and generated cases across the entire plan. This is not an RSS measurement.
 pub(super) const BUDGET: usize = 8 * 1024 * 1024;
@@ -41,6 +45,7 @@ pub(super) const BUDGET: usize = 8 * 1024 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn limit() -> Status {
     rejection("planning_payload_limit", "plan exceeds the conservative 8 MiB materialization budget")
 }
@@ -62,6 +67,35 @@ pub(super) fn registered_case(case: &TestCase, remaining: &mut usize) -> Result<
     }
     Ok(())
 }
+
+pub(super) fn case_cost(
+    template: &TestCaseTemplate, suite: &Metadata, suite_id: &str, parameters: &BTreeMap<String, Vec<Value>>,
+    files: &BTreeMap<String, Option<String>>, remaining: &mut usize,
+) -> Result<usize, Status> {
+    let mut cost = metadata_cost(&template.metadata)
+        .saturating_add(metadata_cost(suite))
+        .saturating_add(suite_id.len().saturating_mul(8))
+        .saturating_add(512);
+    for definition in &template.parameters {
+        let shape = parameter_shape(definition, &template.parameters, parameters, 0, remaining)?;
+        cost = cost.saturating_add(shape.cost).saturating_add(definition.metadata.identifier.as_str().len().saturating_mul(8));
+    }
+    for file in &template.files {
+        let selected = files.get(file.metadata.identifier.as_str()).unwrap_or(&file.default);
+        if let Some(selected) = selected {
+            cost = cost
+                .saturating_add(selected.len().saturating_mul(8))
+                .saturating_add(file.metadata.identifier.as_str().len().saturating_mul(8))
+                .saturating_add(256);
+        }
+    }
+    if cost > *remaining {
+        return Err(limit());
+    }
+    Ok(cost)
+}
+
+/* === Private Functions === */
 
 fn retained_metadata(metadata: &Metadata, remaining: &mut usize) -> Result<(), Status> {
     charge(remaining, metadata_cost(metadata))?;
@@ -98,34 +132,6 @@ fn retained_value(value: &Value, remaining: &mut usize, depth: usize) -> Result<
     Ok(())
 }
 
-pub(super) fn case_cost(
-    template: &TestCaseTemplate, suite: &Metadata, suite_id: &str, parameters: &BTreeMap<String, Vec<Value>>,
-    files: &BTreeMap<String, Option<String>>, remaining: &mut usize,
-) -> Result<usize, Status> {
-    let mut cost = metadata_cost(&template.metadata)
-        .saturating_add(metadata_cost(suite))
-        .saturating_add(suite_id.len().saturating_mul(8))
-        .saturating_add(512);
-    for definition in &template.parameters {
-        let shape = parameter_shape(definition, &template.parameters, parameters, 0, remaining)?;
-        cost = cost.saturating_add(shape.cost).saturating_add(definition.metadata.identifier.as_str().len().saturating_mul(8));
-    }
-    for file in &template.files {
-        let selected = files.get(file.metadata.identifier.as_str()).unwrap_or(&file.default);
-        if let Some(selected) = selected {
-            cost = cost
-                .saturating_add(selected.len().saturating_mul(8))
-                .saturating_add(file.metadata.identifier.as_str().len().saturating_mul(8))
-                .saturating_add(256);
-        }
-    }
-    if cost > *remaining {
-        return Err(limit());
-    }
-    Ok(cost)
-}
-
-/* === Private Functions === */
 fn metadata_cost(value: &Metadata) -> usize {
     value
         .identifier

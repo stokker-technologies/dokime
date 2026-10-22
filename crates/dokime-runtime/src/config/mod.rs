@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod application;
 pub mod branding;
 mod launch;
@@ -17,6 +18,7 @@ mod settings;
 mod view;
 
 /* === Re-Exports === */
+
 pub use crate::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID};
 pub use crate::runtime::storage::config::storage_defaults;
 pub use application::ApplicationOptions;
@@ -27,7 +29,11 @@ pub use runtime::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, Side
 pub use settings::{Appearance, Density, ReportDefaults, Settings, SettingsDocument, ThemeMode};
 pub use view::ApplicationSettingsView;
 
+#[cfg(test)]
+pub(crate) use view::MAX_PLOT_POINTS;
+
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

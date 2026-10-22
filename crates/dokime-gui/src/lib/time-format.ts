@@ -7,6 +7,10 @@
  * ***
  */
 
+/* === Local Imports === */
+
+import { formatDuration } from "./format";
+
 /* === Constants === */
 
 /**
@@ -78,7 +82,7 @@ export function elapsedLabel(startedAt: string | null | undefined, now: number, 
   if (started === null) {
     return "-";
   }
-  return durationLabel(Math.max(0, Math.floor((elapsedEndTime(finishedAt, now) - started) / 1000)));
+  return formatDuration(Math.max(0, Math.floor((elapsedEndTime(finishedAt, now) - started) / 1000))) ?? "-";
 }
 
 export function ageLabel(timestamp: string | null | undefined, now: number): string {
@@ -86,21 +90,7 @@ export function ageLabel(timestamp: string | null | undefined, now: number): str
   if (updated === null) {
     return "-";
   }
-  return durationLabel(Math.max(0, Math.floor((now - updated) / 1000)));
-}
-
-export function durationLabel(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (minutes < 60) {
-    return `${minutes}m ${remainingSeconds}s`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours}h ${remainingMinutes}m`;
+  return formatDuration(Math.max(0, Math.floor((now - updated) / 1000))) ?? "-";
 }
 
 /** Full local date-time label, or "-" for missing/invalid/epoch-zero timestamps. */

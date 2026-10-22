@@ -12,19 +12,20 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
 use super::super::{content, value};
 use super::wire;
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::operations::history;
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::ArtifactId;
+use dokime::domain::operations::history;
 
 /* === Constants === */
 
@@ -33,10 +34,12 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Download {
     resources: Arc<Resources>,
 }
@@ -46,12 +49,13 @@ struct Download {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Download {
     type Declaration = history::DownloadCheckpointArtifact;
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::content::wire::ArtifactFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -70,14 +74,16 @@ impl Operation for Download {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
 
 /* === Private Functions === */
+
 /* === Tests === */

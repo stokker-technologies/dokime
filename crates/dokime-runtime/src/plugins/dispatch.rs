@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use harmos::operations::{NativeError, OperationManager};
 use harmos::sidecar::operations::Definition;
+
 // Local Imports
 use crate::InstalledPlugin;
 use crate::domains::{
@@ -31,6 +34,7 @@ use crate::domains::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Default)]
 pub(crate) struct Bindings {
     options: BTreeSet<String>,
@@ -49,6 +53,7 @@ pub(crate) struct Dispatcher {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Bindings {
     pub(crate) fn inspect(plugin: &InstalledPlugin, operations: &[Definition]) -> Result<Self, String> {
         let inventory: BTreeSet<_> = operations.iter().map(|operation| operation.id.as_str()).collect();
@@ -158,6 +163,7 @@ impl ActionDispatcher for Dispatcher {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn validate_analyses(artifact: &InstalledPlugin, contracts: &[harmos::operations::Contract]) -> Result<(), String> {
     use harmos::schema::Described;
     for analysis in &artifact.analyses {
@@ -181,6 +187,7 @@ pub(crate) fn validate_analyses(artifact: &InstalledPlugin, contracts: &[harmos:
 }
 
 /* === Private Functions === */
+
 fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
     match error {
         harmos::Error::OperationRefused(harmos::Refusal::TimedOut) => ActionDispatcherError::Deadline,

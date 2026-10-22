@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::Path;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::ArtifactId;
@@ -30,6 +33,7 @@ use crate::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtifactRecord {
     pub artifact_id: ArtifactId,
@@ -53,6 +57,7 @@ pub struct ArtifactUploadInput {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaKind {
@@ -73,6 +78,7 @@ pub enum ArtifactStatus {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for ArtifactRecord {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -91,6 +97,7 @@ impl harmos_domain::MemorySize for ArtifactRecord {
 }
 
 /* === Public Functions === */
+
 pub fn media_kind_for(filename: &str, content_type: Option<&str>) -> Option<MediaKind> {
     let lower = filename.to_ascii_lowercase();
     let extension = Path::new(&lower).extension().and_then(|extension| extension.to_str());

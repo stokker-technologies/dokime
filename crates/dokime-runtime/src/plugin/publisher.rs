@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,6 +29,7 @@ use crate::records::RecordPublication;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Publisher {
     host: harmos::sidecar::Supervisor,
@@ -38,6 +40,7 @@ pub struct Publisher {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Publisher {
     pub fn new(host: &harmos::sidecar::Supervisor) -> Self {
         Self { host: host.clone() }

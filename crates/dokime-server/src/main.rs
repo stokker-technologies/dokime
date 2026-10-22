@@ -31,18 +31,22 @@ use dokime_server::host::{self, Error, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, Parser)]
 #[command(name = "dokime-server", about = "Run The Dokime Backend.", version)]
 struct Cli {
     #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime::terminal::ColorMode), help = "Color output: auto, always, or never.")]
     color: dokime::terminal::ColorMode,
+
     #[command(flatten)]
     args: host::Args,
+
     #[command(subcommand)]
     command: Option<Command>,
 }
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Version(host::version::Args),
@@ -55,6 +59,7 @@ enum Command {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     dokime::terminal::set_color_mode(cli.color);
@@ -66,7 +71,7 @@ fn main() -> ExitCode {
     let result = cli.args.network.config().and_then(|config| {
         load_environment(cli.args.env_file.as_deref())?;
         let served = host::run(cli.args, config, terminal.clone());
-        dokime_runtime::process::block_on(served)?
+        dokime::process::block_on(served)?
     });
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -74,7 +79,7 @@ fn main() -> ExitCode {
             // A Refused Data Root Is An Operator Remedy, Not A Defect Report
             match &error {
                 Error::IncompatibleStorage { .. } => terminal.failure(&error),
-                _ => terminal.failure(dokime_runtime::plugin::Diagnostic::capture(&error)),
+                _ => terminal.failure(dokime::plugin::Diagnostic::capture(&error)),
             }
             error.exit_code()
         }

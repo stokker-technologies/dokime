@@ -16,7 +16,6 @@
 // Standard Library Imports
 use std::{
     io::{self, Write},
-    num::NonZeroUsize,
     sync::LazyLock,
 };
 
@@ -26,6 +25,7 @@ use serde::Serialize;
 // Local Imports
 
 /* === Constants === */
+
 const REPORT_DATA_MARKER: &str = r#"<script id="hub-report-data" type="application/json">"#;
 const REPORT_DATA_END: &str = "</script>";
 static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(super::asset::REPORT_APP_TEMPLATE));
@@ -35,23 +35,15 @@ static REPORT_PARTS: LazyLock<(&str, &str)> = LazyLock::new(|| split_template(su
 /* === Type Aliases === */
 
 /* === Structs === */
-struct ScriptFormatter;
-pub(super) struct Buffer {
-    bytes: Vec<u8>,
-    maximum: usize,
-}
 
-pub(super) struct Count {
-    bytes: usize,
-    maximum: NonZeroUsize,
-    exceeded: bool,
-}
+struct ScriptFormatter;
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl serde_json::ser::Formatter for ScriptFormatter {
     fn write_string_fragment<W: ?Sized + Write>(&mut self, writer: &mut W, fragment: &str) -> io::Result<()> {
         let mut start = 0;
@@ -72,66 +64,7 @@ impl serde_json::ser::Formatter for ScriptFormatter {
     }
 }
 
-impl Buffer {
-    pub(super) fn new(maximum: usize) -> io::Result<Self> {
-        let mut bytes = Vec::new();
-        bytes.try_reserve_exact(maximum).map_err(io::Error::other)?;
-        if bytes.capacity() > maximum {
-            return Err(io::Error::other("report output capacity exceeds its preclaim"));
-        }
-        Ok(Self { bytes, maximum })
-    }
-
-    pub(super) fn into_bytes(self) -> Vec<u8> {
-        self.bytes
-    }
-}
-
-impl Write for Buffer {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.bytes
-            .len()
-            .checked_add(bytes.len())
-            .filter(|required| *required <= self.maximum)
-            .ok_or_else(|| io::Error::other("report output exceeds its counted size"))?;
-        self.bytes.extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl Count {
-    pub(super) fn new(maximum: NonZeroUsize) -> Self {
-        Self { bytes: 0, maximum, exceeded: false }
-    }
-    pub(super) fn len(&self) -> usize {
-        self.bytes
-    }
-    pub(super) fn exceeded(&self) -> bool {
-        self.exceeded
-    }
-}
-
-impl Write for Count {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.bytes = self.bytes.checked_add(bytes.len()).filter(|required| *required <= self.maximum.get()).ok_or_else(|| {
-            self.exceeded = true;
-            io::Error::other("report output exceeds its byte limit")
-        })?;
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(super) fn write_html(writer: &mut dyn Write, payload: &impl Serialize, template: &str) -> io::Result<()> {
     // Reuse The Fixed Embedded Template; Other Inputs Keep Their Own Split.
@@ -141,6 +74,8 @@ pub(super) fn write_html(writer: &mut dyn Write, payload: &impl Serialize, templ
     payload.serialize(&mut serializer).map_err(io::Error::other)?;
     writer.write_all(suffix.as_bytes())
 }
+
+/* === Private Functions === */
 
 fn split_template(template: &str) -> (&str, &str) {
     template.find(REPORT_DATA_MARKER)

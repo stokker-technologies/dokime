@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod cycle;
 pub(super) mod header;
 mod plan;
@@ -16,18 +17,21 @@ mod telemetry;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
+
 // Third Party Imports
 use serde::{
     Serialize, Serializer,
     ser::{SerializeMap, SerializeSeq},
 };
 use serde_json::Value as JsonValue;
+
 // Local Imports
 use super::output;
 use crate::definition::TestCase;
@@ -58,6 +62,7 @@ use dokime_domain::model::values::Value;
 use header::Header;
 
 /* === Constants === */
+
 const DEFAULT_DOCUMENT_ID: &str = "default";
 
 /* === Macros === */
@@ -65,6 +70,7 @@ const DEFAULT_DOCUMENT_ID: &str = "default";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct CaseRun<'a> {
     test_case: &'a TestCase,
     execution: Option<&'a TestExecution>,
@@ -92,6 +98,7 @@ struct ExecutionRow<'a, S> {
 struct ArtifactRow<'a> {
     #[serde(flatten)]
     link: &'a ReportArtifactLink,
+
     #[serde(rename = "downloadHref")]
     download_href: &'a str,
 }
@@ -210,13 +217,6 @@ struct StepRow<'a> {
 }
 
 #[derive(Serialize)]
-#[serde(untagged)]
-enum StepResult<'a> {
-    Step { status: &'static str, details: StepFailure<'a> },
-    Criterion { status: &'static str, reason: &'a Option<String>, details: CriterionDetails<'a> },
-}
-
-#[derive(Serialize)]
 struct CriterionDetails<'a> {
     observed: Option<ReportValue<'a>>,
 }
@@ -238,6 +238,7 @@ struct StepOwner<'a> {
     scope: &'a RecordScope,
     generated_at: &'a Timestamp,
 }
+
 struct ReportValue<'a>(&'a Value);
 
 #[derive(Serialize)]
@@ -294,10 +295,12 @@ struct TraceabilityItem<'a> {
 struct TraceabilityDetails<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<&'a str>,
+
     identifier: &'a str,
 }
 
 struct TraceabilityItems<'g, 'a>(&'g BTreeMap<TraceabilityKey<'a>, TraceabilityItem<'a>>);
+
 struct TraceabilitySources<'g, 'a>(&'g BTreeSet<&'a str>);
 
 struct ReportTitle<'a> {
@@ -311,6 +314,13 @@ struct TraceabilityKey<'a> {
 }
 
 /* === Enums === */
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum StepResult<'a> {
+    Step { status: &'static str, details: StepFailure<'a> },
+    Criterion { status: &'static str, reason: &'a Option<String>, details: CriterionDetails<'a> },
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum TraceabilityGroupRank {
@@ -408,8 +418,129 @@ impl Serialize for ReportValue<'_> {
     }
 }
 
+impl Serialize for Traceability<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let groups = traceability_groups(self.input, self.scope.as_ref());
+        if groups.0.is_empty() {
+            return serializer.serialize_unit();
+        }
+        let last = self.input.traceability.last();
+        let scope = last.map_or_else(|| empty_report_scope(self.input.into()), |item| report_scope(self.input.into(), &item.scope));
+        let updated_at = last.map_or(&self.input.generated_at, |item| &item.created_at);
+        let mut fields = serializer.serialize_map(Some(5))?;
+        fields.serialize_entry("groups", &groups)?;
+        fields.serialize_entry("warnings", &[] as &[()])?;
+        fields.serialize_entry("artifacts", &[] as &[()])?;
+        fields.serialize_entry("updated_at", updated_at)?;
+        fields.serialize_entry("scope", &scope)?;
+        fields.end()
+    }
+}
+
+impl fmt::Display for ReportTitle<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.label)?;
+        if self.cycle {
+            formatter.write_str(" Report")?;
+        }
+        Ok(())
+    }
+}
+
+impl Serialize for ReportTitle<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl TraceabilityKey<'_> {
+    fn bytes(&self) -> impl Iterator<Item = u8> + '_ {
+        self.identifier.bytes().chain(std::iter::once(b':')).chain(self.label.bytes())
+    }
+}
+
+impl Ord for TraceabilityKey<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.bytes().cmp(other.bytes())
+    }
+}
+
+impl PartialOrd for TraceabilityKey<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for TraceabilityKey<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for TraceabilityKey<'_> {}
+
+impl fmt::Display for TraceabilityKey<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.identifier)?;
+        formatter.write_str(":")?;
+        formatter.write_str(self.label)
+    }
+}
+
+impl Serialize for TraceabilityKey<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl Serialize for TraceabilityGroups<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut groups = serializer.serialize_seq(Some(self.0.len()))?;
+        for group in self.0.values() {
+            groups.serialize_element(group)?;
+        }
+        groups.end()
+    }
+}
+
+impl Serialize for TraceabilityGroup<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut fields = serializer.serialize_map(Some(7))?;
+        fields.serialize_entry("group_id", &self.group_id)?;
+        fields.serialize_entry("title", self.title)?;
+        fields.serialize_entry("summary", "")?;
+        fields.serialize_entry("level", "info")?;
+        fields.serialize_entry("items", &TraceabilityItems(&self.items))?;
+        fields.serialize_entry("details", &TraceabilitySources(&self.sources))?;
+        fields.serialize_entry("updated_at", self.updated_at)?;
+        fields.end()
+    }
+}
+
+impl Serialize for TraceabilityItems<'_, '_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut items = serializer.serialize_seq(Some(self.0.len()))?;
+        for item in self.0.values() {
+            items.serialize_element(item)?;
+        }
+        items.end()
+    }
+}
+
+impl Serialize for TraceabilitySources<'_, '_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut fields = serializer.serialize_map(Some(usize::from(!self.0.is_empty())))?;
+        if !self.0.is_empty() {
+            fields.serialize_entry("sources", self.0)?;
+        }
+        fields.end()
+    }
+}
+
 /* === Public Functions === */
+
 /* === Private Functions === */
+
 fn snapshot(input: Header<'_>) -> Snapshot<'_> {
     let template_id = input.cycle.metadata.identifier.as_str();
     Snapshot {
@@ -575,125 +706,6 @@ fn case_document_for_case<'a>(
                 (None, _) => true,
             }
     })
-}
-
-impl Serialize for Traceability<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let groups = traceability_groups(self.input, self.scope.as_ref());
-        if groups.0.is_empty() {
-            return serializer.serialize_unit();
-        }
-        let last = self.input.traceability.last();
-        let scope = last.map_or_else(|| empty_report_scope(self.input.into()), |item| report_scope(self.input.into(), &item.scope));
-        let updated_at = last.map_or(&self.input.generated_at, |item| &item.created_at);
-        let mut fields = serializer.serialize_map(Some(5))?;
-        fields.serialize_entry("groups", &groups)?;
-        fields.serialize_entry("warnings", &[] as &[()])?;
-        fields.serialize_entry("artifacts", &[] as &[()])?;
-        fields.serialize_entry("updated_at", updated_at)?;
-        fields.serialize_entry("scope", &scope)?;
-        fields.end()
-    }
-}
-
-impl fmt::Display for ReportTitle<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.label)?;
-        if self.cycle {
-            formatter.write_str(" Report")?;
-        }
-        Ok(())
-    }
-}
-
-impl Serialize for ReportTitle<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        serializer.collect_str(self)
-    }
-}
-
-impl TraceabilityKey<'_> {
-    fn bytes(&self) -> impl Iterator<Item = u8> + '_ {
-        self.identifier.bytes().chain(std::iter::once(b':')).chain(self.label.bytes())
-    }
-}
-
-impl Ord for TraceabilityKey<'_> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.bytes().cmp(other.bytes())
-    }
-}
-
-impl PartialOrd for TraceabilityKey<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for TraceabilityKey<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other).is_eq()
-    }
-}
-
-impl Eq for TraceabilityKey<'_> {}
-
-impl fmt::Display for TraceabilityKey<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.identifier)?;
-        formatter.write_str(":")?;
-        formatter.write_str(self.label)
-    }
-}
-
-impl Serialize for TraceabilityKey<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        serializer.collect_str(self)
-    }
-}
-
-impl Serialize for TraceabilityGroups<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut groups = serializer.serialize_seq(Some(self.0.len()))?;
-        for group in self.0.values() {
-            groups.serialize_element(group)?;
-        }
-        groups.end()
-    }
-}
-
-impl Serialize for TraceabilityGroup<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields = serializer.serialize_map(Some(7))?;
-        fields.serialize_entry("group_id", &self.group_id)?;
-        fields.serialize_entry("title", self.title)?;
-        fields.serialize_entry("summary", "")?;
-        fields.serialize_entry("level", "info")?;
-        fields.serialize_entry("items", &TraceabilityItems(&self.items))?;
-        fields.serialize_entry("details", &TraceabilitySources(&self.sources))?;
-        fields.serialize_entry("updated_at", self.updated_at)?;
-        fields.end()
-    }
-}
-
-impl Serialize for TraceabilityItems<'_, '_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut items = serializer.serialize_seq(Some(self.0.len()))?;
-        for item in self.0.values() {
-            items.serialize_element(item)?;
-        }
-        items.end()
-    }
-}
-
-impl Serialize for TraceabilitySources<'_, '_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields = serializer.serialize_map(Some(usize::from(!self.0.is_empty())))?;
-        if !self.0.is_empty() {
-            fields.serialize_entry("sources", self.0)?;
-        }
-        fields.end()
-    }
 }
 
 fn traceability_groups<'a>(input: &'a CycleReportInput, scope: Option<&RecordScope>) -> TraceabilityGroups<'a> {

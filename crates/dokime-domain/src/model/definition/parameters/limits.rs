@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -22,9 +24,11 @@ use crate::model::definition::ParameterExpr;
 use crate::model::values::Value;
 
 /* === Constants === */
+
 pub const BUDGET: usize = 8 * 1024 * 1024;
 
 /* === Macros === */
+
 product_error!(ParameterLimitError, formatter {
  Self::Structure => write!(formatter,"parameter value/expression structural budget exceeded"),
  Self::Expansion => write!(formatter,"parameter expansion exceeds limits or cannot advance safely"),
@@ -35,6 +39,7 @@ product_error!(ParameterLimitError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy)]
 pub struct Shape {
     pub count: usize,
@@ -55,6 +60,7 @@ pub enum ParameterLimitError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Shape {
     fn scalar(cost: usize) -> Self {
         Self { count: 1, cost, space: false }
@@ -62,6 +68,7 @@ impl Shape {
 }
 
 /* === Public Functions === */
+
 pub fn charge(remaining: &mut usize, amount: usize) -> crate::Result<()> {
     *remaining = remaining.checked_sub(amount).ok_or_else(limit)?;
     Ok(())
@@ -81,6 +88,7 @@ pub fn parameter_shape(
 }
 
 /* === Private Functions === */
+
 fn limit() -> crate::Error {
     ParameterLimitError::Payload.into()
 }

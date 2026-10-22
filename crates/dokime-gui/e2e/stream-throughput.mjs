@@ -50,7 +50,7 @@ const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/doki
 const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
 const origin = process.platform === "win32" ? "http://tauri.localhost" : "tauri://localhost";
 const STREAM = "mini.charger.startup.samples";
-const TEMPLATE = "Power Up the Charger";
+const TEMPLATE = "Start-Up Sequence";
 const STEP_S = 0.001;
 const { values: options } = parseArgs({
   options: {
@@ -240,19 +240,24 @@ const value = (kind, field0) => ({ values: [{ nodes: [{ kind: { HarmosVariant: {
       if (!template) continue;
       const cycle = await api.executionCreateCycle(session, {
         metadata: { identifier: "bench.throughput." + argument.run, label: "Stream Throughput" },
-        plan: {
-          maxCases: 1,
-          selections: [{
-            suiteId: suite.identity.suiteId,
-            templateId: template.templateId,
-            parameters: [
-              { key: "continuous", value: value("Bool", true) },
-              { key: "sample_interval_s", value: value("Number", argument.step) },
-            ],
-          }],
+      });
+      const materialized = await api.planningMaterializeTemplate(session, {
+        selection: {
+          suiteId: suite.identity.suiteId,
+          templateId: template.templateId,
+          parameters: [
+            { key: "continuous", value: value("Bool", true) },
+            { key: "sample_interval_s", value: value("Number", argument.step) },
+          ],
         },
       });
-      await api.executionRunCycle(session, { cycleId: cycle.cycleId, idempotencyKey: cycle.cycleId });
+      const executionId = crypto.randomUUID();
+      if (materialized.cases.length !== 1) return fail("throughput template must materialize one case");
+      await api.executionAppendExecutions(session, {
+        cycleId: cycle.cycleId,
+        executions: materialized.cases.map((item) => ({ executionId, caseId: item.caseId })),
+      });
+      await api.executionStartExecution(session, { executionId, mode: { HarmosVariant: { case: "Automatic", value: {} } } });
       return done({ cycleId: cycle.cycleId });
     }
     return fail("template not found");
@@ -307,7 +312,7 @@ const value = (kind, field0) => ({ values: [{ nodes: [{ kind: { HarmosVariant: {
     return done({ frames, status: cycle.status?.HarmosVariant?.case ?? null });
   }
   if (phase === "stop") {
-    await api.executionStopCycle(session, { cycleId: argument.cycleId });
+    await api.executionSealCycle(session, { cycleId: argument.cycleId });
     return done({});
   }
   fail("unknown phase");

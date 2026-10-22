@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod cards;
 mod normalization;
 mod repetition;
@@ -15,11 +16,14 @@ mod repetition;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::Write;
+
 // Third Party Imports
 use harmos::MemorySize;
 use serde::Serialize;
+
 // Local Imports
 use super::input::BorrowedInput;
 use super::{DocumentDefinition, DocumentNode, DocumentPayload, DocumentResolveInput};
@@ -31,6 +35,7 @@ use super::{DocumentDefinition, DocumentNode, DocumentPayload, DocumentResolveIn
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug)]
 pub struct DocumentLimits {
     pub source_bytes: usize,
@@ -48,6 +53,7 @@ pub struct DocumentLimit;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for DocumentLimits {
     fn default() -> Self {
         Self {
@@ -69,6 +75,7 @@ impl std::fmt::Display for DocumentLimit {
 impl std::error::Error for DocumentLimit {}
 
 /* === Public Functions === */
+
 pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_depth: usize) -> Result<usize, DocumentLimit> {
     struct Counter {
         bytes: usize,
@@ -286,6 +293,7 @@ pub(crate) fn capture_memory(input: &BorrowedInput<'_>, limits: DocumentLimits) 
 }
 
 /* === Private Functions === */
+
 fn preflight_input(input: &BorrowedInput<'_>, limits: DocumentLimits, borrowed: bool) -> crate::Result<usize> {
     let source_bytes = document_size(input, limits.source_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
     if input.memory_size() > limits.source_bytes {

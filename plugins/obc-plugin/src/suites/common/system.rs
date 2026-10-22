@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::document::{Column, PlotDefinition};
-use dokime_runtime::prelude::*;
+use dokime::document::{Column, PlotDefinition};
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -29,7 +30,8 @@ use dokime_runtime::prelude::*;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum SystemInputs {
     System(host::System),
     Network(host::Network),
@@ -44,6 +46,7 @@ pub enum SystemInputs {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn section(owner: &str) -> Section {
     let mut section = Section::new("System Information");
 
@@ -88,6 +91,7 @@ pub fn section(owner: &str) -> Section {
 }
 
 /* === Private Functions === */
+
 fn series<R: TelemetryStream>(
     owner: &str, metric: &str, label: &str, unit: &str, decimals: u8, columns: impl IntoIterator<Item = Column<R>>,
 ) -> PlotDefinition {

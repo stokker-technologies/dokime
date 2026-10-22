@@ -10,16 +10,20 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::model::execution::ExecutionCheckpoint;
 pub use crate::model::execution::PageCursor;
 pub use crate::model::execution::SavedEvidenceError;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use harmos_domain::model::storage::{FileReference, ObjectVersionToken, StorageCursor};
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::result::{CycleStatus, CycleView, ExecutionStatus, TestCycle, TestExecution};
 use crate::model::artifacts::{ArtifactRecord, ArtifactStatus};
@@ -30,10 +34,12 @@ use crate::model::identity::TestExecutionId;
 use crate::model::time::Timestamp;
 
 /* === Constants === */
+
 pub const EXECUTION_CONTEXT_MEDIA_TYPE: &str = "application/vnd.dokime.execution-context+postcard";
 pub const EXECUTION_CONTEXT_SCHEMA_VERSION: u32 = 1;
 
 /* === Macros === */
+
 macro_rules! owned_memory {
     ($type:ty, $($field:ident),+ $(,)?) => {
         impl harmos_domain::MemorySize for $type {
@@ -54,10 +60,24 @@ macro_rules! owned_memory {
     };
 }
 
+owned_memory!(ExecutionRevision, execution_id, position, version);
+
+owned_memory!(ExecutionSource, owner_node_id, evidence_through, execution, context, outputs,);
+
+owned_memory!(ExecutionOutput, relative_path, created_at, file, stream_state, content);
+
+owned_memory!(ExecutionSeal, source, report, dependencies_saved, sealed_at);
+
+owned_memory!(VerifiedReplicaFile, source, local);
+
+owned_memory!(CycleSeal, owner_node_id, evidence_through, executions, report, dependencies_saved, sealed_at,);
+
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, SavedEvidenceError>;
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionRevision {
@@ -113,6 +133,7 @@ pub struct CycleSeal {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExecutionOutputContent {
@@ -130,12 +151,6 @@ pub enum SavedStreamState {
 /* === Traits === */
 
 /* === Implementations === */
-owned_memory!(ExecutionRevision, execution_id, position, version);
-owned_memory!(ExecutionSource, owner_node_id, evidence_through, execution, context, outputs,);
-owned_memory!(ExecutionOutput, relative_path, created_at, file, stream_state, content);
-owned_memory!(ExecutionSeal, source, report, dependencies_saved, sealed_at);
-owned_memory!(VerifiedReplicaFile, source, local);
-owned_memory!(CycleSeal, owner_node_id, evidence_through, executions, report, dependencies_saved, sealed_at,);
 
 impl harmos_domain::MemorySize for ExecutionOutputContent {
     fn memory_size(&self) -> usize {
@@ -244,10 +259,16 @@ impl ExecutionSeal {
 
 impl CycleSeal {
     pub fn validate(&self, cycle: &TestCycle) -> Result<()> {
+        if cycle.phase == super::result::CyclePhase::Active {
+            return Err(SavedEvidenceError::Invalid("cycle admission must close before sealing"));
+        }
         self.validate_membership(&cycle.test_cycle_id, cycle.lifecycle, cycle.execution_ids.iter())
     }
 
     pub fn validate_view(&self, cycle: &CycleView) -> Result<()> {
+        if cycle.phase == super::result::CyclePhase::Active {
+            return Err(SavedEvidenceError::Invalid("cycle admission must close before sealing"));
+        }
         if cycle.test_executions.iter().any(|execution| execution.test_cycle_id != cycle.test_cycle_id) {
             return Err(SavedEvidenceError::Invalid("execution belongs to another cycle"));
         }
@@ -280,6 +301,7 @@ impl CycleSeal {
 }
 
 /* === Public Functions === */
+
 pub fn validate_cycle_revisions(cycle: &TestCycle, evidence_through: &StorageCursor, revisions: &[ExecutionRevision]) -> Result<()> {
     validate_cycle_members(cycle.lifecycle, cycle.execution_ids.iter(), evidence_through, revisions)
 }
@@ -348,6 +370,7 @@ pub fn validate_relative_output_path(relative_path: &str) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 fn validate_cycle_members<'a>(
     lifecycle: CycleStatus, ids: impl ExactSizeIterator<Item = &'a TestExecutionId>, evidence_through: &StorageCursor,
     revisions: &[ExecutionRevision],

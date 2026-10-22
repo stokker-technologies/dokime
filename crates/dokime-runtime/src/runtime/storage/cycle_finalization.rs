@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::storage::{FileReference, ObjectVersion, StorageCursor};
 use tokio::sync::Mutex;
+
 // Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
 use crate::RuntimeHandle;
@@ -39,6 +42,7 @@ use dokime_domain::model::identity::TestCycleId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct PendingCycle {
     snapshot: CycleSnapshot,
     executions: Arc<Vec<ExecutionSeal>>,
@@ -54,7 +58,6 @@ pub(crate) struct Materialization {
 
 pub(crate) struct CompletedCycle {
     pub header: TestCycle,
-    pub executions: Vec<ExecutionSeal>,
 }
 
 /* === Enums === */
@@ -62,6 +65,7 @@ pub(crate) struct CompletedCycle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl super::executions::ExecutionStorage {
     pub(crate) async fn cycle_finalization_intent(&self, id: &TestCycleId) -> Result<Option<crate::transactions::CycleReportFinalization>> {
         Ok(self.state_manager.state().read(|state| state.cycle_report_finalizations.get(id).cloned()).await?.value)
@@ -169,7 +173,6 @@ impl RuntimeHandle {
             return Err(invalid("durable cycle seal differs from its frozen finalization intent"));
         }
         seal.validate(&revision.value).map_err(crate::storage::Error::from)?;
-        let mut executions = Vec::with_capacity(seal.executions.len());
         for member in &seal.executions {
             let execution = ExecutionView::open(self.storage(), &member.execution_id, ObjectVersion::Exact(member.version.clone()))
                 .await?
@@ -177,11 +180,12 @@ impl RuntimeHandle {
             if execution.revision()?.position != member.position {
                 return Err(invalid("durable cycle member revision differs"));
             }
-            let member_seal = execution.execution().saved.as_ref().ok_or_else(|| invalid("durable cycle member is unsealed"))?;
-            executions.push(member_seal.clone());
+            if execution.execution().saved.is_none() {
+                return Err(invalid("durable cycle member is unsealed"));
+            }
         }
         self.release_cycle_history(&revision.value, &revision.position).await?;
-        Ok(Some(Arc::new(CompletedCycle { header: revision.value, executions })))
+        Ok(Some(Arc::new(CompletedCycle { header: revision.value })))
     }
 
     pub(crate) async fn finish_saved_cycle(&self, source: &CycleView, operation: &Operation) -> Result<Arc<CompletedCycle>> {
@@ -218,7 +222,7 @@ impl RuntimeHandle {
             if let Some(completed) = &pending.completed {
                 return Ok(completed.clone());
             }
-            let completed = runtime.seal_cycle(&pending, &operation).await?;
+            let completed = runtime.publish_cycle_seal(&pending, &operation).await?;
             pending.completed = Some(completed.clone());
             Ok(completed)
         })
@@ -271,7 +275,7 @@ impl RuntimeHandle {
     }
 
     // Seal A Cycle Whose Report File Is Published: Save The Seal And The Header.
-    async fn seal_cycle(&self, pending: &PendingCycle, operation: &Operation) -> Result<Arc<CompletedCycle>> {
+    async fn publish_cycle_seal(&self, pending: &PendingCycle, operation: &Operation) -> Result<Arc<CompletedCycle>> {
         operation.phase("Writing Report");
         operation.indeterminate();
         let report = pending.report.clone().ok_or_else(|| invalid("cycle materialization did not publish a file"))?;
@@ -310,13 +314,14 @@ impl RuntimeHandle {
 
         operation.phase("Saving Seal");
         let mut cycle = (**pending.snapshot.source()).clone();
+        cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealed;
         cycle.saved = Some(seal);
         let receipt = self.storage().write_object(&Cycle::try_from(&cycle)?).await?;
         let saved = self.storage().flush_until(&receipt.position).await?;
         if !saved.covers(&receipt.position)? {
             return Err(invalid("cycle seal is not saved"));
         }
-        let completed = Arc::new(CompletedCycle { header: cycle, executions: (*pending.executions).clone() });
+        let completed = Arc::new(CompletedCycle { header: cycle });
         self.release_cycle_history(&completed.header, &saved).await?;
         Ok(completed)
     }
@@ -387,7 +392,26 @@ impl super::executions::ExecutionStorage {
 
 /* === Public Functions === */
 
+pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
+    TestCycle {
+        saved,
+        test_cycle_id: cycle.test_cycle_id.clone(),
+        session_id: cycle.session_id.clone(),
+        metadata: cycle.metadata.clone(),
+        phase: cycle.phase,
+        lifecycle: cycle.lifecycle,
+        created_at: cycle.created_at.clone(),
+        started_at: cycle.started_at.clone(),
+        updated_at: cycle.updated_at.clone(),
+        execution_ids: cycle.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect(),
+        records: cycle.records.clone(),
+        continue_automatically: cycle.continue_automatically,
+        result: cycle.result.clone(),
+    }
+}
+
 /* === Private Functions === */
+
 fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
     left.test_cycle_id == right.test_cycle_id
         && left.session_id == right.session_id
@@ -398,27 +422,12 @@ fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
         && left.updated_at == right.updated_at
         && left.execution_ids == right.execution_ids
         && left.records == right.records
-        && left.continue_on_failure == right.continue_on_failure
+        && left.continue_automatically == right.continue_automatically
         && left.result == right.result
 }
 
-pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
-    TestCycle {
-        saved,
-        test_cycle_id: cycle.test_cycle_id.clone(),
-        session_id: cycle.session_id.clone(),
-        metadata: cycle.metadata.clone(),
-        lifecycle: cycle.lifecycle,
-        created_at: cycle.created_at.clone(),
-        started_at: cycle.started_at.clone(),
-        updated_at: cycle.updated_at.clone(),
-        execution_ids: cycle.test_executions.iter().map(|execution| execution.test_execution_id.clone()).collect(),
-        records: cycle.records.clone(),
-        continue_on_failure: cycle.continue_on_failure,
-        result: cycle.result.clone(),
-    }
-}
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(crate::storage::Error::Invalid(reason))
 }
+
 /* === Tests === */

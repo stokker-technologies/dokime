@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     fs::OpenOptions,
@@ -22,20 +23,21 @@ use std::{
 };
 // Third Party Imports
 use async_trait::async_trait;
-use harmos::sidecar::StreamDeclaration;
+use dokime::harmos::sidecar::StreamDeclaration;
 use serde_json::{Value, json};
 // Local Imports
 use crate::support::bridge::{Harness, Local};
-use dokime_gui::connection::ConnectionSession;
-use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
-use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
-use dokime_runtime::{
+use dokime::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
+use dokime::{
     execution::{CleanupContext, CriterionContext, InitializationContext, Runnable, StepContext, Workflow},
     schema::Described,
 };
+use dokime_gui::connection::ConnectionSession;
+use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
 use dokime_server::grpc::{Config, Server};
 
 /* === Constants === */
+
 const CONTRACT: &str = "crates/dokime-gui/src-tauri/tests/fixtures/execution.json";
 
 static ROOT: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
@@ -45,6 +47,7 @@ static ROOT: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 struct State {
     root: PathBuf,
@@ -52,7 +55,7 @@ struct State {
 
 struct Resources {
     root: PathBuf,
-    writer: std::sync::Mutex<dokime_runtime::artifacts::ArtifactWriter>,
+    writer: std::sync::Mutex<dokime::artifacts::ArtifactWriter>,
 }
 
 struct Provider(State);
@@ -63,17 +66,17 @@ struct Probe;
 
 struct Process(Child);
 
-#[dokime_runtime::record(id = "matrix.phase", label = "Phase")]
+#[dokime::record(id = "matrix.phase", label = "Phase")]
 struct Phase {
     phase: String,
 }
 
-#[dokime_runtime::stream(id = "matrix.reading", window = 32, label = "Reading")]
+#[dokime::stream(id = "matrix.reading", window = 32, label = "Reading")]
 struct Reading {
     value: i64,
 }
 
-#[dokime_runtime::prompt(id = "matrix.continue", label = "Continue?")]
+#[dokime::prompt(id = "matrix.continue", label = "Continue?")]
 struct Continue;
 
 /* === Enums === */
@@ -81,6 +84,7 @@ struct Continue;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for Process {
     fn drop(&mut self) {
         let _ = self.0.kill();
@@ -94,30 +98,30 @@ impl Drop for Resources {
     }
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 enum Templates {
     Probe(Probe),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 enum Streams {
     Reading(Reading),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 enum Records {
     Phase(Phase),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 enum Prompts {
     Continue(Continue),
 }
 
-#[dokime_runtime::suite(id = "matrix.lab", label = "Lab", templates = Templates)]
+#[dokime::suite(id = "matrix.lab", label = "Lab", templates = Templates)]
 impl Lab {}
 
-#[dokime_runtime::template(
+#[dokime::template(
     id = "matrix.lab.probe",
     label = "Probe",
     records = Records,
@@ -125,7 +129,7 @@ impl Lab {}
     prompts = Prompts
 )]
 impl Probe {
-    async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, Resources)> {
+    async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime::Result<(Self, Resources)> {
         let template = Self;
 
         let root = root();
@@ -136,29 +140,29 @@ impl Probe {
         Ok((template, shared))
     }
 
-    #[dokime_runtime::step(label = "Measure")]
-    async fn measure(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
+    #[dokime::step(label = "Measure")]
+    async fn measure(&mut self, ctx: &mut StepContext<'_>) -> dokime::Result<()> {
         for value in ctx.progress("Measuring", [1, 2]) {
             ctx.publish(Reading { value }).await;
             if value == 1 {
                 ctx.publish(Phase { phase: "ready".into() }).await;
             }
             if !ctx.ask(Continue).await? {
-                return Err(dokime_runtime::Error::PromptRefused("operator refused".into()));
+                return Err(dokime::Error::PromptRefused("operator refused".into()));
             }
         }
         ctx.publish(Phase { phase: "done".into() }).await;
         Ok(())
     }
 
-    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> dokime_runtime::Result<()> {
+    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> dokime::Result<()> {
         ctx.resources().writer.lock().unwrap().write_all(b"cleanup\n")?;
         trace(&ctx.resources().root, "cleanup");
         Ok(())
     }
 
-    #[dokime_runtime::criterion(id = "matrix.accepted", label = "Accepted")]
-    async fn accepted(ctx: &CriterionContext<'_>) -> dokime_runtime::Result<bool> {
+    #[dokime::criterion(id = "matrix.accepted", label = "Accepted")]
+    async fn accepted(ctx: &CriterionContext<'_>) -> dokime::Result<bool> {
         Ok(ctx.samples::<Reading>().len() == 2)
     }
 }
@@ -170,7 +174,7 @@ impl EmbeddedProvider for Provider {
             source: "matrix.rust".into(),
             version: "0.1.0".into(),
             enabled: true,
-            suites: dokime_runtime::definition::SuiteSet::new([Lab::definition()]),
+            suites: dokime::definition::SuiteSet::new([Lab::definition()]),
             ..Default::default()
         }
     }
@@ -179,21 +183,21 @@ impl EmbeddedProvider for Provider {
             id: Reading::ID.into(),
             schema: Reading::VERSION,
             window: Reading::WINDOW,
-            metadata: <Reading as harmos::StreamSpec>::metadata(),
-            row_metadata: <Reading as harmos::RowMetadata>::row_metadata(),
-            row: harmos::schema::graph::Schema::from_declaration(
+            metadata: <Reading as dokime::harmos::StreamSpec>::metadata(),
+            row_metadata: <Reading as dokime::harmos::RowMetadata>::row_metadata(),
+            row: dokime::harmos::schema::graph::Schema::from_declaration(
                 <Reading as Described>::DEFINITION,
-                &harmos::config::SchemaSettings::default(),
+                &dokime::harmos::config::SchemaSettings::default(),
             )
             .unwrap(),
         }]
     }
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
+    async fn start(&self) -> dokime::runtime::Result<Vec<Arc<dyn Runnable>>> {
         *ROOT.lock().unwrap() = Some(self.0.root.clone());
         let lab = Lab::definition();
         Ok(vec![Arc::new(Workflow::<Probe>::new(&lab.suite_id, "matrix.rust").with_records(&lab.record_contracts)) as Arc<dyn Runnable>])
     }
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
+    async fn stop(&self) -> dokime::runtime::Result<()> {
         Ok(())
     }
 }
@@ -201,6 +205,7 @@ impl EmbeddedProvider for Provider {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn root() -> PathBuf {
     ROOT.lock().unwrap().clone().expect("a case names the directory its execution traces into")
 }
@@ -212,7 +217,7 @@ fn trace(root: &Path, stage: &str) {
 fn python(root: &Path) -> Command {
     let interpreter = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
     let mut command = Command::new(root.join(interpreter));
-    command.current_dir(root).arg(root.join("packages/dokime/tests/acceptance/client/execution_matrix.py"));
+    command.current_dir(root).arg(root.join("packages/dokime-client/tests/acceptance/client/execution_matrix.py"));
     command
 }
 
@@ -255,7 +260,7 @@ async fn run_matrix(interface: &str) {
         let directory = tempfile::tempdir().unwrap();
         let config = RuntimeConfig::new(
             directory.path().join("backend"),
-            dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("matrix").unwrap(), "Matrix", None),
+            dokime::Metadata::new(dokime::Identifier::new("matrix").unwrap(), "Matrix", None),
         )
         .register(Arc::new(Provider(State { root: directory.path().into() })));
         let mut runtime = Runtime::start(config).await.unwrap();
@@ -288,6 +293,7 @@ async fn run_matrix(interface: &str) {
 }
 
 /* === Tests === */
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn python_runs_matrix() {
     run_matrix("python").await;

@@ -10,15 +10,18 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_host::HostTelemetryCollector;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::Duration,
 };
+
 // Third Party Imports
 
 // Local Imports
@@ -35,6 +38,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct HostTelemetrySource {
     collector: Arc<dyn HostTelemetryCollector>,
 }
@@ -66,6 +70,7 @@ struct Collecting {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl HostTelemetrySource {
     pub fn new(collector: Arc<dyn HostTelemetryCollector>) -> Self {
         Self { collector }
@@ -175,6 +180,15 @@ impl SamplerSession for HostSamplerSession {
         })
     }
 
+    fn abandon(&mut self) {
+        self.reap();
+        for pending in std::mem::take(&mut self.tasks) {
+            // A blocking collector runs out its own bound; nothing waits for it.
+            pending.task.abort();
+            self.working.remove(&pending.stream);
+        }
+    }
+
     fn collected(&mut self) -> std::result::Result<Vec<TelemetryBatch>, String> {
         self.reap();
         let ready = std::mem::take(&mut self.ready)
@@ -230,6 +244,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn due_streams<T: Copy + Ord + std::ops::Add<Duration, Output = T>>(
     streams: &[String], working: &mut BTreeSet<String>, next_due: &mut BTreeMap<String, T>, now: T, interval: impl Fn(&str) -> Duration,
 ) -> Vec<String> {

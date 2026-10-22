@@ -118,10 +118,11 @@ function plan(): TestCyclePlan {
     templates: [],
     test_cycle: {
       case_count: 1,
-      continue_on_failure: false,
+      continue_automatically: false,
       generated_at: "2026-09-30T10:00:00.000Z",
       metadata: {},
       queue_count: 1,
+      phase: "sealed",
       status: "completed",
       test_cycle_id: FIXTURE_CYCLE_ID,
       title: FIXTURE_CYCLE_TITLE,

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -20,6 +21,7 @@ use serde::{
     de::{self, DeserializeOwned},
 };
 use serde_json::{Value as Json, json};
+
 // Local Imports
 
 /* === Constants === */
@@ -37,6 +39,7 @@ use serde_json::{Value as Json, json};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn to_value(value: &impl Serialize) -> serde_json::Result<Json> {
     Ok(json!({"dokime_encoding": 2, "payload": serde_json::to_value(value)?}))
 }

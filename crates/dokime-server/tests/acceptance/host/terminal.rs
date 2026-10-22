@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::process::Command;
 // Third Party Imports
 
 // Local Imports
 use crate::support::host::Host;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -37,6 +38,7 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // A Connected Client Sees The Host Ready Before It Is Stopped
 async fn serve_until_stopped(signal: bool) {
     let host = Host::launch(None).await;
@@ -48,6 +50,7 @@ async fn serve_until_stopped(signal: bool) {
 }
 
 /* === Tests === */
+
 #[tokio::test]
 async fn stdin_close_stops() {
     serve_until_stopped(false).await;
@@ -124,33 +127,14 @@ fn control_requires_stdin() {
 }
 
 #[test]
-fn authentication_file_bounded() {
+fn native_listener_requires_loopback() {
     let root = tempfile::tempdir().unwrap();
-    let auth = root.path().join("auth.json");
-    for (bytes, expected) in [
-        (br#"{"grants":[]}"#.to_vec(), "requires 1 to 128 grants"),
-        (b"invalid-json".to_vec(), "invalid authentication file"),
-        (vec![b' '; 1024 * 1024 + 1], "input file exceeds 1048576 bytes"),
-    ] {
-        std::fs::write(&auth, bytes).unwrap();
-        let output = Command::new(super::executable()).args(["--auth-file"]).arg(&auth).output().unwrap();
-        assert!(!output.status.success());
-        assert!(String::from_utf8_lossy(&output.stderr).contains(expected), "{}", String::from_utf8_lossy(&output.stderr));
-    }
-    std::fs::write(&auth, br#"{"grants":[{"subject":"operator","role":"admin","token":"01234567890123456789012345678901"}]}"#).unwrap();
-    let output = Command::new(super::executable())
-        .args(["--auth-file"])
-        .arg(&auth)
-        .arg("--env-file")
-        .arg(root.path().join("missing.env"))
-        .output()
-        .unwrap();
+    let application = root.path().join("application");
+    let output =
+        Command::new(super::executable()).args(["--host", "0.0.0.0"]).env("DOKIME_APPLICATION_ROOT", &application).output().unwrap();
     assert!(!output.status.success());
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("cannot load environment file"),
-        "valid authentication file must pass before environment loading: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("the native listener requires loopback"));
+    assert!(!application.exists());
 }
 
 #[tokio::test]
@@ -239,7 +223,7 @@ fn same_root_relaunches() {
 
 #[tokio::test]
 async fn incompatible_storage_refused() {
-    use dokime_runtime::storage::sqlite::{self, rusqlite};
+    use dokime::storage::sqlite::{self, rusqlite};
     let root = tempfile::tempdir().unwrap();
     let application = root.path().join("application");
     let data = application.join("data");
@@ -270,10 +254,10 @@ async fn incompatible_storage_refused() {
     assert_eq!(std::fs::read(data.join("local.sqlite")).unwrap(), original);
 
     // The Same Refusal Is Typed In Process
-    let mut config = dokime_runtime::config::Config::local(&data);
+    let mut config = dokime::config::Config::local(&data);
     config.application_root = Some(application.clone());
     config.seed_plugins = false;
-    let error = dokime_runtime::app::launch(config).await.err().unwrap();
+    let error = dokime::app::launch(config).await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, data.clone());
     assert!(matches!(&error, dokime_server::host::Error::IncompatibleStorage { root, .. } if root == &data), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(4));
@@ -282,10 +266,10 @@ async fn incompatible_storage_refused() {
     // A Root Owned By Another Runtime Is Not Reported As Incompatible
     let fresh = root.path().join("owned");
     let owner = sqlite::State::open(&fresh).await.unwrap();
-    let mut config = dokime_runtime::config::Config::local(&fresh);
+    let mut config = dokime::config::Config::local(&fresh);
     config.application_root = Some(application);
     config.seed_plugins = false;
-    let error = dokime_runtime::app::launch(config).await.err().unwrap();
+    let error = dokime::app::launch(config).await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, fresh);
     assert!(matches!(&error, dokime_server::host::Error::Runtime(_)), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(3));

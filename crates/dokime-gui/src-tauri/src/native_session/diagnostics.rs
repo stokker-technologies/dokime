@@ -7,6 +7,13 @@
  * ***
  */
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
 /* Owned backend stderr capture.
  *
  * A desktop launch has no console, so an inherited stderr vanishes and a
@@ -15,19 +22,13 @@
  * keeps a bounded tail for the startup error. Stdout stays the readiness
  * channel; nothing here reads it.
  */
-
-/* === Modules === */
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
 use std::{
     collections::VecDeque,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
 };
+
 // Third Party Imports
 use tokio::{
     fs::File,
@@ -35,13 +36,14 @@ use tokio::{
     process::ChildStderr,
     task::JoinHandle,
 };
+
 // Local Imports
 
 /* === Constants === */
+
 const LINE_LIMIT: u64 = 16 * 1024;
 const TAIL_BYTES: usize = 64 * 1024;
 const TAIL_LINES: usize = 200;
-
 const KEEP_LOGS: usize = 20;
 const LOG_PREFIX: &str = "backend-stderr.";
 const LOG_SUFFIX: &str = ".log";
@@ -49,7 +51,6 @@ const LOG_SUFFIX: &str = ".log";
 // A grandchild that inherited stderr can hold the pipe open after the backend
 // itself exited; the tail gathered by then is still the useful part.
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(2);
-
 const REDACTED: &str = "<redacted>";
 const BEARER: &str = "bearer";
 const AUTHORIZATION: &str = "authorization";
@@ -60,6 +61,7 @@ const SECRET_KEYS: [&str; 4] = [AUTHORIZATION, "token", "secret", "password"];
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Capture {
     tail: Arc<Mutex<Tail>>,
     log: Option<PathBuf>,
@@ -77,6 +79,7 @@ struct Tail {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Capture {
     pub(super) async fn start(stderr: ChildStderr, logs: Option<&Path>, pid: Option<u32>) -> Self {
         // Open The Per-Launch Log
@@ -133,6 +136,7 @@ impl Tail {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn pump(mut stderr: BufReader<ChildStderr>, mut file: Option<File>, tail: Arc<Mutex<Tail>>) {
     let mut bytes = Vec::new();
     loop {

@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote, quote_spanned};
@@ -21,16 +23,15 @@ use syn::ext::IdentExt;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Error, Expr, Ident, LitStr, Meta, Token, Type};
+
 // Local Imports
 use crate::arguments::Shape;
 
 /* === Constants === */
+
 const SECTION_ARGUMENTS: &[&str] = &["label", "description", "status"];
-
 const FIELD_ARGUMENTS: &[&str] = &["label", "description", "default", "min", "max", "step", "from_environment", "options", "discovered"];
-
 const FIELD_FLAGS: &[&str] = &["secret"];
-
 const NUMBERS: &[&str] = &["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64", "isize", "f32", "f64"];
 
 /* === Macros === */
@@ -38,6 +39,7 @@ const NUMBERS: &[&str] = &["u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct SettingDeclaration {
     described: TokenStream,
     name: Ident,
@@ -65,6 +67,7 @@ struct FieldArguments {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Boolean,
@@ -78,6 +81,7 @@ enum Kind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Kind {
     fn named(self) -> &'static str {
         match self {
@@ -92,6 +96,7 @@ impl Kind {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn section(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -115,6 +120,7 @@ pub(crate) fn settings(attribute: TokenStream, item: TokenStream) -> TokenStream
 }
 
 /* === Private Functions === */
+
 fn aggregate(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     crate::arguments::Arguments::read(attribute, "a settings aggregate", &[])?;
@@ -126,9 +132,9 @@ fn aggregate(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, 
     let named = crate::arguments::named_struct_fields(
         &input,
         "a plugin's settings are a struct whose fields are its sections; a plugin with none \
-         writes `dokime_runtime::plugin::NoSettings` in `initialize` instead",
+         writes `dokime::plugin::NoSettings` in `initialize` instead",
         "a settings aggregate names its fields: the field order is the card order, and a plugin \
-         with nothing to configure writes `dokime_runtime::plugin::NoSettings` in `initialize` instead",
+         with nothing to configure writes `dokime::plugin::NoSettings` in `initialize` instead",
     )?;
     let fields = named.named.iter().map(|field| field.ident.clone().expect("a named field carries an identifier")).collect::<Vec<_>>();
     let sections = named.named.iter().map(|field| field.ty.clone()).collect::<Vec<_>>();
@@ -376,7 +382,7 @@ fn kind(leaf: &Type, written: &FieldArguments) -> Kind {
         Some("Secret") => Kind::Secret,
         Some(number) if NUMBERS.contains(&number) => Kind::Number,
         // A type the SDK does not own declares its own closed set, which is
-        // what `#[dokime_runtime::choice]` writes; a `secret` flag on anything else is
+        // what `#[dokime::choice]` writes; a `secret` flag on anything else is
         // refused beside this, where the field's own span is still available.
         _ if written.secret => Kind::Secret,
         _ => Kind::Choice,
@@ -385,7 +391,7 @@ fn kind(leaf: &Type, written: &FieldArguments) -> Kind {
 
 fn validate(name: &Ident, kind: Kind, shape: Shape, written: &FieldArguments, siblings: &BTreeSet<String>) -> Result<(), Error> {
     if written.secret && !matches!(kind, Kind::Secret) {
-        return Err(Error::new(name.span(), "a secret is declared by its type: write the field as `dokime_runtime::plugin::Secret`"));
+        return Err(Error::new(name.span(), "a secret is declared by its type: write the field as `dokime::plugin::Secret`"));
     }
     if written.from_environment.is_some() && !matches!(kind, Kind::Secret) {
         return Err(Error::new(name.span(), "only a secret reads its default from the environment"));

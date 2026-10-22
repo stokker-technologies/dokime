@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,6 +22,7 @@
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! call_handler {
     (sync, $handler:path, $($arg:ident),*) => { $handler($($arg),*) };
     (async, $handler:path, $($arg:ident),*) => { $handler($($arg),*).await };
@@ -72,7 +74,7 @@ native_commands! {
 
     sync desktop_profiles_list
         []
-        () -> Result<dokime_client::profiles::Document, String>
+        () -> Result<dokime::client::profiles::Document, String>
         => crate::native_session::desktop_profiles_list;
 
     // Open the failed owned start's log; the shell supplies the path.
@@ -116,12 +118,6 @@ native_commands! {
         (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<Option<String>, String>
         => crate::app::desktop::desktop_save_document;
 
-    // Open a verified document from the private native cache.
-    async desktop_open_document
-        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<(), String>
-        => crate::app::desktop::desktop_open_document;
-
     // Write a verified diagnostics bundle into the operator's Downloads folder;
     // returns the saved path.
     async desktop_save_diagnostics_bundle
@@ -133,7 +129,7 @@ native_commands! {
     // native destination.
     async desktop_artifact_deliver
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<bool, crate::app::content::DeliveryError>
+        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<Option<crate::app::desktop::Delivered>, crate::app::content::DeliveryError>
         => crate::app::desktop::desktop_artifact_deliver;
 
     // Materialize one verified artifact in the private media cache and return its preview URL path.
@@ -154,10 +150,34 @@ native_commands! {
         (generation: String, duration_ms: u64, media_type: String) -> Result<String, String>
         => crate::app::recording::desktop_recording_finish;
 
+    // Stage the bundle just dropped on the window, or pick one natively; `None` when the operator cancels.
+    async desktop_plugin_stage_file
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, dropped: tauri::State<'_, crate::app::plugins::DroppedFiles>, app: tauri::AppHandle]
+        (generation: String, drop: bool, progress: tauri::ipc::Channel<crate::app::plugins::StageProgress>) -> Result<Option<String>, String>
+        => crate::app::plugins::desktop_plugin_stage_file;
+
     sync desktop_set_title
         [window: tauri::WebviewWindow]
         (title: String) -> Result<(), String>
         => crate::app::desktop::desktop_set_title;
+
+    // The branding pack applied at boot and the one that applies on the next start.
+    sync desktop_branding_status
+        [state: tauri::State<'_, crate::app::branding::BrandingState>]
+        () -> Result<crate::app::branding::BrandingStatus, String>
+        => crate::app::branding::desktop_branding_status;
+
+    // Pick, validate and stage a branding pack zip; None when the picker is dismissed.
+    async desktop_branding_choose
+        [app: tauri::AppHandle]
+        () -> Result<Option<crate::app::branding::BrandingStatus>, String>
+        => crate::app::branding::desktop_branding_choose;
+
+    // Delete the pending and active packs; the compiled brand applies on the next start.
+    async desktop_branding_remove
+        [app: tauri::AppHandle]
+        () -> Result<crate::app::branding::BrandingStatus, String>
+        => crate::app::branding::desktop_branding_remove;
 
     // Drain all runtime resources before requesting Tauri's non-cancellable restart.
     async desktop_restart

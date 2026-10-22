@@ -34,13 +34,16 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Content {
     kind: String,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     record: Option<Record>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<metadata::Row>,
 }
@@ -65,6 +68,7 @@ struct Record {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Content {
     pub(super) fn is_artifact(&self) -> bool {
         self.kind == "artifact"
@@ -233,6 +237,7 @@ impl TryFrom<Record> for ArtifactRecord {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn status(value: &ArtifactStatus) -> &'static str {
     match value {
         ArtifactStatus::Staged => "staged",

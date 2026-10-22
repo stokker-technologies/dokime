@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, process::Command};
+
 // Third Party Imports
 use starship_battery::{
     Battery, Manager as BatteryManager, State as BatteryState,
@@ -27,6 +29,7 @@ use starship_battery::{
     },
 };
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, System};
+
 // Local Imports
 use crate::{
     HostStreamSample, HostTelemetryStream, Result,
@@ -41,6 +44,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct SystemCollector {
     sample_index: u64,
     system: System,
@@ -61,6 +65,7 @@ struct PowerProfileContext {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for SystemCollector {
     fn default() -> Self {
         Self::new()
@@ -142,6 +147,7 @@ impl SystemCollector {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn git_config_value(key: &str) -> Option<String> {
     let output = Command::new("git").args(["config", "--get", key]).output().ok()?;
     if !output.status.success() {

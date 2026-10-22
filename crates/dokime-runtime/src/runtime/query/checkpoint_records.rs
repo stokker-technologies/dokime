@@ -10,16 +10,19 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::runtime::storage::context_records::ContextRecord;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use crate::{RuntimeHandle, runtime::Result};
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::execution_history::{ExecutionBrowseIssue, ExecutionCheckpoint};
+use crate::{RuntimeHandle, runtime::Result};
 
 /* === Constants === */
 
@@ -28,6 +31,7 @@ use super::execution_history::{ExecutionBrowseIssue, ExecutionCheckpoint};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionRecordQuery {

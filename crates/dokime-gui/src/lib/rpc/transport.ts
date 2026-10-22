@@ -8,6 +8,7 @@
 import type { DescMessage, MessageInitShape, MessageShape } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
+import { settleUnlessStopping } from "../desktop/stopping";
 import * as grpcWeb from "./grpc-web";
 import * as ipc from "./ipc";
 
@@ -45,7 +46,7 @@ export function unary<I extends DescMessage, O extends DescMessage>(
   request: MessageInitShape<I>,
   timeoutMs?: number,
 ): Promise<MessageShape<O>> {
-  return transport.unary(path, input, output, session, request, timeoutMs);
+  return transport.unary(path, input, output, session, request, timeoutMs).catch(settleUnlessStopping<MessageShape<O>>);
 }
 
 export function openStream<I extends DescMessage, O extends DescMessage>(
@@ -57,7 +58,9 @@ export function openStream<I extends DescMessage, O extends DescMessage>(
   envelope?: DescMessage,
   timeoutMs?: number,
 ): Promise<NativeStream<MessageShape<O>>> {
-  return transport.openStream(path, input, output, session, request, envelope, timeoutMs);
+  return transport
+    .openStream(path, input, output, session, request, envelope, timeoutMs)
+    .then(stoppableStream, settleUnlessStopping<NativeStream<MessageShape<O>>>);
 }
 
 export function openClientStream<I extends DescMessage, O extends DescMessage>(
@@ -69,5 +72,28 @@ export function openClientStream<I extends DescMessage, O extends DescMessage>(
   envelope: DescMessage,
   timeoutMs?: number,
 ): Promise<NativeClientStream<I, O>> {
-  return transport.openClientStream(path, input, output, session, request, envelope, timeoutMs);
+  return transport.openClientStream(path, input, output, session, request, envelope, timeoutMs).then(
+    (stream) => ({
+      write: (message) => stream.write(message).catch(settleUnlessStopping<void>),
+      finish: () => stream.finish().catch(settleUnlessStopping<MessageShape<O>>),
+      cancel: () => stream.cancel(),
+    }),
+    settleUnlessStopping<NativeClientStream<I, O>>,
+  );
+}
+
+/* === Private Functions === */
+
+/** A subscription whose reads stop quietly once the desktop's stop owns their failure. */
+function stoppableStream<T>(stream: NativeStream<T>): NativeStream<T> {
+  return {
+    cancel: () => stream.cancel(),
+    [Symbol.asyncIterator]: () => {
+      const iterator = stream[Symbol.asyncIterator]();
+      return {
+        next: () => iterator.next().catch(settleUnlessStopping<IteratorResult<T>>),
+        return: () => iterator.return?.() ?? Promise.resolve({ done: true, value: undefined }),
+      };
+    },
+  };
 }

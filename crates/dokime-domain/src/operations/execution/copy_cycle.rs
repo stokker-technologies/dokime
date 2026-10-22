@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,9 +29,10 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = CreateCycleReply, id = "dokime.execution.copy_cycle", version = 1,
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
+        policy = MUTATION, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "CopyCycle"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CopyCycle {

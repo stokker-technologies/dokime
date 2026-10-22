@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::ArtifactId;
@@ -35,6 +38,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::record(id = "dokime.record", version = 2)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -47,10 +51,13 @@ pub struct Record {
     pub source: String,
     pub severity: RecordSeverity,
     pub message: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<RecordErrorDetail>,
+
     #[serde(default)]
     pub details: BTreeMap<String, Value>,
+
     pub scope: Option<RecordScope>,
     pub related_sample_id: Option<TelemetrySampleId>,
     pub related_stream_id: Option<TelemetryStreamId>,
@@ -62,6 +69,7 @@ pub struct Record {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for Record {
     fn memory_size(&self) -> usize {
         let fields = [

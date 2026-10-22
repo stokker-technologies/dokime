@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use harmos::MemorySize;
 
@@ -38,6 +40,7 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const TEMPLATE_TRACEABILITY_SOURCE: &str = "traceability.template";
 const HOST_TRACEABILITY_FIELDS: &[(&str, &str, &str, &str)] = &[
     ("host_name", "host.hostname", "Hostname", "traceability.host.info"),
@@ -71,6 +74,7 @@ const HOST_TRACEABILITY_FIELDS: &[(&str, &str, &str, &str)] = &[
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TraceabilityPageCandidate {
     pub traceability_id: String,
@@ -103,6 +107,7 @@ struct ParameterTraceabilityGroup {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn resource_traceability(
     state: &RuntimeState, cycle: &CycleView, scope: RecordScope, created_at: Timestamp,
 ) -> Vec<TraceabilitySnapshot> {
@@ -533,6 +538,7 @@ pub(crate) fn scope_discriminator(scope: &RecordScope) -> String {
 }
 
 /* === Private Functions === */
+
 fn scope_values(scope: &RecordScope) -> [Option<&str>; 8] {
     [
         scope.session_id.as_ref().map(|id| id.as_str()),
@@ -838,12 +844,6 @@ fn cycle_traceability_entries(cycle: &CycleView) -> Vec<TraceabilityEntry> {
         entry("cycle.updated_at", "Cycle Updated At", Value::from(cycle.updated_at.to_string()), TEST_EXECUTION_TRACEABILITY.source),
         entry("cycle.label", "Cycle Label", Value::from(cycle.metadata.label.clone()), TEST_EXECUTION_TRACEABILITY.source),
         entry("cycle.case_count", "Case Count", Value::Integer(cycle.cases().count() as i64), TEST_EXECUTION_TRACEABILITY.source),
-        entry(
-            "cycle.continue_on_failure",
-            "Continue On Failure",
-            Value::from(cycle.continue_on_failure),
-            TEST_EXECUTION_TRACEABILITY.source,
-        ),
     ]
 }
 

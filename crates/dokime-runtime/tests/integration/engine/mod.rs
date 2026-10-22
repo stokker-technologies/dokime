@@ -13,9 +13,6 @@
 /* === Modules === */
 mod artifacts;
 mod diagnostics;
-mod execution;
-mod files;
-mod plugin;
 mod storage;
 
 /* === Re-Exports === */

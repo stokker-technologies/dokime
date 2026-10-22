@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,10 +20,12 @@ use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{Error, Expr, FnArg, GenericArgument, ImplItem, ImplItemFn, ItemImpl, Meta, Path, PathArguments, ReturnType, Type};
+
 // Local Imports
 use crate::arguments::{self, Arguments};
 
 /* === Constants === */
+
 const ARGUMENTS: &[&str] = &[
     "id",
     "label",
@@ -38,16 +41,11 @@ const ARGUMENTS: &[&str] = &[
     "streams",
     "records",
 ];
-
 const DOCUMENT: &str = "document";
 const CRITERIA: &str = "criteria";
-
 const LIFECYCLE: &[&str] = &["initialize", "traceability", "cleanup"];
-
 const RUNNABLE_CONTEXT: &str = "StepContext";
-
 const CONTEXTS: &[&str] = &["InitializationContext", "TraceabilityContext", "StepContext", "ObserverContext", "CleanupContext"];
-
 const CRITERION_CONTEXT: &str = "CriterionContext";
 
 /* === Macros === */
@@ -55,6 +53,7 @@ const CRITERION_CONTEXT: &str = "CriterionContext";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Stages<'a> {
     steps: &'a [DeclaredStep],
     criteria: &'a [DeclaredCriterion],
@@ -91,6 +90,7 @@ struct DeclaredObserver {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 pub(crate) enum Part {
     Ok,
@@ -102,6 +102,7 @@ pub(crate) enum Part {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn template(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -114,11 +115,9 @@ pub(crate) fn template(attribute: TokenStream, item: TokenStream) -> TokenStream
 }
 
 pub(crate) fn marker(name: &str, item: TokenStream) -> TokenStream {
-    let refusal = Error::new(
-        item.span(),
-        format!("`#[dokime_runtime::{name}]` is read by its owning block: declare it inside `#[dokime_runtime::template]`"),
-    )
-    .to_compile_error();
+    let refusal =
+        Error::new(item.span(), format!("`#[dokime::{name}]` is read by its owning block: declare it inside `#[dokime::template]`"))
+            .to_compile_error();
 
     quote! { #item #refusal }
 }
@@ -141,6 +140,33 @@ pub(crate) fn list(marker: &Meta, kind: &str, known: &[&str]) -> Result<Argument
 
     Arguments::read(list.tokens.clone(), kind, known)
 }
+
+pub(crate) fn answer(reply: &Type, part: Part) -> Type {
+    let sdk = crate::facade::root();
+    match part {
+        Part::Ok => syn::parse_quote!(<#reply as #sdk::__answer::Answer>::Ok),
+        Part::Err => syn::parse_quote!(<#reply as #sdk::__answer::Answer>::Err),
+    }
+}
+
+pub(crate) fn declared<'a>(block: &'a ItemImpl, name: &str) -> Option<&'a ImplItemFn> {
+    block.items.iter().find_map(|item| match item {
+        ImplItem::Fn(function) if function.sig.ident == name => Some(function),
+        _ => None,
+    })
+}
+
+pub(crate) fn marks(path: &Path, name: &str) -> bool {
+    let segments = path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>();
+
+    match segments.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
+        [marker] => *marker == name,
+        [root, marker] => (*root == "dokime_runtime" || *root == crate::facade::name()) && *marker == name,
+        _ => false,
+    }
+}
+
+/* === Private Functions === */
 
 fn observed(signature: &syn::Signature) -> Result<(), Error> {
     const SHAPE: &str = "a template observer must be \
@@ -183,41 +209,12 @@ fn observed(signature: &syn::Signature) -> Result<(), Error> {
     Ok(())
 }
 
-pub(crate) fn answer(reply: &Type, part: Part) -> Type {
-    let sdk = crate::facade::root();
-    match part {
-        Part::Ok => syn::parse_quote!(<#reply as #sdk::__answer::Answer>::Ok),
-        Part::Err => syn::parse_quote!(<#reply as #sdk::__answer::Answer>::Err),
-    }
-}
-
-pub(crate) fn declared<'a>(block: &'a ItemImpl, name: &str) -> Option<&'a ImplItemFn> {
-    block.items.iter().find_map(|item| match item {
-        ImplItem::Fn(function) if function.sig.ident == name => Some(function),
-        _ => None,
-    })
-}
-
-pub(crate) fn marks(path: &Path, name: &str) -> bool {
-    let segments = path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>();
-
-    match segments.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
-        [marker] => *marker == name,
-        [root, marker] => (*root == "dokime_runtime" || *root == crate::facade::name()) && *marker == name,
-        _ => false,
-    }
-}
-
-/* === Private Functions === */
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a template", ARGUMENTS)?;
     let mut block: ItemImpl = syn::parse2(item.clone())?;
     if let Some((path, _)) = &block.trait_ {
-        return Err(Error::new(
-            path.span(),
-            "`#[dokime_runtime::template]` declares the template's own inherent impl, not a trait implementation",
-        ));
+        return Err(Error::new(path.span(), "`#[dokime::template]` declares the template's own inherent impl, not a trait implementation"));
     }
     let template = block.self_ty.clone();
 
@@ -255,8 +252,11 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     };
     let phases = steps.iter().map(|step| &step.declaration);
     let streams = crate::catalog::argument(&arguments, "streams")?;
+    let streams_check = crate::catalog::assert_unique(&streams, "StreamIdentifiers");
+    let record_catalog = crate::catalog::argument(&arguments, "records")?;
+    let records_check = crate::catalog::assert_unique(&record_catalog, "RecordIdentifiers");
     let contracts = stream_contracts(&observers, &streams);
-    let records = record_contracts(&crate::catalog::argument(&arguments, "records")?, &observers);
+    let records = record_contracts(&record_catalog, &observers);
     let graceful_stop = arguments.value("graceful_stop");
     let requested = crate::catalog::argument(&arguments, "subscribes")?;
     let duplicate_holds = refuse_double_holds(&block, &requested)?;
@@ -326,6 +326,9 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 
     Ok(quote! {
         #block
+
+        #streams_check
+        #records_check
 
         #[automatically_derived]
         impl #template {
@@ -718,7 +721,7 @@ fn parameters(block: &ItemImpl, declared_type: Option<&Expr>) -> Result<Type, Er
     if let Some(method) = declared(block, "parameters") {
         return Err(Error::new_spanned(
             &method.sig,
-            "parameters are a type: declare a `#[dokime_runtime::parameters]` struct and name it with `#[dokime_runtime::template(parameters = …)]`",
+            "parameters are a type: declare a `#[dokime::parameters]` struct and name it with `#[dokime::template(parameters = …)]`",
         ));
     }
     let Some(declared_type) = declared_type else {
@@ -738,9 +741,9 @@ fn refuse_unrecognized_members(block: &ItemImpl) -> Result<(), Error> {
             other => {
                 return Err(Error::new(
                     other.span(),
-                    "this item is not read by `#[dokime_runtime::template]`. A template impl holds \
+                    "this item is not read by `#[dokime::template]`. A template impl holds \
                      initialize, traceability, document and cleanup, plus methods \
-                     marked #[dokime_runtime::step], #[dokime_runtime::criterion] or #[dokime_runtime::observer]; \
+                     marked #[dokime::step], #[dokime::criterion] or #[dokime::observer]; \
                      put helpers in a separate impl block.",
                 ));
             }
@@ -773,8 +776,8 @@ fn unclaimed(name: &syn::Ident, kind: &str) -> Error {
         name,
         format!(
             "`{name}` is not a template {kind}. A template impl holds initialize, \
-             traceability, document and cleanup, plus methods marked #[dokime_runtime::step], \
-             #[dokime_runtime::criterion] or #[dokime_runtime::observer]; put helpers in a separate impl block."
+             traceability, document and cleanup, plus methods marked #[dokime::step], \
+             #[dokime::criterion] or #[dokime::observer]; put helpers in a separate impl block."
         ),
     )
 }

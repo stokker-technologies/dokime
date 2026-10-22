@@ -10,7 +10,9 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use super::templates::analysis::Selection as AnalysisSelection;
+
 // The Native Leaves Keep Their Existing Schemas And Conversion Owners.
 pub use super::annotations::{Health, Note, Set as Annotations};
 pub use super::execution::Revision as ExecutionRevision;
@@ -47,6 +49,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct PromptInstance {
@@ -66,6 +69,7 @@ pub struct PromptInstance {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PromptInstance {
     pub fn encoding_memory(value: &DomainPrompt) -> Result<usize> {
         value.created_at.to_datetime()?;
@@ -169,6 +173,7 @@ impl TryFrom<PromptInstance> for DomainPrompt {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn kind(value: u32) -> Result<PromptKind> {
     match value {
         1 => Ok(PromptKind::Confirmation),

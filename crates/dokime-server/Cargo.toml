@@ -14,34 +14,36 @@ description.workspace = true
 license.workspace = true
 repository.workspace = true
 version = { workspace = true }
+# Ships Inside The Installers And As A Raw Release Executable, Not Through crates.io.
+publish = false
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
+pkg-fmt = "bin"
 
 [features]
 default = []
 # Host screenshot, camera and audio capture, enabled by the release server build;
 # see dokime-runtime for the system packages it links.
-media-native = ["dokime-runtime/media-native"]
+media-native = ["dokime/media-native"]
 
 [dependencies]
 # Local
-dokime-runtime = { path = "../dokime-runtime", features = ["host", "fft"] }
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime = { path = "../dokime" }
-
-# Git
-harmos = { workspace = true, features = ["grpc"] }
+dokime = { workspace = true, features = ["host", "fft", "diagnostics", "terminal", "client"] }
 
 # Error Handling
 thiserror = { workspace = true }
 
 # Logging
+tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-chrome = { workspace = true }
 tracing-error = { workspace = true }
 tracing-flame = { workspace = true }
 tracing-subscriber = { workspace = true }
-tracing = { workspace = true }
 
 # Utilities
+rand = { workspace = true }
 sha2 = { workspace = true }
 subtle = { workspace = true }
 sysinfo = { workspace = true }
@@ -70,6 +72,7 @@ tokio-stream = { workspace = true, features = ["net"] }
 tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
+rcgen = { workspace = true }
 rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["server", "tls-ring"] }
 tonic-prost = { workspace = true }
@@ -77,16 +80,15 @@ tonic-types = { workspace = true }
 
 [build-dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain" }
+dokime = { workspace = true }
 
 # Git
-harmos = { workspace = true }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 [dev-dependencies]
 # Local
-dokime-client = { path = "../dokime-client" }
-dokime-host = { path = "../dokime-host" }
+dokime = { path = "../dokime" }
+dokime-cli = { path = "../dokime-cli" }
 
 # Git
 harmos-packaging = { workspace = true }
@@ -100,8 +102,14 @@ async-trait = { workspace = true }
 tokio = { workspace = true, features = ["process", "test-util"] }
 
 # Networking
-rcgen = { workspace = true }
 tonic = { workspace = true, features = ["channel"] }
+
+# Storage
+rusqlite = { workspace = true }
+
+# UI
+anstream = { workspace = true }
+portable-pty = { workspace = true }
 
 # Testing
 criterion = { workspace = true }

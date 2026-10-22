@@ -160,6 +160,8 @@ pub struct BackendLimits {
     #[row(description = "Optional until corresponding streaming/query services are implemented.")]
     pub max_content_bytes: Option<u64>,
 
+    pub max_evidence_bytes: Option<u64>,
+
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,
     pub max_stream_buffer_items: Option<u32>,

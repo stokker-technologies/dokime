@@ -12,13 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 
 /* === Constants === */
+
 const LOGS_DIR: &str = "logs";
 const DIAGNOSTICS_DIR: &str = "diagnostics";
 pub const HUB_LOG_FILENAME: &str = "dokime.jsonl";
@@ -31,6 +35,7 @@ pub const DIAGNOSTICS_COLLECT_BUNDLE_FILENAME: &str = "dokime-diagnostics.zip";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiagnosticPathConvention {
     pub key: DiagnosticPathKey,
@@ -40,6 +45,7 @@ pub struct DiagnosticPathConvention {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticPathKey {
@@ -62,6 +68,7 @@ pub enum DiagnosticFileFormat {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn path_conventions(application_root: &Path) -> Vec<DiagnosticPathConvention> {
     let hub_log = format!("{LOGS_DIR}/{HUB_LOG_FILENAME}");
     let startup_doctor = format!("{DIAGNOSTICS_DIR}/{STARTUP_DOCTOR_FILENAME}");
@@ -77,6 +84,7 @@ pub fn path_conventions(application_root: &Path) -> Vec<DiagnosticPathConvention
 }
 
 /* === Private Functions === */
+
 fn root_path_convention(
     key: DiagnosticPathKey, format: DiagnosticFileFormat, root: &Path, relative_path: String,
 ) -> DiagnosticPathConvention {

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
 // Third Party Imports
 use time::OffsetDateTime;
+
 // Local Imports
 use crate::document::frame::{Lookup, Side, Strategy};
 use crate::plot::{parse_timestamp, sample_matches_scope, stream_matches_alias};
@@ -29,7 +31,10 @@ use dokime_domain::model::execution::RecordScope;
 
 /* === Type Aliases === */
 
+type Probe = (Option<String>, Option<String>, i128);
+
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct IndexedRecordSample<'a> {
     pub(crate) sample: &'a TelemetrySample,
@@ -42,13 +47,12 @@ pub(crate) struct RecordSampleLookup<'a> {
     prepared: BTreeMap<Probe, Option<usize>>,
 }
 
-type Probe = (Option<String>, Option<String>, i128);
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> RecordSampleLookup<'a> {
     pub(crate) fn for_stream(telemetry: &'a [TelemetrySample], stream: &str, scope: Option<&RecordScope>) -> Self {
         Self::for_stream_matching(telemetry, stream, scope, |_| true)
@@ -102,6 +106,7 @@ impl<'a> RecordSampleLookup<'a> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn side(scope: Option<&RecordScope>, time: OffsetDateTime) -> Side<'_> {
     Side { ordinal: 0, scope, time: Some(time.unix_timestamp_nanos()), present: true }
 }
@@ -117,4 +122,5 @@ fn probe(side: &Side<'_>) -> Probe {
         side.time.unwrap_or_default(),
     )
 }
+
 /* === Tests === */

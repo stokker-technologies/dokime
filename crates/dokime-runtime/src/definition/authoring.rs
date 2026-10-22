@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -41,15 +43,18 @@ use dokime_domain::model::values::validate_value_format;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(TemplateAuthoringError, formatter {
     Self::MissingMetadata => formatter.write_str("test case template metadata is required"),
     Self::InvalidIdentifier { field, value, reason } => write!(formatter, "invalid {field} identifier {value:?}: {reason}"),
 });
 
 /* === Type Aliases === */
+
 type StepAction<T, C, E> = dyn Fn(&mut T, &mut C) -> Result<(), E> + Send + Sync;
 
 /* === Structs === */
+
 pub struct TemplateContext {
     template_id: Option<TemplateId>,
     metadata: Option<Metadata>,
@@ -59,7 +64,6 @@ pub struct TemplateContext {
     document: Option<DocumentDefinition>,
     steps: Vec<Step>,
     criteria: Vec<CriterionDefinition>,
-    continue_on_failure: bool,
     prompts: Vec<crate::prompts::PromptDefinition>,
     subscriptions: Vec<super::Subscription>,
     attributes: BTreeMap<String, Value>,
@@ -113,6 +117,7 @@ pub struct StepBinding<T, C, E = ()> {
 }
 
 /* === Enums === */
+
 pub enum ParameterDefault {
     Expression(ParameterExpr),
     Source { source: Box<dyn Fn() -> Option<Value> + Send + Sync>, fallback: Value },
@@ -125,6 +130,7 @@ pub enum TemplateAuthoringError {
 }
 
 /* === Traits === */
+
 pub trait RustTemplate {
     fn define(&self, ctx: &mut TemplateContext);
 
@@ -154,6 +160,11 @@ pub trait DeclaredTemplate {
 }
 
 pub trait DeclaredSuite {
+    const ID: &'static str;
+
+    #[cfg(feature = "native")]
+    const TEMPLATE_IDENTIFIERS: &'static [crate::catalog::Node<&'static str>];
+
     #[cfg(feature = "native")]
     const OPERATIONS: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>];
 
@@ -172,6 +183,7 @@ pub trait DeclaredSuite {
 }
 
 /* === Implementations === */
+
 impl TemplateContext {
     pub fn new() -> Self {
         Self {
@@ -183,7 +195,6 @@ impl TemplateContext {
             document: None,
             steps: Vec::new(),
             criteria: Vec::new(),
-            continue_on_failure: false,
             prompts: Vec::new(),
             subscriptions: Vec::new(),
             attributes: BTreeMap::new(),
@@ -236,10 +247,6 @@ impl TemplateContext {
         }
     }
 
-    pub fn set_continue_on_failure(&mut self, continue_on_failure: bool) {
-        self.continue_on_failure = continue_on_failure;
-    }
-
     pub fn set_prompts(&mut self, prompts: impl IntoIterator<Item = crate::prompts::PromptDefinition>) {
         self.prompts = prompts.into_iter().collect();
     }
@@ -290,7 +297,6 @@ impl TemplateContext {
             document: self.document,
             phases,
             criteria: self.criteria,
-            continue_on_failure: self.continue_on_failure,
             prompt_definitions: self.prompts,
             subscriptions: self.subscriptions,
             attributes,
@@ -639,6 +645,7 @@ impl<T, C, E> StepBinding<T, C, E> {
 }
 
 /* === Public Functions === */
+
 pub fn criterion(identifier_value: impl Into<String>, label: impl Into<String>, expected: Option<Value>) -> Criterion {
     Criterion { identifier: identifier_value.into(), label: label.into(), description: None, expected }
 }
@@ -711,6 +718,7 @@ pub const fn assert_template_identifiers(suite: &str, templates: &[&str]) {
 }
 
 /* === Private Functions === */
+
 const fn same_identifier(left: &str, right: &str) -> bool {
     let (left, right) = (left.as_bytes(), right.as_bytes());
     if left.len() != right.len() {

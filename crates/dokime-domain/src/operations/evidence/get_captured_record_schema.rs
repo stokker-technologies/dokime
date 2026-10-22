@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = RecordSchema, id = "dokime.evidence.get_captured_record_schema", version = 1,
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
@@ -35,6 +38,7 @@ use super::*;
 pub struct GetCapturedRecordSchema {
     pub record_type: String,
     pub schema_version: u32,
+
     // Required process identity: a type/version from another process must not
     // silently resolve to this process's potentially different admitted schema.
     #[row(

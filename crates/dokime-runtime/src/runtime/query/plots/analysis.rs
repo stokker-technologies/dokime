@@ -17,6 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
+use harmos::Message;
 
 // Local Imports
 use crate::analysis::{Definition, MAX_SAMPLES, Request, Samples, Selection};
@@ -26,7 +27,6 @@ use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry::{TelemetryContract, TelemetrySample};
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::identity::Identifier;
-use harmos::Message;
 
 /* === Constants === */
 
@@ -35,6 +35,7 @@ use harmos::Message;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct Prepared {
     definition: Definition,
     selection: Selection,
@@ -42,6 +43,7 @@ pub(crate) struct Prepared {
 }
 
 /* === Enums === */
+
 enum Target {
     Builtin,
     Plugin { source: Identifier, dispatcher: Arc<dyn ActionDispatcher> },
@@ -55,6 +57,7 @@ pub(crate) enum Environment<'a, 'ctx> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Prepared {
     pub(super) fn resolve(
         runtime: &RuntimeHandle, state: &crate::runtime::state::RuntimeState, request: &PlotPayloadRequest,
@@ -297,6 +300,7 @@ impl Environment<'_, '_> {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn definitions(
     runtime: &RuntimeHandle, state: &crate::queries::RuntimeStateSnapshot,
 ) -> crate::runtime::Result<Vec<Definition>> {
@@ -312,6 +316,7 @@ pub(crate) fn definitions(
 }
 
 /* === Private Functions === */
+
 // Step And Criterion Attribution Do Not Start A New Telemetry Sequence.
 fn evidence_owner(
     scope: Option<&dokime_domain::model::execution::RecordScope>,
@@ -326,6 +331,7 @@ fn invalid(message: impl Into<String>) -> crate::runtime::Error {
         issues: vec![],
     })
 }
+
 fn unavailable(message: impl Into<String>) -> crate::runtime::Error {
     crate::runtime::Error::Admission(AdmissionFailure::Unavailable { code: "analysis_unavailable".into(), message: message.into() })
 }

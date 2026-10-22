@@ -8,22 +8,27 @@
  */
 
 /* === Modules === */
+
 mod presentation;
 mod storage;
 
 /* === Re-Exports === */
+
 pub use presentation::SettingsCardRefreshPolicy;
 pub use storage::StorageSource;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     time::Duration,
 };
+
 // Third Party Imports
 use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::RuntimeHandle;
 use crate::domains::{DispatchContext, StatusResponse};
@@ -35,6 +40,7 @@ use dokime_domain::model::values::Value;
 use presentation::{SettingsCardContribution, SettingsSectionContribution};
 
 /* === Constants === */
+
 pub const IDENTITY_SETTINGS_SECTION_ID: &str = "identity";
 const LIVE_STATUS_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -43,6 +49,7 @@ const LIVE_STATUS_TIMEOUT: Duration = Duration::from_secs(2);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeSettingsFrame {
     pub sections: Vec<RuntimeSettingsSection>,
@@ -53,8 +60,10 @@ pub struct RuntimeSettingsFrame {
 pub struct RuntimeSettingsSection {
     pub section_id: Identifier,
     pub label: String,
+
     #[serde(default)]
     pub description: Option<String>,
+
     pub owner: RuntimeSettingsSectionOwner,
     pub order: i32,
 }
@@ -65,11 +74,15 @@ pub struct RuntimeSettingsCard {
     pub card_id: Identifier,
     pub section_id: Identifier,
     pub label: String,
+
     #[serde(default)]
     pub description: Option<String>,
+
     pub body: HostCardBody,
+
     #[serde(default)]
     pub refresh: SettingsCardRefreshPolicy,
+
     pub state: RuntimeSettingsCardState,
     pub order: i32,
 }
@@ -84,6 +97,7 @@ struct SettingsSource {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RuntimeSettingsSectionOwner {
@@ -105,6 +119,7 @@ pub enum RuntimeSettingsCardState {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn settings_frame(&self) -> RuntimeSettingsFrame {
         let plugins = self.installed_plugins();
@@ -148,6 +163,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn presentation(module: &crate::InstalledPlugin) -> (Vec<SettingsSectionContribution>, Vec<SettingsCardContribution>) {
     let section_id = Identifier::new(&module.source).expect("valid installed source");
     let metadata =

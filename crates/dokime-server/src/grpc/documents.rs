@@ -8,25 +8,29 @@
  */
 
 /* === Modules === */
+
 mod wire;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
+
 // Local Imports
 use super::value;
-use dokime_domain::model::identity::DocumentId;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::documents as contract;
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::DocumentId;
+use dokime::domain::model::identity::Identifier;
+use dokime::domain::model::identity::TestCycleId;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domain::operations::documents as contract;
 
 /* === Constants === */
 
@@ -35,27 +39,32 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Capture {
     resources: Arc<Resources>,
 }
+
 struct UpdatePlotSettings {
     resources: Arc<Resources>,
 }
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Capture {
     type Declaration = contract::CaptureCurrentDocument;
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::documents::wire::DocumentFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::documents::wire::DocumentFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -129,15 +138,17 @@ impl Operation for UpdatePlotSettings {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
-    runtime.operations().register_wire_operation::<Capture>("dokime", dokime_runtime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<UpdatePlotSettings>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
+    runtime.operations().register_wire_operation::<Capture>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<UpdatePlotSettings>("dokime", dokime::app::Lanes::Open, resources)?;
     Ok(())
 }
 
 /* === Private Functions === */
-fn owner(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
+
+fn owner(scope: Option<dokime::domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
     let cycle = TestCycleId::from_uuid(scope.cycle_id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
     if scope.execution_id.is_empty() {
@@ -147,14 +158,15 @@ fn owner(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) ->
     Ok((cycle, Some(execution)))
 }
 
-fn scope(scope: Option<dokime_domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, TestExecutionId), Status> {
+fn scope(scope: Option<dokime::domain::model::documents::wire::DocumentScope>) -> Result<(TestCycleId, TestExecutionId), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
     let cycle = TestCycleId::from_uuid(scope.cycle_id).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
     let execution = TestExecutionId::from_uuid(scope.execution_id).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     Ok((cycle, execution))
 }
-fn failure(error: harmos::Error) -> Status {
-    let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
+
+fn failure(error: dokime::harmos::Error) -> Status {
+    let status = if matches!(error, dokime::harmos::Error::ResourceExhausted { .. }) {
         Status::resource_exhausted("document admission failed")
     } else {
         Status::internal("document admission failed")

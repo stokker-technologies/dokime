@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -21,7 +22,7 @@ use std::sync::Arc;
 use crate::Resources;
 use crate::domain::model::connections::Connections;
 use crate::domain::operations::ListConnections;
-use dokime_runtime::prelude::*;
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -30,6 +31,7 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ConnectionListing {
     resources: Arc<Resources>,
 }
@@ -39,7 +41,8 @@ pub struct ConnectionListing {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation]
+
+#[dokime::operation]
 impl ConnectionListing {
     pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }

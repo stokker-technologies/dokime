@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/report.py; sha256:078fe208a88cb481d025a1097a98587ec3ca0e69e8052f1853472be45b8511b9
+# Rendered by stkr project update from templates/python/test/report.py; sha256:3cfd33f6b4417fcff4ac069bdf3fea5e2e73676601a8444abad39b4ba7cf15e2
 # ***
 #
 # Dokime
@@ -24,8 +24,8 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 # Third Party Imports
-
 # Local Imports
+from ..build import paths
 from . import policy
 
 # Type Checking Imports
@@ -92,6 +92,19 @@ class Bench:
 
 
 # === Public Functions === #
+
+
+def location(directory: Path, profile: str, key: str) -> Path:
+    parts = key.split("-")
+    if parts[-1] not in policy.LANGUAGES:
+        raise policy.TestError("unknown report language")
+    if parts[0] == "coverage" and len(parts) in (2, 3):
+        if len(parts) == 3 and parts[1] not in policy.CATEGORIES:
+            raise policy.TestError("unknown coverage layer")
+        return paths.output(directory, "tests", profile).joinpath("coverage", parts[-1], *parts[1:-1])
+    if len(parts) != 2 or parts[0] not in policy.CATEGORIES:
+        raise policy.TestError("unknown report layer")
+    return paths.output(directory, "tests", profile) / key
 
 
 def cases(text: str, category: str, language: str, package: str) -> list[Case]:

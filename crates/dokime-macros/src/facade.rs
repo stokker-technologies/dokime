@@ -12,21 +12,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, quote};
+
 // Local Imports
 
 /* === Constants === */
-pub(crate) const MACRO_CONTRACT: u32 = 26;
+
+pub(crate) const MACRO_CONTRACT: u32 = 27;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct SdkRoot;
 
 /* === Enums === */
@@ -34,6 +38,7 @@ pub(crate) struct SdkRoot;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ToTokens for SdkRoot {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let name = name();
@@ -43,11 +48,15 @@ impl ToTokens for SdkRoot {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn root() -> SdkRoot {
     SdkRoot
 }
 
 pub(crate) fn name() -> String {
+    if let Ok(proc_macro_crate::FoundCrate::Name(name)) = proc_macro_crate::crate_name("dokime") {
+        return name;
+    }
     match proc_macro_crate::crate_name("dokime-runtime") {
         Ok(proc_macro_crate::FoundCrate::Name(name)) => name,
         _ => "dokime_runtime".to_owned(),
@@ -71,7 +80,7 @@ pub(crate) fn contracted(declared: TokenStream) -> TokenStream {
 
         const _: () = assert!(
             #sdk::MACRO_CONTRACT == #MACRO_CONTRACT,
-            "dokime-runtime and dokime-macros resolve to different revisions; depend on `dokime-runtime` only, pinned to one rev, and run `cargo update -p dokime-runtime`"
+            "dokime and dokime-macros resolve to different revisions; depend on `dokime` only, pinned to one rev, and run `cargo update -p dokime`"
         );
     }
 }

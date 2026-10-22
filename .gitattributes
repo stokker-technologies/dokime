@@ -1,2 +1,5 @@
 # Keep text files reproducible across Windows and Linux builds.
 * text=auto eol=lf
+# cmd.exe misparses labels in LF-only batch files.
+*.bat text eol=crlf
+*.cmd text eol=crlf

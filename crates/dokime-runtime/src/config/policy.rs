@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Duration;
 
@@ -31,10 +32,12 @@ use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StoragePolicy {
     pub compaction_interval_ms: u64,
+
     #[serde(default)]
     pub local_retention_ms: Option<u64>,
 }
@@ -60,6 +63,7 @@ pub(crate) struct PolicyStore {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl StoragePolicy {
     pub fn validate(&self) -> Result<()> {
         for (name, value, maximum) in [

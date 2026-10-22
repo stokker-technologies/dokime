@@ -164,6 +164,12 @@ pub struct FileWatchCompleted {
     pub artifacts: Vec<ArtifactMetadata>,
 }
 
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct FileWatchArmed {
+    pub baseline: Vec<String>,
+}
+
 // Progress, gap and seal frames while watching, then one Completed frame when
 // the bound elapses, the execution seals the watch or a start snapshot is taken.
 // A cancelled watch still seals what it captured, without a final frame.
@@ -218,6 +224,14 @@ pub enum FileWatchPolicy {
 
 #[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileWatchSelection {
+    All,
+    Latest,
+    New,
+}
+
+#[harmos_domain::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileWatchPhase {
     Unspecified,
     // Discovered; capture starts from the baseline.
@@ -230,13 +244,13 @@ pub enum FileWatchPhase {
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileWatchGapReason {
     Unspecified,
-    // The source shrank below the captured length; capture restarts at its first byte.
+    // The source shrank; its segment is sealed and capture restarts at its first byte.
     Truncated,
     // The path names a different (rotated) file; the output is sealed and a new one starts.
     Replaced,
     // The source disappeared; its output is sealed.
     Vanished,
-    // The server refused a ranged retrieval; the output now mirrors the whole file.
+    // The server refused a ranged retrieval; extraction fails, while artifact-only capture falls back to mirroring.
     ResumeUnsupported,
 }
 
@@ -247,6 +261,7 @@ pub enum FileWatchFramePayload {
     Gap(FileWatchGap),
     Sealed(Box<FileWatchSealed>),
     Completed(FileWatchCompleted),
+    Armed(FileWatchArmed),
 }
 
 /* === Traits === */

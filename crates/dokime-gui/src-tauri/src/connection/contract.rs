@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 
 /* === Constants === */
@@ -25,6 +27,7 @@ use serde::{Deserialize, Serialize};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectRequest {
@@ -63,6 +66,7 @@ pub struct BackendLimits {
     pub max_request_bytes: String,
     pub max_response_bytes: String,
     pub max_content_bytes: Option<String>,
+    pub max_evidence_bytes: Option<String>,
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,
     pub max_stream_buffer_items: Option<u32>,
@@ -76,6 +80,7 @@ pub struct AdmissionIssue {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum ConnectionTarget {

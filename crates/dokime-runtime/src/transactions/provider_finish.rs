@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::TestCase;
 use crate::domains::{ExecutionProviderTarget, InstalledPluginErrorRecord, InstalledPluginPhase};
@@ -63,9 +66,11 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.provider.finish", version = 6, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinishProvider {
+    pub request_id: dokime_domain::model::identity::CommandId,
     pub test_cycle_id: TestCycleId,
     pub target: ExecutionProviderTarget,
     pub started_execution_ids: Vec<TestExecutionId>,
@@ -95,14 +100,26 @@ struct FinishPlan {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for FinishProvider {
     type Error = String;
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
-        if state.run_requests.values().any(|request| {
-            request.summary.cycle_id == self.test_cycle_id && !request.summary.phase.terminal() && request.completion_at.is_some()
-        }) {
+        let request = state.run_requests.get(&self.request_id).ok_or("provider request not found")?;
+        if request.completion_at.is_some() || request.summary.phase.terminal() {
             return Err("provider work cannot change after completion is staged".into());
+        }
+        if state.run_queue.front() != Some(&self.request_id) {
+            return Err("provider completion does not own the execution lane".into());
+        }
+        if self.started_execution_ids.iter().any(|id| request.settled_execution_ids.contains(id)) {
+            return Err("provider execution already settled".into());
+        }
+        if request.summary.cycle_id != self.test_cycle_id
+            || request.target != self.target
+            || self.started_execution_ids.iter().any(|id| !request.selected_execution_ids.contains(id))
+        {
+            return Err("provider completion differs from its admitted request".into());
         }
         Ok(())
     }
@@ -168,14 +185,10 @@ impl FinishPlan {
                 })
                 .map(|execution| execution.scope.clone())
                 .collect::<Vec<_>>();
-            if let Some(request) = state
-                .run_requests
-                .values_mut()
-                .find(|request| request.summary.cycle_id == cycle.test_cycle_id && !request.summary.phase.terminal())
-            {
-                request.conclusion = Some(request.test_execution_id.as_ref().map_or(cycle.lifecycle, |id| {
-                    lifecycle_for(Some(&summarize(cycle.test_executions.iter().filter(|execution| &execution.test_execution_id == id))))
-                }));
+            if let Some(request) = state.run_requests.get_mut(&finish.request_id) {
+                let selected =
+                    cycle.test_executions.iter().filter(|execution| request.selected_execution_ids.contains(&execution.test_execution_id));
+                request.conclusion = Some(lifecycle_for(Some(&summarize(selected))));
                 // An earlier target group's cause outlives a later group's, so
                 // the run reports why it first went wrong.
                 match &finish.outcome {
@@ -216,6 +229,7 @@ impl FinishPlan {
 }
 
 /* === Public Functions === */
+
 pub(super) fn apply_finish_provider(state: &mut RuntimeState, finish: &FinishProvider) -> ProviderFinishEffects {
     prepare_finish_provider(state, finish).apply(state, finish)
 }
@@ -242,19 +256,30 @@ pub(super) fn summarize<'a>(executions: impl IntoIterator<Item = &'a TestExecuti
             summary.status = ResultStatus::Cancelled;
         }
     }
-    if summary.status != ResultStatus::Cancelled {
-        summary.status = if summary.failed > 0 {
-            ResultStatus::Failed
-        } else if summary.blocked > 0 {
-            ResultStatus::Blocked
-        } else {
-            ResultStatus::Passed
-        };
-    }
+    summary.status = if summary.failed > 0 {
+        ResultStatus::Failed
+    } else if summary.blocked > 0 {
+        ResultStatus::Blocked
+    } else if summary.status == ResultStatus::Cancelled {
+        ResultStatus::Cancelled
+    } else {
+        ResultStatus::Passed
+    };
     summary
 }
 
+pub(super) fn lifecycle_for(summary: Option<&ResultSummary>) -> CycleStatus {
+    match summary.map(|summary| &summary.status) {
+        Some(ResultStatus::Passed) => CycleStatus::Completed,
+        Some(ResultStatus::Failed) => CycleStatus::Failed,
+        Some(ResultStatus::Blocked) => CycleStatus::Blocked,
+        Some(ResultStatus::Cancelled) => CycleStatus::Stopped,
+        _ => CycleStatus::Ready,
+    }
+}
+
 /* === Private Functions === */
+
 fn prepare_finish_provider(state: &RuntimeState, finish: &FinishProvider) -> FinishPlan {
     let mut plan = match &finish.outcome {
         Ok(outcome) => prepare_provider_outcome(state, finish, outcome),
@@ -286,7 +311,8 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
     let Some(mut cycle) = state.cycle_view(&finish.test_cycle_id) else {
         return plan;
     };
-    let stopped = matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
+    let stopped = state.run_requests.get(&finish.request_id).is_some_and(|request| request.summary.stop_requested)
+        || matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
     let bounded =
         state.run_requests.values().any(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal());
     let outcome_ids = outcome.executions.iter().map(|execution| execution.test_execution_id.as_str()).collect::<BTreeSet<_>>();
@@ -302,10 +328,9 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
         .map(|execution| execution.test_execution_id.clone())
         .collect::<Vec<_>>();
     let mut failed = false;
-    let mut stop_after = None;
     let mut terminal_records = Vec::new();
 
-    for (index, execution_id) in execution_ids.iter().enumerate() {
+    for execution_id in &execution_ids {
         let Some(existing) = cycle.test_executions.iter().find(|execution| &execution.test_execution_id == execution_id).cloned() else {
             continue;
         };
@@ -319,6 +344,12 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
             Some(projection) => execution_from_outcome(&existing, case, projection, &finish.finished_at),
             None => missing_execution(&existing, &finish.finished_at),
         };
+        // A run the stop cancelled still returns its own outcome, which the stop decided: the
+        // operator's stop stays the truthful outcome of a member that was still running.
+        let ran = matches!(existing.status, ExecutionStatus::Pending | ExecutionStatus::Running);
+        if stopped && ran && execution.status != ExecutionStatus::Skipped {
+            finish_execution(&mut execution, ExecutionStatus::Cancelled, ResultStatus::Cancelled, finish.finished_at.clone());
+        }
         if let Some(projection) = projection
             && let Err(error) =
                 append_provider_evidence(state, &execution, projection, finish, &mut plan.evidence, &mut plan.effects.telemetry)
@@ -333,18 +364,7 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
         if let Some(record) = terminal_execution_record(&execution, &case.metadata.label) {
             terminal_records.push(record);
         }
-        let passed = execution.status == ExecutionStatus::Passed;
         upsert_execution(&mut cycle.test_executions, execution);
-        if !bounded && !passed && !stopped && !cycle.continue_on_failure {
-            stop_after = Some(index);
-            break;
-        }
-    }
-    if let Some(index) = stop_after {
-        let unattempted = &execution_ids[index + 1..];
-        if !bounded {
-            cycle.test_executions.retain(|execution| !unattempted.contains(&execution.test_execution_id));
-        }
     }
     if stopped {
         for execution in &mut cycle.test_executions {
@@ -369,7 +389,7 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
         plan.terminal.draft(record, finish.finished_at.clone());
     }
     let succeeded = !stopped && outcome.status == "passed" && !failed;
-    let scope = request_scope(state, &cycle.test_cycle_id);
+    let scope = request_scope(state, finish);
     if !bounded {
         plan.terminal.draft(
             BuiltinDraft {
@@ -419,27 +439,27 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
     plan
 }
 
-fn request_scope(state: &RuntimeState, cycle_id: &TestCycleId) -> RecordScope {
+fn request_scope(state: &RuntimeState, finish: &FinishProvider) -> RecordScope {
     state
         .run_requests
-        .values()
-        .find(|request| request.summary.cycle_id == *cycle_id && !request.summary.phase.terminal())
+        .get(&finish.request_id)
         .and_then(|request| request.test_execution_id.as_ref())
         .and_then(|id| state.executions.get(id))
         .map(|execution| execution.scope.clone())
-        .unwrap_or_else(|| RecordScope::default().with_cycle(cycle_id.clone()))
+        .unwrap_or_else(|| RecordScope::default().with_cycle(finish.test_cycle_id.clone()))
 }
 
 fn prepare_provider_error(state: &RuntimeState, finish: &FinishProvider, error: &ProviderExecutionFailure) -> FinishPlan {
     let mut plan = FinishPlan::new(state);
-    let scope = request_scope(state, &finish.test_cycle_id);
+    let scope = request_scope(state, finish);
     let bounded =
         state.run_requests.values().any(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal());
     let mut stopped = false;
     let mut terminal_records = Vec::new();
     plan.cycle = state.cycle_view(&finish.test_cycle_id);
     if let Some(cycle) = plan.cycle.as_mut() {
-        stopped = matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
+        stopped = state.run_requests.get(&finish.request_id).is_some_and(|request| request.summary.stop_requested)
+            || matches!(cycle.lifecycle, CycleStatus::Stopping | CycleStatus::Stopped);
         cycle.lifecycle = if stopped { CycleStatus::Stopped } else { CycleStatus::Failed };
         for execution in &mut cycle.test_executions {
             if !finish.started_execution_ids.contains(&execution.test_execution_id) {
@@ -913,16 +933,6 @@ fn upsert_execution(executions: &mut Vec<TestExecution>, execution: TestExecutio
         *existing = execution;
     } else {
         executions.push(execution);
-    }
-}
-
-pub(super) fn lifecycle_for(summary: Option<&ResultSummary>) -> CycleStatus {
-    match summary.map(|summary| &summary.status) {
-        Some(ResultStatus::Passed) => CycleStatus::Completed,
-        Some(ResultStatus::Failed) => CycleStatus::Failed,
-        Some(ResultStatus::Blocked) => CycleStatus::Blocked,
-        Some(ResultStatus::Cancelled) => CycleStatus::Stopped,
-        _ => CycleStatus::Ready,
     }
 }
 

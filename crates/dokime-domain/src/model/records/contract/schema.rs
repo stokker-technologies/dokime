@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
@@ -36,13 +39,16 @@ use crate::model::values::ValueType;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecordContract {
     pub record_type: Identifier,
     pub schema_version: u32,
     pub metadata: Metadata,
+
     #[serde(default)]
     pub display: RecordDisplay,
+
     pub template_id: Option<TemplateId>,
     pub owner: Option<SuiteId>,
     pub default_severity: RecordSeverity,
@@ -60,6 +66,7 @@ pub struct RecordField {
     pub unit: Option<MeasurementUnit>,
     pub choices: Vec<Value>,
     pub default: Option<Value>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<ValueFormat>,
 }
@@ -68,11 +75,13 @@ pub struct RecordField {
 pub struct RecordDisplay {
     #[serde(default)]
     pub icon: RecordIconKey,
+
     #[serde(default)]
     pub tone: RecordTone,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RecordIconKey {
@@ -99,6 +108,7 @@ pub enum RecordIconKey {
     TimerReset,
     Wrench,
     Zap,
+
     #[default]
     Clock,
 }
@@ -112,6 +122,7 @@ pub enum RecordTone {
     Danger,
     Accent,
     Muted,
+
     #[default]
     Neutral,
 }
@@ -119,6 +130,7 @@ pub enum RecordTone {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for RecordContract {
     fn memory_size(&self) -> usize {
         retained_memory(

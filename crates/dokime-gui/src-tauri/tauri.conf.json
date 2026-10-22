@@ -7,7 +7,7 @@
     "windows": [
       {
         "create": false,
-        "dragDropEnabled": false,
+        "dragDropEnabled": true,
         "height": 960,
         "maximized": true,
         "minHeight": 720,
@@ -56,7 +56,7 @@
       "endpoints": [
         "https://github.com/stokker-technologies/dokime/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE3RkYyMTk2NzNGMTY4RDIKUldUU2FQRnpsaUgvcCtvQ1hIcStQbDhXMElydk5Ld0FHSHh1eTZ3ZTNWbURoTUNXSDZHYVNBeUwK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1M0IzREQzMjg1MjExOUQKUldTZEVWSW8wejA3eFpFQVpuSXJnWFRHK1VEWjdmdTZTUVQ0ODBjejBnWHdwQk9lNVNxbHBRYnYK"
     }
   },
   "productName": "Dokime",

@@ -16,6 +16,8 @@ repository.workspace = true
 build = "build.rs"
 default-run = "dokime-gui"
 version = { workspace = true }
+# Ships Inside The Desktop Installers, Not Through crates.io.
+publish = false
 
 [features]
 default = ["updater"]
@@ -26,10 +28,9 @@ console = []
 
 [build-dependencies]
 # Local
-dokime-domain = { path = "../../dokime-domain" }
+dokime = { workspace = true }
 
 # Git
-harmos = { workspace = true }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
@@ -40,13 +41,9 @@ tauri-build = { workspace = true, features = [] }
 
 [dependencies]
 # Local
-dokime-client = { path = "../../dokime-client" }
-# Excludes the SDK default `derive`; the shell authors no plugins and needs no attribute macros.
-dokime-runtime = { path = "../../dokime-runtime", default-features = false, features = ["native"] }
-dokime-domain = { path = "../../dokime-domain", features = ["diagnostics"] }
+dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 
 # Git
-harmos = { workspace = true, features = ["grpc"] }
 harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
@@ -64,15 +61,20 @@ rand = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 zeroize = { workspace = true }
-zip = { workspace = true }
+# Branding packs from Finder, Explorer and `zip` are deflated.
+zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Serialization
 base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 
 # Configuration
 dotenv = { workspace = true }
+
+# Filesystem
+tempfile = { workspace = true }
 
 # Async
 tokio = { workspace = true, features = ["process"] }
@@ -97,16 +99,13 @@ windows = { workspace = true, features = ["Win32_System_Com"] }
 
 [dev-dependencies]
 # Local
-dokime = { path = "../../dokime" }
-dokime-runtime = { path = "../../dokime-runtime", features = ["host", "fft"] }
+dokime = { path = "../../dokime", features = ["host", "fft", "plugin-sidecar"] }
 dokime-server = { path = "../../dokime-server" }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Filesystem
-tempfile = { workspace = true }
 
 # Async
 async-trait = { workspace = true }

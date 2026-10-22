@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use tokio::sync::watch;
 use tracing::Instrument;
+
 // Local Imports
 use super::Environment;
 use super::ExecutionEvidence;
@@ -39,8 +42,8 @@ use dokime_domain::model::execution::termination::TerminationReason;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const CRITERION_BUDGET: Duration = Duration::from_secs(1);
 
+const CRITERION_BUDGET: Duration = Duration::from_secs(1);
 const INITIALIZATION: &str = "initialization";
 const TRACEABILITY: &str = "traceability";
 const PARAMETERS: &str = "resolving parameters";
@@ -50,6 +53,7 @@ const PARAMETERS: &str = "resolving parameters";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Inputs {
     pub controls: Arc<crate::transport::control::Controls>,
     pub callbacks: super::Callbacks,
@@ -65,6 +69,7 @@ pub(super) struct Inputs {
 }
 
 /* === Enums === */
+
 enum Ended {
     Completed,
     Cancelled { step: String },
@@ -76,6 +81,7 @@ enum Ended {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run<T: SidecarTemplate>(
     executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs, cancel: watch::Receiver<bool>,
     observer_tasks: Tasks,
@@ -91,6 +97,7 @@ pub(crate) async fn run<T: SidecarTemplate>(
 }
 
 /* === Private Functions === */
+
 async fn execute<T: SidecarTemplate>(
     executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs,
     mut cancel: watch::Receiver<bool>, observer_tasks: Tasks,

@@ -12,39 +12,38 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use harmos::sidecar::{Frame, Refusal};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
+
 // Local Imports
 use crate::prompts::PromptResponse;
 use crate::transport::{ArtifactChunk, EvidenceBatch, RunExecution, SidecarExecutionOutcome};
 use dokime_domain::model::identity::PromptId;
 
 /* === Constants === */
+
 pub(crate) const MAX_BUFFERED_FRAMES: usize = 1024;
-
 const MAX_LOCAL_SAMPLES: usize = 1024;
-
 pub(crate) const MAX_BUFFERED_ARTIFACT_BYTES: u64 = 16 * 1024 * 1024;
-
-pub(crate) const PROMPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
-
 const MAX_DELIVERED_RECORDS: usize = 256;
 
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(crate) type Executions = Arc<Mutex<BTreeMap<String, ExecutionState>>>;
 
+pub(crate) type Executions = Arc<Mutex<BTreeMap<String, ExecutionState>>>;
 pub(crate) type Tasks = Arc<Mutex<Vec<JoinHandle<()>>>>;
 
 /* === Structs === */
+
 pub(crate) struct ExecutionState {
     pub(crate) local_inputs: bool,
     local_scope: dokime_domain::model::execution::RecordScope,
@@ -55,6 +54,10 @@ pub(crate) struct ExecutionState {
     pub(crate) controls: Arc<super::control::Controls>,
     pub(crate) cancel: watch::Sender<bool>,
     pub(crate) changed: Arc<tokio::sync::Notify>,
+
+    // Wakes every host-exchange waiter when a prompt, lease or step settles, the run is cancelled, or it is evicted.
+    settled: Arc<tokio::sync::Notify>,
+
     frames: VecDeque<BufferedFrame>,
     next_cursor: u64,
     oldest_cursor: u64,
@@ -108,6 +111,7 @@ struct PromptExchange {
 }
 
 /* === Enums === */
+
 pub(crate) enum PromptOutcome {
     Answered(Box<PromptResponse>),
     Cancelled,
@@ -123,9 +127,8 @@ pub(crate) enum LeaseOutcome {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionState {
-    /// Whether samples arrived since a wait last reported them; reporting
-    /// them once keeps a waiter that does not consume them from spinning.
     pub(crate) fn announce_local_samples(&mut self) -> bool {
         let fresh = self.local_samples.len() > self.local_samples_announced;
         self.local_samples_announced = self.local_samples.len();
@@ -177,6 +180,7 @@ impl ExecutionState {
             request,
             cancel,
             changed: Arc::new(tokio::sync::Notify::new()),
+            settled: Arc::new(tokio::sync::Notify::new()),
             frames: VecDeque::new(),
             next_cursor: 1,
             oldest_cursor: 1,
@@ -261,6 +265,7 @@ impl ExecutionState {
             true => LeaseOutcome::Granted,
             false => LeaseOutcome::Refused(message.to_owned()),
         };
+        self.settled.notify_waiters();
     }
 
     pub(crate) fn lease_settled(&self, lease_token: &str) -> Option<&LeaseOutcome> {
@@ -420,9 +425,13 @@ impl ExecutionState {
                 *outcome = LeaseOutcome::Cancelled;
             }
         }
+        if let Some((_, answer)) = &mut self.step_admission {
+            answer.get_or_insert_with(|| Err("execution cancelled before step acknowledgement".to_owned()));
+        }
         // A producer parked on the artifact backlog gate must not outlive the
         // cancellation either: nothing is going to drain it now.
         self.artifact_condvar.notify_all();
+        self.settled.notify_waiters();
     }
 
     pub(crate) fn artifact_condvar(&self) -> Arc<Condvar> {
@@ -446,6 +455,7 @@ impl ExecutionState {
         };
         if id.as_str() == request.attempt_id && answer.is_none() {
             *answer = Some(if request.accepted { Ok(()) } else { Err(request.message.clone()) });
+            self.settled.notify_waiters();
         }
     }
 
@@ -509,6 +519,7 @@ impl ExecutionState {
             && exchange.outcome.is_none()
         {
             exchange.outcome = Some(PromptOutcome::Answered(Box::new(response)));
+            self.settled.notify_waiters();
         }
     }
 
@@ -743,6 +754,13 @@ impl ExecutionState {
     }
 }
 
+// An Evicted Run Settles Every Exchange Still Waiting On It.
+impl Drop for ExecutionState {
+    fn drop(&mut self) {
+        self.settled.notify_waiters();
+    }
+}
+
 impl BufferedFrame {
     pub(crate) fn capture_phase(phase: String) -> Self {
         Self { capture_phase: Some(phase), ..Default::default() }
@@ -799,8 +817,45 @@ impl BufferedFrame {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn lock(executions: &Executions) -> MutexGuard<'_, BTreeMap<String, ExecutionState>> {
     executions.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+// Waits Without Polling Until `check` Settles The Run's Exchange; `gone` Answers An Evicted Run.
+// The waiter registers before each check, so a settlement between check and wait still wakes it.
+pub(crate) async fn settled<T>(
+    executions: &Executions, token: &str, gone: impl Fn() -> T, check: impl Fn(&ExecutionState) -> Option<T>,
+) -> T {
+    let mut signal = match lock(executions).get(token) {
+        Some(state) => Arc::clone(&state.settled),
+        None => return gone(),
+    };
+    loop {
+        let current = {
+            let notified = signal.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            let current = {
+                let live = lock(executions);
+                let Some(state) = live.get(token) else {
+                    return gone();
+                };
+                if let Some(outcome) = check(state) {
+                    return outcome;
+                }
+                (!Arc::ptr_eq(&state.settled, &signal)).then(|| Arc::clone(&state.settled))
+            };
+            if current.is_none() {
+                notified.await;
+            }
+            current
+        };
+        // A Reused Token Replaced The Run; Wait On Its Own Signal.
+        if let Some(current) = current {
+            signal = current;
+        }
+    }
 }
 
 /* === Private Functions === */

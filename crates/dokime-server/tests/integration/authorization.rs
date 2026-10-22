@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
@@ -19,22 +20,30 @@ use std::pin::Pin;
 use tonic::{Code, Status, transport::Channel};
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_server::grpc::access::Role;
+use dokime::domain::model;
 
 /* === Constants === */
+
+const NATIVE_ONLY_METHODS: [&str; 6] = [
+    "/dokime.v1.Media/Screenshot",
+    "/dokime.v1.Media/Photo",
+    "/dokime.v1.Media/AudioRecording",
+    "/dokime.v1.Media/ScreenRecording",
+    "/dokime.v1.Media/CameraRecording",
+    "/dokime.v1.Files/FileWatch",
+];
+
 const STREAMING_CASES: &[Case] = &[
     Case {
         path: "/dokime.v1.Content/UploadArtifact",
         call: |stream, token| {
             Box::pin(async move {
-                WireClient::new(stream)
-                    .upload::<contracts::content::UploadArtifact>(credentialed(
-                        tokio_stream::iter(Vec::<model::content::wire::UploadArtifactFrame>::new()),
-                        token,
-                    ))
-                    .await
-                    .err()
+                let entries = Vec::<model::content::wire::UploadArtifactFrame>::new();
+                let frames = tokio_stream::iter(entries);
+                let request = credentialed(frames, token);
+                let client = WireClient::new(stream);
+                let response = client.upload::<contracts::content::UploadArtifact>(request).await;
+                response.err()
             })
         },
     },
@@ -42,19 +51,19 @@ const STREAMING_CASES: &[Case] = &[
         path: "/dokime.v1.Plugins/Stage",
         call: |stream, token| {
             Box::pin(async move {
-                WireClient::new(stream)
-                    .upload::<contracts::plugins::Stage>(credentialed(
-                        tokio_stream::iter(Vec::<model::plugins::wire::StagePluginFrame>::new()),
-                        token,
-                    ))
-                    .await
-                    .err()
+                let entries = Vec::<model::plugins::wire::StagePluginFrame>::new();
+                let frames = tokio_stream::iter(entries);
+                let request = credentialed(frames, token);
+                let client = WireClient::new(stream);
+                let response = client.upload::<contracts::plugins::Stage>(request).await;
+                response.err()
             })
         },
     },
 ];
 
 /* === Macros === */
+
 macro_rules! matrix {
     (@request) => {
         Default::default()
@@ -80,18 +89,23 @@ macro_rules! matrix {
 }
 
 matrix! {
+    "/dokime.v1.Remote/ReadListener", unary, contracts::remote::ReadListener = contracts::remote::ReadListener {};
+    "/dokime.v1.Remote/UpdateListener", unary, contracts::remote::UpdateListener = contracts::remote::UpdateListener { settings: None };
+    "/dokime.v1.Remote/GenerateKey", unary, contracts::remote::GenerateKey = contracts::remote::GenerateKey {};
+    "/dokime.v1.Remote/ListSessions", unary, contracts::remote::ListSessions = contracts::remote::ListSessions { cursor: None, limit: 20 };
+    "/dokime.v1.Remote/RegenerateCertificate", unary, contracts::remote::RegenerateCertificate = contracts::remote::RegenerateCertificate { certificate_names: vec![] };
     "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {
         subject: model::reports::wire::ReportSubject::Execution(String::new()),
-        at: harmos::storage::StorageCursor {
-            history: harmos::storage::StoreHistory {
-                store: harmos::Identifier::new("authorization").unwrap(),
-                epoch: harmos::Identifier::new("test").unwrap(),
+        at: dokime::harmos::storage::StorageCursor {
+            history: dokime::harmos::storage::StoreHistory {
+                store: dokime::harmos::Identifier::new("authorization").unwrap(),
+                epoch: dokime::harmos::Identifier::new("test").unwrap(),
             },
             sequence: 0,
         },
     };
-    "/harmos.host.v1.Host/Catalog", unary, harmos::operations::host::Catalog = harmos::operations::host::Catalog {
-        kind: harmos::operations::host::CatalogKind::Operations,
+    "/harmos.host.v1.Host/Catalog", unary, dokime::harmos::operations::host::Catalog = dokime::harmos::operations::host::Catalog {
+        kind: dokime::harmos::operations::host::CatalogKind::Operations,
         schema: None,
         after: None,
         rows: None,
@@ -125,6 +139,7 @@ matrix! {
     "/dokime.v1.Catalog/ListTelemetrySchemas", unary, contracts::catalog::ListTelemetrySchemas;
     "/dokime.v1.Content/DownloadAppearanceAsset", download, contracts::content::DownloadAppearanceAsset;
     "/dokime.v1.Content/DownloadArtifact", download, contracts::content::DownloadArtifact;
+    "/dokime.v1.Content/DownloadEvidence", download, contracts::content::DownloadEvidence = contracts::content::DownloadEvidence { subject: None };
     "/dokime.v1.Content/DownloadExecutionFile", download, contracts::content::DownloadExecutionFile;
     "/dokime.v1.Content/ListArtifacts", unary, contracts::content::ListArtifacts;
     "/dokime.v1.Content/ListExecutionFiles", unary, contracts::content::ListExecutionFiles;
@@ -140,7 +155,7 @@ matrix! {
     "/dokime.v1.Evidence/GetCapturedRecordSchema", unary, contracts::evidence::GetCapturedRecordSchema;
     "/dokime.v1.Evidence/ListRecords", unary, contracts::evidence::ListRecords;
     "/dokime.v1.Evidence/WatchRecords", download, contracts::evidence::WatchRecords;
-    "/dokime.v1.Execution/AppendPlannedCases", unary, contracts::execution::AppendPlannedCases;
+    "/dokime.v1.Execution/AppendExecutions", unary, contracts::execution::AppendExecutions;
     "/dokime.v1.Execution/CopyCycle", unary, contracts::execution::CopyCycle;
     "/dokime.v1.Execution/CreateCycle", unary, contracts::execution::CreateCycle;
     "/dokime.v1.Execution/DeleteCase", unary, contracts::execution::DeleteCase;
@@ -148,7 +163,6 @@ matrix! {
     "/dokime.v1.Execution/GetCycle", unary, contracts::execution::GetCycle;
     "/dokime.v1.Execution/GetExecution", unary, contracts::execution::GetExecution;
     "/dokime.v1.Execution/GetExecutionCommand", unary, contracts::execution::GetExecutionCommand;
-    "/dokime.v1.Execution/GetRunRequest", unary, contracts::execution::GetRunRequest;
     "/dokime.v1.Execution/ListCaseParameters", unary, contracts::execution::ListCaseParameters;
     "/dokime.v1.Execution/ListCases", unary, contracts::execution::ListCases;
     "/dokime.v1.Execution/ListCycles", unary, contracts::execution::ListCycles;
@@ -161,19 +175,16 @@ matrix! {
     };
     "/dokime.v1.Execution/ListExecutionSteps", unary, contracts::execution::ListExecutionSteps;
     "/dokime.v1.Execution/ListExecutions", unary, contracts::execution::ListExecutions;
-    "/dokime.v1.Execution/ListStepCriteria", unary, contracts::execution::ListStepCriteria;
     "/dokime.v1.Execution/PauseCycle", unary, contracts::execution::PauseCycle;
     "/dokime.v1.Execution/ResumeCycle", unary, contracts::execution::ResumeCycle;
-    "/dokime.v1.Execution/RunCase", unary, contracts::execution::RunCase;
-    "/dokime.v1.Execution/RunExecution", unary, contracts::execution::RunExecution = contracts::execution::RunExecution {
+    "/dokime.v1.Execution/StartExecution", unary, contracts::execution::StartExecution = contracts::execution::StartExecution {
         execution_id: String::new(),
-        context: None,
-        idempotency_key: None,
         mode: model::execution::wire::ExecutionMode::Automatic,
     };
     "/dokime.v1.Execution/PauseExecution", unary, contracts::execution::PauseExecution;
     "/dokime.v1.Execution/ResumeExecution", unary, contracts::execution::ResumeExecution;
     "/dokime.v1.Execution/StopExecution", unary, contracts::execution::StopExecution;
+    "/dokime.v1.Execution/CancelExecution", unary, contracts::execution::CancelExecution;
     "/dokime.v1.Execution/SubmitExecutionCommand", unary, contracts::execution::SubmitExecutionCommand = contracts::execution::SubmitExecutionCommand {
         request_id: String::new(),
         command_id: String::new(),
@@ -181,13 +192,11 @@ matrix! {
         action: model::execution::wire::ExecutionCommandAction::Unspecified,
         step_id: None,
     };
-    "/dokime.v1.Execution/RunCycle", unary, contracts::execution::RunCycle;
-    "/dokime.v1.Execution/ScheduleCaseRerun", unary, contracts::execution::ScheduleCaseRerun;
     "/dokime.v1.Execution/RenameCycle", unary, contracts::execution::RenameCycle;
     "/dokime.v1.Execution/RenameExecution", unary, contracts::execution::RenameExecution;
     "/dokime.v1.Execution/SetCycleArchived", unary, contracts::execution::SetCycleArchived;
     "/dokime.v1.Execution/SetExecutionArchived", unary, contracts::execution::SetExecutionArchived;
-    "/dokime.v1.Execution/StopCycle", unary, contracts::execution::StopCycle;
+    "/dokime.v1.Execution/SealCycle", unary, contracts::execution::SealCycle = contracts::execution::SealCycle { cycle_id: String::new(), context: None };
     "/dokime.v1.Execution/UpdateCyclePolicy", unary, contracts::execution::UpdateCyclePolicy;
     "/dokime.v1.Files/FileWatch", download, contracts::files::FileWatch = contracts::files::FileWatch {
         execution_id: None,
@@ -195,12 +204,15 @@ matrix! {
         rules: Vec::new(),
         output: String::new(),
         policy: model::files::wire::FileWatchPolicy::Unspecified,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
         poll_interval_ms: None,
         maximum_seconds: None,
         maximum_files: None,
         maximum_bytes: None,
     };
     "/dokime.v1.Health/ListHealth", unary, contracts::notes::ListHealth;
+    "/dokime.v1.History/BrowseCycles", unary, contracts::history::BrowseCycles;
     "/dokime.v1.History/BrowseExecutions", unary, contracts::history::BrowseExecutions;
     "/dokime.v1.History/DeleteExecution", unary, contracts::history::DeleteExecution;
     "/dokime.v1.History/DownloadCheckpointArtifact", download, contracts::history::DownloadCheckpointArtifact;
@@ -225,6 +237,7 @@ matrix! {
     "/dokime.v1.Observation/WatchRuntime", download, contracts::observation::WatchRuntime;
     "/dokime.v1.Planning/PreviewSelection", unary, contracts::planning::PreviewSelection;
     "/dokime.v1.Planning/RegisterSelection", unary, contracts::planning::RegisterSelection;
+    "/dokime.v1.Planning/MaterializeTemplate", unary, contracts::planning::MaterializeTemplate;
     "/dokime.v1.Plots/ListAnalyses", unary, contracts::plots::ListAnalyses;
     "/dokime.v1.Plots/QuerySnapshots", unary, contracts::plots::QuerySnapshots;
     "/dokime.v1.Plots/Watch", download, contracts::plots::Watch;
@@ -265,9 +278,11 @@ matrix! {
 }
 
 /* === Type Aliases === */
+
 type Refusal = Pin<Box<dyn Future<Output = Option<Status>> + Send>>;
 
 /* === Structs === */
+
 struct Case {
     path: &'static str,
     call: fn(Channel, Option<&'static str>) -> Refusal,
@@ -282,6 +297,7 @@ struct Case {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
     match token {
         Some(token) => auth(message, token),
@@ -290,7 +306,7 @@ fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
 }
 
 fn cases() -> impl Iterator<Item = &'static Case> {
-    use dokime_runtime::operations::runtime::{GetHealth, GetIdentity};
+    use dokime::operations::runtime::{GetHealth, GetIdentity};
     static OPERATIONS: &[Case] = &[
         Case { path: GetHealth::PATH, call: |channel, token| operation::<GetHealth>(channel, token, GetHealth::PATH) },
         Case { path: GetIdentity::PATH, call: |channel, token| operation::<GetIdentity>(channel, token, GetIdentity::PATH) },
@@ -300,28 +316,53 @@ fn cases() -> impl Iterator<Item = &'static Case> {
 
 fn operation<O>(channel: Channel, token: Option<&'static str>, path: &'static str) -> Refusal
 where
-    O: harmos::operations::OperationDeclaration + harmos::domain::Portable + Default,
-    O::Response: harmos::domain::Portable + harmos::MemorySize,
+    O: dokime::harmos::operations::OperationDeclaration + dokime::harmos::domain::Portable + Default,
+    O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
 {
     Box::pin(async move {
-        use harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
+        use dokime::harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
         let bytes = std::num::NonZeroUsize::new(4096).unwrap();
-        let codec = Codec::<harmos::grpc::Transcoded, O::Response, harmos::operations::Response<O>>::new(
+        let codec = Codec::<dokime::harmos::grpc::Transcoded, O::Response, dokime::harmos::operations::Response<O>>::new(
             DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
             EncodeSettings { message_bytes: bytes, buffer_bytes: bytes },
         )
         .unwrap();
         let mut client = tonic::client::Grpc::new(channel);
         client.ready().await.unwrap();
-        client
-            .unary(
-                credentialed(harmos::operations::Response::new(O::default()), token),
-                tonic::codegen::http::uri::PathAndQuery::from_static(path),
-                codec,
-            )
-            .await
-            .err()
+        let declaration = O::default();
+        let envelope = dokime::harmos::operations::Response::new(declaration);
+        let request = credentialed(envelope, token);
+        let route = tonic::codegen::http::uri::PathAndQuery::from_static(path);
+        let response = client.unary(request, route, codec).await;
+        response.err()
     })
+}
+
+fn assert_case_admission(case: &Case, local_only: bool, refusal: Option<Status>) {
+    if local_only {
+        let refusal = refusal.unwrap_or_else(|| panic!("{} admitted a native-only call", case.path));
+        assert_eq!(refusal.code(), Code::PermissionDenied, "{}", case.path);
+        return;
+    }
+    let Some(refusal) = refusal else {
+        return;
+    };
+    assert_ne!(refusal.code(), Code::Unauthenticated, "{}", case.path);
+    assert_ne!(refusal.code(), Code::PermissionDenied, "{}", case.path);
+}
+
+async fn assert_key_refusals(channel: &Channel, authenticated: bool) {
+    if !authenticated {
+        return;
+    }
+    let missing_key_calls = cases().map(|case| (case, None));
+    let wrong_key = Some("wrong-key-012345678901234567890123456789");
+    let wrong_key_calls = cases().map(|case| (case, wrong_key));
+    for (case, rejected_key) in missing_key_calls.chain(wrong_key_calls) {
+        let result = (case.call)(channel.clone(), rejected_key).await;
+        let refusal = result.unwrap_or_else(|| panic!("{} admitted a call without its key", case.path));
+        assert_eq!(refusal.code(), Code::Unauthenticated, "{}", case.path);
+    }
 }
 
 #[test]
@@ -333,57 +374,47 @@ fn table_covers_serves() {
 }
 
 #[tokio::test]
-async fn permission_matrix_enforcement() {
-    const PRINCIPALS: &[(Role, &str)] = &[
-        (Role::Read, "read-token-012345678901234567890123456789"),
-        (Role::Control, "control-token-012345678901234567890123456789"),
-        (Role::Admin, "admin-token-012345678901234567890123456789"),
-    ];
+async fn key_boundary_matrix() {
+    assert_remote_key_boundary(true).await;
+    assert_remote_key_boundary(false).await;
+}
+
+async fn assert_remote_key_boundary(authenticated: bool) {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
-    let grants = PRINCIPALS.iter().map(|(role, token)| BearerGrant::new(format!("{role:?}"), *role, token).unwrap()).collect();
-    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(grants).unwrap()).await.unwrap();
+    let token = authenticated.then_some(TOKEN);
+    let config = Config::remote("127.0.0.1:0".parse().unwrap(), None, token).unwrap();
+    let server = Server::start(owner.handle(), config).await.unwrap();
     let channel = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
-    let roles: std::collections::BTreeMap<_, _> = dokime_server::grpc::methods().collect();
+    let methods: std::collections::BTreeMap<_, _> = dokime_server::grpc::methods().collect();
 
     // Every Method Requires Authentication Before Payload Decoding.
+    assert_key_refusals(&channel, authenticated).await;
+
+    // One Valid Key Or Explicit Authentication-Off Grants All Remote Product Methods.
+    let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
+        .unary::<contracts::backend::GetAvailability>(credentialed(contracts::backend::GetAvailability {}, token))
+        .await
+        .unwrap()
+        .into_inner()
+        .methods
+        .into_iter()
+        .collect();
+    let public_methods = methods.iter().filter(|(_, local_only)| !**local_only);
+    let public_paths = public_methods.map(|(path, _)| *path);
+    let expected: std::collections::BTreeSet<_> = public_paths.map(str::to_owned).collect();
+    assert_eq!(advertised, expected, "availability must exclude native-only and internal host providers");
+
     for case in cases() {
-        let refusal =
-            (case.call)(channel.clone(), None).await.unwrap_or_else(|| panic!("{} admitted a call with no credential", case.path));
-        assert_eq!(refusal.code(), Code::Unauthenticated, "{}", case.path);
-    }
-
-    // Distinct Credentials Exercise Every Insufficient Role On One Listener.
-    for &(role, token) in PRINCIPALS {
-        let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
-            .unary::<contracts::backend::GetAvailability>(credentialed(contracts::backend::GetAvailability {}, Some(token)))
-            .await
-            .unwrap()
-            .into_inner()
-            .methods
-            .into_iter()
-            .collect();
-        let expected: std::collections::BTreeSet<_> =
-            roles.iter().filter(|(_, required)| role >= **required).map(|(path, _)| (*path).to_owned()).collect();
-        assert_eq!(advertised, expected, "{role:?} advertised permissions");
-
-        for case in cases() {
-            let required = roles[case.path];
-            if role >= required {
-                continue;
-            }
-            let refusal = (case.call)(channel.clone(), Some(token))
-                .await
-                .unwrap_or_else(|| panic!("{} admitted {role:?}, needs {required:?}", case.path));
-            assert_eq!(refusal.code(), Code::PermissionDenied, "{} for {role:?}", case.path);
-        }
+        let refusal = (case.call)(channel.clone(), token).await;
+        assert_case_admission(case, methods[case.path], refusal);
     }
 
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
 
-// A remote listener refuses every local-only operation even to Control.
+// TLS And A Valid Full-Control Key Do Not Confer Native Listener Trust.
 #[tokio::test]
 async fn remote_refuses_local() {
     // A throwaway localhost identity generated for this run; nothing is committed.
@@ -392,33 +423,32 @@ async fn remote_refuses_local() {
     let key = generated.signing_key.serialize_pem().into_bytes();
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
-    let config =
-        Config::remote("127.0.0.1:0".parse().unwrap(), TlsIdentity::from_pem(certificate.clone(), key), vec![grant(Role::Control)])
-            .unwrap();
+    let address = "127.0.0.1:0".parse().unwrap();
+    let identity = TlsIdentity::from_pem(certificate.clone(), key);
+    let config = Config::remote(address, Some(identity), Some(TOKEN)).unwrap();
     let server = Server::start(owner.handle(), config).await.unwrap();
-    let channel = Endpoint::from_shared(server.local_endpoint())
-        .unwrap()
-        .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&certificate)))
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
+    let uri = server.local_endpoint();
+    let endpoint = Endpoint::from_shared(uri).unwrap();
+    let trust = Certificate::from_pem(&certificate);
+    let tls = ClientTlsConfig::new().domain_name("localhost");
+    let tls = tls.ca_certificate(trust);
+    let endpoint = endpoint.tls_config(tls).unwrap();
+    let channel = endpoint.connect().await.unwrap();
 
     // Media Capture, File Watches And Host Paths Stay On The Loopback Listener
-    let local_only = [
-        "/dokime.v1.Media/Screenshot",
-        "/dokime.v1.Media/Photo",
-        "/dokime.v1.Media/AudioRecording",
-        "/dokime.v1.Media/ScreenRecording",
-        "/dokime.v1.Media/CameraRecording",
-        "/dokime.v1.Files/FileWatch",
-    ];
-    for case in cases().filter(|case| local_only.contains(&case.path)) {
+    let mut covered = 0;
+    let served = cases();
+    let native_cases = served.filter(|case| {
+        let path = case.path;
+        NATIVE_ONLY_METHODS.contains(&path)
+    });
+    for case in native_cases {
+        covered += 1;
         let refusal =
-            (case.call)(channel.clone(), Some(TOKEN)).await.unwrap_or_else(|| panic!("{} admitted a remote Control caller", case.path));
+            (case.call)(channel.clone(), Some(TOKEN)).await.unwrap_or_else(|| panic!("{} admitted a native-only remote call", case.path));
         assert_eq!(refusal.code(), Code::PermissionDenied, "{}", case.path);
     }
-    assert_eq!(cases().filter(|case| local_only.contains(&case.path)).count(), local_only.len());
+    assert_eq!(covered, NATIVE_ONLY_METHODS.len());
 
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

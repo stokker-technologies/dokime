@@ -10,7 +10,7 @@
 /* === Imports === */
 
 import { RotateCcw } from "lucide-react";
-import { type DragEvent, useEffect, useMemo, useState } from "react";
+import { type PointerEvent, useEffect, useMemo, useState } from "react";
 import { DocumentMetricGroup } from "./DocumentMetricGroup";
 import {
   moveMetricGroup,
@@ -24,6 +24,7 @@ import {
 export function DocumentMetricFlow({ groups, storageKey }: { groups: OverviewMetricGroup[]; storageKey: string }) {
   const [savedOrder, setSavedOrder] = useState<string[]>(() => readMetricFlowOrder(storageKey));
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
+  const [targetGroupId, setTargetGroupId] = useState<string | null>(null);
   const orderedGroups = useMemo(() => orderMetricGroups(groups, savedOrder), [groups, savedOrder]);
   const hasCustomOrder = savedOrder.length > 0;
 
@@ -36,25 +37,28 @@ export function DocumentMetricFlow({ groups, storageKey }: { groups: OverviewMet
     setSavedOrder(groupIds);
   }
 
-  function handleDrop(event: DragEvent<HTMLElement>, targetGroupId: string) {
-    const sourceGroupId = draggedGroupId || event.dataTransfer.getData("text/plain");
-    if (!sourceGroupId || sourceGroupId === targetGroupId) {
-      setDraggedGroupId(null);
-      return;
-    }
-
+  // Pointer events rather than HTML5 drag and drop: the shell takes native
+  // file drops, which keeps HTML5 drag events from reaching the page.
+  function startDrag(event: PointerEvent<HTMLButtonElement>, sourceGroupId: string) {
+    if (event.button !== 0) return;
     event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const insertAfter = event.clientX > rect.left + rect.width / 2;
-    saveOrder(
-      moveMetricGroup(
-        orderedGroups.map((group) => group.groupId),
-        sourceGroupId,
-        targetGroupId,
-        insertAfter,
-      ),
-    );
-    setDraggedGroupId(null);
+    const grip = event.currentTarget;
+    grip.setPointerCapture(event.pointerId);
+    setDraggedGroupId(sourceGroupId);
+    const order = orderedGroups.map((group) => group.groupId);
+    const move = (moved: globalThis.PointerEvent) => setTargetGroupId(dropTarget(moved, sourceGroupId)?.groupId ?? null);
+    const finish = (ended: globalThis.PointerEvent) => {
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", finish);
+      grip.removeEventListener("pointercancel", finish);
+      const target = ended.type === "pointerup" ? dropTarget(ended, sourceGroupId) : null;
+      if (target) saveOrder(moveMetricGroup(order, sourceGroupId, target.groupId, target.insertAfter));
+      setDraggedGroupId(null);
+      setTargetGroupId(null);
+    };
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", finish);
+    grip.addEventListener("pointercancel", finish);
   }
 
   function resetOrder() {
@@ -85,22 +89,20 @@ export function DocumentMetricFlow({ groups, storageKey }: { groups: OverviewMet
             key={group.groupId}
             metrics={group.metrics}
             title={group.title}
-            onDragEnd={() => setDraggedGroupId(null)}
-            onDragOver={(event) => {
-              if (draggedGroupId && draggedGroupId !== group.groupId) {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-              }
-            }}
-            onDragStart={(event) => {
-              setDraggedGroupId(group.groupId);
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", group.groupId);
-            }}
-            onDrop={(event) => handleDrop(event, group.groupId)}
+            isTarget={targetGroupId === group.groupId}
+            onGripPointerDown={(event) => startDrag(event, group.groupId)}
           />
         ))}
       </div>
     </div>
   );
+}
+
+/** The group under the pointer, other than the dragged one, and which half of it the pointer is over. */
+function dropTarget(event: globalThis.PointerEvent, sourceGroupId: string): { groupId: string; insertAfter: boolean } | null {
+  const element = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-metric-group-id]");
+  const groupId = element?.dataset.metricGroupId;
+  if (!element || !groupId || groupId === sourceGroupId) return null;
+  const bounds = element.getBoundingClientRect();
+  return { groupId, insertAfter: event.clientX > bounds.left + bounds.width / 2 };
 }

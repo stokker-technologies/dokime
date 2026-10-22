@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::Slot;
 pub use crate::document::{Band, Card, Document, Line, Plot, Section, format};
 pub use crate::domains::{OptionsResponse, StatusResponse};
@@ -21,6 +22,7 @@ pub use crate::plugin::{Configuration, Publisher, Secret};
 pub use crate::{Plugin, Refusal, Supervisor};
 pub use dokime_domain::model::traceability::TraceabilityRow;
 pub use dokime_domain::model::traceability::TraceabilitySection;
+
 // The traits whose associated items authored code names: a record's
 // `RECORD_TYPE` in a document expression, a template's `declaration()` in a
 // test, a stream's `contract()` beside it.
@@ -38,6 +40,7 @@ pub use crate::{
 pub use tokio_stream::{Elapsed, Stream, StreamExt};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

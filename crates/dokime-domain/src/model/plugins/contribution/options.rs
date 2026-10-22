@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::PluginEntrypoint;
 use crate::model::identity::Metadata;
@@ -30,13 +32,17 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OptionProviderContribution {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub input_schema: Option<Value>,
+
     #[serde(default)]
     pub permissions: Vec<Permission>,
+
     pub source: OptionProviderSource,
 }
 
@@ -44,15 +50,19 @@ pub struct OptionProviderContribution {
 pub struct OptionProviderOption {
     pub value: String,
     pub label: String,
+
     #[serde(default)]
     pub description: Option<String>,
+
     #[serde(default)]
     pub disabled: bool,
+
     #[serde(default)]
     pub metadata: Option<Value>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum OptionProviderSource {

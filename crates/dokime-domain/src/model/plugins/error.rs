@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::diagnostics::DebugLevel;
 use crate::model::diagnostics::ErrorCause;
@@ -36,10 +38,12 @@ use crate::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstalledPluginErrorRecord {
     #[serde(alias = "artifact_id")]
     pub plugin_id: Identifier,
+
     pub contribution_id: Option<Identifier>,
     pub phase: InstalledPluginPhase,
     pub level: DebugLevel,
@@ -57,6 +61,7 @@ pub struct InstalledPluginErrorRecord {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InstalledPluginPhase {
@@ -73,6 +78,7 @@ pub enum InstalledPluginPhase {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl InstalledPluginErrorRecord {
     pub fn new(
         plugin_id: Identifier, contribution_id: Option<Identifier>, phase: InstalledPluginPhase, level: DebugLevel,

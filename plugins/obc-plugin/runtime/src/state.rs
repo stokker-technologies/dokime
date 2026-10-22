@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
+use crate::device::Device;
 
 /* === Constants === */
 
@@ -25,9 +27,11 @@
 /* === Type Aliases === */
 
 /* === Structs === */
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Testbench {
     pub stopped: bool,
+    pub device: Device,
 }
 
 /* === Enums === */

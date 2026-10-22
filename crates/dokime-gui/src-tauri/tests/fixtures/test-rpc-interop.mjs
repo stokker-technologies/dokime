@@ -11,7 +11,7 @@ const { invoke, load } = harness;
 try {
   const api = await load("generated/client.js");
   const value = await harness.loadCanonical("dokime/v1/CatalogMessages/GetSuite/messages_pb.js");
-  const execution = await harness.loadCanonical("dokime/v1/ExecutionMessages/RunCycle/messages_pb.js");
+  const execution = await harness.loadCanonical("dokime/v1/ExecutionMessages/StartExecution/messages_pb.js");
   const generation = process.env.DOKIME_TEST_GENERATION;
   function connected(isCurrent = () => true) {
     return { generation, isCurrent };
@@ -33,15 +33,15 @@ try {
   assert.equal(appearance.appearance.organization.name, "Stokker Technologies");
   assert.equal(appearance.appearance.themes.length, 1);
   assert.ok(appearance.appearance.themes[0].stylesheet.includes("@font-face"));
-  assert.ok(appearance.logoUrl.startsWith("blob:"));
-  const logo = await (await fetch(appearance.logoUrl)).arrayBuffer();
-  assert.equal(
-    createHash("sha256").update(new Uint8Array(logo)).digest("hex"),
-    appearance.appearance.logo.asset.reference.sha256,
-  );
+  assert.equal(appearance.logos.length, 4);
+  for (const [index, logo] of appearance.logos.entries()) {
+    assert.ok(logo.url.startsWith("blob:"));
+    const bytes = await (await fetch(logo.url)).arrayBuffer();
+    assert.equal(createHash("sha256").update(new Uint8Array(bytes)).digest("hex"), appearance.appearance.logos[index].asset.reference.sha256);
+  }
   appearance.dispose();
   appearance.dispose();
-  await assert.rejects(fetch(appearance.logoUrl));
+  for (const logo of appearance.logos) await assert.rejects(fetch(logo.url));
   const suites = await api.catalogListSuites(session, { limit: 10 });
   assert.equal(suites.suites.length, 1);
   assert.equal(suites.suites[0].suiteId, "rpc.artifact");
@@ -109,9 +109,7 @@ try {
     lateRead,
     (error) => error.kind === "session" && error.detail.kind === "superseded",
   );
-  // Client streams cross the same bridge; this caller may not stage plugins.
-  // Whether the refusal lands on the first write or on finish, it is the
-  // backend's own status that surfaces.
+  // Full-Control Access Permits Staging; Invalid Bytes Retain The Backend's Refusal.
   await assert.rejects(
     (async () => {
       const staging = await api.pluginsStage(session, {
@@ -124,7 +122,7 @@ try {
       });
       await staging.finish();
     })(),
-    (error) => error.kind === "grpc" && error.detail.code === 7,
+    (error) => error.kind === "grpc" && error.detail.code === 3 && error.message.includes("stage size or digest mismatch"),
   );
   // A download opens with the artifact's metadata, so the stream is the only
   // request needed to learn what it is about to deliver.
@@ -142,13 +140,14 @@ try {
         assert.equal(metadata, null);
         metadata = frame.payload.HarmosVariant.value.field0;
         assert.equal(metadata.artifactId, process.env.DOKIME_TEST_ARTIFACT_ID);
-        assert.equal(metadata.sizeBytes, 150000n);
+        assert.equal(metadata.sizeBytes, 1200000n);
         break;
       case "Chunk": {
         assert.notEqual(metadata, null);
         const chunk = frame.payload.HarmosVariant.value.field0;
         assert.equal(chunk.offset, offset);
-        assert.ok(chunk.data.length > 0 && chunk.data.length <= 65536);
+        // A download chunk is at most half the fixture server's 1 MiB local message budget.
+        assert.ok(chunk.data.length > 0 && chunk.data.length <= 512 * 1024);
         offset += BigInt(chunk.data.length);
         received.push(chunk.data);
         break;
@@ -164,9 +163,10 @@ try {
   }
   // Reaching iterator EOF also proves an OK final gRPC status after completion.
   assert.equal(complete, true);
+  assert.ok(received.length > 1, "the artifact spans several contiguous chunks");
   const content = Buffer.concat(received);
   assert.equal(createHash("sha256").update(content).digest("hex"), metadata.sha256);
-  assert.deepEqual(content, Buffer.from(Array.from({ length: 150000 }, (_, i) => i % 251)));
+  assert.deepEqual(content, Buffer.from(Array.from({ length: 1200000 }, (_, i) => i % 251)));
   const values = create(value.Row19Schema, {
     nodes: [
       { kind: { HarmosVariant: { case: "Object", value: { field0: { fields: [
@@ -184,14 +184,14 @@ try {
     new Uint8Array(await invoke("fixture_value", toBinary(value.Row19Schema, values))),
   );
   assert.deepEqual(valueReply, values);
-  const admission = create(execution.Row7Schema, {
+  const admission = create(execution.Row9Schema, {
     cursor: { position: 18446744073709551615n },
     acceptedAt: { seconds: -1n, nanos: 999999999 },
   });
   const admissionReply = fromBinary(
-    execution.Row7Schema,
+    execution.Row9Schema,
     new Uint8Array(
-      await invoke("fixture_admission", toBinary(execution.Row7Schema, admission)),
+      await invoke("fixture_admission", toBinary(execution.Row9Schema, admission)),
     ),
   );
   assert.deepEqual(admissionReply, admission);

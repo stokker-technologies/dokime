@@ -30,6 +30,7 @@ use crate::model::values::wire::ValueError;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Authored identity and description of a Dokime object.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -39,9 +40,11 @@ pub struct Metadata {
     pub label: String,
     pub description: Option<String>,
     pub tags: Vec<String>,
+
     // In key order; keys are unique.
     #[row(description = "In key order; keys are unique.")]
     pub attributes: Vec<MetadataAttribute>,
+
     pub created_at: Option<Timestamp>,
     pub updated_at: Option<Timestamp>,
 }
@@ -94,6 +97,7 @@ pub struct TraceabilitySnapshot {
     pub scope: Option<EvidenceScope>,
     pub created_at: Option<Timestamp>,
     pub entries: Vec<TraceabilityEntry>,
+
     // What this group is, when something said so. A template states its
     // traceability as labelled sections and a section is a group, so the label
     // travels with it; the groups the runtime derives on its own carry none.
@@ -109,6 +113,7 @@ pub struct TraceabilityEntry {
     pub metadata: Option<Metadata>,
     pub value: Option<Value>,
     pub source: Option<String>,
+
     // The unit the value is stated in, for a value that has one.
     #[row(description = "The unit the value is stated in, for a value that has one.")]
     pub unit: Option<String>,
@@ -129,14 +134,18 @@ pub struct Diagnostic {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataError {
     #[error("metadata identifier is invalid")]
     Identifier,
+
     #[error("metadata attribute is missing or repeated")]
     Attribute,
+
     #[error("metadata timestamp is out of range")]
     Timestamp,
+
     #[error(transparent)]
     Value(#[from] ValueError),
 }
@@ -164,6 +173,7 @@ pub enum EvidenceOriginKind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<&crate::model::identity::Metadata> for Metadata {
     fn from(metadata: &crate::model::identity::Metadata) -> Self {
         Self {

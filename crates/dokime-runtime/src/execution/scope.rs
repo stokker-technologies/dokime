@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,13 +26,16 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ExecutionScope {
     #[row(description = "The host's token for the execution attempt.")]
     pub execution: String,
+
     #[row(description = "The stage inside it: a step or criterion id, or empty for the run itself.")]
     pub stage: String,
+
     #[row(description = "The operation being served, or empty where the run itself is the call.")]
     pub route: String,
 }
@@ -44,6 +48,7 @@ pub struct IdempotencyKey(String);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::operations::ContextValue for ExecutionScope {
     const KEY: &'static str = "dokime.execution.scope";
 }

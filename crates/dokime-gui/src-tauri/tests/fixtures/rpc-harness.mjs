@@ -16,7 +16,8 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { createInterface } from "node:readline";
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { transformWithOxc } from "vite";
@@ -37,11 +38,26 @@ import { transformWithOxc } from "vite";
 
 export async function openHarness() {
   const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-  const generated = resolve(gui, ".generated");
+  const generated = resolve(gui, "../../target/generated/typescript");
   assert.ok(existsSync(generated), `${generated} is missing; run \`mise run prepare:contracts\``);
-  const cache = resolve(gui, "node_modules/.cache");
-  mkdirSync(cache, { recursive: true });
-  const temporary = mkdtempSync(resolve(cache, "dokime-rpc-interop-"));
+  const owner = spawn("uv", ["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.fixture"], {
+    cwd: resolve(gui, "../.."),
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+  const stopped = new Promise((resolve, reject) => {
+    owner.once("error", reject);
+    owner.once("exit", (code, signal) => {
+      if (code === 0) resolve();
+      else reject(new Error(`Temporary fixture owner exited with ${code ?? signal}`));
+    });
+  });
+  const readiness = createInterface({ input: owner.stdout });
+  const temporary = await Promise.race([
+    new Promise((resolve) => readiness.once("line", resolve)),
+    stopped.then(() => { throw new Error("Temporary fixture owner exited before readiness"); }),
+  ]);
+  readiness.close();
+  writeFileSync(resolve(temporary, "package.json"), JSON.stringify({ type: "module" }));
   const lines = createInterface({ input: process.stdin });
   const pending = new Map();
   const callbacks = new Map();
@@ -97,7 +113,12 @@ export async function openHarness() {
         const path = relative(dirname(destination), target).split(sep).join("/");
         specifier = path.startsWith(".") ? path : `./${path}`;
       }
-      if (!specifier.startsWith("./") && !specifier.startsWith("../")) return match;
+      if (specifier.startsWith("@generated/")) {
+        const target = resolve(temporary, "canonical", specifier.slice("@generated/".length));
+        const path = relative(dirname(destination), target).split(sep).join("/");
+        specifier = path.startsWith(".") ? path : `./${path}`;
+      }
+      if (!specifier.startsWith("./") && !specifier.startsWith("../")) return `${prefix}${import.meta.resolve(specifier)}${suffix}`;
       const basename = specifier.slice(specifier.lastIndexOf("/") + 1);
       const extension = basename.includes(".") ? "" : ".js";
       return `${prefix}${specifier}${extension}${suffix}`;
@@ -123,13 +144,16 @@ export async function openHarness() {
     }
   }
   const rpc = resolve(temporary, "src/lib/rpc");
-  const canonical = resolve(temporary, ".generated");
+  const canonical = resolve(temporary, "canonical");
   await compile(resolve(gui, "src/lib/rpc"), rpc);
   await compile(generated, canonical);
-  const uiMode = resolve(temporary, "src/lib/ui-mode.js");
-  const uiInput = resolve(gui, "src/lib/ui-mode.ts");
-  const uiOutput = await transpile(readFileSync(uiInput, "utf8"), uiInput);
-  writeFileSync(uiMode, resolvableSpecifiers(uiOutput, uiMode));
+  // The transport's runtime imports outside `src/lib/rpc`; type-only imports erase.
+  for (const module of ["src/lib/ui-mode", "src/lib/desktop/stopping"]) {
+    const input = resolve(gui, `${module}.ts`);
+    const output = resolve(temporary, `${module}.js`);
+    mkdirSync(dirname(output), { recursive: true });
+    writeFileSync(output, resolvableSpecifiers(await transpile(readFileSync(input, "utf8"), input), output));
+  }
   return {
     invoke,
     load: (path) => import(pathToFileURL(resolve(rpc, path))),
@@ -142,7 +166,8 @@ export async function openHarness() {
       process.stdout.end();
       lines.close();
       await reading.catch(() => undefined);
-      rmSync(temporary, { recursive: true, force: true });
+      owner.stdin.end();
+      await stopped;
     },
   };
 }

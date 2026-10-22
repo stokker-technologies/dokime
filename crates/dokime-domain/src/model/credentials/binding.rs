@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
 /* === Constants === */
@@ -26,6 +28,7 @@ use serde::Serialize;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RedactedCredentialBinding {
     pub credential_id: String,
@@ -34,11 +37,13 @@ pub struct RedactedCredentialBinding {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialBackendKind {
     #[default]
     OsKeyring,
+
     Memory,
     LocalFile,
 }

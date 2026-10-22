@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,6 +34,7 @@ use dokime_domain::operations::Endpoint;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub async fn content_follow_execution_file(
         &self, message: contracts::content::FollowExecutionFile,
@@ -168,6 +170,12 @@ impl Client {
         self.download::<contracts::content::DownloadArtifact>(contracts::content::DownloadArtifact::PATH, message).await
     }
 
+    pub async fn content_download_evidence(
+        &self, message: contracts::content::DownloadEvidence,
+    ) -> Result<ResponseStream<dokime_domain::model::exports::EvidenceExportFrame>> {
+        self.download::<contracts::content::DownloadEvidence>(contracts::content::DownloadEvidence::PATH, message).await
+    }
+
     pub async fn content_upload_artifact(
         &self, message: impl tokio_stream::Stream<Item = dokime_domain::model::content::wire::UploadArtifactFrame> + Send + 'static,
     ) -> Result<dokime_domain::model::content::wire::ArtifactMetadata> {
@@ -220,13 +228,6 @@ impl Client {
         &self, message: contracts::execution::ListExecutionSteps,
     ) -> Result<dokime_domain::model::execution::wire::ListExecutionStepsReply> {
         let reply = self.unary::<contracts::execution::ListExecutionSteps>(contracts::execution::ListExecutionSteps::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
-    pub async fn execution_list_step_criteria(
-        &self, message: contracts::execution::ListStepCriteria,
-    ) -> Result<dokime_domain::model::execution::wire::ListStepCriteriaReply> {
-        let reply = self.unary::<contracts::execution::ListStepCriteria>(contracts::execution::ListStepCriteria::PATH, message).await?;
         super::transport::value(reply)
     }
 
@@ -302,31 +303,17 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_append_planned_cases(
-        &self, message: contracts::execution::AppendPlannedCases,
-    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
-        let reply = self.unary::<contracts::execution::AppendPlannedCases>(contracts::execution::AppendPlannedCases::PATH, message).await?;
+    pub async fn execution_append_executions(
+        &self, message: contracts::execution::AppendExecutions,
+    ) -> Result<dokime_domain::model::execution::wire::AppendCasesReply> {
+        let reply = self.unary::<contracts::execution::AppendExecutions>(contracts::execution::AppendExecutions::PATH, message).await?;
         super::transport::value(reply)
     }
 
-    pub async fn execution_run_cycle(
-        &self, message: contracts::execution::RunCycle,
+    pub async fn execution_start_execution(
+        &self, message: contracts::execution::StartExecution,
     ) -> Result<dokime_domain::model::execution::wire::RunReply> {
-        let reply = self.unary::<contracts::execution::RunCycle>(contracts::execution::RunCycle::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
-    pub async fn execution_run_case(
-        &self, message: contracts::execution::RunCase,
-    ) -> Result<dokime_domain::model::execution::wire::RunReply> {
-        let reply = self.unary::<contracts::execution::RunCase>(contracts::execution::RunCase::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
-    pub async fn execution_run_execution(
-        &self, message: contracts::execution::RunExecution,
-    ) -> Result<dokime_domain::model::execution::wire::RunReply> {
-        let reply = self.unary::<contracts::execution::RunExecution>(contracts::execution::RunExecution::PATH, message).await?;
+        let reply = self.unary::<contracts::execution::StartExecution>(contracts::execution::StartExecution::PATH, message).await?;
         super::transport::value(reply)
     }
 
@@ -351,10 +338,17 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_get_run_request(
-        &self, message: contracts::execution::GetRunRequest,
-    ) -> Result<dokime_domain::model::execution::wire::RunRequestReceipt> {
-        let reply = self.unary::<contracts::execution::GetRunRequest>(contracts::execution::GetRunRequest::PATH, message).await?;
+    pub async fn execution_pause_cycle(
+        &self, message: contracts::execution::PauseCycle,
+    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+        let reply = self.unary::<contracts::execution::PauseCycle>(contracts::execution::PauseCycle::PATH, message).await?;
+        super::transport::value(reply)
+    }
+
+    pub async fn execution_resume_cycle(
+        &self, message: contracts::execution::ResumeCycle,
+    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
+        let reply = self.unary::<contracts::execution::ResumeCycle>(contracts::execution::ResumeCycle::PATH, message).await?;
         super::transport::value(reply)
     }
 
@@ -374,38 +368,10 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_pause_cycle(
-        &self, message: contracts::execution::PauseCycle,
-    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
-        let reply = self.unary::<contracts::execution::PauseCycle>(contracts::execution::PauseCycle::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
-    pub async fn execution_resume_cycle(
-        &self, message: contracts::execution::ResumeCycle,
-    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
-        let reply = self.unary::<contracts::execution::ResumeCycle>(contracts::execution::ResumeCycle::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
-    pub async fn execution_stop_cycle(
-        &self, message: contracts::execution::StopCycle,
-    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
-        let reply = self.unary::<contracts::execution::StopCycle>(contracts::execution::StopCycle::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
     pub async fn execution_delete_case(
         &self, message: contracts::execution::DeleteCase,
     ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         let reply = self.unary::<contracts::execution::DeleteCase>(contracts::execution::DeleteCase::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
-    pub async fn execution_schedule_case_rerun(
-        &self, message: contracts::execution::ScheduleCaseRerun,
-    ) -> Result<dokime_domain::model::execution::wire::ControlReply> {
-        let reply = self.unary::<contracts::execution::ScheduleCaseRerun>(contracts::execution::ScheduleCaseRerun::PATH, message).await?;
         super::transport::value(reply)
     }
 

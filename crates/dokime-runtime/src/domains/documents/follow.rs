@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+
 // Third Party Imports
 use harmos::{
     services::Fault,
@@ -21,6 +23,7 @@ use harmos::{
     services::Service,
     storage::{FileBatch, FileFollower, FilePhase, FileReference, StagedFile},
 };
+
 // Local Imports
 use super::saved::{SavedOutputFile, SavedOutputs};
 use crate::{
@@ -35,6 +38,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const SOURCE_POLL: Duration = Duration::from_millis(250);
 
 /* === Macros === */
@@ -42,6 +46,7 @@ const SOURCE_POLL: Duration = Duration::from_millis(250);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ExecutionFileFollower {
     reader: FileFollower,
     source: Source,
@@ -61,6 +66,7 @@ struct Position {
 }
 
 /* === Enums === */
+
 enum Source {
     Live(LiveOutput),
     Saved(Box<SavedOutputFile>),
@@ -70,6 +76,7 @@ enum Source {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn follow_execution_file(
         &self, execution: &TestExecutionId, path: &str, expected: Option<&dokime_domain::model::content::wire::ExecutionFileIdentity>,
@@ -365,6 +372,7 @@ impl ExecutionFileFollower {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn metadata(
     staged: &StagedFile, execution: &TestExecutionId, path: &str, media: &str, position: Position,
 ) -> dokime_domain::model::content::wire::ExecutionFileFollowMetadata {
@@ -383,6 +391,7 @@ fn metadata(
         offset,
     }
 }
+
 fn kind(path: &str, media: &str) -> dokime_domain::model::content::wire::ExecutionFileKind {
     use crate::ExecutionFileContentKind as Kind;
     match Kind::from_metadata(path, Some(media)) {
@@ -392,9 +401,11 @@ fn kind(path: &str, media: &str) -> dokime_domain::model::content::wire::Executi
         Kind::Unknown => dokime_domain::model::content::wire::ExecutionFileKind::Unknown,
     }
 }
+
 fn history(value: &harmos::storage::StoreHistory) -> checkpoint::StoreHistory {
     checkpoint::StoreHistory { store: value.store.as_str().to_owned(), epoch: value.epoch.as_str().to_owned() }
 }
+
 fn hex(value: &[u8; 32]) -> String {
     const ALPHABET: &[u8; 16] = b"0123456789abcdef";
     let mut text = String::with_capacity(64);
@@ -404,9 +415,11 @@ fn hex(value: &[u8; 32]) -> String {
     }
     text
 }
+
 fn refused(reason: &'static str) -> harmos::Error {
     harmos::Error::InvalidInput { field: "execution file follow", reason }
 }
+
 fn invalid(reason: &'static str) -> Error {
     refused(reason).into()
 }

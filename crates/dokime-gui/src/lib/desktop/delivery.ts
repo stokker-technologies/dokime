@@ -28,13 +28,13 @@ import type { RpcError } from "./rpc";
  * support archive does: it is assembled in the webview from
  * `Backend.CollectDiagnostics` frames and so has no artifact, execution-file or
  * cycle id to pull it by, so `diagnostics_bundle` crosses inline under the
- * same 32 MiB bound as `html_report`. Its extension is required rather than
+ * 32 MiB document bound. Its extension is required rather than
  * appended: a `diagnostics_bundle` filename must already name a `.zip`.
  * `json_document` is JSON assembled in the webview, such as an execution's
  * traceability; it crosses inline under the same bound, and the shell appends
- * `.json` when the name lacks it.
+ * `.json` when the name lacks it. `html_report` uses a verified native pull.
  */
-export type DesktopSaveKind = "html_report" | "diagnostics_bundle" | "json_document" | "artifact";
+export type DesktopSaveKind = "html_report" | "diagnostics_bundle" | "json_document" | "remote_key" | "public_certificate" | "artifact";
 
 /** A verified document handed to the desktop shell for bounded native delivery. */
 export type DesktopSaveDocument = {
@@ -50,7 +50,16 @@ export type DesktopSaveDocument = {
  */
 export type ArtifactSource =
   | { kind: "artifact"; artifactId: string }
-  | { kind: "execution_file"; executionId: string; relativePath: string };
+  | { kind: "execution_file"; executionId: string; relativePath: string }
+  | { kind: "execution_evidence"; executionId: string }
+  | { kind: "cycle_evidence"; cycleId: string }
+  | { kind: "cycle_report"; cycleId: string }
+  | { kind: "execution_report"; executionId: string };
+
+export type Delivered = {
+  path: string;
+  origin: "current" | "sealed" | null;
+};
 
 /** Whether a verified pull is handed to the save dialog or the OS opener. */
 export type DeliveryAction = "save" | "open";

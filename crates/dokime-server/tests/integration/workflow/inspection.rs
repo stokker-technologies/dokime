@@ -12,14 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use {dokime_runtime::Value, dokime_runtime::domains::execution::authoring::SidecarStepContext};
+use dokime::domain::model;
+use {dokime::Value, dokime::domains::execution::authoring::SidecarStepContext};
 
 /* === Constants === */
 
@@ -98,13 +99,8 @@ async fn inspection_separates_outputs() {
     let selected = owner.handle().cycles().await.remove(0).test_executions.remove(0).test_execution_id.to_string();
     for unknown_variant in [false, true] {
         let refused = client
-            .invalid_enum::<contracts::execution::RunExecution, model::execution::wire::ExecutionMode>(
-                authenticated(contracts::execution::RunExecution {
-                    mode: Default::default(),
-                    execution_id: selected.clone(),
-                    idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
-                    context: None,
-                }),
+            .invalid_enum::<contracts::execution::StartExecution, model::execution::wire::ExecutionMode>(
+                authenticated(contracts::execution::StartExecution { mode: Default::default(), execution_id: selected.clone() }),
                 "mode",
                 unknown_variant,
             )
@@ -114,11 +110,9 @@ async fn inspection_separates_outputs() {
         assert_eq!(owner.handle().cycles().await.remove(0).test_executions.remove(0).started_at, None);
     }
     client
-        .unary::<contracts::execution::RunExecution>(authenticated(contracts::execution::RunExecution {
+        .unary::<contracts::execution::StartExecution>(authenticated(contracts::execution::StartExecution {
             mode: Default::default(),
             execution_id: selected,
-            idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
-            context: None,
         }))
         .await
         .unwrap();
@@ -290,7 +284,8 @@ async fn inspection_separates_outputs() {
             .await
             .unwrap()
             .into_inner();
-        if final_detail.finished_at.is_some() {
+        if final_detail.summary.as_ref().is_some_and(|summary| summary.sealed) {
+            assert!(final_detail.finished_at.is_some());
             assert!(final_detail.controls.is_none());
             assert_eq!(final_detail.summary.unwrap().status, model::execution::wire::ExecutionStatus::Passed);
             assert_eq!(final_detail.result.unwrap().status, model::execution::wire::ResultStatus::Passed);
@@ -314,10 +309,10 @@ async fn planned_params_limit() {
     suite.test_case_templates[0].parameters = (0..257)
         .map(|index| {
             let mut parameter = prototype.clone();
-            parameter.parameter_id = dokime_runtime::model::identity::new_id::<dokime_runtime::ParameterId>();
+            parameter.parameter_id = dokime::model::identity::new_id::<dokime::ParameterId>();
             parameter.metadata = support::metadata(&format!("p{index:03}"), "Parameter");
-            parameter.expression = dokime_runtime::definition::ParameterExpr::Literal { value: Value::Integer(index) };
-            parameter.value_type = dokime_runtime::ValueType::Integer;
+            parameter.expression = dokime::definition::ParameterExpr::Literal { value: Value::Integer(index) };
+            parameter.value_type = dokime::ValueType::Integer;
             parameter
         })
         .collect();

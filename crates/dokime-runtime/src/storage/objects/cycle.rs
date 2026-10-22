@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
 
@@ -44,6 +45,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Cycle {
@@ -51,13 +53,14 @@ pub struct Cycle {
     cycle_id: String,
     session_id: Option<String>,
     metadata: Option<metadata::Row>,
+    phase: dokime_domain::model::execution::result::CyclePhase,
     lifecycle: String,
     created_at: String,
     started_at: Option<String>,
     updated_at: String,
     execution_ids: Vec<String>,
     records: Option<annotations::Set>,
-    continue_on_failure: bool,
+    continue_automatically: bool,
     result: Option<Summary>,
 }
 
@@ -89,13 +92,14 @@ struct Input<'a> {
     test_cycle_id: &'a TestCycleId,
     session_id: &'a Option<SessionId>,
     metadata: &'a dokime_domain::model::identity::Metadata,
+    phase: dokime_domain::model::execution::result::CyclePhase,
     lifecycle: CycleStatus,
     created_at: &'a Timestamp,
     started_at: &'a Option<Timestamp>,
     updated_at: &'a Timestamp,
     execution_ids: &'a [TestExecutionId],
     records: &'a dokime_domain::state::records::set::TestRecordSet,
-    continue_on_failure: bool,
+    continue_automatically: bool,
     result: &'a Option<ResultSummary>,
 }
 
@@ -104,6 +108,7 @@ struct Input<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> From<&'a TestCycle> for Input<'a> {
     fn from(source: &'a TestCycle) -> Self {
         Self {
@@ -116,12 +121,14 @@ impl<'a> From<&'a TestCycle> for Input<'a> {
             updated_at: &source.updated_at,
             records: &source.records,
             result: &source.result,
+            phase: source.phase,
             lifecycle: source.lifecycle,
             execution_ids: &source.execution_ids,
-            continue_on_failure: source.continue_on_failure,
+            continue_automatically: source.continue_automatically,
         }
     }
 }
+
 impl<'a> Input<'a> {
     fn view(source: &'a CycleView, ids: &'a [TestExecutionId]) -> Result<Self> {
         if !source.test_executions.is_empty() {
@@ -151,9 +158,10 @@ impl<'a> Input<'a> {
             updated_at: &source.updated_at,
             records: &source.records,
             result: &source.result,
+            phase: source.phase,
             lifecycle: source.lifecycle,
             execution_ids: ids,
-            continue_on_failure: source.continue_on_failure,
+            continue_automatically: source.continue_automatically,
         }
     }
 }
@@ -163,6 +171,7 @@ impl Identified for Cycle {
         (DefinitionId::new("dokime.object.cycle"), 1)
     }
 }
+
 impl StoredObject for Cycle {
     type Key = str;
     const RETENTION: ObjectRetention = ObjectRetention::UntilReleased;
@@ -170,6 +179,7 @@ impl StoredObject for Cycle {
         &self.cycle_id
     }
 }
+
 impl Cycle {
     pub(crate) fn check_report_source<'a>(
         &self, owner: &str, finalized_at: Option<&str>, mut members: impl Iterator<Item = Result<&'a str>>,
@@ -287,17 +297,19 @@ impl Cycle {
             cycle_id: source.test_cycle_id.as_str().to_owned(),
             session_id: source.session_id.as_ref().map(|id| id.as_str().to_owned()),
             metadata: Some(metadata),
+            phase: source.phase,
             lifecycle: lifecycle_text(&source.lifecycle).to_owned(),
             created_at: source.created_at.as_str().to_owned(),
             started_at: source.started_at.as_ref().map(|time| time.as_str().to_owned()),
             updated_at: source.updated_at.as_str().to_owned(),
             execution_ids,
             records: Some(records),
-            continue_on_failure: source.continue_on_failure,
+            continue_automatically: source.continue_automatically,
             result: source.result.as_ref().map(Summary::from),
         })
     }
 }
+
 impl TryFrom<Cycle> for TestCycle {
     type Error = Error;
 
@@ -342,13 +354,14 @@ impl TryFrom<Cycle> for TestCycle {
             test_cycle_id: TestCycleId::from_uuid(row.cycle_id)?,
             session_id: row.session_id.map(SessionId::from_uuid).transpose()?,
             metadata: row.metadata.ok_or(Error::Invalid("cycle metadata is missing"))?.try_into()?,
+            phase: row.phase,
             lifecycle,
             created_at,
             started_at,
             updated_at,
             execution_ids,
             records: row.records.ok_or(Error::Invalid("cycle record ownership is missing"))?.restore_owned()?,
-            continue_on_failure: row.continue_on_failure,
+            continue_automatically: row.continue_automatically,
             result: row.result.map(TryInto::try_into).transpose()?,
         };
         if let Some(saved) = &restored.saved {
@@ -374,16 +387,6 @@ impl From<&ResultSummary> for Summary {
             blocked: value.blocked,
             skipped: value.skipped,
         }
-    }
-}
-
-fn result_status_text(value: &ResultStatus) -> &'static str {
-    match value {
-        ResultStatus::Pending => "pending",
-        ResultStatus::Passed => "passed",
-        ResultStatus::Failed => "failed",
-        ResultStatus::Blocked => "blocked",
-        ResultStatus::Cancelled => "cancelled",
     }
 }
 
@@ -525,6 +528,7 @@ impl Cycle {
 }
 
 /* === Public Functions === */
+
 pub async fn read(storage: &Manager, id: &TestCycleId, version: ObjectVersion) -> Result<Option<ObjectRevision<TestCycle>>> {
     let Some(stored) = storage.read_object::<Cycle>(id.as_str(), version).await? else {
         return Ok(None);
@@ -533,6 +537,17 @@ pub async fn read(storage: &Manager, id: &TestCycleId, version: ObjectVersion) -
 }
 
 /* === Private Functions === */
+
+fn result_status_text(value: &ResultStatus) -> &'static str {
+    match value {
+        ResultStatus::Pending => "pending",
+        ResultStatus::Passed => "passed",
+        ResultStatus::Failed => "failed",
+        ResultStatus::Blocked => "blocked",
+        ResultStatus::Cancelled => "cancelled",
+    }
+}
+
 fn lifecycle_text(value: &CycleStatus) -> &'static str {
     match value {
         CycleStatus::Ready => "ready",

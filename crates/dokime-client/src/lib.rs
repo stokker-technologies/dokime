@@ -8,15 +8,18 @@
  */
 
 /* === Modules === */
+
 mod catalog;
 pub mod credentials;
 mod cycle;
 mod discovery;
 mod download;
 pub mod dynamic;
+mod error;
 mod execution;
 mod follow;
 pub mod operations;
+mod plugins;
 pub mod profiles;
 mod raw;
 mod rpc;
@@ -26,16 +29,20 @@ mod transport;
 mod upload;
 
 /* === Re-Exports === */
+
 pub use catalog::template_suite;
 pub use cycle::TestCycleHandle;
 pub use dokime_domain::operations as contracts;
+pub use download::validate_destination as validate_download_destination;
 pub use download::{Download, Error as DownloadError};
-pub use execution::{ExecutionRequestHandle, TestExecutionHandle};
+pub use error::Error;
+pub use execution::{RunCallbacks, RunOptions, TestExecutionHandle};
 pub use follow::FileResume;
+pub use plugins::plugin_bundle_digest;
 pub use raw::RawStreaming;
 pub use stream::{RequestStream, ResponseStream};
 pub use target::Target;
-pub use tonic::Code as RpcCode;
+pub use tonic::{Code as RpcCode, Status as RpcStatus};
 pub use upload::Error as UploadError;
 
 /* === Imports === */
@@ -60,14 +67,17 @@ use zeroize::Zeroizing;
 // Local Imports
 
 /* === Constants === */
+
 const MAX_MESSAGE_BYTES: u64 = 16 * 1024 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Client {
     inner: Arc<Inner>,
@@ -100,40 +110,13 @@ pub struct Limits {
     pub max_request_bytes: u64,
     pub max_response_bytes: u64,
     pub max_content_bytes: Option<u64>,
+    pub max_evidence_bytes: Option<u64>,
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,
     pub max_stream_buffer_items: Option<u32>,
 }
 
 /* === Enums === */
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("invalid client target: {message}")]
-    InvalidTarget { message: &'static str },
-    #[error("a valid bearer token is required")]
-    AuthenticationRequired,
-    #[error("backend transport failed")]
-    Transport(#[source] tonic::transport::Error),
-    #[error("backend RPC failed")]
-    Rpc(#[source] tonic::Status),
-    #[error("backend API is incompatible")]
-    IncompatibleApi,
-    #[error("backend identity changed")]
-    IdentityChanged,
-    #[error("backend is not ready")]
-    BackendUnavailable,
-    #[error("client worker failed")]
-    Task(#[source] tokio::task::JoinError),
-    #[error("execution admission was rejected: {rejection:?}")]
-    ExecutionRejected { rejection: dokime_domain::model::execution::wire::Rejection },
-    #[error("request wait deadline elapsed")]
-    WaitTimedOut {
-        #[source]
-        source: tokio::time::error::Elapsed,
-    },
-    #[error("client is closed")]
-    Closed,
-}
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -151,6 +134,7 @@ pub enum ConnectionFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Error {
     pub fn connection_failure(&self) -> ConnectionFailure {
         use ConnectionFailure as Failure;
@@ -175,9 +159,6 @@ impl Error {
 
 impl Client {
     pub async fn connect(target: Target, token: Option<&str>, expected_id: Option<&str>) -> Result<Self> {
-        if target.is_remote() && token.is_none() {
-            return Err(Error::AuthenticationRequired);
-        }
         let authorization = authorization(token)?;
         let channel = target.connect().await?;
         let backend = discovery::discover(channel.clone(), authorization.as_ref(), expected_id).await?;
@@ -295,6 +276,7 @@ impl Drop for Inner {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_observed_cursor(epoch: &str, cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>) -> Result<()> {
     validate_observed_epoch(epoch, cursor.map(|cursor| cursor.epoch.as_str()))
 }

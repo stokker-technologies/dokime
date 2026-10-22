@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use harmos::plugin::inventory::{CarrierSection, Declaration};
 use harmos_packaging::bundle::{Bundle, Identity, Limits};
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::PluginError;
 use crate::domains::installed_plugins::contributions::decode_registrations;
@@ -29,6 +32,7 @@ use crate::domains::installed_plugins::contributions::decode_registrations;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginMetadata {
     pub identity: PluginIdentity,
@@ -57,6 +61,7 @@ pub struct PluginEnvironmentReference {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<&Identity> for PluginIdentity {
     fn from(identity: &Identity) -> Self {
         Self { name: identity.name.clone(), version: identity.version.to_string(), description: identity.description.clone() }
@@ -64,6 +69,7 @@ impl From<&Identity> for PluginIdentity {
 }
 
 /* === Public Functions === */
+
 pub fn inspect(bytes: &[u8]) -> Result<(Bundle, PluginMetadata), PluginError> {
     let bundle = Bundle::inspect(bytes, Limits::default()).map_err(|error| PluginError::Invalid(error.to_string()))?;
     let mut owners = BTreeSet::new();
@@ -144,9 +150,10 @@ pub(crate) fn guest_refused(path: &str) -> PluginError {
     PluginError::Invalid(format!("Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"))
 }
 
-/* === Private Functions === */
 pub(crate) fn native(declaration: &Declaration) -> bool {
     matches!(declaration.carrier, CarrierSection::Sidecar { .. })
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

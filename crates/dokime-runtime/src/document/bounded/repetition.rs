@@ -32,6 +32,7 @@ use dokime_domain::model::identity::Metadata;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Selection {
     depth: usize,
@@ -46,6 +47,7 @@ struct Selection {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn memory(definition: &DocumentDefinition, evidence: Evidence<'_>, constructed: usize) -> usize {
     let mut selected = Selection::default();
     inspect(&definition.layout.nodes, evidence, 0, &mut selected);
@@ -84,6 +86,7 @@ pub(super) fn memory(definition: &DocumentDefinition, evidence: Evidence<'_>, co
 }
 
 /* === Private Functions === */
+
 fn inspect(nodes: &[DocumentNode], evidence: Evidence<'_>, depth: usize, selected: &mut Selection) {
     for node in nodes {
         let DocumentNode::Section(section) = node else {

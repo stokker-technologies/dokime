@@ -41,7 +41,7 @@ const MAX_RETAINED_MARKERS = 500;
 
 /* === Types === */
 
-export type LivePlotStatus = "idle" | "loading" | "live" | "stale" | "reconnecting" | "error";
+export type LivePlotStatus = "idle" | "loading" | "waiting" | "live" | "stale" | "reconnecting" | "error";
 
 export type LivePlotState = {
   /** The retained frame the renderer draws. */
@@ -55,6 +55,10 @@ export type LivePlotState = {
   droppedBatches: number;
   /** A window, zoom or plot change asked for summaries not yet delivered. */
   summaryInFlight: boolean;
+  /** When the watch first said this plot is subscribed and reading, in epoch ms. */
+  waitingSince?: number | null;
+  /** When the watch last said so; each keepalive moves it and re-renders the wait. */
+  heardAt?: number | null;
 };
 
 export type LivePlotStateMap = Record<string, LivePlotState>;
@@ -73,7 +77,38 @@ export function emptyLivePlotState(): LivePlotState {
     error: null,
     droppedBatches: 0,
     summaryInFlight: false,
+    waitingSince: null,
+    heardAt: null,
   };
+}
+
+/**
+ * A plot after the watch's pending notice at `now`: still without a frame,
+ * it waits quietly, counting from the first notice; a plot that already draws
+ * a frame, or reports an error, is left as it is.
+ */
+export function markPlotPending(current: LivePlotState, now: number): LivePlotState {
+  if (current.payload || current.status === "error") return current;
+  return { ...current, status: "waiting", error: null, waitingSince: current.waitingSince ?? now, heardAt: now };
+}
+
+/**
+ * The plots after the watch's pending notice for `plotId`. Only a plot of this
+ * watch moves; a plot it no longer requests is left out of the map.
+ */
+export function applyPendingNotice(current: LivePlotStateMap, plotId: string, now: number): LivePlotStateMap {
+  const plot = current[plotId];
+  if (!plot) return current;
+  const next = markPlotPending(plot, now);
+  return next === plot ? current : { ...current, [plotId]: next };
+}
+
+/** The quiet wait a pending plot shows, with how long it has waited. */
+export function plotWaitingLabel(state: Pick<LivePlotState, "waitingSince" | "heardAt">): string {
+  const since = state.waitingSince ?? null;
+  const heard = state.heardAt ?? null;
+  const seconds = since !== null && heard !== null ? Math.max(0, Math.round((heard - since) / 1_000)) : 0;
+  return `Waiting For Data \u00b7 ${seconds} s`;
 }
 
 /** One plot's state after a batch of its stream messages, in arrival order. */
@@ -113,6 +148,8 @@ export function applyPlotMessages(
       error: null,
       droppedBatches: next.droppedBatches,
       summaryInFlight: summaryInFlight("delivered"),
+      waitingSince: null,
+      heardAt: null,
     };
   }
   return next;

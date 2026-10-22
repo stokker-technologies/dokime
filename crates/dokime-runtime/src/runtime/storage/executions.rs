@@ -29,7 +29,7 @@ use tokio::sync::Mutex;
 // Local Imports
 use crate::app::StateManager;
 use crate::installed_plugins::RuntimeAppearanceFrame;
-use crate::report::PreparedExecutionReport;
+use crate::report::{CapturedExecutionReportInput, PreparedExecutionReport};
 use crate::runtime::Error;
 use crate::runtime::Result;
 use crate::storage::Manager;
@@ -48,12 +48,15 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const MAX_ACTIVE_OWNERS: usize = 10_000;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 /* === Structs === */
+
 pub(crate) struct TailStop {
     pub(crate) lease: Mutex<Option<crate::services::Lease>>,
 }
@@ -71,6 +74,11 @@ pub(crate) struct ExecutionStorage {
     pub(super) cycle_reports:
         Mutex<BTreeMap<dokime_domain::model::identity::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>>,
     pub(super) active: Mutex<BTreeMap<TestExecutionId, Arc<Mutex<Acquisition>>>>,
+
+    // Scopes Of Owners Still Admitting Evidence; Telemetry Routes Through It Without Locking Each Owner.
+    pub(super) open_scopes: Arc<std::sync::Mutex<BTreeMap<TestExecutionId, dokime_domain::model::execution::RecordScope>>>,
+
+    pub(super) codecs: crate::storage::telemetry::CodecCache,
     pub(crate) tail_stops: Mutex<BTreeMap<String, Arc<TailStop>>>,
     pub(crate) captures: super::captures::Captures,
 }
@@ -98,6 +106,8 @@ pub(crate) struct Acquisition {
 pub(super) struct CycleMemberContext {
     pub(super) context: FileReference,
     pub(super) appearance: RuntimeAppearanceFrame,
+    // The Materialized Final Report Input, Reused By The Cycle Report Instead Of Re-Querying Evidence.
+    pub(super) input: Arc<CapturedExecutionReportInput>,
 }
 
 pub(crate) struct CaptureInputs {
@@ -120,6 +130,7 @@ struct PublishedReport {
     seal: Arc<ExecutionSeal>,
     inspection: super::execution::ExecutionView,
     appearance: RuntimeAppearanceFrame,
+    input: Arc<CapturedExecutionReportInput>,
 }
 
 /* === Enums === */
@@ -127,6 +138,7 @@ struct PublishedReport {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TailStopPreparation {
     pub(crate) fn into_entry(self, lease: crate::services::Lease) -> (String, Arc<TailStop>) {
         let stop = TailStop { lease: Mutex::new(Some(lease)) };
@@ -214,6 +226,8 @@ impl ExecutionStorage {
             cycle_save: Arc::new(Mutex::new(())),
             cycle_reports: Mutex::new(BTreeMap::new()),
             active: Mutex::new(BTreeMap::new()),
+            open_scopes: Default::default(),
+            codecs: Default::default(),
             tail_stops: Mutex::new(BTreeMap::new()),
             captures: Default::default(),
         })
@@ -228,6 +242,13 @@ impl ExecutionStorage {
         let owner = self.acquisition(id).await?;
         let acquisition = owner.lock().await;
         acquisition.execution.saved.clone()
+    }
+
+    // The Final Seal, Or The Seal Of A Final Report Published Ahead Of It.
+    pub(crate) async fn published_seal(&self, id: &TestExecutionId) -> Option<dokime_domain::model::execution::saved::ExecutionSeal> {
+        let owner = self.acquisition(id).await?;
+        let acquisition = owner.lock().await;
+        acquisition.execution.saved.clone().or_else(|| acquisition.published.as_ref().map(|published| (*published.seal).clone()))
     }
 
     pub(crate) async fn acquisition(&self, id: &TestExecutionId) -> Option<Arc<Mutex<Acquisition>>> {
@@ -252,6 +273,19 @@ impl ExecutionStorage {
             return Err(invalid("original cycle member differs from saved producer proof"));
         }
         Ok(Some((context.clone(), revision, acquisition.execution.clone())))
+    }
+
+    // The Final Report Input This Process Materialized For Exactly This Seal, If It Still Holds It.
+    pub(crate) async fn retained_member_input(&self, seal: &ExecutionSeal) -> Option<Arc<CapturedExecutionReportInput>> {
+        let id = &seal.source.execution.execution_id;
+        let owner = self.acquisition(id).await?;
+        let acquisition = owner.lock().await;
+        let input = match (&acquisition.cycle_context, &acquisition.published) {
+            (Some(context), _) if context.context == seal.source.context => context.input.clone(),
+            (_, Some(published)) if published.seal.source.context == seal.source.context => published.input.clone(),
+            _ => return None,
+        };
+        (input.final_report && input.execution_id == *id && input.evidence_through == seal.source.evidence_through).then_some(input)
     }
 
     pub(crate) async fn retained_report_view(&self, id: &TestExecutionId) -> Option<super::execution::ExecutionView> {
@@ -316,6 +350,7 @@ impl ExecutionStorage {
             return Err(invalid("report request differs from its persisted finalization boundary"));
         }
         let report_boundary = at.clone();
+        let open_scopes = self.open_scopes.clone();
         let operation = async move {
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
@@ -331,6 +366,7 @@ impl ExecutionStorage {
                 // Retain The Exact Input Before Closing Admission Or Awaiting A Save
                 acquisition.finalizing = Some(frozen.clone());
                 acquisition.finish_requested = true;
+                open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&acquisition.execution_id);
             }
             let frozen =
                 if final_report { acquisition.finalizing.as_ref().expect("original finalization retained").clone() } else { frozen };
@@ -482,14 +518,6 @@ impl ExecutionStorage {
         work.await
     }
 
-    pub(super) async fn has_final_report(&self, execution: &TestExecutionId) -> bool {
-        let Some(owner) = self.acquisition(execution).await else {
-            return false;
-        };
-        let acquisition = owner.lock().await;
-        acquisition.published.is_some() || acquisition.execution.saved.is_some()
-    }
-
     pub(crate) async fn published_final_report(
         &self, execution: &TestExecutionId, at: &StorageCursor,
     ) -> Result<Option<dokime_domain::model::reports::wire::MaterializedReport>> {
@@ -618,6 +646,10 @@ impl ExecutionStorage {
             let mut active = self.active.lock().await;
             match active.entry(id) {
                 std::collections::btree_map::Entry::Vacant(entry) => {
+                    self.open_scopes
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .insert(entry.key().clone(), execution.scope.clone());
                     entry.insert(owner.clone());
                     None
                 }
@@ -635,6 +667,7 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_report(
     acquisition: &Acquisition, inspection: &super::execution::ExecutionView, prepared: &PreparedExecutionReport,
 ) -> Result<()> {
@@ -699,7 +732,12 @@ async fn publish_final(
     .finish()
     .await?;
     let report = seal.report.clone();
-    acquisition.published = Some(PublishedReport { seal: Arc::new(seal), inspection, appearance: captured.context.appearance.clone() });
+    acquisition.published = Some(PublishedReport {
+        seal: Arc::new(seal),
+        inspection,
+        appearance: captured.context.appearance.clone(),
+        input: captured.clone(),
+    });
     Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
 }
 
@@ -752,7 +790,11 @@ fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionR
         && let Some(published) = &acquisition.published
     {
         let file = &acquisition.execution.saved.as_ref().expect("saved original seal").source.context;
-        acquisition.cycle_context = Some(Arc::new(CycleMemberContext { context: file.clone(), appearance: published.appearance.clone() }));
+        acquisition.cycle_context = Some(Arc::new(CycleMemberContext {
+            context: file.clone(),
+            appearance: published.appearance.clone(),
+            input: published.input.clone(),
+        }));
     }
     acquisition.published = None;
     acquisition.finalizing = None;

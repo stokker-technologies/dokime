@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+
 mod aggregate;
 
 /* === Re-Exports === */
+
 pub use aggregate::Aggregate;
 
 /* === Imports === */
@@ -20,10 +22,8 @@ pub use aggregate::Aggregate;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
-
 use crate::model::query::wire::*;
 
 /* === Constants === */
@@ -33,12 +33,16 @@ use crate::model::query::wire::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-// A zero limit means the server ceiling of 10,000 rows. Larger values are
-// clamped to it rather than rejected. `group_by` may be empty, which
-// aggregates the whole filtered selection into a single row. `aggregates` must
-// name at least one output.
 
 /* === Enums === */
+
+// A zero limit means the server ceiling of 10,000 rows. Larger values are
+
+// clamped to it rather than rejected. `group_by` may be empty, which
+
+// aggregates the whole filtered selection into a single row. `aggregates` must
+
+// name at least one output.
 
 #[harmos_domain::catalog]
 pub enum Operations {
@@ -48,9 +52,9 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for Aggregate {
     const PATH: &'static str = "/dokime.v1.Query/Aggregate";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

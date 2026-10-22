@@ -30,6 +30,7 @@ use dokime_domain::model::files::wire::LineMatcher;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 // The most matchers and markers one watch may carry together.
 pub const MAX_LINE_MATCHERS: usize = 32;
 
@@ -47,6 +48,7 @@ pub const MAX_LINE_BYTES: usize = 64 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default)]
 pub struct LineMatchers {
     rows: Vec<CompiledRow>,
@@ -69,6 +71,7 @@ pub struct LineBuffer {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum LineMatch {
     Row { storage_schema: harmos::schema::graph::Schema, stream: String, values: BTreeMap<String, Value> },
@@ -79,16 +82,22 @@ pub enum LineMatch {
 pub enum InvalidLineMatcher {
     #[error("a watch carries at most {MAX_LINE_MATCHERS} matchers and markers")]
     Count,
+
     #[error("pattern {index} must contain 1–{MAX_PATTERN_BYTES} bytes")]
     Shape { index: usize },
+
     #[error("pattern {index} is invalid: {reason}")]
     Pattern { index: usize, reason: String },
+
     #[error("matcher {index} schema is incompatible with its finite scalar captures")]
     Schema { index: usize },
+
     #[error("matcher {index} names no stream or no field")]
     Target { index: usize },
+
     #[error("matcher {index} field {field:?} has no named capture group or no kind")]
     Field { index: usize, field: String },
+
     #[error("marker {index} names no record type")]
     RecordType { index: usize },
 }
@@ -96,6 +105,7 @@ pub enum InvalidLineMatcher {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl LineMatchers {
     pub fn compile(matchers: &[LineMatcher], markers: &[LineMarker]) -> Result<Self, InvalidLineMatcher> {
         if matchers.len() + markers.len() > MAX_LINE_MATCHERS {
@@ -243,6 +253,7 @@ impl LineBuffer {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn pattern(index: usize, source: &str) -> Result<Regex, InvalidLineMatcher> {
     if source.is_empty() || source.len() > MAX_PATTERN_BYTES {
         return Err(InvalidLineMatcher::Shape { index });
@@ -269,6 +280,7 @@ fn read(text: &str, kind: LineFieldKind) -> Option<Value> {
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

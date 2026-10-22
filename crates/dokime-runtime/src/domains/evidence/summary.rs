@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
@@ -29,6 +32,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceSummaries {
     pub records: Vec<RecordSummary>,
@@ -58,6 +62,7 @@ pub struct TelemetryStreamSummary {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl EvidenceSummaries {
     pub fn from_records<'a>(
         records: impl IntoIterator<Item = &'a RecordEntry>, telemetry: impl IntoIterator<Item = &'a TelemetrySample>,

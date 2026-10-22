@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -21,6 +22,7 @@ use std::{
     slice, thread,
     time::Duration,
 };
+
 // Third Party Imports
 use windows::{
     Win32::{
@@ -41,10 +43,12 @@ use windows::{
     },
     core::GUID,
 };
+
 // Local Imports
 use crate::{Error, HostOptions, Result};
 
 /* === Constants === */
+
 const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 
 /* === Macros === */
@@ -52,6 +56,7 @@ const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct WifiLink {
     pub adapter: Option<String>,
@@ -97,6 +102,7 @@ struct WifiInterface {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl WifiLink {
     pub fn rssi_dbm_from_query(bytes: &[u8]) -> Option<f64> {
         let bytes = <[u8; 4]>::try_from(bytes.get(..4)?).ok()?;
@@ -223,6 +229,7 @@ impl WlanClient {
 }
 
 /* === Public Functions === */
+
 pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let client = WlanClient::open()?;
     let interfaces = client.interfaces()?;
@@ -311,6 +318,7 @@ pub fn scan_channel_occupancy(options: &HostOptions) -> Result<Vec<WifiChannelOc
 }
 
 /* === Private Functions === */
+
 fn select_interface(interfaces: &[WifiInterface], options: &HostOptions) -> Option<WifiInterface> {
     if let Some(adapter) = &options.wifi_adapter_name {
         let adapter = adapter.to_lowercase();

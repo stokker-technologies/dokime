@@ -19,7 +19,16 @@ include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/
 
 [features]
 default = ["native", "derive"]
-native = ["harmos/plugin-sidecar", "dep:globset", "dep:tokio", "dep:tokio-stream", "dep:tracing-subscriber", "dep:tracing-error"]
+native = [
+  "harmos/plugin-sidecar",
+  "dep:file-id",
+  "dep:globset",
+  "dep:tempfile",
+  "dep:tokio",
+  "dep:tokio-stream",
+  "dep:tracing-subscriber",
+  "dep:tracing-error",
+]
 derive = ["dep:dokime-macros"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [
@@ -32,7 +41,6 @@ host = [
   "dep:blake2",
   "dep:cssparser",
   "dep:dokime-host",
-  "dep:file-id",
   "dep:futures-util",
   "dep:keyring",
   "dep:rustls-platform-verifier",
@@ -40,7 +48,6 @@ host = [
   "dep:sha2",
   "dep:suppaftp",
   "dep:sysinfo",
-  "dep:tempfile",
   "dep:tokio",
   "dep:tokio-util",
   "dep:toml",
@@ -56,9 +63,9 @@ simulation = ["host", "harmos/simulation"]
 
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-host = { path = "../dokime-host", optional = true }
-dokime-macros = { path = "../dokime-macros", optional = true }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
+dokime-host = { version = "0.1.0", path = "../dokime-host", optional = true }
+dokime-macros = { version = "0.1.0", path = "../dokime-macros", optional = true }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "signal"] }

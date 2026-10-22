@@ -8,24 +8,29 @@
  */
 
 /* === Modules === */
+
 mod contract;
 mod errors;
 mod transport;
 
 /* === Re-Exports === */
+
 pub use contract::*;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     future::Future,
     sync::{Arc, Mutex},
 };
+
 // Third Party Imports
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
+
 // Local Imports
-use dokime_client::credentials::{KeyringStore, SecretStore};
+use dokime::client::credentials::{KeyringStore, SecretStore};
 
 /* === Constants === */
 
@@ -34,6 +39,7 @@ use dokime_client::credentials::{KeyringStore, SecretStore};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct ConnectionSession {
     inner: Arc<Mutex<SessionState>>,
@@ -51,7 +57,7 @@ struct SessionState {
 #[derive(Clone)]
 pub struct SessionLease {
     generation: String,
-    client: dokime_client::Client,
+    client: dokime::client::Client,
     cancellation: CancellationToken,
 }
 
@@ -60,6 +66,7 @@ pub struct SessionLease {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for ConnectionSession {
     fn default() -> Self {
         Self::with_credentials(Arc::new(KeyringStore))
@@ -101,6 +108,20 @@ impl ConnectionSession {
             return Err(ConnectionError::Superseded);
         }
         state.lease.clone().ok_or(ConnectionError::NotConnected)
+    }
+
+    // Keep A Final Native Side Effect Serialized With Generation Invalidation.
+    pub(crate) fn with_current<T>(&self, generation: &str, action: impl FnOnce() -> T) -> Result<T, ConnectionError> {
+        let state = self.inner.lock().expect("connection state poisoned");
+        if state.snapshot.generation != generation {
+            return Err(ConnectionError::Superseded);
+        }
+        if state.lease.is_none() {
+            return Err(ConnectionError::NotConnected);
+        }
+        let result = action();
+        drop(state);
+        Ok(result)
     }
 
     pub fn disconnect(&self) -> Result<ConnectionSnapshot, ConnectionError> {
@@ -166,7 +187,7 @@ impl ConnectionSession {
             }
             ConnectionCredentials::Bearer { token, remember } => (Some(Zeroizing::new(token)), remember),
         };
-        let client = dokime_client::Client::connect(target.inner.clone(), token.as_ref().map(|token| token.as_str()), expected_id)
+        let client = dokime::client::Client::connect(target.inner.clone(), token.as_ref().map(|token| token.as_str()), expected_id)
             .await
             .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
@@ -230,7 +251,7 @@ impl Drop for SessionState {
 }
 
 impl SessionLease {
-    pub(crate) fn client(&self) -> &dokime_client::Client {
+    pub(crate) fn client(&self) -> &dokime::client::Client {
         &self.client
     }
 

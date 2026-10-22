@@ -12,7 +12,9 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use harmos::{
     operations::Context,
@@ -22,6 +24,7 @@ use harmos::{
         query::{RowSlice, Source, StreamSelection, transform::Transform},
     },
 };
+
 // Local Imports
 use super::invalid;
 use crate::runtime::Result;
@@ -47,6 +50,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn plan(at: &StorageCursor, scope: &str, codec: &TypedCodec, transforms: Vec<Transform>) -> Result<Query> {
     Ok(Query {
         at: at.clone(),
@@ -98,6 +102,7 @@ pub(super) async fn streams(
 }
 
 /* === Private Functions === */
+
 fn sort(samples: &mut [TelemetrySample]) {
     samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
 }

@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{
     queries::RuntimeOverviewSnapshot,
@@ -33,6 +35,7 @@ use crate::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct RuntimeViewFrame {
     pub cursor: RuntimeCursor,
@@ -44,6 +47,7 @@ pub struct RuntimeViewFrame {
 pub struct RuntimeOverviewFrame {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell: Option<RuntimeOverviewSnapshot>,
+
     pub suites: usize,
     pub cycles: usize,
     pub executions: usize,
@@ -68,6 +72,7 @@ pub struct RuntimeListFrame {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RuntimeViewPayload {

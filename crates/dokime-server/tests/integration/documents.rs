@@ -12,18 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use model::documents::wire::DocumentFrameFrame as Frame;
 use {
-    dokime_runtime::Value, dokime_runtime::document::DocumentCard, dokime_runtime::document::DocumentCardBody,
-    dokime_runtime::document::DocumentDefinition, dokime_runtime::document::DocumentSection,
-    dokime_runtime::runtime::command::CommandContext,
+    dokime::Value, dokime::document::DocumentCard, dokime::document::DocumentCardBody, dokime::document::DocumentDefinition,
+    dokime::document::DocumentSection, dokime::runtime::command::CommandContext,
 };
 
 /* === Constants === */
@@ -33,6 +33,12 @@ use {
 /* === Type Aliases === */
 
 /* === Structs === */
+
+#[dokime::harmos::message(harmos_path = dokime::harmos)]
+struct BenchRow {
+    elapsed_s: f64,
+    voltage_v: f64,
+}
 
 /* === Enums === */
 
@@ -71,7 +77,7 @@ async fn current_document_rows() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let selected = model::documents::wire::DocumentScope {
         cycle_id: cycle.to_string(),
@@ -174,9 +180,8 @@ async fn current_document_rows() {
 #[tokio::test]
 async fn summary_complete_telemetry() {
     use {
-        dokime_runtime::Timestamp, dokime_runtime::document::TelemetrySummaryDefinition,
-        dokime_runtime::document::TelemetrySummaryGroupDefinition, dokime_runtime::document::TelemetrySummaryTileDefinition,
-        dokime_runtime::telemetry::TelemetryBatch, dokime_runtime::telemetry::TelemetrySample,
+        dokime::Timestamp, dokime::document::TelemetrySummaryDefinition, dokime::document::TelemetrySummaryGroupDefinition,
+        dokime::document::TelemetrySummaryTileDefinition, dokime::telemetry::TelemetryBatch, dokime::telemetry::TelemetrySample,
     };
     let root = tempfile::tempdir().unwrap();
     let gate = std::sync::Arc::new(Gate::default());
@@ -190,7 +195,7 @@ async fn summary_complete_telemetry() {
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
     let mut group = TelemetrySummaryGroupDefinition::new("summary", "Progress");
-    group.tile(TelemetrySummaryTileDefinition::new("Latest", dokime_runtime::expressions::telemetry("fixture.progress", "progress")));
+    group.tile(TelemetrySummaryTileDefinition::new("Latest", dokime::expressions::telemetry("fixture.progress", "progress")));
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
 
@@ -206,7 +211,8 @@ async fn summary_complete_telemetry() {
         support::materialize_cases(suite.metadata.identifier.as_str(), &suite),
     )
     .await;
-    handle.run_cycle_cases(cycle.clone(), CommandContext::default()).await;
+    let execution_id = handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
+    handle.start_execution(execution_id, model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     gate.started.notified().await;
     let scope = handle.watch_state().latest().state().cycle_view(&cycle).unwrap().test_executions[0].scope.clone();
     assert!(scope.test_execution_id.is_some());
@@ -214,7 +220,7 @@ async fn summary_complete_telemetry() {
     let mut samples: Vec<_> = (0..300)
         .map(|index| {
             let mut sample = TelemetrySample::new(
-                dokime_runtime::model::identity::new_id(),
+                dokime::model::identity::new_id(),
                 stream.clone(),
                 index,
                 Timestamp::new("2026-09-13T00:00:00Z"),
@@ -222,19 +228,14 @@ async fn summary_complete_telemetry() {
             );
             sample.values.insert("progress".into(), Value::Number(index as f64));
             sample.scope = Some(scope.clone());
-            sample.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
+            sample.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: index as f64 }))
         })
         .collect();
-    let mut unrelated = TelemetrySample::new(
-        dokime_runtime::model::identity::new_id(),
-        stream.clone(),
-        300,
-        Timestamp::new("2026-09-13T00:00:00Z"),
-        "fixture",
-    );
+    let mut unrelated =
+        TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), 300, Timestamp::new("2026-09-13T00:00:00Z"), "fixture");
     unrelated.values.insert("progress".into(), Value::Number(999.0));
-    samples.push(unrelated.with_storage_payload(harmos::Message::encode_to_vec(&support::ProgressRow { progress: 999.0 })));
-    handle.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)).await.unwrap();
+    samples.push(unrelated.with_storage_payload(dokime::harmos::Message::encode_to_vec(&support::ProgressRow { progress: 999.0 })));
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), stream, samples)).await.unwrap();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
@@ -272,12 +273,12 @@ async fn summary_complete_telemetry() {
 
 #[tokio::test]
 async fn duration_x_axis() {
-    use dokime_runtime::definition::SuiteSet;
-    use dokime_runtime::document::Plot;
-    use dokime_runtime::domains::TestSuiteDefinition;
-    use dokime_runtime::expressions::telemetry;
-    use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
-    use dokime_runtime::{Identifier, MeasurementUnit, Metadata, ValueType};
+    use dokime::definition::SuiteSet;
+    use dokime::document::Plot;
+    use dokime::domains::TestSuiteDefinition;
+    use dokime::expressions::telemetry;
+    use dokime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+    use dokime::{Identifier, MeasurementUnit, Metadata, ValueType};
 
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
@@ -294,6 +295,13 @@ async fn duration_x_axis() {
     suite.test_case_templates[0].document = Some(authored);
 
     let mut contract = TelemetryContract::declared("bench.samples", "Bench Samples");
+    contract.storage_schema = Some(
+        dokime::harmos::schema::graph::Schema::from_declaration(
+            <BenchRow as dokime::harmos::schema::Described>::DEFINITION,
+            &dokime::harmos::config::SchemaSettings::default(),
+        )
+        .unwrap(),
+    );
     contract.columns = vec![
         TelemetryColumn::declared("elapsed_s", "Elapsed", ValueType::Number, TelemetryRole::Value).with_unit(MeasurementUnit::custom(
             Identifier::new("unit.s").unwrap(),

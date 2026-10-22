@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod encoding;
 mod foreign_streams;
 mod notes;
@@ -15,13 +16,17 @@ mod ownership;
 mod record_history;
 
 /* === Re-Exports === */
+
 pub use ownership::{BundleCatalog, PluginOwner, ProviderCatalog};
 pub(crate) use record_history::Redefinition;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
+
 // Local Imports
 use crate::definition::SuiteRegistry;
 use crate::definition::{MaterializedParameter, SuiteSnapshot};
@@ -51,6 +56,7 @@ use foreign_streams::{admit_foreign_view, declares_foreign_view};
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(RuntimeStateInstallError, formatter {
     Self::RecordHistory(message) => write!(formatter, "record contract history: {message}"),
     Self::DuplicateRecord(identifier) => write!(formatter, "event definition {identifier} is already registered"),
@@ -64,6 +70,7 @@ product_error!(RuntimeStateInstallError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // The managed snapshot encodes this state through `encoding`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeState {
@@ -80,9 +87,12 @@ pub struct RuntimeState {
     pub telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
     pub cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
     pub executions: BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
+    // Live Projections Can Retire; Attempt Identities Must Never Be Reused.
+    pub retired_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
     pub cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
     pub report_finalizations: BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
     pub run_requests: BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
+    pub run_queue: std::collections::VecDeque<dokime_domain::model::identity::CommandId>,
     pub note_admissions: BTreeMap<dokime_domain::model::identity::NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
     pub records: EvidenceRecords,
     pub resources: ResourceRegistry,
@@ -96,7 +106,18 @@ pub struct RuntimeState {
     pub archived_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
 }
 
+// The Fields A Plugin Catalog Change Rewrites, Restored Together When The Change Is Refused.
+struct CatalogSnapshot {
+    installed_plugins: BTreeMap<String, InstalledPlugin>,
+    suites: SuiteRegistry,
+    prompt_definitions: BTreeMap<String, PromptDefinition>,
+    record_definitions: BTreeMap<dokime_domain::model::identity::Identifier, RecordContract>,
+    record_history: record_history::RecordHistory,
+    telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
+}
+
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum RuntimeStateInstallError {
     DuplicateRecord(dokime_domain::model::identity::Identifier),
@@ -108,7 +129,17 @@ pub enum RuntimeStateInstallError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeState {
+    pub fn case_definition_revision(&self, case: &crate::definition::TestCase) -> Result<String, String> {
+        use sha2::{Digest, Sha256};
+        let suite = self.suites.suite_for_case(case).ok_or("case owning suite is not installed")?;
+        let identity = self.execution_identity(&suite.source);
+        let captured = serde_json::to_vec(&(suite, identity)).map_err(|error| error.to_string())?;
+        let digest = Sha256::digest(captured);
+        Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+    }
+
     pub fn process_epoch(&self) -> &SessionId {
         &self.record_namespace
     }
@@ -120,6 +151,9 @@ impl RuntimeState {
                 return Err("cycle identity differs from its canonical key".into());
             }
             for id in &cycle.execution_ids {
+                if self.retired_executions.contains(id) {
+                    return Err("live execution identity is marked retired".into());
+                }
                 if !membership.insert(id) {
                     return Err("execution has duplicate cycle membership".into());
                 }
@@ -179,13 +213,14 @@ impl RuntimeState {
             test_cycle_id: cycle.test_cycle_id.clone(),
             session_id: cycle.session_id.clone(),
             metadata: cycle.metadata.clone(),
+            phase: cycle.phase,
             lifecycle: cycle.lifecycle,
             created_at: cycle.created_at.clone(),
             started_at: cycle.started_at.clone(),
             updated_at: cycle.updated_at.clone(),
             test_executions,
             records: cycle.records.clone(),
-            continue_on_failure: cycle.continue_on_failure,
+            continue_automatically: cycle.continue_automatically,
             result: cycle.result.clone(),
         })
     }
@@ -196,6 +231,7 @@ impl RuntimeState {
         for id in sealed {
             let cycle = self.cycles.remove(&id).expect("selected sealed cycle");
             for execution_id in &cycle.execution_ids {
+                self.retired_executions.insert(execution_id.clone());
                 self.executions.remove(execution_id);
             }
             self.records.record_visibility.retain(|record| {
@@ -208,18 +244,29 @@ impl RuntimeState {
     }
 
     pub fn validate_cycle_view(&self, view: &dokime_domain::model::execution::result::CycleView) -> Result<(), String> {
+        use dokime_domain::model::execution::result::CyclePhase;
+        if (view.phase == CyclePhase::Sealed) != view.saved.is_some() {
+            return Err("sealed cycle phase requires its durable seal".into());
+        }
         if self.cycles.get(&view.test_cycle_id).is_some_and(|existing| {
-            existing.saved.is_some()
-                && existing.saved != view.saved
-                && (view.saved.is_some() || view.lifecycle != dokime_domain::model::execution::result::CycleStatus::Ready)
+            (existing.saved.is_some() && existing.saved != view.saved)
+                || (existing.phase != CyclePhase::Active && view.phase == CyclePhase::Active)
         }) {
             return Err("saved cycle closure cannot be changed".into());
+        }
+        if self.cycles.get(&view.test_cycle_id).is_some_and(|existing| existing.saved.is_some())
+            && self.cycle_view(&view.test_cycle_id).as_ref() != Some(view)
+        {
+            return Err("sealed cycle is immutable".into());
         }
         if let Some(saved) = &view.saved {
             saved.validate_view(view).map_err(|error| error.to_string())?;
         }
         let mut ids = std::collections::BTreeSet::new();
         for execution in &view.test_executions {
+            if self.retired_executions.contains(&execution.test_execution_id) {
+                return Err("execution identity belongs to retired history".into());
+            }
             if execution.test_cycle_id != view.test_cycle_id {
                 return Err("execution belongs to another cycle".into());
             }
@@ -228,6 +275,16 @@ impl RuntimeState {
             }
             if self.executions.get(&execution.test_execution_id).is_some_and(|existing| existing.test_cycle_id != view.test_cycle_id) {
                 return Err("execution identity is owned by another cycle".into());
+            }
+            if self.executions.get(&execution.test_execution_id).is_some_and(|existing| existing.saved.is_some() && existing != execution) {
+                return Err("sealed execution is immutable".into());
+            }
+        }
+        for request in
+            self.run_requests.values().filter(|request| request.summary.cycle_id == view.test_cycle_id && !request.summary.phase.terminal())
+        {
+            if request.selected_execution_ids.iter().any(|id| !ids.contains(id)) {
+                return Err("an admitted request still owns this execution membership".into());
             }
         }
         Ok(())
@@ -239,6 +296,7 @@ impl RuntimeState {
         if let Some(previous) = self.cycles.get(&view.test_cycle_id) {
             for id in &previous.execution_ids {
                 if !ids.contains(id) {
+                    self.retired_executions.insert(id.clone());
                     self.executions.remove(id);
                 }
             }
@@ -254,13 +312,14 @@ impl RuntimeState {
                 test_cycle_id: view.test_cycle_id,
                 session_id: view.session_id,
                 metadata: view.metadata,
+                phase: view.phase,
                 lifecycle: view.lifecycle,
                 created_at: view.created_at,
                 started_at: view.started_at,
                 updated_at: view.updated_at,
                 execution_ids,
                 records: view.records,
-                continue_on_failure: view.continue_on_failure,
+                continue_automatically: view.continue_automatically,
                 result: view.result,
             },
         );
@@ -282,7 +341,9 @@ impl RuntimeState {
             telemetry_definitions: BTreeMap::new(),
             cycles: BTreeMap::new(),
             executions: BTreeMap::new(),
+            retired_executions: std::collections::BTreeSet::new(),
             run_requests: BTreeMap::new(),
+            run_queue: std::collections::VecDeque::new(),
             cycle_report_finalizations: BTreeMap::new(),
             report_finalizations: BTreeMap::new(),
             note_admissions: BTreeMap::new(),
@@ -340,21 +401,41 @@ impl RuntimeState {
             }
         }
         let source = installation.source.clone();
-        let mut projected = self.clone();
-        projected.installed_plugins.insert(source.clone(), installation.clone());
-        projected.suites.set(&source, installation.suites.clone())?;
-        projected.rebuild_installed_domains_with((redefinition == Redefinition::Supersede).then_some(source.as_str()))?;
-        *self = projected;
-        Ok(())
+        self.change_catalog(|state| {
+            state.suites.set(&source, installation.suites.clone())?;
+            state.installed_plugins.insert(source.clone(), installation);
+            state.rebuild_installed_domains_with((redefinition == Redefinition::Supersede).then_some(source.as_str()))
+        })
     }
 
     pub fn remove_plugin(&mut self, source: &str) -> Result<(), String> {
-        let mut projected = self.clone();
-        projected.installed_plugins.remove(source);
-        projected.suites.unregister_source(source);
-        projected.rebuild_installed_domains()?;
-        *self = projected;
-        Ok(())
+        self.change_catalog(|state| {
+            state.installed_plugins.remove(source);
+            state.suites.unregister_source(source);
+            state.rebuild_installed_domains()
+        })
+    }
+
+    // Applies A Catalog Change In Place, Copying Only The Catalog So A Refusal Leaves The State Untouched.
+    fn change_catalog(&mut self, change: impl FnOnce(&mut Self) -> Result<(), String>) -> Result<(), String> {
+        let snapshot = CatalogSnapshot {
+            installed_plugins: self.installed_plugins.clone(),
+            suites: self.suites.clone(),
+            prompt_definitions: self.prompt_definitions.clone(),
+            record_definitions: self.record_definitions.clone(),
+            record_history: self.record_history.clone(),
+            telemetry_definitions: self.telemetry_definitions.clone(),
+        };
+        let changed = change(self);
+        if changed.is_err() {
+            self.installed_plugins = snapshot.installed_plugins;
+            self.suites = snapshot.suites;
+            self.prompt_definitions = snapshot.prompt_definitions;
+            self.record_definitions = snapshot.record_definitions;
+            self.record_history = snapshot.record_history;
+            self.telemetry_definitions = snapshot.telemetry_definitions;
+        }
+        changed
     }
 
     fn rebuild_installed_domains(&mut self) -> Result<(), String> {
@@ -724,6 +805,7 @@ impl RuntimeState {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn unestablished_node_id() -> NodeId {
     NodeId::from_seed("dokime.unestablished-node")
 }
@@ -737,3 +819,28 @@ fn is_host_stream(stream: &dokime_domain::model::identity::Identifier) -> bool {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refused_catalog_change_keeps_the_state() {
+        let mut state = RuntimeState::new(SessionId::from_seed("catalog.fixture"));
+        state.install_builtin_domains().unwrap();
+        let plugin = |source: &str, label: &str| InstalledPlugin {
+            source: source.to_owned(),
+            record_contracts: vec![RecordContract::declared("fixture.reading", label)],
+            ..Default::default()
+        };
+        state.install_plugin(plugin("fixture.first", "First")).unwrap();
+        let installed = state.clone();
+
+        // A Conflicting Record Refuses Inside The Rebuild And Leaves Every Catalog Field
+        assert!(state.install_plugin(plugin("fixture.second", "Second")).is_err());
+        assert_eq!(state, installed);
+
+        state.remove_plugin("fixture.first").unwrap();
+        assert!(!state.record_definitions.contains_key(&dokime_domain::model::identity::Identifier::new("fixture.reading").unwrap()));
+    }
+}

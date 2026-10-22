@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::document::{
     DocumentDefinition, DocumentFilter, DocumentSelection, DocumentWarning, PlotDescriptor, TelemetrySummaryGroupPayload,
@@ -31,6 +33,7 @@ use dokime_domain::model::identity::Metadata;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Capture {
     pub definition: DocumentDefinition,
@@ -51,6 +54,7 @@ pub struct CardBinding {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SectionBinding {
     pub metadata: Metadata,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unavailable: Option<String>,
 }
@@ -63,6 +67,7 @@ pub struct RepeatInstance {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum CardBindingResult {
@@ -74,6 +79,7 @@ pub enum CardBindingResult {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::MemorySize for Capture {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -89,6 +95,7 @@ impl harmos::MemorySize for Capture {
         })
     }
 }
+
 impl harmos::MemorySize for CardBinding {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -101,6 +108,7 @@ impl harmos::MemorySize for CardBinding {
         })
     }
 }
+
 impl SectionBinding {
     pub fn valid_result(&self) -> bool {
         self.unavailable.as_deref().is_none_or(super::payload::valid_unavailable_reason)
@@ -132,6 +140,7 @@ impl harmos::MemorySize for RepeatInstance {
         })
     }
 }
+
 impl harmos::MemorySize for CardBindingResult {
     fn memory_size(&self) -> usize {
         let (owned, inline) = match self {

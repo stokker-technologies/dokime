@@ -12,22 +12,24 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 use tracing_appender::non_blocking::{NonBlockingBuilder, WorkerGuard};
 use tracing_subscriber::{EnvFilter, Layer, fmt};
+
 // Local Imports
 use super::logging::BoxedLayer;
 use crate::host::{Error, Result};
 
 /* === Constants === */
+
 const MAX_HUB_LOG_BYTES: u64 = 32 * 1024 * 1024;
-
 const BUFFERED_RECORDS: usize = 8_192;
-
 const ROTATED_SUFFIX: &str = ".1";
 
 /* === Macros === */
@@ -35,6 +37,7 @@ const ROTATED_SUFFIX: &str = ".1";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct RotatingFile {
     path: PathBuf,
     previous: PathBuf,
@@ -47,6 +50,7 @@ struct RotatingFile {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RotatingFile {
     fn open(directory: &Path, filename: &str) -> Result<Self> {
         std::fs::create_dir_all(directory)
@@ -91,6 +95,7 @@ impl Write for RotatingFile {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
     let path = hub_log_path(root);
     let directory = path.parent().ok_or_else(|| Error::Setup(format!("the hub log path {} has no parent", path.display())))?.to_path_buf();
@@ -120,9 +125,10 @@ pub(crate) fn hub_log_layer(root: &Path) -> Result<(BoxedLayer, WorkerGuard)> {
 }
 
 /* === Private Functions === */
+
 fn hub_log_path(root: &Path) -> PathBuf {
-    use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
-    dokime_runtime::domains::exports::storage::path_conventions(root)
+    use dokime::domains::exports::storage::DiagnosticPathKey;
+    dokime::domains::exports::storage::path_conventions(root)
         .into_iter()
         .find(|convention| convention.key == DiagnosticPathKey::HubLog)
         .and_then(|convention| convention.absolute_path)

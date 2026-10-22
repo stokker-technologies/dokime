@@ -12,14 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::execution::RecordScope;
-use crate::model::identity::Identifier;
+use crate::model::identity::IdentifierPattern;
 use crate::model::telemetry::TelemetrySample;
 use crate::model::time::Timestamp;
 
@@ -30,9 +32,10 @@ use crate::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TelemetryFilter {
-    pub streams: Vec<Identifier>,
+    pub streams: Vec<IdentifierPattern>,
     pub schema_versions: Vec<u32>,
     pub sources: Vec<String>,
     pub scope: Option<RecordScope>,
@@ -46,9 +49,10 @@ pub struct TelemetryFilter {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TelemetryFilter {
     pub fn matches(&self, sample: &TelemetrySample) -> bool {
-        if !self.streams.is_empty() && !self.streams.contains(&sample.stream) {
+        if !self.streams.is_empty() && !self.streams.iter().any(|pattern| pattern.matches(sample.stream.as_str())) {
             return false;
         }
         if !self.schema_versions.is_empty() && !self.schema_versions.contains(&sample.schema_version) {

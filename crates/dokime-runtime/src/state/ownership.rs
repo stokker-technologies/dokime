@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::{InstalledPlugin, RuntimeState};
 
@@ -26,18 +28,22 @@ use super::{InstalledPlugin, RuntimeState};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleCatalog {
     pub package: String,
     pub path: String,
     pub installation: Option<String>,
+
     #[serde(default)]
     pub content_digest: String,
+
     #[serde(alias = "artifacts")]
     pub plugins: Vec<InstalledPlugin>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PluginOwner {
@@ -49,6 +55,7 @@ pub enum PluginOwner {
         package: String,
         path: String,
         installation: Option<String>,
+
         #[serde(default)]
         content_digest: String,
     },
@@ -61,6 +68,7 @@ pub enum ProviderCatalog {
     Embedded {
         #[serde(alias = "artifact")]
         plugin: Box<InstalledPlugin>,
+
         generation: String,
     },
 }
@@ -68,6 +76,7 @@ pub enum ProviderCatalog {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeState {
     pub(crate) fn execution_identity(&self, source: &str) -> Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity> {
         use dokime_domain::model::execution::snapshot::ExecutionImplementation;

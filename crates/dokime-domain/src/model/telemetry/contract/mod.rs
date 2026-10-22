@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 mod conditions;
 mod filter;
 mod schema;
 
 /* === Re-Exports === */
+
 pub use conditions::TelemetryCondition;
 pub use conditions::TelemetryConditionEvaluation;
 pub use conditions::TelemetryConditionOperator;
@@ -22,6 +24,7 @@ pub use schema::TelemetryContract;
 pub use schema::TelemetryRole;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

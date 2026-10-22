@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::BuiltinRecordType;
 use crate::transactions::records::draft::BuiltinDraft;
@@ -40,6 +43,7 @@ use dokime_domain::model::traceability::derived_traceability_group_named;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.traceability.phase.update", version = 3, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateExecutionPhase {
@@ -85,6 +89,7 @@ pub struct RecordExecutionTraceability {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for RecordExecutionTraceability {
     type Error = String;
 
@@ -183,6 +188,79 @@ impl UpdateExecutionPhase {
 }
 
 /* === Public Functions === */
+
+pub fn update_execution_phase(state: &mut RuntimeState, update: UpdateExecutionPhase) -> Result<(), Error> {
+    let step_id = phase_step_id(&update);
+    let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("execution phase scope missing cycle"))?;
+    let step_status = phase_step_status(&update.status);
+    let cycle = state.cycles.get_mut(&test_cycle_id).ok_or_else(|| not_found("cycle not found"))?;
+    let execution_index = if let Some(id) = &update.scope.test_execution_id {
+        cycle.execution_ids.iter().position(|execution_id| execution_id == id)
+    } else if let Some(id) = &update.scope.test_case_id {
+        let mut matches = cycle
+            .execution_ids
+            .iter()
+            .enumerate()
+            .filter(|(_, execution_id)| state.executions.get(*execution_id).is_some_and(|execution| &execution.test_case_id == id));
+        let first = matches.next().map(|(index, _)| index);
+        if matches.next().is_some() {
+            return Err(conflict("execution phase scope is ambiguous; provide an execution id"));
+        }
+        first
+    } else {
+        None
+    }
+    .ok_or_else(|| not_found("execution not found"))?;
+    let execution = state.executions.get_mut(&cycle.execution_ids[execution_index]).expect("cycle execution owner exists");
+
+    if !matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Ready)
+        || !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+    {
+        return Err(conflict("execution phase updates require an active cycle and execution"));
+    }
+
+    if execution.status == ExecutionStatus::Pending && step_status != StepStatus::Pending {
+        execution.status = ExecutionStatus::Running;
+        execution.started_at = Some(update.occurred_at.clone());
+    }
+    if execution.started_at.is_none() && execution.status == ExecutionStatus::Running {
+        execution.started_at = Some(update.occurred_at.clone());
+    }
+    if execution.status != ExecutionStatus::Running {
+        return Err(conflict("execution is not running"));
+    }
+
+    let step = match execution.steps.iter_mut().find(|step| step.metadata.identifier == update.identifier) {
+        Some(step) => step,
+        None => {
+            execution.steps.push(StepRecord {
+                step_id,
+                metadata: Metadata::new(update.identifier.clone(), update.label.clone(), None),
+                status: StepStatus::Pending,
+                started_at: None,
+                finished_at: None,
+                measurements: Vec::new(),
+                criteria: Vec::new(),
+                detail: None,
+            });
+            execution.steps.last_mut().expect("step was just pushed")
+        }
+    };
+    step.metadata = Metadata::new(update.identifier, update.label, step.metadata.description.clone());
+    step.status = step_status.clone();
+    if step_status == StepStatus::Running && step.started_at.is_none() {
+        step.started_at = Some(update.occurred_at.clone());
+    }
+    if is_terminal_step(&step_status) {
+        step.finished_at = Some(update.occurred_at.clone());
+    }
+    execution.refresh_step_records();
+    cycle.touch_at(update.occurred_at);
+    Ok(())
+}
+
+/* === Private Functions === */
+
 fn set_capture_phase(state: &mut RuntimeState, update: &SetCapturePhase) -> Result<(), Error> {
     let id = update.scope.test_execution_id.as_ref().ok_or_else(|| conflict("capture phase requires an execution"))?;
     let execution = state.executions.get_mut(id).ok_or_else(|| not_found("execution not found"))?;
@@ -268,77 +346,6 @@ fn admit_step_attempt(state: &mut RuntimeState, update: &RecordStepAttempt) -> R
     Ok(())
 }
 
-pub fn update_execution_phase(state: &mut RuntimeState, update: UpdateExecutionPhase) -> Result<(), Error> {
-    let step_id = phase_step_id(&update);
-    let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("execution phase scope missing cycle"))?;
-    let step_status = phase_step_status(&update.status);
-    let cycle = state.cycles.get_mut(&test_cycle_id).ok_or_else(|| not_found("cycle not found"))?;
-    let execution_index = if let Some(id) = &update.scope.test_execution_id {
-        cycle.execution_ids.iter().position(|execution_id| execution_id == id)
-    } else if let Some(id) = &update.scope.test_case_id {
-        let mut matches = cycle
-            .execution_ids
-            .iter()
-            .enumerate()
-            .filter(|(_, execution_id)| state.executions.get(*execution_id).is_some_and(|execution| &execution.test_case_id == id));
-        let first = matches.next().map(|(index, _)| index);
-        if matches.next().is_some() {
-            return Err(conflict("execution phase scope is ambiguous; provide an execution id"));
-        }
-        first
-    } else {
-        None
-    }
-    .ok_or_else(|| not_found("execution not found"))?;
-    let execution = state.executions.get_mut(&cycle.execution_ids[execution_index]).expect("cycle execution owner exists");
-
-    if !matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Ready)
-        || !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
-    {
-        return Err(conflict("execution phase updates require an active cycle and execution"));
-    }
-
-    if execution.status == ExecutionStatus::Pending && step_status != StepStatus::Pending {
-        execution.status = ExecutionStatus::Running;
-        execution.started_at = Some(update.occurred_at.clone());
-    }
-    if execution.started_at.is_none() && execution.status == ExecutionStatus::Running {
-        execution.started_at = Some(update.occurred_at.clone());
-    }
-    if execution.status != ExecutionStatus::Running {
-        return Err(conflict("execution is not running"));
-    }
-
-    let step = match execution.steps.iter_mut().find(|step| step.metadata.identifier == update.identifier) {
-        Some(step) => step,
-        None => {
-            execution.steps.push(StepRecord {
-                step_id,
-                metadata: Metadata::new(update.identifier.clone(), update.label.clone(), None),
-                status: StepStatus::Pending,
-                started_at: None,
-                finished_at: None,
-                measurements: Vec::new(),
-                criteria: Vec::new(),
-                detail: None,
-            });
-            execution.steps.last_mut().expect("step was just pushed")
-        }
-    };
-    step.metadata = Metadata::new(update.identifier, update.label, step.metadata.description.clone());
-    step.status = step_status.clone();
-    if step_status == StepStatus::Running && step.started_at.is_none() {
-        step.started_at = Some(update.occurred_at.clone());
-    }
-    if is_terminal_step(&step_status) {
-        step.finished_at = Some(update.occurred_at.clone());
-    }
-    execution.refresh_step_records();
-    cycle.touch_at(update.occurred_at);
-    Ok(())
-}
-
-/* === Private Functions === */
 fn record_execution_traceability(state: &mut RuntimeState, update: RecordExecutionTraceability) -> Result<(), Error> {
     admissible_sections(&update.sections)?;
     let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("authored traceability scope missing cycle"))?;

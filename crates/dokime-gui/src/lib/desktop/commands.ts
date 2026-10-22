@@ -14,17 +14,19 @@
 
 /* === External Imports === */
 
-import { invoke as invokeCommand } from "@tauri-apps/api/core";
+import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
 
 /* === Local Imports === */
 
+import type { StagePluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
-
+import type { BrandingStatus } from "./branding";
 import type { BackendProfiles } from "./connection";
-import type { ArtifactDeliveryRequest, ArtifactSource, DesktopSaveDocument } from "./delivery";
+import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
 import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
 import type { ParameterOverrides } from "./settings";
+import { settleUnlessStopping } from "./stopping";
 
 /* === Private Functions === */
 
@@ -40,7 +42,8 @@ function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> 
   if (isReportBuild()) {
     return Promise.reject(new Error(`A frozen report cannot call the desktop command "${command}".`));
   }
-  return invokeCommand<T>(command, args);
+  // Once the desktop stops, a refused or interrupted command belongs to the stop.
+  return invokeCommand<T>(command, args).catch(settleUnlessStopping<T>);
 }
 
 /* === Public Constants === */
@@ -67,9 +70,6 @@ export const commands = {
   /** Save a verified document through the native file picker: the saved path, `null` when the operator cancels. */
   desktopSaveDocument: (generation: string, document: DesktopSaveDocument) =>
     invoke<string | null>("desktop_save_document", { generation, document }),
-  /** Open a verified document from the private native cache. */
-  desktopOpenDocument: (generation: string, document: DesktopSaveDocument) =>
-    invoke<null>("desktop_open_document", { generation, document }),
   /**
    * Write a verified diagnostics bundle into the operator's Downloads folder;
    * resolves with the saved path. The `document` kind must be
@@ -77,9 +77,9 @@ export const commands = {
    */
   desktopSaveDiagnosticsBundle: (generation: string, document: DesktopSaveDocument) =>
     invoke<string>("desktop_save_diagnostics_bundle", { generation, document }),
-  /** Stream one verified artifact, execution output or cycle bundle to a native destination. */
+  /** Stream one verified artifact, execution output or sealed evidence bundle to a native destination. */
   desktopArtifactDeliver: (generation: string, request: ArtifactDeliveryRequest) =>
-    invoke<boolean>("desktop_artifact_deliver", { generation, request }),
+    invoke<Delivered | null>("desktop_artifact_deliver", { generation, request }),
   /** Materialize one verified artifact in the private media cache; returns its preview URL path. */
   desktopMediaPrepare: (generation: string, source: ArtifactSource) => invoke<string>("desktop_media_prepare", { generation, source }),
   /** Release one generation's media cache. */
@@ -87,7 +87,16 @@ export const commands = {
   /** Patch an MP4 recording's duration in place and upload it; returns the artifact id. */
   desktopRecordingFinish: (generation: string, durationMs: number, mediaType: string) =>
     invoke<string>("desktop_recording_finish", { generation, durationMs, mediaType }),
+  /** Stage the bundle just dropped on the window, or pick one natively; `null` when the operator cancels. */
+  desktopPluginStageFile: (generation: string, drop: boolean, progress: Channel<StagePluginProgress>) =>
+    invoke<string | null>("desktop_plugin_stage_file", { generation, drop, progress }),
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
+  /** The branding pack applied at boot and the one that applies on the next start. */
+  desktopBrandingStatus: () => invoke<BrandingStatus>("desktop_branding_status"),
+  /** Pick, validate and stage a branding pack zip; null when the picker is dismissed. */
+  desktopBrandingChoose: () => invoke<BrandingStatus | null>("desktop_branding_choose"),
+  /** Delete the pending and active packs; the compiled brand applies on the next start. */
+  desktopBrandingRemove: () => invoke<BrandingStatus>("desktop_branding_remove"),
   /** Drain all runtime resources before requesting Tauri's non-cancellable restart. */
   desktopRestart: () => invoke<null>("desktop_restart"),
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),

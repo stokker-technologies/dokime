@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -26,6 +27,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct PluginPage {
     pub entries: Vec<PluginEntry>,
     pub manifest_sha256: String,
@@ -38,6 +40,7 @@ pub struct PluginPage {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PluginStore {
     pub fn get(&self, id: Uuid) -> Result<PluginEntry, PluginError> {
         let plugin = self.settings.read(|document| document.plugins.get(&id).cloned()).ok_or(PluginError::Unknown(id))?;

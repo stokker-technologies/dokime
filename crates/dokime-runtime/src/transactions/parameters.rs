@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::{MaterializedParameter, ParameterSource};
 use crate::state::RuntimeState;
@@ -33,6 +36,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.parameters.scoped.upsert", version = 2, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpsertScopedParameter {
@@ -50,6 +54,7 @@ pub struct UpsertScopedParameter {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for UpsertScopedParameter {
     type Error = String;
 
@@ -57,6 +62,12 @@ impl Transaction<RuntimeState> for UpsertScopedParameter {
         ensure_runtime_active(state)?;
         if self.scope.test_cycle_id.is_some() && self.scope.test_execution_id.is_none() {
             return Err("parameters belong to an execution, not a cycle".into());
+        }
+        if let Some(id) = &self.scope.test_execution_id {
+            let execution = state.executions.get(id).ok_or("parameter execution not found")?;
+            if execution.saved.is_some() {
+                return Err("sealed execution parameters are immutable".into());
+            }
         }
         Ok(())
     }
@@ -67,6 +78,7 @@ impl Transaction<RuntimeState> for UpsertScopedParameter {
 }
 
 /* === Public Functions === */
+
 pub fn apply_upsert_scoped_parameter(state: &mut RuntimeState, update: UpsertScopedParameter) -> bool {
     let Some(parameters) = scoped_parameters_mut(state, &update.scope) else {
         return false;
@@ -76,6 +88,7 @@ pub fn apply_upsert_scoped_parameter(state: &mut RuntimeState, update: UpsertSco
 }
 
 /* === Private Functions === */
+
 fn upsert_parameter(
     parameters: &mut BTreeMap<String, MaterializedParameter>, key: &str, value: Value, source: ParameterSource, metadata: Metadata,
     group_id: Option<Identifier>, unit: Option<MeasurementUnit>,

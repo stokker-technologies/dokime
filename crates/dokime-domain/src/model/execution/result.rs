@@ -10,13 +10,17 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::model::execution::ExecutionMode;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::definition::{MaterializedParameter, TestCase};
 use crate::model::diagnostics::Diagnostic;
@@ -38,6 +42,7 @@ use crate::state::records::set::TestRecordSet;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(IllegalCycleTransition, formatter {
     Self { from, to } => write!(formatter, "illegal cycle transition from {from:?} to {to:?}"),
 });
@@ -45,21 +50,27 @@ product_error!(IllegalCycleTransition, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TestCycle {
     #[serde(default)]
     pub saved: Option<super::saved::CycleSeal>,
+
     pub test_cycle_id: TestCycleId,
     pub session_id: Option<SessionId>,
     pub metadata: Metadata,
+    pub phase: CyclePhase,
     pub lifecycle: CycleStatus,
     pub created_at: Timestamp,
     pub started_at: Option<Timestamp>,
     pub updated_at: Timestamp,
     pub execution_ids: Vec<TestExecutionId>,
     pub records: TestRecordSet,
-    pub continue_on_failure: bool,
+
+    #[serde(default)]
+    pub continue_automatically: bool,
+
     pub result: Option<ResultSummary>,
 }
 
@@ -68,21 +79,31 @@ pub struct TestCycle {
 pub struct CycleView {
     #[serde(default)]
     pub saved: Option<super::saved::CycleSeal>,
+
     pub test_cycle_id: TestCycleId,
+
     #[serde(default)]
     pub session_id: Option<SessionId>,
+
     pub metadata: Metadata,
+    pub phase: CyclePhase,
+
     #[serde(default)]
     pub lifecycle: CycleStatus,
+
     pub created_at: Timestamp,
     pub started_at: Option<Timestamp>,
     pub updated_at: Timestamp,
+
     #[serde(default)]
     pub test_executions: Vec<TestExecution>,
+
     #[serde(default)]
     pub records: TestRecordSet,
+
     #[serde(default)]
-    pub continue_on_failure: bool,
+    pub continue_automatically: bool,
+
     pub result: Option<ResultSummary>,
 }
 
@@ -90,36 +111,52 @@ pub struct CycleView {
 pub struct TestExecution {
     #[serde(default)]
     pub saved: Option<super::saved::ExecutionSeal>,
+
     #[serde(default)]
     pub mode: ExecutionMode,
+
     pub test_cycle_id: TestCycleId,
     pub test_execution_id: TestExecutionId,
     pub test_case_id: CaseId,
+
     #[serde(default)]
     pub suite: Option<Metadata>,
+
     pub status: ExecutionStatus,
     pub snapshot: crate::model::execution::snapshot::ExecutionSnapshot,
+
     #[serde(default)]
     pub invalidation: Option<ExecutionInvalidation>,
+
     pub scope: RecordScope,
+
     #[serde(default)]
     pub output_parameters: BTreeMap<String, MaterializedParameter>,
+
     #[serde(default)]
     pub documents: BTreeMap<DocumentId, DocumentDefinition>,
+
     #[serde(default)]
     pub records: TestRecordSet,
+
     pub started_at: Option<Timestamp>,
     pub finished_at: Option<Timestamp>,
+
     #[serde(default)]
     pub steps: Vec<StepRecord>,
+
     #[serde(default)]
     pub step_attempts: Vec<TestStepAttempt>,
+
     #[serde(default)]
     pub active_step_attempt: Option<StepAttemptStart>,
+
     #[serde(default)]
     pub capture_phase: crate::model::execution::CapturePhase,
+
     #[serde(default)]
     pub traceability: Vec<crate::model::traceability::TraceabilitySection>,
+
     pub result: Option<ResultSummary>,
 }
 
@@ -149,10 +186,13 @@ pub struct StepRecord {
     pub status: StepStatus,
     pub started_at: Option<Timestamp>,
     pub finished_at: Option<Timestamp>,
+
     #[serde(default)]
     pub measurements: Vec<MeasurementRecord>,
+
     #[serde(default)]
     pub criteria: Vec<CriterionResult>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<Diagnostic>,
 }
@@ -195,11 +235,24 @@ pub struct ExecutionInvalidation {
 }
 
 /* === Enums === */
+
+#[harmos_domain::message]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CyclePhase {
+    #[default]
+    Active,
+
+    Sealing,
+    Sealed,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleStatus {
     #[default]
     Ready,
+
     Running,
     Paused,
     Stopping,
@@ -272,6 +325,7 @@ pub enum ResultStatus {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for CycleView {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -422,12 +476,20 @@ impl harmos_domain::MemorySize for TestCycle {
 }
 
 impl TestCycle {
+    pub fn ensure_active(&self) -> Result<(), &'static str> {
+        self.phase.ensure_active()
+    }
+
     pub fn touch_at(&mut self, at: Timestamp) {
         self.updated_at = at;
     }
 }
 
 impl CycleView {
+    pub fn ensure_active(&self) -> Result<(), &'static str> {
+        self.phase.ensure_active()
+    }
+
     pub fn cases(&self) -> impl Iterator<Item = &TestCase> {
         let mut seen = BTreeSet::new();
         self.test_executions.iter().filter_map(move |execution| {
@@ -460,6 +522,16 @@ impl CycleStatus {
 
     pub fn try_transition(self, target: CycleStatus) -> Result<CycleStatus, IllegalCycleTransition> {
         if self.allows(target) { Ok(target) } else { Err(IllegalCycleTransition { from: self, to: target }) }
+    }
+}
+
+impl CyclePhase {
+    pub fn ensure_active(self) -> Result<(), &'static str> {
+        match self {
+            Self::Active => Ok(()),
+            Self::Sealing => Err("cycle is sealing; admission is closed"),
+            Self::Sealed => Err("cycle is sealed and immutable"),
+        }
     }
 }
 
@@ -609,7 +681,6 @@ impl TestExecution {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub fn validate_invocation(
     template: &crate::model::definition::TestCaseTemplate, attempts: &[TestStepAttempt], step_id: &StepId,
 ) -> Result<(), &'static str> {
@@ -630,16 +701,6 @@ pub fn validate_invocation(
     Ok(())
 }
 
-// An Explicit Phase Outcome Survives Refresh: A Settled One Always, A Running
-// One Until Its Execution Finishes Without Settling It.
-fn recorded_outcome(status: &StepStatus, finished: bool) -> bool {
-    match status {
-        StepStatus::Pending => false,
-        StepStatus::Running => !finished,
-        _ => true,
-    }
-}
-
 pub fn effective_attempts<'a>(
     template: &crate::model::definition::TestCaseTemplate, attempts: &'a [TestStepAttempt], active: Option<&StepAttemptStart>,
 ) -> BTreeMap<StepId, &'a TestStepAttempt> {
@@ -658,6 +719,18 @@ pub fn effective_attempts<'a>(
         selected.split_off(position);
     }
     selected.into_values().map(|attempt| (attempt.step_id.clone(), attempt)).collect()
+}
+
+/* === Private Functions === */
+
+// An Explicit Phase Outcome Survives Refresh: A Settled One Always, A Running
+// One Until Its Execution Finishes Without Settling It.
+fn recorded_outcome(status: &StepStatus, finished: bool) -> bool {
+    match status {
+        StepStatus::Pending => false,
+        StepStatus::Running => !finished,
+        _ => true,
+    }
 }
 
 /* === Tests === */

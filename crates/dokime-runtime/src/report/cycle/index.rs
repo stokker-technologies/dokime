@@ -12,7 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
+// Standard Library Imports
+use std::collections::{BTreeMap, BTreeSet};
+
+// Third Party Imports
+use harmos::MemorySize;
+
+// Local Imports
 use crate::{report::saved::CapturedExecutionReportInput, runtime::Error, runtime::Result};
+use dokime_domain::model::definition::parameters::ParameterDefinition;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::ResultSummary;
@@ -25,14 +34,6 @@ use dokime_domain::model::identity::TemplateId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use harmos::MemorySize;
-use std::collections::{BTreeMap, BTreeSet};
-
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
 
 /* === Constants === */
 
@@ -41,6 +42,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct Case {
     pub count: usize,
@@ -49,9 +51,12 @@ pub(crate) struct Case {
     pub template: TemplateId,
     pub metadata: Metadata,
     pub parameters: BTreeMap<String, Value>,
+    pub definitions: Vec<ParameterDefinition>,
     pub latest_id: TestExecutionId,
     pub status: ExecutionStatus,
+    pub planned: bool,
 }
+
 #[derive(Clone)]
 pub(crate) struct Member {
     pub id: TestExecutionId,
@@ -65,7 +70,9 @@ pub(crate) struct Member {
     pub scope: RecordScope,
     pub steps: Vec<StepRecord>,
     pub generated_at: Timestamp,
+    pub planned: bool,
 }
+
 #[derive(Clone)]
 pub(crate) struct Sample {
     pub member: usize,
@@ -75,6 +82,7 @@ pub(crate) struct Sample {
     received_at: Timestamp,
     id: String,
 }
+
 #[derive(Clone)]
 pub(crate) struct Annotation {
     pub kind: AnnotationKind,
@@ -83,6 +91,7 @@ pub(crate) struct Annotation {
     id: String,
     at: Timestamp,
 }
+
 #[derive(Clone)]
 pub(crate) struct Index {
     pub members: usize,
@@ -94,7 +103,9 @@ pub(crate) struct Index {
     seen: BTreeMap<CaseId, usize>,
     templates: BTreeSet<TemplateId>,
 }
+
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum AnnotationKind {
     Note,
@@ -104,6 +115,7 @@ pub(crate) enum AnnotationKind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl MemorySize for Member {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -122,9 +134,11 @@ impl MemorySize for Member {
         })
     }
 }
+
 impl Annotation {}
+
 impl Member {
-    fn new(execution: &TestExecution, generated_at: &Timestamp) -> Self {
+    fn new(execution: &TestExecution, generated_at: &Timestamp, planned: bool) -> Self {
         let input = execution.snapshot.parameters();
         let output = &execution.output_parameters;
         let parameters = input
@@ -145,9 +159,11 @@ impl Member {
             scope: execution.scope.clone(),
             steps: execution.steps.clone(),
             generated_at: generated_at.clone(),
+            planned,
         }
     }
 }
+
 impl MemorySize for Sample {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -157,6 +173,7 @@ impl MemorySize for Sample {
             .saturating_add(self.id.capacity())
     }
 }
+
 impl MemorySize for Annotation {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -164,6 +181,7 @@ impl MemorySize for Annotation {
             .saturating_add(self.at.memory_size().saturating_sub(std::mem::size_of::<Timestamp>()))
     }
 }
+
 impl MemorySize for Index {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -186,6 +204,7 @@ impl MemorySize for Index {
                             .saturating_add(case.template.memory_size().saturating_sub(std::mem::size_of::<TemplateId>()))
                             .saturating_add(case.metadata.memory_size().saturating_sub(std::mem::size_of::<Metadata>()))
                             .saturating_add(case.parameters.memory_size().saturating_sub(std::mem::size_of::<BTreeMap<String, Value>>()))
+                            .saturating_add(case.definitions.memory_size().saturating_sub(std::mem::size_of::<Vec<ParameterDefinition>>()))
                             .saturating_add(case.latest_id.memory_size().saturating_sub(std::mem::size_of::<TestExecutionId>()))
                     })
                     .fold(0usize, usize::saturating_add),
@@ -220,6 +239,7 @@ impl MemorySize for Index {
             )
     }
 }
+
 impl Index {
     pub(crate) fn new() -> Self {
         Self {
@@ -236,25 +256,7 @@ impl Index {
     pub(crate) fn push_capture(&mut self, captured: &CapturedExecutionReportInput) -> Result<()> {
         let input = &captured.input;
         let execution = &input.cycle.test_executions[0];
-        let case = execution.snapshot.case();
-        if let Some(index) = self.seen.get(&case.test_case_id).copied() {
-            self.cases[index].count += 1;
-            self.cases[index].latest_id = execution.test_execution_id.clone();
-            self.cases[index].status = execution.status.clone();
-        } else {
-            self.cases.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
-            self.seen.insert(case.test_case_id.clone(), self.cases.len());
-            self.cases.push(Case {
-                count: 1,
-                first_template: self.templates.insert(case.test_case_template_id.clone()),
-                id: case.test_case_id.clone(),
-                template: case.test_case_template_id.clone(),
-                metadata: case.metadata.clone(),
-                parameters: case.parameters.clone(),
-                latest_id: execution.test_execution_id.clone(),
-                status: execution.status.clone(),
-            });
-        }
+        self.push_case(execution, false)?;
         self.samples.try_reserve_exact(input.telemetry.len()).map_err(|source| Error::Operation(source.to_string()))?;
         for (sample, value) in input.telemetry.iter().enumerate() {
             self.samples.push(Sample {
@@ -288,11 +290,45 @@ impl Index {
                 at: item.observed_at.clone(),
             });
         }
-        self.executions.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
-        self.executions.push(Member::new(execution, &input.generated_at));
+        self.push_execution(execution, &input.generated_at, false)?;
         self.counts.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
         self.counts.push([input.artifact_links.len(), input.records.len(), crate::report::document::document_warnings(input).count()]);
         self.members += 1;
+        Ok(())
+    }
+    // A Planned Member Is A Cycle Row With Its Parameters And No Captured Evidence.
+    pub(crate) fn push_planned(&mut self, execution: &TestExecution, generated_at: &Timestamp) -> Result<()> {
+        self.push_case(execution, true)?;
+        self.push_execution(execution, generated_at, true)
+    }
+    fn push_case(&mut self, execution: &TestExecution, planned: bool) -> Result<()> {
+        let case = execution.snapshot.case();
+        if let Some(index) = self.seen.get(&case.test_case_id).copied() {
+            self.cases[index].count += 1;
+            self.cases[index].latest_id = execution.test_execution_id.clone();
+            self.cases[index].status = execution.status.clone();
+            self.cases[index].planned = planned;
+            return Ok(());
+        }
+        self.cases.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
+        self.seen.insert(case.test_case_id.clone(), self.cases.len());
+        self.cases.push(Case {
+            count: 1,
+            first_template: self.templates.insert(case.test_case_template_id.clone()),
+            id: case.test_case_id.clone(),
+            template: case.test_case_template_id.clone(),
+            metadata: case.metadata.clone(),
+            parameters: case.parameters.clone(),
+            definitions: execution.snapshot.parameter_definitions().to_vec(),
+            latest_id: execution.test_execution_id.clone(),
+            status: execution.status.clone(),
+            planned,
+        });
+        Ok(())
+    }
+    fn push_execution(&mut self, execution: &TestExecution, generated_at: &Timestamp, planned: bool) -> Result<()> {
+        self.executions.try_reserve_exact(1).map_err(|source| Error::Operation(source.to_string()))?;
+        self.executions.push(Member::new(execution, generated_at, planned));
         Ok(())
     }
     pub(crate) fn sort(&mut self) {

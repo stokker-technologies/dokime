@@ -29,6 +29,7 @@ use crate::model::definition::resolve_parameter_spaces;
 use crate::model::values::Value;
 
 /* === Constants === */
+
 pub const MAX_SAMPLES: u32 = 262_144;
 pub const MAX_PARAMETER_BYTES: usize = 65_536;
 
@@ -37,6 +38,7 @@ pub const MAX_PARAMETER_BYTES: usize = 65_536;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Definition {
     pub id: String,
@@ -72,6 +74,7 @@ pub struct Axis {
 pub struct Selection {
     pub id: String,
     pub version: u32,
+
     #[serde(default)]
     pub parameters: BTreeMap<String, Value>,
 }
@@ -81,6 +84,7 @@ pub struct Selection {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for Selection {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>().saturating_add(self.id.capacity()).saturating_add(
@@ -168,3 +172,48 @@ impl Limits {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::identity::{Identifier, Metadata, ParameterId};
+    use crate::model::values::ValueType;
+
+    #[test]
+    fn analysis_refuses_sweeps() {
+        let parameter = ParameterDefinition {
+            expansion: Default::default(),
+            parameter_id: ParameterId::from_seed("analysis.factor"),
+            metadata: Metadata::new(Identifier::new("factor").unwrap(), "Factor", None),
+            group_id: None,
+            value_type: ValueType::Number,
+            unit: None,
+            min: Some(0.0),
+            max: Some(10.0),
+            required: true,
+            expression: ParameterExpr::Literal { value: Value::Number(2.0) },
+            runtime_writable: false,
+            selection: None,
+            list: None,
+            extensions: BTreeMap::new(),
+        };
+        let mut definition = Definition {
+            id: "analysis-fixture.scale".into(),
+            version: 1,
+            label: "Scale Signal".into(),
+            description: "Multiply Original Samples By A Typed Factor".into(),
+            parameters: vec![parameter],
+            outputs: vec![Output {
+                key: "scaled".into(),
+                label: "Scaled Signal".into(),
+                unit: Some("V".into()),
+                axis: Some(Axis { key: "time".into(), unit: Some("s".into()) }),
+            }],
+            limits: Limits { max_samples: 64, max_output_values: 64 },
+        };
+        assert!(definition.check().is_ok());
+
+        definition.parameters[0].expression = ParameterExpr::Linspace { start: 0.0, stop: 1.0, count: usize::MAX };
+        assert!(definition.check().unwrap_err().contains("literal defaults"));
+    }
+}

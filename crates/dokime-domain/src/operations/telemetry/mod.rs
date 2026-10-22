@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+
 mod list_samples;
 
 /* === Re-Exports === */
+
 pub use list_samples::ListSamples;
 
 /* === Imports === */
@@ -20,12 +22,11 @@ pub use list_samples::ListSamples;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-
 use crate::model::telemetry::wire::*;
 
 /* === Constants === */
@@ -46,9 +47,9 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for ListSamples {
     const PATH: &'static str = "/dokime.v1.Telemetry/ListSamples";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

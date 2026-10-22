@@ -3,9 +3,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { releaseNativeMedia } from "@/lib/api/native-delivery";
+import { watchStopping } from "@/lib/desktop/stopping";
 import { type AppearanceResource, loadAppearance } from "@/lib/rpc/appearance";
-import { connectionError } from "./errors";
 import { Appearance, Connection, Controller, useNativeSessionController } from "./context";
+import { connectionError } from "./errors";
 import { type ConnectedSession, NativeSession } from "./session";
 
 /** One native owner and fresh backend query/resource scope per generation. */
@@ -20,6 +21,7 @@ export function NativeSessionProvider({
 }) {
   const [owner] = useState(() => supplied ?? new NativeSession());
   const state = useSyncExternalStore(owner.subscribe, owner.snapshot);
+  useEffect(() => watchStopping(), []);
   useEffect(
     () => () => {
       void owner.disconnect();

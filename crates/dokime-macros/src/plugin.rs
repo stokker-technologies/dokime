@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -31,12 +32,17 @@ use syn::{Error, GenericArgument, ItemImpl, Meta, Path, PathArguments, Token, Ty
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Contributed {
     suites: Option<Type>,
     evidence: Option<Type>,
     listeners: Option<Type>,
-    records: bool,
+    records: Option<Type>,
+}
+
+struct RequiredEntry {
+    path: Path,
 }
 
 /* === Enums === */
@@ -45,7 +51,22 @@ struct Contributed {
 
 /* === Implementations === */
 
+impl syn::parse::Parse for RequiredEntry {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+        let path: Path = input.parse()?;
+        if input.peek(Token![:]) {
+            let _: Token![:] = input.parse()?;
+            // The grants are forwarded untouched; only the operation is read.
+            while !input.is_empty() && !input.peek(Token![,]) {
+                let _: proc_macro2::TokenTree = input.parse()?;
+            }
+        }
+        Ok(Self { path })
+    }
+}
+
 /* === Public Functions === */
+
 pub(crate) fn plugin(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(expanded) => crate::facade::contracted(expanded),
@@ -57,14 +78,12 @@ pub(crate) fn plugin(attribute: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /* === Private Functions === */
+
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let block: ItemImpl = syn::parse2(item.clone())?;
     let Type::Path(owner) = block.self_ty.as_ref() else {
-        return Err(Error::new(
-            block.self_ty.span(),
-            "`#[dokime_runtime::plugin]` belongs on `impl dokime_runtime::Plugin for ConcreteType`",
-        ));
+        return Err(Error::new(block.self_ty.span(), "`#[dokime::plugin]` belongs on `impl dokime::Plugin for ConcreteType`"));
     };
     let owner = owner
         .path
@@ -75,19 +94,29 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let arguments = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute)?;
     let contributed = contributed(&arguments)?;
     let mut generated = Vec::new();
+    if let Some(suites) = &contributed.suites {
+        generated.push(crate::catalog::assert_unique(&quote!(#suites), "SuiteIdentifiers"));
+        generated.push(crate::catalog::assert_unique(&quote!(#suites), "SuiteTemplateIdentifiers"));
+    }
+    if let Some(streams) = &contributed.evidence {
+        generated.push(crate::catalog::assert_unique(&quote!(#streams), "StreamIdentifiers"));
+    }
+    if let Some(records) = &contributed.records {
+        generated.push(crate::catalog::assert_unique(&quote!(#records), "RecordIdentifiers"));
+    }
     let mut forwarded = vec![streams(&contributed, &block.self_ty)];
     for argument in arguments {
         match &argument {
             Meta::List(list) if list.path.is_ident("streams") => {
                 return Err(Error::new(
                     list.span(),
-                    "a plugin registers the streams its templates, observers and evidence declare; remove `streams(...)` and declare a stream no template or observer publishes in `dokime_runtime::Evidence<Streams>`",
+                    "a plugin registers the streams its templates, observers and evidence declare; remove `streams(...)` and declare a stream no template or observer publishes in `dokime::Evidence<Streams>`",
                 ));
             }
             Meta::NameValue(named) if named.path.is_ident("stream_entries") => {
                 return Err(Error::new(
                     named.span(),
-                    "`#[dokime_runtime::plugin]` derives its stream grant from its declarations; remove `stream_entries`",
+                    "`#[dokime::plugin]` derives its stream grant from its declarations; remove `stream_entries`",
                 ));
             }
             Meta::NameValue(named) if named.path.is_ident("provides") => {
@@ -201,7 +230,7 @@ fn contributed(arguments: &Punctuated<Meta, Token![,]>) -> Result<Contributed, E
                 "Suites" => contributed.suites = generics.first().cloned(),
                 "Evidence" => contributed.evidence = generics.first().cloned(),
                 "Records" => {
-                    contributed.records = true;
+                    contributed.records = generics.first().cloned();
                     contributed.listeners = generics.get(1).cloned();
                 }
                 _ => {}
@@ -269,8 +298,9 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
         // The host's step built-in every template reaches through
         // `ctx.host()` without listing it.
         hosted.push(syn::parse_quote!(#sdk::operations::files::WatchFile));
+        hosted.push(syn::parse_quote!(#sdk::operations::files::AwaitFileWatchArmed));
     }
-    if contributed.records {
+    if contributed.records.is_some() {
         hosted.push(syn::parse_quote!(#sdk::records::RecordPublication));
     }
     hosted
@@ -278,24 +308,6 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
 
 fn last_ident(path: &Path) -> String {
     path.segments.last().map(|segment| segment.ident.to_string()).unwrap_or_default()
-}
-
-struct RequiredEntry {
-    path: Path,
-}
-
-impl syn::parse::Parse for RequiredEntry {
-    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
-        let path: Path = input.parse()?;
-        if input.peek(Token![:]) {
-            let _: Token![:] = input.parse()?;
-            // The grants are forwarded untouched; only the operation is read.
-            while !input.is_empty() && !input.peek(Token![,]) {
-                let _: proc_macro2::TokenTree = input.parse()?;
-            }
-        }
-        Ok(Self { path })
-    }
 }
 
 /* === Tests === */

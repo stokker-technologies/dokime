@@ -18,9 +18,9 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
-use dokime_runtime::{Identifier, Metadata};
-use dokime_runtime::{Runtime, RuntimeConfig};
+use dokime::domains::exports::storage::DiagnosticPathKey;
+use dokime::{Identifier, Metadata};
+use dokime::{Runtime, RuntimeConfig};
 use tempfile::tempdir;
 
 use dokime_server::diagnostics_assembly::{DiagnosticCheckStatus, DiagnosticsSnapshot, StartupDoctorCheck, StartupDoctorCheckKey};
@@ -42,6 +42,7 @@ use dokime_server::diagnostics_assembly::{DiagnosticCheckStatus, DiagnosticsSnap
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn storage_root_check(diagnostics: &DiagnosticsSnapshot) -> &StartupDoctorCheck {
     diagnostics
         .startup_doctor

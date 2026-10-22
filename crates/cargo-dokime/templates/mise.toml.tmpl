@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:71bed05596c29ceb4e4b8af72af04b1133f45ab2ef51bba04fbc854d95491fd5
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:8e84e27b890ba65cca2a30f577eeac0601286f69fbdcab2d132958b5ea0a99c5
 # === Settings === #
 
 [settings]
@@ -17,6 +17,7 @@ uv = "0.13.0"
 # Rust Toolchain
 "aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
 "aqua:taiki-e/cargo-llvm-cov" = "0.9.1"
+"github:bnjbvr/cargo-machete" = "0.9.2"
 sccache = "0.18.0"
 
 # Formatting And Linting
@@ -34,9 +35,6 @@ glab = "1.123.0"
 # === Environment === #
 
 [env]
-TMPDIR = { value = '''{{exec(command=`python -c "from pathlib import Path; p = Path('target/tmp'); p.mkdir(parents=True, exist_ok=True); print(p.resolve())"` )}}''', tools = true }
-UV_PROJECT_ENVIRONMENT = "{{config_root}}/.venv"
-SCCACHE_STARTUP_DIR = "{{env.XDG_RUNTIME_DIR | default(value='/tmp')}}"
 
 # === Variables === #
 
@@ -53,7 +51,11 @@ run = "uv sync --locked --project tools/python --all-groups"
 [tasks.format]
 description = "Format Every Language"
 usage = 'flag "--check"'
-depends = ["format:toml {% if usage.check %}--check{% endif %}", "format:rust {% if usage.check %}--check{% endif %}", "format:python {% if usage.check %}--check{% endif %}"]
+depends = [
+  "format:toml {% if usage.check %}--check{% endif %}",
+  "format:rust {% if usage.check %}--check{% endif %}",
+  "format:python {% if usage.check %}--check{% endif %}",
+]
 
 [tasks."format:python"]
 description = "Format Python"
@@ -78,33 +80,46 @@ depends = ["lint:rust", "lint:python"]
 
 [tasks."lint:python"]
 description = "Lint Python"
-run = [
-  'uv run --locked --project tools/python ruff check "tools/python"',
-  'uv run --locked --project tools/python ty check "tools/python"',
-]
+run = ['uv run --locked --project tools/python ruff check "tools/python"', 'uv run --locked --project tools/python ty check "tools/python"']
 
 [tasks."lint:rust"]
 description = "Lint Rust"
-run = "uv run --locked --project tools/python python -m project_tools.test.cache -- cargo clippy --workspace --all-targets --all-features -- -D warnings"
+run = "cargo clippy --workspace --all-targets --all-features -- -D warnings"
 
 # === Check === #
 
 [tasks.check]
-description = "Check Rust Feature Proofs And Conventions"
-depends = ["check:rust"]
+description = "Check Every Language And Conventions"
+run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:python" }]
+
+[tasks."check:python"]
+description = "Check Python"
+run = [{ task = "format:python --check" }, { task = "lint:python" }]
+
+[tasks."check:repository"]
+description = "Check Repository Configuration And Conventions"
+run = [{ task = "format:toml --check" }]
 
 [tasks."check:rust"]
 description = "Check Rust"
 run = [
-  "uv run --locked --project tools/python python -m project_tools.test.cache -- cargo check --workspace --all-targets --all-features",
-  "uv run --locked --project tools/python python -m project_tools.test.cache -- cargo check --workspace --all-targets --no-default-features",
+  { task = "format:rust --check" },
+  { task = "lint:rust" },
+  "cargo-machete --skip-target-dir",
+  "cargo check --workspace --all-targets --all-features",
+  "cargo check --workspace --all-targets --no-default-features",
 ]
 
 # === Build === #
 
 [tasks.build]
-description = "Build Binaries, Fixtures, Wheels And The Test Archive"
-env.CARGO_INCREMENTAL = "0"
+description = "Build The Plugin And Its Frozen Catalog"
+usage = 'flag "--profile <profile>" default="dev"'
+tools = { "cargo:cargo-dokime" = "0.1.0" }
+run = "uv run --locked --project tools/python python -m project_tools.build.plugin --profile {{usage.profile}}"
+
+[tasks."build:tests"]
+description = "Build Test Binaries And Fixtures"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.test.archive --profile {{usage.profile}} -- --all-features"
 
@@ -160,10 +175,6 @@ env.CARGO_INCREMENTAL = "0"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.test.run test --profile {{usage.profile}} --category integration --language rust"
 
-[tasks."test:acceptance:rust"]
-description = "Test Acceptance Rust"
-run = "cargo dokime inspect dist/{{package}}.dokime"
-
 # === Bench === #
 
 # === Docs === #
@@ -178,67 +189,43 @@ depends = ["package:rust --profile {{usage.profile}}"]
 [tasks."package:rust"]
 description = "Package Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "cargo dokime build --profile {{usage.profile}} --output dist/{{package}}.dokime"
+tools = { "cargo:cargo-dokime" = "0.1.0" }
+run = "uv run --locked --project tools/python python -m project_tools.package.plugin --profile {{usage.profile}}"
 
 # === CI === #
 
 [tasks.ci]
-description = "Run The CI Flow Locally"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "format:toml --check" },
-  { task = "format:rust --check" },
-  { task = "format:python --check" },
-  { task = "build --profile {{usage.profile}}" },
-  { task = "check" },
-  { task = "lint" },
-  { task = "test --profile {{usage.profile}}" },
-]
+description = "Simulate The Rendered CI Locally"
+usage = 'flag "--event <event>" default="pr"'
+run = "stkr ci simulate --event {{usage.event}}"
 
 [tasks."ci:nightly"]
 description = "Run The Nightly Coverage And Bench Flow"
-run = [
-  { task = "build" },
-  { task = "test:coverage" },
-]
+run = [{ task = "build" }, { task = "build:tests" }, { task = "test:coverage" }]
 
 # === Release === #
 
-[tasks.release]
-description = "Prepare And Validate A Release"
-run = [
-  { task = "release:prepare" },
-  { task = "ci" },
-  { task = "release:publish:dry" },
-]
-
-[tasks."release:prepare"]
-description = "Prepare The Release Branch"
-run = "uv run --locked --project tools/python python -m project_tools.release.run prepare"
-
 [tasks."release:publish"]
-description = "Attach The Release Bundle To The Tagged Release"
-run = '''
-if [ -n "$GITHUB_ACTIONS" ]; then
-  gh release create "$GITHUB_REF_NAME" dist/{{package}}.dokime --verify-tag
-else
-  glab release create "$CI_COMMIT_TAG" dist/{{package}}.dokime
-fi
-'''
-
-[tasks."release:publish:dry"]
-description = "Dry-Run Every Publication"
-run = "uv run --locked --project tools/python python -m project_tools.test.publish --rust"
+description = "Publish Through The Configured Native Release Policy"
+run = [
+  "uv run --locked --project tools/python python -m project_tools.release.run stage",
+  "uv run --locked --project tools/python python -m project_tools.release.run publish",
+  "uv run --locked --project tools/python python -m project_tools.release.run finalize",
+]
 
 [tasks."release:publish:rust"]
 description = "Publish Rust Crates"
-run = "cargo publish --workspace"
+run = "uv run --locked --project tools/python python -m project_tools.release.run crates"
 
 # === Housekeeping === #
 
 [tasks.housekeeping]
 description = "Clean Owned Build Outputs And State"
-run = "stkr project housekeeping"
+run = "uv run --locked --project tools/python python -m project_tools.stkr project housekeeping"
+
+[tasks."housekeeping:outdated"]
+description = "Report Available Dependency And Tool Updates Without Changing Anything"
+run = "mise outdated"
 
 [tasks."housekeeping:stats"]
 description = "Count Source Lines"

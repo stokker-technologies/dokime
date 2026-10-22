@@ -10,11 +10,13 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::definition::SuiteRegistry;
 pub use crate::definition::SuiteSnapshot;
 pub(crate) use crate::transactions::{RemoveSuiteSet, SetSuiteSet};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +38,7 @@ use crate::{RuntimeHandle, runtime::Error, unavailable_rejection};
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn set_suites(&self, source: impl Into<String>, suites: SuiteSet) -> std::result::Result<(), Error> {
         let source = source.into();
@@ -76,12 +79,14 @@ impl RuntimeHandle {
             let registered = self
                 .state_manager
                 .state()
-                .read(move |state| state.suites.get(&id).map(|suite| (suite.suite_id.clone(), suite.suite.clone())))
+                .read(move |state| state.suites.get(&id).cloned())
                 .await
                 .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?
                 .value
                 .ok_or_else(|| crate::runtime::Error::Operation("admitted suite is absent".into()))?;
-            let stored = crate::storage::objects::suite::Suite::new(&registered.0, &registered.1)
+            let typed = registered.telemetry_contracts.into_iter().filter(|contract| contract.storage_schema.is_some()).collect::<Vec<_>>();
+            self.execution_storage.register_schemas(&typed).await?;
+            let stored = crate::storage::objects::suite::Suite::new(&registered.suite_id, &registered.suite)
                 .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
             self.storage().write_object(&stored).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
         }

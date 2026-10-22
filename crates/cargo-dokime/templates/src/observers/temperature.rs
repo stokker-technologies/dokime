@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,7 +20,7 @@
 // Local Imports
 use crate::domain::model::chamber::TemperatureRow;
 use crate::{Bench, Plugin};
-use dokime_runtime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
+use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 
 /* === Constants === */
 
@@ -28,6 +29,7 @@ use dokime_runtime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 pub struct Temperature;
 
@@ -36,19 +38,16 @@ pub struct Temperature;
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::observer(interval_ms = 1_000, streams(TemperatureRow), activation = "demand")]
+
+#[dokime::observer(interval_ms = 1_000, streams(TemperatureRow), activation = "demand")]
 impl Temperature {
-    async fn observe(
-        &mut self,
-        ctx: &ObserverContext<'_, Bench, Publisher<Plugin>>,
-    ) -> Result<(), PublishError> {
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Bench, Publisher<Plugin>>) -> Result<(), PublishError> {
         // A sensor that cannot be read publishes nothing this tick; the next
         // tick reads it again.
         let Ok(celsius) = ctx.resources().sensor.read_celsius() else {
             return Ok(());
         };
-        ctx.publish_on::<TemperatureRow>(&TemperatureRow { celsius })
-            .await
+        ctx.publish_on::<TemperatureRow>(&TemperatureRow { celsius }).await
     }
 
     // An observer that opened a port, a file or a child process closes it in an

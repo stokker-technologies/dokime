@@ -8,17 +8,19 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod analysis;
 mod context;
 mod request;
 mod stream;
 
 /* === Re-Exports === */
+
 pub use crate::plot::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
     PlotPayloadCursor, PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries,
-    PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan,
+    PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan, declared_plot_request,
     plot_payload_request_for_descriptor,
 };
 pub(crate) use analysis::definitions as analysis_definitions;
@@ -29,12 +31,13 @@ pub use stream::{
 };
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use futures_util::future::join_all;
-// Local Imports
 
+// Local Imports
 use crate::plot::{
     PlotPayloadContext, build_plot_payload, complete_window, plot_payload_diagnostics, project_plot_payload, reads_window, resolved_format,
 };
@@ -55,15 +58,46 @@ use stream::{cursor_revision, response_cursor, stream_requests_by_mode};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type WindowedTelemetry = (Vec<Vec<TelemetrySample>>, Vec<Option<Vec<TelemetrySample>>>);
 
 /* === Structs === */
+
+/// What a live plot watch re-reads a plot for: rows on the telemetry streams
+/// it reads, and state changes when it reads records or no telemetry at all.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PlotWatchKeys {
+    telemetry_streams: Vec<String>,
+    records: bool,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl PlotWatchKeys {
+    pub fn for_request(request: &PlotPayloadRequest) -> Self {
+        Self {
+            telemetry_streams: request_telemetry_streams(request).into_iter().map(|stream| stream.as_str().to_owned()).collect(),
+            records: !request_record_types(request).is_empty(),
+        }
+    }
+
+    /// Whether a row committed on `stream` can change this plot.
+    pub fn reads_stream(&self, stream: &str) -> bool {
+        self.telemetry_streams
+            .iter()
+            .any(|declared| crate::plot::stream_matches_alias(stream, declared) || crate::plot::stream_matches_alias(declared, stream))
+    }
+
+    /// Whether a runtime state change can change this plot.
+    pub fn follows_state(&self) -> bool {
+        self.records || self.telemetry_streams.is_empty()
+    }
+}
+
 /* === Public Functions === */
 
 pub async fn query_plot_payloads(
@@ -101,6 +135,7 @@ pub async fn query_plot_stream_batches(
 }
 
 /* === Private Functions === */
+
 fn plot_payload_context(
     request: &PlotPayloadRequest, contract: Option<&TelemetryContract>, run_started_at: Option<&Timestamp>,
     cycle_started_at: Option<&Timestamp>,
@@ -227,7 +262,11 @@ async fn collect_plot_telemetry(
     let groups = telemetry_read_groups(requests);
     let collected = join_all(groups.iter().map(|group| {
         let bounded = group.request_indexes.iter().any(|&index| requests[index].analysis.is_some());
-        let selection = TelemetrySelection { streams: group.streams.clone(), scope: group.scope.clone(), ..TelemetrySelection::default() };
+        let selection = TelemetrySelection {
+            streams: group.streams.iter().cloned().map(Into::into).collect(),
+            scope: group.scope.clone(),
+            ..TelemetrySelection::default()
+        };
         async move { runtime.try_collect_telemetry_bounded(&selection, bounded.then_some(crate::analysis::MAX_SAMPLES as usize)).await }
     }))
     .await;

@@ -29,6 +29,7 @@ use super::Runtime;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Receipt {
     owner: Arc<Mutex<Option<Owner>>>,
@@ -41,6 +42,7 @@ struct Boot {
 }
 
 /* === Enums === */
+
 enum Owner {
     Runtime(Box<Runtime>),
     Boot(Box<Boot>),
@@ -49,6 +51,7 @@ enum Owner {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Receipt {
     pub(super) fn new(runtime: Runtime) -> Self {
         Self { owner: Arc::new(Mutex::new(Some(Owner::Runtime(Box::new(runtime))))) }

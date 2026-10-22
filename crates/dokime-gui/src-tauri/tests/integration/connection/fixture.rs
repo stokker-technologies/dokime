@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -30,13 +31,14 @@ use tonic::{
     transport::{Identity, Server, ServerTlsConfig},
 };
 // Local Imports
-use dokime_client::contracts::{Endpoint, backend, plugins, runtime};
-use dokime_client::credentials::{Error as CredentialError, SecretStore};
-use dokime_domain::model;
+use dokime::client::contracts::{Endpoint, backend, plugins, runtime};
+use dokime::client::credentials::{Error as CredentialError, SecretStore};
+use dokime::domain::model;
 use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
 use zeroize::Zeroizing;
 
 /* === Constants === */
+
 static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::new(|| {
     let generated = rcgen::generate_simple_self_signed(vec!["localhost".into(), "127.0.0.1".into()])
         .expect("a self-signed test certificate is generated");
@@ -44,7 +46,7 @@ static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::ne
 });
 
 static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
-    let contracts = harmos::operations::Contracts::of::<dokime_client::contracts::Operations>().unwrap();
+    let contracts = dokime::harmos::operations::Contracts::of::<dokime::client::contracts::Operations>().unwrap();
     let artifacts = harmos_packaging::proto::Artifacts::new(&contracts).unwrap();
     Sha256::digest(artifacts.descriptors()).to_vec()
 });
@@ -54,6 +56,7 @@ static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 pub struct MemorySecrets(pub Arc<Mutex<BTreeMap<String, String>>>);
 
@@ -98,6 +101,7 @@ pub struct Listener {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SecretStore for MemorySecrets {
     fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, CredentialError> {
         Ok(self.0.lock().unwrap().get(endpoint).cloned().map(Zeroizing::new))
@@ -179,11 +183,11 @@ type FixtureFuture<T> = std::pin::Pin<Box<dyn Future<Output = Result<T, Status>>
 type HttpRequest = tonic::codegen::http::Request<tonic::body::Body>;
 type HttpResponse = tonic::codegen::http::Response<tonic::body::Body>;
 type HttpFuture = std::pin::Pin<Box<dyn Future<Output = Result<HttpResponse, Infallible>> + Send>>;
-type LogEnvelope = harmos::grpc::OutputEnvelope<model::backend::wire::LogFrame, ()>;
-type UploadEnvelope = harmos::grpc::InputEnvelope<plugins::Stage, model::plugins::wire::StagePluginFrame>;
+type LogEnvelope = dokime::harmos::grpc::OutputEnvelope<model::backend::wire::LogFrame, ()>;
+type UploadEnvelope = dokime::harmos::grpc::InputEnvelope<plugins::Stage, model::plugins::wire::StagePluginFrame>;
 
 #[tonic::async_trait]
-trait FixtureUnary: harmos::operations::OperationDeclaration + Send + 'static {
+trait FixtureUnary: dokime::harmos::operations::OperationDeclaration + Send + 'static {
     async fn reply(service: Service) -> Result<Self::Response, Status>;
 }
 
@@ -235,6 +239,7 @@ impl FixtureUnary for backend::GetAvailability {
                 max_request_bytes: service.max_request_bytes,
                 max_response_bytes: service.max_response_bytes,
                 max_content_bytes: Some(u64::MAX),
+                max_evidence_bytes: Some(u64::MAX),
                 max_chunk_bytes: Some(u32::MAX),
                 max_page_items: None,
                 max_stream_buffer_items: None,
@@ -287,37 +292,37 @@ impl FixtureUnary for runtime::GetHealth {
     }
 }
 
-impl<O> tonic::server::UnaryService<harmos::operations::StreamItem<O>> for Unary<O>
+impl<O> tonic::server::UnaryService<dokime::harmos::operations::StreamItem<O>> for Unary<O>
 where
     O: FixtureUnary,
-    O: harmos::domain::Portable + harmos::MemorySize,
-    O::Response: harmos::domain::Portable,
+    O: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
+    O::Response: dokime::harmos::domain::Portable,
 {
-    type Response = harmos::operations::Response<O::Response>;
+    type Response = dokime::harmos::operations::Response<O::Response>;
     type Future = FixtureFuture<Response<Self::Response>>;
 
-    fn call(&mut self, request: Request<harmos::operations::StreamItem<O>>) -> Self::Future {
+    fn call(&mut self, request: Request<dokime::harmos::operations::StreamItem<O>>) -> Self::Future {
         let service = self.service.clone();
         Box::pin(async move {
             service.authorize(&request)?;
             let response = O::reply(service).await?;
-            Ok(Response::new(harmos::operations::Response::new(response)))
+            Ok(Response::new(dokime::harmos::operations::Response::new(response)))
         })
     }
 }
 
-impl tonic::server::ServerStreamingService<harmos::operations::StreamItem<backend::WatchLogs>> for Logs {
-    type Response = harmos::operations::Response<LogEnvelope>;
+impl tonic::server::ServerStreamingService<dokime::harmos::operations::StreamItem<backend::WatchLogs>> for Logs {
+    type Response = dokime::harmos::operations::Response<LogEnvelope>;
     type ResponseStream = tokio_stream::wrappers::ReceiverStream<Result<Self::Response, Status>>;
     type Future = FixtureFuture<Response<Self::ResponseStream>>;
 
-    fn call(&mut self, request: Request<harmos::operations::StreamItem<backend::WatchLogs>>) -> Self::Future {
+    fn call(&mut self, request: Request<dokime::harmos::operations::StreamItem<backend::WatchLogs>>) -> Self::Future {
         let service = self.0.clone();
         Box::pin(async move {
             service.authorize(&request)?;
             let (sender, receiver) = tokio::sync::mpsc::channel(1);
             sender
-                .send(Ok(harmos::operations::Response::new(LogEnvelope::Item(model::backend::wire::LogFrame {
+                .send(Ok(dokime::harmos::operations::Response::new(LogEnvelope::Item(model::backend::wire::LogFrame {
                     time: None,
                     level: model::backend::wire::LogLevel::Unspecified,
                     target: String::new(),
@@ -337,11 +342,11 @@ impl tonic::server::ServerStreamingService<harmos::operations::StreamItem<backen
     }
 }
 
-impl tonic::server::ClientStreamingService<harmos::operations::StreamItem<UploadEnvelope>> for Upload {
-    type Response = harmos::operations::Response<model::plugins::wire::PluginInstallation>;
+impl tonic::server::ClientStreamingService<dokime::harmos::operations::StreamItem<UploadEnvelope>> for Upload {
+    type Response = dokime::harmos::operations::Response<model::plugins::wire::PluginInstallation>;
     type Future = FixtureFuture<Response<Self::Response>>;
 
-    fn call(&mut self, request: Request<tonic::Streaming<harmos::operations::StreamItem<UploadEnvelope>>>) -> Self::Future {
+    fn call(&mut self, request: Request<tonic::Streaming<dokime::harmos::operations::StreamItem<UploadEnvelope>>>) -> Self::Future {
         let service = self.0.clone();
         Box::pin(async move {
             service.authorize(&request)?;
@@ -368,7 +373,7 @@ impl tonic::server::ClientStreamingService<harmos::operations::StreamItem<Upload
                 }
             }
             drop(input);
-            Ok(Response::new(harmos::operations::Response::new(model::plugins::wire::PluginInstallation {
+            Ok(Response::new(dokime::harmos::operations::Response::new(model::plugins::wire::PluginInstallation {
                 install_id: count.to_string(),
                 sha256: String::new(),
                 staged_at: None,
@@ -410,7 +415,7 @@ impl tonic::codegen::Service<HttpRequest> for BackendService {
                 backend::GetAvailability::PATH => serve_unary::<backend::GetAvailability>(service, request).await,
                 backend::GetDiagnostics::PATH => serve_unary::<backend::GetDiagnostics>(service, request).await,
                 backend::WatchLogs::PATH => {
-                    wire_codec::<backend::WatchLogs, harmos::operations::Response<LogEnvelope>>()
+                    wire_codec::<backend::WatchLogs, dokime::harmos::operations::Response<LogEnvelope>>()
                         .server()
                         .server_streaming(Logs(service), request)
                         .await
@@ -436,7 +441,7 @@ impl tonic::codegen::Service<HttpRequest> for PluginsService {
         Box::pin(async move {
             let response = match request.uri().path() {
                 plugins::Stage::PATH => {
-                    wire_codec::<UploadEnvelope, harmos::operations::Response<model::plugins::wire::PluginInstallation>>()
+                    wire_codec::<UploadEnvelope, dokime::harmos::operations::Response<model::plugins::wire::PluginInstallation>>()
                         .server()
                         .client_streaming(Upload(service), request)
                         .await
@@ -474,16 +479,16 @@ impl tonic::codegen::Service<HttpRequest> for RuntimeService {
     }
 }
 
-fn wire_codec<D, E>() -> harmos::grpc::Codec<harmos::grpc::Transcoded, D, E>
+fn wire_codec<D, E>() -> dokime::harmos::grpc::Codec<dokime::harmos::grpc::Transcoded, D, E>
 where
-    harmos::grpc::Transcoded: harmos::grpc::Wire<D>,
-    D: harmos::MemorySize + Send + 'static,
-    E: harmos::grpc::Encode<harmos::grpc::Transcoded>,
+    dokime::harmos::grpc::Transcoded: dokime::harmos::grpc::Wire<D>,
+    D: dokime::harmos::MemorySize + Send + 'static,
+    E: dokime::harmos::grpc::Encode<dokime::harmos::grpc::Transcoded>,
 {
     let bytes = NonZeroUsize::new(1024 * 1024).unwrap();
-    harmos::grpc::Codec::new(
-        harmos::grpc::DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
-        harmos::grpc::EncodeSettings { message_bytes: bytes, buffer_bytes: NonZeroUsize::new(8192).unwrap() },
+    dokime::harmos::grpc::Codec::new(
+        dokime::harmos::grpc::DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
+        dokime::harmos::grpc::EncodeSettings { message_bytes: bytes, buffer_bytes: NonZeroUsize::new(8192).unwrap() },
     )
     .unwrap()
 }
@@ -491,10 +496,10 @@ where
 async fn serve_unary<O>(service: Service, request: HttpRequest) -> HttpResponse
 where
     O: FixtureUnary,
-    O: harmos::domain::Portable + harmos::MemorySize,
-    O::Response: harmos::domain::Portable,
+    O: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
+    O::Response: dokime::harmos::domain::Portable,
 {
-    wire_codec::<O, harmos::operations::Response<O::Response>>()
+    wire_codec::<O, dokime::harmos::operations::Response<O::Response>>()
         .server()
         .unary(Unary::<O> { service, operation: std::marker::PhantomData }, request)
         .await
@@ -506,9 +511,9 @@ pub async fn server_health(endpoint: &str) -> model::backend::wire::BackendHealt
     client.ready().await.unwrap();
     let reply = client
         .unary(
-            Request::new(harmos::operations::Response::new(backend::GetHealth {})),
+            Request::new(dokime::harmos::operations::Response::new(backend::GetHealth {})),
             tonic::codegen::http::uri::PathAndQuery::from_static(backend::GetHealth::PATH),
-            wire_codec::<model::backend::wire::BackendHealth, harmos::operations::Response<backend::GetHealth>>(),
+            wire_codec::<model::backend::wire::BackendHealth, dokime::harmos::operations::Response<backend::GetHealth>>(),
         )
         .await
         .unwrap()

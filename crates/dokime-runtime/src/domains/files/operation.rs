@@ -19,8 +19,8 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::{Arc, OnceLock};
-use std::time::Instant;
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 // Third Party Imports
 use harmos::operations::{Context, Operation, OperationManager, Response};
@@ -28,12 +28,15 @@ use harmos::operations::{Context, Operation, OperationManager, Response};
 // Local Imports
 use super::{FileWatch, WatchEvent};
 use crate::{RuntimeHandle, runtime::Error};
+use dokime_domain::model::files::wire::FileWatchArmed;
 use dokime_domain::model::files::wire::FileWatchGap;
 use dokime_domain::model::files::wire::WatchFileOutcome;
 use dokime_domain::model::files::wire::WatchedArtifact;
+use dokime_domain::operations::files::AwaitFileWatchArmed;
 use dokime_domain::operations::files::WatchFile;
 
 /* === Constants === */
+
 // The owner the step built-ins are registered under.
 const OWNER: &str = "dokime";
 
@@ -42,14 +45,29 @@ const OWNER: &str = "dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Registered before any plugin attaches, bound to the runtime once it exists.
 pub struct Resources {
     runtime: OnceLock<RuntimeHandle>,
+    readiness: Mutex<BTreeMap<u64, Ready>>,
+    changed: tokio::sync::Notify,
+}
+
+struct Ready {
+    execution: Option<String>,
+    signal: tokio::sync::watch::Sender<Option<Result<FileWatchArmed, String>>>,
+    finished: bool,
+}
+
+struct Awaiting {
+    resources: Arc<Resources>,
 }
 
 struct Watching {
     resources: Arc<Resources>,
     watch: Option<FileWatch>,
+    ready: tokio::sync::watch::Sender<Option<Result<FileWatchArmed, String>>>,
+    id: u64,
 }
 
 /* === Enums === */
@@ -57,6 +75,7 @@ struct Watching {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Watching {
     type Declaration = WatchFile;
     type Resources = Resources;
@@ -64,8 +83,23 @@ impl Operation for Watching {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> crate::runtime::Result<Self> {
-        Ok(Self { resources, watch: None })
+    async fn initialize<'ctx>(resources: Arc<Resources>, context: Self::Context<'ctx>) -> crate::runtime::Result<Self> {
+        let execution = context.context().value::<crate::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
+        let (ready, _) = tokio::sync::watch::channel(None);
+        {
+            let mut entries = resources.readiness.lock().expect("watch readiness lock is healthy");
+            if entries.len() >= 256 {
+                let removable = entries.iter().find(|(_, entry)| entry.finished).map(|(id, _)| *id);
+                if let Some(id) = removable {
+                    entries.remove(&id);
+                } else {
+                    return Err(super::capped("at most 256 file watches may await readiness"));
+                }
+            }
+            entries.insert(context.id().value(), Ready { execution, signal: ready.clone(), finished: false });
+        }
+        resources.changed.notify_waiters();
+        Ok(Self { resources, watch: None, ready, id: context.id().value() })
     }
 
     async fn run<'a>(
@@ -77,15 +111,14 @@ impl Operation for Watching {
             self.resources.runtime.get().ok_or_else(|| Error::unavailable(super::UNREACHABLE, "the runtime is still starting"))?;
         let watch = runtime.open_watch_file(&*request, scoped.as_deref()).await?;
         let watch = self.watch.insert(watch);
-        let started = Instant::now();
 
         // Poll Until Complete, Bounded, Or Sealed By The Execution
         let mut events = Vec::new();
         let mut gaps = Vec::new();
         loop {
             let polled = watch.poll(&mut events).await;
-            collect_gaps(&mut events, &mut gaps);
             if let Err(source) = polled {
+                self.ready.send_replace(Some(Err(source.to_string())));
                 let sealed = watch.seal(&mut events).await;
                 self.watch = None;
                 if let Err(seal) = sealed {
@@ -93,10 +126,16 @@ impl Operation for Watching {
                 }
                 return Err(source);
             }
+            for event in &events {
+                if let WatchEvent::Armed { baseline } = event {
+                    self.ready.send_replace(Some(Ok(FileWatchArmed { baseline: baseline.clone() })));
+                }
+            }
+            collect_gaps(&mut events, &mut gaps);
             if watch.is_complete() {
                 break;
             }
-            let remaining = watch.deadline().map(|deadline| deadline.saturating_sub(started.elapsed()));
+            let remaining = watch.remaining();
             if remaining.is_some_and(|remaining| remaining.is_zero()) {
                 break;
             }
@@ -129,6 +168,72 @@ impl Operation for Watching {
     }
 }
 
+impl Drop for Watching {
+    fn drop(&mut self) {
+        if self.ready.borrow().is_none() {
+            self.ready.send_replace(Some(Err("file watch stopped before capture was armed; inspect its outcome".to_owned())));
+        }
+        let mut entries = self.resources.readiness.lock().expect("watch readiness lock is healthy");
+        if let Some(entry) = entries.get_mut(&self.id) {
+            entry.finished = true;
+        }
+    }
+}
+
+impl Operation for Awaiting {
+    type Declaration = AwaitFileWatchArmed;
+    type Resources = Resources;
+    type Error = Error;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> crate::runtime::Result<Self> {
+        Ok(Self { resources })
+    }
+
+    async fn run<'a>(
+        &mut self, context: Self::Context<'a>, request: &mut AwaitFileWatchArmed, _: &mut (),
+    ) -> crate::runtime::Result<Response<FileWatchArmed>> {
+        let execution = context.context().value::<crate::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
+        let readiness = async {
+            let registration = async {
+                loop {
+                    let changed = self.resources.changed.notified();
+                    {
+                        let entries = self.resources.readiness.lock().expect("watch readiness lock is healthy");
+                        if let Some(entry) = entries.get(&request.instance_id) {
+                            if entry.execution != execution {
+                                return Err(super::invalid("file watch belongs to another execution"));
+                            }
+                            return Ok(entry.signal.subscribe());
+                        }
+                    }
+                    let runtime = self.resources.runtime.get().ok_or_else(|| super::invalid("runtime is not ready"))?;
+                    let id = harmos::operations::OperationInstanceId::new(request.instance_id);
+                    let status = runtime.operations().status(id);
+                    if status.is_none_or(|status| status.phase().is_terminal() || status.cancellation_requested()) {
+                        return Err(Error::conflict(super::UNREACHABLE, "file watch stopped before capture was armed"));
+                    }
+                    changed.await;
+                }
+            };
+            let mut signal = tokio::time::timeout(std::time::Duration::from_secs(30), registration)
+                .await
+                .map_err(|_| super::invalid("file watch instance was not registered"))??;
+            loop {
+                let value = signal.borrow_and_update().clone();
+                if let Some(value) = value {
+                    return value.map(Response::new).map_err(|message| Error::conflict(super::UNREACHABLE, message));
+                }
+                signal.changed().await.map_err(|_| Error::conflict(super::UNREACHABLE, "file watch closed before arming"))?;
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(super::MAXIMUM_SECONDS.into()), readiness)
+            .await
+            .map_err(|_| Error::conflict(super::UNREACHABLE, "file watch readiness deadline elapsed"))?
+    }
+}
+
 impl Resources {
     pub fn bind(&self, runtime: &RuntimeHandle) {
         let _ = self.runtime.set(runtime.clone());
@@ -136,16 +241,20 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 // Registers the step built-ins, the Harmos instance controls and `WatchFile`,
 // before any plugin that requires them attaches.
 pub fn register(operations: &OperationManager) -> harmos::Result<Arc<Resources>> {
     harmos::builtin::Catalog::register(operations, OWNER, crate::app::Lanes::Open)?;
-    let resources = Arc::new(Resources { runtime: OnceLock::new() });
+    let resources =
+        Arc::new(Resources { runtime: OnceLock::new(), readiness: Mutex::new(BTreeMap::new()), changed: tokio::sync::Notify::new() });
     operations.register_wire_operation::<Watching>(OWNER, crate::app::Lanes::Open, Arc::clone(&resources))?;
+    operations.register_wire_operation::<Awaiting>(OWNER, crate::app::Lanes::Open, Arc::clone(&resources))?;
     Ok(resources)
 }
 
 /* === Private Functions === */
+
 fn collect_gaps(events: &mut Vec<WatchEvent>, gaps: &mut Vec<FileWatchGap>) {
     for event in events.drain(..) {
         if let WatchEvent::Gap { path, offset, reason } = event {

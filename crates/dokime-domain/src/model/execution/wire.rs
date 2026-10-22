@@ -42,9 +42,8 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-// Correlation is a caller label, never authenticated identity or an idempotency
-// key. Only the run-specific idempotency_key fields support safe retries. Other
-// mutations remain unsafe to replay after an ambiguous transport failure.
+// Correlation Is A Caller Label, Never Authenticated Identity. StartExecution
+// Resolves Durable Attempt Identity; SealCycle Is Intrinsically Idempotent.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -52,12 +51,20 @@ pub struct MutationContext {
     pub correlation_id: Option<String>,
 }
 
-// Creates an empty Ready cycle. Cases join it only through AppendPlannedCases.
+// Creates An Empty Active Cycle. Explicit Attempts Join Through AppendExecutions.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateCycleReply {
     pub cycle_id: String,
     pub observed_cursor: Option<Cursor>,
+}
+
+// Ordered Identities From This Append, Independent Of Concurrent Appends.
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct AppendCasesReply {
+    pub observed_cursor: Option<Cursor>,
+    pub execution_ids: Vec<String>,
 }
 
 // Server-side selection and ordering for the live cycle list.
@@ -126,54 +133,6 @@ pub struct ExecutionCommandReceipt {
     pub detail: Option<String>,
 }
 
-// Primary-published operation progress, not the current in-memory cycle state.
-// finished_count counts folded outcomes; terminal Completed/Failed/Stopped also
-// certifies required execution checkpoints settled. Interrupted means recovery
-// did not resume device actions and cannot certify those terminal checkpoints.
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RunRequestReceipt {
-    pub request_id: String,
-    pub node_id: String,
-    pub cycle_id: String,
-    pub phase: RunRequestPhase,
-    pub paused: bool,
-    pub stop_requested: bool,
-    pub planned_count: u64,
-    pub prepared_count: u64,
-    pub finished_count: u64,
-    pub unstarted_count: u64,
-    pub failed_count: u64,
-    pub claimed_count: u64,
-    pub last_claim: Option<RunAttemptClaim>,
-    pub accepted_at: Option<Timestamp>,
-
-    // Authorized provider dispatch, not proof that a device action occurred.
-    #[row(description = "Authorized provider dispatch, not proof that a device action occurred.")]
-    pub provider_started_at: Option<Timestamp>,
-
-    pub finished_at: Option<Timestamp>,
-    pub submitted_by: Option<String>,
-
-    // Why the request ended without its normal outcome: the interruption of an
-    // Interrupted request, or the permanent cause a Failed request's final
-    // reports were not sealed.
-    #[row(
-        description = "Why the request ended without its normal outcome: the interruption of an Interrupted request, or the permanent cause a Failed request's final reports were not sealed."
-    )]
-    pub interruption: Option<String>,
-
-    pub mode: ExecutionMode,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RunAttemptClaim {
-    pub ordinal: u64,
-    pub case_id: String,
-    pub execution_id: String,
-}
-
 // Observation position, not an exact command commit/checkpoint receipt.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -187,9 +146,8 @@ pub struct RunReply {
     pub outcome: Option<RunReplyOutcome>,
 }
 
-// Admission or resolution of the original keyed request; not execution completion.
-// command_id is the durable GetRunRequest request_id. A resolved job_id after
-// restart does not imply a live job. Query the receipt for durable completion.
+// Admission Or Resolution Of The Original Execution Start. A Resolved Job ID
+// After Restart Does Not Imply A Live Job. Inspect Execution State For Completion.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Admission {
@@ -224,10 +182,11 @@ pub struct ValidationIssue {
 pub struct CycleSummary {
     pub cycle_id: String,
     pub metadata: Option<Metadata>,
+    pub phase: super::result::CyclePhase,
     pub status: CycleStatus,
     pub case_count: u64,
     pub execution_count: u64,
-    pub continue_on_failure: bool,
+    pub continue_automatically: bool,
     pub observed_cursor: Option<Cursor>,
     pub created_at: Option<Timestamp>,
     pub started_at: Option<Timestamp>,
@@ -274,8 +233,6 @@ pub struct ListExecutionsReply {
 // projects that attempt: no attempt at all is PLANNED; an attempt materialized
 // but never dispatched is QUEUED; otherwise the attempt's own outcome.
 // `attempt_count` counts every live attempt, including superseded ones.
-// `rerun_scheduled` means this case already carries a recorded outcome and a
-// fresh undispatched attempt on top of it, so the next RunCase runs that one.
 // Historical projections report no actions: a checkpoint is immutable. A
 // captured cycle grouping also retains the plan without its attempt records,
 // so its rows carry CASE_STATUS_UNSPECIFIED and a zero attempt count; the
@@ -292,22 +249,18 @@ pub struct CaseSummary {
     pub latest_execution_id: Option<String>,
     pub latest_execution_status: Option<ExecutionStatus>,
     pub attempt_count: u32,
-    pub rerun_scheduled: bool,
     pub actions: Option<CaseActions>,
     pub suite_id: String,
 }
 
-// Which case mutations the runtime would admit right now, computed from the
-// same checks RunCase, ScheduleCaseRerun and DeleteCase
-// enforce. `unavailable_reasons` carries each refused operation's own reason
+// Definition Maintenance The Runtime Would Admit Right Now. Execution Start
+// Uses The Explicit Attempt Identity. `unavailable_reasons` carries the refusal
 // text, deduplicated; it is diagnostic copy, not a stable code vocabulary.
 // Eligibility is observed, never a promise: admission is re-checked on the
 // mutation itself and a concurrent change can still reject it.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaseActions {
-    pub run: bool,
-    pub schedule_rerun: bool,
     pub delete: bool,
     pub unavailable_reasons: Vec<String>,
 }
@@ -357,12 +310,12 @@ pub struct ExecutionDetail {
     pub controls: Option<ExecutionControls>,
 }
 
-// Snapshot eligibility reuses the mutation checks. A later mutation validates
-// again; absent controls means no active execution-addressed request.
+// Snapshot Eligibility Reuses Mutation Checks. An Unstarted Attempt Can Stop
+// Without An Owning Request; Interactive Commands Require Its Started Identity.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionControls {
-    pub request_id: String,
+    pub request_id: Option<String>,
     pub paused: bool,
     pub stop_requested: bool,
     pub can_pause: bool,
@@ -451,7 +404,7 @@ pub struct MaterializedParameter {
 // remain separate entries; ordinals belong to this revision, not stable identity.
 // Continuation binds execution, step, collection and exact runtime revision.
 // Any state change aborts continuation; restart with no cursor. Limits: default
-// 50, maximum 100. A value exceeding the documented Value budget is an explicit
+// 50, maximum 500. A value exceeding the documented Value budget is an explicit
 // ResourceExhausted error, never truncated evidence.
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -467,14 +420,6 @@ pub struct StepPageCursor {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListExecutionStepsReply {
     pub steps: Vec<ExecutionStep>,
-    pub next_cursor: Option<StepPageCursor>,
-    pub observed_cursor: Option<Cursor>,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct ListStepCriteriaReply {
-    pub criteria: Vec<StepCriterion>,
     pub next_cursor: Option<StepPageCursor>,
     pub observed_cursor: Option<Cursor>,
 }
@@ -498,6 +443,14 @@ pub struct ExecutionStep {
         description = "Why this step failed, for the one step that did. Present only on a failed step, and already redacted: the step is the row an event log renders with a status, so it is where the failure's own story belongs."
     )]
     pub detail: Option<Diagnostic>,
+
+    // Every criterion the step judged, in declaration order. The page ends
+    // early, with a continuation, when the next step's criteria would exceed
+    // the response budget.
+    #[row(
+        description = "Every criterion the step judged, in declaration order. The page ends early, with a continuation, when the next step's criteria would exceed the response budget."
+    )]
+    pub criteria: Vec<StepCriterion>,
 }
 
 #[harmos_domain::message]
@@ -560,20 +513,6 @@ pub enum ExecutionCommandPhase {
     Completed,
     Refused,
     Failed,
-    Interrupted,
-}
-
-#[harmos_domain::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RunRequestPhase {
-    Unspecified,
-    Queued,
-    Preparing,
-    Running,
-    Finishing,
-    Completed,
-    Failed,
-    Stopped,
     Interrupted,
 }
 
@@ -675,7 +614,6 @@ pub enum StepPageKind {
     Unspecified,
     Steps,
     Measurements,
-    Criteria,
 }
 
 #[harmos_domain::message]

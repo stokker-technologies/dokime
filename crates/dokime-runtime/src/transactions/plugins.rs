@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::state::ProviderCatalog;
 use crate::{InstalledPlugin, RuntimeState};
@@ -28,6 +30,7 @@ use crate::{InstalledPlugin, RuntimeState};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.artifact.host.install", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InstallHostPlugin {
@@ -52,6 +55,7 @@ pub struct ReloadProviderCatalog {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for InstallHostPlugin {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
@@ -88,6 +92,7 @@ impl Transaction<RuntimeState> for ReloadProviderCatalog {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn active(state: &RuntimeState) -> Result<(), String> {
     if state.shutting_down { Err("runtime is shutting down".into()) } else { Ok(()) }
 }

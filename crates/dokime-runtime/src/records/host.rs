@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -27,9 +29,11 @@ use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const PRODUCT_SCHEMA_VERSION: u32 = dokime_domain::model::records::product::PRODUCT_RECORD_SCHEMA_VERSION;
 
 /* === Macros === */
+
 macro_rules! host_record {
     (
         $record:ty,
@@ -130,6 +134,7 @@ host_record!(TargetLost, "target.lost", RecordSeverity::Warning, "a target lock 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TestCycleCompleted;
 
@@ -186,6 +191,7 @@ pub struct TargetLost {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DeclaredRecord for TestCycleCompleted {
     const RECORD_TYPE: &'static str = "test.cycle.completed";
     const SCHEMA_VERSION: u32 = 1;
@@ -311,7 +317,6 @@ pub fn declared() -> Vec<Identifier> {
 }
 
 /* === Private Functions === */
-/* === Functions === */
 
 fn checked<R: DeclaredRecord>(record: &Record) -> crate::Result<R> {
     if record.record_type.as_str() != R::RECORD_TYPE {

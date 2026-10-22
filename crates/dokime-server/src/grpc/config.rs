@@ -12,17 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{net::SocketAddr, num::NonZeroUsize, time::Duration};
+
 // Third Party Imports
 use zeroize::Zeroizing;
+
 // Local Imports
 use super::{
     Error,
-    access::{BearerGrant, Policy},
+    access::{self, Policy},
 };
 
 /* === Constants === */
+
 const OUTPUT_DECODED_FACTOR: usize = 4;
 
 /* === Macros === */
@@ -30,19 +34,21 @@ const OUTPUT_DECODED_FACTOR: usize = 4;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+#[derive(Clone)]
 pub struct TlsIdentity {
     certificate: Vec<u8>,
     private_key: Zeroizing<Vec<u8>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Config {
     pub(crate) bind_addr: SocketAddr,
     pub(crate) policy: Policy,
     pub(crate) tls: Option<TlsIdentity>,
     pub(crate) max_message_bytes: usize,
     remote: bool,
-    web: Option<Vec<harmos::grpc::Origin>>,
+    web: Option<Vec<dokime::harmos::grpc::Origin>>,
 }
 
 /* === Enums === */
@@ -50,6 +56,7 @@ pub struct Config {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl std::fmt::Debug for TlsIdentity {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.debug_struct("TlsIdentity").finish_non_exhaustive()
@@ -82,8 +89,13 @@ impl Config {
         }
     }
 
-    pub fn remote(bind_addr: SocketAddr, tls: TlsIdentity, grants: Vec<BearerGrant>) -> Result<Self, Error> {
-        Ok(Self { bind_addr, policy: Policy::bearer(grants)?, tls: Some(tls), max_message_bytes: 1024 * 1024, remote: true, web: None })
+    pub fn remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, key: Option<&str>) -> Result<Self, Error> {
+        let digest = key.map(access::verifier).transpose()?;
+        Ok(Self::managed_remote(bind_addr, tls, digest, 1024 * 1024))
+    }
+
+    pub(super) fn managed_remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, digest: Option<[u8; 32]>, maximum: usize) -> Self {
+        Self { bind_addr, policy: digest.map_or(Policy::Open, Policy::Key), tls, max_message_bytes: maximum, remote: true, web: None }
     }
 
     pub fn with_bind_addr(mut self, address: SocketAddr) -> Self {
@@ -91,17 +103,12 @@ impl Config {
         self
     }
 
-    pub fn with_bearer_auth(mut self, grants: Vec<BearerGrant>) -> Result<Self, Error> {
-        self.policy = Policy::bearer(grants)?;
-        Ok(self)
-    }
-
     pub fn with_max_message_bytes(mut self, bytes: usize) -> Self {
         self.max_message_bytes = bytes;
         self
     }
 
-    pub fn with_grpc_web(mut self, origins: Vec<harmos::grpc::Origin>) -> Result<Self, Error> {
+    pub fn with_grpc_web(mut self, origins: Vec<dokime::harmos::grpc::Origin>) -> Result<Self, Error> {
         if origins.len() > 32 || origins.iter().enumerate().any(|(index, origin)| origins[..index].contains(origin)) {
             return Err(Error::Configuration("allowed origins require at most 32 distinct exact origins"));
         }
@@ -109,13 +116,13 @@ impl Config {
         Ok(self)
     }
 
-    pub(crate) fn into_listener_settings(mut self) -> Result<harmos::grpc::Settings, Error> {
+    pub(crate) fn into_listener_settings(mut self) -> Result<dokime::harmos::grpc::Settings, Error> {
         self.validate()?;
         let bytes = NonZeroUsize::new(self.max_message_bytes).ok_or(Error::Configuration("message limit must be positive"))?;
-        let stream = harmos::operations::StreamSettings { items: NonZeroUsize::new(1).unwrap(), bytes };
+        let stream = dokime::harmos::operations::StreamSettings { items: NonZeroUsize::new(1).unwrap(), bytes };
         // An output item is charged at its decoded size, which outgrows its
         // encoding; the queue holds one message's worth of decoded frame.
-        let output = harmos::operations::StreamSettings {
+        let output = dokime::harmos::operations::StreamSettings {
             items: stream.items,
             bytes: NonZeroUsize::new(output_stream_bytes(self.max_message_bytes))
                 .ok_or(Error::Configuration("message limit must be positive"))?,
@@ -125,16 +132,16 @@ impl Config {
             let _ = rustls::crypto::ring::default_provider().install_default();
             tonic::transport::ServerTlsConfig::new().identity(identity.into_tonic()).timeout(Duration::from_secs(10))
         });
-        Ok(harmos::grpc::Settings {
+        Ok(dokime::harmos::grpc::Settings {
             address: self.bind_addr,
-            operations: harmos::grpc::server::Settings {
+            operations: dokime::harmos::grpc::server::Settings {
                 calls: NonZeroUsize::new(32).unwrap(),
                 // Transcoding Decodes Through The Canonical Postcard Form, So A Message Retains Up To Four Times Its Wire Size.
-                decode: harmos::grpc::DecodeSettings {
+                decode: dokime::harmos::grpc::DecodeSettings {
                     message_bytes: bytes,
                     retained_bytes: NonZeroUsize::new(bytes.get().saturating_mul(4).min(u32::MAX as usize)).unwrap(),
                 },
-                encode: harmos::grpc::EncodeSettings {
+                encode: dokime::harmos::grpc::EncodeSettings {
                     message_bytes: bytes,
                     buffer_bytes: NonZeroUsize::new(self.max_message_bytes.min(8192)).unwrap(),
                 },
@@ -163,8 +170,8 @@ impl Config {
         if !self.remote && !self.bind_addr.ip().is_loopback() {
             return Err(Error::Configuration("non-loopback listeners require explicit remote configuration"));
         }
-        if self.remote && (self.tls.is_none() || !matches!(self.policy, Policy::Bearer(_))) {
-            return Err(Error::Configuration("remote listeners require TLS and bearer authentication"));
+        if self.remote && matches!(self.policy, Policy::TrustedLocal) {
+            return Err(Error::Configuration("remote listeners cannot use native local trust"));
         }
         if self.max_message_bytes == 0 || self.max_message_bytes > 16 * 1024 * 1024 {
             return Err(Error::Configuration("message limit must be between 1 byte and 16 MiB"));
@@ -180,6 +187,7 @@ impl Default for Config {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn output_stream_bytes(max_message_bytes: usize) -> usize {
     max_message_bytes.saturating_mul(OUTPUT_DECODED_FACTOR)
 }
