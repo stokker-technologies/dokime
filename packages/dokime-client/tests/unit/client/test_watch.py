@@ -56,6 +56,7 @@ def test_watch_selection_and_waiting(selection: str, waiting: int | None) -> Non
 @pytest.mark.parametrize("baseline", [[], ["device.log"]])
 def test_armed_baseline_is_an_explicit_frame(baseline: list[str]) -> None:
     operation = _contracts.operation("Files", "FileWatch")
+    assert operation.output is not None
     frame = _contracts.construct(operation.output.DESCRIPTOR, {"payload": {"Armed": {"field_0": {"baseline": baseline}}}})
     encoded = frame.SerializeToString()
     received = operation.output.FromString(encoded)
