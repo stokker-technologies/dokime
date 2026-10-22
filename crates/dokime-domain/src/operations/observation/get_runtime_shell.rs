@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Returns a bounded cycle page at one exact runtime revision.
 #[harmos_domain::message]
 #[harmos_domain::operation(response = RuntimeShellSnapshot, id = "dokime.observation.get_runtime_shell", version = 1,
@@ -37,6 +40,7 @@ pub struct GetRuntimeShell {
     // Zero selects the default page size (50); the maximum is 100.
     #[row(description = "Zero selects the default page size (50); the maximum is 100.")]
     pub limit: u32,
+
     pub after_cycle_id: String,
     pub cursor: Option<Cursor>,
 }

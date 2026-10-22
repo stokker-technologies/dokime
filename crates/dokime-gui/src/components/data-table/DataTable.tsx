@@ -18,7 +18,7 @@
 /* === External Imports === */
 
 import { type RowData, useTable } from "@tanstack/react-table";
-import { type MouseEvent, useMemo } from "react";
+import { type MouseEvent, type RefObject, useMemo } from "react";
 
 /* === Local Imports === */
 
@@ -34,6 +34,7 @@ import {
 } from "@/components/data-table/data-table-model";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useRowWindow } from "@/lib/use-row-window";
 import { cn } from "@/lib/utils";
 
 /* === Constants === */
@@ -115,6 +116,8 @@ export function DataTable<TData extends RowData>({
     text: filterSummary(filter, table.getColumn(filter.id)?.columnDef.meta),
   }));
   const emptyMessage = data.length > 0 && activeFilters.length ? "No rows match these filters." : emptyText;
+  // Long tables render only the rows in view (`useRowWindow`); every row is one height.
+  const rowWindow = useRowWindow(rows.length);
 
   function activate(event: MouseEvent<HTMLTableRowElement>, row: TData) {
     const control = (event.target as Element).closest(INNER_CONTROL);
@@ -169,13 +172,15 @@ export function DataTable<TData extends RowData>({
             </TableRow>
           ))}
         </TableHeader>
-        <TableBody>
-          {rows.map((row) => {
+        <TableBody ref={rowWindow.anchor as RefObject<HTMLTableSectionElement | null>}>
+          {rowWindow.window.before ? <tr aria-hidden style={{ height: `${rowWindow.window.before}px` }} /> : null}
+          {rows.slice(rowWindow.window.first, rowWindow.window.last).map((row, offset) => {
             const selected = selection?.isSelected(row.original) ?? false;
             return (
               <TableRow
                 className={cn("h-[var(--table-row-height)]", onRowClick && "cursor-pointer")}
                 data-state={selected ? "selected" : undefined}
+                data-window-row={rowWindow.window.first + offset}
                 key={row.id}
                 onClick={onRowClick ? (event) => activate(event, row.original) : undefined}
               >
@@ -217,6 +222,7 @@ export function DataTable<TData extends RowData>({
               </TableRow>
             );
           })}
+          {rowWindow.window.after ? <tr aria-hidden style={{ height: `${rowWindow.window.after}px` }} /> : null}
           {rows.length === 0 ? (
             <TableRow className="hover:bg-transparent">
               <TableCell className="h-24 px-[var(--table-inset)] text-center whitespace-normal text-muted-foreground" colSpan={columnCount}>

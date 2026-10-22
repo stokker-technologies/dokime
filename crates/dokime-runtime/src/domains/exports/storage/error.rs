@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::PathBuf;
+
 // Third Party Imports
 use thiserror::Error;
+
 // Local Imports
 
 /* === Constants === */
@@ -23,11 +26,13 @@ use thiserror::Error;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, StorageError>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, Error)]
 pub enum StorageError {
     #[error("storage I/O failed: {source}")]

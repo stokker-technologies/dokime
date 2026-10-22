@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::VecDeque, ops::Deref, sync::Arc};
+
 // Third Party Imports
 use harmos::storage::{RecordRead, RecordReader, query::RecordSelection};
+
 // Local Imports
 use super::{Source, error};
 use crate::runtime::Result;
@@ -29,6 +32,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct History {
     source: Arc<Source>,
     state_manager: crate::app::StateManager,
@@ -49,6 +53,7 @@ pub struct CapturedRecord {
 }
 
 /* === Enums === */
+
 pub(super) enum Start {
     Physical(u64),
     Logical(u64),
@@ -57,6 +62,7 @@ pub(super) enum Start {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Source {
     pub(crate) async fn saved_filtered_records(
         &self, state_manager: &crate::app::StateManager, through: u64, select: impl Fn(&RecordEntry) -> bool,

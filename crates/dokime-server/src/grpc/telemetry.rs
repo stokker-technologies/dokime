@@ -8,28 +8,33 @@
  */
 
 /* === Modules === */
+
 pub(super) mod projection;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::value::{self, canonical};
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::wire as common;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::operations::telemetry as wire;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::domains::evidence::ScopeSelection;
-use dokime_runtime::domains::evidence::TelemetrySelection;
+use crate::grpc::transcode::Transcode;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::IdentifierPattern;
+use dokime::domain::model::identity::wire as common;
+use dokime::domain::model::time::Timestamp;
+use dokime::domain::operations::telemetry as wire;
+use dokime::domains::evidence::ScopeSelection;
+use dokime::domains::evidence::TelemetrySelection;
 
 /* === Constants === */
+
 const DEFAULT_LIMIT: usize = 500;
 const MAX_LIMIT: usize = 5_000;
 
@@ -38,6 +43,7 @@ const MAX_LIMIT: usize = 5_000;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
@@ -52,6 +58,7 @@ struct List {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for List {
     type Declaration = wire::ListSamples;
     type Resources = Resources;
@@ -63,11 +70,14 @@ impl Operation for List {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListSamples, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>, Status> {
+    ) -> Result<Response<dokime::domain::model::telemetry::wire::TelemetrySamplesReply>, Status> {
         let limit = bounded_limit(request.limit)?;
         let after_stream_cursors = bounded_cursors(std::mem::take(&mut request.after_stream_cursors))?;
         if request.latest && !after_stream_cursors.is_empty() {
             return Err(Status::invalid_argument("latest telemetry windows cannot be continued with after_stream_cursors"));
+        }
+        if request.streams.len() > 64 {
+            return Err(Status::invalid_argument("stream selection exceeds 64 alternatives"));
         }
         let selection = TelemetrySelection {
             after_stream_cursors: after_stream_cursors.clone(),
@@ -93,11 +103,11 @@ impl Operation for List {
         // returned cursors, a latest window asks again with a smaller limit.
         let clamped = samples.len() < selected;
         let samples = samples.iter().map(projection::sample).collect::<Result<Vec<_>, _>>()?;
-        let reply = dokime_domain::model::telemetry::wire::TelemetrySamplesReply {
+        let reply = dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
             samples,
             through_stream_cursors: through_stream_cursors
                 .into_iter()
-                .map(|(key, value)| dokime_domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry { key, value })
+                .map(|(key, value)| dokime::domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry { key, value })
                 .collect(),
             complete: !clamped && request_is_complete(request.latest, selected, limit),
         };
@@ -109,16 +119,18 @@ impl Operation for List {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), max_message_bytes: maximum }),
     )?;
     Ok(())
 }
 
 /* === Private Functions === */
+
 fn bounded_limit(value: u32) -> Result<usize, Status> {
     let value = if value == 0 {
         DEFAULT_LIMIT
@@ -130,16 +142,16 @@ fn bounded_limit(value: u32) -> Result<usize, Status> {
 }
 
 fn fit_page(
-    samples: &mut Vec<dokime_runtime::telemetry::TelemetrySample>, latest: bool, after_stream_cursors: BTreeMap<String, u64>, budget: usize,
+    samples: &mut Vec<dokime::telemetry::TelemetrySample>, latest: bool, after_stream_cursors: BTreeMap<String, u64>, budget: usize,
 ) -> Result<(BTreeMap<String, u64>, usize), Status> {
     let cursor = |key: &str| {
         key.len().saturating_add(
-            4 * std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry>(),
+            4 * std::mem::size_of::<dokime::domain::model::telemetry::wire::TelemetrySamplesReplyThroughStreamCursorsEntry>(),
         )
     };
     let mut through = if latest { BTreeMap::new() } else { after_stream_cursors };
     let mut required =
-        through.keys().fold(std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>(), |bytes, key| {
+        through.keys().fold(std::mem::size_of::<dokime::domain::model::telemetry::wire::TelemetrySamplesReply>(), |bytes, key| {
             bytes.saturating_add(cursor(key))
         });
     let order: Box<dyn Iterator<Item = usize>> = if latest { Box::new((0..samples.len()).rev()) } else { Box::new(0..samples.len()) };
@@ -147,8 +159,8 @@ fn fit_page(
     for index in order {
         let sample = &samples[index];
         let mut bytes =
-            projection::memory(sample)?.saturating_add(3 * std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>());
-        let stream = (!latest).then(|| dokime_runtime::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream));
+            projection::memory(sample)?.saturating_add(3 * std::mem::size_of::<dokime::domain::model::telemetry::wire::TelemetrySample>());
+        let stream = (!latest).then(|| dokime::domains::telemetry::telemetry_stream_id(sample.scope.as_ref(), &sample.stream));
         if let Some(stream) = &stream
             && !through.contains_key(stream)
         {
@@ -175,7 +187,7 @@ fn fit_page(
 }
 
 fn bounded_cursors(
-    values: Vec<dokime_domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry>,
+    values: Vec<dokime::domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry>,
 ) -> Result<std::collections::BTreeMap<String, u64>, Status> {
     value::collection(values.len())?;
     values
@@ -206,9 +218,9 @@ fn bounded_texts(values: Vec<String>, label: &str) -> Result<Vec<String>, Status
         .collect()
 }
 
-fn stream(value: String) -> Result<Identifier, Status> {
+fn stream(value: String) -> Result<IdentifierPattern, Status> {
     value::text(&value)?;
-    Identifier::new(value).map_err(|error| Status::invalid_argument(format!("invalid telemetry stream: {error}")))
+    IdentifierPattern::new(value).map_err(|error| Status::invalid_argument(format!("invalid telemetry stream pattern: {error}")))
 }
 
 fn scope_selection(scope: Option<common::EvidenceScope>) -> Result<ScopeSelection, Status> {

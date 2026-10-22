@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 
@@ -35,19 +36,25 @@ use dokime_domain::model::identity::TemplateId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Case {
     suite_id: String,
+
     #[serde(rename = "test_case_id")]
     case_id: String,
+
     #[serde(rename = "test_case_template_id")]
     template_id: String,
+
     metadata: Option<metadata::Row>,
     suite: Option<metadata::Row>,
+
     #[serde(with = "values::map")]
     parameters: Vec<values::Cell>,
+
     generation_index: u64,
     label_number: u64,
 }
@@ -57,6 +64,7 @@ pub struct Case {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Identified for Case {
     fn definition() -> (DefinitionId, u32) {
         (DefinitionId::new("dokime.object.case"), 1)
@@ -117,15 +125,6 @@ impl TryFrom<Case> for TestCase {
     }
 }
 
-/* === Public Functions === */
-pub async fn read(storage: &Manager, id: &CaseId) -> Result<Option<TestCase>> {
-    let Some(stored) = storage.read_object::<Case>(id.as_str(), ObjectVersion::Latest).await? else {
-        return Ok(None);
-    };
-    Ok(Some(stored.value.try_into()?))
-}
-
-/* === Private Functions === */
 impl Case {
     pub fn encoding_memory(case: &TestCase) -> Result<usize> {
         if case.suite_id.trim().is_empty() {
@@ -166,5 +165,16 @@ impl Case {
         Ok(fields.into_iter().fold(std::mem::size_of::<TestCase>(), usize::saturating_add))
     }
 }
+
+/* === Public Functions === */
+
+pub async fn read(storage: &Manager, id: &CaseId) -> Result<Option<TestCase>> {
+    let Some(stored) = storage.read_object::<Case>(id.as_str(), ObjectVersion::Latest).await? else {
+        return Ok(None);
+    };
+    Ok(Some(stored.value.try_into()?))
+}
+
+/* === Private Functions === */
 
 /* === Tests === */

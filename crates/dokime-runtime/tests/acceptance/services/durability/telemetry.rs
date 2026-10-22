@@ -76,12 +76,11 @@ async fn checkpointed_telemetry_kill() {
     child.kill();
 
     let (mut rebooted, handle) = booted(root.path()).await;
-    // A Sealed Cycle Leaves Live State At Boot. A Kill Before The Seal Reached
-    // The Journal Leaves It Resident And Stopped; Its Saved Evidence Survives.
+    // Recovery Seals Every Previous-Session Container Before New Admission.
     let resident = handle.cycles().await.into_iter().map(|cycle| (cycle.saved.is_some(), cycle.lifecycle)).collect::<Vec<_>>();
     assert!(
-        resident.iter().all(|(saved, lifecycle)| !saved && *lifecycle == CycleStatus::Stopped),
-        "resident cycles are unsealed and stopped: {resident:?}"
+        resident.iter().all(|(saved, lifecycle)| *saved && matches!(lifecycle, CycleStatus::Stopped | CycleStatus::Completed)),
+        "recovered resident cycles are sealed and terminal: {resident:?}"
     );
     let checkpoint = serde_json::from_slice(&std::fs::read(&marker).unwrap()).unwrap();
     let view = crate::service_support::native::open(&handle, &checkpoint).await;
@@ -102,8 +101,8 @@ async fn run_telemetry_kill_child(published: usize) {
 
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
-    let test_cycle_id = start_cycle(&handle, suite, false).await;
-    handle.run_cycle_cases(test_cycle_id.clone(), CommandContext::default()).await;
+    let test_cycle_id = start_cycle(&handle, suite).await;
+    handle.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
 
     let cycle = cycle_snapshot(&handle, &test_cycle_id).await;
@@ -140,10 +139,10 @@ async fn run_telemetry_kill_child(published: usize) {
         .unwrap();
 
     executor.release();
-    wait_for_cycle_lifecycle(&handle, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_outcome(&handle, &test_cycle_id, ResultStatus::Passed).await;
     wait_for_record_type(&handle, "provider.execution.completed").await;
     let selection = TelemetrySelection {
-        streams: vec![Identifier::new("tracking").unwrap()],
+        streams: vec![Identifier::new("tracking").unwrap().into()],
         scope: ScopeSelection { test_cycle_id: Some(test_cycle_id), ..ScopeSelection::default() },
         ..TelemetrySelection::default()
     };

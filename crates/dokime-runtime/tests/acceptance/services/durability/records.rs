@@ -120,7 +120,7 @@ async fn record_position_writer(root: PathBuf) {
     let (_owner, runtime) = started_with_fixture(settings, executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
-    let cycle = start_cycle(&runtime, suite, false).await;
+    let cycle = start_cycle(&runtime, suite).await;
     for index in 0..32 {
         if index == 16 {
             // One record-free transaction makes both logical-position parities
@@ -132,9 +132,10 @@ async fn record_position_writer(root: PathBuf) {
     let old = runtime.selected_records(position_selection()).await.unwrap();
     assert_eq!(old.len(), 32);
     runtime.storage().flush().await.unwrap();
-    runtime.run_cycle_cases(cycle, CommandContext::default()).await;
+    runtime.start_next_execution(cycle, CommandContext::default()).await;
     executor.wait_until_entered().await;
-    // The Shared Manager Saves Facts And Logical Recovery Before The Kill.
+    // Facts And Logical Recovery Are Saved Before The Kill; Batched Durability Defers Recovery To Its Own Flush.
+    runtime.storage().flush_recovery().await.unwrap();
     let temporary = root.join("saved-records.tmp");
     std::fs::write(&temporary, serde_json::to_vec(&old).unwrap()).unwrap();
     std::fs::rename(temporary, root.join("saved-records.json")).unwrap();

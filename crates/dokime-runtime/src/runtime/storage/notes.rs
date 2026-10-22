@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 use harmos::storage::ObjectVersion;
 
@@ -35,6 +37,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct AnnotationAdmission {
     _guards: Vec<tokio::sync::OwnedMutexGuard<()>>,
     _owners: Vec<Arc<tokio::sync::Mutex<Acquisition>>>,
@@ -45,15 +48,21 @@ pub(crate) struct AnnotationAdmission {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionStorage {
     pub(crate) async fn admit_annotations(&self, scope: &RecordScope) -> Result<AnnotationAdmission> {
         // Snapshot Handles In Key Order; Release The Registry Before Awaiting Owners
         let owners = {
             let active = self.active.lock().await;
-            if active.len() > NOTE_SCAN_LIMIT {
-                return Err(annotation_limit("annotation owner scan exceeds budget"));
+            match scope.test_execution_id.as_ref() {
+                Some(id) => active.get(id).cloned().into_iter().collect::<Vec<_>>(),
+                None => {
+                    if active.len() > NOTE_SCAN_LIMIT {
+                        return Err(annotation_limit("annotation owner scan exceeds budget"));
+                    }
+                    active.values().cloned().collect::<Vec<_>>()
+                }
             }
-            active.values().cloned().collect::<Vec<_>>()
         };
         let mut candidates = Vec::with_capacity(owners.len());
         for owner in &owners {
@@ -120,6 +129,7 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn annotation_limit(reason: &'static str) -> Error {
     Error::Operation(reason.into())
 }

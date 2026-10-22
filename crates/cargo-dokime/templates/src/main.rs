@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,8 +36,9 @@
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> std::io::Result<()> {
-    dokime_runtime::plugin::run::<{{crate}}::Plugin>()
+    dokime::plugin::run::<{{crate}}::Plugin>()
 }
 
 /* === Tests === */

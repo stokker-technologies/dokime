@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::execution::health::HealthItem;
@@ -31,12 +33,15 @@ use crate::model::identity::RecordId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TestRecordSet {
     health: Vec<HealthItem>,
     notes: Vec<OperatorNote>,
+
     #[serde(default)]
     subscribed_records: BTreeMap<RecordId, RecordScope>,
+
     #[serde(default)]
     record_subscriptions_closed: bool,
 }
@@ -46,6 +51,7 @@ pub struct TestRecordSet {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for TestRecordSet {
     fn memory_size(&self) -> usize {
         let fields = [

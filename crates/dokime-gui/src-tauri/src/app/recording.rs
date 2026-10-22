@@ -12,16 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tauri::WebviewWindow;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+
 // Local Imports
 use super::content;
 use super::desktop::ensure_main_window;
 
 /* === Constants === */
+
 const MP4_HEADER_PROBE_BYTES: u64 = 4 * 1024 * 1024;
 
 /* === Macros === */
@@ -29,6 +32,7 @@ const MP4_HEADER_PROBE_BYTES: u64 = 4 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // === Private Functions: MP4 (ISO BMFF) box walking === //
 
 //
@@ -52,6 +56,7 @@ struct Mp4Box {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub async fn desktop_recording_finish(
     window: WebviewWindow, bridge: tauri::State<'_, crate::rpc::Bridge>, generation: String, duration_ms: u64, media_type: String,
 ) -> Result<String, String> {
@@ -84,6 +89,7 @@ pub(crate) async fn patch_mp4_duration_in_place(path: &std::path::Path, duration
 }
 
 /* === Private Functions === */
+
 fn is_mp4(media_type: &str) -> bool {
     let lower = media_type.to_ascii_lowercase();
     lower.starts_with("video/mp4") || lower.starts_with("audio/mp4")

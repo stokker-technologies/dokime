@@ -11,9 +11,9 @@
 
 import { numericValue } from "@/lib/utils";
 
-import { formatNumber } from "./format";
+import { formatDuration, formatNumber } from "./format";
 import { formatRecordValue, isDatetimeValue } from "./record-display";
-import { durationLabel, parseTimestampMs } from "./time-format";
+import { parseTimestampMs } from "./time-format";
 import type { ExecutionResultSummary, HubRecord, JsonObject, Severity, TelemetryStream } from "./types";
 
 /* === Types === */
@@ -84,10 +84,10 @@ export function formatValue(value: unknown, unit?: string | null, key = ""): str
     return `${dashboardNumber(parsed)} ms`;
   }
   if (normalizedKey.includes("uptime")) {
-    return `${durationLabel(Math.round(parsed))} (${dashboardNumber(parsed)} s)`;
+    return `${formatDuration(parsed)} (${dashboardNumber(parsed)} s)`;
   }
   if (unit === "s" || normalizedKey.endsWith("_s") || normalizedKey.includes("duration")) {
-    return durationLabel(Math.round(parsed));
+    return formatDuration(parsed) ?? "-";
   }
   return Number.isInteger(parsed) ? `${parsed}` : dashboardNumber(parsed);
 }

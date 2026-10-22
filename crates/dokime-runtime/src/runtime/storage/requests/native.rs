@@ -30,6 +30,7 @@ use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NodeId;
 
 /* === Constants === */
+
 const MAX_COMMANDS: usize = 4097;
 
 /* === Macros === */
@@ -45,6 +46,7 @@ const MAX_COMMANDS: usize = 4097;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn read(storage: &Manager, id: &CommandId) -> Result<Option<RunReceipt>> {
     let Some(parent) = storage.read_object::<Request>(id.as_str(), ObjectVersion::Latest).await.map_err(receipt_error)? else {
         return Ok(None);
@@ -127,6 +129,7 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Arc<RunReceipt
 }
 
 /* === Private Functions === */
+
 // One Receipt Group Is Bounded By Its Command History Cap.
 fn storage_group_bytes() -> std::num::NonZeroUsize {
     std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap()

@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
+
 // Third Party Imports
 use harmos::sidecar::Refusal;
 use tokio::sync::Notify;
+
 // Local Imports
 use super::{CommandExecutionReply, CommandExecutionRequest};
 use dokime_domain::model::identity::CommandId;
@@ -25,6 +28,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::StepAttemptId;
 
 /* === Constants === */
+
 const MAX_COMMANDS: usize = 4096;
 
 /* === Macros === */
@@ -32,6 +36,7 @@ const MAX_COMMANDS: usize = 4096;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Command {
     pub id: CommandId,
@@ -52,6 +57,7 @@ struct State {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Action {
     Next,
@@ -62,6 +68,7 @@ pub(crate) enum Action {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Command {
     pub fn parse(request: &CommandExecutionRequest) -> Result<Self, Refusal> {
         let id = CommandId::from_uuid(&request.command_id).map_err(|error| Refusal::of(error.to_string()))?;

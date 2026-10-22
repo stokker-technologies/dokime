@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -32,6 +33,7 @@ use crate::model::telemetry::TelemetryRow;
 /* === Enums === */
 
 /* === Traits === */
+
 #[diagnostic::on_unimplemented(
     message = "`{Self}` declares no stream of its own",
     label = "this type has no stream for a plot or a publication to resolve",

@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde_json::Value as JsonValue;
+
 // Local Imports
 use crate::document::DocumentFilter;
 use crate::document::frame::{Lookup, Side, Strategy, nanos};
@@ -29,6 +32,7 @@ use crate::telemetry::TelemetrySample;
 use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
+
 pub(crate) const RECORD_CONTEXT_STREAM: &str = "dokime.plot.record_context";
 
 /* === Macros === */
@@ -36,6 +40,7 @@ pub(crate) const RECORD_CONTEXT_STREAM: &str = "dokime.plot.record_context";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 struct RecordTimingExpression<'a> {
     label: String,
@@ -60,6 +65,7 @@ pub(super) struct RecordFilterLookup<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> RecordFilterLookup<'a> {
     pub(super) fn new(telemetry: &'a [TelemetrySample], request: &'a PlotPayloadRequest) -> Self {
         let filters = request
@@ -107,6 +113,7 @@ impl<'a> RecordFilterLookup<'a> {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn record_timing_series(
     telemetry: &[TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, unit: Option<&str>, max_points: usize,
     technique: DownsampleTechnique,
@@ -156,7 +163,35 @@ pub(crate) fn record_timing_series(
     Some(series)
 }
 
+pub(super) fn scoped_record_time_between(
+    record_inputs: &[RecordTimingRecord<'_>], records_by_sequence: &BTreeMap<u64, &RecordEntry>, end_record_type: &str,
+    previous_record_type: &str,
+) -> Vec<RecordTimingPoint> {
+    let mut records = record_inputs.to_vec();
+    records.sort_by_key(|record| record.sequence);
+    let entries = records.iter().filter_map(|record| Some((*record, *records_by_sequence.get(&record.sequence)?))).collect::<Vec<_>>();
+    fn side<'a>(ordinal: usize, entry: &'a RecordEntry) -> Side<'a> {
+        Side { ordinal, scope: entry.scope.as_ref(), time: nanos(&entry.timestamp), present: true }
+    }
+    let starts = Lookup::new(
+        entries
+            .iter()
+            .enumerate()
+            .filter(|(_, (record, _))| record.record_type == previous_record_type)
+            .map(|(ordinal, (_, entry))| side(ordinal, entry)),
+        Strategy::Previous,
+    );
+    let ends = entries.iter().enumerate().filter(|(_, (record, _))| record.record_type == end_record_type).collect::<Vec<_>>();
+    let probes = ends.iter().map(|(ordinal, (_, entry))| side(*ordinal, entry)).collect::<Vec<_>>();
+    ends.iter()
+        .zip(starts.find_many(&probes))
+        .filter_map(|((_, (record, _)), start)| Some((*record, entries[start?].0)))
+        .flat_map(|(end, start)| record_time_between([start, end], end_record_type, previous_record_type))
+        .collect()
+}
+
 /* === Private Functions === */
+
 fn record_timing_expression(expression: &DataExpression) -> Option<RecordTimingExpression<'_>> {
     let DataSource::Record { record_type } = &expression.source else {
         return None;
@@ -370,33 +405,6 @@ fn timing_points_for_expression(
         scoped_record_time_between(record_inputs, records_by_sequence, expression.end_record_type, expression.previous_record_type);
     filters.prepare(points.iter().filter_map(|point| records_by_sequence.get(&point.end_sequence).copied()));
     points.into_iter().filter(|point| records_by_sequence.get(&point.end_sequence).is_some_and(|record| filters.matches(record))).collect()
-}
-
-pub(super) fn scoped_record_time_between(
-    record_inputs: &[RecordTimingRecord<'_>], records_by_sequence: &BTreeMap<u64, &RecordEntry>, end_record_type: &str,
-    previous_record_type: &str,
-) -> Vec<RecordTimingPoint> {
-    let mut records = record_inputs.to_vec();
-    records.sort_by_key(|record| record.sequence);
-    let entries = records.iter().filter_map(|record| Some((*record, *records_by_sequence.get(&record.sequence)?))).collect::<Vec<_>>();
-    fn side<'a>(ordinal: usize, entry: &'a RecordEntry) -> Side<'a> {
-        Side { ordinal, scope: entry.scope.as_ref(), time: nanos(&entry.timestamp), present: true }
-    }
-    let starts = Lookup::new(
-        entries
-            .iter()
-            .enumerate()
-            .filter(|(_, (record, _))| record.record_type == previous_record_type)
-            .map(|(ordinal, (_, entry))| side(ordinal, entry)),
-        Strategy::Previous,
-    );
-    let ends = entries.iter().enumerate().filter(|(_, (record, _))| record.record_type == end_record_type).collect::<Vec<_>>();
-    let probes = ends.iter().map(|(ordinal, (_, entry))| side(*ordinal, entry)).collect::<Vec<_>>();
-    ends.iter()
-        .zip(starts.find_many(&probes))
-        .filter_map(|((_, (record, _)), start)| Some((*record, entries[start?].0)))
-        .flat_map(|(end, start)| record_time_between([start, end], end_record_type, previous_record_type))
-        .collect()
 }
 
 /* === Tests === */

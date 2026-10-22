@@ -34,6 +34,7 @@ use dokime_domain::model::runtime::wire::Readiness;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct ReadHealth {
     resources: Arc<Resources>,
 }
@@ -49,6 +50,7 @@ struct Resources {
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Operations {
     Health(ReadHealth),
@@ -58,6 +60,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for ReadHealth {
     type Declaration = GetHealth;
     type Resources = Resources;
@@ -105,6 +108,7 @@ impl Operation for ReadIdentity {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn register(runtime: &RuntimeHandle) -> crate::runtime::Result<()> {
     let resources = Resources {
         identity: Identity {

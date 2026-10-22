@@ -28,6 +28,7 @@ use serde::Serialize;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Exact inspected sealed revision and captured evidence in one native history.
 // Reading this identity never creates or publishes a newer checkpoint.
 #[harmos_domain::message]
@@ -35,9 +36,11 @@ use serde::Serialize;
 pub struct ExecutionCheckpoint {
     pub execution_identifier: String,
     pub position: Option<StorageCursor>,
+
     // Original canonical Harmos ObjectVersionToken bytes.
     #[row(description = "Original canonical Harmos ObjectVersionToken bytes.")]
     pub version: Vec<u8>,
+
     pub evidence_through: Option<StorageCursor>,
 }
 

@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -47,6 +48,7 @@ use crate::model::values::value_matches_type;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn validate_fields(fields: &[PromptField], values: &BTreeMap<String, Value>) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     for name in values.keys() {
@@ -203,6 +205,7 @@ pub fn collect_definitions<'a>(
 }
 
 /* === Private Functions === */
+
 fn validate_item(field: &PromptField, value: &Value, name: &str, issues: &mut Vec<ValidationIssue>) {
     // The field's value type describes each item, not the collection envelope.
     if !value_matches_type(value, &field.value_type) {

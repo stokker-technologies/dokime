@@ -40,7 +40,10 @@ use dokime_runtime::config::StorageSettings;
 
 /* === Public Functions === */
 pub fn runtime_config(root: impl Into<PathBuf>, hub_metadata: Metadata) -> RuntimeConfig {
-    RuntimeConfig::new(root, hub_metadata)
+    let config = RuntimeConfig::new(root, hub_metadata);
+    #[cfg(feature = "fault-injection")]
+    let config = config.with_test_secret_store(dokime_runtime::SecretTestStore::default());
+    config
 }
 
 pub fn story_settings() -> StorageSettings {

@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -31,24 +32,33 @@ use super::ValidationIssue;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, Error)]
 pub enum AdmissionFailure {
     #[error("{message}")]
     Validation { code: String, message: String, issues: Vec<ValidationIssue> },
+
     #[error("{message}")]
     Conflict { code: String, message: String },
+
     #[error("{message}")]
     Overload { code: String, message: String },
+
     #[error("{message}")]
     Unavailable { code: String, message: String },
+
     #[error("{message}")]
     Forbidden { code: String, message: String },
+
     #[error("{message}")]
     NotFound { code: String, message: String },
+
     #[error("{message}")]
     Timeout { code: String, message: String },
+
     #[error("{message}")]
     Cancelled { code: String, message: String },
+
     #[error("{message}")]
     Internal { code: String, message: String },
 }
@@ -56,6 +66,7 @@ pub enum AdmissionFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl AdmissionFailure {
     pub fn code(&self) -> &str {
         match self {

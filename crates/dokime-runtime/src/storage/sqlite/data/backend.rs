@@ -7,8 +7,6 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
-
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -18,7 +16,7 @@
 // Standard Library Imports
 use std::result::Result;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
@@ -42,7 +40,6 @@ use super::{Entry, Scan, entry::key};
 /* === Constants === */
 
 const METADATA_BYTES: usize = 16 * 1024;
-const RECEIPT_BYTES: usize = 32 * 1024;
 
 /* === Macros === */
 
@@ -57,6 +54,9 @@ pub struct Backend<C: ObjectCatalog> {
     state: State,
     snapshots: std::sync::Mutex<HashMap<Vec<u8>, Arc<Pin>>>,
     retention_through: Mutex<u64>,
+    // Receipts This Backend Committed. Every Flush Repeats The Whole Unexpired Window, So Matching
+    // Repeats Here Instead Of Reading And Decoding Each Saved Row Keeps Flushing Linear.
+    saved_receipts: std::sync::Mutex<BTreeMap<MutationId, MutationReceipt>>,
 }
 
 // One Pinned Cut: Reads Filter Retired Rows Newer Than Its Generation, And
@@ -100,6 +100,7 @@ impl<C: ObjectCatalog> Backend<C> {
             state,
             snapshots: std::sync::Mutex::new(HashMap::new()),
             retention_through: Mutex::new(0),
+            saved_receipts: std::sync::Mutex::new(BTreeMap::new()),
         })
     }
 
@@ -471,10 +472,17 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
 
     fn save_mutations<'a>(&'a self, receipts: &'a [MutationReceipt]) -> StorageFuture<'a, ()> {
         Box::pin(async move {
-            for receipt in receipts {
-                super::entry::check_size(receipt, RECEIPT_BYTES).map_err(|error| failure("validate receipt", error))?;
-            }
-            self.state.mutations_save(receipts.to_vec()).await.map_err(|error| failure("save mutation receipts", error))
+            // Unchanged Repeats Are Already Durable; New Or Differing Receipts Still Reach SQLite, Which Rejects A Differing Retry.
+            let unsaved = {
+                let saved = self.saved_receipts.lock().unwrap();
+                receipts.iter().filter(|receipt| saved.get(&receipt.mutation) != Some(*receipt)).cloned().collect::<Vec<_>>()
+            };
+            self.state.mutations_save(unsaved.clone()).await.map_err(|error| failure("save mutation receipts", error))?;
+            let now = std::time::SystemTime::now();
+            let mut saved = self.saved_receipts.lock().unwrap();
+            saved.retain(|_, receipt| receipt.expires_at > now);
+            saved.extend(unsaved.into_iter().filter(|receipt| receipt.expires_at > now).map(|receipt| (receipt.mutation.clone(), receipt)));
+            Ok(())
         })
     }
 

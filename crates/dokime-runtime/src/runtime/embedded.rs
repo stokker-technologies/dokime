@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
+
 // Third Party Imports
 use async_trait::async_trait;
 use harmos::sidecar::StreamDeclaration;
+
 // Local Imports
 use super::{RuntimeHandle, native_telemetry};
 use crate::execution::{EmbeddedPublisher, Runnable, SampleOutput};
@@ -34,6 +37,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Active {
     pub(super) provider: Arc<dyn EmbeddedProvider>,
     pub(super) catalog: ProviderCatalog,
@@ -76,9 +80,14 @@ struct Publication {
     schema: Schema,
 }
 
+struct EmbeddedRun(Arc<Served>);
+
+struct EmbeddedSignal(Arc<Served>);
+
 /* === Enums === */
 
 /* === Traits === */
+
 #[async_trait]
 pub trait EmbeddedProvider: Send + Sync {
     fn catalog(&self) -> InstalledPlugin;
@@ -90,6 +99,7 @@ pub trait EmbeddedProvider: Send + Sync {
 }
 
 /* === Implementations === */
+
 impl Active {
     pub(super) fn prepare(provider: Arc<dyn EmbeddedProvider>) -> Result<Self> {
         let catalog = provider.catalog();
@@ -179,7 +189,6 @@ impl Instance {
         let templates = self.provider.start().await?;
         let running = self.running.as_mut().expect("partial initialization remains owned");
         running.templates = templates.clone();
-        handle.capture_suite_objects(&self.owner).await?;
 
         let registration = handle.operations.stage_plugin(&scope, |bindings| {
             for template in &templates {
@@ -232,10 +241,6 @@ impl Instance {
         Ok(())
     }
 }
-
-struct EmbeddedRun(Arc<Served>);
-
-struct EmbeddedSignal(Arc<Served>);
 
 impl harmos::operations::Operation for EmbeddedRun {
     type Declaration = crate::execution::Run<()>;
@@ -329,6 +334,7 @@ impl EmbeddedPublisher for Publisher {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Registration>> {
     use crate::plugin::registration::{
         APPEARANCE_NAMESPACE, AppearanceRegistration, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE, PERMISSIONS_NAMESPACE, PROMPTS_NAMESPACE,

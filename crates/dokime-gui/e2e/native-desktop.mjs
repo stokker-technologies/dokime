@@ -23,9 +23,14 @@
 //   b. library      suite expansion, the template dialog, two templates added
 //   c. cycle        the workspace: sidebar, run, prompts, focus, console, overflow
 //   c'. execution-stop  a copy: Stop Execution stops one, its siblings finish
+//   c''. containers  independent Active cycles, explicit sealing and export availability
 //   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
+//   f'. plugin-install  native bundle picker, digest consent, restart activation and catalog
+//   f'. organization  native pack import, restart activation and invalid-pending retention
+//   f'. shared-secrets  masked keyring edits, encrypted export, conflict review and deletion
+//   f'. remote-access  TLS/key setup, saved secrets, restart, rotation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
@@ -44,8 +49,10 @@
 //     cannot spawn a browser or a file manager over the session.
 //   * `desktop_save_document` opens a native GTK/portal save dialog no WebDriver
 //     session can reach, which would hang the gate on Download Report. The gate
-//     taps that one command at the Tauri IPC boundary and writes the bytes the application produced into `<evidence>/downloads`
-//     itself, which is what the picker would have done. Every domain RPC still
+//     taps inline document saves at the Tauri IPC boundary. Report saves instead
+//     use the real native verified pull into its private cache, then copy that
+//     file into `<evidence>/downloads` in place of choosing a picker destination.
+//     Every domain RPC still
 //     crosses the real transport, and so does `desktop_save_diagnostics_bundle`,
 //     which needs no picker: the throwaway home is given an xdg-user-dirs
 //     Downloads folder and the shell writes the archive there itself.
@@ -62,13 +69,14 @@ import { once } from "node:events";
 
 import { createReadStream, existsSync } from "node:fs";
 
-import { copyFile, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 
 import http from "node:http";
 
 import net from "node:net";
+import { tmpdir } from "node:os";
 
-import { basename, dirname, extname, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -86,17 +94,22 @@ import { parseArgs, promisify } from "node:util";
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
+const { values: options } = parseArgs({
+  options: { junit: { type: "string" }, release: { type: "boolean", default: false }, profile: { type: "string" } },
+});
+const profile = options.profile ?? (options.release ? "release" : "dev");
+assert.ok(["dev", "release"].includes(profile), "native desktop profile must be dev or release");
+const architecture = { x64: "x86_64", arm64: "aarch64" }[process.arch] ?? process.arch;
+const nativeTarget = `${process.platform === "win32" ? "windows" : "linux"}-${architecture}`;
+const reportsRoot = join(workspace, "target/tests", profile, nativeTarget, "system-typescript");
 
 /** The Single Build Stages The Development Candidates Together. */
-const built = join(workspace, "dist/build", process.platform === "win32" ? "windows" : "linux");
+const built = join(workspace, "target/build", profile, nativeTarget);
 const executableSuffix = process.platform === "win32" ? ".exe" : "";
 let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(built, `bin/dokime-server${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
+let cliBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
 const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
-
-/** A shell built without `tauri/custom-protocol` loads this origin. */
-const configuredOrigin = process.env.DOKIME_E2E_DEV_URL;
 
 const densities = {
   desktop: { density: "comfortable", height: 1000, width: 1600 },
@@ -104,13 +117,13 @@ const densities = {
 };
 
 /** The suites and templates the OBC charger plugin registers, by rendered label. */
-const PROTECTION_SUITE = "Overcurrent Protection";
+const PROTECTION_SUITE = "Charger Protection";
 
 const PROTECTION_TEMPLATE = "Overcurrent Protection";
 
-const STARTUP_SUITE = "Charger Power-Up";
+const STARTUP_SUITE = "Charger Start-Up";
 
-const STARTUP_TEMPLATE = "Power Up the Charger";
+const STARTUP_TEMPLATE = "Start-Up Sequence";
 
 /** A cartesian list parameter, so chips and expressions have somewhere to go. */
 const LIST_PARAMETER = "load_steps";
@@ -146,7 +159,7 @@ const selectedJourneys = new Set(
 );
 
 /**
- * Write every tapped document into the evidence downloads directory.
+ * Write Public Documents Into Evidence And Access Keys Into Private Temporary Storage.
  *
  * The payload crosses in slices. A written report is megabytes of base64, and
  * one `execute` carrying all of it does not come back -- the document was
@@ -155,9 +168,6 @@ const selectedJourneys = new Set(
  */
 const DOCUMENT_SLICE_CHARS = 512 * 1024;
 
-const { values: options } = parseArgs({
-  options: { junit: { type: "string" }, release: { type: "boolean", default: false } },
-});
 const releaseValidation = options.release;
 const windows = process.platform === "win32";
 const results = [];
@@ -165,9 +175,14 @@ const failures = [];
 const passedJourneys = [];
 
 const notes = [];
+const secrets = new Set();
+let savedKeyCount = 0;
 
-/** What the prompt banner and its counts showed before each prompt was answered. */
+/** What the prompt queue and its counts showed before each prompt was answered. */
 const promptSightings = [];
+
+/** What the cycle page said while an execution waited on input. */
+const cycleInputSightings = [];
 
 /** The journey whose WebView died, once one has: everything after it is moot. */
 let webviewGone = null;
@@ -185,7 +200,6 @@ let evidence;
 let installation;
 
 let installerAttempted = false;
-let frontendServer;
 
 /* === Types === */
 
@@ -250,19 +264,139 @@ function normalize(value) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function redact(value) {
+  let text = String(value);
+  for (const secret of secrets) text = text.replaceAll(secret, "[REDACTED]");
+  return text;
+}
+
 function hasText(body, expected) {
   return normalize(body).toLowerCase().includes(normalize(expected).toLowerCase());
 }
 
-async function startBackend(work, evidence, endpoint, label = "backend") {
+function parameterGeometry() {
+  return [...document.querySelectorAll('[data-testid="execution-parameters"] [data-parameter]')].map((row) => {
+    const [label, value, unit] = [...row.children].map((node) => {
+      const bounds = node.getBoundingClientRect();
+      return {
+        left: bounds.left,
+        right: bounds.right,
+        top: bounds.top,
+        width: bounds.width,
+        clipped: node.scrollWidth > node.clientWidth + 1,
+      };
+    });
+    return { name: row.dataset.parameter, left: row.getBoundingClientRect().left, label, value, unit };
+  });
+}
+
+function assertParameterGeometry(rows) {
+  assert.ok(rows.length > 1, "The parameter grid must contain multiple values");
+  for (const row of rows) {
+    assert.ok(!row.label.clipped && !row.value.clipped && !row.unit.clipped, `${row.name}: parameter content must fit`);
+    assert.ok(row.label.right <= row.value.left && row.value.right < row.unit.left, `${row.name}: columns must not overlap`);
+    assert.ok(row.unit.left - row.value.right <= 12, `${row.name}: units must sit beside their values`);
+    const peers = rows.filter((other) => Math.abs(other.left - row.left) < 1);
+    for (const peer of peers) {
+      assert.ok(Math.abs(peer.value.right - row.value.right) < 1, `${row.name}: figures must align within each column`);
+      assert.ok(Math.abs(peer.unit.left - row.unit.left) < 1, `${row.name}: units must align within each column`);
+    }
+  }
+}
+
+async function checkParameterGeometry(session) {
+  const rows = await until("mounted parameter grid", async () => {
+    const rows = await session.execute(`return (${parameterGeometry.toString()})();`);
+    return rows.length > 1 ? rows : null;
+  });
+  assertParameterGeometry(rows);
+}
+
+async function promptHoverLabels() {
+  const frame = document.querySelector('[data-plot-id="obc.charger.startup.sequence.signals"]');
+  const overlay = frame?.querySelector(".u-over");
+  if (!overlay) return [];
+  overlay.scrollIntoView({ block: "center", behavior: "instant" });
+  const labels = new Set();
+  const frameDrawn = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  await frameDrawn();
+  const bounds = overlay.getBoundingClientRect();
+  for (let offset = 0; offset <= bounds.width; offset += 4) {
+    overlay.dispatchEvent(
+      new MouseEvent("mousemove", {
+        bubbles: true,
+        clientX: bounds.left + offset,
+        clientY: bounds.top + bounds.height / 2,
+      }),
+    );
+    await frameDrawn();
+    const label = frame.querySelector("[role=tooltip]")?.textContent;
+    if (label) labels.add(label);
+  }
+  return [...labels];
+}
+
+function assertPromptHovers(labels) {
+  assert.ok(
+    labels.some((label) => label.includes(`Prompt asked: ${STARTUP_PROMPT}`)),
+    `Asked marker must name its prompt: ${labels}`,
+  );
+  assert.ok(
+    labels.some((label) => label.includes(`Prompt answered: ${STARTUP_PROMPT}`)),
+    `Answered marker must name its prompt: ${labels}`,
+  );
+}
+
+function histogramPresentation() {
+  const plot = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"]');
+  if (!plot) return null;
+  const bins = [...plot.querySelectorAll("button[aria-label]")].map((button) => button.getAttribute("aria-label"));
+  return bins.length ? { bins, text: plot.innerText } : null;
+}
+
+function assertHistogram(presentation) {
+  assert.ok(presentation, "The voltage distribution must render bins");
+  assert.match(presentation.text, /Count/);
+  assert.match(presentation.text, /[1-9]\d* samples/);
+  assert.ok(
+    presentation.bins.every((label) => /V.* to .*V.*: \d+$/.test(label)),
+    "Histogram bins must name voltage ranges and counts",
+  );
+  assert.ok(
+    presentation.bins.some((label) => /: [1-9]\d*$/.test(label)),
+    "At least one histogram bin must contain samples",
+  );
+}
+
+async function checkStatusBounds(session) {
+  const badges = await session.execute(`
+    return [...document.querySelectorAll('main [data-slot=badge]')]
+      .filter(node => !node.closest('[aria-hidden=true]') && node.getBoundingClientRect().width > 0)
+      .map(node => {
+        const bounds = node.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const text = range.getBoundingClientRect();
+        return {label: node.innerText, clipped: text.left < bounds.left - 1 || text.right > bounds.right + 1
+          || text.top < bounds.top - 1 || text.bottom > bounds.bottom + 1};
+      });
+  `);
+  assert.ok(badges.length, "The mounted view must show status pills");
+  assert.deepEqual(
+    badges.filter((badge) => badge.clipped),
+    [],
+    "Status labels must fit inside their pills",
+  );
+}
+
+async function startBackend(work, evidence, endpoint, label = "backend", launchPlugin = true) {
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
   const child = spawn(
     backendBinary,
     [
       "--shutdown-stdin",
-      "--plugin",
-      pluginBundle,
+      ...(launchPlugin ? ["--plugin", pluginBundle] : []),
       "--port",
       String(port),
       "--output-root",
@@ -332,8 +466,11 @@ async function startSession(work, endpoint, evidence) {
       ...(windows
         ? {
             WEBVIEW2_USER_DATA_FOLDER: join(home, "webview"),
+            APPDATA: join(home, "data"),
+            LOCALAPPDATA: join(home, "data"),
           }
         : {
+            GDK_BACKEND: "x11",
             HOME: home,
             PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
             XDG_CACHE_HOME: join(home, "cache"),
@@ -413,7 +550,7 @@ async function startSession(work, endpoint, evidence) {
   session.url = () => session.request("GET", "/url");
   session.location = async () => new URL(await session.url());
   session.text = async () => {
-    session.lastBody = await session.execute("return document.body.innerText");
+    session.lastBody = redact(await session.execute("return document.body.innerText"));
     return session.lastBody;
   };
   session.find = (using, value) => session.request("POST", "/element", { using, value });
@@ -433,6 +570,8 @@ async function startSession(work, endpoint, evidence) {
       return session.execute(
         `const element = arguments[0];
          if (element.disabled) throw new Error('Control is disabled');
+         const modal = [...document.querySelectorAll('[role=dialog][data-state=open], [role=alertdialog][data-state=open]')].at(-1);
+         if (modal && !modal.contains(element)) throw new Error('An open modal prevents this control from being clicked');
          element.scrollIntoView({block: 'center', inline: 'center'});
          element.focus();
          element.click();`,
@@ -449,7 +588,28 @@ async function startSession(work, endpoint, evidence) {
   };
   session.clickNamed = async (role, name, options) =>
     session.click(await until(`${role} ${name}`, () => session.named(role, name, options)));
-  session.clickCss = async (selector) => session.click(await until(selector, () => session.find("css selector", selector)));
+  session.clickCss = async (selector) => {
+    const element = await until(selector, () => session.find("css selector", selector));
+    await until(`stable pointer target ${selector}`, () =>
+      session.executeAsync(
+        `const element = arguments[0];
+         const done = arguments[arguments.length - 1];
+         element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+         requestAnimationFrame(() => {
+           const before = element.getBoundingClientRect();
+           requestAnimationFrame(() => {
+             const after = element.getBoundingClientRect();
+             const target = document.elementFromPoint(after.left + after.width / 2, after.top + after.height / 2);
+             done(element.isConnected && after.width > 0 && after.height > 0
+               && Math.abs(before.top - after.top) < 1 && Math.abs(before.left - after.left) < 1
+               && element.contains(target));
+           });
+         });`,
+        [element],
+      ),
+    );
+    await session.click(element);
+  };
   session.exists = async (role, name) => {
     try {
       await session.named(role, name, { enabled: false });
@@ -519,10 +679,20 @@ async function startSession(work, endpoint, evidence) {
   session.resize = (width, height) => session.request("POST", "/window/rect", { height, width, x: 0, y: 0 });
   session.viewport = () => session.execute("return [window.innerWidth, window.innerHeight]");
   session.screenshot = async (label) => {
-    const bytes = await session.request("GET", "/screenshot");
-    const target = join(evidence, `${label}.png`);
-    await writeFile(target, Buffer.from(bytes, "base64"));
-    return target;
+    await session.execute(`
+      const style = document.createElement('style');
+      style.id = 'dokime-secret-capture';
+      style.textContent = '[aria-label="Generated Access Key"] { visibility: hidden !important; }';
+      document.head.append(style);
+    `);
+    try {
+      const bytes = await session.request("GET", "/screenshot");
+      const target = join(evidence, `${label}.png`);
+      await writeFile(target, Buffer.from(bytes, "base64"));
+      return target;
+    } finally {
+      await session.execute("document.getElementById('dokime-secret-capture')?.remove();");
+    }
   };
   /**
    * Structured failure capture, beside the screenshots.
@@ -533,7 +703,7 @@ async function startSession(work, endpoint, evidence) {
    */
   session.dump = async (label, value) => {
     const target = join(evidence, `${label}.json`);
-    await writeFile(target, `${JSON.stringify(value, null, 2)}\n`);
+    await writeFile(target, `${redact(JSON.stringify(value, null, 2))}\n`);
     return target;
   };
   /** Every layer that could hold the page, as the browser reports it. */
@@ -591,7 +761,21 @@ async function startSession(work, endpoint, evidence) {
   session.close = async () => {
     if (session.closed) return;
     try {
-      await session.request("DELETE", "/window");
+      await session.execute(`
+        globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
+      `);
+      await until(
+        "native window completes orderly close",
+        async () => {
+          try {
+            return (await session.request("GET", "/window/handles")).length === 0;
+          } catch (error) {
+            if (/invalid session id|disconnected|connection refused/i.test(error.message)) return true;
+            throw error;
+          }
+        },
+        40000,
+      );
     } finally {
       session.closed = true;
     }
@@ -604,23 +788,53 @@ async function startSession(work, endpoint, evidence) {
     return true;
   });
   const initial = await session.location();
-  session.origin = configuredOrigin ?? `${initial.protocol}//${initial.host}`;
+  const embedded =
+    (initial.protocol === "tauri:" && initial.hostname === "localhost") ||
+    (["http:", "https:"].includes(initial.protocol) && initial.hostname === "tauri.localhost");
+  assert.ok(embedded, `the packaged shell must render embedded assets, received ${initial.href}`);
+  session.origin = `${initial.protocol}//${initial.host}`;
   return session;
 }
 
 /** Size the native window until the WebView reports the exact target viewport. */
 async function sizeViewport(session, target) {
+  await session.connected();
+  const restored = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    const invoke = globalThis.__TAURI_INTERNALS__.invoke;
+    invoke('plugin:window|is_maximized', {label: 'main'}).then(async (maximized) => {
+      if (maximized) await invoke('plugin:window|internal_toggle_maximize', {label: 'main'});
+      done({maximized});
+    }).catch((error) => done({error: String(error)}));
+  `);
+  assert.equal(restored.error, undefined, "The native titlebar action must restore the maximized window before sizing");
+  await until("the native window restored before sizing", () =>
+    session.executeAsync(`
+      const done = arguments[arguments.length - 1];
+      globalThis.__TAURI_INTERNALS__.invoke('plugin:window|is_maximized', {label: 'main'})
+        .then((value) => done(!value), () => done(false));
+    `),
+  );
   let frame = { height: target.height, width: target.width };
+  const measurements = [];
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    await session.resize(frame.width, frame.height);
+    assert.ok(Number.isSafeInteger(frame.width) && frame.width > 0, `Invalid frame width after ${JSON.stringify(measurements)}`);
+    assert.ok(Number.isSafeInteger(frame.height) && frame.height > 0, `Invalid frame height after ${JSON.stringify(measurements)}`);
+    const resized = await session.resize(frame.width, frame.height);
     await delay(350);
     const [width, height] = await session.viewport();
+    measurements.push({ requested: frame, resized, viewport: { width, height } });
+    await writeFile(
+      join(evidence, `viewport-${target.width}x${target.height}.json`),
+      JSON.stringify({ target, restored, measurements }, null, 2),
+    );
     if (width === target.width && height === target.height) return;
     frame = {
-      height: frame.height + (target.height - height),
-      width: frame.width + (target.width - width),
+      height: resized.height + (target.height - height),
+      width: resized.width + (target.width - width),
     };
   }
+  throw new Error(`The native window did not reach its required viewport: ${JSON.stringify({ target, measurements })}`);
 }
 
 /* The Save Picker Substitution */
@@ -629,9 +843,10 @@ async function sizeViewport(session, target) {
  * Tap the save command so the gate plays the operating system's picker.
  *
  * `desktop_save_document` blocks on a native dialog WebDriver cannot see. The
- * tap records the document the application actually produced -- the same
- * verified bytes the picker would have written -- and nothing else: every
- * other command, and every domain RPC, still goes to the real backend.
+ * tap records inline documents the application produced. Report saves use
+ * the real native verified pull with its open action instead of the picker;
+ * the harness copies that verified cache file into its Downloads directory.
+ * Every domain RPC still goes to the real backend.
  *
  * The tap is on `fetch`, not on `invoke`, because `invoke` cannot be reached.
  * Tauri's bootstrap defines both `window.__TAURI_INTERNALS__` and its `invoke`
@@ -704,7 +919,25 @@ async function installSaveTap(session) {
         }
         if (ledger.length >= 2000) ledger.shift();
         const entry = { command: command, at: Date.now(), state: 'pending' };
+        if (command === 'rpc' || command === 'rpc_stream_open') {
+          const headers = (init && init.headers) || {};
+          entry.path = typeof headers.get === 'function' ? headers.get('dokime-rpc-path') : headers['dokime-rpc-path'];
+        }
+        if (command === 'desktop_plugin_stage_file') {
+          const payload = String(init && init.body);
+          entry.keys = Object.keys(JSON.parse(payload));
+          entry.size = payload.length;
+        }
         ledger.push(entry);
+        let reportSave = null;
+        if (command === 'desktop_artifact_deliver') {
+          const payload = JSON.parse(String(init && init.body));
+          if (payload.request.kind === 'html_report' && payload.request.action === 'save') {
+            reportSave = { filename: payload.request.filename, kind: payload.request.kind };
+            payload.request.action = 'open';
+            init = { ...init, body: JSON.stringify(payload) };
+          }
+        }
         if (command === 'desktop_save_document') {
           let document = null;
           try {
@@ -750,6 +983,13 @@ async function installSaveTap(session) {
           function (value) {
             entry.state = 'settled';
             entry.ms = Date.now() - entry.at;
+            if (reportSave && value.headers.get('Tauri-Response') === 'ok') {
+              return value.clone().json().then((delivered) => {
+                if (!delivered?.path) throw new Error('native report pull returned no verified path');
+                saved.push({ ...reportSave, path: delivered.path });
+                return value;
+              });
+            }
             if (command === 'desktop_save_diagnostics_bundle' && value.headers.get('Tauri-Response') === 'ok') {
               return value.clone().json().then((path) => {
                 globalThis.__dokimeDiagnosticsPath = path;
@@ -782,11 +1022,19 @@ async function drainSavedDocuments(session) {
     return (globalThis.__dokimeSavedDocuments ?? []).map((document) => ({
       filename: document.filename,
       kind: document.kind,
-      length: document.bytesBase64.length,
+      path: document.path ?? null,
+      length: document.bytesBase64?.length ?? 0,
     }));
   `);
   const written = [];
   for (const [index, document] of documents.entries()) {
+    assert.equal(basename(document.filename), document.filename, "saved documents have a plain filename");
+    if (document.path) {
+      const target = join(session.downloads, document.filename);
+      await copyFile(document.path, target);
+      written.push({ kind: document.kind, path: target });
+      continue;
+    }
     let base64 = "";
     for (let offset = 0; offset < document.length; offset += DOCUMENT_SLICE_CHARS) {
       base64 += await session.execute(
@@ -797,13 +1045,22 @@ async function drainSavedDocuments(session) {
     if (base64.length !== document.length) {
       throw new Error(`The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`);
     }
-    const target = join(session.downloads, document.filename);
-    await writeFile(target, Buffer.from(base64, "base64"));
+    const bytes = Buffer.from(base64, "base64");
+    let target = join(session.downloads, document.filename);
+    if (document.kind === "remote_key") {
+      assert.ok(bytes.toString("utf8").trim().length > 0, "the saved access key is nonempty");
+      secrets.add(base64);
+      secrets.add(bytes.toString("utf8").trim());
+      const directory = join(work, "secrets");
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      target = join(directory, `remote-${++savedKeyCount}.key`);
+    }
+    await writeFile(target, bytes, { mode: 0o600 });
     written.push({ kind: document.kind, path: target });
   }
   /* Cleared only once every document is on disk, so a transfer that fails
      leaves the document on the page to try again rather than losing it. */
-  if (documents.length) await session.execute("globalThis.__dokimeSavedDocuments = [];");
+  if (documents.length) await session.execute("globalThis.__dokimeSavedDocuments.splice(0, arguments[0]);", [documents.length]);
   return written;
 }
 
@@ -881,45 +1138,69 @@ async function settle(session) {
   ).catch(() => undefined);
 }
 
-/** Answer every prompt the open cycle is waiting on, through the banner or Control. */
+/**
+ * Answer every prompt the open cycle is waiting on, where it lives.
+ *
+ * A prompt has one home, the execution that asked it: the cycle page only
+ * names the executions waiting on input and links to them, so a link found
+ * there is followed first. The queue on the execution page holds the oldest
+ * prompt open under the Control card; a decision prompt answers with Yes.
+ */
 async function answerPendingPrompts(session) {
-  /* The banner is gone the moment a prompt is answered, so what it showed is
-     read here, before Respond, and asserted once the run is over. */
-  const sighting = await session.execute(`
-    const banner = document.querySelector('section[aria-label="Pending Prompts"]');
-    if (!banner) return null;
-    const cards = [...banner.querySelectorAll('li[data-prompt-level]')];
+  /* The cycle page answers nothing an execution asked: it names where. */
+  const cycleSighting = await session.execute(`
+    const needed = document.querySelector('[data-input-needed]');
+    if (!needed) return null;
     return {
+      text: needed.innerText,
+      respond: [...document.querySelectorAll('button')].some((button) => button.innerText.trim() === 'Respond'),
+      responsePanels: document.querySelectorAll('[aria-labelledby="active-prompt-title"]').length,
+    };
+  `);
+  if (cycleSighting) {
+    cycleInputSightings.push(cycleSighting);
+    await session.execute(`
+      const link = [...document.querySelectorAll('[data-input-needed] button')].find((button) => /^Answer On #/.test(button.innerText.trim()));
+      link?.click();
+    `);
+    await delay(800);
+  }
+  /* The queue is gone the moment its last prompt is answered, so what it
+     showed is read here, before answering, and asserted once the run is over. */
+  const sighting = await session.execute(`
+    const queue = document.querySelector('ol[aria-label="Pending Prompts"]');
+    if (!queue) return null;
+    const cards = [...queue.querySelectorAll('li[data-prompt-level]')];
+    const control = document.querySelector('[data-execution-section="Control"]');
+    const bar = control?.querySelector('[role=progressbar]');
+    const row = bar?.parentElement;
+    const tracks = row ? [...row.children].slice(0, 4).map(node => {
+      const bounds = node.getBoundingClientRect();
+      return {left: bounds.left, right: bounds.right, center: (bounds.top + bounds.bottom) / 2};
+    }) : [];
+    return {
+      progress: bar ? {tracks, count: bar.nextElementSibling?.textContent,
+        radius: parseFloat(getComputedStyle(bar).borderRadius), height: bar.getBoundingClientRect().height} : null,
+      executionId: new URL(location.href).searchParams.get('executionId'),
       cards: cards.map((card) => ({
         level: card.dataset.promptLevel,
+        state: card.dataset.promptState,
         text: card.innerText,
         top: card.getBoundingClientRect().top,
       })),
-      bannerTop: banner.getBoundingClientRect().top,
-      header: document.querySelector('[data-testid="cycle-prompt-count"]')?.innerText ?? null,
+      queueTop: queue.closest('section')?.getBoundingClientRect().top ?? queue.getBoundingClientRect().top,
+      controlBottom: control?.getBoundingClientRect().bottom ?? null,
+      header: queue.closest('section')?.querySelector('header')?.innerText ?? null,
       navigation:
         document.querySelector('[data-testid="navigation-prompt-count"]')?.innerText ?? null,
     };
   `);
   if (sighting) promptSightings.push(sighting);
-  const pending = await session.execute(`
-    const banner = document.querySelector('section[aria-label="Pending Prompts"]');
-    if (!banner) return 0;
-    const respond = [...banner.querySelectorAll('button')].filter(
-      (button) => button.innerText.trim() === 'Respond',
-    );
-    respond[0]?.click();
-    if (respond.length) return respond.length;
-    /* The execution page prints its prompt open in Control, with no Respond. */
-    return banner.querySelector('[aria-labelledby="active-prompt-title"]')
-      ? banner.querySelectorAll('li[data-prompt-level]').length
-      : 0;
-  `);
+  const pending = sighting?.cards.length ?? 0;
   if (!pending) return 0;
-  await delay(600);
   await session.execute(
     `const note = arguments[0];
-     const panel = document.querySelector('[aria-labelledby="active-prompt-title"]') ?? document.body;
+     const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]') ?? document.body;
      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
      for (const input of panel.querySelectorAll('input[type="text"], input[type="number"]')) {
        if (input.value) continue;
@@ -934,10 +1215,10 @@ async function answerPendingPrompts(session) {
   );
   await delay(400);
   const submitted = await session.execute(`
-    const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
+    const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]');
     if (!panel) return false;
     const submit = [...panel.querySelectorAll('button')].find((button) =>
-      /^(Submit|Confirm|Accept|Continue)$/.test(button.innerText.trim()),
+      /^(Yes|Submit|Confirm|Accept|Continue)$/.test(button.innerText.trim()),
     );
     if (!submit) return false;
     submit.click();
@@ -987,27 +1268,44 @@ function defect(name, reason) {
  * run that never began.
  */
 async function startCaseFromItsRow(session, fragment) {
-  const before = await caseRowText(session, fragment);
-  const trigger = await session.execute(
-    `const fragment = arguments[0];
+  const target = await until(
+    `the actionable ${fragment} execution`,
+    () =>
+      session.execute(
+        `const fragment = arguments[0];
      const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')].find(
-       (candidate) => candidate.innerText.includes(fragment),
+       (candidate) => candidate.innerText.includes(fragment) && candidate.querySelector('button[aria-label^="Actions For "]'),
      );
-     if (!row) throw new Error('No case row holds ' + fragment);
-     return row.querySelector('button[aria-label^="Actions For "]').getAttribute('aria-label');`,
-    [fragment],
+     if (!row?.dataset.executionId) return null;
+     return {
+       before: row.innerText,
+       executionId: row.dataset.executionId,
+       trigger: row.querySelector('button[aria-label^="Actions For "]').getAttribute('aria-label'),
+     };`,
+        [fragment],
+      ),
+    20000,
   );
   /* A row menu is a modal layer: the next row is unreachable until it is gone. */
   await closeAnyMenu(session);
-  await session.clickNamed("button", trigger);
+  await session.clickNamed("button", target.trigger);
   await until("the row menu", () => session.find("css selector", "[role=menu]"), 15000);
-  await session.clickNamed("menuitem", "Run Case");
+  await session.clickNamed("menuitem", "Start Execution");
   await closeAnyMenu(session);
   return until(
     `the ${fragment} case to start`,
     async () => {
-      const row = await caseRowText(session, fragment);
-      return row !== before || /Running|Waiting|Finalizing|Passed|Failed/.test(row);
+      const row = await session.execute(
+        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+          .find((candidate) => candidate.dataset.executionId === arguments[0])?.innerText ?? '';`,
+        [target.executionId],
+      );
+      return (
+        Boolean(row) &&
+        (row !== target.before ||
+          /Running|Waiting|Finalizing|Passed|Failed/.test(row) ||
+          /Execution Started/.test(await toastText(session)))
+      );
     },
     20000,
   ).catch(() => false);
@@ -1103,11 +1401,124 @@ async function startupJourney(session, notes) {
   for (const heading of ["Cycles", "Needs Attention", "Active", "Recent"]) {
     assert.ok(hasText(body, heading), `Cycles home must render "${heading}"`);
   }
-  for (const empty of ["Nothing Is Waiting On You", "No Cycle Is Running", "No Cycles Loaded Yet"]) {
+  for (const empty of ["Nothing Is Waiting On You", "No Active Cycles", "No Cycles Loaded Yet"]) {
     assert.ok(hasText(body, empty), `An empty group must state "${empty}"`);
   }
   assert.ok(await session.exists("button", "New Cycle"), "Cycles home must offer New Cycle");
   assert.ok(await session.find("css selector", "nav[aria-label=Navigation]"), "The shell must render the sidebar");
+  if (!windows) await verifyLinuxRenderer();
+}
+
+async function verifyLinuxRenderer() {
+  const renderer = await until("owned WebKit renderer environment", async () => {
+    const pending = [driverProcess.pid];
+    for (let index = 0; index < pending.length && index < 64; index += 1) {
+      const pid = pending[index];
+      const executable = await realpath(`/proc/${pid}/exe`).catch(() => "");
+      if (basename(executable) === "WebKitWebProcess") {
+        const environment = (await readFile(`/proc/${pid}/environ`, "utf8")).split("\0");
+        const value = environment.find((entry) => entry.startsWith("WEBKIT_DISABLE_DMABUF_RENDERER="))?.split("=")[1];
+        return { value: value ?? null };
+      }
+      const children = await readFile(`/proc/${pid}/task/${pid}/children`, "utf8").catch(() => "");
+      pending.push(...children.trim().split(/\s+/).filter(Boolean).map(Number));
+    }
+    return null;
+  });
+  const expected = process.env.WEBKIT_DISABLE_DMABUF_RENDERER ?? "1";
+  assert.equal(renderer.value, expected, "The real renderer receives the default workaround or the explicit operator override");
+  await writeFile(join(evidence, "linux-renderer.json"), JSON.stringify({ expected, ...renderer }, null, 2));
+}
+
+/**
+ * The active cycle: shell state, changed only through its picker.
+ *
+ * The status bar names the active cycle and opens the picker. New Cycle there
+ * creates a cycle and makes it active; choosing a row makes that cycle active;
+ * the template dialog then names it with Change, and the case joins it.
+ */
+async function activeCycleJourney(session, otherTitle) {
+  const element = () =>
+    session.execute("return document.querySelector('[data-testid=status-active-cycle]')?.innerText.replace(/\\s+/g, ' ').trim() ?? null;");
+  const openPicker = async () => {
+    await session.clickCss("[data-testid=status-active-cycle]");
+    await until("active cycle picker", () => session.find("css selector", "[role=dialog] [data-testid=open-cycles]"), 30000);
+  };
+  const clickInDialog = (label) =>
+    until(`${label} in the open dialog`, () =>
+      session.execute(
+        `const dialog = [...document.querySelectorAll('[role=dialog][data-state=open]')].at(-1);
+         const button = dialog && [...dialog.querySelectorAll('button')].find((candidate) => candidate.innerText.includes(arguments[0]));
+         if (!button || button.disabled) return null;
+         button.click();
+         return true;`,
+        [label],
+      ),
+    );
+  const dialogsClosed = () =>
+    until("dialogs closed", async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0, 30000);
+
+  await session.goto("/library");
+  await until("suite rows", async () => hasText(await session.text(), STARTUP_SUITE), 60000);
+  assert.equal(
+    await session.execute("return document.querySelector('select[aria-label=\"Destination Cycle\"]');"),
+    null,
+    "The Library carries no destination control",
+  );
+
+  /* New Cycle in the picker creates a cycle and makes it active at once. */
+  await openPicker();
+  await clickInDialog("New Cycle");
+  const titleField = await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
+  /* A title of its own, so no row or toast can match the library journey's cycle. */
+  const title = `Active Cycle Journey ${Date.now()}`;
+  await session.type(titleField, title);
+  await session.clickNamed("button", "Create Cycle");
+  await dialogsClosed();
+  await until("the created cycle active", async () => hasText((await element()) ?? "", title), 60000);
+
+  /* Choosing a row makes that cycle active; choosing the new one again restores it. */
+  if (otherTitle) {
+    await openPicker();
+    await clickInDialog(otherTitle);
+    await dialogsClosed();
+    await until("the chosen cycle active", async () => hasText((await element()) ?? "", otherTitle), 30000);
+  }
+  await openPicker();
+  await clickInDialog(title);
+  await dialogsClosed();
+  await until("the new cycle active again", async () => hasText((await element()) ?? "", title), 30000);
+  assert.match((await element()) ?? "", /Active · Idle/, "The element states the cycle's own state");
+
+  /* The template dialog names the active cycle with Change, and the case joins it. */
+  await session.clickNamed("button", STARTUP_SUITE);
+  await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 30000);
+  await session.clickCss('[data-testid="suite-template-obc.charger.startup.sequence"] button');
+  const inline = () =>
+    session.execute("return document.querySelector('[role=dialog] [data-testid=template-active-cycle]')?.innerText ?? null;");
+  const named = (expected) => until(`the dialog naming ${expected}`, async () => hasText((await inline()) ?? "", expected), 30000);
+  await named(title);
+  assert.ok(hasText((await inline()) ?? "", "Change"), "The template dialog must offer Change");
+
+  /* Change opens the same picker over the dialog, and the choice applies in place. */
+  for (const chosen of otherTitle ? [otherTitle, title] : [title]) {
+    await clickInDialog("Change");
+    await until("picker over the dialog", () => session.find("css selector", "[role=dialog] [data-testid=open-cycles]"), 30000);
+    await clickInDialog(chosen);
+    await until(
+      "picker closed",
+      async () => (await session.execute("return document.querySelectorAll('[data-testid=open-cycles]').length")) === 0,
+      30000,
+    );
+    await named(chosen);
+  }
+  await clickInDialog("Next");
+  await dialogsClosed();
+  const added = await until("add announced", async () => {
+    const text = await toastText(session);
+    return /Added 1 case to /.test(text) ? text : null;
+  });
+  assert.ok(hasText(added, title), `The case must join the active cycle (got ${normalize(added)})`);
 }
 
 /**
@@ -1121,14 +1532,18 @@ async function startupJourney(session, notes) {
 async function libraryJourney(session) {
   await session.goto("/library");
   await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
-  assert.ok(hasText(await session.text(), "No cycle is active"), "Without an active cycle the Library must say so");
+  assert.equal(
+    await session.execute("return document.querySelector('select[aria-label=\"Destination Cycle\"]');"),
+    null,
+    "The active cycle is shell state, not a Library control",
+  );
 
   /* New Cycle opens a dialog titled by the moment it opened. */
   await session.clickNamed("button", "New Cycle");
   await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
   const title = await session.execute("return document.querySelector('#new-cycle-title').value");
   assert.ok(title.trim().length > 0, "New Cycle must prefill its title");
-  assert.ok(hasText(await session.text(), "Continue after a failed case"), "New Cycle must state its failure policy");
+  assert.ok(hasText(await session.text(), "Continue Automatically"), "New Cycle must state its continuation policy");
   await session.clickNamed("button", "Create Cycle");
   const appendTo = await until(
     "appendTo in the URL",
@@ -1144,7 +1559,9 @@ async function libraryJourney(session) {
     async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     30000,
   );
-  assert.ok(hasText(await session.text(), "Cases materialized here are added to"), "With an active cycle the Library must name it");
+  await until("the created cycle active in the shell", async () =>
+    hasText((await session.execute("return document.querySelector('[data-testid=status-active-cycle]')?.innerText ?? '';")) ?? "", title),
+  );
   assert.ok(await session.exists("button", "Open Cycle"), "With an active cycle the page bar action must become Open Cycle");
 
   await session.clickNamed("button", PROTECTION_SUITE);
@@ -1269,7 +1686,17 @@ async function libraryJourney(session) {
 
   await session.clickNamed("button", "Open Cycle");
   await until("cycle workspace", async () => (await session.location()).pathname === `/cycles/${appendTo}`, 30000);
-  return { id: appendTo, title: title.trim() };
+  const measuringExecutionId = await until(
+    "the materialized measuring execution identity",
+    () =>
+      session.execute(
+        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((row) => row.innerText.includes(arguments[0]))?.dataset.executionId ?? null;`,
+        [PROTECTION_TEMPLATE],
+      ),
+    30000,
+  );
+  return { id: appendTo, title: title.trim(), measuringExecutionId };
 }
 
 /**
@@ -1322,56 +1749,39 @@ async function cycleJourney(session, cycleId) {
   await until("the cycle page", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
   const header = await session.text();
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
-  assert.ok(hasText(header, "Ready"), "A materialized cycle must render its Ready status");
+  assert.ok(hasText(header, "Active · Idle"), "A materialized cycle that runs nothing must render its Active · Idle state");
   assert.ok(await session.exists("button", "Cycle Actions"), "The header must carry the overflow menu");
-  /* Start Cycle is the redesign's promise on a Ready cycle. Two things can
-     deny it: a header that does not offer it, and a backend that refuses the
-     admission. Either way the cases still have to run for everything behind
-     them to be covered, so the gate states what happened and starts the work
-     from the row menus instead. */
-  let admitted = false;
-  if (await session.exists("button", "Start Cycle")) {
-    await session.clickNamed("button", "Start Cycle");
-    /* The admission's own answer, before anything waits on its effect: the
-       workspace toasts every command's outcome with the backend's own text,
-       and a refused run is a refusal to state here rather than five silent
-       minutes later. */
-    const answer = await until("the run admission's answer", async () => (await toastText(session)) || null, 45000).catch(() => "");
-    /* Silence is not an admission. A command that announced nothing at all is
-       the failure this gate exists to catch, so it takes the same route as a
-       stated refusal rather than waiting five minutes on an effect nothing
-       promised. */
-    admitted = /queued cases started/i.test(answer);
-    if (!admitted) {
-      defect(
-        "cycle/run-queued",
-        `Start Cycle did not start the cycle. The application said: ${
-          normalize(answer) || "nothing at all"
-        }. Started the cases from their row menus instead.`,
-      );
-    }
-  } else {
-    defect(
-      "cycle/run-queued",
-      `Start Cycle is absent on a Ready cycle whose header reads "${
-        /(\d+ of \d+ cases finished)/.exec(normalize(header))?.[1] ?? "n of n cases finished"
-      }". Started the cases from their row menus instead.`,
-    );
-  }
+  assert.ok(await session.exists("button", "Export Evidence"), "The cycle header must name its evidence export");
+  assert.ok(await session.exists("button", "Download Report"), "The cycle header must name its report download");
+  assert.ok(!(await session.exists("button", "Start Cycle")), "Containers have no Start control");
+  assert.ok(!(await session.exists("button", "Stop Cycle")), "Containers have one Seal action");
+  /* Observe The Measuring Execution Before Admitting Its Work. */
+  await session.execute(
+    `
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => candidate.innerText.includes(arguments[0]));
+    if (!row) throw new Error('The measuring case is absent');
+    row.querySelector('button').click();
+  `,
+    [PROTECTION_TEMPLATE],
+  );
+  assert.ok(await startCaseFromItsRow(session, PROTECTION_TEMPLATE), "The measuring execution Start must be admitted");
+  listened = await until("live bridge reads from the selected measuring execution", () =>
+    session.execute(
+      `return globalThis.__dokimeStreamReads > arguments[0]
+        && globalThis.__dokimeStreams.some((stream) => !stream.done && stream.reads >= 2);`,
+      [beforeReads],
+    ),
+  );
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "The prompting execution Start must be admitted");
 
-  if (!admitted) {
-    /* One measuring case for the evidence and the report, and the prompting
-       case for the banner: enough to cover everything behind the run without
-       paying for five. */
-    const started = [];
-    for (const fragment of [PROTECTION_TEMPLATE, STARTUP_TEMPLATE]) {
-      if (await startCaseFromItsRow(session, fragment)) started.push(fragment);
-    }
-    assert.ok(started.length > 0, "Run Case on a row must start a case when Start Cycle does not run one");
-    if (started.length < 2) {
-      defect("cycle/run-case", `Run Case started only ${JSON.stringify(started)}; the other case stayed where it was.`);
-    }
-  }
+  /* The Overview Links To Each Execution That Needs Input. */
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await until(
+    "the cycle selection for operator prompts",
+    async () => (await session.location()).searchParams.get("view") === "cycle",
+    10000,
+  );
 
   /* Open Report while the cycle is in flight: no seal yet, so the runtime
      renders one from the run so far and the shell hands it to the opener
@@ -1414,16 +1824,6 @@ async function cycleJourney(session, cycleId) {
     );
   }
 
-  /* Back to the measuring case for the streams the run is read through. */
-  await session.execute(
-    `
-    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
-      .find((candidate) => candidate.innerText.includes(arguments[0]));
-    row?.querySelector('button').click();
-  `,
-    [PROTECTION_TEMPLATE],
-  );
-
   await runUntil(
     session,
     "cycle completion",
@@ -1439,29 +1839,41 @@ async function cycleJourney(session, cycleId) {
         );
         return false;
       }
-      return /\b(Passed|Failed|Blocked)\b/.test(rows);
+      return /\b(Passed|Failed|Blocked)\b/.test(await caseRowText(session, STARTUP_TEMPLATE));
     },
     300000,
   );
 
-  /* The Startup Prompt Was A Warning Banner With Counts In Header And Navigation. */
+  /* The Startup Prompt Was Queued On Its Execution, Under Control, At Warning. */
   const startupSighting = promptSightings.find((seen) => seen.cards.some((card) => hasText(card.text, STARTUP_PROMPT)));
-  assert.ok(startupSighting, `The prompt banner must show "${STARTUP_PROMPT}" before it is answered`);
+  assert.ok(startupSighting, `The prompt queue must show "${STARTUP_PROMPT}" before it is answered`);
+  assert.ok(startupSighting.executionId, "A response panel must belong to a selected execution");
   const startupCard = startupSighting.cards.find((card) => hasText(card.text, STARTUP_PROMPT));
   assert.equal(startupCard.level, "warning", "The OBC plugin's startup prompt must render at its declared Warning level");
-  /* The cycle cockpit offers a card with its kind and Respond; the execution
-     page prints the prompt open, under its own "Run Paused" line. */
-  const inlinePrompt = /Run Paused/i.test(startupCard.text) && !/Respond/.test(startupCard.text);
   assert.ok(
-    inlinePrompt || (/Respond/.test(startupCard.text) && /Form/.test(startupCard.text)),
-    `A banner card must offer its kind and the Respond action, or the prompt must be open (got ${normalize(startupCard.text)})`,
+    startupCard.state === "open" && /Run Paused/i.test(startupCard.text) && !/Respond/.test(startupCard.text),
+    `The oldest prompt must be open in its execution's queue, with no Respond (got ${normalize(startupCard.text)})`,
   );
   assert.ok(
-    startupSighting.bannerTop < 400,
-    `The prompt banner must sit at the top of the workspace, not at ${startupSighting.bannerTop}px`,
+    startupSighting.controlBottom !== null && startupSighting.queueTop >= startupSighting.controlBottom,
+    `The prompt queue must sit directly under the Control card (queue ${startupSighting.queueTop}px, control ${startupSighting.controlBottom}px)`,
   );
-  if (!inlinePrompt) {
-    assert.match(startupSighting.header ?? "", /\d+ prompts? waiting/, "The cycle header must count the open prompts");
+  assert.match(startupSighting.header ?? "", /\d+ prompts? waiting/, "The prompt queue must count the open prompts");
+  const progress = startupSighting.progress;
+  assert.ok(progress && progress.tracks.length === 4, "Control must mount state, progress, count and actions in one row");
+  assert.match(progress.count, /^\d+\/\d+$/);
+  assert.ok(progress.radius >= progress.height / 2, "The progress bar must have rounded ends");
+  const centers = progress.tracks.map((track) => track.center);
+  assert.ok(Math.max(...centers) - Math.min(...centers) < 3, "Progress row tracks must share a vertical center");
+  assert.ok(
+    progress.tracks.every((track, index) => index === 0 || track.left >= progress.tracks[index - 1].right),
+    "Progress row tracks must not overlap",
+  );
+  /* The Cycle Page Names Where Input Is Needed And Answers Nothing Itself. */
+  for (const seen of cycleInputSightings) {
+    assert.match(seen.text, /Input needed on #\d+/, "The cycle page must name the execution waiting on input");
+    assert.ok(!seen.respond, "The cycle page must not offer Respond for an execution's prompt");
+    assert.equal(seen.responsePanels, 0, "The cycle page must link to execution prompts without mounting response controls");
   }
   /* The navigation badge follows its own query, so any sighting of the open
      prompt may carry it; one must. */
@@ -1515,10 +1927,13 @@ async function cycleJourney(session, cycleId) {
     60000,
   );
   assert.match(normalize(evidence), /Execution \d+/i);
+  await checkParameterGeometry(session);
+  assert.ok(await session.exists("button", "Export Evidence"), "The execution header must name its evidence export");
+  assert.ok(await session.exists("button", "Download Report"), "The execution header must name its report download");
   assert.ok(!(await session.exists("button", "Choose Attempt")), "Execution selection belongs to the list");
 
   /* A Re-Run Appends A New Row And Preserves The Earlier Evidence. */
-  await session.clickNamed("button", "Re-Run Case");
+  await session.clickNamed("button", "Re-Run");
   const rerunId = await until(
     "new re-run execution selected",
     async () => {
@@ -1531,8 +1946,20 @@ async function cycleJourney(session, cycleId) {
   );
   assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
   assert.match(await sidebarText(session), /Re-Run Of #\d+/, "The new row must name its previous execution");
+  await until("Start on the fresh attempt", () => session.exists("button", "Start"), 30000);
+  await session.clickNamed("button", "Start");
+  await until("the new attempt admission", async () => /Execution Started/.test(await toastText(session)), 30000);
   /* Plot Settings Persist In The Native Frozen Document. */
-  await session.clickCss("button[aria-label^='Plot settings for ']");
+  const plotId = await until(
+    "the plot identity to configure",
+    () =>
+      session.execute(`
+    return document.querySelector('button[aria-label^="Plot settings for "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
+  `),
+    30000,
+  );
+  const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot settings for ']`;
+  await session.clickCss(settingsSelector);
   const settingsText = await until(
     "plot settings dialog",
     () =>
@@ -1544,7 +1971,16 @@ async function cycleJourney(session, cycleId) {
   );
   assert.match(settingsText, /Display Points|Reduction/);
   const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
+  await session.execute(
+    `
+    window.__plotInputValues = [];
+    arguments[0].addEventListener('input', event => window.__plotInputValues.push(event.target.value));
+  `,
+    [pointsInput],
+  );
   await session.type(pointsInput, "2500");
+  const typedPoints = await session.execute("return {value: arguments[0].value, events: window.__plotInputValues}", [pointsInput]);
+  assert.equal(typedPoints.value, "2500", `The settings input must receive the requested budget: ${JSON.stringify(typedPoints)}`);
   await session.clickNamed("button", "Apply");
   /* A dialog still open names why the backend has not accepted the settings. */
   let openDialog = "";
@@ -1562,17 +1998,42 @@ async function cycleJourney(session, cycleId) {
   }
   await session.goto("/cycles");
   await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`);
-  await session.clickCss("button[aria-label^='Plot settings for ']");
+  await until(
+    "the same plot frame after remounting",
+    () =>
+      session.execute(
+        `
+    const frame = [...document.querySelectorAll('[data-live-mounted="true"][data-plot-id]')]
+      .find((node) => node.dataset.plotId === arguments[0]);
+    return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot settings for "]'));
+  `,
+        [plotId],
+      ),
+    30000,
+  );
+  // Use Keyboard Activation While The Running Prompt Can Move The Plot.
+  const reopenedSettings = await session.find("css selector", settingsSelector);
+  const focusedSettings = await session.execute(
+    `
+    arguments[0].focus();
+    return document.activeElement === arguments[0] && !arguments[0].disabled;
+  `,
+    [reopenedSettings],
+  );
+  assert.ok(focusedSettings, "The same plot settings control accepts keyboard focus after remounting");
+  await session.key("Enter");
   const persistedPoints = await until(
     "persisted display point budget",
     () =>
       session.execute(`
-        return document.querySelector('[role=dialog][data-state=open] input[type=number]')?.value;
+        const input = document.querySelector('[role=dialog][data-state=open] input[type=number]');
+        return input ? {value: input.value} : null;
       `),
     30000,
   );
-  assert.equal(persistedPoints, "2500", "The backend must retain the plot budget after remounting");
-  await session.clickNamed("button", "Cancel");
+  assert.equal(persistedPoints.value, "2500", "The backend must retain the plot budget after remounting");
+  const cancelPlotSettings = await session.find("xpath", "//*[@role='dialog' and @data-state='open']//button[normalize-space(.)='Cancel']");
+  await session.click(cancelPlotSettings);
 
   await runUntil(
     session,
@@ -1582,6 +2043,57 @@ async function cycleJourney(session, cycleId) {
       return !/\b(Running|Waiting|Finalizing|Queued)\b/.test(text);
     },
     300000,
+  );
+  const rerunOutcome = await session.execute(
+    `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((row) => row.dataset.executionId === arguments[0])?.innerText ?? '';`,
+    [rerunId],
+  );
+  assert.match(rerunOutcome, /\bPassed\b/, "Closing plot settings must leave the prompting re-run able to pass");
+  const promptHovers = await session.executeAsync(`(${promptHoverLabels.toString()})().then(arguments[arguments.length - 1]);`);
+  assertPromptHovers(promptHovers);
+  assertHistogram(await until("live voltage histogram", () => session.execute(`return (${histogramPresentation.toString()})();`)));
+  const statisticsHeaders = await until(
+    "the native trace statistics headers",
+    () =>
+      session.execute(`
+        const tables = [...document.querySelectorAll('table[aria-label="Trace statistics"]')];
+        if (!tables.length) return null;
+        return tables.flatMap(table => [...table.querySelectorAll('th')].map(header => {
+          const leaves = [...header.querySelectorAll('span')].filter(node => !node.children.length && node.textContent.trim());
+          return {
+            text: header.innerText,
+            clipped: leaves.some(node => {
+              const range = document.createRange();
+              range.selectNodeContents(node);
+              const text = range.getBoundingClientRect();
+              let parent = node;
+              while (parent && parent !== table.parentElement) {
+                const style = getComputedStyle(parent);
+                const bounds = parent.getBoundingClientRect();
+                if (['hidden', 'clip'].includes(style.overflowX) && (text.left < bounds.left - 1 || text.right > bounds.right + 1)) return true;
+                if (['hidden', 'clip'].includes(style.overflowY) && (text.top < bounds.top - 1 || text.bottom > bounds.bottom + 1)) return true;
+                parent = parent.parentElement;
+              }
+              return false;
+            }),
+          };
+        }));
+      `),
+    30000,
+  );
+  assert.ok(
+    statisticsHeaders.some((header) => /Y Cursor/.test(header.text)),
+    "Native statistics include cursor headings",
+  );
+  assert.ok(
+    statisticsHeaders.some((header) => /\([^)]\S*\)/.test(header.text)),
+    "Native statistics include physical units",
+  );
+  assert.deepEqual(
+    statisticsHeaders.filter((header) => header.clipped),
+    [],
+    "Statistics titles and units remain readable without clipping",
   );
   await session.execute(
     `
@@ -1622,6 +2134,36 @@ async function cycleJourney(session, cycleId) {
     }
   `);
   await delay(600);
+  const consoleLayout = await until("scrollable console records", () =>
+    session.execute(`
+    const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
+      .find(node => getComputedStyle(node).overflowY === 'scroll' && node.scrollHeight > node.clientHeight);
+    if (!viewport) return null;
+    const rows = [...viewport.querySelectorAll('button')];
+    if (!rows.length) return null;
+    const first = rows[0].firstElementChild.getBoundingClientRect();
+    const last = rows.at(-1).getBoundingClientRect();
+    const bounds = viewport.getBoundingClientRect();
+    return {inset: first.left - bounds.left, bottomPadding: bounds.bottom - last.bottom,
+      tailDistance: viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight};
+  `),
+  );
+  assert.ok(consoleLayout.inset >= 8, "Console rows must have horizontal padding");
+  assert.ok(consoleLayout.bottomPadding >= 4 && consoleLayout.tailDistance <= 1, "Console must initially follow its padded newest row");
+  await session.execute(`
+    const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
+      .find(node => getComputedStyle(node).overflowY === 'scroll' && node.scrollHeight > node.clientHeight);
+    viewport.scrollTop = 0;
+    viewport.dispatchEvent(new Event('scroll', {bubbles: true}));
+  `);
+  await session.clickNamed("button", "Jump to Latest");
+  await until("console follows newest row again", () =>
+    session.execute(`
+    const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
+      .find(node => getComputedStyle(node).overflowY === 'scroll' && node.scrollHeight > node.clientHeight);
+    return viewport && viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+  `),
+  );
   /* A real pointer, not `element.click()`. The level selector is a modal
      layer: opened by a script click it never sees the pointer sequence its own
      cleanup keys on, and it left `pointer-events: none` on the body after it
@@ -1656,7 +2198,7 @@ async function cycleJourney(session, cycleId) {
   await until("the cycle page", () => session.exists("button", "Cycle Actions"), 10000);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
-  for (const item of ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active", "Open Report", "Archive"]) {
+  for (const item of ["Copy Cycle", "Add Cases", "Follow Active", "Open Report", "Settings", "Archive"]) {
     assert.ok(hasText(items, item), `The overflow menu must offer ${item}`);
   }
   for (const item of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
@@ -1672,12 +2214,11 @@ async function cycleJourney(session, cycleId) {
 }
 
 /**
- * Stop one execution of a running copy and keep its siblings running.
+ * Stop One Execution And Preserve Its Unstarted Siblings.
  *
  * Stop Execution in the page bar is scoped to the selected execution: the
- * cycle never enters Stopping and every other case still reaches a recorded
- * outcome. Stop Cycle lives on the cycle page only, labelled as such, and asks
- * before acting. The copy keeps the measured cycle the later journeys read
+ * cycle remains Active and sibling attempts remain unstarted. Seal Cycle
+ * is the only container finalization action. The copy keeps the measured cycle the later journeys read
  * untouched.
  */
 async function executionStopJourney(session, cycleId) {
@@ -1687,15 +2228,20 @@ async function executionStopJourney(session, cycleId) {
   await openMenu(session, "Cycle Actions");
   await session.clickNamed("menuitem", "Copy Cycle");
   const copyId = await until(
-    "the copied cycle route",
+    "the copied cycle route and startup action",
     async () => {
       const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
-      return match && match[1] !== cycleId ? match[1] : null;
+      if (!match || match[1] === cycleId) return null;
+      const ready = await session.execute(
+        `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+          .some((candidate) => candidate.innerText.includes(arguments[0]) && candidate.querySelector('button[aria-label^="Actions For "]'));`,
+        [STARTUP_TEMPLATE],
+      );
+      return ready ? match[1] : null;
     },
     30000,
   );
-  await until("Start Cycle on the copy", () => session.exists("button", "Start Cycle"), 30000);
-  await session.clickNamed("button", "Start Cycle");
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "Explicit Start admits the selected execution");
 
   // === Select The Running Execution === //
 
@@ -1713,7 +2259,7 @@ async function executionStopJourney(session, cycleId) {
         if (!row) return null;
         const label = row.querySelector('button');
         label.click();
-        return label.innerText.split('\\n')[0];
+        return row.dataset.executionId ?? null;
       `,
         [STARTUP_TEMPLATE],
       );
@@ -1727,31 +2273,36 @@ async function executionStopJourney(session, cycleId) {
   /* Selecting a queued execution while another runs must stay there: Follow
      Active only moves a selection that is following. The queued attempt shows
      its planned parameters. Selecting the cycle node selects the cycle. */
-  const queued = await session.execute(`
+  const unstarted = await session.execute(`
     const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
-      .find((candidate) => /\\bQueued\\b/.test(candidate.innerText));
+      .find((candidate) => /\\b(Queued|Planned)\\b/.test(candidate.innerText));
     if (!row) return null;
     row.querySelector('button').click();
     return row.dataset.executionId ?? null;
   `);
-  if (queued) {
-    await delay(3000);
-    assert.equal(
-      (await session.location()).searchParams.get("executionId"),
-      queued,
-      "A queued execution the operator selected must stay selected while another runs",
-    );
-    assert.ok(hasText(await session.text(), "This case has not run yet"), "A queued execution shows its planned parameters");
-  }
+  assert.ok(unstarted, "The copied cycle must offer an unstarted sibling for explicit selection");
+  await delay(3000);
+  assert.equal(
+    (await session.location()).searchParams.get("executionId"),
+    unstarted,
+    "An unstarted execution the operator selected must stay selected while another runs",
+  );
+  assert.ok(hasText(await session.text(), "This case has not run yet"), "An unstarted execution shows its planned parameters");
+  await checkParameterGeometry(session);
+  /* An attempt that has not started is cancelled, not stopped: Stop belongs
+     to a running attempt alone. */
+  await until("Cancel Execution on the unstarted attempt", () => session.exists("button", "Cancel Execution"), 30000);
+  assert.ok(!(await session.exists("button", "Stop Execution")), "An unstarted execution must not offer Stop");
+  assert.ok(!hasText(await session.text(), "No step in progress"), "An unstarted execution states that it waits for Start");
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
   await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
   await session.execute(
     `
     const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
-      .find((candidate) => /\\b(Running|Waiting)\\b/.test(candidate.innerText) && candidate.innerText.includes(arguments[0]));
+      .find((candidate) => candidate.dataset.executionId === arguments[0]);
     row?.querySelector('button').click();
   `,
-    [STARTUP_TEMPLATE],
+    [running],
   );
   assert.ok(!(await session.exists("button", "Stop Cycle")), "The execution page carries the execution's controls, not the cycle's");
   assert.ok(!(await session.exists("button", "Stop")), "No unscoped Stop may sit beside a selected execution");
@@ -1760,28 +2311,144 @@ async function executionStopJourney(session, cycleId) {
   // === Stop Only That Execution === //
 
   await session.clickNamed("button", "Stop Execution");
-  await until("the stop acknowledgement", async () => /Execution Stop Requested/.test(await toastText(session)), 20000);
+  await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), 20000);
   const header = normalize(await session.text());
   assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
 
-  // === Siblings Finish And The Stopped Row Settles === //
+  // === Stop Seals Only The Selected Execution And Preserves Unstarted Siblings === //
 
-  await runUntil(
-    session,
-    "the copy's remaining cases to finish",
-    async () => {
-      const rows = await sidebarText(session);
-      return !/\b(Running|Waiting|Finalizing|Queued)\b/.test(rows);
-    },
-    300000,
+  const stoppedRow = await session.execute(
+    `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((row) => row.dataset.executionId === arguments[0])?.innerText ?? '';`,
+    [running],
   );
+  assert.ok(/\b(Stopped|Interrupted)\b/.test(stoppedRow), `The stopped execution must keep its truthful outcome: ${stoppedRow}`);
   const rows = await sidebarText(session);
-  const stoppedRow = await caseRowText(session, running);
-  /* Stopped inside its open step (here, the operator prompt), the host
-     interrupts the execution; stopped between steps, it reads Stopped. */
-  assert.ok(/\b(Stopped|Interrupted)\b/.test(stoppedRow), `The stopped execution must read Stopped or Interrupted: ${stoppedRow}`);
-  assert.ok(/\b(Passed|Failed|Blocked)\b/.test(rows), "Sibling executions must still reach a recorded outcome");
+  assert.ok(/\b(Queued|Planned)\b/.test(rows), "Stop must preserve unstarted sibling attempts");
+
+  // === Cancel Skips One Unstarted Sibling And Leaves The Cycle Active === //
+
+  const cancelled = await session.execute(`
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => /\\b(Queued|Planned)\\b/.test(candidate.innerText));
+    if (!row) return null;
+    row.querySelector('button').click();
+    return row.dataset.executionId ?? null;
+  `);
+  assert.ok(cancelled, "An unstarted sibling must remain to cancel");
+  await until("Cancel Execution", () => session.exists("button", "Cancel Execution"), 30000);
+  await session.clickNamed("button", "Cancel Execution");
+  await until("the cancel acknowledgement", async () => /Execution Cancelled/.test(await toastText(session)), 20000);
+  const cancelledRow = await until("the cancelled row", () =>
+    session.execute(
+      `const text = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+        .find((row) => row.dataset.executionId === arguments[0])?.innerText ?? '';
+       return /\\bSkipped\\b/.test(text) ? text : null;`,
+      [cancelled],
+    ),
+  );
+  assert.ok(cancelledRow, "The cancelled execution must be recorded as skipped");
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await cyclePhase(session, "Active");
+  assert.ok(
+    !hasText(await session.text(), "Active · Stopped"),
+    "Stopping or cancelling one execution must leave the cycle Active, not Stopped",
+  );
   return copyId;
+}
+
+/** Completed executions seal independently; the operator closes their container. */
+async function containersJourney(session, cycleId) {
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
+  await cyclePhase(session, "Active");
+  await exportAvailability(session, false);
+  const select = await until("a finished execution row", () =>
+    session.find("css selector", "nav[aria-label=Navigation] li[data-level=case] button[data-tree-select]"),
+  );
+  await session.click(select);
+  const executionId = await until("a finished execution selected", async () => (await session.location()).searchParams.get("executionId"));
+  await exportAvailability(session, true);
+
+  // A Second Container Does Not Replace The First.
+  await session.goto("/cycles");
+  await session.clickNamed("button", "New Cycle");
+  const input = await until("new independent cycle", () => session.find("css selector", "#new-cycle-title"));
+  await session.type(input, "Independent Remote Cycle");
+  await session.clickNamed("button", "Create Cycle");
+  const independentId = await until("the independent cycle route", async () => {
+    const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
+    return match && match[1] !== cycleId ? match[1] : null;
+  });
+  await cyclePhase(session, "Active");
+  await exportAvailability(session, false);
+  assert.ok(hasText(await session.text(), "0 of 0 cases finished"), "A newly selected empty cycle must not inherit another cycle's cases");
+
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
+  await cyclePhase(session, "Active");
+  await session.clickNamed("button", "Seal Cycle");
+  const confirmation = await until("seal scope confirmation", () => session.find("css selector", "[role=dialog][data-state=open]"));
+  const description = await session.textOf(confirmation);
+  assert.ok(hasText(description, "closes this cycle permanently"), "Sealing must explain that admission closes permanently");
+  assert.ok(hasText(description, "Other cycles keep running"), "Sealing must state its cycle-local scope");
+  await session.key("Escape");
+  await until(
+    "seal cancelled without effect",
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog][data-state=open]').length")) === 0,
+  );
+  await cyclePhase(session, "Active");
+  await exportAvailability(session, false);
+
+  await sealContainer(session);
+  await exportAvailability(session, true);
+  assert.ok(!(await session.exists("button", "Start Cycle")), "A sealed cycle must not offer new run admission");
+  assert.ok(!(await session.exists("button", "Seal Cycle")), "A sealed cycle must show its final state rather than another seal command");
+  await session.goto(`/cycles/${cycleId}?executionId=${executionId}`);
+  await exportAvailability(session, true);
+  assert.equal(
+    (await session.location()).searchParams.get("executionId"),
+    executionId,
+    "Sealing must preserve the explicit execution selection",
+  );
+
+  // The Other Active Cycle Still Exists And Owns Its Own Seal.
+  await session.goto(`/cycles/${independentId}?view=cycle`);
+  await cyclePhase(session, "Active");
+  await exportAvailability(session, false);
+  await sealContainer(session);
+  await exportAvailability(session, true);
+}
+
+/** The cycle's own state reads "Active · Idle" and the like while Active, then "Sealing" and "Sealed". */
+async function cyclePhase(session, phase) {
+  await until(`cycle phase ${phase}`, async () => hasText(await session.text(), phase === "Active" ? "Active ·" : phase));
+}
+
+async function exportAvailability(session, enabled) {
+  const state = await until(`evidence export ${enabled ? "enabled" : "disabled"}`, () =>
+    session.execute(
+      `
+    const button = [...document.querySelectorAll('button')].find((candidate) => candidate.innerText.trim() === 'Export Evidence');
+    if (!button || button.disabled === arguments[0]) return null;
+    return { disabled: button.disabled, title: button.title };
+  `,
+      [enabled],
+    ),
+  );
+  assert.equal(state.disabled, !enabled);
+  assert.equal(state.title, enabled ? "Download SQLite, Files And Saved Reports" : "Seal This Cycle Before Exporting");
+}
+
+async function sealContainer(session) {
+  await session.clickNamed("button", "Seal Cycle");
+  const confirm = await until("explicit seal button", () =>
+    session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Seal Cycle']"),
+  );
+  await session.click(confirm);
+  await until(
+    "seal confirmation closed",
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
+  );
+  await cyclePhase(session, "Sealed");
 }
 
 /** Cycles home after the run: the Recent row, the Archived view, and the filter. */
@@ -1793,11 +2460,12 @@ async function cyclesHomeJourney(session, cycleTitle) {
       const text = await session.text();
       /* The stopped copy is the loaded cycle; it lands in whichever group its
          status selects (a stopped execution leaves it needing attention). */
-      return hasText(text, cycleTitle) && /Completed|Failed|Ready|Stopped|Blocked/.test(text) ? text : null;
+      return hasText(text, cycleTitle) && /Active · (Idle|Running|Waiting)|Sealing|Sealed/.test(text) ? text : null;
     },
     60000,
   );
   assert.ok(hasText(body, "Attention"), "The group must render its column headings");
+  await checkStatusBounds(session);
   assert.ok(/\d+ \/ \d+/.test(normalize(body)), "A row must state executions over cases");
   assert.ok(/\d+[smhd] Ago/.test(normalize(body)), "A row must state when the cycle last moved");
 
@@ -1828,42 +2496,45 @@ async function cyclesHomeJourney(session, cycleTitle) {
 }
 
 /** History: the recorded executions behind the run, and the Back chevron. */
-async function historyJourney(session) {
+async function historyJourney(session, cycleId, cycleTitle, executionId) {
   await session.goto("/history");
   /* The empty table is one placeholder row too, so a row counts once it opens
      something: its primary cell is the control an operator clicks. */
   const opener = await until(
     "history rows",
-    () => session.find("css selector", "tbody tr.cursor-pointer td button:not([role=checkbox])"),
+    () =>
+      session.execute(
+        `
+      const candidates = [...document.querySelectorAll('tbody tr')].filter(row =>
+        /\\b[1-9]\\d* passed\\b/.test(row.innerText)
+        && [...row.querySelectorAll('button')].some(button => button.innerText.trim() === arguments[0]));
+      if (candidates.length !== 1) return null;
+      return [...candidates[0].querySelectorAll('button')].find(button => button.innerText.trim() === arguments[0]);
+    `,
+        [cycleTitle],
+      ),
     120000,
   );
   assert.ok(hasText(await session.text(), "History"), "The page bar must name History");
+  await checkStatusBounds(session);
   await session.click(opener);
-  await until("history detail", async () => (await session.location()).pathname.startsWith("/history/"), 30000);
-  await until("inspectable checkpoint", async () => hasText(await session.text(), "Inspect checkpoint"), 60000);
-  /* Each case also carries a pre-dispatch placeholder execution with no
-     evidence behind it, so the checkpoint to inspect is a finished one. */
-  await session.execute(`
-    /* The outcome sits beside the button on the entry's own row rather than in
-       a landmark of its own, so the search walks up from each button until the
-       nearest ancestor that states an outcome, and never addresses a class.
-       The word boundaries are escaped because this is a template literal,
-       where an unescaped backslash-b is a backspace character rather than a
-       boundary: the regex then silently matched nothing. */
-    const stated = (button) => {
-      let node = button.parentElement;
-      for (let depth = 0; node && depth < 5; depth += 1) {
-        if (/\\b(passed|failed)\\b/i.test(node.innerText)) return true;
-        node = node.parentElement;
-      }
-      return false;
-    };
-    const inspect = [...document.querySelectorAll('main button')]
-      .filter((button) => button.innerText.trim() === 'Inspect checkpoint' && !button.disabled)
-      .find(stated);
-    if (!inspect) throw new Error('No finished execution in this history detail');
-    inspect.click();
-  `);
+  await until("history detail", async () => (await session.location()).pathname === `/history/${cycleId}`, 30000);
+  const checkpoint = await until(
+    "the executed measuring checkpoint",
+    () =>
+      session.execute(
+        `
+    const identity = [...document.querySelectorAll('main p')].find((node) => node.textContent.trim() === arguments[0]);
+    const entry = identity?.closest('section');
+    if (!entry || !/\\b(passed|failed)\\b/i.test(entry.innerText)) return null;
+    return [...entry.querySelectorAll('button')]
+      .find((button) => button.innerText.trim() === 'Inspect checkpoint' && !button.disabled) ?? null;
+  `,
+        [executionId],
+      ),
+    60000,
+  );
+  await session.click(checkpoint);
   await until("captured execution", async () => hasText(await session.text(), "Recorded Steps"), 60000);
   const captured = await session.text();
   assert.ok(hasText(captured, "Recorded status"), "The checkpoint must state its recorded status");
@@ -1883,8 +2554,263 @@ async function historyJourney(session) {
   await session.clickNamed("button", "Context");
   await until("captured context", async () => hasText(await session.text(), "Notes At Capture"));
 
-  await session.clickNamed("button", "Back");
+  await session.clickNamed("button", "History Library");
   await until("back to history", async () => (await session.location()).pathname === "/history", 20000);
+}
+
+/** Remote Access Uses Mounted Controls And Real TLS CLI Calls. */
+async function remoteAccessJourney() {
+  const input = (label) =>
+    until(label, () => session.find("xpath", `//input[@id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`));
+  /* Every control commits to the host at once and stays disabled until the host has answered. */
+  const settled = () =>
+    until("remote settings settled", () =>
+      session.execute("return [...document.querySelectorAll('input[id], button[role=switch]')].every((control) => !control.disabled);"),
+    );
+  const toggle = async (label, checked) => {
+    const control = await until(label, () =>
+      session.find("xpath", `//*[@role='switch' and @id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`),
+    );
+    await settled();
+    const current = await session.execute("return arguments[0].getAttribute('aria-checked') === 'true';", [control]);
+    if (current !== checked) await session.click(control);
+    await until(`${label} applied`, () =>
+      session.execute("return (arguments[0].getAttribute('aria-checked') === 'true') === arguments[1] && !arguments[0].disabled;", [
+        control,
+        checked,
+      ]),
+    );
+  };
+  /* A field applies when the operator presses Enter, as its description says;
+     leaving one field for the next would otherwise commit it mid-typing and
+     disable every control until the host answers. */
+  const commitField = async (label, value) => {
+    await settled();
+    await session.type(await input(label), value);
+    await session.key("Enter");
+    await settled();
+  };
+  /* A notice still on screen from an earlier change cannot stand in for this one. */
+  const notice = async (text, action) => {
+    await until(`no earlier ${text}`, async () => !hasText(await toastText(session), text), 30000);
+    await action();
+    await until(text, async () => hasText(await toastText(session), text));
+  };
+  const endpoint = () =>
+    until("remote listening address", async () => {
+      const match = /Listening on (127\.0\.0\.1:\d+)/i.exec(await session.text());
+      return match ? `https://${match[1]}` : null;
+    });
+  const connect = async (address, keyFile, certificate, accepted) => {
+    const args = ["catalog", "list", "--endpoint", address, "--timeout-seconds", "5"];
+    if (keyFile) args.push("--key-file", keyFile);
+    if (certificate) args.push("--ca", certificate);
+    const env = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
+    delete env.DOKIME_KEY;
+    delete env.DOKIME_ENDPOINT;
+    let result;
+    try {
+      result = await promisify(execFile)(cliBinary, args, { cwd: work, env, timeout: 15000 });
+    } catch (error) {
+      assert.ok(!accepted, "the saved remote secrets establish a real CLI connection");
+      assert.equal(error.killed, false, "secret refusal returns without killing the client");
+      assert.ok(Number.isInteger(error.code) && error.code !== 0, "secret refusal has a native failure exit code");
+      return;
+    }
+    assert.ok(accepted, "superseded or missing secrets must be refused");
+    assert.ok(result.stdout.trim().length > 0, "the connected CLI reads the real catalog");
+    assert.ok(
+      ![...secrets].some((secret) => result.stdout.includes(secret) || result.stderr.includes(secret)),
+      "CLI output contains no key",
+    );
+  };
+  const saveKey = async () => {
+    await until("one-time key dialog", async () => hasText(await session.text(), "Save Your Access Key"));
+    const value = await session.execute("return document.querySelector('[aria-label=\"Generated Access Key\"]').value;");
+    assert.ok(typeof value === "string" && value.length > 0, "the one-time key is available");
+    secrets.add(value);
+    secrets.add(Buffer.from(`${value}\n`).toString("base64"));
+    await sizeViewport(session, { width: 1080, height: 760 });
+    const keyLayout = await session.execute(`
+      const input = document.querySelector('[aria-label="Generated Access Key"]');
+      const dialog = input.closest('[role=dialog]');
+      const bounds = dialog.getBoundingClientRect();
+      const controls = [...dialog.querySelectorAll('textarea, button')].map(node => {
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.left >= bounds.left && rect.right <= bounds.right
+          && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
+      });
+      return {controls, fits: bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight,
+        keyFits: input.scrollWidth <= input.clientWidth && input.scrollHeight <= input.clientHeight,
+        overflow: dialog.scrollWidth > dialog.clientWidth};
+    `);
+    await writeFile(join(evidence, "access-key-layout.json"), JSON.stringify(keyLayout, null, 2));
+    assert.ok(
+      keyLayout.fits && keyLayout.keyFits && !keyLayout.overflow,
+      "The access key and its dialog must fit the small native viewport",
+    );
+    assert.ok(keyLayout.controls.length >= 5 && keyLayout.controls.every(Boolean), "Every key action must remain inside the dialog");
+    assert.equal(
+      await session.execute("return document.hasFocus();"),
+      true,
+      "The native key dialog must own keyboard focus before copying",
+    );
+    await session.clickNamed("button", "Copy Key");
+    await until("native clipboard write", () => session.exists("button", "Copied"));
+    await session.clickNamed("button", "Save Key File…");
+    await until("saved key acknowledgement", async () => hasText(await session.text(), "Key File Saved"));
+    await session.clickNamed("button", "Save Public Certificate…");
+    await until("saved public certificate acknowledgement", async () => hasText(await session.text(), "Certificate Saved"));
+    const documents = await drainSavedDocuments(session);
+    const key = documents.find((document) => document.kind === "remote_key")?.path;
+    const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
+    assert.ok(key && certificate, "the GUI produces both secret files");
+    assert.ok((await readFile(key, "utf8")).trim() === value, "the saved key matches the one-time value");
+    assert.match(await readFile(certificate, "utf8"), /-----BEGIN CERTIFICATE-----/);
+    await session.clickNamed("button", "I Have Saved The Key");
+    await sizeViewport(session, densities.desktop);
+    return { key, certificate };
+  };
+
+  // Enable TLS And Authentication Through The Native GUI.
+  await session.goto("/settings/remote");
+  await until("remote settings", async () => hasText(await session.text(), "Enable Remote Access"));
+  const settingsLayout = await session.execute(`
+    const card = title => [...document.querySelectorAll('main section')].find(section => section.querySelector('h2')?.textContent === title);
+    const listener = card('Listener').getBoundingClientRect();
+    const secrets = card('Secrets').getBoundingClientRect();
+    const sessions = card('Recent Remote Sessions').getBoundingClientRect();
+    return {columns: Math.abs(listener.top - secrets.top) < 2 && listener.right <= secrets.left,
+      equal: Math.abs(listener.width - secrets.width) < 2,
+      full: Math.abs(sessions.left - listener.left) < 2 && Math.abs(sessions.right - secrets.right) < 2};
+  `);
+  assert.ok(
+    settingsLayout.columns && settingsLayout.equal && settingsLayout.full,
+    "Remote settings must use two equal columns and a full-width sessions table",
+  );
+  await commitField("Listen Address", "127.0.0.1:0");
+  await notice("Certificate Generated", () => commitField("Certificate DNS Names And IP Addresses", "127.0.0.1, localhost"));
+  await toggle("TLS Encryption", true);
+  await toggle("Require An Access Key", true);
+  await session.clickNamed("button", "Generate Access Key");
+  const original = await saveKey();
+  await notice("Remote Access Enabled", () => toggle("Enable Remote Access", true));
+  let address = await endpoint();
+  await connect(address, original.key, original.certificate, true);
+  await connect(address, null, original.certificate, false);
+
+  // A Failed Bind Restores The Previous Listener And Leaves The Desktop Connected.
+  const occupied = net.createServer();
+  occupied.listen(0, "127.0.0.1");
+  await once(occupied, "listening");
+  try {
+    await notice("Remote Access Change Failed", () => commitField("Listen Address", `127.0.0.1:${occupied.address().port}`));
+    assert.equal(await endpoint(), address, "failed listener replacement retains the original bound address");
+    await connect(address, original.key, original.certificate, true);
+  } finally {
+    await new Promise((done) => occupied.close(done));
+  }
+
+  // Restart Both Clients And Server To Prove Persisted Settings And Secrets.
+  const nativeEndpoint = backend.endpoint;
+  await closeSession();
+  await stopBackend();
+  backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart");
+  session = await startSession(work, nativeEndpoint, evidence);
+  await session.connected();
+  await session.goto("/settings/remote");
+  address = await endpoint();
+  assert.ok(await session.exists("button", "Rotate Access Key…"), "only the key verifier is restored");
+  assert.equal(await session.execute("return document.querySelector('[aria-label=\"Generated Access Key\"]') === null;"), true);
+  const browserStorage = await session.execute("return JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]);");
+  assert.ok(![...secrets].some((secret) => browserStorage.includes(secret)), "browser storage contains no access key");
+  await connect(address, original.key, original.certificate, true);
+
+  // Keep An Admitted Execution Waiting For Its Operator Throughout Rotation.
+  const activeCycle = (await libraryJourney(session)).id;
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "the native GUI admits the rotation execution");
+  await until("operator prompt before rotation", async () => hasText(await session.text(), STARTUP_PROMPT), 60000);
+  await session.goto("/settings/remote");
+  await session.clickNamed("button", "Rotate Access Key…");
+  await session.clickNamed("button", "Rotate");
+  const replacement = await saveKey();
+  address = await endpoint();
+  await connect(address, original.key, replacement.certificate, false);
+  await connect(address, replacement.key, replacement.certificate, true);
+  const previousCertificate = join(work, "secrets", "previous.pem");
+  await copyFile(replacement.certificate, previousCertificate);
+  await notice("Certificate Generated", () => session.clickNamed("button", "Regenerate Certificate"));
+  address = await endpoint();
+  await session.clickNamed("button", "Save Certificate…");
+  await until("saved regenerated certificate acknowledgement", async () => hasText(await session.text(), "Certificate Saved"));
+  const documents = await drainSavedDocuments(session);
+  const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
+  assert.ok(certificate, "the regenerated public certificate is saved");
+  await connect(address, replacement.key, previousCertificate, false);
+  await connect(address, replacement.key, certificate, true);
+  await session.goto(`/cycles/${activeCycle}?view=cycle`);
+  await cyclePhase(session, "Active");
+  /* The cycle page names the execution waiting on input; the prompt itself is answered there. */
+  await until("the cycle names the execution its surviving prompt waits on", async () =>
+    hasText(await session.text(), "Input needed on #"),
+  );
+  const running = await caseRowText(session, STARTUP_TEMPLATE);
+  assert.match(running, /\b(Running|Waiting)\b/, "rotation leaves the admitted execution running");
+  await session.execute(
+    `const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => candidate.innerText.includes(arguments[0]));
+     row.querySelector('button[data-tree-select]').click();`,
+    [STARTUP_TEMPLATE],
+  );
+  await until("the surviving prompt on its execution", async () => hasText(await session.text(), STARTUP_PROMPT), 30000);
+  const decision = await session.execute(`
+    const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
+    return {actions: [...panel.querySelectorAll('button')].map(button => button.innerText.trim()),
+      checkboxes: panel.querySelectorAll('[role=checkbox], input[type=checkbox]').length};
+  `);
+  assert.ok(decision.actions.includes("No") && decision.actions.includes("Yes"), "The inspection decision must offer No and Yes");
+  assert.equal(decision.checkboxes, 0, "The decision belongs in the footer without a duplicate checkbox");
+  await session.clickNamed("button", "Stop Execution");
+  await until("rotation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
+
+  // Authentication And Encryption Are Independent Explicit Lab Choices.
+  await session.goto("/settings/remote");
+  await toggle("Require An Access Key", false);
+  address = await endpoint();
+  await connect(address, null, certificate, true);
+  await toggle("Require An Access Key", true);
+  await toggle("TLS Encryption", false);
+  address = (await endpoint()).replace("https:", "http:");
+  await connect(address, replacement.key, null, true);
+  await connect(address, null, null, false);
+
+  // Leave The Host In Its Verified TLS And Authentication Configuration.
+  await toggle("TLS Encryption", true);
+  const restoredAddress = await endpoint();
+  await connect(restoredAddress, replacement.key, certificate, true);
+  for (let index = 0; index < 21; index += 1) await connect(restoredAddress, replacement.key, certificate, true);
+  await session.goto("/settings/remote");
+  const sessionRows = () =>
+    session.execute(`
+    const table = document.querySelector('table[aria-label="Recent Remote Sessions"]');
+    if (!table) return [];
+    table.scrollIntoView({block: 'center'});
+    return [...table.querySelectorAll('tbody tr[data-window-row]')].map(row => row.cells[0].innerText);
+  `);
+  const firstPage = await until("twenty remote sessions", async () => {
+    const rows = await sessionRows();
+    return rows.length === 20 ? rows : null;
+  });
+  await session.clickNamed("button", "Older");
+  await until("second remote sessions page", async () => hasText(await session.text(), "Page 2"));
+  const secondPage = await until("older remote sessions", async () => {
+    const rows = await sessionRows();
+    return rows.length > 0 && rows.every((row) => !firstPage.includes(row)) ? rows : null;
+  });
+  assert.ok(secondPage.length <= 20, "Every remote session page is bounded to twenty rows");
+  await session.clickNamed("button", "Newer");
+  await until("newest remote sessions restored", async () => JSON.stringify(await sessionRows()) === JSON.stringify(firstPage));
+  await session.screenshot("remote-access");
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
@@ -2046,6 +2972,8 @@ async function settingsJourney(session, notes) {
 async function reportJourney(session, cycleId) {
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   await until("cycle workspace", () => session.exists("button", "Cycle Actions"), 60000);
+  /* The report lists every planned member, run or not, as the live tree does. */
+  const liveMembers = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
   await installSaveTap(session);
   await session.clickNamed("button", "Download Report");
   /* The toast carries the backend's own words when the report fails, and a
@@ -2073,53 +3001,185 @@ async function reportJourney(session, cycleId) {
   // Select An Execution Through The Frozen Outline Before Inspecting Its Evidence.
   const selectExecution = `<script>
     const selection = setInterval(() => {
-      const button = document.querySelector('[data-level="case"] button');
+      const row = [...document.querySelectorAll('[data-level="case"]')].find(row => row.innerText.includes(${JSON.stringify(STARTUP_TEMPLATE)}));
+      const button = row?.querySelector('button');
       if (button) { clearInterval(selection); button.click(); }
     }, 50);
+    const markers = setInterval(async () => {
+      if (!document.querySelector('[data-plot-id="obc.charger.startup.sequence.signals"] .u-over')) return;
+      clearInterval(markers);
+      const labels = await (${promptHoverLabels.toString()})();
+      const result = document.createElement('pre');
+      result.id = 'prompt-hover-proof';
+      result.hidden = true;
+      result.textContent = JSON.stringify(labels);
+      document.body.append(result);
+    }, 50);
+    const geometry = setInterval(() => {
+      const rows = (${parameterGeometry.toString()})();
+      if (rows.length < 2) return;
+      clearInterval(geometry);
+      const result = document.createElement('pre');
+      result.id = 'parameter-geometry-proof';
+      result.hidden = true;
+      result.textContent = JSON.stringify(rows);
+      document.body.append(result);
+    }, 50);
+    const histogram = setInterval(() => {
+      const presentation = (${histogramPresentation.toString()})();
+      if (!presentation) return;
+      clearInterval(histogram);
+      const result = document.createElement('pre');
+      result.id = 'histogram-proof';
+      result.hidden = true;
+      result.textContent = JSON.stringify(presentation);
+      document.body.append(result);
+    }, 50);
   </script>`;
-  const server = http.createServer((_request, response) => {
+  const diagnostic = `Voltage channel unavailable: ${"sensor/".repeat(70)}timeout`;
+  const marker = '<script id="hub-report-data" type="application/json">';
+  const payloadText = html.split(marker)[1].split("</script>")[0];
+  const faultPayload = JSON.parse(payloadText);
+  let injected = 0;
+  for (const run of faultPayload.case_runs) {
+    const plot = run.plots["obc.charger.startup.sequence.voltage_distribution"];
+    if (!plot) continue;
+    plot.analysis = { kind: "error", message: diagnostic };
+    injected += 1;
+  }
+  assert.ok(injected > 0, "The fault fixture must replace a captured voltage distribution");
+  const faultHtml = html.replace(payloadText, JSON.stringify(faultPayload));
+  const server = http.createServer((request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end(html.replace("</body>", `${selectExecution}</body>`));
+    const page = request.url === "/plot-error.html" ? faultHtml : html;
+    response.end(page.replace("</body>", `${selectExecution}</body>`));
   });
   await new Promise((ready) => server.listen(0, "127.0.0.1", ready));
   const served = `http://127.0.0.1:${server.address().port}/report.html`;
   let dom = "";
+  let reportButtons = [];
+  let chromeProcess;
+  let socket;
   try {
     const chrome = process.env.DOKIME_E2E_CHROME ?? (windows ? "msedge.exe" : "google-chrome");
-    /* Headless Chrome's virtual time budget is wall-clock blind: under build
-       load the bundle may still be hydrating when the budget runs out, so the
-       render is retried with a growing budget until the page bar has drawn. */
-    for (const budget of [8000, 20000, 45000]) {
-      const rendered = await promisify(execFile)(
-        chrome,
-        [
-          "--headless=new",
-          "--disable-gpu",
-          "--no-sandbox",
-          `--user-data-dir=${join(work, "chrome")}`,
-          `--virtual-time-budget=${budget}`,
-          "--dump-dom",
-          served,
-        ],
-        /* Chrome's singleton socket lives under TMPDIR and must fit a Unix
-           socket path; the repository's TMPDIR is too deep in a worktree. The
-           profile itself stays in the run's work directory. */
-        { env: { ...process.env, TMPDIR: windows ? process.env.TMPDIR : "/tmp" }, maxBuffer: 64 * 1024 * 1024 },
-      );
-      dom = rendered.stdout;
-      if (/Frozen Report/.test(dom) && /Attempt 1 Of/.test(dom)) break;
-    }
+    const port = await unusedPort();
+    chromeProcess = spawn(
+      chrome,
+      [
+        "--headless=new",
+        "--disable-gpu",
+        "--no-sandbox",
+        "--window-size=1600,1000",
+        `--user-data-dir=${join(work, "chrome")}`,
+        `--remote-debugging-port=${port}`,
+        served,
+      ],
+      { stdio: "ignore", detached: !windows },
+    );
+    const page = await until(
+      "frozen report browser",
+      async () => {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+        return (await response.json()).find((page) => page.type === "page");
+      },
+      30000,
+    );
+    socket = new WebSocket(page.webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => {
+      socket.addEventListener("open", resolve, { once: true });
+      socket.addEventListener("error", reject, { once: true });
+    });
+    let sequence = 0;
+    const evaluate = (expression) =>
+      new Promise((resolve, reject) => {
+        const id = ++sequence;
+        const timer = setTimeout(() => finish(new Error("Frozen report evaluation timed out")), 30000);
+        const receive = (event) => {
+          const response = JSON.parse(event.data);
+          if (response.id !== id) return;
+          if (response.error || response.result.exceptionDetails) finish(new Error(JSON.stringify(response)));
+          else finish(null, response.result.result.value);
+        };
+        const finish = (error, value) => {
+          clearTimeout(timer);
+          socket.removeEventListener("message", receive);
+          if (error) reject(error);
+          else resolve(value);
+        };
+        socket.addEventListener("message", receive);
+        socket.send(JSON.stringify({ id, method: "Runtime.evaluate", params: { expression, returnByValue: true } }));
+      });
+    await until(
+      "frozen report mounted evidence",
+      () => evaluate("['prompt-hover-proof', 'parameter-geometry-proof', 'histogram-proof'].every(id => document.getElementById(id))"),
+      60000,
+    ).catch(async (error) => {
+      await writeFile(join(evidence, "failure-report-rendered.html"), await evaluate("document.documentElement.outerHTML"));
+      throw error;
+    });
+    dom = await evaluate("document.documentElement.outerHTML");
+    reportButtons = await evaluate(`
+      [...document.querySelectorAll('button')].map(button => ({
+        label: button.innerText.trim(),
+        trace: Boolean(button.closest('table[aria-label="Trace statistics"]')),
+      }))
+    `);
+    // A Controlled Analysis Failure Uses The Packaged Report's Actual Renderer And Styles.
+    await evaluate(`location.assign(${JSON.stringify(served.replace("report.html", "plot-error.html"))}); true`);
+    const errorLayout = await until("report plot diagnostic", () =>
+      evaluate(`(() => {
+      const overlay = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"] [role=alert]');
+      if (!overlay) return null;
+      overlay.scrollIntoView({block: 'center'});
+      const bounds = overlay.getBoundingClientRect();
+      const detail = overlay.lastElementChild;
+      const text = detail.getBoundingClientRect();
+      const children = [...overlay.children].map(node => node.getBoundingClientRect());
+      const top = Math.min(...children.map(rect => rect.top));
+      const bottom = Math.max(...children.map(rect => rect.bottom));
+      return { text: detail.textContent, height: bounds.height,
+        centered: Math.abs((top + bottom) / 2 - (bounds.top + bounds.bottom) / 2) < 3,
+        contained: text.left >= bounds.left && text.right <= bounds.right && text.bottom <= bounds.bottom,
+        tint: getComputedStyle(overlay).backgroundColor,
+        overflow: overlay.scrollWidth > overlay.clientWidth };
+    })()`),
+    );
+    assert.equal(errorLayout.text, diagnostic);
+    assert.ok(errorLayout.height >= 230 && errorLayout.centered, "The diagnostic must occupy a centered full-height plot overlay");
+    assert.ok(errorLayout.contained && !errorLayout.overflow, "Long diagnostics must wrap inside the plot");
+    assert.notEqual(errorLayout.tint, "rgba(0, 0, 0, 0)");
+    await writeFile(join(evidence, "plot-error-overlay.json"), JSON.stringify(errorLayout, null, 2));
   } finally {
+    socket?.close();
+    await terminate(chromeProcess);
     await new Promise((closed) => server.close(closed));
   }
   const report = dom.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
+  const geometry = dom.match(/<pre id="parameter-geometry-proof"[^>]*>([^<]+)<\/pre>/);
+  assert.ok(geometry, "The frozen report must mount its parameter grid");
+  assertParameterGeometry(JSON.parse(geometry[1]));
+  const hovers = dom.match(/<pre id="prompt-hover-proof"[^>]*>([^<]+)<\/pre>/);
+  assert.ok(hovers, "The frozen report must mount its prompt markers");
+  assertPromptHovers(JSON.parse(hovers[1]));
+  const histogram = dom.match(/<pre id="histogram-proof"[^>]*>([^<]+)<\/pre>/);
+  assert.ok(histogram, "The frozen report must mount its histogram");
+  assertHistogram(JSON.parse(histogram[1]));
   assert.ok(hasText(report, "Frozen Report"), "The report's page bar must name what the file is");
   assert.ok(/Frozen Report .{0,3} Generated/.test(normalize(report)), "The report must state when it was generated");
-  /* Step names may say "Start", so the controls are read off the buttons. */
-  const controls = [...dom.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/g)].map((match) => normalize(match[1].replace(/<[^>]+>/g, " ")));
-  const runControls = controls.filter((label) => /\bStart\b|Run Again|Pause|Stop\b/.test(label));
+  /* Step names may say "Start", so the controls are read off the buttons; the
+     member tree's buttons name cases such as "Start-Up Sequence #1". */
+  // Trace visibility buttons retain authored names, including a trace called "start".
+  const controls = reportButtons.filter((button) => !button.trace).map((button) => normalize(button.label));
+  const runControls = controls.filter((label) =>
+    /^(?:(?:Start|Stop|Pause|Resume|Restart|Cancel)(?: (?:Execution|Cycle))?|Run Again(?: .+)?|Re-run)$/i.test(label),
+  );
   assert.deepEqual(runControls, [], "A frozen report renders no run controls");
   assert.ok(hasText(report, "Records"), "The report renders its records section");
+  assert.equal(
+    (dom.match(/<li\b[^>]*\bdata-level="case"/g) ?? []).length,
+    liveMembers,
+    "The frozen report must list every planned execution the live cycle lists, pending ones included",
+  );
 }
 
 /**
@@ -2222,14 +3282,14 @@ async function journey(name, run) {
     if (/invalid session id|Session terminated without a reply/.test(failure.message)) {
       webviewGone = name;
     }
-    failures.push({ kind: "failure", name, reason: failure.message });
-    results.push({ name, seconds: (Date.now() - started) / 1000, failure: failure.message });
-    process.stdout.write(`   FAILED: ${failure.message}\n`);
+    failures.push({ kind: "failure", name, reason: redact(failure.message) });
+    results.push({ name, seconds: (Date.now() - started) / 1000, failure: redact(failure.message) });
+    process.stdout.write(`   FAILED: ${redact(failure.message)}\n`);
     if (session && !session.closed) {
       try {
         const shot = await session.screenshot(`failure-${name}`);
         const failureBody = await session.text().catch(() => session.lastBody ?? "");
-        await writeFile(join(evidence, `failure-${name}.txt`), `${failure.stack ?? failure.message}\n\n${failureBody}`);
+        await writeFile(join(evidence, `failure-${name}.txt`), redact(`${failure.stack ?? failure.message}\n\n${failureBody}`));
         /* What the application asked the shell to do, and how long each call
            took: a journey that waits on something that never answers says so
            here and nowhere else. */
@@ -2266,7 +3326,7 @@ async function installWindowsCandidate() {
   if (process.env.DOKIME_E2E_DISPOSABLE_WINDOWS !== "1") {
     throw new Error("Installer acceptance requires a disposable interactive Windows account: set DOKIME_E2E_DISPOSABLE_WINDOWS=1 there.");
   }
-  if (configuredOrigin || process.env.DOKIME_E2E_SHELL || process.env.DOKIME_E2E_BACKEND) {
+  if (process.env.DOKIME_E2E_DEV_URL || process.env.DOKIME_E2E_SHELL || process.env.DOKIME_E2E_BACKEND) {
     throw new Error(
       "Windows acceptance drives the installed shell and backend with bundled frontend assets; development overrides are invalid.",
     );
@@ -2300,6 +3360,7 @@ async function installWindowsCandidate() {
   }
   shellBinary = checks[1][1];
   backendBinary = checks[2][1];
+  cliBinary = checks[3][1];
   await writeFile(
     join(evidence, "installation.json"),
     JSON.stringify(
@@ -2355,9 +3416,18 @@ async function stopBackend() {
   backend = undefined;
 }
 
+/** Create An Empty Container Through The Native Form */
+async function createEmptyContainer(session, title) {
+  await session.goto("/cycles");
+  await session.clickNamed("button", "New Cycle");
+  const input = await until("the new cycle form", () => session.find("css selector", "#new-cycle-title"));
+  await session.type(input, title);
+  await session.clickNamed("button", "Create Cycle");
+  return until("the created cycle route", async () => /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname)?.[1] ?? null);
+}
+
 async function ownedStartupJourney() {
   session = await startSession(work, undefined, evidence);
-  await session.clickNamed("button", "Start Local Backend");
   await session.connected();
   const status = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
@@ -2366,13 +3436,170 @@ async function ownedStartupJourney() {
   assert.equal(status.ownership, "owned_local", "the native shell owns its companion backend");
   assert.ok(status.connection?.endpoint, "the owned companion reports its negotiated endpoint");
   assert.ok(await listening(status.connection.endpoint), "the native companion is listening");
+  const cycleId = await createEmptyContainer(session, "Managed Shutdown Evidence");
+  await cyclePhase(session, "Active");
   await session.screenshot("owned-startup");
+  const closing = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.equal(closing.ownership, "owned_local", "the cycle's current backend remains owned by this shell");
+  assert.ok(closing.connection?.endpoint, "the current owned companion has an endpoint before window close");
+  assert.ok(await listening(closing.connection.endpoint), "the current owned listener is live immediately before window close");
+  const idleStarted = performance.now();
   await closeSession();
-  await until("owned backend drains on window close", async () => !(await listening(status.connection.endpoint)), 30000);
-  await writeFile(join(evidence, "owned-startup.json"), JSON.stringify(status, null, 2));
+  await until("owned backend drains on window close", async () => !(await listening(closing.connection.endpoint)), 30000);
+  const idleMs = performance.now() - idleStarted;
+  session = await startSession(work, undefined, evidence);
+  await session.connected();
+  await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", "owned_local");
+  await installSaveTap(session);
+  await stagePluginThroughPicker(session);
+  await closeSession();
+  session = await startSession(work, undefined, evidence);
+  await session.connected();
+  const runningCycle = await libraryJourney(session);
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "The owned backend starts its installed plugin");
+  await until("owned execution awaits its operator", async () => hasText(await session.text(), STARTUP_PROMPT), 60000);
+  const running = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.equal(running.ownership, "owned_local");
+  const runningStarted = performance.now();
+  await closeSession();
+  await until("running owned backend drains on close", async () => !(await listening(running.connection.endpoint)), 30000);
+  const runningMs = performance.now() - runningStarted;
+  session = await startSession(work, undefined, evidence);
+  await session.connected();
+  await session.goto(`/history/${runningCycle.id}`);
+  await until("cancelled owned execution survives restart", async () =>
+    session.execute(
+      `
+    const row = [...document.querySelectorAll('section')].find((node) =>
+      node.querySelector('h2')?.textContent.startsWith(arguments[0]));
+    return row?.innerText.includes('cancelled') && !row.innerText.toLowerCase().includes('interrupted');
+  `,
+      [STARTUP_TEMPLATE],
+    ),
+  );
+  assert.ok(await session.exists("button", "Open Report"), "Orderly close preserves the sealed cycle report");
+  await session.screenshot("owned-running-recovered");
+  await closeSession();
+  await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing, idleMs, runningMs }, null, 2));
+}
+
+async function idleJourney() {
+  await session.goto("/library");
+  await installSaveTap(session);
+  const library = await idleInvokes("Library");
+  const cycleId = await createEmptyContainer(session, "Idle Refresh Evidence");
+  await cyclePhase(session, "Active");
+  const cycle = await idleInvokes("Active Cycle");
+  await writeFile(join(evidence, "idle-invokes.json"), JSON.stringify({ library, cycleId, cycle }, null, 2));
+  assert.deepEqual(library.queries, [], "An idle mounted Library does not poll backend queries");
+  assert.deepEqual(cycle.queries, [], "An idle mounted Active Cycle does not poll backend queries");
+}
+
+async function idleInvokes(surface) {
+  await until(`idle ${surface} requests settle`, () =>
+    session.execute(`
+    const calls = globalThis.__dokimeInvokes;
+    const pending = calls.some((entry) => entry.state === 'pending');
+    const latest = calls.at(-1)?.at ?? 0;
+    return !pending && Date.now() - latest >= 6000;
+  `),
+  );
+  const started = await session.execute("return Date.now();");
+  await delay(10000);
+  const measured = await session.execute(
+    `
+    const calls = globalThis.__dokimeInvokes.filter((entry) => entry.at >= arguments[0]);
+    const counts = {};
+    for (const entry of calls) {
+      const key = entry.path || entry.command;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return {elapsedMs: Date.now() - arguments[0], counts,
+      queries: calls.filter((entry) => entry.command === 'rpc').map((entry) => entry.path)};
+  `,
+    [started],
+  );
+  return measured;
+}
+
+async function emptyCycleHistory(session, cycleId, title, ownership) {
+  const previous = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  // Discover The Saved Container Through The Mounted History Library
+  await session.goto("/history");
+  const opener = await until("the empty sealed cycle in History", () =>
+    session.find("xpath", `//tbody//button[normalize-space(.)=${xpathLiteral(title)}]`),
+  );
+  const row = await session.execute("return arguments[0].closest('tr').innerText;", [opener]);
+  assert.match(row, /sealed/i, "the persisted header retains its sealed phase");
+  await session.click(opener);
+  await until("the matching saved cycle route", async () => (await session.location()).pathname === `/history/${cycleId}`);
+  await until("an empty saved container without invented executions", async () =>
+    hasText(await session.text(), "This sealed cycle contains no executions."),
+  );
+
+  // Open The Actual Saved Report Through Native Delivery
+  const openedBefore = await session.execute(
+    "return (globalThis.__dokimeInvokes ?? []).filter((entry) => entry.command === 'desktop_artifact_deliver').length;",
+  );
+  await session.clickNamed("button", "Open Report");
+  await until("the saved empty-cycle report opened", () =>
+    session.execute(
+      `
+    const opened = (globalThis.__dokimeInvokes ?? []).filter((entry) => entry.command === 'desktop_artifact_deliver');
+    const button = [...document.querySelectorAll('button')].find((candidate) => candidate.innerText.trim() === 'Open Report');
+    return opened.length > arguments[0] && opened.at(-1).state === 'settled' && button && !button.disabled;
+  `,
+      [openedBefore],
+    ),
+  );
+  assert.equal((await session.findAll("css selector", "[role=alert]")).length, 0, "saved report delivery has no failure");
+
+  // Verify The Same Sealed Evidence Is Exportable After Restart
+  // A Full Route Load Can Replace The Owned Companion And Its Listener.
+  const current = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.equal(current.ownership, ownership, "history retains its selected backend ownership");
+  assert.ok(current.connection?.backend?.epoch, "the current native session reports a connected backend epoch");
+  const endpoint = current.connection.endpoint;
+  assert.ok(await listening(endpoint), "the current native backend accepts connections before export");
+  await writeFile(
+    join(evidence, `empty-cycle-${cycleId}-connection.json`),
+    JSON.stringify(
+      {
+        ownership: current.ownership,
+        before: { endpoint: previous.connection?.endpoint, epoch: previous.connection?.backend?.epoch },
+        after: { endpoint, epoch: current.connection.backend.epoch },
+      },
+      null,
+      2,
+    ),
+  );
+  const archive = join(evidence, `empty-cycle-${cycleId}.zip`);
+  const result = await promisify(execFile)(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
+    cwd: work,
+    timeout: 60000,
+  });
+  const receipt = JSON.parse(result.stdout);
+  const bytes = await readFile(archive);
+  assert.equal(receipt.size_bytes, bytes.length);
+  assert.equal(receipt.sha256, createHash("sha256").update(bytes).digest("hex"));
+  assert.equal(bytes.readUInt32LE(0), 0x04034b50, "saved evidence is a ZIP archive");
 }
 
 async function restartJourney() {
+  const activeCycleId = await createEmptyContainer(session, "Server Restart Evidence");
+  await cyclePhase(session, "Active");
   const previous = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
@@ -2396,18 +3623,388 @@ async function restartJourney() {
     "the relaunched shell establishes the restarted backend epoch",
   );
   assert.equal(current.ownership, "attached");
+  await emptyCycleHistory(session, activeCycleId, "Server Restart Evidence", "attached");
   await session.goto("/history");
   await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 60000);
   await setDensity(session, densities.desktop);
   const cycle = await libraryJourney(session);
-  await cycleJourney(session, cycle);
+  await cycleJourney(session, cycle.id);
   await session.screenshot("native-restart");
+}
+
+async function sharedSecretsJourney() {
+  const name = "e2e.shared.bench";
+  const value = "native-secret-value-47f93d";
+  const replacement = "native-replacement-value-94d2ac";
+  const password = "native transfer password 2026";
+  for (const hidden of [value, replacement, password]) secrets.add(hidden);
+  const field = (label) =>
+    until(`secret field ${label}`, () =>
+      session.execute(
+        "return [...document.querySelectorAll('label')].find(label => label.textContent.trim() === arguments[0])?.control ?? null;",
+        [label],
+      ),
+    );
+  const type = async (label, text) => session.type(await field(label), text);
+  const choose = async (archive) => {
+    await session.clickNamed("button", "Choose Encrypted Archive");
+    const picker = { window: null };
+    await until("native encrypted archive picker", () => chooseNativeFile(picker, archive), 30000);
+    await until("encrypted archive selected", async () => hasText(await session.text(), "Encrypted archive selected"));
+  };
+  const select = async (legend, entry) => {
+    const input = await until("secret selection", () =>
+      session.execute(
+        `
+      const fieldset = [...document.querySelectorAll('fieldset')].find(node => node.querySelector('legend')?.textContent.trim() === arguments[0]);
+      return [...(fieldset?.querySelectorAll('label') ?? [])].find(label => label.textContent.includes(arguments[1]))?.querySelector('input') ?? null;
+    `,
+        [legend, entry],
+      ),
+    );
+    await session.click(input);
+  };
+
+  await session.goto("/settings/secrets");
+  const settingsPath = join(work, "application", "settings.json");
+  const identity = JSON.parse(await readFile(settingsPath, "utf8")).identity.node_id;
+  await until("secret target host", async () => hasText(await session.text(), identity));
+  await session.clickNamed("button", "Add Secret");
+  await type("Name", name);
+  await type("Label", "Exported Bench Secret");
+  await type("Description", "Native transfer fixture");
+  await type("Value", value);
+  assert.equal(await session.execute("return arguments[0].type;", [await field("Value")]), "password");
+  await session.clickNamed("button", "Save Secret");
+  await until("shared keyring value saved", () => session.exists("button", `Edit ${name}`));
+  assert.ok(!(await session.execute("return document.body.innerText;")).includes(value));
+  await session.screenshot("shared-secret-masked");
+
+  await session.clickNamed("button", "Export Selected Secrets");
+  await select("Names To Export", name);
+  await type("Export Password", password);
+  await type("Confirm Password", password);
+  await session.clickNamed("button", "Encrypt And Save");
+  await until(
+    "encrypted secret export",
+    () => session.execute("return (globalThis.__dokimeSavedDocuments ?? []).some(document => document.kind === 'secret_archive');"),
+    30000,
+  );
+  const files = await drainSavedDocuments(session);
+  const archive = files.find((file) => file.kind === "secret_archive")?.path;
+  assert.ok(archive, "the native flow produces an encrypted archive");
+  const encrypted = await readFile(archive);
+  assert.ok(encrypted.subarray(0, 22).toString("ascii").startsWith("age-encryption.org/v1"));
+  assert.ok(!encrypted.includes(Buffer.from(value)));
+  assert.ok(!encrypted.includes(Buffer.from(password)));
+
+  await session.clickNamed("button", `Edit ${name}`);
+  await type("Label", "Replacement Bench Secret");
+  await type("Replacement Value (Leave Empty To Keep)", replacement);
+  await session.clickNamed("button", "Save Secret");
+  await until("replacement secret saved", async () => hasText(await session.text(), "Replacement Bench Secret"));
+  await session.clickNamed("button", "Import Encrypted Secrets");
+  await choose(archive);
+  await type("Archive Password", "incorrect-password");
+  await session.clickNamed("button", "Authenticate And Preview");
+  await until("wrong archive password refused", async () => /could not be authenticated/.test(await session.text()));
+  assert.ok(hasText(await session.text(), "Replacement Bench Secret"));
+  await type("Archive Password", password);
+  await session.clickNamed("button", "Authenticate And Preview");
+  await until("secret conflict preview", async () => hasText(await session.text(), "Review Every Name"));
+  assert.equal(
+    await session.execute(`
+    const fieldset = [...document.querySelectorAll('fieldset')].find(node => node.querySelector('legend')?.textContent.trim() === 'Review Every Name');
+    return fieldset?.querySelector('input')?.checked;
+  `),
+    false,
+    "existing names require explicit replacement",
+  );
+  await type("Password (Enter Again To Import)", password);
+  await session.clickNamed("button", "Apply Reviewed Import");
+  await until("skipped secret import", async () => hasText(await session.text(), "Selected secrets imported"));
+  assert.ok(hasText(await session.text(), "Replacement Bench Secret"));
+
+  await choose(archive);
+  await type("Archive Password", password);
+  await session.clickNamed("button", "Authenticate And Preview");
+  await until("replacement conflict preview", async () => hasText(await session.text(), "Review Every Name"));
+  await select("Review Every Name", name);
+  await type("Password (Enter Again To Import)", password);
+  await session.clickNamed("button", "Apply Reviewed Import");
+  await until(
+    "reviewed replacement applied",
+    async () => hasText(await session.text(), "Selected secrets imported") && hasText(await session.text(), "Exported Bench Secret"),
+  );
+  await session.screenshot("shared-secret-imported");
+  const persisted = await readFile(settingsPath, "utf8");
+  for (const hidden of [value, replacement, password]) assert.ok(!persisted.includes(hidden));
+
+  await session.clickNamed("button", `Delete ${name}`);
+  await session.clickNamed("button", "Confirm Delete");
+  await until("shared secret deleted", async () => !(await session.exists("button", `Edit ${name}`)));
+}
+
+async function pluginInstallJourney() {
+  const previous = backend;
+  const root = join(work, "plugin-install");
+  await mkdir(root, { recursive: true });
+  await closeSession();
+  try {
+    backend = await startBackend(root, evidence, undefined, "plugin-install", false);
+    session = await startSession(root, backend.endpoint, evidence);
+    await sizeViewport(session, densities.desktop);
+    await installSaveTap(session);
+    await stagePluginThroughPicker(session);
+
+    await closeSession();
+    await stopBackend();
+    backend = await startBackend(root, evidence, undefined, "plugin-activation", false);
+    session = await startSession(root, backend.endpoint, evidence);
+    await sizeViewport(session, densities.desktop);
+    await session.goto("/settings/plugins");
+    await until(
+      "installed bundle active after restart",
+      () =>
+        session.execute(`
+      const row = [...document.querySelectorAll('[aria-label="Installed Plugins"] tbody tr')]
+        .find(row => row.innerText.includes('obc-plugin'));
+      return Boolean(row && [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
+    `),
+      60000,
+    );
+    await session.goto("/library");
+    await until("installed bundle contributes its catalog", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
+    await session.screenshot("plugin-activation");
+  } finally {
+    await closeSession();
+    if (backend !== previous) await stopBackend();
+    backend = previous;
+    session = await startSession(work, backend.endpoint, evidence);
+    await sizeViewport(session, densities.desktop);
+    await installSaveTap(session);
+  }
+}
+
+async function stagePluginThroughPicker(session) {
+  await session.goto("/settings/plugins");
+  await until("plugin installer", async () => hasText(await session.text(), "Install A Plugin"), 60000);
+  await session.execute("globalThis.__dokimeInvokes.length = 0;");
+  await session.clickNamed("button", "Choose File");
+  const picker = { window: null };
+  await until("native plugin file picker", () => chooseNativeFile(picker, pluginBundle), 30000);
+  await until("inspected plugin consent", async () => hasText(await session.text(), "Review Plugin"), 300000);
+  const digest = await sha256(pluginBundle);
+  assert.ok(hasText(await session.text(), digest), "Consent must display the digest of the selected native file");
+  const invokes = await session.execute(
+    "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_stage_file');",
+  );
+  assert.equal(invokes.length, 1, "A bundle uses one native staging invocation");
+  assert.deepEqual(invokes[0].keys.sort(), ["drop", "generation", "progress"], "Staging passes control arguments without bundle bytes");
+  assert.ok(invokes[0].size < 1024, "The staging invocation stays bounded independently of bundle size");
+  await session.clickNamed("button", "Install plugin");
+  await until("saved plugin consent", async () => hasText(await session.text(), "Plugin changes are saved"), 30000);
+  await session.clickNamed("button", "Later");
+  await until("plugin restart requirement", async () => hasText(await session.text(), "Restart Required"), 30000);
+  await session.screenshot("plugin-install");
+}
+
+async function chooseNativeFile(picker, file) {
+  if (!windows) {
+    const children = await readFile(`/proc/${driverProcess.pid}/task/${driverProcess.pid}/children`, "utf8");
+    const executable = await realpath(shellBinary);
+    for (const pid of children.trim().split(/\s+/)) {
+      if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
+      const run = (args) => promisify(execFile)("xdotool", args, { timeout: 10000 });
+      const found = await run(["search", "--all", "--onlyvisible", "--pid", pid, "--name", "^Open File$"]).catch((error) => {
+        if (error.code === 1) return null;
+        throw error;
+      });
+      if (!found) return picker.window !== null;
+      const ids = found.stdout.trim().split(/\s+/);
+      assert.equal(ids.length, 1, "The owned desktop exposes exactly one native file picker");
+      if (picker.window !== null) {
+        assert.equal(ids[0], picker.window, "Selection remains with its original native dialog");
+        await run(["key", "--window", picker.window, "--clearmodifiers", "Return"]);
+        return false;
+      }
+      await run(["windowfocus", "--sync", ids[0], "key", "--clearmodifiers", "ctrl+l"]);
+      await run(["type", "--clearmodifiers", "--delay", "0", "--", resolve(file)]);
+      picker.window = ids[0];
+      return false;
+    }
+    return false;
+  }
+  const script = `
+      Add-Type -AssemblyName UIAutomationClient
+      Add-Type -AssemblyName UIAutomationTypes
+      $root = [System.Windows.Automation.AutomationElement]::RootElement
+      $scope = [System.Windows.Automation.TreeScope]::Descendants
+      $condition = [System.Windows.Automation.Condition]::TrueCondition
+      foreach ($process in Get-Process | Where-Object { $_.Path -eq $env:DOKIME_PICKER_SHELL }) {
+        $pidCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
+        foreach ($window in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)) {
+          $field = $window.FindFirst($scope, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1148')))
+          $button = $window.FindFirst($scope, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')))
+          if ($field -and $button) {
+            $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($env:DOKIME_PICKER_FILE)
+            $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            Write-Output 'selected'
+            exit 0
+          }
+        }
+      }`;
+  const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    env: { ...process.env, DOKIME_PICKER_SHELL: resolve(shellBinary), DOKIME_PICKER_FILE: resolve(file) },
+    timeout: 10000,
+  });
+  return result.stdout.trim() === "selected";
+}
+
+async function organizationJourney() {
+  const compiled = JSON.parse(await readFile(join(workspace, "crates/dokime-gui/src-tauri/tauri.conf.json"), "utf8"));
+  const root = join(work, "shell", "data", compiled.identifier, "organization");
+  const archive = join(work, "organization.zip");
+  const manifest = `[app]
+label = "Validation Lab"
+title_template = "{app}"
+slug = "ignored-lab"
+identifier = "invalid.replacement.identity"
+deep_link_scheme = "ignored-lab"
+[app.logos.transparent]
+on_light = "mark.svg"
+[updates]
+mode = "disabled"
+source = "public"
+[updates.sources.public]
+kind = "direct"
+manifest = "https://127.0.0.1:1/missing.json"
+[updates.sources.private]
+kind = "gitlab"
+connection = "lab"
+project = "lab/dokime"
+[updates.connections.lab]
+host = "https://127.0.0.1:1"
+oauth_client_id = "native-validation"
+`;
+  await promisify(execFile)(
+    "python",
+    [
+      "-c",
+      `import sys, zipfile
+with zipfile.ZipFile(sys.argv[1], "w") as archive:
+    archive.writestr("organization.toml", sys.argv[2])
+    archive.writestr("logos/mark.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="currentColor"/></svg>')
+`,
+      archive,
+      manifest,
+    ],
+    { timeout: 10000 },
+  );
+  const choose = async () => {
+    await session.goto("/settings/appearance");
+    await session.clickNamed("button", "Choose File…");
+    const picker = { window: null };
+    await until("native organization file picker", () => chooseNativeFile(picker, archive), 30000);
+    await until("pending organization pack", async () => hasText(await session.text(), "Applies on next start."));
+  };
+  const restart = async () => {
+    await closeSession();
+    session = await startSession(work, backend.endpoint, evidence);
+    await sizeViewport(session, densities.desktop);
+    await session.connected();
+    await session.goto("/settings/appearance");
+  };
+  await choose();
+  assert.equal(
+    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"),
+    null,
+    "Staging does not change this boot's appearance",
+  );
+  await restart();
+  await until("native organization activation", async () => hasText(await session.text(), "Active since this start."));
+  assert.ok(hasText(await session.text(), "Validation Lab"), "The mounted shell applies the imported label");
+  assert.equal(
+    await readFile(join(root, "active", "organization.toml"), "utf8"),
+    manifest,
+    "Compiled storage identity owns the active pack",
+  );
+  assert.equal(existsSync(join(root, "pending")), false, "Activation promotes the pending directory");
+  await session.screenshot("organization-active");
+
+  await session.goto("/settings/account-updates");
+  await session.clickNamed("button", "Manage");
+  const selection = (label) => session.execute(`return document.querySelector('select[aria-label="${label}"]')?.value;`);
+  await until("disabled organization update policy", async () => (await selection("Update Checks")) === "disabled");
+  const checkDisabled = () =>
+    session.execute(
+      `return [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Check For Updates')?.disabled;`,
+    );
+  assert.equal(await checkDisabled(), true);
+  const select = async (label, value) => {
+    await session.execute(
+      `const select = document.querySelector('select[aria-label="${label}"]'); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event('change', {bubbles: true}));`,
+    );
+    await until(
+      `saved ${label}`,
+      async () =>
+        (await selection(label)) === value &&
+        (await session.execute(`return !document.querySelector('select[aria-label="${label}"]').disabled;`)),
+    );
+  };
+  await select("Release Source", "private");
+  await until("named release connection", async () => hasText(await session.text(), "Public Access"));
+  assert.ok(hasText(await session.text(), "Sign In With GitLab"));
+  assert.equal(await checkDisabled(), true);
+  await select("Release Source", "public");
+  await select("Update Checks", "manual");
+  await session.execute(
+    `const button = [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Check For Updates'); button.click();`,
+  );
+  await until("missing release source error", async () =>
+    session.execute(`return Boolean(document.querySelector('[role="dialog"] [role="alert"]')?.textContent);`),
+  );
+  assert.equal(
+    await session.execute(
+      `return [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Install Update')?.disabled;`,
+    ),
+    true,
+  );
+  await select("Update Checks", "disabled");
+  await select("Release Source", "private");
+  await session.screenshot("organization-update-policy");
+  await restart();
+  await session.goto("/settings/account-updates");
+  await session.clickNamed("button", "Manage");
+  await until("saved release source survives restart", async () => (await selection("Release Source")) === "private");
+  assert.equal(await selection("Update Checks"), "disabled");
+  await restart();
+
+  await choose();
+  await writeFile(join(root, "pending", "organization.toml"), "invalid [");
+  await restart();
+  assert.ok(hasText(await session.text(), "Validation Lab"), "An invalid pending pack retains the active appearance");
+  assert.equal(await readFile(join(root, "active", "organization.toml"), "utf8"), manifest);
+  assert.equal(
+    await readFile(join(root, "pending", "organization.toml"), "utf8"),
+    "invalid [",
+    "Rejected input remains available for diagnosis",
+  );
+  await session.goto("/settings/diagnostics");
+  await until("visible organization activation error", async () => /pending organization pack/i.test(await session.text()));
+  await session.screenshot("organization-invalid-pending");
+  await session.goto("/settings/appearance");
+  await session.clickNamed("button", "Remove");
+  await until("organization removal queued", async () => hasText(await session.text(), "Compiled brand applies on next start."));
+  await restart();
+  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"), null);
+  assert.ok(hasText(await session.text(), "Compiled Brand"), "Removal restores the compiled appearance on restart");
 }
 
 async function writeJunit() {
   if (!options.junit) return;
   const escapeXml = (value) =>
-    [...String(value)]
+    [...redact(value)]
       .filter((character) => {
         const code = character.charCodeAt(0);
         return code >= 32 || code === 9 || code === 10 || code === 13;
@@ -2439,41 +4036,56 @@ async function writeJunit() {
   );
 }
 
-/** Serve Only The Built Frontend; The Native Shell Still Owns Every IPC Call. */
-async function serveDevelopmentAssets() {
-  const root = join(built, "frontend");
-  assert.ok(existsSync(join(root, "index.html")), "the development artifact supplies verified static frontend assets");
-  const origin = new URL(configuredOrigin ?? "http://127.0.0.1:5173");
-  assert.equal(origin.protocol, "http:");
-  assert.equal(origin.hostname, "127.0.0.1", "the development frontend stays on loopback");
-  const types = {
-    ".html": "text/html",
-    ".js": "application/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".svg": "image/svg+xml",
-    ".woff2": "font/woff2",
-  };
-  frontendServer = http.createServer(async (request, response) => {
-    try {
-      const pathname = decodeURIComponent(new URL(request.url, origin).pathname);
-      let file = resolve(root, `.${pathname}`);
-      if (file !== root && !file.startsWith(`${root}${sep}`)) {
-        response.writeHead(403).end();
-        return;
-      }
-      if (!existsSync(file) || file === root || !extname(file)) file = join(root, "index.html");
-      const bytes = await readFile(file);
-      const suffix = extname(file);
-      response.writeHead(200, { "content-type": types[suffix] ?? "application/octet-stream" });
-      response.end(bytes);
-    } catch (error) {
-      response.writeHead(500).end(String(error));
-    }
+let secretBus;
+let secretKeyring;
+
+async function startSecretService() {
+  if (windows) return;
+  const home = join(work, "secret-service");
+  await mkdir(home, { recursive: true, mode: 0o700 });
+  secretBus = spawn("dbus-daemon", ["--session", "--nofork", "--print-address=1"], {
+    detached: true,
+    stdio: ["ignore", "pipe", "inherit"],
   });
-  await new Promise((ready, reject) => {
-    frontendServer.once("error", reject);
-    frontendServer.listen(Number(origin.port || 80), origin.hostname, ready);
+  let address = "";
+  let startupError;
+  secretBus.on("error", (error) => {
+    startupError = error;
+  });
+  secretBus.stdout.on("data", (data) => {
+    address += data.toString();
+  });
+  await until("isolated secret-service bus", () => {
+    if (startupError) throw startupError;
+    if (secretBus.exitCode !== null) throw new Error("The private D-Bus exited before startup");
+    return address.includes("\n");
+  });
+  process.env.DBUS_SESSION_BUS_ADDRESS = address.trim();
+  secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock", "--control-directory", home], {
+    env: { ...process.env, HOME: home, XDG_DATA_HOME: home, XDG_RUNTIME_DIR: home },
+    detached: true,
+    stdio: ["pipe", "ignore", "inherit"],
+  });
+  secretKeyring.on("error", (error) => {
+    startupError = error;
+  });
+  secretKeyring.stdin.end("native-fixture-keyring-password");
+  await until("isolated unlocked OS keyring", async () => {
+    if (startupError) throw startupError;
+    if (secretKeyring.exitCode !== null) throw new Error("The private keyring exited before startup");
+    const result = await promisify(execFile)(
+      "dbus-send",
+      [
+        "--session",
+        "--print-reply",
+        "--dest=org.freedesktop.DBus",
+        "/org/freedesktop/DBus",
+        "org.freedesktop.DBus.NameHasOwner",
+        "string:org.freedesktop.secrets",
+      ],
+      { timeout: 5000 },
+    );
+    return result.stdout.includes("boolean true");
   });
 }
 
@@ -2483,13 +4095,14 @@ async function main() {
   if (!windows && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new Error("Driving the native WebView needs a running display session.");
   }
-  await mkdir(targetRoot, { recursive: true });
-  // A lane keeps the evidence beside its JUnit report, which CI uploads with it.
-  evidence = await mkdtemp(join(options.junit ? dirname(resolve(options.junit)) : targetRoot, "native-desktop-e2e-"));
-  work = await mkdtemp(join(targetRoot, "native-desktop-work-"));
+  // Retain Native Evidence In The Lane Output; JUnit May Use Disposable Scratch.
+  await mkdir(reportsRoot, { recursive: true });
+  evidence = await mkdtemp(join(reportsRoot, "native-desktop-e2e-"));
+  work = await mkdtemp(join(tmpdir(), "dokime-native-desktop-"));
   process.stdout.write(`Evidence: ${evidence}\n`);
   if (releaseValidation && !windows) throw new Error("Installed release validation currently requires Windows.");
-  if (!releaseValidation) await serveDevelopmentAssets();
+  if (process.env.DOKIME_E2E_DEV_URL)
+    throw new Error("Packaged desktop validation requires embedded assets, without a dev-origin override.");
   if (releaseValidation) {
     const installed = await journey("installation", installWindowsCandidate);
     if (!installed.ok) throw new Error("Windows installer acceptance failed");
@@ -2497,15 +4110,15 @@ async function main() {
   for (const [label, path] of [
     ["the backend", backendBinary],
     ["the desktop shell", shellBinary],
+    ["the CLI", cliBinary],
     ["the OBC charger plugin bundle", pluginBundle],
   ]) {
     if (!existsSync(path)) throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
   }
 
-  if (windows) {
-    const owned = await journey("owned-startup", ownedStartupJourney);
-    if (!owned.ok) throw new Error("Windows ownership acceptance failed");
-  }
+  await startSecretService();
+  const owned = await journey("owned-startup", ownedStartupJourney);
+  if (!owned.ok) throw new Error("Native ownership acceptance failed");
   backend = await startBackend(work, evidence);
   session = await startSession(work, backend.endpoint, evidence);
   await sizeViewport(session, densities.desktop);
@@ -2517,18 +4130,20 @@ async function main() {
      a wrong count on Cycles is not a reason to certify nothing behind it. */
   const library = await journey("library", () => libraryJourney(session));
   const cycleId = library.value?.id;
+  await journey("active-cycle", () => activeCycleJourney(session, library.value?.title ?? null));
 
   if (cycleId) {
     await journey("cycle", () => cycleJourney(session, cycleId));
-    /* The report and touch journeys read the run's own cycle, which leaves the
-       runtime once its copy starts; History keeps it from then on. */
+    /* Report and touch read the original cycle; the copy owns an independent
+       container and keeps the original executions unchanged. */
     await journey("report", () => reportJourney(session, cycleId));
     await journey("touch", () => touchJourney(session, cycleId));
     await journey("execution-stop", () => executionStopJourney(session, cycleId));
+    await journey("containers", () => containersJourney(session, cycleId));
     await journey("cycles-home", () => cyclesHomeJourney(session, library.value.title));
-    await journey("history", () => historyJourney(session));
+    await journey("history", () => historyJourney(session, cycleId, library.value.title, library.value.measuringExecutionId));
   } else {
-    for (const name of ["cycle", "report", "touch", "execution-stop", "cycles-home", "history"]) {
+    for (const name of ["cycle", "report", "touch", "execution-stop", "containers", "cycles-home", "history"]) {
       failures.push({
         kind: "failure",
         name,
@@ -2537,11 +4152,18 @@ async function main() {
     }
   }
 
+  await journey("idle", idleJourney);
   await journey("settings", () => settingsJourney(session, notes));
+  await journey("shared-secrets", sharedSecretsJourney);
+  await journey("plugin-install", pluginInstallJourney);
+  await journey("organization", organizationJourney);
+  await journey("remote-access", remoteAccessJourney);
 
   /* The ownership contract the redesign did not change: a shell attached to a
      backend it does not own must leave that backend running. */
   await journey("attachment", async () => {
+    const activeCycleId = await createEmptyContainer(session, "Surviving Server Evidence");
+    await cyclePhase(session, "Active");
     assert.ok(await listening(backend.endpoint), "the attached backend must still be listening");
     await session.goto("/cycles");
     const status = await session.executeAsync(`
@@ -2556,8 +4178,15 @@ async function main() {
       backend.endpoint,
       "the session must name the endpoint it was attached to",
     );
+    await closeSession();
+    assert.ok(await listening(backend.endpoint), "closing an attachment preserves the server");
+    session = await startSession(work, backend.endpoint, evidence);
+    await session.connected();
+    await session.goto(`/cycles/${activeCycleId}?view=cycle`);
+    await cyclePhase(session, "Active");
+    assert.ok(await session.exists("button", "Seal Cycle"), "reconnecting preserves Active admission");
   });
-  if (windows) await journey("restart", restartJourney);
+  await journey("restart", restartJourney);
 }
 
 /* === Entry Point === */
@@ -2565,18 +4194,12 @@ async function main() {
 try {
   await main();
 } catch (failure) {
-  failures.push({ kind: "failure", name: "harness", reason: failure.message });
-  process.stdout.write(`\nHarness failure: ${failure.message}\n`);
+  failures.push({ kind: "failure", name: "harness", reason: redact(failure.message) });
+  process.stdout.write(`\nHarness failure: ${redact(failure.message)}\n`);
 } finally {
   for (const [name, cleanup] of [
     ["shell shutdown", closeSession],
     ["backend shutdown", stopBackend],
-    [
-      "frontend shutdown",
-      async () => {
-        if (frontendServer?.listening) await new Promise((done) => frontendServer.close(done));
-      },
-    ],
   ]) {
     try {
       await cleanup();
@@ -2590,6 +4213,15 @@ try {
     await terminate(backend.child).catch((error) => failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }));
     await backend.log.close().catch((error) => failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }));
   }
+  for (const child of [secretKeyring, secretBus]) {
+    if (!child) continue;
+    try {
+      await terminate(child);
+      await until("secret service stopped", () => child.exitCode !== null || child.signalCode !== null, 10000);
+    } catch (error) {
+      failures.push({ kind: "failure", name: "secret service cleanup", reason: error.message });
+    }
+  }
   if (installerAttempted) {
     try {
       const uninstallers = (await readdir(installation)).filter((name) => /^uninstall.*\.exe$/i.test(name));
@@ -2602,6 +4234,10 @@ try {
       failures.push({ kind: "failure", name: "installer cleanup", reason: error.message });
     }
   }
+  if (work)
+    await rm(join(work, "secrets"), { force: true, recursive: true }).catch(() =>
+      failures.push({ kind: "failure", name: "secret cleanup", reason: "Private temporary secret removal failed" }),
+    );
   if (work && !failures.length)
     await rm(work, { force: true, recursive: true }).catch((error) =>
       failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
@@ -2619,7 +4255,7 @@ if (failures.length) {
     const group = failures.filter((entry) => entry.kind === kind);
     if (!group.length) continue;
     process.stdout.write(`\n${group.length} ${kind === "defect" ? "product defect(s)" : "journey failure(s)"}:\n`);
-    for (const entry of group) process.stdout.write(`  - ${entry.name}: ${entry.reason}\n`);
+    for (const entry of group) process.stdout.write(`  - ${entry.name}: ${redact(entry.reason)}\n`);
   }
   process.stdout.write(`\nEvidence: ${evidence}\n`);
   process.exitCode = 1;

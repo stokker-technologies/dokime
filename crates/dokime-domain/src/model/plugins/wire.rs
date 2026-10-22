@@ -27,6 +27,8 @@ use crate::model::identity::wire::*;
 
 /* === Constants === */
 
+pub const STAGE_ARCHIVE_MAX_BYTES: u64 = 272 * 1024 * 1024;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -60,8 +62,10 @@ pub struct RemovePluginReply {
     pub installation: Option<PluginInstallation>,
 }
 
-// Exactly one header first, followed by contiguous nonempty chunks <=256KiB.
-// EOF must match the declared size and SHA-256. Native archive limit is 272 MiB.
+// Exactly one header first, followed by contiguous nonempty chunks of at most the
+// backend's advertised chunk size, within the request limit. EOF must match the
+// declared size and SHA-256.
+// Native archive limit is `STAGE_ARCHIVE_MAX_BYTES`.
 // No resumable upload session or automatic retry: after uncertain acknowledgement,
 // reconcile the manifest by digest before explicitly starting another stage.
 #[harmos_domain::message]

@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 
 // Local Imports
@@ -43,6 +45,7 @@ use dokime_domain::model::values::value_matches_type;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn validate_record_details(
     contract: Option<&RecordContract>, record: &RecordEntry, default_mode: ValidationMode,
 ) -> Result<BTreeMap<String, Value>> {
@@ -56,6 +59,7 @@ pub fn validate_record(
 }
 
 /* === Private Functions === */
+
 fn validate_payload(
     contract: Option<&RecordContract>, record_type: &Identifier, schema_version: u32, details: &BTreeMap<String, Value>,
     default_mode: ValidationMode,

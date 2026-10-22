@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 mod get_captured_record_schema;
 mod list_records;
 mod watch_records;
 
 /* === Re-Exports === */
+
 pub use get_captured_record_schema::GetCapturedRecordSchema;
 pub use list_records::ListRecords;
 pub use watch_records::WatchRecords;
@@ -24,17 +26,17 @@ pub use watch_records::WatchRecords;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
+
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
 
 use crate::model::evidence::wire::*;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
 
 /* === Constants === */
 
@@ -56,19 +58,17 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for ListRecords {
     const PATH: &'static str = "/dokime.v1.Evidence/ListRecords";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for WatchRecords {
     const PATH: &'static str = "/dokime.v1.Evidence/WatchRecords";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetCapturedRecordSchema {
     const PATH: &'static str = "/dokime.v1.Evidence/GetCapturedRecordSchema";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
@@ -20,12 +21,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context as TaskContext, Poll};
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::{Stream, StreamExt};
+
 // Local Imports
 use crate::records::DeclaredRecord;
 use crate::records::Deliveries;
@@ -36,18 +39,19 @@ use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const INBOX_POLL_INTERVAL: Duration = Duration::from_millis(5);
 
+const INBOX_POLL_INTERVAL: Duration = Duration::from_millis(5);
 pub(crate) const LISTEN_BUFFER: usize = 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(crate) type PublishedRow = (Identifier, BTreeMap<String, Value>);
 
+pub(crate) type PublishedRow = (Identifier, BTreeMap<String, Value>);
 pub type Deadlined<R> = Pin<Box<dyn Stream<Item = crate::Result<R>> + Send>>;
 
 /* === Structs === */
+
 pub struct ListeningRows<C> {
     values: ListeningValues,
     stream_type: PhantomData<fn() -> C>,
@@ -74,6 +78,7 @@ pub struct ListeningEvidence {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait Listenable: Sized {
     type Item;
 
@@ -85,6 +90,7 @@ pub trait Listenable: Sized {
 }
 
 /* === Implementations === */
+
 impl<C: TelemetryStream> ListeningRows<C> {
     pub fn new(streams: &Streams) -> Self {
         Self { values: ListeningValues::new(streams, C::stream_id()), stream_type: PhantomData }
@@ -220,7 +226,6 @@ impl<R: DeclaredRecord + Unpin> Stream for ListeningRecords<R> {
 }
 
 /* === Public Functions === */
-/* === Functions === */
 
 pub(crate) fn rows() -> broadcast::Sender<PublishedRow> {
     broadcast::channel(LISTEN_BUFFER).0

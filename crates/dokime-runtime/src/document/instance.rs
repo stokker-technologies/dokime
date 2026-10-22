@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::document::{DocumentDefinition, DocumentPayload};
 use dokime_domain::model::identity::DocumentId;
@@ -28,6 +30,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentInstance {
     pub definition: DocumentDefinition,
@@ -40,6 +43,7 @@ pub struct DocumentInstance {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DocumentInstance {
     pub fn new(definition: DocumentDefinition, updated_at: Timestamp) -> Self {
         Self { definition, payload: None, updated_at }

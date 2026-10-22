@@ -1,7 +1,7 @@
 [
   {
     "name": "local",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": true
   },
   {
@@ -11,87 +11,87 @@
   },
   {
     "name": "remote",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"https://dokime.example:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": \"-----BEGIN CERTIFICATE-----\\nexample\\n-----END CERTIFICATE-----\", \"credential\": \"keyring\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"https://dokime.example:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": \"-----BEGIN CERTIFICATE-----\\nexample\\n-----END CERTIFICATE-----\", \"secret\": \"keyring\"}]}",
     "valid": true
   },
   {
     "name": "version",
-    "document": "{\"version\": 2, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 2, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "boolean_version",
-    "document": "{\"version\": true, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": true, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "missing_default",
-    "document": "{\"version\": 1, \"default\": \"unknown\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"unknown\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "extra_document_field",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}], \"token\": \"secret\"}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}], \"token\": \"secret\"}",
     "valid": false
   },
   {
     "name": "invalid_name",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"bad/name\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"bad/name\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "name_too_long",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "http_remote",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://dokime.example\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
-    "valid": false
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://dokime.example\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
+    "valid": true
   },
   {
-    "name": "url_credentials",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"https://user:password@dokime.example\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "name": "url_secrets",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"https://user:password@dokime.example\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "url_path",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"https://dokime.example/backend\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"https://dokime.example/backend\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "url_query",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"https://dokime.example/?token=x\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"https://dokime.example/?token=x\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "ca_local",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": \"certificate\", \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": \"certificate\", \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "empty_identity",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
     "name": "control_identity",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine\\n\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine\\n\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {
-    "name": "unknown_credential",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"file\"}]}",
+    "name": "unknown_secret",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"file\"}]}",
     "valid": false
   },
   {
     "name": "secret_in_profile",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\", \"token\": \"secret\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\", \"token\": \"secret\"}]}",
     "valid": false
   },
   {
     "name": "duplicate_name",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}, {\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"credential\": \"none\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}, {\"name\": \"local\", \"endpoint\": \"http://127.0.0.1:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": null, \"secret\": \"none\"}]}",
     "valid": false
   },
   {

@@ -9,6 +9,7 @@
 
 /* === Modules === */
 mod plugin;
+mod remote;
 
 #[path = "../support/mod.rs"]
 mod support;

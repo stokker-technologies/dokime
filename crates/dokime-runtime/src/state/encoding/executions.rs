@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 // Local Imports
 use super::{intern, position, resolve};
 use crate::definition::{ParameterDefinition, TestCaseTemplate};
@@ -31,10 +34,12 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Executions = BTreeMap<TestExecutionId, TestExecution>;
 type DocumentRefs = BTreeMap<DocumentId, u32>;
 
 /* === Structs === */
+
 // Every member of a cycle copies its template, its planned documents and its
 // parameter definitions, and each execution starts with its own copy of those
 // documents. The encoded state stores each distinct value once, before the
@@ -98,6 +103,7 @@ struct DecodedMember {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> Shared<'a> {
     fn collect(executions: &'a Executions) -> Self {
         let mut shared = Self::default();
@@ -165,6 +171,7 @@ impl DecodedShared {
 }
 
 /* === Public Functions === */
+
 pub(super) fn serialize<S: Serializer>(executions: &Executions, serializer: S) -> Result<S::Ok, S::Error> {
     let shared = Shared::collect(executions);
     Encoded { shared: &shared, members: Members { executions, shared: &shared } }.serialize(serializer)
@@ -181,6 +188,7 @@ pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<
 }
 
 /* === Private Functions === */
+
 // Clones Every Field The Pool Does Not Hold; Pooled Ones Stay Empty
 fn lean_clone(execution: &TestExecution) -> TestExecution {
     let TestExecution {

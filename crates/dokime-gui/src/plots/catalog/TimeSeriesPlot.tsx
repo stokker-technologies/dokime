@@ -45,6 +45,7 @@ export function TimeSeriesPlot({
       description={plot.description}
       contextSummary={plot.contextSummary}
       markers={plot.markers}
+      promptMarkers={plot.promptMarkers}
       referenceBands={plot.referenceBands}
       referenceLines={plot.referenceLines}
       actions={actions}
@@ -55,6 +56,7 @@ export function TimeSeriesPlot({
       style={plot.style}
       timeAxis={plot.timeAxis}
       title={plot.title}
+      titleRepeated={plot.titleRepeated}
       unit={plot.unit}
       liveWindowS={plot.liveWindowS}
       viewportMode={viewportMode}

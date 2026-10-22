@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod pagination;
 
 pub(crate) mod search;
@@ -19,6 +20,7 @@ pub(crate) mod controls;
 pub(crate) mod inspection;
 
 pub(crate) mod requests;
+pub(crate) mod start;
 
 pub(crate) mod steps;
 
@@ -27,6 +29,7 @@ pub(crate) mod documents_execution;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
@@ -35,11 +38,11 @@ use prost::Message;
 use tokio::sync::Notify;
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_domain::model::execution::result::CycleView;
-use dokime_runtime::domains::ExecutionProviderTarget;
-use dokime_runtime::transport::ProviderExecutionFailure;
-use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
+use dokime::domain::model;
+use dokime::domain::model::execution::result::CycleView;
+use dokime::domains::ExecutionProviderTarget;
+use dokime::transport::ProviderExecutionFailure;
+use dokime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
 
@@ -48,6 +51,7 @@ use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixture
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Progress;
 
 #[derive(Default)]
@@ -71,6 +75,7 @@ struct Gated {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFixture for Progress {
     fn run_cycle<'a>(
         &'a self, _context: ExecutionFixtureContext, cycle: &'a CycleView, _target: &'a ExecutionProviderTarget,
@@ -104,7 +109,7 @@ impl Gated {
         let root = tempfile::tempdir().unwrap();
         let gate = Arc::new(Gate::default());
         let owner = fixture(root.path(), gate.clone()).await;
-        let mut config = Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap();
+        let mut config = keyed();
         if let Some(bytes) = max_message_bytes {
             config = config.with_max_message_bytes(bytes);
         }
@@ -117,13 +122,15 @@ impl Gated {
 }
 
 /* === Public Functions === */
+
 /* === Private Functions === */
+
 #[tokio::test]
 async fn registered_create_definitions() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap()).await.unwrap();
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let connection = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let catalog = WireClient::new(connection.clone());
     let execution = WireClient::new(connection.clone());
@@ -172,12 +179,7 @@ async fn registered_create_definitions() {
         .cases;
     assert_eq!(cases[0].template_id, suite.templates[0].template_id);
     let admitted = execution
-        .unary::<contracts::execution::RunCase>(authenticated(contracts::execution::RunCase {
-            cycle_id: id.clone(),
-            case_id: cases[0].case_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: cases[0].case_id.clone(), context: None }))
         .await
         .unwrap()
         .into_inner();
@@ -212,7 +214,7 @@ async fn registered_create_definitions() {
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status == model::execution::wire::CycleStatus::Completed {
+            if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
                 assert_eq!(cycle.execution_count, 1);
                 let attempts = execution
                     .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -236,7 +238,7 @@ async fn registered_create_definitions() {
     assert_eq!(list.cycles.len(), 1);
     let other = support::planned_cycle(&execution, authenticated(create()), selection_plan(&owner)).await.unwrap();
     execution
-        .unary::<contracts::execution::StopCycle>(authenticated(contracts::execution::StopCycle { cycle_id: other.clone(), context: None }))
+        .unary::<contracts::execution::SealCycle>(authenticated(contracts::execution::SealCycle { cycle_id: other.clone(), context: None }))
         .await
         .unwrap();
     assert_eq!(
@@ -273,17 +275,29 @@ async fn stopping_running_unwind() {
     let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&execution, authenticated(create()), selection_plan(&owner)).await.unwrap();
-    let reply = execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle_id))).await.unwrap().into_inner();
+    let reply = execution.start_first(authenticated(run(&cycle_id))).await.unwrap().into_inner();
     assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))));
     blocker.started.notified().await;
 
-    execution
-        .unary::<contracts::execution::StopCycle>(authenticated(contracts::execution::StopCycle {
-            cycle_id: cycle_id.clone(),
-            context: None,
-        }))
-        .await
-        .unwrap();
+    let sealing_client = execution.clone();
+    let sealing_id = cycle_id.clone();
+    let sealing = tokio::spawn(async move {
+        sealing_client
+            .unary::<contracts::execution::SealCycle>(authenticated(contracts::execution::SealCycle {
+                cycle_id: sealing_id,
+                context: None,
+            }))
+            .await
+    });
+    support::on_state_change(&owner.handle(), async || {
+        let summary = execution
+            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
+            .await
+            .unwrap()
+            .into_inner();
+        (summary.status == model::execution::wire::CycleStatus::Stopping).then_some(())
+    })
+    .await;
     let stopping = execution
         .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
         .await
@@ -292,6 +306,7 @@ async fn stopping_running_unwind() {
     assert_eq!(stopping.status, model::execution::wire::CycleStatus::Stopping);
 
     blocker.release.notify_one();
+    sealing.await.unwrap().unwrap();
     let stopped = support::on_state_change(&owner.handle(), async || {
         let summary = execution
             .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
@@ -413,14 +428,14 @@ async fn checkpoint_telemetry_queries() {
     let execution = WireClient::new(connection.clone());
     let history = WireClient::new(connection);
     let cycle_id = support::planned_cycle(&execution, authenticated(create()), selection_plan(&owner)).await.unwrap();
-    execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle_id))).await.unwrap();
+    execution.start_first(authenticated(run(&cycle_id))).await.unwrap();
     let checkpoint = support::on_state_change(&owner.handle(), async || {
         let cycle = execution
             .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(
                 history
                     .unary::<contracts::history::BrowseExecutions>(authenticated(contracts::history::BrowseExecutions {
@@ -504,31 +519,31 @@ async fn historical_checkpoint_content() {
         .find(|case| case.test_case_id.as_str() == case_id)
         .unwrap()
         .clone();
-    execution
-        .unary::<contracts::execution::RunCase>(authenticated(contracts::execution::RunCase {
-            cycle_id: cycle_id.clone(),
-            case_id,
-            context: None,
-            idempotency_key: None,
-        }))
-        .await
-        .unwrap();
+    execution.start_case(authenticated(support::wire::CaseSelection { cycle_id: cycle_id.clone(), case_id, context: None })).await.unwrap();
     gate.started.notified().await;
     gate.release.notify_one();
     support::on_state_change(&owner.handle(), async || {
-        if execution
-            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &execution
+                .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }))
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None
     })
     .await;
+
+    execution
+        .unary::<contracts::execution::SealCycle>(authenticated(contracts::execution::SealCycle {
+            cycle_id: cycle_id.clone(),
+            context: None,
+        }))
+        .await
+        .unwrap();
 
     let browse = history
         .unary::<contracts::history::BrowseExecutions>(authenticated(contracts::history::BrowseExecutions {
@@ -585,7 +600,7 @@ async fn historical_checkpoint_content() {
         definition.parameters,
         vec![model::execution::wire::CaseParameter {
             name: "fixture.result".into(),
-            value: Some(model::values::wire::Value::from(&dokime_runtime::Value::Text("passed".into()))),
+            value: Some(model::values::wire::Value::from(&dokime::Value::Text("passed".into()))),
         }]
     );
     assert!(frozen_snapshot.host_version.as_ref().is_some_and(|version| !version.is_empty()));
@@ -648,6 +663,7 @@ async fn historical_checkpoint_content() {
         match frame.payload.expect("report payload") {
             model::reports::wire::ReportHtmlFramePayload::Report(snapshot) => {
                 assert_eq!(snapshot.identifier, "grpc.download");
+                assert_eq!(snapshot.origin, model::reports::wire::ReportOrigin::Sealed);
             }
             model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => html.extend(chunk.data),
             model::reports::wire::ReportHtmlFramePayload::Complete(_) => {}
@@ -674,8 +690,7 @@ async fn historical_checkpoint_content() {
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 
-    // A restarted runtime renders the captured definitions without installed plugins.
-    // Report bytes belong only to each request.
+    // Restart Loads Captured Definitions And Sealed Bytes Without Installed Plugins.
     let mut rebooted =
         Runtime::start(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.fixture", "Fixture"))).await.unwrap();
     assert!(rebooted.handle().watch_state().latest().state().cycles.is_empty());
@@ -710,7 +725,7 @@ async fn historical_checkpoint_content() {
             restored_html.extend(chunk.data);
         }
     }
-    assert_eq!(restored_html, html, "reboot serves the original sealed report bytes");
+    assert!(restored_html == html, "reboot serves the original sealed report bytes");
     assert!(rebooted.handle().artifacts().await.unwrap().is_empty());
 
     rebooted_server.shutdown().await.unwrap();
@@ -718,18 +733,8 @@ async fn historical_checkpoint_content() {
 }
 
 #[tokio::test]
-async fn read_role_admit() {
+async fn invalid_admission_values() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
-    let read = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
-    let client = WireClient::connect(read.local_endpoint()).await.unwrap();
-    assert_eq!(
-        client.unary::<contracts::execution::CreateCycle>(authenticated(create())).await.unwrap_err().code(),
-        Code::PermissionDenied
-    );
-    client.unary::<contracts::execution::ListCycles>(authenticated(contracts::execution::ListCycles::default())).await.unwrap();
-    read.shutdown().await.unwrap();
-    owner.shutdown().await.unwrap();
     let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
     let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
@@ -737,7 +742,7 @@ async fn read_role_admit() {
     blank.metadata.as_mut().unwrap().label = "  ".into();
     assert_eq!(client.unary::<contracts::execution::CreateCycle>(blank).await.unwrap_err().code(), Code::InvalidArgument);
     let cycle_id = client.unary::<contracts::execution::CreateCycle>(create()).await.unwrap().into_inner().cycle_id;
-    let append = |plan| contracts::execution::AppendPlannedCases { cycle_id: cycle_id.clone(), plan: Some(plan), context: None };
+    let append = |plan| support::wire::SelectionAppend { cycle_id: cycle_id.clone(), plan: Some(plan), context: None };
     // A malformed wire value is refused while the plan is decoded, before any
     // suite lookup. What the removed global parameter object also caught —
     // a value that decodes but does not fit its declaration — is now the
@@ -755,11 +760,11 @@ async fn read_role_admit() {
             key: "fixture.result".into(),
             value: Some(model::planning::wire::SelectionValues { values: vec![value] }),
         });
-        assert_eq!(client.unary::<contracts::execution::AppendPlannedCases>(append(plan)).await.unwrap_err().code(), Code::InvalidArgument);
+        assert_eq!(client.append_selection(append(plan)).await.unwrap_err().code(), Code::InvalidArgument);
     }
     let mut plan = selection_plan(&owner);
     plan.selections[0].suite_id = "not.registered".into();
-    let failure = client.unary::<contracts::execution::AppendPlannedCases>(append(plan)).await.unwrap_err();
+    let failure = client.append_selection(append(plan)).await.unwrap_err();
     assert_eq!(failure.code(), Code::NotFound);
     let envelope = tonic_types::Status::decode(failure.details()).unwrap();
     assert_eq!(envelope.code, Code::NotFound as i32);
@@ -780,7 +785,10 @@ async fn read_role_admit() {
     );
     assert_eq!(
         client
-            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles { limit: 101, ..Default::default() })
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
+                limit: dokime::domain::model::execution::wire_cursor::MAX_PAGE_ITEMS + 1,
+                ..Default::default()
+            })
             .await
             .unwrap_err()
             .code(),
@@ -815,7 +823,7 @@ async fn stalled_stream_execution() {
     let address = server.address();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = support::planned_cycle(&execution, Request::new(create()), selection_plan(&owner)).await.unwrap();
-    let result = execution.unary::<contracts::execution::RunCycle>(run(&id)).await.unwrap().into_inner();
+    let result = execution.start_first(run(&id)).await.unwrap().into_inner();
     assert!(matches!(result.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))));
     gate.started.notified().await;
     let connection = Endpoint::from_shared(server.local_endpoint())
@@ -840,14 +848,14 @@ async fn stalled_stream_execution() {
     let next = service.listen().await.unwrap();
     let client = WireClient::connect(next.local_endpoint()).await.unwrap();
     support::on_state_change(&owner.handle(), async || {
-        if client
-            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() })
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &client
+                .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: id.clone() })
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None
@@ -870,7 +878,9 @@ async fn run_cycle_targets() {
     let server = Server::start(owner.handle(), Config::default()).await.unwrap();
     let connection = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(connection);
-    let cycle_id = support::planned_cycle(&execution, authenticated(create()), selection_plan(&owner)).await.unwrap();
+    let mut definition = create();
+    definition.continue_automatically = true;
+    let cycle_id = support::planned_cycle(&execution, authenticated(definition), selection_plan(&owner)).await.unwrap();
     let diagnostics = {
         let snapshot = owner.handle().watch_state().latest();
         let entry = snapshot.state().suites.get("fixture.diagnostics").unwrap();
@@ -881,7 +891,7 @@ async fn run_cycle_targets() {
         }
     };
     execution
-        .unary::<contracts::execution::AppendPlannedCases>(authenticated(contracts::execution::AppendPlannedCases {
+        .append_selection(authenticated(support::wire::SelectionAppend {
             cycle_id: cycle_id.clone(),
             plan: Some(model::planning::wire::SelectionPlan {
                 selections: vec![diagnostics],
@@ -894,7 +904,7 @@ async fn run_cycle_targets() {
         .await
         .unwrap();
 
-    let admitted = execution.unary::<contracts::execution::RunCycle>(authenticated(run(&cycle_id))).await.unwrap().into_inner();
+    let admitted = execution.start_first(authenticated(run(&cycle_id))).await.unwrap().into_inner();
     assert!(matches!(admitted.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))), "{:?}", admitted.outcome);
 
     let completed = support::on_state_change(&owner.handle(), async || {
@@ -903,7 +913,7 @@ async fn run_cycle_targets() {
             .await
             .unwrap()
             .into_inner();
-        if cycle.status == model::execution::wire::CycleStatus::Completed {
+        if support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed) {
             return Some(cycle);
         }
         None
@@ -928,8 +938,8 @@ async fn run_cycle_targets() {
     owner.shutdown().await.unwrap();
 }
 
-fn run(id: &str) -> contracts::execution::RunCycle {
-    contracts::execution::RunCycle { cycle_id: id.into(), ..Default::default() }
+fn run(id: &str) -> contracts::execution::GetCycle {
+    contracts::execution::GetCycle { cycle_id: id.into() }
 }
 
 /* === Tests === */

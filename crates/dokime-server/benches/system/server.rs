@@ -17,7 +17,7 @@
 // Standard Library Imports
 use std::{
     env::consts::EXE_SUFFIX,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdout, Command, Stdio},
     time::{Duration, Instant},
@@ -39,8 +39,14 @@ const PLATFORM: &str = if cfg!(windows) { "windows" } else { "linux" };
 pub struct Server {
     child: Child,
     endpoint: String,
-    _stdout: BufReader<ChildStdout>,
+    stdout: BufReader<ChildStdout>,
     _root: TempDir,
+}
+
+pub struct StorageCounters {
+    pub committed_transactions: u64,
+    pub data_batches: u64,
+    pub durable_files: u64,
 }
 
 /* === Enums === */
@@ -51,6 +57,9 @@ pub struct Server {
 impl Server {
     pub fn start(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
+        let log = std::env::var("DOKIME_BENCH_LOG").ok();
+        let stderr = if log.is_some() { Stdio::inherit() } else { Stdio::null() };
+        let filter = log.as_deref().unwrap_or("off");
         let mut command = Command::new(artifact(&format!("bin/dokime-server{EXE_SUFFIX}")));
         command
             .args(["--dev-control", "--shutdown-stdin", "--no-seed-validation-artifact", "--port", "0", "--output-root"])
@@ -59,29 +68,52 @@ impl Server {
             .arg(root.path().join("application"))
             .arg("--plugins-root")
             .arg(root.path().join("plugins"))
-            .env("RUST_LOG", "off")
+            .env("RUST_LOG", filter)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(stderr);
         if let Some(plugin) = plugin {
             command.arg("--plugin").arg(plugin);
         }
         let mut child = command.spawn().unwrap();
         let mut stdout = BufReader::new(child.stdout.take().unwrap());
         // `--dev-control` prints one JSON line per startup phase, then `ready`.
-        let endpoint = loop {
-            let mut line = String::new();
-            assert!(stdout.read_line(&mut line).unwrap() > 0, "the server exited before reporting readiness");
-            let event: serde_json::Value = serde_json::from_str(&line).unwrap();
-            if event["event"] == "ready" {
-                break event["endpoint"].as_str().unwrap().to_owned();
-            }
-        };
-        Self { child, endpoint, _stdout: stdout, _root: root }
+        let mut event = startup_event(&mut stdout);
+        while event["event"] != "ready" {
+            event = startup_event(&mut stdout);
+        }
+        let endpoint = event["endpoint"].as_str().unwrap().to_owned();
+        Self { child, endpoint, stdout, _root: root }
     }
 
     pub fn endpoint(&self) -> &str {
         &self.endpoint
+    }
+
+    pub fn storage_counters(&mut self) -> StorageCounters {
+        let stdin = self.child.stdin.as_mut().unwrap();
+        writeln!(stdin, "{}", serde_json::json!({"command": "storage_counters"})).unwrap();
+        stdin.flush().unwrap();
+        let mut line = String::new();
+        assert!(self.stdout.read_line(&mut line).unwrap() > 0, "the server exited before replying");
+        let reply: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(reply["event"], "storage_counters");
+        StorageCounters {
+            committed_transactions: reply["committed_transactions"].as_u64().unwrap(),
+            data_batches: reply["data_batches"].as_u64().unwrap(),
+            durable_files: reply["durable_files"].as_u64().unwrap(),
+        }
+    }
+
+    // Development Control Loads The Bundle Into The Running Session.
+    pub fn reload(&mut self, bundle: &Path) {
+        let stdin = self.child.stdin.as_mut().unwrap();
+        writeln!(stdin, "{}", serde_json::json!({"command": "reload", "path": bundle})).unwrap();
+        stdin.flush().unwrap();
+        let mut line = String::new();
+        assert!(self.stdout.read_line(&mut line).unwrap() > 0, "the server exited before replying");
+        let reply: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(reply["event"], "reloaded", "the development session loads the bench bundle: {reply}");
     }
 
     pub fn stop(mut self) -> Duration {
@@ -103,11 +135,17 @@ impl Drop for Server {
 
 /* === Public Functions === */
 pub fn plugin_bundle() -> Option<PathBuf> {
-    let path = build_root().join("plugins/obc-plugin.dokime");
+    let path = build_root().join("fixtures/plugins/obc-plugin.dokime");
     path.is_file().then_some(path)
 }
 
 /* === Private Functions === */
+fn startup_event(stdout: &mut BufReader<ChildStdout>) -> serde_json::Value {
+    let mut line = String::new();
+    assert!(stdout.read_line(&mut line).unwrap() > 0, "the server exited before reporting readiness");
+    serde_json::from_str(&line).unwrap()
+}
+
 fn artifact(relative: &str) -> PathBuf {
     let path = build_root().join(relative);
     assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
@@ -115,12 +153,16 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace = manifest
         .ancestors()
-        .find(|directory| directory.join("Cargo.lock").is_file())
-        .expect("the workspace root holds Cargo.lock")
-        .join("dist/build")
-        .join(PLATFORM)
+        .find(|directory| {
+            let lock = directory.join("Cargo.lock");
+            lock.is_file()
+        })
+        .expect("the workspace root holds Cargo.lock");
+    let target = format!("{PLATFORM}-{}", std::env::consts::ARCH);
+    workspace.join("target/build/bench").join(target)
 }
 
 /* === Tests === */

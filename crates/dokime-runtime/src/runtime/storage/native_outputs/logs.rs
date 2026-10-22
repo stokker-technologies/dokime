@@ -26,6 +26,7 @@ use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
@@ -33,6 +34,7 @@ const CHUNK_BYTES: usize = 64 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Close {
     execution: TestExecutionId,
     path: String,
@@ -50,6 +52,7 @@ struct Append {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionStorage {
     pub(crate) async fn reserve_output(self: &Arc<Self>, execution: &TestExecutionId, path: &str) -> Result<()> {
         validate_producer_path(path)?;

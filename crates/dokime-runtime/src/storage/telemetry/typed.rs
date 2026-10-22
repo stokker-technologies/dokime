@@ -16,7 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{borrow::Cow, collections::BTreeMap, num::NonZeroUsize};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    num::NonZeroUsize,
+    sync::{Arc, Mutex, PoisonError},
+};
 
 // Third Party Imports
 use arrow_array::{Array, StringArray, StructArray, TimestampNanosecondArray, UInt32Array, UInt64Array};
@@ -48,11 +53,25 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct TypedCodec {
     schema: SchemaKey,
     graph: Schema,
     validator: Validator,
+}
+
+// Composed Codecs Reused Across Admission Batches, Keyed By Stream And Schema Version.
+// Each entry keeps the payload graph it was built from, so a redefined graph rebuilds it.
+#[derive(Default)]
+pub struct CodecCache {
+    entries: Mutex<BTreeMap<(Identifier, u32), CachedCodec>>,
+}
+
+struct CachedCodec {
+    payload: Schema,
+    codec: Arc<TypedCodec>,
+    registered: bool,
 }
 
 #[harmos::message]
@@ -78,6 +97,7 @@ struct Metadata {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TypedCodec {
     pub fn new(stream: &Identifier, version: u32, payload: &Schema, settings: &harmos::config::SchemaSettings) -> Result<Self> {
         let version = std::num::NonZeroU32::new(version).ok_or(Error::Invalid("typed telemetry schema version must be positive"))?;
@@ -241,7 +261,40 @@ impl TypedCodec {
     }
 }
 
+impl CodecCache {
+    pub fn codec(&self, contract: &TelemetryContract) -> Result<Arc<TypedCodec>> {
+        self.with_entry(contract, |entry| entry.codec.clone())
+    }
+
+    // The Codec Whose Schema This Process Has Not Yet Saved, If Any.
+    pub fn unregistered(&self, contract: &TelemetryContract) -> Result<Option<Arc<TypedCodec>>> {
+        self.with_entry(contract, |entry| (!entry.registered).then(|| entry.codec.clone()))
+    }
+
+    pub fn mark_registered(&self, contract: &TelemetryContract, saved: &Arc<TypedCodec>) {
+        let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        let key = (contract.stream.clone(), contract.schema_version);
+        if let Some(entry) = entries.get_mut(&key)
+            && Arc::ptr_eq(&entry.codec, saved)
+        {
+            entry.registered = true;
+        }
+    }
+
+    fn with_entry<T>(&self, contract: &TelemetryContract, use_entry: impl FnOnce(&mut CachedCodec) -> T) -> Result<T> {
+        let payload = contract.storage_schema.as_ref().ok_or(Error::Invalid("captured telemetry has no typed storage schema"))?;
+        let key = (contract.stream.clone(), contract.schema_version);
+        let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        if entries.get(&key).is_none_or(|entry| &entry.payload != payload) {
+            let entry = CachedCodec { payload: payload.clone(), codec: Arc::new(codec(contract)?), registered: false };
+            entries.insert(key.clone(), entry);
+        }
+        Ok(use_entry(entries.get_mut(&key).expect("codec entry inserted")))
+    }
+}
+
 /* === Public Functions === */
+
 pub fn codec(contract: &TelemetryContract) -> Result<TypedCodec> {
     let schema = contract.storage_schema.as_ref().ok_or(Error::Invalid("captured telemetry has no typed storage schema"))?;
     TypedCodec::new(&contract.stream, contract.schema_version, schema, &harmos::config::SchemaSettings::default())
@@ -288,6 +341,7 @@ pub fn decode_values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<Str
 }
 
 /* === Private Functions === */
+
 // A row may carry its timestamp as RFC 3339 text that values hold as a datetime.
 fn same_timestamp(payload: &Value, stored: &Value) -> bool {
     match (payload, stored) {
@@ -305,6 +359,7 @@ fn envelope_text<'a>(storage: &'a StructArray, field: &str, row: usize) -> Resul
         .ok_or(Error::Invalid("telemetry storage envelope string field is missing"))?;
     Ok((!array.is_null(row)).then(|| array.value(row)))
 }
+
 fn check_envelope(codec: &TypedCodec, storage: &StructArray, row: usize, entry: &TelemetryEntry) -> Result<()> {
     if storage.is_null(row) {
         return Err(Error::Invalid("telemetry storage envelope is null"));
@@ -367,6 +422,7 @@ fn projection_memory(validator: &Validator, bytes: &[u8]) -> Result<usize> {
         .map_err(|_| Error::Invalid("telemetry payload is invalid or exceeds projection memory"))?;
     Ok(memory)
 }
+
 fn projected_values(validator: &Validator, bytes: &[u8]) -> std::result::Result<BTreeMap<String, Value>, String> {
     let mut containers = Vec::new();
     let mut root = None;
@@ -426,3 +482,41 @@ fn value(value: Scalar<'_>) -> Value {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[harmos::message]
+    #[derive(Clone, PartialEq)]
+    struct Reading {
+        value: f64,
+    }
+
+    #[harmos::message]
+    #[derive(Clone, PartialEq)]
+    struct Renamed {
+        label: String,
+    }
+
+    #[test]
+    fn cache_reuses_codecs_until_the_graph_changes() {
+        let cache = CodecCache::default();
+        let contract = TelemetryContract::declared("cache.fixture", "Cache").typed::<Reading>();
+
+        let first = cache.codec(&contract).unwrap();
+        assert!(Arc::ptr_eq(&first, &cache.codec(&contract).unwrap()));
+        assert!(cache.unregistered(&contract).unwrap().is_some());
+        cache.mark_registered(&contract, &first);
+        assert!(cache.unregistered(&contract).unwrap().is_none());
+
+        // A Redefined Graph Under The Same Version Builds And Registers Afresh
+        let mut redefined = TelemetryContract::declared("cache.fixture", "Cache").typed::<Renamed>();
+        redefined.schema_version = contract.schema_version;
+        let rebuilt = cache.codec(&redefined).unwrap();
+        assert!(!Arc::ptr_eq(&first, &rebuilt));
+        // An Old Registration Completing After Redefinition Cannot Mark The New Graph Saved.
+        cache.mark_registered(&contract, &first);
+        assert!(cache.unregistered(&redefined).unwrap().is_some());
+    }
+}

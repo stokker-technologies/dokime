@@ -16,7 +16,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 /* Local Imports */
-@import "../../../branding/generated/theme.css";
+@import "../../../organization/generated/theme.css";
 
 /* === Variables === */
 
@@ -186,7 +186,7 @@
   /* The settings content column: one label width and one value measure so
      every row's control starts and ends on the same two lines. */
   --settings-row-height: 2.5rem;
-  --settings-label-width: 16.25rem;
+  --settings-label-width: 20rem;
   --settings-value-max: 40rem;
 
   /* Live shell rhythm. Every shell region shares the same inset and gap so the
@@ -198,6 +198,9 @@
   --sidebar-width: clamp(14rem, 24vw, 22rem);
   --sidebar-width-collapsed: 3.5rem;
   --sidebar-indent: 0.75rem;
+  /* The open sidebar's logo: a sixth of the window, legible on short
+     windows and never towering on tall ones. */
+  --sidebar-logo-height: clamp(4rem, 16.67vh, 10rem);
   /* The tree's own rhythm: 36px at every desktop density, 48px at touch. */
   --sidebar-row-height: 2.25rem;
   /* The cycle explorer's one-line rows: 28px on a desk, 44px at touch, with

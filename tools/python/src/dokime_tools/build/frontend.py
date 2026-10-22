@@ -6,13 +6,11 @@
 #
 # ***
 
-
 """Prepare Frontend And Report Assets"""
 
 # === Imports === #
 
 # Standard Library Imports
-
 import argparse
 import hashlib
 import subprocess
@@ -23,8 +21,9 @@ from pathlib import Path
 # Local Imports
 from dokime_tools.package.staging import clear_output, sync_output
 
-# Type Checking Imports
+from . import organization, paths
 
+# Type Checking Imports
 
 # === Public Exports === #
 
@@ -40,17 +39,17 @@ INPUT_ROOTS = [
     WEB_ROOT / "vite.report.config.ts",
     WEB_ROOT / "tsconfig.json",
     WEB_ROOT / "package.json",
-    ROOT / "branding/brand.toml",
-    ROOT / "branding/theme",
-    ROOT / "branding/fonts",
+    ROOT / "organization/organization.toml",
+    ROOT / "organization/theme",
+    ROOT / "organization/fonts",
+    ROOT / "organization/logos",
+    ROOT / "organization/generated/default-organization.json",
     WEB_ROOT / "pnpm-lock.yaml",
 ]
-
 
 # === Types === #
 
 # === Classes === #
-
 
 # === Public Functions === #
 
@@ -60,6 +59,7 @@ def is_stale(previous_hash: str | None, current_hash: str, source_exists: bool) 
 
 
 def ensure_report() -> None:
+    organization.generate()
     digest = hashlib.sha256()
     for path in sorted({file for root in INPUT_ROOTS for file in _files(root)}):
         digest.update(str(path.relative_to(WEB_ROOT, walk_up=True)).encode())
@@ -71,7 +71,7 @@ def ensure_report() -> None:
     if is_stale(previous, current, REPORT.exists()):
         vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
         STAMP.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="report-", dir=STAMP.parent) as directory:
+        with tempfile.TemporaryDirectory(prefix="dokime-report-") as directory:
             output = Path(directory)
             subprocess.run(
                 [
@@ -93,21 +93,21 @@ def ensure_report() -> None:
 
 
 def build_live(args: list[str]) -> None:
+    organization.generate()
     vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
     command = ["node", str(vite), "build"]
     if args:
         subprocess.run(command + args, cwd=WEB_ROOT, check=True)
         return
-    target = ROOT / "target"
-    target.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="dokime-gui-live-", dir=target) as directory:
+    with tempfile.TemporaryDirectory(prefix="dokime-gui-live-") as directory:
         subprocess.run(command + ["--outDir", directory], cwd=WEB_ROOT, check=True)
         sync_output(Path(directory), WEB_ROOT / "dist")
 
 
 def build(profile: str) -> Path:
     """Build The Live Frontend Once And Mirror It Where The Desktop Shell Serves It From."""
-    output = ROOT / "target/build" / profile / "frontend"
+    organization.generate()
+    output = paths.output(ROOT, "build", profile) / "web"
     clear_output(output)
     subprocess.run(["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--outDir", str(output)], cwd=WEB_ROOT, check=True)
     sync_output(output, WEB_ROOT / "dist")

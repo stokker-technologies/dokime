@@ -31,11 +31,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
-import type { BackendProfiles, ConnectionCredentials, ConnectionTarget } from "@/lib/desktop/connection";
+import type { BackendProfiles, ConnectionSecrets, ConnectionTarget } from "@/lib/desktop/connection";
 import type { DesktopLaunch } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
-import { connectionError, startupDiagnostics } from "./errors";
 import { useNativeSessionController } from "./context";
+import { connectionError, startupDiagnostics } from "./errors";
 import { StartupDiagnostics } from "./StartupDiagnostics";
 import { BACKUP_RESET_LABEL, backupFailure, backupResetAvailable, backupSteps } from "./storage-backup-model";
 
@@ -60,7 +60,7 @@ const RESET_PHASES = ["stopping", "deleting", "starting"] as const;
 export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunch | null; launchError?: unknown }) {
   const profileId = useId();
   const caId = useId();
-  const credentialId = useId();
+  const secretId = useId();
   const endpointId = useId();
   const identityId = useId();
   const tokenId = useId();
@@ -71,7 +71,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const [profileError, setProfileError] = useState<string | null>(null);
   const [endpoint, setEndpoint] = useState("");
   const [identity, setIdentity] = useState("");
-  const [credential, setCredential] = useState<"none" | "saved" | "bearer">("saved");
+  const [secret, setSecret] = useState<"none" | "saved" | "bearer">("saved");
   const [token, setToken] = useState("");
   const [remember, setRemember] = useState(false);
   const [ca, setCa] = useState("");
@@ -149,14 +149,12 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   function submit(event: FormEvent) {
     event.preventDefault();
     const value = endpoint.trim();
-    const target: ConnectionTarget = value.startsWith("http://")
-      ? { kind: "local", endpoint: value }
-      : { kind: "remote", endpoint: value, caCertificatePem: ca.trim() || null };
-    const credentials: ConnectionCredentials = credential === "bearer" ? { kind: "bearer", token, remember } : { kind: credential };
+    const target: ConnectionTarget = { kind: "remote", endpoint: value, caCertificatePem: ca.trim() || null };
+    const secrets: ConnectionSecrets = secret === "bearer" ? { kind: "bearer", token, remember } : { kind: secret };
     setToken("");
     void owner.select({
       kind: "attach",
-      request: { target, credentials, expectedBackendId: identity.trim() || null },
+      request: { target, secrets, expectedBackendId: identity.trim() || null },
     });
   }
 
@@ -286,24 +284,24 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                   <Field htmlFor={identityId} label="Expected Backend ID (Optional)">
                     <Input id={identityId} onChange={(event) => setIdentity(event.target.value)} value={identity} />
                   </Field>
-                  <Field htmlFor={credentialId} label="Credentials">
+                  <Field htmlFor={secretId} label="Secrets">
                     <select
                       className="h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm"
-                      id={credentialId}
+                      id={secretId}
                       onChange={(event) => {
-                        setCredential(event.target.value as typeof credential);
+                        setSecret(event.target.value as typeof secret);
                         setToken("");
                       }}
-                      value={credential}
+                      value={secret}
                     >
                       <option value="saved">Saved in System Keyring</option>
-                      <option value="bearer">Access Token</option>
-                      <option value="none">No Credentials</option>
+                      <option value="bearer">Access Key</option>
+                      <option value="none">No Secrets</option>
                     </select>
                   </Field>
-                  {credential === "bearer" && (
+                  {secret === "bearer" && (
                     <>
-                      <Field htmlFor={tokenId} label="Access Token">
+                      <Field htmlFor={tokenId} label="Access Key">
                         <Input
                           autoComplete="off"
                           id={tokenId}
@@ -315,7 +313,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                       </Field>
                       <label className="col-span-full flex items-center justify-center gap-2 text-sm">
                         <input checked={remember} onChange={(event) => setRemember(event.target.checked)} type="checkbox" />
-                        Save Token in System Keyring
+                        Save Key in System Keyring
                       </label>
                     </>
                   )}
@@ -333,8 +331,8 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                     </div>
                   </details>
                   <p className="text-center text-xs text-muted-foreground">
-                    Remote connections require TLS. HTTP is allowed only for a literal loopback address. Attached backends continue running
-                    after disconnect.
+                    HTTPS verifies the server certificate. Explicit HTTP sends keys and data without encryption; use it only in an isolated
+                    lab. Choose No Secrets only when the listener does not require a key. Attached backends continue after disconnect.
                   </p>
                   <Button className="w-full" type="submit">
                     Connect

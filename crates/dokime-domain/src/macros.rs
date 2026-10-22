@@ -22,6 +22,7 @@
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! product_error {
     ($error:ty, $formatter:ident { $($pattern:pat => $display:expr),+ $(,)? }) => {
         impl std::fmt::Display for $error {

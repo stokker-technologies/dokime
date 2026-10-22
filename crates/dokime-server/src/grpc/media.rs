@@ -19,26 +19,27 @@
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
 use super::content::{artifact_scope, content_failure, metadata, metadata_memory};
-use dokime_domain::model::content::wire::ArtifactMetadata;
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::operations::media as contract;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::artifacts::ArtifactRecord;
-use dokime_runtime::domains::media::AudioRecording as Recording;
-use dokime_runtime::domains::media::DEFAULT_RECORDING_SECONDS;
-use dokime_runtime::domains::media::MAXIMUM_RECORDING_SECONDS;
-use dokime_runtime::domains::media::NOT_COMPILED;
-use dokime_runtime::domains::media::UNAVAILABLE;
-use dokime_runtime::runtime::Error;
+use crate::grpc::transcode::Transcode;
+use dokime::RuntimeHandle;
+use dokime::artifacts::ArtifactRecord;
+use dokime::domain::model::content::wire::ArtifactMetadata;
+use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::domain::model::execution::RecordScope;
+use dokime::domain::operations::media as contract;
+use dokime::domains::media::AudioRecording as Recording;
+use dokime::domains::media::DEFAULT_RECORDING_SECONDS;
+use dokime::domains::media::MAXIMUM_RECORDING_SECONDS;
+use dokime::domains::media::NOT_COMPILED;
+use dokime::domains::media::UNAVAILABLE;
+use dokime::runtime::Error;
 
 /* === Constants === */
+
 const PROGRESS_INTERVAL: Duration = Duration::from_secs(1);
 
 // Video capture is declared but refused until an encoder is chosen: no ffmpeg,
@@ -51,6 +52,7 @@ const NO_VIDEO_ENCODER: &str = "no video encoder available in this build";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
@@ -74,7 +76,8 @@ struct ScreenRecording;
 struct CameraRecording;
 
 /* === Enums === */
-#[harmos::catalog]
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     Screenshot(Screenshot),
     Photo(Photo),
@@ -86,6 +89,7 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Screenshot {
     type Declaration = contract::Screenshot;
     type Resources = Resources;
@@ -131,7 +135,7 @@ impl Operation for AudioRecording {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::media::wire::RecordingFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::media::wire::RecordingFrame>;
 
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources, recording: None })
@@ -152,14 +156,14 @@ impl Operation for AudioRecording {
             if elapsed >= limit {
                 break recording.finish().await;
             }
-            let progress = dokime_domain::model::media::wire::RecordingProgress {
+            let progress = dokime::domain::model::media::wire::RecordingProgress {
                 elapsed_ms: elapsed.as_millis().try_into().unwrap_or(u64::MAX),
                 size_bytes: recording.size_bytes(),
             };
             output
-                .send_with(std::mem::size_of::<dokime_domain::model::media::wire::RecordingFrame>(), || {
-                    Ok(dokime_domain::model::media::wire::RecordingFrame {
-                        payload: Some(dokime_domain::model::media::wire::RecordingFramePayload::Progress(progress)),
+                .send_with(std::mem::size_of::<dokime::domain::model::media::wire::RecordingFrame>(), || {
+                    Ok(dokime::domain::model::media::wire::RecordingFrame {
+                        payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Progress(progress)),
                     })
                 })
                 .await
@@ -174,11 +178,11 @@ impl Operation for AudioRecording {
         self.recording = None;
         let record = sealed.map_err(failure)?;
         let completed = metadata(&record)?;
-        let bytes = std::mem::size_of::<dokime_domain::model::media::wire::RecordingFrame>().saturating_add(metadata_memory(&record)?);
+        let bytes = std::mem::size_of::<dokime::domain::model::media::wire::RecordingFrame>().saturating_add(metadata_memory(&record)?);
         output
             .send_with(bytes, || {
-                Ok(dokime_domain::model::media::wire::RecordingFrame {
-                    payload: Some(dokime_domain::model::media::wire::RecordingFramePayload::Completed(Box::new(completed))),
+                Ok(dokime::domain::model::media::wire::RecordingFrame {
+                    payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Completed(Box::new(completed))),
                 })
             })
             .await
@@ -203,7 +207,7 @@ impl Operation for ScreenRecording {
     type Resources = ();
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::media::wire::RecordingFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::media::wire::RecordingFrame>;
 
     async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self)
@@ -221,7 +225,7 @@ impl Operation for CameraRecording {
     type Resources = ();
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::media::wire::RecordingFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::media::wire::RecordingFrame>;
 
     async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self)
@@ -245,10 +249,11 @@ impl Resources {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone(), maximum });
     let operations = runtime.operations();
-    let lane = dokime_runtime::app::Lanes::Open;
+    let lane = dokime::app::Lanes::Open;
     operations.register_wire_operation::<Screenshot>("dokime", lane, resources.clone())?;
     operations.register_wire_operation::<Photo>("dokime", lane, resources.clone())?;
     operations.register_wire_operation::<AudioRecording>("dokime", lane, resources)?;
@@ -258,7 +263,8 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
-fn capture_scope(scope: Option<&dokime_domain::model::content::wire::ArtifactScope>) -> Result<RecordScope, Status> {
+
+fn capture_scope(scope: Option<&dokime::domain::model::content::wire::ArtifactScope>) -> Result<RecordScope, Status> {
     let scope = artifact_scope(scope)?;
     if scope.test_cycle_id.is_none() || scope.test_execution_id.is_none() {
         return Err(Status::invalid_argument("media capture requires a cycle and execution scope"));
@@ -284,10 +290,10 @@ fn failure(error: Error) -> Status {
     }
 }
 
-fn stream_failure(error: harmos::Error) -> Status {
+fn stream_failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
+        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
         error => Status::internal(error.to_string()),
     }
 }

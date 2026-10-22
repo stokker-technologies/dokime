@@ -8,16 +8,20 @@
  */
 
 /* === Modules === */
+
 mod plots;
 mod statistics;
 pub(crate) mod telemetry;
 
 /* === Re-Exports === */
+
 pub(super) use plots::materialize;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
+
 // Third Party Imports
 use harmos::{
     operations::{Context, StreamSettings},
@@ -27,6 +31,7 @@ use harmos::{
         query::QueryOutput,
     },
 };
+
 // Local Imports
 use crate::{runtime::Error, runtime::Result};
 
@@ -37,6 +42,7 @@ use crate::{runtime::Error, runtime::Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy)]
 pub(super) struct ReadContext<'a, 'ctx> {
     pub ctx: &'a Context<'ctx>,
@@ -50,6 +56,7 @@ pub(super) struct ReadContext<'a, 'ctx> {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn batches(ctx: &Context<'_>, settings: &crate::config::StorageSettings, query: Query) -> Result<Vec<ArrowBatch>> {
     let at = query.at.clone();
     let session = ctx.download::<harmos::storage::operations::Query>(

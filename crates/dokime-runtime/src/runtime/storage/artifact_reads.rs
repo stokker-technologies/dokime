@@ -36,6 +36,7 @@ use dokime_domain::model::identity::Metadata;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ArtifactReader {
     descriptor: ExecutionOutput,
     reader: FileReader,
@@ -49,6 +50,7 @@ pub struct ArtifactReader {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ArtifactReader {
     pub(super) async fn from_output(storage: &crate::storage::Manager, descriptor: ExecutionOutput) -> Result<Self> {
         let reader = storage.read_file(ReadFile { file: descriptor.file.clone(), range: ByteRange { offset: 0, limit: None } }).await?;
@@ -114,6 +116,7 @@ impl ArtifactReader {
 }
 
 /* === Public Functions === */
+
 /* === Private Functions === */
 
 /* === Tests === */

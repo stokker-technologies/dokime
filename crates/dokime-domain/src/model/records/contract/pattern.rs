@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
 /* === Constants === */
@@ -26,6 +28,7 @@ use serde::Serialize;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RecordPattern(String);
@@ -35,6 +38,7 @@ pub struct RecordPattern(String);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordPattern {
     pub fn new(pattern: impl Into<String>) -> Self {
         Self(pattern.into())
@@ -52,6 +56,7 @@ impl RecordPattern {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn wildcard_match(pattern: &str, value: &str) -> bool {
     if pattern == "*" || pattern == value {
         return true;

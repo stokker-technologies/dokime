@@ -9,9 +9,13 @@
 
 /* === Modules === */
 
+mod diagnosis;
+mod shutdown;
+
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, HashSet},
@@ -19,15 +23,17 @@ use std::{
     time::{Duration, Instant},
 };
 // Third Party Imports
-use sha2::{Digest, Sha256};
 // Local Imports
 use crate::support::{self, host::Host};
-use dokime_client::{Client, ResponseStream, contracts};
-use dokime_domain::model;
-use dokime_runtime::Value;
+use dokime::Value;
+use dokime::client::{Client, ResponseStream, contracts};
+use dokime::domain::model;
 
 /* === Constants === */
+
 const STARTUP_SUITE: &str = "obc.charger.startup";
+const PROTECTION_SUITE: &str = "obc.charger.protection";
+const PROTECTION_TEMPLATE: &str = "obc.charger.protection.overcurrent";
 const STARTUP_TEMPLATE: &str = "obc.charger.startup.sequence";
 const STARTUP_SAMPLES: &str = "obc.charger.startup.samples";
 const STARTUP_STREAM_LOG: &str = "obc.charger.startup/stream.log";
@@ -61,6 +67,7 @@ const HOST_STREAMS: &[&str] =
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 type Changes = ResponseStream<model::observation::wire::RuntimeStateFrame>;
 
 async fn on_change<T>(changes: &mut Changes, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
@@ -86,15 +93,18 @@ async fn wait_prompt(changes: &mut Changes, prompts: &mut Client, cycle_id: &str
 async fn wait_completed(changes: &mut Changes, execution: &mut Client, cycle_id: &str) -> model::execution::wire::CycleSummary {
     on_change(changes, async || {
         let cycle = execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.to_owned() }).await.unwrap();
-        matches!(
-            cycle.status,
-            model::execution::wire::CycleStatus::Completed
-                | model::execution::wire::CycleStatus::Failed
-                | model::execution::wire::CycleStatus::Stopped
-        )
-        .then_some(cycle)
+        // An Active cycle has settled once it is idle again with every member run.
+        let settled = cycle.status == model::execution::wire::CycleStatus::Ready
+            && cycle.running_count == 0
+            && cycle.queued_count == 0
+            && cycle.result.is_some();
+        settled.then_some(cycle)
     })
     .await
+}
+
+fn passed(cycle: &model::execution::wire::CycleSummary) -> bool {
+    cycle.result.as_ref().is_some_and(|result| result.status == model::execution::wire::ResultStatus::Passed)
 }
 
 async fn execution_id(changes: &mut Changes, execution: &mut Client, cycle_id: &str) -> String {
@@ -182,20 +192,32 @@ async fn create_cycle(
         .await
         .unwrap()
         .cycle_id;
-    execution
-        .execution_append_planned_cases(contracts::execution::AppendPlannedCases {
-            cycle_id: cycle_id.clone(),
+    let registered = execution
+        .planning_register_selection(contracts::planning::RegisterSelection {
             plan: Some(plan),
-            context: None,
+            idempotency_key: uuid::Uuid::now_v7().to_string(),
         })
         .await
         .unwrap();
+    let executions = registered
+        .cases
+        .into_iter()
+        .map(|case| contracts::execution::ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: case.case_id })
+        .collect();
+    execution.execution_append_executions(contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions }).await.unwrap();
     cycle_id
 }
 
 async fn run_cycle(execution: &mut Client, cycle_id: &str) {
+    let members = execution
+        .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() })
+        .await
+        .unwrap();
     let reply = execution
-        .execution_run_cycle(contracts::execution::RunCycle { cycle_id: cycle_id.to_owned(), ..Default::default() })
+        .execution_start_execution(contracts::execution::StartExecution {
+            execution_id: members.executions[0].execution_id.clone(),
+            mode: model::execution::wire::ExecutionMode::Automatic,
+        })
         .await
         .unwrap();
     assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))));
@@ -232,6 +254,26 @@ fn value_object(fields: impl IntoIterator<Item = (&'static str, model::values::w
     model::values::wire::Value::from(&Value::Object(values))
 }
 
+async fn report_bytes(report: ResponseStream<model::reports::wire::ReportHtmlFrame>) -> Vec<u8> {
+    let mut html = Vec::new();
+    while let Some(frame) = report.message().await.unwrap() {
+        match frame.payload.expect("report payload") {
+            model::reports::wire::ReportHtmlFramePayload::Report(_) => {}
+            model::reports::wire::ReportHtmlFramePayload::Chunk(chunk) => html.extend_from_slice(&chunk.data),
+            model::reports::wire::ReportHtmlFramePayload::Complete(done) => {
+                assert_eq!(done.size_bytes, html.len() as u64);
+                return html;
+            }
+        }
+    }
+    panic!("the report stream ends before it completes");
+}
+
+async fn cycle_report(client: &Client, cycle_id: &str) -> Vec<u8> {
+    let request = contracts::reports::DownloadCycleReport { cycle_id: cycle_id.to_owned(), identifier: "cycle.summary".into() };
+    report_bytes(client.reports_download_cycle_report(request).await.unwrap()).await
+}
+
 async fn serves_startup(client: &Client) -> bool {
     client.catalog_get_suite(contracts::catalog::GetSuite { suite_id: STARTUP_SUITE.to_owned() }).await.is_ok()
 }
@@ -247,17 +289,8 @@ async fn installations(client: &Client) -> Vec<model::plugins::wire::PluginInsta
 }
 
 async fn install(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
-    use {model::plugins::wire::StagePluginFrame, model::plugins::wire::StagePluginFrameFrame as Frame};
-    let sha256 = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-    let mut frames = vec![StagePluginFrame {
-        frame: Some(Frame::Header(model::plugins::wire::StagePluginHeader { size_bytes: bytes.len() as u64, sha256: sha256.clone() })),
-    }];
-    for (index, chunk) in bytes.chunks(64 * 1024).enumerate() {
-        frames.push(StagePluginFrame {
-            frame: Some(Frame::Chunk(model::plugins::wire::StagePluginChunk { offset: (index * 64 * 1024) as u64, data: chunk.to_vec() })),
-        });
-    }
-    let staged = client.plugins_stage(tokio_stream::iter(frames)).await.unwrap();
+    let sha256 = dokime::client::plugin_bundle_digest(bytes);
+    let staged = client.plugins_stage_bundle(bytes.to_vec(), sha256.clone(), |_, _| {}).await.unwrap();
     client.plugins_consent(contracts::plugins::Consent { install_id: staged.install_id, expected_sha256: sha256 }).await.unwrap()
 }
 
@@ -371,7 +404,12 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         .unwrap();
 
     let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
-    assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
+    if !passed(&cycle) {
+        let diagnosis = diagnosis::execution(client, &execution_id, STEADY_STREAM_LOG).await;
+        assert!(passed(&cycle), "{diagnosis}");
+    }
+    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
+    execution.cycle(id).seal().await.unwrap();
     let summary = execution
         .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
         .await
@@ -391,20 +429,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
         .await
         .unwrap()
         .steps;
-    let mut criteria = Vec::new();
-    for step in steps {
-        criteria.extend(
-            execution
-                .execution_list_step_criteria(contracts::execution::ListStepCriteria {
-                    execution_id: execution_id.clone(),
-                    step_id: step.step_id,
-                    ..Default::default()
-                })
-                .await
-                .unwrap()
-                .criteria,
-        );
-    }
+    let criteria = steps.into_iter().flat_map(|step| step.criteria).collect::<Vec<_>>();
     let acceptance = criteria
         .iter()
         .find(|criterion| criterion.metadata.as_ref().is_some_and(|metadata| metadata.identifier == STEADY_ACCEPTANCE))
@@ -695,9 +720,17 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
     let mut planning = client.clone();
     let mut execution = client.clone();
     let cycle_id = create_cycle(&mut planning, &mut execution, plan, "obc.charger.steady.reports", 9).await;
+    execution
+        .execution_update_cycle_policy(contracts::execution::UpdateCyclePolicy {
+            cycle_id: cycle_id.clone(),
+            continue_automatically: true,
+            context: None,
+        })
+        .await
+        .unwrap();
     run_cycle(&mut execution, &cycle_id).await;
 
-    // Answer Every Case, Then Observe The Durable Cycle Seal.
+    // Answer Every Case, Then Explicitly Seal The Completed Container.
     let prompts = client.clone();
     on_change(changes, async || {
         let pending = prompts
@@ -717,10 +750,19 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
                 .unwrap();
         }
         let cycle = execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap();
-        assert_ne!(cycle.status, model::execution::wire::CycleStatus::Failed);
-        cycle.sealed.then_some(())
+        assert!(!cycle.result.as_ref().is_some_and(|result| matches!(
+            result.status,
+            model::execution::wire::ResultStatus::Failed | model::execution::wire::ResultStatus::Blocked
+        )));
+        (cycle.status == model::execution::wire::CycleStatus::Ready
+            && cycle.running_count == 0
+            && cycle.queued_count == 0
+            && passed(&cycle))
+        .then_some(())
     })
     .await;
+    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
+    execution.cycle(id).seal().await.unwrap();
     let executions = execution
         .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
         .await
@@ -731,6 +773,125 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
 }
 
 /* === Tests === */
+
+// Open Report While The Cycle Runs, Over The Built Plugin: a cycle report opens
+// on every request from the measuring member's settlement, through the
+// prompting member's admission, to its pending question, and both reports open
+// while that question waits without answering it.
+#[tokio::test]
+async fn open_report_while_cycle_runs() {
+    const BOUND: Duration = Duration::from_secs(20);
+    let root = tempfile::tempdir().unwrap();
+    let bundle = support::artifacts::obc_plugin_bundle();
+    let mut host = Host::launch_in(&root.path().join("host"), Some(&bundle)).await;
+    let client = host.connect().await;
+    assert_eq!(host.command(serde_json::json!({"command": "reload", "path": bundle})).await["event"], "reloaded");
+    let mut changes = client.observation_watch_runtime(Default::default()).await.unwrap();
+
+    // One Cycle: A Measuring Member, Then A Prompting One Queued Behind It
+    let (mut catalog, mut planning, mut execution) = (client.clone(), client.clone(), client.clone());
+    let mut plans = Vec::new();
+    for (suite_id, template_id) in [(PROTECTION_SUITE, PROTECTION_TEMPLATE), (STARTUP_SUITE, STARTUP_TEMPLATE)] {
+        let template = suite(&mut catalog, suite_id)
+            .await
+            .templates
+            .into_iter()
+            .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == template_id))
+            .unwrap_or_else(|| panic!("{template_id} is registered"));
+        plans.push(selection(suite_id, &template.template_id, []));
+    }
+    let prompting = plans.pop().unwrap();
+    let cycle_id = create_cycle(&mut planning, &mut execution, plans.pop().unwrap(), "native.charger.open-report", 1).await;
+    let registered = execution
+        .planning_register_selection(contracts::planning::RegisterSelection {
+            plan: Some(prompting),
+            idempotency_key: uuid::Uuid::now_v7().to_string(),
+        })
+        .await
+        .unwrap();
+    let executions = registered
+        .cases
+        .into_iter()
+        .map(|case| contracts::execution::ExecutionBinding { execution_id: uuid::Uuid::now_v7().to_string(), case_id: case.case_id })
+        .collect();
+    execution.execution_append_executions(contracts::execution::AppendExecutions { cycle_id: cycle_id.clone(), executions }).await.unwrap();
+    let members = execution
+        .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
+        .await
+        .unwrap()
+        .executions;
+    for member in &members {
+        let reply = execution
+            .execution_start_execution(contracts::execution::StartExecution {
+                execution_id: member.execution_id.clone(),
+                mode: model::execution::wire::ExecutionMode::Automatic,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))), "{reply:?}");
+    }
+
+    // Back-To-Back Requests Cover The Measuring Member's Seal, The Next Admission And The Question
+    on_change(&mut changes, async || {
+        let page = execution
+            .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
+            .await
+            .unwrap();
+        let measuring = page.executions.iter().find(|member| member.execution_id == members[0].execution_id)?;
+        (measuring.status == model::execution::wire::ExecutionStatus::Passed).then_some(())
+    })
+    .await;
+    let prompts = client.clone();
+    let mut opened = 0;
+    let pending = loop {
+        let html = tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id))
+            .await
+            .unwrap_or_else(|_| panic!("cycle report {opened} did not open within {BOUND:?} while the cycle ran"));
+        assert!(!html.is_empty());
+        opened += 1;
+        let page = prompts
+            .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
+            .await
+            .unwrap();
+        if let Some(pending) = page.prompts.into_iter().next() {
+            break pending;
+        }
+    };
+
+    // Both Reports Open While The Question Waits, And It Still Waits
+    let execution_id = pending.scope.as_ref().and_then(|scope| scope.execution_id.clone()).expect("execution scope");
+    let cycle_html =
+        tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id)).await.expect("the cycle report opens while the prompt waits");
+    assert!(!cycle_html.is_empty());
+    let execution_report = async {
+        let request = contracts::reports::DownloadExecutionReport { execution_id: execution_id.clone() };
+        report_bytes(client.reports_download_execution_report(request).await.unwrap()).await
+    };
+    let execution_html = tokio::time::timeout(BOUND, execution_report).await.expect("the execution report opens while the prompt waits");
+    assert!(!execution_html.is_empty());
+    let still = prompts
+        .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
+        .await
+        .unwrap();
+    assert!(still.prompts.iter().any(|prompt| prompt.prompt_id == pending.prompt_id), "opening a report leaves the prompt pending");
+
+    // Answering The Question Completes The Cycle
+    prompts
+        .prompts_respond(contracts::prompts::Respond {
+            prompt_id: pending.prompt_id,
+            action: "submit".into(),
+            values: Some(value_object([("operator_note", text("open-report")), ("accepted", boolean(true))])),
+            accepted: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
+    assert!(passed(&cycle));
+    drop(changes);
+    host.stop(false).await;
+}
+
 // The Plugin-And-Host Walkthrough Over The Built Bundle, One Scene At A Time:
 // a development session serves its selected bundle from the first reload, reloads keep or refuse
 // bytes, a startup suite runs through its prompt, evidence and sealed report, a
@@ -857,7 +1018,10 @@ async fn plugin_host_walkthrough() {
         .unwrap();
 
     let cycle = wait_completed(&mut changes, &mut execution, &cycle_id).await;
-    assert_eq!(cycle.status, model::execution::wire::CycleStatus::Completed);
+    if !passed(&cycle) {
+        let diagnosis = diagnosis::execution(&client, &execution_id, STARTUP_STREAM_LOG).await;
+        assert!(passed(&cycle), "{diagnosis}");
+    }
     let telemetry = client.clone();
     let telemetry = telemetry
         .telemetry_list_samples(contracts::telemetry::ListSamples {
@@ -880,7 +1044,9 @@ async fn plugin_host_walkthrough() {
     assert!(final_text.contains("record=prompt_answered action=continue accepted=true"));
     assert!(final_text.contains("Charger resources released"));
 
-    // The Cycle Seals And Serves Its Report
+    // The Explicitly Sealed Cycle Serves Its Report
+    let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
+    execution.cycle(id).seal().await.unwrap();
     on_change(&mut changes, async || {
         execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap().sealed.then_some(())
     })
@@ -913,6 +1079,9 @@ async fn plugin_host_walkthrough() {
 
     steady_sweep(&client, &mut changes).await;
     steady_reports(&client, &mut changes).await;
+
+    // Scene: The Actual Remote Scripts Control The Built Plugin And Export Saved Evidence
+    super::remote::scripts(&client, host.endpoint(), &root.path().join("remote scripts")).await;
 
     // Scene: The Host Stops Cleanly With Its Watch Still Open
     drop(report);

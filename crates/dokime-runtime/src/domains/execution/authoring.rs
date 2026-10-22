@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     any::{Any, type_name},
     collections::BTreeMap,
     time::Duration,
 };
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
 // Local Imports
 use crate::definition::ParameterSource;
 use crate::records::BuiltinRecordType;
@@ -42,12 +45,15 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionFileTarget {
     pub relative_path: String,
     pub absolute_path: String,
+
     #[serde(default)]
     pub text_hint: bool,
+
     #[serde(default)]
     pub streamed: bool,
 }
@@ -55,11 +61,15 @@ pub struct ExecutionFileTarget {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileRegexMatch {
     pub full_match: String,
+
     #[serde(default)]
     pub captures: Vec<Option<String>>,
+
     #[serde(default)]
     pub named_captures: BTreeMap<String, String>,
+
     pub byte_offset: u64,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line_number: Option<u64>,
 }
@@ -101,6 +111,7 @@ struct RuntimeResourceEntry {
 }
 
 /* === Enums === */
+
 #[derive(Debug, Error)]
 pub enum StepContextError {
     #[error("resource {resource_id} is not stored")]
@@ -125,6 +136,7 @@ pub enum StepContextError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SidecarStepContext {
     pub fn new(runtime: RuntimeHandle, scope: RecordScope) -> Self {
         Self::with_source(runtime, scope, "runtime.step")
@@ -460,6 +472,7 @@ impl From<crate::runtime::Error> for StepContextError {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn leased_host_sampling(
     runtime: &RuntimeHandle, scope: SamplingScope, params: TelemetrySamplingRequest,
 ) -> crate::runtime::Result<TelemetryCaptureLease> {

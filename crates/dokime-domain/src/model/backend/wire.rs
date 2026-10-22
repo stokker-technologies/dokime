@@ -100,6 +100,9 @@ pub struct BackendIdentity {
     pub sdk_revision: Option<String>,
     pub started_at: Option<Timestamp>,
     pub display_name: String,
+    // Rust target of the backend that admits plugin sidecars.
+    #[row(description = "Authoritative Rust target of the backend that admits plugin sidecars.")]
+    pub target: String,
 }
 
 #[harmos_domain::message]
@@ -159,6 +162,8 @@ pub struct BackendLimits {
     // Optional until corresponding streaming/query services are implemented.
     #[row(description = "Optional until corresponding streaming/query services are implemented.")]
     pub max_content_bytes: Option<u64>,
+
+    pub max_evidence_bytes: Option<u64>,
 
     pub max_chunk_bytes: Option<u32>,
     pub max_page_items: Option<u32>,

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = CheckpointTelemetryPage, id = "dokime.history.list_checkpoint_telemetry", version = 1,
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
@@ -34,9 +37,11 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListCheckpointTelemetry {
     pub checkpoint: Option<ExecutionCheckpoint>,
+
     // Original logical native stream identifier; never a Delta table name.
     #[row(description = "Original logical native stream identifier; never a Delta table name.")]
     pub table: String,
+
     pub limit: u32,
     pub after: String,
 }

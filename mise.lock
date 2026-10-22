@@ -42,6 +42,53 @@ checksum = "sha256:4a433984f45ff29c94eeb3af6db5b511c58f5bf74063dccedafcbf473cb8f
 url = "https://github.com/boyter/scc/releases/download/v4.1.0/scc_Windows_x86_64.zip"
 url_api = "https://api.github.com/repos/boyter/scc/releases/assets/549478880"
 
+[[tools."aqua:cargo-bins/cargo-binstall"]]
+version = "1.26.0"
+backend = "aqua:cargo-bins/cargo-binstall"
+specifiers = ["1.26.0"]
+
+[tools."aqua:cargo-bins/cargo-binstall"."platforms.linux-arm64"]
+checksum = "sha256:255fd8d52e3a977ddb5e74fee58e7ef14b31c09d4eab5ad678e9967baedefced"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.0/cargo-binstall-aarch64-unknown-linux-gnu.tgz"
+url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/650344745"
+provenance = "github-attestations"
+
+[tools."aqua:cargo-bins/cargo-binstall"."platforms.linux-arm64-musl"]
+checksum = "sha256:4c7fdaa9fb6803ef66d282dfb671dc81f36fc03d469fb9a177b4aa4fade6b91b"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.0/cargo-binstall-aarch64-unknown-linux-musl.tgz"
+url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/650344574"
+provenance = "github-attestations"
+
+[tools."aqua:cargo-bins/cargo-binstall"."platforms.linux-x64"]
+checksum = "sha256:e59aec44d811ab53b1bb4c5e0b57e433b017999c37e24ca577a3afbefd49dabd"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.0/cargo-binstall-x86_64-unknown-linux-gnu.tgz"
+url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/650343654"
+provenance = "github-attestations"
+
+[tools."aqua:cargo-bins/cargo-binstall"."platforms.linux-x64-musl"]
+checksum = "sha256:dd7ff9451d8ba2e437a8d861889b630746f82f09d931df2d893b0c3f28656f87"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.0/cargo-binstall-x86_64-unknown-linux-musl.tgz"
+url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/650343510"
+provenance = "github-attestations"
+
+[tools."aqua:cargo-bins/cargo-binstall"."platforms.macos-arm64"]
+checksum = "sha256:8cb681294876c8fdc1750bf79cd24aa0fa810cb91ecbd869d9e540a00dd08624"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.0/cargo-binstall-aarch64-apple-darwin.zip"
+url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/650345034"
+provenance = "github-attestations"
+
+[tools."aqua:cargo-bins/cargo-binstall"."platforms.macos-x64"]
+checksum = "sha256:5af8aa7b908318eb26794f35a0a7baf46132cf9c2d20b0a9f5aea4effed96b22"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.0/cargo-binstall-x86_64-apple-darwin.zip"
+url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/650343951"
+provenance = "github-attestations"
+
+[tools."aqua:cargo-bins/cargo-binstall"."platforms.windows-x64"]
+checksum = "sha256:59ab87c04779661369f4bfcc3d58f3d6e5ede36e0c5b6651af00a4c69f95769a"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.0/cargo-binstall-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/assets/650343802"
+provenance = "github-attestations"
+
 [[tools."aqua:nextest-rs/nextest/cargo-nextest"]]
 version = "0.9.148"
 backend = "aqua:nextest-rs/nextest/cargo-nextest"
@@ -303,6 +350,35 @@ checksum = "sha256:a3dfe29f617f7d2100ae2aef73cc8ad82fbfee8392ffd99e190a4ba6b6d69
 url = "https://gitlab.com/gitlab-org/cli/-/releases/v1.123.0/downloads/glab_1.123.0_windows_amd64.zip"
 url_api = "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/1%2E123%2E0/glab_1%2E123%2E0_windows_amd64%2Ezip"
 
+[[tools.minisign]]
+version = "0.12"
+backend = "aqua:jedisct1/minisign"
+specifiers = ["0.12"]
+
+[tools.minisign."platforms.linux-x64"]
+checksum = "sha256:9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886623"
+provenance = "minisign"
+
+[tools.minisign."platforms.linux-x64-musl"]
+checksum = "sha256:9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886623"
+provenance = "minisign"
+
+[tools.minisign."platforms.macos-arm64"]
+checksum = "sha256:89000b19535765f9cffc65a65d64a820f433ef6db8020667f7570e06bf6aac63"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-macos.zip"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220895743"
+provenance = "minisign"
+
+[tools.minisign."platforms.windows-x64"]
+checksum = "sha256:37b600344e20c19314b2e82813db2bfdcc408b77b876f7727889dbd46d539479"
+url = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip"
+url_api = "https://api.github.com/repos/jedisct1/minisign/releases/assets/220886631"
+provenance = "minisign"
+
 [[tools.node]]
 version = "26.11.1"
 backend = "core:node"
@@ -335,6 +411,12 @@ url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-darwin-x64.tar.gz"
 [tools.node."platforms.windows-x64"]
 checksum = "sha256:97f36a8a9684ff0d3e35758b4610fef5b628a5880e96f2ccc11240e5daf9934e"
 url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
+
+[[tools."npm:@fission-ai/openspec"]]
+version = "1.14.3"
+aube = { path = ".mise/locks/npm-fission-ai-openspec/1.14.3", digest = "sha256:a4eac77dfd175043aeda9d4d678c5b166fab4902a55945cc74f1eb8d056b8ea9" }
+backend = "npm:@fission-ai/openspec"
+specifiers = ["1.14.3"]
 
 [[tools.pnpm]]
 version = "12.11.2"

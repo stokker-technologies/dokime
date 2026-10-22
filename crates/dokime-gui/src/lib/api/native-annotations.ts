@@ -20,7 +20,7 @@ import type { CommandReceipt, HealthItem, OperatorNote, RecordScope } from "@/li
 import {
   mapNativeSeverity,
   NATIVE_MAX_PAGES,
-  NATIVE_PAGE_SIZE,
+  NATIVE_SMALL_PAGE_SIZE,
   NativeApiLimitError,
   nowIso,
   recordScopeFromNative,
@@ -45,7 +45,7 @@ export async function fetchNativeNotes(session: SessionIdentity, scope: RecordSc
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
     const reply = await rpc.notesListNotes(session, {
       selection,
-      limit: NATIVE_PAGE_SIZE,
+      limit: NATIVE_SMALL_PAGE_SIZE,
       afterId,
       cursor,
     });
@@ -69,7 +69,7 @@ export async function fetchNativeHealth(session: SessionIdentity, scope: RecordS
   for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
     const reply = await rpc.healthListHealth(session, {
       selection,
-      limit: NATIVE_PAGE_SIZE,
+      limit: NATIVE_SMALL_PAGE_SIZE,
       afterId,
       cursor,
     });

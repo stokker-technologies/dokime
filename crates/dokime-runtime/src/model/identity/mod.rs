@@ -36,6 +36,7 @@
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn new_id<T>() -> T
 where
     T: TryFrom<String>,

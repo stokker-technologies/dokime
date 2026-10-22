@@ -12,15 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::artifacts::ArtifactUploadInput;
-use dokime_runtime::definition::{TestCaseTemplate, TestSuite};
-use dokime_runtime::{Identifier, Metadata, RecordScope, TemplateId};
+use dokime::RuntimeHandle;
+use dokime::artifacts::ArtifactUploadInput;
+use dokime::definition::{TestCaseTemplate, TestSuite};
+use dokime::{Identifier, Metadata, RecordScope, TemplateId};
 
 /* === Constants === */
 
@@ -29,6 +30,7 @@ use dokime_runtime::{Identifier, Metadata, RecordScope, TemplateId};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Provider(tokio::sync::watch::Sender<Option<String>>);
 
 /* === Enums === */
@@ -36,17 +38,18 @@ pub struct Provider(tokio::sync::watch::Sender<Option<String>>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for Provider {
     fn default() -> Self {
         Self(tokio::sync::watch::Sender::new(None))
     }
 }
 
-impl dokime_runtime::ExecutionFixture for Provider {
+impl dokime::ExecutionFixture for Provider {
     fn run_cycle<'a>(
-        &'a self, context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
-        _target: &'a dokime_runtime::domains::ExecutionProviderTarget,
-    ) -> dokime_runtime::ExecutionFixtureFuture<'a> {
+        &'a self, context: dokime::ExecutionFixtureContext, cycle: &'a dokime::domain::model::execution::result::CycleView,
+        _target: &'a dokime::domains::ExecutionProviderTarget,
+    ) -> dokime::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             let execution = &cycle.test_executions[0];
             let upload = context
@@ -57,18 +60,18 @@ impl dokime_runtime::ExecutionFixture for Provider {
                         .with_test_execution(execution.test_execution_id.clone()),
                     filename: "wire.bin".into(),
                     content_type: Some("application/octet-stream".into()),
-                    size_bytes: 150_000,
+                    size_bytes: 1_200_000,
                     sha256: None,
                 })
                 .await
                 .unwrap();
-            let bytes: Vec<_> = (0..150_000).map(|i| (i % 251) as u8).collect();
+            let bytes: Vec<_> = (0..1_200_000).map(|i| (i % 251) as u8).collect();
             for chunk in bytes.chunks(64 * 1024) {
                 upload.send(chunk).await.unwrap();
             }
             let artifact_id = upload.finish().await.unwrap().artifact_id.to_string();
             self.0.send_replace(Some(artifact_id));
-            use dokime_runtime::transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome};
+            use dokime::transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome};
             Ok(ProviderCycleOutcome {
                 status: "passed".into(),
                 dependency_imports: vec![],
@@ -99,10 +102,11 @@ impl dokime_runtime::ExecutionFixture for Provider {
 }
 
 /* === Public Functions === */
+
 pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
     let metadata = || Metadata::new(Identifier::new("rpc.artifact").unwrap(), "Artifact fixture", None);
     let template = TestCaseTemplate {
-        test_case_template_id: dokime_runtime::model::identity::new_id::<TemplateId>(),
+        test_case_template_id: dokime::model::identity::new_id::<TemplateId>(),
         metadata: metadata(),
         tags: vec![],
         parameter_groups: vec![],
@@ -111,7 +115,6 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         document: None,
         phases: vec![],
         criteria: vec![],
-        continue_on_failure: false,
         prompt_definitions: vec![],
         subscriptions: vec![],
         attributes: Default::default(),
@@ -120,7 +123,7 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
     runtime
         .set_suites(
             "provider:fixture",
-            dokime_runtime::definition::SuiteSet::new([dokime_runtime::domains::TestSuiteDefinition {
+            dokime::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition {
                 suite_id: "rpc.artifact".into(),
                 tags: vec![],
                 workflow: Some("execute_cycle".into()),
@@ -131,42 +134,52 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         )
         .await
         .unwrap();
-    let cycle_id = registered_cycle(runtime, "rpc.artifact", metadata()).await;
-    let receipt = runtime.run_cycle_cases(cycle_id, Default::default()).await;
-    assert_eq!(receipt.status, dokime_runtime::runtime::command::CommandStatus::Accepted);
+    let (_cycle_id, executions) = registered_cycle(runtime, "rpc.artifact", metadata()).await;
+    let receipt = runtime
+        .start_execution(executions[0].clone(), dokime::domain::model::execution::ExecutionMode::Automatic, Default::default())
+        .await;
+    assert_eq!(receipt.status, dokime::runtime::command::CommandStatus::Accepted);
     // The Provider Publishes The Artifact Once Its Upload Finished
     let mut published = provider.0.subscribe();
     published.wait_for(Option::is_some).await.expect("the provider outlives its cycle").clone().unwrap()
 }
 
-pub async fn registered_cycle(runtime: &RuntimeHandle, suite_id: &str, metadata: Metadata) -> dokime_runtime::TestCycleId {
+pub async fn registered_cycle(
+    runtime: &RuntimeHandle, suite_id: &str, metadata: Metadata,
+) -> (dokime::TestCycleId, Vec<dokime::TestExecutionId>) {
     let suite =
         runtime.test_suites().await.into_iter().find(|entry| entry.suite_id == suite_id).expect("fixture suite is registered").suite;
-    let options = dokime_runtime::definition::CaseMaterializationOptions {
+    let options = dokime::definition::CaseMaterializationOptions {
         force: true,
-        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
-        registration_id: dokime_runtime::model::identity::new_id(),
+        max_cases: dokime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        registration_id: dokime::model::identity::new_id(),
         first_label_number: 1,
     };
     let cases = suite
         .test_case_templates
         .iter()
         .flat_map(|template| {
-            dokime_runtime::definition::materialize_template_cases(suite_id, template, Default::default(), options.clone())
-                .unwrap()
-                .test_cases
+            dokime::definition::materialize_template_cases(suite_id, template, Default::default(), options.clone()).unwrap().test_cases
         })
         .map(|mut case| {
             case.suite = Some(suite.metadata.clone());
             case
         })
-        .collect();
+        .collect::<Vec<_>>();
     let cycle_id = runtime
-        .create_cycle(dokime_runtime::transactions::CycleDefinition { metadata, continue_on_failure: false }, Default::default())
+        .create_cycle(dokime::transactions::CycleDefinition { metadata, continue_automatically: false }, Default::default())
         .await
         .unwrap();
-    runtime.append_cycle_cases(cycle_id.clone(), cases, Default::default()).await.unwrap();
-    cycle_id
+    let bindings = cases
+        .iter()
+        .map(|case| {
+            let execution = dokime::model::identity::new_id::<dokime::TestExecutionId>();
+            (execution, case.test_case_id.clone())
+        })
+        .collect::<Vec<_>>();
+    runtime.register_cases(options.registration_id, cases).await.unwrap();
+    runtime.append_executions(cycle_id.clone(), bindings.clone()).await.unwrap();
+    (cycle_id, bindings.into_iter().map(|(execution, _case)| execution).collect())
 }
 
 /* === Private Functions === */

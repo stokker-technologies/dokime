@@ -8,19 +8,23 @@
  */
 
 /* === Modules === */
+
 mod read;
 
 /* === Re-Exports === */
+
 pub use crate::execution_runtime::outputs::{ExecutionFileContentKind, ExecutionFileStreamState};
 pub use dokime_domain::model::execution::RecordScope;
 pub use read::RuntimeExecutionFileRead;
 pub(crate) use read::execution_file_frame;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::artifacts::ArtifactRecord;
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
@@ -34,6 +38,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeArtifactFrame {
     pub artifacts: Vec<ArtifactRecord>,
@@ -70,6 +75,7 @@ pub struct RuntimeExecutionFileFrame {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn artifact_frame<'a>(
     artifacts: impl Iterator<Item = &'a ArtifactRecord>, scope: Option<&DomainRecordScope>, window: &RuntimeWindow,
     resolution: &RuntimeResolution,

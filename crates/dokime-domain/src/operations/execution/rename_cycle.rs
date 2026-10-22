@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Renames one live cycle until it seals or is archived.
 #[harmos_domain::message]
 #[harmos_domain::operation(response = RenameReply, id = "dokime.execution.rename_cycle", version = 1,
@@ -35,9 +38,11 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenameCycle {
     pub cycle_id: String,
+
     // nonblank after trimming, at most 4096 bytes UTF-8
     #[row(description = "nonblank after trimming, at most 4096 bytes UTF-8")]
     pub label: String,
+
     pub context: Option<MutationContext>,
 }
 

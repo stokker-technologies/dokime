@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::prompts::PromptInstance;
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
@@ -33,6 +35,7 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeResourceFrame {
     pub records: Vec<ResourceRecord>,
@@ -84,6 +87,7 @@ struct Reduced<T> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<T> Reduced<T> {
     fn truncated(&self) -> bool {
         self.returned < self.total
@@ -126,6 +130,7 @@ impl From<Reduced<OperatorNote>> for RuntimeNoteFrame {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn resource_frame<'a>(
     records: impl Iterator<Item = &'a ResourceRecord>, scope: Option<&RecordScope>, window: &RuntimeWindow, resolution: &RuntimeResolution,
 ) -> RuntimeResourceFrame {
@@ -173,6 +178,7 @@ pub(crate) fn note_frame<'a>(
 }
 
 /* === Private Functions === */
+
 fn windowed<'a, T: Clone + 'a>(
     items: impl Iterator<Item = &'a T>, visible: impl Fn(&T) -> bool, timestamp: impl Fn(&T) -> &Timestamp, window: &RuntimeWindow,
     resolution: &RuntimeResolution,

@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod serialization;
 
 /* === Re-Exports === */
@@ -27,6 +28,7 @@ use serde::{
 use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
+
 const MAX_DEPTH: usize = 128;
 
 /* === Macros === */
@@ -36,6 +38,7 @@ const MAX_DEPTH: usize = 128;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Clone, Debug)]
 pub enum Value {
     Null,
@@ -51,6 +54,7 @@ pub enum Value {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Value {
     pub fn from_serializable<T: ?Sized + Serialize>(source: &T) -> Result<Self> {
         serialization::build(source, std::num::NonZeroUsize::MAX)
@@ -80,6 +84,7 @@ impl Value {
         std::mem::size_of::<Self>().saturating_add(heap)
     }
 }
+
 // Dynamic JSON Keeps Its Existing Numeric Equality Across Import Paths.
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
@@ -105,6 +110,7 @@ impl harmos::MemorySize for Value {
         self.memory_at(0)
     }
 }
+
 impl Serialize for Value {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         match self {
@@ -120,6 +126,7 @@ impl Serialize for Value {
         }
     }
 }
+
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         struct Owned;
@@ -175,6 +182,7 @@ impl<'de> Deserialize<'de> for Value {
         deserializer.deserialize_any(Owned)
     }
 }
+
 impl TryFrom<serde_json::Value> for Value {
     type Error = Error;
     fn try_from(value: serde_json::Value) -> Result<Self> {
@@ -185,9 +193,11 @@ impl TryFrom<serde_json::Value> for Value {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
     if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
 }
+
 // Standalone JSON Imports Only; Native Capture Producers Construct Owned Values Directly.
 fn from_json(value: serde_json::Value, depth: usize) -> Result<Value> {
     if depth > MAX_DEPTH {

@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, fs, ops::RangeInclusive, process::Command, time::Duration};
+
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
+
 const PROC_NET_WIRELESS: &str = "/proc/net/wireless";
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
@@ -28,6 +31,7 @@ const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[cfg(not(windows))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct NmcliWifiRow {
@@ -53,6 +57,7 @@ pub struct WifiLinkReport {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[cfg(not(windows))]
 impl NmcliWifiRow {
     pub fn parse(line: &str) -> Option<Self> {
@@ -166,6 +171,7 @@ pub(crate) fn adapter_matches(device: Option<&str>, filter: Option<&str>) -> boo
 }
 
 /* === Private Functions === */
+
 #[cfg(not(windows))]
 fn iw_links() -> Result<BTreeMap<String, WifiLinkReport>, String> {
     let devices = iw_output(&["dev"])?;

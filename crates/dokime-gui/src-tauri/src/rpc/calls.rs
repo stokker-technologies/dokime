@@ -12,16 +12,20 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{str::FromStr, time::Duration};
+
 // Third Party Imports
 use tauri::ipc::{Channel, JavaScriptChannelId, Response};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+
 // Local Imports
 use super::*;
 
 /* === Constants === */
+
 pub const PATH_HEADER: &str = "dokime-rpc-path";
 pub const DEADLINE_HEADER: &str = "dokime-rpc-deadline-ms";
 pub const CHANNEL_HEADER: &str = "dokime-rpc-channel";
@@ -32,7 +36,6 @@ pub const STREAM_CREDIT: usize = 32;
 pub const FRAME_MESSAGE: u8 = 0;
 pub const FRAME_END: u8 = 1;
 pub const FRAME_ERROR: u8 = 2;
-
 const UNARY_DEADLINE: Duration = Duration::from_secs(10);
 const STREAM_DEADLINE: Duration = Duration::from_secs(86_400);
 const INPUT_BUFFER: usize = 2;
@@ -42,6 +45,7 @@ const INPUT_BUFFER: usize = 2;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(super) struct Streams {
     budget: Arc<Semaphore>,
@@ -82,6 +86,7 @@ struct Opening {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Streams {
     pub(super) fn new(capacity: usize) -> Self {
         Self { budget: Arc::new(Semaphore::new(capacity)), registry: Arc::default() }
@@ -212,6 +217,7 @@ impl Entry {
 }
 
 /* === Public Functions === */
+
 #[tauri::command]
 pub async fn rpc<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
@@ -303,8 +309,9 @@ pub async fn rpc_stream_ack<R: tauri::Runtime>(
 }
 
 /* === Private Functions === */
+
 async fn forward(
-    entry: &Entry, context: &Context, client: &dokime_client::Client, channel: &Channel<Response>, path: &str,
+    entry: &Entry, context: &Context, client: &dokime::client::Client, channel: &Channel<Response>, path: &str,
     receiver: mpsc::Receiver<Vec<u8>>, deadline: Duration,
 ) -> Result<(), RpcError> {
     let mut incoming = client.stream_raw(path, ReceiverStream::new(receiver), deadline).await?;
@@ -358,6 +365,7 @@ fn stream(headers: &tauri::http::HeaderMap) -> Result<u64, RpcError> {
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;

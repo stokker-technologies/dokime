@@ -168,6 +168,11 @@ export function documentPlotsKey(plots: DocumentViewPlot[]): string {
     .join(",");
 }
 
+/** Whether the group header would only repeat its single plot's own title. */
+export function groupRepeatsPlotTitle(title: string, plots: readonly DocumentViewPlot[]): boolean {
+  return plots.length === 1 && plots[0].title.trim().toLowerCase() === title.trim().toLowerCase();
+}
+
 export function documentPlotGroupDescription(title: string): string {
   return `Additional numeric telemetry for ${title}.`;
 }

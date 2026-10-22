@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,7 +22,7 @@ use crate::InstalledPlugin;
 use crate::domains::DispatchContext;
 use crate::{
     RuntimeHandle,
-    installed_plugins::{PluginCredentialSecretUpdate, PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings},
+    installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate, RuntimePluginManagementError, RuntimePluginSettings},
 };
 use dokime_domain::model::identity::Identifier;
 
@@ -38,16 +39,17 @@ use dokime_domain::model::identity::Identifier;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub(crate) fn action_dispatch_context(&self, plugin: &InstalledPlugin) -> Result<DispatchContext, RuntimePluginManagementError> {
         let resolved = self.plugin_preferences().read(
             &Identifier::new(&plugin.source).map_err(|error| RuntimePluginManagementError::InvalidInput(error.to_string()))?,
             &plugin.settings,
-            &self.credential_store(),
+            &self.secret_store(),
         )?;
-        let credentials_configured = resolved.redacted_credentials.missing_required.is_empty();
+        let secrets_configured = resolved.redacted_secrets.missing_required.is_empty();
 
-        Ok(DispatchContext { credentials_configured })
+        Ok(DispatchContext { secrets_configured })
     }
 
     pub async fn plugin_settings(&self, plugin_id: &Identifier) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
@@ -56,12 +58,12 @@ impl RuntimeHandle {
             .get(plugin_id.as_str())
             .cloned()
             .ok_or_else(|| RuntimePluginManagementError::NotFound(plugin_id.clone()))?;
-        let resolved = self.plugin_preferences().read(plugin_id, &plugin.settings, &self.credential_store())?;
+        let resolved = self.plugin_preferences().read(plugin_id, &plugin.settings, &self.secret_store())?;
         Ok(RuntimePluginSettings {
             settings: plugin.settings,
             values: resolved.values,
             discovered: resolved.discovered,
-            credential_bindings: resolved.redacted_credentials,
+            secret_bindings: resolved.redacted_secrets,
         })
     }
 
@@ -69,7 +71,7 @@ impl RuntimeHandle {
         let Some(plugin) = self.installed_plugins().get(plugin_id.as_str()).cloned() else {
             return;
         };
-        let saved = match self.plugin_preferences().read(plugin_id, &plugin.settings, &self.credential_store()) {
+        let saved = match self.plugin_preferences().read(plugin_id, &plugin.settings, &self.secret_store()) {
             Ok(resolved) => resolved.saved,
             Err(error) => {
                 tracing::warn!(%plugin_id, %error, "saved settings did not resolve; nothing was discovered");
@@ -103,27 +105,27 @@ impl RuntimeHandle {
         self.plugin_settings(plugin_id).await
     }
 
-    pub async fn save_plugin_credential_secret(
-        &self, plugin_id: &Identifier, credential_id: &str, update: PluginCredentialSecretUpdate,
+    pub async fn save_plugin_secret(
+        &self, plugin_id: &Identifier, secret_id: &str, update: PluginSecretUpdate,
     ) -> Result<RuntimePluginSettings, RuntimePluginManagementError> {
         if update.secret.is_empty() {
-            return Err(RuntimePluginManagementError::InvalidInput("credential secret must not be empty".to_owned()));
+            return Err(RuntimePluginManagementError::InvalidInput("secret secret must not be empty".to_owned()));
         }
         let plugin = self
             .installed_plugins()
             .get(plugin_id.as_str())
             .cloned()
             .ok_or_else(|| RuntimePluginManagementError::NotFound(plugin_id.clone()))?;
-        if !plugin.settings.secrets().any(|secret| secret.id == credential_id) {
+        if !plugin.settings.secrets().any(|secret| secret.id == secret_id) {
             return Err(RuntimePluginManagementError::InvalidInput(format!(
-                "credential {credential_id} is not declared by plugin plugin {plugin_id}"
+                "secret {secret_id} is not declared by plugin plugin {plugin_id}"
             )));
         }
-        let stored_id = format!("{}.{}", plugin_id.as_str(), credential_id);
-        self.credential_store()
+        let stored_id = format!("{}.{}", plugin_id.as_str(), secret_id);
+        self.secret_store()
             .set_secret(&stored_id, &update.secret)
             .map_err(|error| RuntimePluginManagementError::Store(error.to_string()))?;
-        self.plugin_preferences().bind_credential(plugin_id, credential_id, stored_id)?;
+        self.plugin_preferences().bind_secret(plugin_id, secret_id, stored_id)?;
         self.plugin_settings(plugin_id).await
     }
 }

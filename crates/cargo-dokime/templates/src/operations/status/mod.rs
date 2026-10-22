@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -20,7 +21,7 @@ use std::sync::Arc;
 // Local Imports
 use crate::Bench;
 use crate::domain::operations::GetStatus;
-use dokime_runtime::prelude::*;
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -29,6 +30,7 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct StatusProbe {
     bench: Arc<Bench>,
 }
@@ -38,8 +40,9 @@ pub struct StatusProbe {
 /* === Traits === */
 
 /* === Implementations === */
+
 // The handler declares nothing: its request type is the operation.
-#[dokime_runtime::operation]
+#[dokime::operation]
 impl StatusProbe {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }

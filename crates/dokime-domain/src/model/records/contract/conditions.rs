@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::Identifier;
 use crate::model::values::Value;
@@ -26,12 +29,15 @@ use crate::model::values::Value;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type RecordConditionEvaluation = crate::model::validation::ConditionEvaluation;
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecordCondition {
     pub record_type: Identifier,
+
     #[serde(default, rename = "match")]
     pub match_fields: BTreeMap<String, Value>,
 }
@@ -41,6 +47,7 @@ pub struct RecordCondition {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for RecordCondition {
     fn memory_size(&self) -> usize {
         let fields = [

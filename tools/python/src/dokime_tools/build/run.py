@@ -1,3 +1,4 @@
+# Rendered by stkr project update from templates/python/build/run.py; sha256:a7eab04312b5bf5db55b8f79dbff40f51a4116ac256737e8a71ff421d53c7f2c
 # ***
 #
 # Dokime
@@ -6,50 +7,30 @@
 #
 # ***
 
-
-"""Build Every Development Output Once And Stamp The Staged Fixtures
-
-    python -m dokime_tools.build.run <rust|typescript|python|stamp> [--profile dev|release|bench]
-
-`rust` compiles the one workspace nextest archive, stages the product executables, packages the
-OBC plugin bundle from the archive's compiler output, and exports the locked Cargo source closure
-and starter wheelhouse for the generated-project story. `typescript` runs protoc-gen-es over the
-dokime-server contract export, verifies the tracked GUI client, stages the generated message
-modules and builds the live frontend. `python` verifies the tracked client and builds the wheel
-into `target/wheels`. `stamp` names and hashes the fixtures the lanes consume. Every staged file
-lives under `dist/build/<platform>` or `target/wheels`, the paths a lane runner downloads; each
-step records its files under `target/build/<profile>/` so later steps never compile again.
-"""
+"""Build Packageable Products Without Test Harnesses Or Fixtures"""
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
 import json
+import os
+import shutil
 import subprocess
-import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import dependencies, frontend, outputs, wheel
-from dokime_tools.package import fixtures
-from dokime_tools.package.staging import clear_output, stage_file, sync_output
-from dokime_tools.prepare import bindings, generated
-from dokime_tools.test import archive, policy
+from .. import temporary
+from . import paths
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
 # === Constants === #
-
-ROOT = frontend.ROOT
-PLATFORM = "windows" if sys.platform == "win32" else "linux"
-STAGED = ROOT / "dist/build" / PLATFORM
-EXECUTABLES = ("dokime", "dokime-server", "cargo-dokime", "dokime-gui")
-STEPS = ("rust", "typescript", "python")
 
 # === Types === #
 
@@ -58,89 +39,96 @@ STEPS = ("rust", "typescript", "python")
 # === Public Functions === #
 
 
-def rust(profile: str) -> list[str]:
-    """Compile Once, Then Stage Executables, The Plugin Bundle And The Offline Dependency Closure."""
-    # Development And Bench Archives Carry The Runtime's Story Hooks; Release Binaries Never Do.
-    stories = [] if profile == "release" else ["--features", "dokime-runtime/fault-injection"]
-    messages = archive.build(ROOT, profile, stories).with_name(archive.MESSAGES)
-    binaries = STAGED / "bin"
-    clear_output(binaries)
-    staged = []
-    for path in outputs.executables(messages, EXECUTABLES).values():
-        stage_file(path, binaries / path.name)
-        staged.append(binaries / path.name)
-    tool = binaries / f"cargo-dokime{_exe()}"
-    staged += fixtures.prepare(ROOT, messages, profile, tool=tool, output=STAGED / "plugins")
-    # The Generated-Project Story Builds Offline From The Locked Source Closure And Wheelhouse.
-    staged += dependencies.cargo(ROOT, STAGED / "dependencies")
-    staged += dependencies.wheelhouse(ROOT, STAGED / "dependencies")
-    return _relative(staged)
+def rust(directory: Path, profile: str, native: str | None = None) -> None:
+    destination = paths.output(directory, "build", profile, native)
+    messages = destination / "product/compiler.json"
+    messages.parent.mkdir(parents=True, exist_ok=True)
+    command = ["cargo", "build", "--locked", "--workspace", "--profile", profile, "--message-format=json-render-diagnostics"]
+    with messages.open("w", encoding="utf-8") as output:
+        subprocess.run(command, cwd=directory, stdout=output, check=True)
+    with temporary.directory() as staging:
+        for name in ("bin", "lib"):
+            (staging / name).mkdir()
+        for event in _artifacts(directory, messages):
+            executable = event.get("executable")
+            if executable and event.get("target", {}).get("kind") == ["bin"]:
+                source = Path(executable)
+                shutil.copy2(source, staging / "bin" / source.name)
+            elif any(
+                kind in event.get("target", {}).get("kind", []) for kind in ("lib", "rlib", "cdylib", "dylib", "staticlib", "proc-macro")
+            ):
+                for filename in event.get("filenames", []):
+                    source = Path(filename)
+                    shutil.copy2(source, staging / "lib" / source.name)
+        for name in ("bin", "lib"):
+            paths.replace(directory, staging / name, destination / name, origin=staging)
+    record_target(directory, messages, profile, native)
 
 
-def typescript(profile: str) -> list[str]:
-    """Generate The GUI Message Modules From The Server Export And Build The Live Frontend."""
-    messages = _messages(profile)
-    subprocess.run(["node", str(frontend.WEB_ROOT / "tools/bindings.mjs"), str(messages), "--check"], cwd=ROOT, check=True)
-    generated.stage()
-    built = frontend.build(profile)
-    destination = STAGED / "frontend"
-    sync_output(built, destination)
-    return _relative([path for path in destination.rglob("*") if path.is_file()])
+def record_target(directory: Path, messages: Path, profile: str, native: str | None = None) -> None:
+    """Record The Actual Rust Target For Generic And Authored Product Builders."""
+    compiler = subprocess.run(["rustc", "-vV"], cwd=directory, capture_output=True, text=True, check=True).stdout
+    host = next(line.removeprefix("host: ") for line in compiler.splitlines() if line.startswith("host: "))
+    triple = os.environ.get("CARGO_BUILD_TARGET", host)
+    compiled_targets = set()
+    for event in _artifacts(directory, messages):
+        for filename in event.get("filenames", []):
+            parent = Path(filename).parent
+            if parent.name == "deps":
+                parent = parent.parent
+            candidate = parent.parent.name
+            if "-linux-" in candidate or "-windows-" in candidate or candidate.endswith("-apple-darwin"):
+                compiled_targets.add(candidate)
+    if len(compiled_targets) > 1:
+        raise ValueError("Product Build exported more than one Rust target")
+    actual = next(iter(compiled_targets), triple)
+    if "CARGO_BUILD_TARGET" in os.environ and actual != triple:
+        raise ValueError("Product Build target differs from CARGO_BUILD_TARGET")
+    destination = paths.output(directory, "build", profile, native) / "product/target.txt"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(actual + "\n")
 
 
-def python(profile: str) -> list[str]:
-    """Require Current Tracked Client Code And Build The Wheel Offline."""
-    bindings.generate(_messages(profile), check=True)
-    return _relative([wheel.build(ROOT, profile)])
-
-
-def stamp(profile: str) -> None:
-    """Name And Hash Every Staged Fixture The Lanes Consume."""
-    files: list[str] = []
-    for step in STEPS:
-        files += json.loads(_record(profile, step).read_text(encoding="utf-8"))["files"]
-    archive.stamp(ROOT, profile, files, {"platform": PLATFORM})
-
-
-def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build Every Development Output Once")
-    parser.add_argument("step", choices=(*STEPS, "stamp"))
-    parser.add_argument("--profile", choices=(*policy.PROFILES, "bench"), default="dev")
-    options = parser.parse_args(arguments)
-    try:
-        if options.step == "stamp":
-            stamp(options.profile)
-            return 0
-        files = {"rust": rust, "typescript": typescript, "python": python}[options.step](options.profile)
-    except (policy.TestError, OSError, ValueError, subprocess.CalledProcessError) as error:
-        print(f"build {options.step}: {error}", file=sys.stderr)
-        return 1
-    path = _record(options.profile, options.step)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"files": files}, indent=2) + "\n", encoding="utf-8")
-    return 0
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Produce Canonical Build Outputs")
+    parser.add_argument("language", choices=("rust", "python", "typescript"))
+    parser.add_argument("--profile", choices=("dev", "release"), default="dev")
+    parser.add_argument("--project", default=".")
+    parser.add_argument("--target")
+    options = parser.parse_args()
+    directory = Path.cwd()
+    project = directory / options.project
+    if not project.resolve().is_relative_to(directory.resolve()):
+        raise ValueError("build project escapes the repository")
+    destination = paths.output(directory, "build", options.profile, options.target)
+    if options.language == "rust":
+        rust(directory, options.profile, options.target)
+    elif options.language == "python":
+        subprocess.run(
+            ["uv", "build", "--project", str(project), "--wheel", "--out-dir", str(destination / "python")],
+            cwd=directory,
+            check=True,
+        )
+        if options.target == "any" and any(not wheel.name.endswith("-none-any.whl") for wheel in (destination / "python").glob("*.whl")):
+            raise ValueError("the any Product producer requires platform-independent Python wheels")
+    else:
+        paths.replace(directory, project / "dist", destination / "web")
 
 
 # === Private Functions === #
 
 
-def _exe() -> str:
-    return ".exe" if sys.platform == "win32" else ""
-
-
-def _messages(profile: str) -> Path:
-    return archive.location(ROOT, profile).with_name(archive.MESSAGES)
-
-
-def _record(profile: str, step: str) -> Path:
-    return ROOT / "target/build" / profile / f"{step}.json"
-
-
-def _relative(paths: list[Path]) -> list[str]:
-    return sorted(path.resolve().relative_to(ROOT.resolve()).as_posix() for path in paths)
+def _artifacts(directory: Path, messages: Path) -> Iterator[dict[str, Any]]:
+    for line in messages.read_text(encoding="utf-8").splitlines():
+        event = json.loads(line)
+        if event.get("reason") != "compiler-artifact" or event.get("profile", {}).get("test"):
+            continue
+        manifest = Path(event["manifest_path"])
+        if manifest.resolve().is_relative_to(directory.resolve()) and "target" not in manifest.relative_to(directory).parts:
+            yield event
 
 
 # === Entry Point === #
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

@@ -6,13 +6,11 @@
 #
 # ***
 
-
 """Supervise Owned Desktop Development Processes"""
 
 # === Imports === #
 
 # Standard Library Imports
-
 import json
 import os
 import signal
@@ -27,16 +25,13 @@ from dokime_tools.build.frontend import ROOT, WEB_ROOT, ensure_report
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
 
-
 # === Types === #
 
 # === Classes === #
-
 
 # === Public Functions === #
 
@@ -54,7 +49,7 @@ def dev_plan(environment: dict[str, str], args: list[str]) -> tuple[list[str], d
     host = environment.get("DOKIME_DEV_HOST", "127.0.0.1")
     port = environment.get("DOKIME_DEV_PORT", "5173")
     url = f"http://{host}:{port}"
-    brand_path = ROOT / "branding/generated/tauri.brand.json"
+    brand_path = ROOT / "organization/generated/tauri.organization.json"
     brand = json.loads(brand_path.read_text(encoding="utf-8")) if brand_path.exists() else {}
     overlay = {"build": {"devUrl": url}, "bundle": {"externalBin": []}}
     config = merge_config(
@@ -196,7 +191,6 @@ def main() -> int:
 
 
 # === Private Functions === #
-
 
 # === Entry Point === #
 

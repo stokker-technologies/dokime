@@ -35,6 +35,7 @@ use dokime_domain::operations::catalog;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub fn suites(&self) -> Result<ResponseStream<dokime_domain::model::catalog::wire::SuiteDefinition>> {
         let client = self.clone();
@@ -134,13 +135,13 @@ impl Client {
 }
 
 /* === Public Functions === */
+
 // The suite a readable template id names, when the id is well formed.
 pub fn template_suite(identifier: &str) -> Option<&str> {
     let (suite, _) = identifier.rsplit_once('.')?;
     dokime_domain::model::definition::template_identifier(suite, identifier).ok().map(|()| suite)
 }
 
-/* === Private Functions === */
 pub(crate) fn registered_template<'a>(
     suite: &'a dokime_domain::model::catalog::wire::SuiteDefinition, identifier: &str,
 ) -> Result<&'a dokime_domain::model::catalog::wire::TemplateDefinition> {
@@ -158,6 +159,8 @@ pub(crate) fn registered_template<'a>(
         .map_err(|_| invalid("template has an invalid identity"))?;
     Ok(selected)
 }
+
+/* === Private Functions === */
 
 fn validate_listed_identity(
     identity: &dokime_domain::model::catalog::wire::SuiteIdentity, suite: &dokime_domain::model::catalog::wire::SuiteDefinition,

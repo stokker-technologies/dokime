@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 
 // Local Imports
@@ -38,7 +40,6 @@ use dokime_domain::model::identity::Metadata;
 /* === Implementations === */
 
 /* === Public Functions === */
-/* === Functions === */
 
 pub fn plot_input_for_definition(
     plot: &PlotDefinition, telemetry: &[TelemetrySample], marker_count: usize, selection: &DocumentSelection,
@@ -101,6 +102,7 @@ pub(crate) fn stream_matches_alias(actual: &str, declared: &str) -> bool {
 }
 
 /* === Private Functions === */
+
 fn sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
     if plot.stream.as_ref().is_some_and(|stream| !stream_matches_alias(sample.stream.as_str(), stream)) {
         return false;

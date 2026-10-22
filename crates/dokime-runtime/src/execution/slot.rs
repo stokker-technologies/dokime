@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Mutex, PoisonError};
+
 // Third Party Imports
 
 // Local Imports
@@ -25,6 +27,7 @@ use std::sync::{Mutex, PoisonError};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Slot<T> {
     value: Mutex<Option<T>>,
 }
@@ -34,6 +37,7 @@ pub struct Slot<T> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<T> Slot<T> {
     #[must_use]
     pub fn new() -> Self {

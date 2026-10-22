@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::de::DeserializeOwned;
+
 // Local Imports
 use crate::InstalledPlugin;
 use crate::definition::SuiteSet;
@@ -45,17 +47,25 @@ use crate::{runtime::Error, runtime::Result};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn decode_registrations(
     source: &str, version: &str, description: &str, registrations: &[harmos::sidecar::Registration],
 ) -> Result<InstalledPlugin> {
-    if registrations.iter().any(|registration| matches!(registration.namespace.as_str(), "dokime.config" | "dokime.credentials")) {
+    if registrations.iter().any(|registration| matches!(registration.namespace.as_str(), "dokime.config" | "dokime.secrets")) {
         return Err(Error::Operation(format!(
-            "plugin `{source}` uses retired configuration or credential catalogs; rebuild with the unified settings catalog"
+            "plugin `{source}` uses retired configuration or secret catalogs; rebuild with the unified settings catalog"
         )));
     }
     let settings = decode_once::<SettingsRegistration>(registrations, source, SETTINGS_NAMESPACE)?.unwrap_or_default();
     settings.catalog.validate().map_err(|error| Error::Operation(error.to_string()))?;
     let appearance = decode_once::<AppearanceRegistration>(registrations, source, APPEARANCE_NAMESPACE)?.unwrap_or_default();
+    for customization in &appearance.customizations {
+        for (index, logo) in customization.logo_assets.iter().enumerate() {
+            if customization.logo_assets[..index].iter().any(|other| other.variant == logo.variant || other.asset_id == logo.asset_id) {
+                return Err(Error::Operation(format!("plugin `{source}` registered duplicate logo categories or asset identifiers")));
+            }
+        }
+    }
     let installation = InstalledPlugin {
         source: source.to_owned(),
         version: version.to_owned(),
@@ -81,6 +91,7 @@ pub(crate) fn decode_registrations(
 }
 
 /* === Private Functions === */
+
 fn decode_once<T: DeserializeOwned>(registrations: &[harmos::sidecar::Registration], source: &str, namespace: &str) -> Result<Option<T>> {
     let matching = registrations.iter().filter(|entry| entry.namespace == namespace).collect::<Vec<_>>();
     let Some(registration) = matching.first() else {

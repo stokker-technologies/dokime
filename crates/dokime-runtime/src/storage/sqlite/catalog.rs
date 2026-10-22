@@ -12,14 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use rusqlite::{Connection, params};
+
 // Local Imports
 use super::{Error, State};
 
 /* === Constants === */
+
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_sources (
     identifier TEXT PRIMARY KEY, adapter TEXT NOT NULL,
@@ -33,6 +37,7 @@ INSERT OR IGNORE INTO storage_sources VALUES ('local', 'local', 0, 1);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Source {
     pub identifier: String,
@@ -46,6 +51,7 @@ pub struct Source {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl State {
     pub async fn register_source(&self, identifier: &str, adapter: &str) -> Result<(), Error> {
         if identifier.is_empty() || adapter.is_empty() || (identifier == "local") != (adapter == "local") {
@@ -69,7 +75,7 @@ impl State {
                 if !matched {
                     return Ok(false);
                 }
-                transaction.commit()?;
+                super::commit(transaction)?;
                 Ok(true)
             })
             .await?;
@@ -99,7 +105,7 @@ impl State {
                     transaction
                         .execute("UPDATE storage_sources SET priority = ?1 WHERE identifier = ?2", params![priority as i64, identifier])?;
                 }
-                transaction.commit()?;
+                super::commit(transaction)?;
                 Ok(true)
             })
             .await?;
@@ -129,6 +135,7 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: &str) -> Error {
     Error::Catalog(message.into())
 }

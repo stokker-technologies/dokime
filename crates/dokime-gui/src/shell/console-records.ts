@@ -21,7 +21,7 @@ import { useStore } from "zustand";
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
-import { consoleBufferKey, consoleRecordsStore, type ConsoleRecords, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
+import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
 
 /* === Constants === */
 

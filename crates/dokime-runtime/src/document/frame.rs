@@ -37,15 +37,18 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const NANOS_PER_SECOND: u128 = 1_000_000_000;
 const NONNUMERIC: &str = "numeric aggregate contains nonnumeric or nonfinite evidence";
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Result<T> = crate::Result<T>;
 
 /* === Structs === */
+
 pub(super) struct Plan {
     left: Vec<Column>,
     right: Vec<Column>,
@@ -77,7 +80,39 @@ struct Numeric {
     float: bool,
 }
 
+struct Selected<'a> {
+    ordinal: usize,
+    value: Option<Cow<'a, Value>>,
+    keys: Option<Keys<'a>>,
+    case: Option<usize>,
+}
+
+struct Keys<'a> {
+    scope: Option<&'a RecordScope>,
+    time: Option<i128>,
+}
+
+// As-Of Correlation: Right Rows Grouped By (Execution, Attempt) Keys; A Left
+// Row Takes The Latest Eligible Right Row Before It In Time Or Capture Order.
+struct Correlation {
+    rows: Vec<Projected>,
+    keys: usize,
+    strategy: Strategy,
+}
+
+pub(crate) struct Lookup {
+    correlation: Correlation,
+}
+
+pub(crate) struct Side<'a> {
+    pub ordinal: usize,
+    pub scope: Option<&'a RecordScope>,
+    pub time: Option<i128>,
+    pub present: bool,
+}
+
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Ordinal,
@@ -85,12 +120,14 @@ enum Kind {
     Numeric,
     Occurrence,
 }
+
 #[derive(Clone, PartialEq, Eq)]
 enum Join {
     None,
     Previous(String),
     AtOrBefore { stream: String, field: String },
 }
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Column {
     Value,
@@ -101,6 +138,7 @@ enum Column {
     Attempt,
     Time,
 }
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Shape {
     Original,
@@ -108,15 +146,23 @@ enum Shape {
     Numeric { flags: bool },
     Elapsed,
 }
+
 enum Output {
     Value(Option<Value>),
     Left(Option<u64>),
     Right(Option<u64>),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Strategy {
+    AtOrBefore,
+    Previous,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Plan {
     pub(super) fn compile(expression: &DataExpression, cases: Option<usize>) -> Result<Self> {
         let transforms = &expression.transforms;
@@ -510,22 +556,10 @@ impl Numeric {
     }
 }
 
-struct Selected<'a> {
-    ordinal: usize,
-    value: Option<Cow<'a, Value>>,
-    keys: Option<Keys<'a>>,
-    case: Option<usize>,
-}
-
 impl<'a> Selected<'a> {
     fn new(ordinal: usize, value: Option<Cow<'a, Value>>, keys: Option<Keys<'a>>, case: Option<usize>) -> Self {
         Self { ordinal, value, keys, case }
     }
-}
-
-struct Keys<'a> {
-    scope: Option<&'a RecordScope>,
-    time: Option<i128>,
 }
 
 impl<'a> Keys<'a> {
@@ -535,14 +569,6 @@ impl<'a> Keys<'a> {
     fn sample(sample: &'a TelemetrySample) -> Self {
         Self { scope: sample.scope.as_ref(), time: nanos(&sample.timestamp) }
     }
-}
-
-// As-Of Correlation: Right Rows Grouped By (Execution, Attempt) Keys; A Left
-// Row Takes The Latest Eligible Right Row Before It In Time Or Capture Order.
-struct Correlation {
-    rows: Vec<Projected>,
-    keys: usize,
-    strategy: Strategy,
 }
 
 impl Correlation {
@@ -584,23 +610,6 @@ impl Correlation {
     }
 }
 
-pub(crate) struct Lookup {
-    correlation: Correlation,
-}
-
-pub(crate) struct Side<'a> {
-    pub ordinal: usize,
-    pub scope: Option<&'a RecordScope>,
-    pub time: Option<i128>,
-    pub present: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Strategy {
-    AtOrBefore,
-    Previous,
-}
-
 impl Lookup {
     pub(crate) fn new<'a>(right: impl IntoIterator<Item = Side<'a>>, strategy: Strategy) -> Self {
         let rows = right
@@ -639,7 +648,12 @@ impl Lookup {
 
 /* === Public Functions === */
 
+pub(crate) fn nanos(timestamp: &dokime_domain::model::time::Timestamp) -> Option<i128> {
+    timestamp.to_datetime().ok().map(|time| time.unix_timestamp_nanos())
+}
+
 /* === Private Functions === */
+
 fn fold_of(transform: &DataTransform) -> Option<Agg> {
     match transform {
         DataTransform::Aggregate(aggregate) => Some(Agg::Of(*aggregate)),
@@ -724,10 +738,6 @@ fn detail<'a>(mut value: Cow<'a, Value>, transforms: &[DataTransform]) -> Option
         };
     }
     Some(value)
-}
-
-pub(crate) fn nanos(timestamp: &dokime_domain::model::time::Timestamp) -> Option<i128> {
-    timestamp.to_datetime().ok().map(|time| time.unix_timestamp_nanos())
 }
 
 fn keys(side: &Side<'_>) -> [ScalarValue; 3] {

@@ -12,17 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use crate::wire::WireMessage;
-use harmos::MemorySize;
+use dokime::harmos::MemorySize;
 use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::invoke;
 use crate::support::{artifact, server::Fixture};
-use dokime_domain::model;
+use dokime::domain::model;
 use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, handler};
 
 /* === Constants === */
@@ -76,15 +77,24 @@ fn app_and_window(
 struct ActiveFixture {
     release: tokio::sync::Notify,
 }
-impl dokime_runtime::ExecutionFixture for ActiveFixture {
+impl dokime::ExecutionFixture for ActiveFixture {
     fn run_cycle<'a>(
-        &'a self, _context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
-        _target: &'a dokime_runtime::domains::ExecutionProviderTarget,
-    ) -> dokime_runtime::ExecutionFixtureFuture<'a> {
+        &'a self, context: dokime::ExecutionFixtureContext, cycle: &'a dokime::domain::model::execution::result::CycleView,
+        _target: &'a dokime::domains::ExecutionProviderTarget,
+    ) -> dokime::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
-            use dokime_runtime::transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome};
-            self.release.notified().await;
+            use dokime::transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome};
             let execution = &cycle.test_executions[0];
+            context
+                .update_execution_phase(
+                    execution.scope.clone(),
+                    dokime::Identifier::new("rpc.artifact-upload.transfer").unwrap(),
+                    "Artifact Transfer".into(),
+                    "running".into(),
+                )
+                .await
+                .unwrap();
+            self.release.notified().await;
             Ok(ProviderCycleOutcome {
                 status: "passed".into(),
                 dependency_imports: vec![],
@@ -117,7 +127,7 @@ impl dokime_runtime::ExecutionFixture for ActiveFixture {
 struct ScopedFixture {
     session: dokime_gui::connection::ConnectionSession,
     server: dokime_server::grpc::Server,
-    runtime: dokime_runtime::Runtime,
+    runtime: dokime::Runtime,
     _root: tempfile::TempDir,
     scope: model::content::wire::ArtifactScope,
     execution: std::sync::Arc<ActiveFixture>,
@@ -126,20 +136,15 @@ struct ScopedFixture {
 impl ScopedFixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
-        let metadata = || {
-            dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("rpc.artifact-upload").unwrap(), "Artifact upload fixture", None)
-        };
+        let metadata = || dokime::Metadata::new(dokime::Identifier::new("rpc.artifact-upload").unwrap(), "Artifact upload fixture", None);
         let execution = std::sync::Arc::new(ActiveFixture::default());
-        let runtime = dokime_runtime::Runtime::with_execution_fixture(
-            dokime_runtime::RuntimeConfig::new(root.path(), metadata()),
-            "fixture",
-            execution.clone(),
-        )
-        .await
-        .unwrap();
+        let runtime =
+            dokime::Runtime::with_execution_fixture(dokime::RuntimeConfig::new(root.path(), metadata()), "fixture", execution.clone())
+                .await
+                .unwrap();
         let handle = runtime.handle();
-        let template = dokime_runtime::definition::TestCaseTemplate {
-            test_case_template_id: dokime_runtime::model::identity::new_id::<dokime_runtime::TemplateId>(),
+        let template = dokime::definition::TestCaseTemplate {
+            test_case_template_id: dokime::model::identity::new_id::<dokime::TemplateId>(),
             metadata: metadata(),
             tags: vec![],
             parameter_groups: vec![],
@@ -148,12 +153,11 @@ impl ScopedFixture {
             document: None,
             phases: vec![],
             criteria: vec![],
-            continue_on_failure: false,
             prompt_definitions: vec![],
             subscriptions: vec![],
             attributes: Default::default(),
         };
-        let suite = dokime_runtime::definition::TestSuite {
+        let suite = dokime::definition::TestSuite {
             metadata: metadata(),
             tags: vec![],
             parameter_groups: vec![],
@@ -162,7 +166,7 @@ impl ScopedFixture {
         handle
             .set_suites(
                 "provider:fixture",
-                dokime_runtime::definition::SuiteSet::new([dokime_runtime::domains::TestSuiteDefinition {
+                dokime::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition {
                     suite_id: "rpc.artifact-upload".into(),
                     tags: vec![],
                     workflow: Some("execute_cycle".into()),
@@ -173,46 +177,39 @@ impl ScopedFixture {
             )
             .await
             .unwrap();
-        let cycle_id_typed = artifact::registered_cycle(&handle, "rpc.artifact-upload", metadata()).await;
+        let (cycle_id_typed, executions) = artifact::registered_cycle(&handle, "rpc.artifact-upload", metadata()).await;
         let cycle_id = cycle_id_typed.to_string();
-        handle.run_cycle_cases(cycle_id_typed, Default::default()).await;
+        let execution_id_typed = executions[0].clone();
+        let receipt = handle
+            .start_execution(execution_id_typed.clone(), dokime::domain::model::execution::ExecutionMode::Automatic, Default::default())
+            .await;
+        assert_eq!(receipt.status, dokime::runtime::command::CommandStatus::Accepted);
         let mut state = handle.watch_state();
-        let server = dokime_server::grpc::Server::start(
-            handle,
-            dokime_server::grpc::Config::local()
-                .with_bearer_auth(vec![
-                    dokime_server::grpc::access::BearerGrant::new(
-                        "native-gui".into(),
-                        dokime_server::grpc::access::Role::Control,
-                        "artifact-upload-fixture-token-01234567890123",
-                    )
-                    .unwrap(),
-                ])
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        let server = dokime_server::grpc::Server::start(handle, dokime_server::grpc::Config::local()).await.unwrap();
         let session = dokime_gui::connection::ConnectionSession::default();
         session
             .connect(dokime_gui::connection::ConnectRequest {
                 target: dokime_gui::connection::ConnectionTarget::Local { endpoint: server.local_endpoint() },
-                credentials: dokime_gui::connection::ConnectionCredentials::Bearer {
-                    token: "artifact-upload-fixture-token-01234567890123".into(),
-                    remember: false,
-                },
+                secrets: dokime_gui::connection::ConnectionSecrets::None,
                 expected_backend_id: None,
             })
             .await
             .unwrap();
         let snapshot = state
-            .wait_until(|snapshot| snapshot.state().executions.values().any(|execution| execution.test_cycle_id.as_str() == cycle_id))
+            .wait_until(|snapshot| {
+                snapshot
+                    .state()
+                    .executions
+                    .get(&execution_id_typed)
+                    .is_some_and(|execution| execution.status == dokime::domain::model::execution::result::ExecutionStatus::Running)
+            })
             .await
             .expect("the runtime remains live during fixture setup");
         let execution_id = snapshot
             .state()
             .executions
             .values()
-            .find(|execution| execution.test_cycle_id.as_str() == cycle_id)
+            .find(|execution| execution.test_execution_id == execution_id_typed)
             .unwrap()
             .test_execution_id
             .to_string();
@@ -273,7 +270,7 @@ async fn upload_sink_completes() {
     };
     let payload = &metadata_bytes[8..];
     assert!(
-        <harmos::grpc::Transcoded as harmos::grpc::Wire<model::content::wire::ArtifactMetadata>>::decoding_memory(
+        <dokime::harmos::grpc::Transcoded as dokime::harmos::grpc::Wire<model::content::wire::ArtifactMetadata>>::decoding_memory(
             harmos_sdk::grpc::DecodeInput::new(payload)
         )
         .unwrap()

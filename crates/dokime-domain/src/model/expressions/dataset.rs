@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -27,6 +28,7 @@ use crate::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecordTimingRecord<'a> {
     pub record_type: &'a str,
@@ -52,6 +54,7 @@ pub struct RecordTimingPoint {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn record_time_between<'a>(
     records: impl IntoIterator<Item = RecordTimingRecord<'a>>, end_record_type: &str, previous_record_type: &str,
 ) -> Vec<RecordTimingPoint> {

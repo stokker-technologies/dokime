@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -23,6 +24,7 @@ use syn::{Error, ImplItem, ItemImpl};
 use crate::arguments::Arguments;
 
 /* === Constants === */
+
 const ARGUMENTS: &[&str] = &["id", "record", "description"];
 
 /* === Macros === */
@@ -38,6 +40,7 @@ const ARGUMENTS: &[&str] = &["id", "record", "description"];
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn listener(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match expand(attribute, &item) {
         Ok(expanded) => crate::facade::contracted(expanded),
@@ -49,12 +52,13 @@ pub(crate) fn listener(attribute: TokenStream, item: TokenStream) -> TokenStream
 }
 
 /* === Private Functions === */
+
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a listener", ARGUMENTS)?;
     let mut block: ItemImpl = syn::parse2(item.clone())?;
     if block.trait_.is_some() {
-        return Err(Error::new_spanned(&block.self_ty, "`#[dokime_runtime::listener]` declares the listener's own inherent impl"));
+        return Err(Error::new_spanned(&block.self_ty, "`#[dokime::listener]` declares the listener's own inherent impl"));
     }
     let identifier = arguments.required("id", "the host calls a listener by its operation id")?;
     let identifier = &crate::arguments::wire_identity(Some(identifier.clone()), crate::arguments::type_name(&block.self_ty)?)?;

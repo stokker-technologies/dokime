@@ -17,6 +17,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -36,10 +37,10 @@ use dokime_domain::model::process::wire::ProcessExit;
 use dokime_domain::operations::process::RunProcess;
 
 /* === Constants === */
+
 // How long the output readers may outlast the child, for a grandchild that
 // holds a pipe open.
 const DRAIN: Duration = Duration::from_secs(2);
-
 const READ_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
@@ -55,6 +56,7 @@ const READ_BYTES: usize = 64 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch::Receiver<bool>) -> Result<ProcessExit, String> {
     if request.program.is_empty() {
         return Err("a process needs a program".into());
@@ -125,6 +127,7 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
 }
 
 /* === Private Functions === */
+
 // Pumps one output into the execution log line by line, or into a produced
 // artifact byte for byte.
 fn route(

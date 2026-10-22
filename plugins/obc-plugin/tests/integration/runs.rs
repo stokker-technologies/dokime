@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -20,11 +21,11 @@ use std::sync::{Arc, Mutex};
 
 // Local Imports
 use super::answering;
-use dokime_domain::model;
-use dokime_runtime::execution::{Caller, SidecarTemplate, Workflow};
-use dokime_runtime::prompts::{PromptRequest, PromptResponse};
-use dokime_runtime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
-use dokime_runtime::{PromptId, Timestamp};
+use dokime::domain::model;
+use dokime::execution::{Caller, SidecarTemplate, Workflow};
+use dokime::prompts::{PromptRequest, PromptResponse};
+use dokime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, SidecarExecutionOutcome, StepAdmission};
+use dokime::{PromptId, Timestamp};
 use obc_plugin::domain::model::connections::Connections as ListedConnections;
 use obc_plugin::domain::model::readiness::Readiness;
 use obc_plugin::domain::operations::AskReadiness;
@@ -35,6 +36,7 @@ use obc_plugin::domain::operations::ListConnections;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Connections = Arc<Mutex<Vec<String>>>;
 
 /* === Structs === */
@@ -48,19 +50,20 @@ type Connections = Arc<Mutex<Vec<String>>>;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn assert_record_contract(request: model::records::publication::RecordPublishRequest) {
-    let contract = dokime_runtime::catalog::entries::<obc_plugin::suites::Suites, dokime_runtime::catalog::Suites>()
+    let contract = dokime::catalog::entries::<obc_plugin::suites::Suites, dokime::catalog::Suites>()
         .into_iter()
         .flat_map(|definition| definition().record_contracts)
         .find(|contract| contract.record_type == request.record_type)
         .expect("emitted record is declared");
     let record = request.into_record(
-        dokime_runtime::model::identity::new_id::<dokime_runtime::RecordId>(),
+        dokime::model::identity::new_id::<dokime::RecordId>(),
         contract.schema_version,
         Timestamp::new("2026-01-01T00:00:00Z"),
         obc_plugin::SOURCE,
     );
-    dokime_runtime::records::validate_record(Some(&contract), &record, dokime_runtime::ValidationMode::Strict)
+    dokime::records::validate_record(Some(&contract), &record, dokime::ValidationMode::Strict)
         .expect("authored evidence matches its declared contract");
 }
 
@@ -76,9 +79,7 @@ fn workflow<T: SidecarTemplate>(suite: &str) -> Workflow<T> {
     Workflow::new(suite, obc_plugin::SOURCE)
 }
 
-fn start<T: SidecarTemplate>(
-    workflow: &Workflow<T>, resources: &Connections, request: RunExecution,
-) -> Result<(), dokime_runtime::Refusal> {
+fn start<T: SidecarTemplate>(workflow: &Workflow<T>, resources: &Connections, request: RunExecution) -> Result<(), dokime::Refusal> {
     workflow.start_on(request, None, road(resources))
 }
 
@@ -117,7 +118,7 @@ async fn cancelling_steady_device() {
     let workflow = workflow::<obc_plugin::suites::steady::Steady>(obc_plugin::suites::steady::STEADY_SUITE);
     let mut request = steady_request("cancel-steady");
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
-    parameters["duration_s"] = serde_json::to_value(dokime_runtime::Value::from(10.0)).unwrap();
+    parameters["duration_s"] = serde_json::to_value(dokime::Value::from(10.0)).unwrap();
     request.parameters_json = parameters.to_string();
     start(&workflow, &resources, request).unwrap();
     let outcome = drain_runtime(&workflow, "cancel-steady", None, true).await;
@@ -131,7 +132,7 @@ async fn image_failure_device() {
     let workflow = workflow::<obc_plugin::suites::startup::Startup>(obc_plugin::suites::startup::STARTUP_SUITE);
     let mut request = runtime_request("missing-image", false);
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
-    parameters["attach_reference"] = serde_json::to_value(dokime_runtime::Value::from(true)).unwrap();
+    parameters["attach_reference"] = serde_json::to_value(dokime::Value::from(true)).unwrap();
     request.parameters_json = parameters.to_string();
     // No images_directory capture: lookup fails before attachment, after Charger startup.
     start(&workflow, &resources, request).unwrap();
@@ -154,7 +155,7 @@ async fn protection_refuses_baseline() {
     request.workflow = obc_plugin::suites::protection::SUITE.into();
     request.template_identifier = obc_plugin::suites::protection::TEMPLATE.into();
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
-    parameters["load_ohm"] = serde_json::to_value(dokime_runtime::Value::from(20.0)).unwrap();
+    parameters["load_ohm"] = serde_json::to_value(dokime::Value::from(20.0)).unwrap();
     request.parameters_json = parameters.to_string();
     start(&workflow, &resources, request).unwrap();
     let outcome = drain_runtime(&workflow, "initial-overload", None, false).await;
@@ -199,11 +200,9 @@ async fn faults_contained_ready() {
         };
         assert!(records.iter().any(|record| record.contains(fault_record)));
         assert_eq!(records.iter().filter(|record| record.contains(".stopped\"")).count(), 1);
-        assert!(
-            samples
-                .iter()
-                .any(|sample| matches!(sample.values.get("phase"), Some(dokime_runtime::Value::Text(phase)) if phase == "faulted" || phase == "power_loss"))
-        );
+        assert!(samples.iter().any(
+            |sample| matches!(sample.values.get("phase"), Some(dokime::Value::Text(phase)) if phase == "faulted" || phase == "power_loss")
+        ));
         // The bench is untouched by a fault the Charger contained.
         assert!(road(&resources).call::<AskReadiness>(AskReadiness {}).await.is_ok_and(|readiness| !readiness.stopped));
     }
@@ -213,7 +212,7 @@ async fn faults_contained_ready() {
 
 async fn settled_evidence<T: SidecarTemplate>(
     workflow: &Workflow<T>, token: &str,
-) -> (Vec<String>, Vec<dokime_runtime::telemetry::TelemetrySample>) {
+) -> (Vec<String>, Vec<dokime::telemetry::TelemetrySample>) {
     let mut cursor = 0;
     let mut records = Vec::new();
     let mut samples = Vec::new();
@@ -236,12 +235,12 @@ async fn settled_evidence<T: SidecarTemplate>(
 
 fn connection(resource: &str) -> model::records::evidence::Record {
     let mut record = model::records::evidence::Record::new(
-        dokime_runtime::model::identity::new_id(),
+        dokime::model::identity::new_id(),
         Timestamp::new("2026-01-01T00:00:00Z"),
-        dokime_runtime::Identifier::new("tool.connection.acquired").unwrap(),
+        dokime::Identifier::new("tool.connection.acquired").unwrap(),
         1,
         "fixture-gateway",
-        dokime_runtime::records::RecordSeverity::Info,
+        dokime::records::RecordSeverity::Info,
     );
     record.details.extend([
         ("resource_id".to_owned(), resource.into()),
@@ -257,8 +256,8 @@ fn deliver<T: SidecarTemplate>(workflow: &Workflow<T>, resources: &Connections, 
     workflow.deliver_captured(
         &connection(resource),
         "fixture-gateway",
-        &[dokime_runtime::RecordScope {
-            test_execution_id: Some(dokime_runtime::TestExecutionId::from_uuid(execution_id(token)).unwrap()),
+        &[dokime::RecordScope {
+            test_execution_id: Some(dokime::TestExecutionId::from_uuid(execution_id(token)).unwrap()),
             ..Default::default()
         }],
     );
@@ -284,7 +283,7 @@ async fn step_waits_connections() {
     // the bench has been told about none.
     let mut request = runtime_request("first", false);
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
-    parameters["await_connection"] = serde_json::to_value(dokime_runtime::Value::from(true)).unwrap();
+    parameters["await_connection"] = serde_json::to_value(dokime::Value::from(true)).unwrap();
     request.parameters_json = parameters.to_string();
     start(&workflow, &resources, request).unwrap();
     let mut cursor = 0;
@@ -300,7 +299,7 @@ async fn step_waits_connections() {
     // heard about during the first one is still on the bench.
     let mut request = runtime_request("second", false);
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
-    parameters["await_connection"] = serde_json::to_value(dokime_runtime::Value::from(true)).unwrap();
+    parameters["await_connection"] = serde_json::to_value(dokime::Value::from(true)).unwrap();
     request.parameters_json = parameters.to_string();
     start(&workflow, &resources, request).unwrap();
     let mut cursor = 0;
@@ -322,8 +321,8 @@ async fn unit_refuses_waited() {
     let workflow = workflow::<obc_plugin::suites::startup::Startup>(obc_plugin::suites::startup::STARTUP_SUITE);
     let mut request = runtime_request("silent", false);
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
-    parameters["await_connection"] = serde_json::to_value(dokime_runtime::Value::from(true)).unwrap();
-    parameters["connection_budget_s"] = serde_json::to_value(dokime_runtime::Value::from(0.05)).unwrap();
+    parameters["await_connection"] = serde_json::to_value(dokime::Value::from(true)).unwrap();
+    parameters["connection_budget_s"] = serde_json::to_value(dokime::Value::from(0.05)).unwrap();
     request.parameters_json = parameters.to_string();
     start(&workflow, &resources, request).unwrap();
 
@@ -340,7 +339,7 @@ async fn unit_refuses_waited() {
 }
 
 fn execution_id(token: &str) -> String {
-    dokime_runtime::TestExecutionId::from_seed(token).to_string()
+    dokime::TestExecutionId::from_seed(token).to_string()
 }
 
 fn runtime_request(token: &str, continuous: bool) -> RunExecution {
@@ -354,29 +353,29 @@ fn runtime_request(token: &str, continuous: bool) -> RunExecution {
 
         secrets_json: "{}".to_owned(),
         parameters_json: serde_json::json!({
-            "ac_voltage_v": dokime_runtime::Value::from(230.0), "load_ohm": dokime_runtime::Value::from(100.0), "frequency_hz": dokime_runtime::Value::from(50.0), "phase_deg": dokime_runtime::Value::from(15.0), "current_limit_a": dokime_runtime::Value::from(5.0), "duration_s": dokime_runtime::Value::from(0.002),
-            "sample_interval_s": dokime_runtime::Value::from(0.001),
-            "emit_artifact": dokime_runtime::Value::from(false),
-            "attach_reference": dokime_runtime::Value::from(false),
-            "realtime": dokime_runtime::Value::from(false),
-            "continuous": dokime_runtime::Value::from(continuous),
-            "await_connection": dokime_runtime::Value::from(false),
-            "connection_budget_s": dokime_runtime::Value::from(30.0),
+            "ac_voltage_v": dokime::Value::from(230.0), "load_ohm": dokime::Value::from(100.0), "frequency_hz": dokime::Value::from(50.0), "phase_deg": dokime::Value::from(15.0), "current_limit_a": dokime::Value::from(5.0), "duration_s": dokime::Value::from(0.002),
+            "sample_interval_s": dokime::Value::from(0.001),
+            "emit_artifact": dokime::Value::from(false),
+            "attach_reference": dokime::Value::from(false),
+            "realtime": dokime::Value::from(false),
+            "continuous": dokime::Value::from(continuous),
+            "await_connection": dokime::Value::from(false),
+            "connection_budget_s": dokime::Value::from(30.0),
             // The two list-declaring templates this helper also starts: a
             // resolved case carries every parameter its template declares,
             // and a template that declares none simply never reads these.
-            "load_steps": dokime_runtime::Value::Array(::std::vec![
-                dokime_runtime::Value::from(100.0),
-                dokime_runtime::Value::from(50.0),
-                dokime_runtime::Value::from(10.0),
+            "load_steps": dokime::Value::Array(::std::vec![
+                dokime::Value::from(100.0),
+                dokime::Value::from(50.0),
+                dokime::Value::from(10.0),
             ]),
-            "outage_durations_s": dokime_runtime::Value::Array(::std::vec![
-                dokime_runtime::Value::from(0.05),
-                dokime_runtime::Value::from(0.1),
+            "outage_durations_s": dokime::Value::Array(::std::vec![
+                dokime::Value::from(0.05),
+                dokime::Value::from(0.1),
             ]),
-            "recovery_limits_s": dokime_runtime::Value::Array(::std::vec![
-                dokime_runtime::Value::from(0.02),
-                dokime_runtime::Value::from(0.05),
+            "recovery_limits_s": dokime::Value::Array(::std::vec![
+                dokime::Value::from(0.02),
+                dokime::Value::from(0.05),
             ]),
         })
         .to_string(),
@@ -394,8 +393,8 @@ fn steady_request(token: &str) -> RunExecution {
 
         secrets_json: "{}".to_owned(),
         parameters_json: serde_json::json!({
-            "ac_voltage_v": dokime_runtime::Value::from(230.0), "load_ohm": dokime_runtime::Value::from(100.0), "frequency_hz": dokime_runtime::Value::from(50.0), "phase_deg": dokime_runtime::Value::from(15.0), "current_limit_a": dokime_runtime::Value::from(5.0), "duration_s": dokime_runtime::Value::from(0.002),
-            "sample_interval_s": dokime_runtime::Value::from(0.001),
+            "ac_voltage_v": dokime::Value::from(230.0), "load_ohm": dokime::Value::from(100.0), "frequency_hz": dokime::Value::from(50.0), "phase_deg": dokime::Value::from(15.0), "current_limit_a": dokime::Value::from(5.0), "duration_s": dokime::Value::from(0.002),
+            "sample_interval_s": dokime::Value::from(0.001),
         })
         .to_string(),
     }
@@ -403,7 +402,7 @@ fn steady_request(token: &str) -> RunExecution {
 
 fn admit_steps<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, reply: &EvidenceBatch) {
     for encoded in &reply.step_begins {
-        let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(token, &StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
     }
 }

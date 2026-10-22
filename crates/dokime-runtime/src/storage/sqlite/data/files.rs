@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::result::Result;
 use std::{
@@ -20,15 +21,18 @@ use std::{
     num::NonZeroUsize,
     path::{Path, PathBuf},
 };
+
 // Third Party Imports
 use harmos::storage::*;
 use rusqlite::{Connection, params};
 use sha2::{Digest, Sha256, digest::common::hazmat::SerializableState};
+
 // Local Imports
 use super::super::{Error, State};
 use super::{blob, entry, saved};
 
 /* === Constants === */
+
 const METADATA_BYTES: usize = 16 * 1024;
 const CHUNK_BYTES: usize = 64 * 1024;
 
@@ -43,6 +47,7 @@ const CHUNK_BYTES: usize = 64 * 1024;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl State {
     pub(crate) async fn data_create_file(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
         self.call(move |connection| Ok(create_file(connection, &root, metadata, false))).await?
@@ -133,7 +138,7 @@ impl State {
                 let transaction = connection.transaction()?;
                 transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
                 transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
-                transaction.commit()?;
+                super::super::commit(transaction)?;
                 remove(&source)?;
                 Ok(reference)
             })())
@@ -226,7 +231,6 @@ impl State {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: FileMetadata, production: bool) -> Result<StagedFile, Error> {
     entry::key(metadata.id.as_str())?;
     if let Some(scope) = &metadata.scope {
@@ -267,7 +271,7 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
             params![staging.id.as_str(), super::position(1), entry::encode(&checkpoint, METADATA_BYTES)?],
         )?;
     }
-    transaction.commit()?;
+    super::super::commit(transaction)?;
     let (_, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("file staging disappeared"))?;
     if finished.is_none() && finish_intent(connection, &staging.id)?.is_none() {
         let path = staging_path(connection, root, &staging.id)?;
@@ -282,7 +286,9 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
 }
 
 pub(super) fn confirm_durability(path: &Path) -> Result<(), Error> {
-    Ok(harmos::filesystem::publication::confirm(path)?)
+    harmos::filesystem::publication::confirm(path)?;
+    super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    Ok(())
 }
 
 pub(super) fn confirm(connection: &Connection, root: &Path, reference: &FileReference) -> Result<(), Error> {
@@ -399,6 +405,7 @@ pub(super) fn final_path(root: &Path, reference: &FileReference) -> Result<PathB
     ancestors(root, &path)?;
     Ok(path)
 }
+
 pub(super) fn ancestors(root: &Path, path: &Path) -> Result<(), Error> {
     let relative = path.strip_prefix(root).map_err(|_| Error::Data("file path escapes its store"))?;
     let mut current = root.to_path_buf();
@@ -409,6 +416,7 @@ pub(super) fn ancestors(root: &Path, path: &Path) -> Result<(), Error> {
     }
     Ok(())
 }
+
 pub(super) fn regular(path: &Path) -> Result<bool, Error> {
     match std::fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() => Err(Error::Data("store file path contains a symlink")),
@@ -418,6 +426,7 @@ pub(super) fn regular(path: &Path) -> Result<bool, Error> {
         Err(error) => Err(error.into()),
     }
 }
+
 pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error> {
     regular(path)?;
     let mut file = File::open(path)?;
@@ -438,6 +447,7 @@ pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error
     }
     Ok(())
 }
+
 pub(super) fn remove(path: &Path) -> Result<(), Error> {
     regular(path)?;
     match std::fs::remove_file(path) {
@@ -446,6 +456,9 @@ pub(super) fn remove(path: &Path) -> Result<(), Error> {
         Err(error) => Err(error.into()),
     }
 }
+
+/* === Private Functions === */
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

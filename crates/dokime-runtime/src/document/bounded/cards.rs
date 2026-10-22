@@ -43,6 +43,7 @@ use dokime_domain::model::values::Value;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn memory(
     metadata: &Metadata, filters: &Vec<DocumentFilter>, body: &DocumentCardBody, scope: &RecordScope, largest_value: usize,
 ) -> usize {
@@ -96,6 +97,7 @@ pub(super) fn memory(
 }
 
 /* === Private Functions === */
+
 fn owned<T: MemorySize>(value: &T) -> usize {
     heap(value.memory_size(), size_of_val(value))
 }

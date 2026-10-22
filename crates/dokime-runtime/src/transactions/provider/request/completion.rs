@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,13 +29,13 @@ use crate::transactions::records::draft::BuiltinDraft;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.request.complete", version = 3, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompleteRun {
     pub request_id: CommandId,
     pub at: Timestamp,
-    pub sealed_cycle: Option<dokime_domain::model::execution::result::TestCycle>,
-    pub sealed_executions: Vec<dokime_domain::model::execution::saved::ExecutionSeal>,
+
     #[serde(default)]
     pub unsealed: Option<Unsealed>,
 }
@@ -57,63 +58,29 @@ pub struct SettleRun {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for CompleteRun {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         outcomes_settled(state, &self.request_id)?;
         let request = &state.run_requests[&self.request_id];
-        if !request.summary.phase.terminal() && request.completion_at.is_none() {
+        if request.summary.phase.terminal() {
+            return Ok(());
+        }
+        if request.completion_at.is_none() {
             return Err("terminal evidence has not been staged".into());
         }
-        if !request.summary.phase.terminal() && request.completion_at.as_ref() != Some(&self.at) {
+        if request.completion_at.as_ref() != Some(&self.at) {
             return Err("completion differs from its staged timestamp".into());
         }
-        if self.sealed_cycle.is_none() && !self.sealed_executions.is_empty() {
-            return Err("sealed executions require a sealed cycle".into());
-        }
         if let Some(unsealed) = &self.unsealed {
-            if self.sealed_cycle.is_some() {
-                return Err("an unsealed completion cannot carry a seal".into());
-            }
-            let members = &state.cycles[&request.summary.cycle_id].execution_ids;
+            let members = &request.selected_execution_ids;
             if unsealed.execution_ids.iter().any(|id| !members.contains(id)) {
                 return Err("unsealed executions differ from cycle membership".into());
             }
-        }
-        if let Some(sealed) = &self.sealed_cycle {
-            let current = &state.cycles[&request.summary.cycle_id];
-            let seal = sealed.saved.as_ref().ok_or("completed cycle has no saved seal")?;
-            if current.saved.as_ref().is_some_and(|saved| saved != seal) {
-                return Err("cycle already has a different immutable report seal".into());
-            }
-            seal.validate(sealed).map_err(|source| source.to_string())?;
-            if self.sealed_executions.len() != sealed.execution_ids.len()
-                || self.sealed_executions.iter().zip(&sealed.execution_ids).any(|(seal, id)| &seal.source.execution.execution_id != id)
-            {
-                return Err("sealed executions differ from cycle membership".into());
-            }
-            for (member, seal) in seal.executions.iter().zip(&self.sealed_executions) {
-                if state.executions[&member.execution_id].saved.as_ref().is_some_and(|saved| saved != seal) {
-                    return Err("execution already has a different immutable report seal".into());
-                }
-                if !member.position.covers(&seal.dependencies_saved).map_err(|source| source.to_string())? {
-                    return Err("cycle member is not saved after its dependencies".into());
-                }
-                seal.source.validate(&member.execution_id).map_err(|source| source.to_string())?;
-            }
-            if sealed.test_cycle_id != current.test_cycle_id
-                || sealed.execution_ids != current.execution_ids
-                || sealed.updated_at != self.at
-                || sealed.metadata != current.metadata
-                || sealed.session_id != current.session_id
-                || sealed.created_at != current.created_at
-                || sealed.started_at != current.started_at
-                || sealed.records != current.records
-                || sealed.continue_on_failure != current.continue_on_failure
-                || (request.test_execution_id.is_none() && sealed.lifecycle != conclusion(request))
-            {
-                return Err("cycle changed after saved finalization".into());
-            }
+        } else if request.selected_execution_ids.iter().any(|id| state.executions.get(id).is_none_or(|execution| execution.saved.is_none()))
+        {
+            return Err("completed request requires every selected execution seal".into());
         }
         Ok(())
     }
@@ -127,20 +94,17 @@ impl Transaction<RuntimeState> for CompleteRun {
     fn apply(&self, state: &mut RuntimeState) {
         let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
         if request.summary.phase.terminal() {
-            if self.sealed_cycle.is_some() {
-                request.publication_failure = None;
-                request.summary.phase = outcome_phase(conclusion(request));
-                self.install_seals(state);
-            }
             return;
         }
         let status = conclusion(request);
+        let continuation_execution_id = self.continuation(state);
         if let Some(unsealed) = &self.unsealed {
             let records = self.unsealed_drafts(state, unsealed);
             record_publication_failure(state.run_requests.get_mut(&self.request_id).expect("checked request"), &unsealed.cause);
             records.apply(state);
         }
         let request = state.run_requests.get_mut(&self.request_id).expect("checked request");
+        request.continuation_execution_id = continuation_execution_id;
         request.summary.phase = if self.unsealed.is_some() {
             RunPhase::Failed
         } else {
@@ -148,58 +112,42 @@ impl Transaction<RuntimeState> for CompleteRun {
             outcome_phase(status)
         };
         request.summary.finished_at = Some(self.at.clone());
-        // A target group the policy or a Stop never let start still owes the
-        // receipt its planned attempts, as unstarted.
-        request.summary.unstarted += request.groups.iter().map(|group| group.pending.len() as u64).sum::<u64>();
+        // A Cancelled Admission Retains Its Unstarted Attempt Count.
         request.summary.unstarted += request.pending.len() as u64;
         request.pending.clear();
-        request.groups.clear();
         let cycle = state.cycles.get_mut(&request.summary.cycle_id).expect("request cycle");
-        for id in &cycle.execution_ids {
-            if request.test_execution_id.as_ref().is_some_and(|selected| selected != id) {
-                continue;
-            }
-            let execution = state.executions.get_mut(id).expect("cycle execution owner exists");
-            if self.unsealed.is_none() && execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none() {
-                execution.finished_at = Some(self.at.clone());
-                execution.result = Some(ResultSummary { skipped: 1, ..summary(ResultStatus::Cancelled) });
-                for step in &mut execution.steps {
-                    if step.status == StepStatus::Pending {
-                        step.status = StepStatus::Skipped;
-                        step.finished_at = Some(self.at.clone());
-                    }
-                }
-            }
-        }
         cycle.result = Some(crate::transactions::provider_finish::summarize(
             cycle.execution_ids.iter().map(|id| state.executions.get(id).expect("cycle execution owner exists")),
         ));
-        cycle.lifecycle = if request.test_execution_id.is_some()
-            && cycle.execution_ids.iter().any(|id| {
-                let execution = &state.executions[id];
-                execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none()
-            }) {
+        // An Active Cycle Returns To Idle: A Request's Outcome Belongs To Its Executions And `result`.
+        cycle.lifecycle = if cycle.phase == dokime_domain::model::execution::result::CyclePhase::Active {
             CycleStatus::Ready
-        } else if request.test_execution_id.is_some() {
-            crate::transactions::provider_finish::lifecycle_for(cycle.result.as_ref())
         } else {
-            status
+            crate::transactions::lifecycle::closed_lifecycle(cycle, &state.executions)
         };
         cycle.touch_at(self.at.clone());
-        self.install_seals(state);
+        let cycle_id = cycle.test_cycle_id.clone();
+        state.run_queue.retain(|id| id != &self.request_id);
+        sync_cycle_activity(state, &cycle_id);
     }
 }
 
 impl CompleteRun {
-    fn install_seals(&self, state: &mut RuntimeState) {
-        if let Some(sealed) = &self.sealed_cycle {
-            state.cycles.insert(sealed.test_cycle_id.clone(), sealed.clone());
-            state.cycle_report_finalizations.remove(&sealed.test_cycle_id);
-            for seal in &self.sealed_executions {
-                state.executions.get_mut(&seal.source.execution.execution_id).expect("checked member").saved = Some(seal.clone());
-                state.report_finalizations.remove(&seal.source.execution.execution_id);
+    fn continuation(&self, state: &RuntimeState) -> Option<TestExecutionId> {
+        let request = &state.run_requests[&self.request_id];
+        let cycle = &state.cycles[&request.summary.cycle_id];
+        if !cycle.continue_automatically || request.summary.stop_requested || cycle.ensure_active().is_err() {
+            return None;
+        }
+        let previous = request.test_execution_id.as_ref()?;
+        let position = cycle.execution_ids.iter().position(|id| id == previous)?;
+        for id in cycle.execution_ids.iter().skip(position + 1) {
+            let Some(execution) = state.executions.get(id) else { continue };
+            if crate::transactions::provider::execution_available(state, execution) {
+                return Some(id.clone());
             }
         }
+        None
     }
 
     fn unsealed_drafts(&self, state: &RuntimeState, unsealed: &Unsealed) -> crate::transactions::records::draft::Drafts {
@@ -232,24 +180,22 @@ impl CompleteRun {
             return records;
         }
         let status = conclusion(request);
-        let cycle_status = if request.test_execution_id.is_some() {
+        let cycle_status = if matches!(status, CycleStatus::Failed | CycleStatus::Stopped) {
+            status
+        } else {
             crate::transactions::provider_finish::lifecycle_for(Some(&crate::transactions::provider_finish::summarize(
                 state.cycles[&request.summary.cycle_id].execution_ids.iter().map(|id| &state.executions[id]),
             )))
-        } else {
-            status
         };
         let name = match cycle_status {
             CycleStatus::Completed => BuiltinRecordType::TestCycleCompleted,
             CycleStatus::Stopped => BuiltinRecordType::TestCycleStopped,
             _ => BuiltinRecordType::TestCycleFailed,
         };
-        let cycle_complete = request.test_execution_id.as_ref().is_none_or(|selected| {
-            !state.cycles[&request.summary.cycle_id].execution_ids.iter().any(|id| {
-                let execution = &state.executions[id];
-                id != selected && execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none()
-            })
-        });
+        let cycle_complete = state.cycles[&request.summary.cycle_id]
+            .execution_ids
+            .iter()
+            .all(|id| state.executions[id].finished_at.is_some() || request.selected_execution_ids.contains(id));
         if cycle_complete {
             records.draft(
                 BuiltinDraft {
@@ -274,14 +220,7 @@ impl CompleteRun {
                 severity: if status == CycleStatus::Failed { RecordSeverity::Error } else { RecordSeverity::Info },
                 message: Some(request.failure.clone().unwrap_or_else(|| "Cycle provider work settled.".into())),
                 details: BTreeMap::new(),
-                scope: Some(
-                    request
-                        .test_execution_id
-                        .as_ref()
-                        .and_then(|id| state.executions.get(id))
-                        .map(|execution| execution.scope.clone())
-                        .unwrap_or_else(|| RecordScope::default().with_cycle(request.summary.cycle_id.clone())),
-                ),
+                scope: Some(RecordScope::default().with_cycle(request.summary.cycle_id.clone())),
             },
             self.at.clone(),
         );
@@ -296,37 +235,40 @@ impl Transaction<RuntimeState> for SettleRun {
     }
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         if state.run_requests[&self.request_id].completion_at.is_none() {
-            CompleteRun {
-                request_id: self.request_id.clone(),
-                at: self.at.clone(),
-                sealed_cycle: None,
-                sealed_executions: Vec::new(),
-                unsealed: None,
-            }
-            .drafts(state)
-            .collect(out);
+            CompleteRun { request_id: self.request_id.clone(), at: self.at.clone(), unsealed: None }.drafts(state).collect(out);
         }
     }
     fn apply(&self, state: &mut RuntimeState) {
         if state.run_requests[&self.request_id].completion_at.is_some() {
             return;
         }
-        let records = CompleteRun {
-            request_id: self.request_id.clone(),
-            at: self.at.clone(),
-            sealed_cycle: None,
-            sealed_executions: Vec::new(),
-            unsealed: None,
-        }
-        .drafts(state);
+        let records = CompleteRun { request_id: self.request_id.clone(), at: self.at.clone(), unsealed: None }.drafts(state);
         state.run_requests.get_mut(&self.request_id).expect("checked request").completion_at = Some(self.at.clone());
         records.apply(state);
+        // Unstarted Selected Members Settle Before Their Evidence Is Sealed.
+        let request = &state.run_requests[&self.request_id];
+        for id in &request.selected_execution_ids {
+            let execution = state.executions.get_mut(id).expect("selected execution owner exists");
+            if execution.status != ExecutionStatus::Skipped || execution.finished_at.is_some() {
+                continue;
+            }
+            execution.status = ExecutionStatus::Cancelled;
+            execution.finished_at = Some(self.at.clone());
+            execution.result = Some(ResultSummary { skipped: 1, ..summary(ResultStatus::Cancelled) });
+            for step in &mut execution.steps {
+                if step.status == StepStatus::Pending {
+                    step.status = StepStatus::Skipped;
+                    step.finished_at = Some(self.at.clone());
+                }
+            }
+        }
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn record_publication_failure(request: &mut RunRequest, cause: &str) {
     request.publication_failure = Some(cause.to_owned());
 }
@@ -364,6 +306,7 @@ fn outcomes_settled(state: &RuntimeState, request_id: &CommandId) -> Result<(), 
 }
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -381,12 +324,13 @@ mod tests {
                 session_id: None,
                 metadata: Metadata::new(Identifier::new("publication.fixture").unwrap(), "Publication", None),
                 lifecycle: CycleStatus::Running,
+                phase: Default::default(),
                 created_at: at.clone(),
                 started_at: Some(at.clone()),
                 updated_at: at.clone(),
                 execution_ids: Vec::new(),
                 records: Default::default(),
-                continue_on_failure: false,
+                continue_automatically: false,
                 result: None,
             },
         );
@@ -414,26 +358,68 @@ mod tests {
                     binding: crate::domains::SidecarExecutionBinding { workflow: "fixture".into() },
                 },
                 test_execution_id: None,
+                selected_execution_ids: Vec::new(),
                 pending: Default::default(),
-                groups: Default::default(),
                 settled_execution_ids: Vec::new(),
-                stopped_execution_ids: Vec::new(),
                 conclusion: Some(CycleStatus::Completed),
                 failure: None,
                 publication_failure: None,
                 completion_at: Some(at.clone()),
+                continuation_execution_id: None,
             },
         );
         (
             state,
-            CompleteRun {
-                request_id,
-                at,
-                sealed_cycle: None,
-                sealed_executions: Vec::new(),
-                unsealed: Some(Unsealed { cause: "report memory exhausted".into(), execution_ids: Vec::new() }),
-            },
+            CompleteRun { request_id, at, unsealed: Some(Unsealed { cause: "report memory exhausted".into(), execution_ids: Vec::new() }) },
         )
+    }
+
+    #[test]
+    fn continuation_is_frozen_before_later_appends() {
+        for existing_next in [false, true] {
+            let (mut state, mut complete) = settled_request(false);
+            complete.unsealed = None;
+            let cycle_id = state.run_requests[&complete.request_id].summary.cycle_id.clone();
+            let first = append_case(&mut state, &cycle_id, "first");
+            let expected = existing_next.then(|| append_case(&mut state, &cycle_id, "second"));
+            state.cycles.get_mut(&cycle_id).unwrap().continue_automatically = true;
+            let request = state.run_requests.get_mut(&complete.request_id).unwrap();
+            request.test_execution_id = Some(first);
+            request.conclusion = Some(CycleStatus::Failed);
+
+            complete.check(&state).unwrap();
+            complete.apply(&mut state);
+            assert_eq!(state.run_requests[&complete.request_id].continuation_execution_id, expected);
+            append_case(&mut state, &cycle_id, "later");
+            complete.check(&state).unwrap();
+            complete.apply(&mut state);
+            assert_eq!(state.run_requests[&complete.request_id].continuation_execution_id, expected);
+        }
+    }
+
+    fn append_case(state: &mut RuntimeState, cycle_id: &TestCycleId, name: &str) -> TestExecutionId {
+        use dokime_domain::model::definition::suite::TestCase;
+        use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
+        use dokime_domain::model::identity::{CaseId, TemplateId};
+
+        let id = TestExecutionId::from_seed(name);
+        let case = TestCase {
+            suite_id: "continuation.suite".into(),
+            test_case_id: CaseId::from_seed(name),
+            test_case_template_id: TemplateId::from_seed("continuation-template"),
+            metadata: Metadata::new(Identifier::new("continuation.case").unwrap(), name, None),
+            suite: None,
+            parameters: Default::default(),
+            generation_index: 0,
+            label_number: 0,
+        };
+        let snapshot = ExecutionSnapshot::from_captured(case, None, Vec::new(), None, None, Default::default(), Default::default());
+        let mut execution = crate::transactions::provider::scheduled_execution_record(cycle_id, id.clone(), snapshot);
+        execution.status = dokime_domain::model::execution::result::ExecutionStatus::Skipped;
+        execution.result = None;
+        state.executions.insert(id.clone(), execution);
+        state.cycles.get_mut(cycle_id).unwrap().execution_ids.push(id.clone());
+        id
     }
 
     #[test]
@@ -448,7 +434,7 @@ mod tests {
             assert!(request.failure.is_none());
             assert_eq!(request.publication_failure.as_deref(), Some("report memory exhausted"));
             let cycle = &state.cycles[&request.summary.cycle_id];
-            assert_eq!(cycle.lifecycle, if stopped { CycleStatus::Stopped } else { CycleStatus::Completed });
+            assert_eq!(cycle.lifecycle, CycleStatus::Ready, "a request outcome leaves its Active cycle idle");
             assert!(cycle.saved.is_none());
             let record_count = state.record_count;
             let summary = request.summary.clone();

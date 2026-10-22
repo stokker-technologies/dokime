@@ -1,0 +1,66 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Compose Execution Prompt Commands
+
+/* === Modules === */
+
+mod answer;
+mod next;
+mod show;
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+#[derive(Debug, clap::Subcommand)]
+pub(crate) enum Command {
+    #[command(about = "Find A Pending Prompt For One Execution, Optionally Waiting.")]
+    Next(next::Args),
+
+    #[command(about = "Display A Prompt Bound To Its Execution And Prompt UUIDs.")]
+    Show(show::Args),
+
+    #[command(about = "Answer One Prompt Once; Never Retry Automatically After An Uncertain Reply.")]
+    Answer(answer::Args),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+pub(crate) async fn run(command: Command) -> crate::Result<()> {
+    match command {
+        Command::Next(args) => next::run(args).await,
+        Command::Show(args) => show::run(args).await,
+        Command::Answer(args) => answer::run(args).await,
+    }
+}
+
+/* === Private Functions === */
+
+/* === Tests === */

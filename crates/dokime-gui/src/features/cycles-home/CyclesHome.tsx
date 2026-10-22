@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
   applyFrozenOrder,
   archivedCycleGroups,
@@ -31,12 +32,20 @@ import {
   type CycleRow,
   cycleRows,
   groupCycleRows,
+  promptCountsByCycle,
 } from "@/features/cycles-home/cycles-model";
 import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { compactAgeLabel } from "@/lib/time-format";
-import { usePageChrome } from "@/shell/page-chrome";
+import { PageBleed, PageNotice, PageShell, PageToolbar } from "@/shell/PageShell";
+
+/* === Constants === */
+
+/* The Status track, in the pill's own type size so it follows every density:
+   room for the longest state label (16 characters at under 0.7em each), the
+   pill's padding and the cell's. */
+const STATUS_COLUMN_WIDTH = "w-[calc(var(--pill-text)_*_11_+_2_*_var(--pill-pad-x)_+_1.5rem)]";
 
 /* === Components === */
 
@@ -83,18 +92,8 @@ export function CyclesHome() {
     ),
     [],
   );
-  usePageChrome({ actions, title: "Cycles" });
 
-  const attentionByCycleId = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const prompt of prompts.data ?? []) {
-      const cycleId = prompt.scope?.test_cycle_id;
-      if (cycleId) {
-        counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
-      }
-    }
-    return counts;
-  }, [prompts.data]);
+  const attentionByCycleId = useMemo(() => promptCountsByCycle(prompts.data ?? []), [prompts.data]);
 
   const rows = useMemo(() => cycleRows(cycles.data ?? [], attentionByCycleId), [attentionByCycleId, cycles.data]);
   const groups = useMemo(() => {
@@ -119,10 +118,8 @@ export function CyclesHome() {
   }, []);
 
   return (
-    <div className="grid content-start gap-6 p-[var(--shell-inset)]" onPointerCancel={release} onPointerDown={freeze} onPointerUp={release}>
-      {/* A toolbar row: its controls are centred with the bar's own air above
-          and below, and the same 12px gap every other bar uses. */}
-      <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)]">
+    <PageShell actions={actions} onPointerCancel={release} onPointerDown={freeze} onPointerUp={release} trail={["Cycles"]}>
+      <PageToolbar>
         <Input
           aria-label="Filter Cycles"
           className="h-[var(--bar-control-height)] w-full sm:w-80"
@@ -139,12 +136,10 @@ export function CyclesHome() {
         >
           Archived
         </Button>
-      </div>
+      </PageToolbar>
 
       {cycles.isError ? (
-        <p className="text-destructive" role="alert">
-          The cycle list could not be read. Check the backend connection in the status bar.
-        </p>
+        <PageNotice tone="alert">The cycle list could not be read. Check the backend connection in the status bar.</PageNotice>
       ) : null}
 
       {groups.map((group) => (
@@ -175,7 +170,7 @@ export function CyclesHome() {
         onOpenChange={setCreating}
         open={creating}
       />
-    </div>
+    </PageShell>
   );
 }
 
@@ -224,15 +219,16 @@ function CycleGroupSection({
   return (
     <section aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
       {heading}
-      <DataTable
-        className="-mx-[var(--shell-inset)]"
-        columns={columns}
-        data={group.rows}
-        emptyText={group.emptyText}
-        getRowId={rowId}
-        onRowClick={(row) => onOpen(row.cycleId)}
-        stickyHeader={false}
-      />
+      <PageBleed>
+        <DataTable
+          columns={columns}
+          data={group.rows}
+          emptyText={group.emptyText}
+          getRowId={rowId}
+          onRowClick={(row) => onOpen(row.cycleId)}
+          stickyHeader={false}
+        />
+      </PageBleed>
     </section>
   );
 }
@@ -294,13 +290,9 @@ function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | nu
       meta: { label: "Attention", width: "w-32" },
     }),
     column.accessor("statusLabel", {
-      cell: ({ row }) => (
-        <Badge className={LIST_STATUS_PILL_CLASS} variant={badgeVariant(row.original.statusTone)}>
-          {row.original.statusLabel}
-        </Badge>
-      ),
+      cell: ({ row }) => <CycleStatusPill label={row.original.statusLabel} tone={row.original.statusTone} />,
       header: "Status",
-      meta: { filter: "facet", label: "Status", width: "w-36" },
+      meta: { filter: "facet", label: "Status", width: STATUS_COLUMN_WIDTH },
     }),
     column.accessor("finishedCount", {
       cell: ({ row }) => (
@@ -343,17 +335,4 @@ function instantsLabel(row: CycleRow): string | undefined {
 function relativeUpdatedLabel(updatedAtIso: string | null, now: number): string {
   const age = compactAgeLabel(updatedAtIso, now);
   return age === "-" ? age : `${age} Ago`;
-}
-
-function badgeVariant(tone: CycleRow["statusTone"]) {
-  switch (tone) {
-    case "good":
-      return "success" as const;
-    case "warn":
-      return "warning" as const;
-    case "bad":
-      return "destructive" as const;
-    default:
-      return "outline" as const;
-  }
 }

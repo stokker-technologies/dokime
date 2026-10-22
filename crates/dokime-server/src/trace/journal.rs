@@ -21,18 +21,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+
 // Third Party Imports
 use time::OffsetDateTime;
 use tokio::sync::watch;
+
 // Local Imports
 
 /* === Constants === */
-const EVENT_OVERHEAD_BYTES: usize = 96;
 
+const EVENT_OVERHEAD_BYTES: usize = 96;
 const FIELD_OVERHEAD_BYTES: usize = 16;
 
 /* === Macros === */
@@ -40,6 +43,7 @@ const FIELD_OVERHEAD_BYTES: usize = 16;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug)]
 pub struct Event {
     pub time: OffsetDateTime,
@@ -105,14 +109,6 @@ struct Lineage {
     order: VecDeque<String>,
 }
 
-/* === Enums === */
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Scope {
-    Instance,
-    Cycle(String),
-    Execution(String),
-}
-
 #[derive(Debug, thiserror::Error)]
 #[error("trace sequence {after} was never issued by this backend process (head {head})")]
 pub struct Stale {
@@ -120,9 +116,19 @@ pub struct Stale {
     pub head: u64,
 }
 
+/* === Enums === */
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Scope {
+    Instance,
+    Cycle(String),
+    Execution(String),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for Limits {
     fn default() -> Self {
         Self {
@@ -358,3 +364,53 @@ impl Lineage {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(cycle: Option<&str>, execution: Option<&str>, message: &str) -> Event {
+        Event {
+            time: OffsetDateTime::UNIX_EPOCH,
+            level: tracing::Level::INFO,
+            target: "fixture".into(),
+            message: message.into(),
+            plugin: None,
+            cycle: cycle.map(str::to_owned),
+            execution: execution.map(str::to_owned),
+            fields: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn journal_bounds_retention() {
+        let journal = Journal::new(Limits { instance_events: 2, scope_events: 2, cycles: 1, executions: 1, ..Limits::default() });
+        let scope = Scope::Cycle("cycle-a".into());
+        journal.record(event(Some("cycle-a"), Some("execution-a"), "one"));
+        journal.record(event(None, Some("execution-a"), "two"));
+        journal.record(event(None, Some("execution-a"), "three"));
+        let page = journal.read(&scope, 0, |_| true, 2, 4096).unwrap();
+        assert_eq!(page.missed, 1);
+        assert_eq!(page.next, 3);
+        assert_eq!(page.events.iter().map(|(_, event)| event.message.as_str()).collect::<Vec<_>>(), ["two", "three"]);
+        assert_eq!(page.events[0].1.cycle.as_deref(), Some("cycle-a"));
+        let selected = journal.read(&scope, 1, |_| false, 2, 4096).unwrap();
+        assert!(selected.events.is_empty());
+        assert_eq!(selected.next, 3);
+        let snapshot = journal.read_until(&scope, 0, |_| true, 2, 4096, 2).unwrap();
+        assert_eq!(snapshot.events.len(), 1);
+        assert_eq!(snapshot.next, 2);
+        assert!(journal.read(&scope, 4, |_| true, 2, 4096).is_err());
+        journal.record(event(Some("cycle-b"), None, "other"));
+        assert!(journal.read(&scope, 3, |_| true, 2, 4096).is_err());
+        journal.record(event(Some("cycle-a"), None, "recreated"));
+        assert!(journal.read(&scope, 3, |_| true, 2, 4096).is_err());
+        assert_eq!(journal.read(&scope, 0, |_| true, 2, 4096).unwrap().events[0].0, 5);
+
+        let bounded = Journal::new(Limits { instance_bytes: 128, scope_bytes: 128, ..Limits::default() });
+        bounded.record(event(Some("cycle-a"), None, &"large".repeat(100)));
+        let page = bounded.read(&Scope::Instance, 0, |_| true, 1, 128).unwrap();
+        assert!(page.events.is_empty());
+        assert_eq!(page.missed, 1);
+    }
+}

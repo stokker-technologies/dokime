@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 
@@ -31,6 +32,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Row {
@@ -38,8 +40,10 @@ pub struct Row {
     pub(crate) label: String,
     pub(crate) description: Option<String>,
     pub(crate) tags: Vec<String>,
+
     #[serde(with = "values::map")]
     pub(crate) attributes: Vec<values::Cell>,
+
     pub(crate) created_at: Option<String>,
     pub(crate) updated_at: Option<String>,
 }
@@ -49,6 +53,7 @@ pub struct Row {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TryFrom<&Metadata> for Row {
     type Error = Error;
 

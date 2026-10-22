@@ -10,13 +10,16 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::UpdateCyclePolicy as UpdatePolicy;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
+
 // Local Imports
 use crate::{CommandContext, RuntimeHandle, runtime::Error, unavailable_rejection};
 use dokime_domain::model::identity::TestCycleId;
@@ -34,12 +37,13 @@ use dokime_domain::model::identity::TestCycleId;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn update_cycle_policy(
-        &self, test_cycle_id: TestCycleId, continue_on_failure: bool, context: CommandContext,
+        &self, test_cycle_id: TestCycleId, continue_automatically: bool, context: CommandContext,
     ) -> std::result::Result<(), Error> {
         let transaction =
-            UpdatePolicy { test_cycle_id: test_cycle_id.clone(), continue_on_failure, occurred_at: crate::model::time::now_utc() };
+            UpdatePolicy { test_cycle_id: test_cycle_id.clone(), continue_automatically, occurred_at: crate::model::time::now_utc() };
         transaction.check(&self.state_read()).map_err(|message| Error::conflict("conflict", message))?;
         match context.idempotency_key.as_deref().filter(|key| !key.is_empty()) {
             Some(key) => self.commit_keyed(harmos::state::RequestKey::new(key), transaction).await,

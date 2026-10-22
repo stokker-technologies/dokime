@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/policy.py; sha256:f4a214e844af8b1ceee78c6df9777dd4f9cc283ab2c4409bde5a069f68e72b16
+# Rendered by stkr project update from templates/python/release/policy.py; sha256:4a780f33846872e139c889afa51c2e42f47e1bea5ce3e841bd94b0e5522ae901
 # ***
 #
 # Dokime
@@ -14,6 +14,7 @@
 # Standard Library Imports
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tomllib
@@ -60,6 +61,14 @@ def policy(directory: Path, name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ToolError(f"[{name}] must be a table")
     return value
+
+
+def profile(default: str = "release") -> str:
+    """The Package Profile Passed By The Rendered Job Or A Local Invocation."""
+    selected = os.environ.get("RELEASE_PROFILE") or default
+    if selected not in ("dev", "release"):
+        raise ToolError("RELEASE_PROFILE must be dev or release")
+    return selected
 
 
 def inside(directory: Path, relative: str) -> Path:

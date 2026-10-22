@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -37,6 +38,7 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn labelled(identifier: &str, label: &str, description: Option<&str>) -> contracts::execution::CreateCycle {
     contracts::execution::CreateCycle {
         metadata: Some(model::identity::wire::Metadata {
@@ -190,12 +192,9 @@ async fn listed_cases_page() {
         // queued work rather than a skip and is the attempt a run dispatches.
         assert_eq!(case.status, model::execution::wire::CaseStatus::Queued);
         assert_eq!(case.attempt_count, 1);
-        assert!(!case.rerun_scheduled);
         assert_eq!(case.latest_execution_status, Some(model::execution::wire::ExecutionStatus::Skipped));
         assert!(case.latest_execution_id.is_some());
         let actions = case.actions.as_ref().unwrap();
-        assert!(actions.run);
-        assert!(actions.schedule_rerun);
         assert!(actions.delete);
         assert!(actions.unavailable_reasons.is_empty());
     }

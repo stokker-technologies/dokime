@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::Read;
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 
 // Local Imports
@@ -27,6 +29,7 @@ use crate::error::Error;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Discovery<'a> {
     root: &'a Path,
     paths: Vec<(String, PathBuf)>,
@@ -35,6 +38,7 @@ struct Discovery<'a> {
 }
 
 /* === Enums === */
+
 enum Entry {
     Directory(Box<dyn Iterator<Item = std::io::Result<PathBuf>>>),
     File,
@@ -44,6 +48,7 @@ enum Entry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Discovery<'_> {
     fn visit(&mut self, path: &Path, depth: usize, inspect: &impl Fn(&Path) -> std::io::Result<Entry>) -> Result<(), Error> {
         self.visited += 1;
@@ -79,6 +84,7 @@ impl Discovery<'_> {
 }
 
 /* === Public Functions === */
+
 pub fn read(path: &Path, limit: usize) -> Result<Vec<u8>, Error> {
     if !std::fs::symlink_metadata(path)?.file_type().is_file() {
         return Err(Error::Invalid(format!("{} must be a regular file (no links)", path.display())));
@@ -95,6 +101,7 @@ pub fn assets(root: &Path, maximum: usize) -> Result<Vec<(String, PathBuf)>, Err
 }
 
 /* === Private Functions === */
+
 fn bounded(reader: impl Read, limit: usize, label: &str) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::new();
     reader.take(limit as u64 + 1).read_to_end(&mut bytes)?;

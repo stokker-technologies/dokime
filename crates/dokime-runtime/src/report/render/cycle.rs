@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, io::Write};
+
 // Third Party Imports
 use serde::{
     Serialize, Serializer,
     ser::{SerializeMap, SerializeSeq},
 };
+
 // Local Imports
 use super::*;
 use crate::report::cycle::{AnnotationKind, Index};
@@ -28,25 +31,36 @@ use crate::report::cycle::{AnnotationKind, Index};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type ReadMember<'a> = dyn Fn(usize) -> Result<crate::report::html::Member> + 'a;
 
 /* === Structs === */
+
 pub(in crate::report) struct Report<'a> {
     pub header: Header<'a>,
     pub index: &'a Index,
     pub appearance: &'a crate::installed_plugins::RuntimeAppearanceFrame,
     pub read: &'a ReadMember<'a>,
 }
+
 struct Rows<'a, 'r>(&'a Report<'r>, Section);
+
 struct DocumentWarningText<'a>(&'a str, &'a str);
+
 struct SnapshotRows<'a, 'r>(&'a Report<'r>);
+
 struct PlanRows<'a, 'r>(&'a Report<'r>);
+
 struct Telemetry<'a, 'r>(&'a Report<'r>);
+
 struct Samples<'a, 'r>(&'a Report<'r>, &'a [crate::report::cycle::Sample]);
+
 struct Steps<'a, 'r>(&'a Report<'r>, &'a crate::report::cycle::Member);
+
 struct Annotations<'a, 'r>(&'a Report<'r>, AnnotationKind);
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 enum Section {
     Artifacts,
@@ -62,21 +76,25 @@ enum Section {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Report<'_> {
     pub(crate) fn write(&self, writer: &mut dyn Write) -> Result<()> {
         output::write_html(writer, self, REPORT_APP_TEMPLATE).map_err(|source| Error::InvalidReportInputs(source.to_string()))
     }
 }
+
 impl fmt::Display for DocumentWarningText<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{}: {}", self.0, self.1)
     }
 }
+
 impl Serialize for DocumentWarningText<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         serializer.collect_str(self)
     }
 }
+
 impl Serialize for Report<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(Some(11))?;
@@ -94,6 +112,7 @@ impl Serialize for Report<'_> {
         fields.end()
     }
 }
+
 impl Serialize for Rows<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let report = self.0;
@@ -120,7 +139,7 @@ impl Serialize for Rows<'_, '_> {
                         name: &case.metadata.label,
                         description: None,
                         source_file: None,
-                        parameters: &[],
+                        parameters: plan::Parameters(&case.definitions),
                         files: &[],
                         steps: &[],
                         measurements: &[],
@@ -139,7 +158,7 @@ impl Serialize for Rows<'_, '_> {
                         label: &case.metadata.label,
                         metadata: &case.metadata,
                         latest_test_execution_id: Some(case.latest_id.as_str()),
-                        status: execution_status(&case.status),
+                        status: member_status(&case.status, case.planned),
                     })?,
                     Section::Queue => rows.serialize_element(&plan::QueueItem {
                         queue_item_id: case.id.as_str(),
@@ -148,7 +167,7 @@ impl Serialize for Rows<'_, '_> {
                         template_id: case.template.as_str(),
                         case_id: case.id.as_str(),
                         repeat_index: 0,
-                        status: queue_status(&case.status),
+                        status: if case.planned { "queued" } else { queue_status(&case.status) },
                         current_test_execution_id: Some(case.latest_id.as_str()),
                         attempt_count: case.count,
                         blocked_reason: None,
@@ -167,7 +186,7 @@ impl Serialize for Rows<'_, '_> {
                     case_id: member.case.as_str(),
                     template_id: member.template.as_str(),
                     attempt_index: ordinal,
-                    status: execution_status(&member.status),
+                    status: member_status(&member.status, member.planned),
                     started_at: member.started_at.as_ref(),
                     finished_at: member.finished_at.as_ref(),
                     parameters: ReportValues(&member.parameters),
@@ -214,6 +233,7 @@ impl Serialize for Rows<'_, '_> {
         rows.end()
     }
 }
+
 impl Serialize for SnapshotRows<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let input = self.0.header;
@@ -235,6 +255,7 @@ impl Serialize for SnapshotRows<'_, '_> {
         fields.end()
     }
 }
+
 impl Serialize for PlanRows<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let report = self.0;
@@ -249,7 +270,6 @@ impl Serialize for PlanRows<'_, '_> {
             queue_count: report.index.cases.len(),
             current_test_execution_id: None,
             current_queue_item_id: None,
-            continue_on_failure: input.cycle.continue_on_failure,
             started_at: input.cycle.created_at,
             finished_at: is_finished_cycle(input).then_some(input.generated_at),
             duration_s: None,
@@ -266,6 +286,7 @@ impl Serialize for PlanRows<'_, '_> {
         fields.end()
     }
 }
+
 impl Serialize for Telemetry<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(None)?;
@@ -305,6 +326,7 @@ impl Serialize for Telemetry<'_, '_> {
         fields.end()
     }
 }
+
 impl Serialize for Steps<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let Self(report, member) = *self;
@@ -318,13 +340,16 @@ impl Serialize for Steps<'_, '_> {
         let mut rows = serializer.serialize_seq(None)?;
         for (order, step) in member.steps.iter().enumerate() {
             rows.serialize_element(&step_with_owner(report.header, owner(), step, order, None))?;
-            for (order, criterion) in step.criteria.iter().enumerate() {
+            // Criteria Order Within Their Step, As The Live Execution Numbers Them.
+            for (position, criterion) in step.criteria.iter().enumerate() {
+                let order = order.saturating_mul(100).saturating_add(position);
                 rows.serialize_element(&step_with_owner(report.header, owner(), step, order, Some(criterion)))?;
             }
         }
         rows.end()
     }
 }
+
 impl Serialize for Annotations<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let Self(report, kind) = *self;
@@ -366,6 +391,7 @@ impl Serialize for Annotations<'_, '_> {
         rows.end()
     }
 }
+
 impl Serialize for Samples<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let returned = selection(self.1.len()).len();
@@ -386,11 +412,6 @@ impl Serialize for Samples<'_, '_> {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-fn selected_samples(samples: &[crate::report::cycle::Sample]) -> impl ExactSizeIterator<Item = &crate::report::cycle::Sample> {
-    selection(samples.len()).into_iter().map(move |index| &samples[index])
-}
-
 pub(crate) fn selection(length: usize) -> Vec<usize> {
     let mut indices = if length <= crate::document::DEFAULT_PLOT_MAX_POINTS {
         (0..length).collect::<Vec<_>>()
@@ -403,6 +424,17 @@ pub(crate) fn selection(length: usize) -> Vec<usize> {
         indices.push(last);
     }
     indices
+}
+
+/* === Private Functions === */
+
+// An Undispatched Attempt Reads As The Live Cycle Spells It: A Skipped One Is Planned.
+fn member_status(status: &ExecutionStatus, planned: bool) -> &'static str {
+    if planned && *status == ExecutionStatus::Skipped { "planned" } else { execution_status(status) }
+}
+
+fn selected_samples(samples: &[crate::report::cycle::Sample]) -> impl ExactSizeIterator<Item = &crate::report::cycle::Sample> {
+    selection(samples.len()).into_iter().map(move |index| &samples[index])
 }
 
 /* === Tests === */

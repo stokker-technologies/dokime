@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -22,18 +23,21 @@ use crate::error::Error;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::system::{self, SystemInputs};
 use crate::suites::common::{measurement, readiness, verdicts};
-use dokime_runtime::definition::ParameterDefault;
-use dokime_runtime::prelude::*;
+use dokime::definition::ParameterDefault;
+use dokime::prelude::*;
 use obc_runtime::device::{Device, Fault, Power, Reading};
 
 /* === Constants === */
 
 /* === Macros === */
 
+bench!(Parameters);
+
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime_runtime::stream(id = "obc.charger.protection.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
+
+#[dokime::stream(id = "obc.charger.protection.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
 pub struct Samples;
 
 pub struct Overcurrent {
@@ -45,9 +49,9 @@ pub struct Overcurrent {
     published: u64,
 }
 
-/* === Records === */
+// Records
 
-#[dokime_runtime::record(
+#[dokime::record(
     id = "obc.charger.protection.initialized",
     label = "Charger initialized",
     description = "The Charger was initialized for this attempt."
@@ -55,11 +59,11 @@ pub struct Overcurrent {
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime_runtime::record(id = "obc.charger.protection.started", label = "Charger energized", description = "The supply was energized.")]
+#[dokime::record(id = "obc.charger.protection.started", label = "Charger energized", description = "The supply was energized.")]
 #[derive(Clone, Debug)]
 pub struct Started {}
 
-#[dokime_runtime::record(
+#[dokime::record(
     id = "obc.charger.protection.faulted",
     label = "Overcurrent latch opened the Charger supply",
     description = "The overcurrent latch opened the supply."
@@ -67,7 +71,7 @@ pub struct Started {}
 #[derive(Clone, Debug)]
 pub struct Faulted {}
 
-#[dokime_runtime::record(
+#[dokime::record(
     id = "obc.charger.protection.stopped",
     label = "Charger supply de-energized; any fault latch remains set",
     description = "The procedure left the Charger safely disconnected, and what it decided."
@@ -76,6 +80,7 @@ pub struct Faulted {}
 pub struct Stopped {
     #[record(description = "Whether the protection behaved the way this procedure required.")]
     pub accepted: bool,
+
     #[record(
         description = "Which rung of the load ladder opened the latch, counted from one, or zero when no declared impedance reached the limit."
     )]
@@ -85,12 +90,14 @@ pub struct Stopped {
     pub tripped_at_step: u64,
 }
 
-#[dokime_runtime::parameters]
+#[dokime::parameters]
 pub struct Parameters {
     #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
+
     #[parameter(label = "Load Impedance Magnitude", unit = "ohm", default = 100.0)]
     pub load_ohm: f64,
+
     #[parameter(
         label = "Load Steps",
         unit = "ohm",
@@ -98,20 +105,25 @@ pub struct Parameters {
         min = 0.1,
         min_items = 1,
         max_items = 16,
-        default = ParameterDefault::literal(dokime_domain::model::values::Value::Array(::std::vec![
-            dokime_domain::model::values::Value::Number(100.0),
-            dokime_domain::model::values::Value::Number(50.0),
-            dokime_domain::model::values::Value::Number(10.0),
+        default = ParameterDefault::literal(dokime::domain::model::values::Value::Array(::std::vec![
+            dokime::domain::model::values::Value::Number(100.0),
+            dokime::domain::model::values::Value::Number(50.0),
+            dokime::domain::model::values::Value::Number(10.0),
         ])), description = "The impedances the procedure applies in order, starting from the one the Charger was energized at. Declared in ohms like the load it replaces.")]
     pub load_steps: Vec<f64>,
+
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
     pub frequency_hz: f64,
+
     #[parameter(label = "Current Phase Lag", unit = "deg", default = 15.0)]
     pub phase_deg: f64,
+
     #[parameter(label = "RMS Current Limit", unit = "A", default = 5.0)]
     pub current_limit_a: f64,
+
     #[parameter(label = "Observation Duration", unit = "s", default = 0.2, min = SHORTEST_S)]
     pub duration_s: f64,
+
     #[parameter(
         label = "Simulation Sample Interval",
         unit = "s",
@@ -123,12 +135,13 @@ pub struct Parameters {
 }
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Required {
     AskReadiness(crate::domain::operations::AskReadiness),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Records {
     Initialized(Initialized),
     Started(Started),
@@ -136,7 +149,7 @@ pub enum Records {
     Stopped(Stopped),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Streams {
     Samples(Samples),
 }
@@ -144,9 +157,8 @@ pub enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
-bench!(Parameters);
 
-#[dokime_runtime::template(id = TEMPLATE, label = "Overcurrent Protection", tags = ["device", "protection"],
+#[dokime::template(id = TEMPLATE, label = "Overcurrent Protection", tags = ["device", "protection"],
     requires = Required,
     subscribes = SystemInputs,
     records = Records,
@@ -165,11 +177,11 @@ impl Overcurrent {
         })
     }
     fn document() -> Document {
-        let mut document = measurement::document(<Samples as dokime_runtime::StreamSpec>::ID, "Overcurrent Protection");
+        let mut document = measurement::document(<Samples as dokime::StreamSpec>::ID, "Overcurrent Protection");
         document.section(system::section(TEMPLATE));
         document
     }
-    #[dokime_runtime::step(
+    #[dokime::step(
         id = "initialize",
         label = "Initialize and Start Charger",
         description = "Bring the simulated Charger to its nominal operating point.\nEnergises the supply at the configured voltage and load, then waits for the RMS readings to settle before any fault is provoked."
@@ -184,7 +196,7 @@ impl Overcurrent {
         publish(ctx, &mut self.published, reading, phase).await;
         Ok(())
     }
-    #[dokime_runtime::step(
+    #[dokime::step(
         label = "Walk the Load Ladder",
         description = "Walk the declared ladder of load impedances until the latch opens.\n`load_steps` is one ordered run of impedances belonging to this case, not three cases: the procedure applies each in turn, samples the Charger after each, and stops at the rung where the RMS protection opens the supply."
     )]
@@ -211,7 +223,7 @@ impl Overcurrent {
         Ok(())
     }
 
-    #[dokime_runtime::step(
+    #[dokime::step(
         label = "Leave Charger Safely Disconnected",
         description = "Confirm the supply stays open and leave the Charger de-energised."
     )]
@@ -233,7 +245,7 @@ impl Overcurrent {
         Ok(())
     }
 
-    #[dokime_runtime::criterion(
+    #[dokime::criterion(
         id = "obc.charger.protection.latch",
         label = "Overcurrent disconnects and prevents restart",
         description = "Passed once the overload latched a fault and blocked the restart."
@@ -246,6 +258,7 @@ impl Overcurrent {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn publish<T, O, I>(ctx: &mut StepContext<'_, T, O, I>, published: &mut u64, reading: Reading, phase: &str) {
     measurement::publish::<Samples, _, _, _>(ctx, *published, reading, phase).await;
     *published += 1;

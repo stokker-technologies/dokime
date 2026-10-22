@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use serde_json::Value as JsonValue;
+
 // Local Imports
 use super::{PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotDomain, PlotSeries, parse_timestamp};
 use crate::document::{AxisScale, PlotType};
@@ -27,6 +30,7 @@ use crate::document::{AxisScale, PlotType};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct OrderedFloat(f64);
 
@@ -35,6 +39,7 @@ struct OrderedFloat(f64);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Eq for OrderedFloat {}
 
 impl PartialOrd for OrderedFloat {
@@ -50,6 +55,7 @@ impl Ord for OrderedFloat {
 }
 
 /* === Public Functions === */
+
 pub(super) fn cartesian_frame(
     series: &[PlotSeries], plot_type: Option<&PlotType>, x_scale: &AxisScale, y_scale: &AxisScale,
 ) -> Option<PlotCartesianFrame> {
@@ -65,6 +71,7 @@ pub(super) fn draws_cartesian(plot_type: &PlotType) -> bool {
 }
 
 /* === Private Functions === */
+
 fn aligned_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: &AxisScale) -> PlotCartesianFrame {
     let mut x_values = Vec::<f64>::new();
     let mut x_seen = BTreeSet::<OrderedFloat>::new();

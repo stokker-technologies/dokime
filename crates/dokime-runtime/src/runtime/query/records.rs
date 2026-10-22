@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use dokime_domain::model::execution::EvidenceOrigin;
@@ -31,6 +33,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeRecordFrame {
     pub records: Vec<RecordEntry>,
@@ -44,6 +47,7 @@ pub struct RuntimeRecordFrame {
 /* === Traits === */
 
 /* === Implementations === */
+
 /* === Public Functions === */
 
 pub(crate) fn record_frame<'a, 'b>(
@@ -110,6 +114,7 @@ pub(crate) fn view_filter<'a>(
 }
 
 /* === Private Functions === */
+
 // Every Selected Owner Field Equals The Record's; A Default Origin Selects Any Origin.
 fn native_match(record: Option<&RecordScope>, selected: &RecordScope) -> bool {
     let Some(record) = record else {

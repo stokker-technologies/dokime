@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 
 // Local Imports
@@ -29,6 +31,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PlotTelemetryReadGroup {
     pub(super) scope: ScopeSelection,
@@ -43,6 +46,7 @@ pub(super) struct PlotTelemetryReadGroup {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_streams: &[Identifier]) -> PlotPayloadRequest {
     if !telemetry_streams.iter().any(|stream| stream.as_str() == request.stream)
         && telemetry_streams.len() == 1
@@ -51,9 +55,7 @@ pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_
         request.stream = stream.as_str().to_owned();
     }
 
-    crate::plot::normalize_histogram_value(&mut request);
-    crate::plot::normalize_analysis_fields(&mut request);
-    request
+    crate::plot::canonical_plot_query(request)
 }
 
 pub(super) fn request_record_types(request: &PlotPayloadRequest) -> Vec<Identifier> {

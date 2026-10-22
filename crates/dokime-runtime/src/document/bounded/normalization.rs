@@ -37,6 +37,7 @@ use crate::document::{DocumentCardDefinition, DocumentDefinition, DocumentNode, 
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn memory(definition: &DocumentDefinition) -> usize {
     let mut bytes = definition.cards.memory_size().saturating_add(definition.layout.memory_size());
     let mut added_cards = 0usize;

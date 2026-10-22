@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::time::DurationMillis;
 
@@ -27,16 +29,20 @@ use crate::model::time::DurationMillis;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySamplingRequest {
     pub request_id: String,
     pub source_kind: TelemetrySourceKind,
     pub source_id: String,
     pub stream: String,
+
     #[serde(default)]
     pub interval: Option<DurationMillis>,
+
     #[serde(default)]
     pub min_interval: Option<DurationMillis>,
+
     #[serde(default)]
     pub start_after: Option<String>,
 }
@@ -60,13 +66,16 @@ pub struct TelemetryCaptureLease {
 pub struct SamplingScope {
     #[serde(default)]
     pub test_cycle_id: Option<String>,
+
     #[serde(default)]
     pub test_case_id: Option<String>,
+
     #[serde(default)]
     pub test_execution_id: Option<String>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelemetrySourceKind {
@@ -79,6 +88,7 @@ pub enum TelemetrySourceKind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TelemetrySamplingRequest {
     pub fn sample_key(&self) -> TelemetrySampleKey {
         TelemetrySampleKey { source_kind: self.source_kind.clone(), source_id: self.source_id.clone(), stream: self.stream.clone() }

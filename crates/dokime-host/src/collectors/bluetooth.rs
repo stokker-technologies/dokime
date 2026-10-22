@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -22,6 +23,7 @@ use std::{
 
 #[cfg(not(windows))]
 use std::process::Command;
+
 // Third Party Imports
 
 // Local Imports
@@ -36,6 +38,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct BluetoothCollector {
     sample_index: u64,
     options: HostOptions,
@@ -49,6 +52,7 @@ pub struct BluetoothCollector {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl BluetoothCollector {
     pub fn new(options: HostOptions, deep_refresh_interval: DurationMillis) -> Self {
         Self {
@@ -144,6 +148,7 @@ impl Default for BluetoothCollector {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 #[cfg(windows)]
 fn snapshot_values(snapshot: crate::platform::windows::bluetooth::BluetoothSnapshot) -> BTreeMap<String, Value> {
     let mut values = BTreeMap::new();

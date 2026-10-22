@@ -9,6 +9,7 @@
 [workspace]
 members = [
   "crates/dokime",
+  "crates/dokime-cli",
   "crates/dokime-runtime",
   "crates/dokime-client",
   "crates/dokime-domain",
@@ -19,7 +20,6 @@ members = [
   "crates/dokime-macros",
   "crates/dokime-server",
   "plugins/obc-plugin",
-  "crates/dokime-runtime/tests/fixtures",
   "plugins/obc-plugin/runtime",
 ]
 resolver = "2"
@@ -34,11 +34,18 @@ publish = true
 repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
-# Git
-harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-domain = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "6eeabf4d4905c9ee984cbfc640502f914bbe6041" }
+# Local
+dokime = { version = "0.1.0", path = "crates/dokime", default-features = false }
+dokime-cli = { version = "0.1.0", path = "crates/dokime-cli" }
+dokime-client = { version = "0.1.0", path = "crates/dokime-client" }
+dokime-domain = { version = "0.1.0", path = "crates/dokime-domain" }
+dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-features = false }
+
+# Framework
+harmos = { version = "=0.1.2" }
+harmos-domain = { version = "=0.1.2" }
+harmos-packaging = { version = "=0.1.2" }
+harmos-sdk = { version = "=0.1.2" }
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -53,6 +60,7 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
+age = { version = "=0.12.1", default-features = false }
 blake2 = { version = "0.11.0" }
 keyring = { version = "4.2.0" }
 libc = { version = "0.2.190" }
@@ -170,10 +178,57 @@ split-debuginfo = "unpacked"
 [profile.dev.package."*"]
 opt-level = 2
 
+# `mise run package` ships the dev profile, so the crates that run in the packaged binaries get basic
+# optimization; debug info and debug assertions stay. Package specs take no globs, so each crate is named.
+[profile.dev.package.dokime]
+opt-level = 1
+
+[profile.dev.package.dokime-cli]
+opt-level = 1
+
+[profile.dev.package.dokime-client]
+opt-level = 1
+
+[profile.dev.package.dokime-domain]
+opt-level = 1
+
+[profile.dev.package.dokime-gui]
+opt-level = 1
+
+[profile.dev.package.dokime-host]
+opt-level = 1
+
+[profile.dev.package.dokime-runtime]
+opt-level = 1
+
+[profile.dev.package.dokime-server]
+opt-level = 1
+
+[profile.dev.package.cargo-dokime]
+opt-level = 1
+
+[profile.dev.package.dokime-packaging]
+opt-level = 1
+
+[profile.dev.package.dokime-macros]
+opt-level = 1
+
+[profile.dev.package.obc-plugin]
+opt-level = 1
+
+[profile.dev.package.obc-runtime]
+opt-level = 1
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+[profile.release-tests]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = false
 
 [profile.bench]
 inherits = "release"

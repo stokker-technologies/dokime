@@ -8,15 +8,19 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod core;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 use harmos::Message;
+
 // Local Imports
 use super::BackgroundTask;
 use crate::RuntimeHandle;
@@ -33,6 +37,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub(crate) struct PublicationIngest {
     streams: crate::app::Streams,
@@ -56,6 +61,7 @@ struct RecordDemandSource {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PublicationIngest {
     fn frontier(&self) -> harmos::storage::Cursor {
         self.streams.frontier()
@@ -165,6 +171,7 @@ impl RecordDemands {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn spawn_lease_gap_watch(
     handle: RuntimeHandle,
     mut residents: tokio::sync::watch::Receiver<
@@ -267,10 +274,32 @@ pub(crate) fn spawn_record_forwarding(handle: RuntimeHandle) -> BackgroundTask {
     }))
 }
 
-/* === Private Functions === */
 pub(crate) fn record_demand_key(record: &str) -> String {
     format!("dokime.record:{record}")
 }
+
+pub(super) fn record_publication(artifact_id: &str, publication: RecordPublication) -> Option<(RecordPublishRequest, Timestamp)> {
+    let mut request: RecordPublishRequest = match serde_json::from_str(&publication.request_json) {
+        Ok(request) => request,
+        Err(error) => {
+            tracing::warn!(
+                artifact_id,
+                %error,
+                "dropping a record publication whose payload is not a publish request"
+            );
+            return None;
+        }
+    };
+    request.scope = None;
+
+    // An absent production time means the sidecar did not stamp one; anything
+    // else is passed through and validated with the rest of the record.
+    let produced_at =
+        if publication.produced_at.is_empty() { crate::model::time::now_utc() } else { Timestamp::new(publication.produced_at) };
+    Some((request, produced_at))
+}
+
+/* === Private Functions === */
 
 fn listener_demands(
     artifacts: &super::handle::InstalledPlugins, unavailable: &BTreeSet<String>, router: Option<&harmos::plugin::Router>,
@@ -306,27 +335,6 @@ fn listener_demands(
         }
     }
     wanted
-}
-
-pub(super) fn record_publication(artifact_id: &str, publication: RecordPublication) -> Option<(RecordPublishRequest, Timestamp)> {
-    let mut request: RecordPublishRequest = match serde_json::from_str(&publication.request_json) {
-        Ok(request) => request,
-        Err(error) => {
-            tracing::warn!(
-                artifact_id,
-                %error,
-                "dropping a record publication whose payload is not a publish request"
-            );
-            return None;
-        }
-    };
-    request.scope = None;
-
-    // An absent production time means the sidecar did not stamp one; anything
-    // else is passed through and validated with the rest of the record.
-    let produced_at =
-        if publication.produced_at.is_empty() { crate::model::time::now_utc() } else { Timestamp::new(publication.produced_at) };
-    Some((request, produced_at))
 }
 
 async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records::evidence::Record) {

@@ -9,14 +9,19 @@
 
 /* The cycle workspace: one cycle and the evidence its cases produced.
  *
- * Two pages share this workspace. The cycle page keeps its cockpit full width
- * on top — identity, status, progress, the cycle's menu and its prompts — over
- * the cycle document. The execution page (`ExecutionSections`) is one
- * scrolling column of sections under the execution's title: its prompts, step
- * progress and run controls lead it in Control. The page bar carries the
- * cycle's run controls on the cycle page, and Download Report and Focus on
- * both. The sidebar tree owns selection. The route owns the URL, so every
- * selection change leaves here through `onSelectionChange`.
+ * Two viewers share this workspace and stay separate components with their
+ * own data hooks, composed from the same blocks in the same order: the shared
+ * `NodeHeader` (breadcrumb, title with its pencil inline, status pill,
+ * progress), the `ControlCard` with the node's lifecycle actions in its fixed
+ * slot, the node's `PromptQueue`, the evidence, and the shared Records
+ * section. The page bar carries the shared `NodeActionCluster` on both: the
+ * primary lifecycle action, Export Evidence, Download Report, expand and the
+ * "…" menu. The execution viewer is `ExecutionSections`; the cycle viewer is
+ * composed here. A prompt is answered on the execution that asked it: the
+ * cycle viewer only names the executions waiting on input and links to them,
+ * and answers the prompts the cycle itself asked. The sidebar tree owns
+ * selection. The route owns the URL, so every selection change leaves here
+ * through `onSelectionChange`.
  *
  * The report supplies its captured data directly to the shared evidence and
  * execution presentation views. This wrapper owns live queries and commands;
@@ -26,7 +31,7 @@
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -35,17 +40,11 @@ import { toast } from "sonner";
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import type { TestExecution } from "@/lib/types";
-import { focusPresentation, useFocusMode } from "@/shell/focus-mode";
-import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
+import { ControlCard } from "./ControlCard";
 import { CycleEvidencePane } from "./CycleEvidencePane";
-import { CyclePromptBanner } from "./CyclePromptBanner";
-import { CycleReportButton } from "./CycleReportButton";
-import { CycleRunControls } from "./CycleRunControls";
-import { type ArchiveAction, CycleWorkspaceHeader, type ExecutionMenu } from "./CycleWorkspaceHeader";
+import { cycleControlState, inputNeededLabel } from "./control-model";
 import {
   useCycleCommands,
   useCycleDetailQuery,
@@ -59,19 +58,22 @@ import {
   buildCycleExecutionRows,
   type CycleExecutionRow,
   type CycleSelection,
-  caseActionTooltip,
-  cycleStatusLabel,
-  cycleStatusVariant,
+  cycleState,
   finishedCaseCount,
   followSelection,
   isActiveExecutionStatus,
-  isCycleTerminal,
+  isCycleSealed,
   isTerminalExecutionStatus,
-  progressStepLabel,
   selectedCycleRow,
 } from "./cycle-workspace-model";
+import { stepLabel } from "./ExecutionControl";
 import { ExecutionSections } from "./ExecutionSections";
+import { executionPagePrompts } from "./execution-sections-model";
+import { NodeActionCluster } from "./NodeActionCluster";
+import { NodeHeader } from "./NodeHeader";
+import type { ArchiveAction, CycleMenu, ExecutionMenu } from "./NodeMenu";
 import { answerablePrompts } from "./prompt-banner-model";
+import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
 
 /* === Types === */
 
@@ -86,7 +88,7 @@ export type CycleWorkspaceProps = {
   onSelectionChange: (next: CycleSelection) => void;
 };
 
-type PendingConfirm = { kind: "stop" } | null;
+type PendingConfirm = { kind: "seal" } | null;
 
 /* === Components === */
 
@@ -97,10 +99,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const promptsQuery = useCyclePendingPromptsQuery(cycleId);
   const commands = useCycleCommands(cycleId);
   const rerunCase = useRerunCase(cycleId);
-  const focus = useFocusMode();
   const followActive = useSelectionStore((state) => state.followActive);
   const setSelectionState = useSelectionStore((state) => state.setSelectionState);
-  const [policyOpen, setPolicyOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm>(null);
 
   const plan = detailQuery.data?.plan ?? null;
@@ -111,6 +112,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const selectedRow = selectedCycleRow(rows, selection);
   const finished = finishedCaseCount(cases);
   const status = plan?.test_cycle.status ?? "planned";
+  const phase = plan?.test_cycle.phase ?? "active";
   const activeExecutionId =
     plan?.test_cycle.current_test_execution_id ?? executions.find((execution) => execution.status === "running")?.test_execution_id ?? null;
   const progress = useExecutionProgress(activeExecutionId);
@@ -120,77 +122,24 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     if (!live) return [];
     const statuses = new Map(executions.map((execution) => [execution.test_execution_id, execution.status]));
     return answerablePrompts(promptsQuery.data ?? [], {
-      cycleEnded: isCycleTerminal(status),
+      cycleEnded: phase !== "active",
       executionActive: (id) => {
         const executionStatus = statuses.get(id);
         return executionStatus !== undefined && isActiveExecutionStatus(executionStatus);
       },
     });
-  }, [executions, live, promptsQuery.data, status]);
-  const activity = useMemo(() => {
-    const activeRow = rows.find((row) => row.execution?.test_execution_id === progress?.testExecutionId);
-    if (!progress || !activeRow) return null;
-    const step = progressStepLabel(progress.stepId, progress.phase);
-    return `${activeRow.case.label} · ${step} ${progress.completed}/${progress.total}`;
-  }, [progress, rows]);
-
-  /* The page bar's action slot carries the cycle's run controls on the cycle
-     page — the execution page holds its own in Control — with Download Report
-     and Focus beside them. The node is memoized on identities, so it is published only when
-     the selection, focus or liveness changes. */
-  const executionSelected = selectedRow !== null;
-  /* The node whose report Download Report saves: the selected execution, or
-     the cycle. A case that has not run yet has no report of its own. */
-  const selectedExecutionId = selectedRow?.execution?.test_execution_id ?? null;
-  const selectedLabel = selectedRow ? executionTitle(selectedRow) : null;
-  const cycleTitle = plan?.test_cycle.title ?? null;
-  const reportSubject = useMemo(() => {
-    if (selectedLabel !== null) {
-      return selectedExecutionId ? { executionId: selectedExecutionId, label: selectedLabel } : null;
-    }
-    return cycleTitle !== null ? { executionId: null, label: cycleTitle } : null;
-  }, [cycleTitle, selectedExecutionId, selectedLabel]);
-  const toggleFocus = focus.setFocused;
-  const focused = focus.focused;
-  const focusLabel = focusPresentation(focused).toggleLabel;
-  const pageActions = useMemo(
+  }, [executions, live, phase, promptsQuery.data]);
+  const runningRow = rows.find((row) => row.execution !== null && row.execution.test_execution_id === progress?.testExecutionId) ?? null;
+  /* The cycle viewer names where input is needed and links there; it answers
+     only the prompts the cycle itself asked. */
+  const waitingRows = useMemo(
     () =>
-      live ? (
-        <div className="grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]">
-          {executionSelected ? null : <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} />}
-          {reportSubject ? (
-            <CycleReportButton cycleId={cycleId} executionId={reportSubject.executionId} label={reportSubject.label} />
-          ) : null}
-          {/* Focus names its exit in text: the bar is the only chrome left,
-              and Escape is a shortcut, not the way out. */}
-          <Button
-            aria-label={focusLabel}
-            aria-pressed={focused}
-            className={focused ? undefined : "size-[var(--bar-control-height)]"}
-            onClick={() => toggleFocus(!focused)}
-            size={focused ? "default" : "icon"}
-            title={focused ? `${focusLabel} (Escape)` : focusLabel}
-            variant={focused ? "secondary" : "outline"}
-          >
-            {focused ? (
-              <>
-                <Minimize2 />
-                {focusLabel}
-              </>
-            ) : (
-              <Maximize2 />
-            )}
-          </Button>
-        </div>
-      ) : null,
-    [cycleId, executionSelected, focusLabel, focused, live, reportSubject, toggleFocus],
+      rows.filter(
+        (row) => row.execution !== null && prompts.some((prompt) => prompt.scope?.test_execution_id === row.execution?.test_execution_id),
+      ),
+    [prompts, rows],
   );
-  /* The page bar names the selected node as a breadcrumb; Back from an
-     execution returns to the cycle (see `useParentRoute`). */
-  usePageChrome({
-    actions: pageActions,
-    title: selectedRow ? `Cycle › Execution ${selectedRow.ordinal}` : "Cycle",
-  });
+  const cyclePrompts = useMemo(() => executionPagePrompts(prompts, null), [prompts]);
 
   /* Follow Active selects the execution the runtime names, until the
      operator chooses something else; `followSelection` owns the rule. */
@@ -232,7 +181,12 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       );
   };
   /* Archive and Unarchive say what they did; neither changes the lifecycle. */
-  const archiveAction = (archived: boolean, terminal: boolean, commit: (next: boolean) => Promise<unknown>): ArchiveAction => ({
+  const archiveAction = (
+    archived: boolean,
+    allowed: boolean,
+    subject: "cycle" | "execution",
+    commit: (next: boolean) => Promise<unknown>,
+  ): ArchiveAction => ({
     archived,
     onToggle: () =>
       run(
@@ -241,7 +195,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           : { done: "Archived", failed: "The archive mark could not be set." },
         () => commit(!archived),
       ),
-    refusal: archiveRefusal(terminal),
+    refusal: archiveRefusal(allowed, subject),
   });
   const run = (report: { done: string; failed: string }, action: () => Promise<unknown>) => {
     action()
@@ -269,7 +223,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     ) : (
       <WorkspaceNotice
         action={{ label: "Go To Cycles", onClick: () => void navigate({ to: "/cycles" }) }}
-        message="This cycle is no longer loaded. A sealed cycle leaves the runtime when the next one starts; History keeps it."
+        message="This cycle could not be found on the connected backend. Return to Cycles or inspect its saved history."
         title="Cycle Not Found"
       />
     );
@@ -279,35 +233,58 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     const executionMenu: ExecutionMenu = {
       kind: "execution",
       archive: selectedRow.execution
-        ? archiveAction(Boolean(selectedRow.execution.archived), isTerminalExecutionStatus(selectedRow.execution.status), (archived) =>
-            commands.archiveExecution.mutateAsync({
-              archived,
-              executionId: selectedRow.execution?.test_execution_id ?? "",
-            }),
+        ? archiveAction(
+            Boolean(selectedRow.execution.archived),
+            isTerminalExecutionStatus(selectedRow.execution.status),
+            "execution",
+            (archived) =>
+              commands.archiveExecution.mutateAsync({
+                archived,
+                executionId: selectedRow.execution?.test_execution_id ?? "",
+              }),
           )
         : null,
       onOpenReport: selectedRow.execution ? () => openReport(selectedRow.execution?.test_execution_id ?? null) : null,
       onRerun:
         selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
           ? () =>
-              run({ done: "Case Re-Run Started", failed: "Case Re-Run Failed" }, async () => {
+              run({ done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" }, async () => {
                 const created = await rerunCase.rerun(selectedRow.case.caseId);
                 if (created) onSelectionChange({ executionId: created });
               })
           : null,
-      rerunRefusal: selectedRow.case.actions && !selectedRow.case.actions.schedule_rerun ? caseActionTooltip(selectedRow.case) : undefined,
+      rerunRefusal: plan.test_cycle.phase === "active" ? undefined : "Only Active Cycles Accept New Attempts",
+      onSettings: selectedRow.execution ? () => setSettingsOpen(true) : null,
     };
+    const execution = selectedRow.execution;
+    const executionSealed = caseSealed(executions, selectedRow.case.caseId);
     return (
       <div className="grid min-h-0">
+        {live && execution ? (
+          <SettingsDialog
+            description="The execution's own settings. Its title is its case's label; a sealed attempt keeps the label its report froze."
+            onOpenChange={setSettingsOpen}
+            onSubmit={async (values) => {
+              if (values.title !== selectedRow.case.label) {
+                await commands.renameExecution.mutateAsync({ executionId: execution.test_execution_id, label: values.title });
+              }
+              toast.success("Execution Settings Saved");
+            }}
+            open={settingsOpen}
+            readOnly={executionSealed ? { title: "Sealed: the report froze this label." } : {}}
+            title="Execution Settings"
+            values={{ title: selectedRow.case.label }}
+          />
+        ) : null}
         <ExecutionSections
           cycleId={cycleId}
           live={live}
           menu={executionMenu}
           onSelectExecution={(next) => onSelectionChange({ executionId: next })}
+          onSelectCycle={() => onSelectionChange({ view: "cycle" })}
           plan={plan}
           prompts={prompts}
           row={selectedRow}
-          selection={selection}
           label={selectedRow.case.label}
           onRename={
             selectedRow.execution && !caseSealed(executions, selectedRow.case.caseId)
@@ -325,76 +302,155 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     );
   }
 
+  const cycleMenu: CycleMenu = {
+    archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleSealed(phase), "cycle", (archived) =>
+      commands.archiveCycle.mutateAsync(archived),
+    ),
+    followActive,
+    kind: "cycle",
+    onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
+    onCopyCycle: () =>
+      run({ done: "Cycle copied", failed: "The cycle could not be copied." }, async () => {
+        const response = await commands.copyCycle.mutateAsync();
+        await navigate({
+          to: "/cycles/$cycleId",
+          params: { cycleId: response.plan.test_cycle.test_cycle_id },
+        });
+      }),
+    onOpenReport: () => openReport(null),
+    onSettings: () => setSettingsOpen(true),
+    onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
+  };
+  const control = cycleControlState({
+    phase,
+    running:
+      runningRow?.execution && progress
+        ? {
+            ordinal: runningRow.ordinal,
+            step: stepLabel(runningRow.execution, progress.stepId, progress.phase),
+            stepId: progress.stepId,
+          }
+        : null,
+  });
+  const seal = control.actions.includes("Seal Cycle") ? (
+    <Button className="h-[var(--bar-control-height)] px-3" onClick={() => setConfirm({ kind: "seal" })} variant="outline">
+      <LockKeyhole data-icon="inline-start" />
+      Seal Cycle
+    </Button>
+  ) : null;
+  const waiting = inputNeededLabel(waitingRows.map((row) => row.ordinal));
+  const state = cycleState(phase, status, prompts.length > 0);
+
   return (
-    <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-      <CycleWorkspaceHeader
-        identity={{
-          status: {
-            activity,
-            label: cycleStatusLabel(status),
-            progress: `${finished} of ${cases.length} cases finished`,
-            variant: cycleStatusVariant(status),
-          },
-          title: plan.test_cycle.title,
-        }}
-        live={live}
-        onRename={plan.test_cycle.sealed || plan.test_cycle.archived ? undefined : (label) => commands.renameCycle.mutateAsync(label)}
-        menu={{
-          archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleTerminal(status), (archived) =>
-            commands.archiveCycle.mutateAsync(archived),
-          ),
-          followActive,
-          kind: "cycle",
-          onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
-          onCopyCycle: () =>
-            run({ done: "Cycle copied", failed: "The cycle could not be copied." }, async () => {
-              const response = await commands.copyCycle.mutateAsync();
-              await navigate({
-                to: "/cycles/$cycleId",
-                params: { cycleId: response.plan.test_cycle.test_cycle_id },
-              });
-            }),
-          onOpenReport: () => openReport(null),
-          onRuntimePolicy: () => setPolicyOpen(true),
-          onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
-        }}
-        prompts={<CyclePromptBanner prompts={prompts} />}
-      />
-
-      <CycleEvidencePane cycleId={cycleId} live={live} plan={plan} snapshot={runtimeQuery.data ?? null} />
-
-      <RuntimePolicyDialog
-        continueOnFailure={plan.test_cycle.continue_on_failure}
-        onOpenChange={setPolicyOpen}
-        onSubmit={(value) =>
-          run({ done: "Runtime policy updated", failed: "The runtime policy could not be updated." }, async () => {
-            await commands.updatePolicy.mutateAsync(value);
-            setPolicyOpen(false);
-          })
+    <div className="grid min-h-0">
+      <CycleEvidencePane
+        cycleId={cycleId}
+        pageActions={
+          live ? (
+            <NodeActionCluster
+              cycleId={cycleId}
+              menu={cycleMenu}
+              primary={seal}
+              subject={{ executionId: null, label: plan.test_cycle.title, sealed: phase === "sealed" }}
+            />
+          ) : null
         }
-        open={live && policyOpen}
+        trail={["Cycle"]}
+        lead={
+          <>
+            <NodeHeader
+              breadcrumb={[{ label: "Cycles", onSelect: () => void navigate({ to: "/cycles" }) }, { label: plan.test_cycle.title }]}
+              description={
+                typeof plan.test_cycle.metadata.description === "string" && plan.test_cycle.metadata.description
+                  ? plan.test_cycle.metadata.description
+                  : null
+              }
+              live={live}
+              onRename={plan.test_cycle.sealed || plan.test_cycle.archived ? null : (label) => commands.renameCycle.mutateAsync(label)}
+              progress={`${finished} of ${cases.length} cases finished`}
+              status={state}
+              subject="Cycle"
+              title={plan.test_cycle.title}
+            />
+            {live ? (
+              <ControlCard
+                actions={seal}
+                detail={control.detail}
+                label="Cycle Controls"
+                progress={runningRow && progress ? { completed: progress.completed, total: progress.total } : null}
+                state={control.line}
+              >
+                {waiting ? (
+                  <p className="grid auto-cols-max grid-flow-col items-baseline gap-x-2 text-sm" data-input-needed>
+                    <span className="text-warning">{waiting}</span>
+                    {waitingRows.map((row) => (
+                      <Button
+                        className="h-auto px-0"
+                        key={row.key}
+                        onClick={() => row.execution && onSelectionChange({ executionId: row.execution.test_execution_id })}
+                        variant="link"
+                      >
+                        Answer On #{row.ordinal}
+                      </Button>
+                    ))}
+                  </p>
+                ) : null}
+              </ControlCard>
+            ) : null}
+          </>
+        }
+        live={live}
+        plan={plan}
+        prompts={cyclePrompts}
+        snapshot={runtimeQuery.data ?? null}
       />
 
-      <Dialog onOpenChange={(next) => !next && setConfirm(null)} open={live && confirm !== null}>
+      {live ? (
+        <SettingsDialog
+          description="The cycle's own settings. Continuation starts the next unstarted execution after one completes, whatever its verdict."
+          onOpenChange={setSettingsOpen}
+          onSubmit={async (values) => {
+            if (values.title !== plan.test_cycle.title) await commands.renameCycle.mutateAsync(values.title);
+            if (values.continueAutomatically !== undefined && values.continueAutomatically !== plan.test_cycle.continue_automatically) {
+              await commands.updatePolicy.mutateAsync({ continueAutomatically: values.continueAutomatically });
+            }
+            toast.success("Cycle Settings Saved");
+          }}
+          open={settingsOpen}
+          readOnly={cycleSettingsReadOnly(phase, Boolean(plan.test_cycle.archived))}
+          title="Cycle Settings"
+          values={{
+            continueAutomatically: plan.test_cycle.continue_automatically,
+            description: typeof plan.test_cycle.metadata.description === "string" ? plan.test_cycle.metadata.description : "",
+            title: plan.test_cycle.title,
+          }}
+        />
+      ) : null}
+
+      <Dialog onOpenChange={(next) => !next && !commands.sealCycle.isPending && setConfirm(null)} open={live && confirm !== null}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Stop Cycle</DialogTitle>
+            <DialogTitle>Seal Cycle</DialogTitle>
             <DialogDescription>
-              {`Stopping the cycle stops every running and queued execution of its ${cases.length} cases. To stop only one execution, select it and use Stop Execution.`}
+              Sealing closes this cycle permanently. Its running work stops, unstarted executions are cancelled, and all evidence is saved.
+              Other cycles keep running. This can take time while evidence drains.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setConfirm(null)} variant="outline">
+            <Button disabled={commands.sealCycle.isPending} onClick={() => setConfirm(null)} variant="outline">
               Cancel
             </Button>
             <Button
+              disabled={commands.sealCycle.isPending}
               onClick={() => {
-                setConfirm(null);
-                run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () => commands.stopCycle.mutateAsync());
+                run({ done: "Cycle Sealed", failed: "Cycle Seal Could Not Be Confirmed" }, async () => {
+                  await commands.sealCycle.mutateAsync();
+                  setConfirm(null);
+                });
               }}
               variant="danger"
             >
-              Stop Cycle
+              {commands.sealCycle.isPending ? "Sealing — Saving Evidence" : "Seal Cycle"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -404,11 +460,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
 }
 
 /* === Private Functions === */
-
-/** The execution page's title: its ordinal and its case. */
-function executionTitle(row: CycleExecutionRow): string {
-  return `${executionTitlePrefix(row)}${row.case.label}`;
-}
 
 /** A case whose attempt sealed keeps the label its report froze. */
 function caseSealed(executions: TestExecution[], caseId: string): boolean {
@@ -420,45 +471,6 @@ function executionTitlePrefix(row: CycleExecutionRow): string {
 }
 
 /* === Private Components === */
-
-function RuntimePolicyDialog({
-  continueOnFailure,
-  onOpenChange,
-  onSubmit,
-  open,
-}: {
-  continueOnFailure: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (continueOnFailure: boolean) => void;
-  open: boolean;
-}) {
-  const [value, setValue] = useState(continueOnFailure);
-
-  useEffect(() => {
-    if (open) setValue(continueOnFailure);
-  }, [continueOnFailure, open]);
-
-  return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Runtime Policy</DialogTitle>
-          <DialogDescription>How this cycle reacts when a case fails.</DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <Label htmlFor="cycle-continue-on-failure">Continue after a failed case</Label>
-          <Switch checked={value} id="cycle-continue-on-failure" onCheckedChange={setValue} />
-        </div>
-        <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} variant="outline">
-            Cancel
-          </Button>
-          <Button onClick={() => onSubmit(value)}>Save Policy</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function WorkspaceNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (

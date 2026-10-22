@@ -16,8 +16,7 @@ import { useState } from "react";
 
 import { useNativeSession } from "@/app/native-session/context";
 import { restartDesktopApp } from "@/features/settings/plugins/plugin-data-source";
-import { nativeContentSession } from "@/lib/api/native-content";
-import type { StagePluginProgress } from "@/lib/api/native-plugins";
+import type { PluginSource, StagePluginProgress } from "@/lib/api/native-plugins";
 import {
   consentNativePlugin,
   listNativePlugins,
@@ -25,6 +24,7 @@ import {
   setNativePluginEnabled,
   stageNativePlugin,
 } from "@/lib/api/native-plugins";
+import { commands } from "@/lib/desktop/commands";
 
 /* === Query Keys === */
 
@@ -50,11 +50,9 @@ export function useStagePluginMutation() {
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<StagePluginProgress | null>(null);
   const mutation = useMutation({
-    mutationFn: (file: File) => {
+    mutationFn: (source: PluginSource) => {
       setProgress(null);
-      return stageNativePlugin(nativeContentSession(session.identity, session.own), file, {
-        onProgress: setProgress,
-      });
+      return stageNativePlugin(session.identity, source, { onProgress: setProgress });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() });
@@ -62,6 +60,17 @@ export function useStagePluginMutation() {
     onSettled: () => setProgress(null),
   });
   return { ...mutation, progress };
+}
+
+export function usePluginReleaseMutation() {
+  const session = useNativeSession();
+  return useMutation({
+    mutationFn: async () => {
+      const release = await commands.desktopPluginReleaseCheck(session.identity.generation);
+      if (!session.identity.isCurrent()) throw new Error("The backend changed while checking plugin releases.");
+      return release;
+    },
+  });
 }
 
 export function useConsentPluginMutation() {

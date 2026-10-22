@@ -23,8 +23,10 @@ use crate::{Error, ResponseStream, Result, contracts, validate_observed_cursor};
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const PAGE_SIZE: u32 = 100;
 
 /* === Macros === */
@@ -38,6 +40,7 @@ const PAGE_SIZE: u32 = 100;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestCycleHandle {
     pub async fn prompt(&self, id: &PromptId) -> Result<dokime_domain::model::prompts::wire::PromptView> {
         self.client.verify(true).await?;
@@ -52,6 +55,12 @@ impl TestCycleHandle {
     }
 
     pub fn pending_prompts(&self) -> Result<ResponseStream<dokime_domain::model::prompts::wire::PromptInstance>> {
+        self.pending_for_execution(None)
+    }
+
+    pub(crate) fn pending_for_execution(
+        &self, execution: Option<TestExecutionId>,
+    ) -> Result<ResponseStream<dokime_domain::model::prompts::wire::PromptInstance>> {
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let read = async {
@@ -60,9 +69,9 @@ impl TestCycleHandle {
                     limit: PAGE_SIZE,
                     after_prompt_id: String::new(),
                     cursor: None,
-                    execution_id: None,
+                    execution_id: execution.as_ref().map(ToString::to_string),
                 };
-                let selection = dokime_domain::model::prompts::pending_stream(Some(&handle.id), None);
+                let selection = dokime_domain::model::prompts::pending_stream(Some(&handle.id), execution.as_ref());
                 loop {
                     handle.client.verify(true).await?;
                     let page = handle.client.prompts_list_pending(request.clone()).await?;
@@ -119,6 +128,7 @@ impl TestCycleHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_view(epoch: &str, id: &PromptId, view: &dokime_domain::model::prompts::wire::PromptView) -> Result<()> {
     validate_observed_cursor(epoch, view.observed_cursor.as_ref())?;
     let prompt = view.prompt.as_ref().ok_or_else(|| invalid("prompt view has no admitted prompt"))?;
@@ -147,6 +157,10 @@ fn validate_page(
         PromptId::from_uuid(&prompt.prompt_id).map_err(|_| invalid("pending prompt identity is invalid"))?;
         if prompt.prompt_id.as_str() <= previous
             || prompt.scope.as_ref().and_then(|scope| scope.cycle_id.as_deref()) != Some(cycle.as_str())
+            || request
+                .execution_id
+                .as_ref()
+                .is_some_and(|id| prompt.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()) != Some(id))
         {
             return Err(invalid("pending prompt identity does not advance within the cycle"));
         }

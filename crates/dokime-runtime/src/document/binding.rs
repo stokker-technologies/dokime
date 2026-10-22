@@ -36,6 +36,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Default)]
 pub(super) struct Evidence<'a> {
     pub records: Records<'a>,
@@ -46,6 +47,7 @@ pub(super) struct Evidence<'a> {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 pub(super) enum Row<'a> {
     Artifact { artifact: &'a ArtifactRecord, context: Option<Entry<'a>> },
@@ -57,6 +59,7 @@ pub(super) enum Row<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> Evidence<'a> {
     pub(super) fn upper_rows(self) -> usize {
         self.telemetry.len().saturating_add(self.context.len()).saturating_add(self.records.len()).saturating_add(self.artifacts.len())
@@ -151,6 +154,7 @@ impl Row<'_> {
 }
 
 /* === Public Functions === */
+
 pub(super) fn row_text<'a>(row: Row<'a>, expression: &DataExpression) -> Option<&'a str> {
     let Row::Artifact { artifact, .. } = row else {
         return None;
@@ -367,6 +371,7 @@ pub(super) fn evaluate(expression: &DataExpression, evidence: Evidence<'_>, sele
 }
 
 /* === Private Functions === */
+
 fn plan(expression: &DataExpression, rows: usize) -> Result<Plan> {
     let cases = expression.transforms.contains(&DataTransform::PerCase).then_some(rows.clamp(1, 4096));
     Plan::compile(expression, cases)

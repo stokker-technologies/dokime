@@ -15,10 +15,28 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+[features]
+default = []
+plugin-sidecar = ["native", "derive"]
+# Plugin Is An Alias For The Native Sidecar Authoring Surface.
+plugin = ["plugin-sidecar"]
+native = ["dokime-runtime/native"]
+derive = ["dokime-runtime/derive"]
+diagnostics = ["dokime-domain/diagnostics"]
+storage = ["dokime-runtime/storage"]
+host = ["dokime-runtime/host"]
+fault-injection = ["dokime-runtime/fault-injection"]
+fft = ["dokime-runtime/fft"]
+media-native = ["dokime-runtime/media-native"]
+simulation = ["dokime-runtime/simulation"]
+client = ["dep:dokime-client", "dep:dotenv", "dep:tokio", "dep:zeroize"]
+terminal = ["diagnostics", "dep:anstream", "dep:anstyle", "dep:indicatif"]
+
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-client = { path = "../dokime-client" }
+dokime-client = { workspace = true, optional = true }
+dokime-domain = { workspace = true }
+dokime-runtime = { workspace = true, default-features = false }
 
 # Git
 harmos = { workspace = true, features = ["plugin"] }
@@ -31,8 +49,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-sha2 = { workspace = true }
-zeroize = { workspace = true }
+zeroize = { workspace = true, optional = true }
 
 # Serialization
 serde = { workspace = true }
@@ -40,40 +57,19 @@ serde_json = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
+dotenv = { workspace = true, optional = true }
 
 # Filesystem
 tempfile = { workspace = true }
 
 # Async
-tokio = { workspace = true }
-tokio-stream = { workspace = true }
+tokio = { workspace = true, optional = true }
 
 # UI
-anstream = { workspace = true }
-anstyle = { workspace = true }
-indicatif = { workspace = true }
-
-[[bin]]
-name = "dokime"
-path = "src/main.rs"
-doc = false
+anstream = { workspace = true, optional = true }
+anstyle = { workspace = true, optional = true }
+indicatif = { workspace = true, optional = true }
 
 [dev-dependencies]
-# Git
-harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
-
-# Networking
-tonic = { workspace = true }
-
-# Utilities
-time = { workspace = true }
-
 # Filesystem
 tempfile = { workspace = true }
-
-# Testing
-criterion = { workspace = true }
-
-# UI
-portable-pty = { workspace = true }

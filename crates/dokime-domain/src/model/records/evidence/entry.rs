@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::ops::{Deref, DerefMut};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::records::evidence::Record;
 
@@ -26,10 +29,12 @@ use crate::model::records::evidence::Record;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RecordEntry {
     pub sequence: u64,
+
     #[serde(flatten)]
     pub record: Record,
 }
@@ -39,6 +44,7 @@ pub struct RecordEntry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for RecordEntry {
     fn memory_size(&self) -> usize {
         let fields = [(harmos_domain::MemorySize::memory_size(&self.record), std::mem::size_of_val(&self.record))];

@@ -12,17 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
-use dokime_runtime::runtime::command::CommandContext;
-use dokime_runtime::telemetry::{TelemetryBatch, TelemetrySample};
-use dokime_runtime::{Identifier, ParameterId, RecordScope, Value, ValueType};
+use dokime::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
+use dokime::domain::model;
+use dokime::runtime::command::CommandContext;
+use dokime::telemetry::{TelemetryBatch, TelemetrySample};
+use dokime::{Identifier, ParameterId, RecordScope, Value, ValueType};
 
 /* === Constants === */
 
@@ -41,6 +42,7 @@ use dokime_runtime::{Identifier, ParameterId, RecordScope, Value, ValueType};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn parameter(key: &str, group: &str, value: f64) -> ParameterDefinition {
     ParameterDefinition {
         expansion: Default::default(),
@@ -62,17 +64,12 @@ fn parameter(key: &str, group: &str, value: f64) -> ParameterDefinition {
 
 fn host_batch(scope: Option<RecordScope>, host_name: &str) -> TelemetryBatch {
     let stream = Identifier::new("host.system").unwrap();
-    let mut sample = TelemetrySample::new(
-        dokime_runtime::model::identity::new_id(),
-        stream.clone(),
-        0,
-        dokime_runtime::model::time::now_utc(),
-        "fixture.host",
-    );
+    let mut sample =
+        TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), 0, dokime::model::time::now_utc(), "fixture.host");
     sample.scope = scope;
     sample.values.insert("host_name".into(), Value::Text(host_name.into()));
     sample.values.insert("cpu_load_percent".into(), Value::Number(12.5));
-    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, vec![sample])
+    TelemetryBatch::new(dokime::model::identity::new_id(), stream, vec![sample])
 }
 
 #[tokio::test]
@@ -86,7 +83,7 @@ async fn get_traceability_cursor() {
         parameter("operator.email", "traceability.operator", 1.0),
     ]);
     let mut registration = support::fixture_registration(suite.clone());
-    registration.telemetry_contracts = dokime_host::host_telemetry_contracts();
+    registration.telemetry_contracts = dokime::domain::model::telemetry::host_telemetry_contracts();
     handle.set_suites("fixture", SuiteSet::new([registration])).await.unwrap();
     let cycle_id = support::cycle_with_cases(
         &handle,
@@ -95,7 +92,7 @@ async fn get_traceability_cursor() {
     )
     .await;
 
-    let server = Server::start(handle.clone(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
+    let server = Server::start(handle.clone(), keyed()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let first = client
@@ -231,7 +228,7 @@ async fn get_traceability_cursor() {
                     .value
                     .as_ref()
                     .map(|value| value.to_core().unwrap())
-                    .is_some_and(|kind| matches!(kind, dokime_runtime::Value::Text(value) if value == "second-host"))
+                    .is_some_and(|kind| matches!(kind, dokime::Value::Text(value) if value == "second-host"))
         })
     }));
 
@@ -251,8 +248,8 @@ async fn get_traceability_cursor() {
         Code::FailedPrecondition
     );
 
-    handle.stop_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
-    handle.stop_cycle(second_cycle_id, CommandContext::default()).await.unwrap();
+    handle.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    handle.seal_cycle(second_cycle_id, CommandContext::default()).await.unwrap();
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -265,7 +262,7 @@ async fn traceability_bounds_clone() {
     let handle = owner.handle();
     let suite = support::fixture_suite(&["passed"]);
     let mut registration = support::fixture_registration(suite);
-    registration.telemetry_contracts = dokime_host::host_telemetry_contracts();
+    registration.telemetry_contracts = dokime::domain::model::telemetry::host_telemetry_contracts();
     handle.set_suites("fixture", SuiteSet::new([registration])).await.unwrap();
 
     let receipt = handle.publish_telemetry_batch(host_batch(None, "budget-host")).await.unwrap();

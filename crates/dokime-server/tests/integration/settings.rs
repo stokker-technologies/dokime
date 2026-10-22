@@ -12,32 +12,31 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use tonic::Code;
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::domains::{
+use dokime::domain::model;
+use dokime::domains::{
     ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderContribution, OptionProviderOption,
     OptionProviderSource, PluginEntrypoint,
 };
 use {
-    dokime_runtime::Identifier, dokime_runtime::InstalledPlugin, dokime_runtime::Metadata, dokime_runtime::Value,
-    dokime_runtime::settings::SecretSetting, dokime_runtime::settings::Settings, dokime_runtime::settings::SettingsEntry,
-    dokime_runtime::settings::TextArea,
+    dokime::Identifier, dokime::InstalledPlugin, dokime::Metadata, dokime::Value, dokime::settings::SecretSetting,
+    dokime::settings::Settings, dokime::settings::SettingsEntry, dokime::settings::TextArea,
 };
 
 /* === Constants === */
-const CONTROL_TOKEN: &str = "settings-control-token-012345678901234567890";
-const ADMIN_TOKEN: &str = "settings-admin-token-01234567890123456789012";
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct FixtureActionDispatcher;
 
 /* === Enums === */
@@ -45,8 +44,9 @@ struct FixtureActionDispatcher;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ActionDispatcher for FixtureActionDispatcher {
-    fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, dokime_runtime::domains::StatusResponse> {
+    fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, dokime::domains::StatusResponse> {
         Box::pin(async { Err(ActionDispatcherError::Unavailable) })
     }
 
@@ -69,15 +69,6 @@ impl ActionDispatcher for FixtureActionDispatcher {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn config() -> Config {
-    Config::local()
-        .with_bearer_auth(vec![
-            grant(Role::Read),
-            BearerGrant::new("control".into(), Role::Control, CONTROL_TOKEN).unwrap(),
-            BearerGrant::new("admin".into(), Role::Admin, ADMIN_TOKEN).unwrap(),
-        ])
-        .unwrap()
-}
 
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let environment = support::TestEnvironment::with_installed_plugins_and_action_dispatcher(
@@ -86,7 +77,7 @@ async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
         Arc::new(FixtureActionDispatcher),
     )
     .await;
-    let server = Server::start(environment.runtime.clone(), config()).await.unwrap();
+    let server = Server::start(environment.runtime.clone(), Config::local()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     (environment, server, client)
 }
@@ -94,10 +85,6 @@ async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
 #[tokio::test]
 async fn frame_readable_probe() {
     let (_environment, server, client) = fixture().await;
-    assert_eq!(
-        client.unary::<contracts::settings::GetSettings>(contracts::settings::GetSettings {}).await.unwrap_err().code(),
-        Code::Unauthenticated
-    );
 
     let frame = client
         .unary::<contracts::settings::GetSettings>(auth(contracts::settings::GetSettings {}, super::TOKEN))
@@ -116,12 +103,8 @@ async fn frame_readable_probe() {
 }
 
 #[tokio::test]
-async fn storage_sources_admin() {
+async fn storage_sources() {
     let (_environment, server, client) = fixture().await;
-    assert_eq!(
-        client.unary::<contracts::settings::ListStorageSources>(contracts::settings::ListStorageSources {}).await.unwrap_err().code(),
-        Code::Unauthenticated
-    );
     let sources = client
         .unary::<contracts::settings::ListStorageSources>(auth(contracts::settings::ListStorageSources {}, super::TOKEN))
         .await
@@ -131,36 +114,12 @@ async fn storage_sources_admin() {
     assert_eq!(sources.len(), 1);
     assert_eq!(sources[0].identifier, "local");
     assert!(sources[0].enabled);
-    for token in [super::TOKEN, CONTROL_TOKEN] {
-        assert_eq!(
-            client
-                .unary::<contracts::settings::ReorderStorageSources>(auth(
-                    contracts::settings::ReorderStorageSources { identifiers: vec!["local".into()] },
-                    token
-                ))
-                .await
-                .unwrap_err()
-                .code(),
-            Code::PermissionDenied
-        );
-        assert_eq!(
-            client
-                .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
-                    contracts::settings::SetStorageSourceEnabled { identifier: "local".into(), enabled: true },
-                    token
-                ))
-                .await
-                .unwrap_err()
-                .code(),
-            Code::PermissionDenied
-        );
-    }
     for identifiers in [vec![], vec!["local".into(), "local".into()], vec!["unknown".into()], vec!["x".repeat(257)]] {
         assert_eq!(
             client
                 .unary::<contracts::settings::ReorderStorageSources>(auth(
                     contracts::settings::ReorderStorageSources { identifiers },
-                    ADMIN_TOKEN
+                    TOKEN
                 ))
                 .await
                 .unwrap_err()
@@ -172,7 +131,7 @@ async fn storage_sources_admin() {
         client
             .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
                 contracts::settings::SetStorageSourceEnabled { identifier: "local".into(), enabled: false },
-                ADMIN_TOKEN
+                TOKEN
             ))
             .await
             .unwrap_err()
@@ -186,7 +145,7 @@ async fn storage_sources_admin() {
             client
                 .unary::<contracts::settings::ReorderStorageSources>(auth(
                     contracts::settings::ReorderStorageSources { identifiers: refused.clone() },
-                    ADMIN_TOKEN
+                    TOKEN
                 ))
                 .await
                 .unwrap_err()
@@ -199,7 +158,7 @@ async fn storage_sources_admin() {
     let reply = client
         .unary::<contracts::settings::ReorderStorageSources>(auth(
             contracts::settings::ReorderStorageSources { identifiers: vec!["local".into()] },
-            ADMIN_TOKEN,
+            TOKEN,
         ))
         .await
         .unwrap()
@@ -209,7 +168,7 @@ async fn storage_sources_admin() {
         client
             .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
                 contracts::settings::SetStorageSourceEnabled { identifier: "local".into(), enabled: true },
-                ADMIN_TOKEN
+                TOKEN
             ))
             .await
             .unwrap()
@@ -221,7 +180,7 @@ async fn storage_sources_admin() {
 }
 
 #[tokio::test]
-async fn plugin_settings_admin() {
+async fn plugin_settings() {
     let (_environment, server, client) = fixture().await;
     let request = contracts::settings::GetPluginSettings { plugin_id: "fixture.settings".into() };
     let initial = client.unary::<contracts::settings::GetPluginSettings>(auth(request.clone(), super::TOKEN)).await.unwrap().into_inner();
@@ -229,7 +188,7 @@ async fn plugin_settings_admin() {
         initial.values.as_ref().unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Lab".into()))
     ));
-    assert_eq!(initial.credential_bindings.as_ref().unwrap().missing_required, vec!["fixture.token"]);
+    assert_eq!(initial.secret_bindings.as_ref().unwrap().missing_required, vec!["fixture.token"]);
 
     let update = contracts::settings::UpdatePluginSettings {
         plugin_id: "fixture.settings".into(),
@@ -238,32 +197,28 @@ async fn plugin_settings_admin() {
             Value::Text("Production".into()),
         )])))),
     };
-    assert_eq!(
-        client.unary::<contracts::settings::UpdatePluginSettings>(auth(update.clone(), CONTROL_TOKEN)).await.unwrap_err().code(),
-        Code::PermissionDenied
-    );
-    let updated = client.unary::<contracts::settings::UpdatePluginSettings>(auth(update, ADMIN_TOKEN)).await.unwrap().into_inner();
+    let updated = client.unary::<contracts::settings::UpdatePluginSettings>(auth(update, TOKEN)).await.unwrap().into_inner();
     assert!(matches!(
         updated.values.unwrap().to_core().unwrap(),
         Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Production".into()))
     ));
 
     let updated = client
-        .unary::<contracts::settings::UpdatePluginCredential>(auth(
-            contracts::settings::UpdatePluginCredential {
+        .unary::<contracts::settings::UpdatePluginSecret>(auth(
+            contracts::settings::UpdatePluginSecret {
                 plugin_id: "fixture.settings".into(),
-                credential_id: "fixture.token".into(),
+                secret_id: "fixture.token".into(),
                 secret: "secret-material".into(),
             },
-            ADMIN_TOKEN,
+            TOKEN,
         ))
         .await
         .unwrap()
         .into_inner();
     let response_debug = format!("{updated:?}");
-    let bindings = updated.credential_bindings.unwrap();
+    let bindings = updated.secret_bindings.unwrap();
     assert!(bindings.missing_required.is_empty());
-    let token = bindings.bindings.iter().find(|entry| entry.key == "fixture.token").expect("the updated credential is bound");
+    let token = bindings.bindings.iter().find(|entry| entry.key == "fixture.token").expect("the updated secret is bound");
     assert!(token.value.as_ref().unwrap().configured);
     assert!(!response_debug.contains("secret-material"));
 
@@ -341,25 +296,19 @@ async fn backend_policy_revision() {
     let mut policy = initial.configured.unwrap();
     policy.compaction_interval_ms = 7_200_000;
     let request = contracts::settings::UpdateStoragePolicy { expected_revision: 0, policy: Some(policy.clone()) };
-    for token in [super::TOKEN, CONTROL_TOKEN] {
-        assert_eq!(
-            client.unary::<contracts::settings::UpdateStoragePolicy>(auth(request.clone(), token)).await.unwrap_err().code(),
-            Code::PermissionDenied
-        );
-    }
-    let saved = client.unary::<contracts::settings::UpdateStoragePolicy>(auth(request.clone(), ADMIN_TOKEN)).await.unwrap().into_inner();
+    let saved = client.unary::<contracts::settings::UpdateStoragePolicy>(auth(request.clone(), TOKEN)).await.unwrap().into_inner();
     assert_eq!(saved.revision, 1);
     assert_eq!(saved.configured, Some(policy));
     assert_eq!(saved.effective, initial.effective);
     assert!(saved.restart_required);
     assert_eq!(
-        client.unary::<contracts::settings::UpdateStoragePolicy>(auth(request, ADMIN_TOKEN)).await.unwrap_err().code(),
+        client.unary::<contracts::settings::UpdateStoragePolicy>(auth(request, TOKEN)).await.unwrap_err().code(),
         Code::FailedPrecondition
     );
     let invalid =
         contracts::settings::UpdateStoragePolicy { expected_revision: 1, policy: Some(model::settings::wire::StoragePolicy::default()) };
     assert_eq!(
-        client.unary::<contracts::settings::UpdateStoragePolicy>(auth(invalid, ADMIN_TOKEN)).await.unwrap_err().code(),
+        client.unary::<contracts::settings::UpdateStoragePolicy>(auth(invalid, TOKEN)).await.unwrap_err().code(),
         Code::InvalidArgument
     );
     let read = client
@@ -372,7 +321,7 @@ async fn backend_policy_revision() {
 }
 
 #[tokio::test]
-async fn app_settings_role() {
+async fn application_settings() {
     let (environment, server, client) = fixture().await;
     let initial = client
         .unary::<contracts::settings::ReadApplicationSettings>(auth(contracts::settings::ReadApplicationSettings {}, super::TOKEN))
@@ -381,7 +330,7 @@ async fn app_settings_role() {
         .into_inner();
     assert_eq!(initial.configured_data_root, None);
 
-    // Appearance Needs Control; It Is Saved Without A Restart
+    // Appearance Is Saved Without A Restart.
     let appearance = contracts::settings::UpdateAppearance {
         appearance: Some(model::settings::wire::AppearancePreference {
             theme_mode: model::settings::wire::ThemeMode::Dark,
@@ -389,27 +338,16 @@ async fn app_settings_role() {
             density: model::settings::wire::Density::Compact,
         }),
     };
-    assert_eq!(
-        client.unary::<contracts::settings::UpdateAppearance>(auth(appearance.clone(), super::TOKEN)).await.unwrap_err().code(),
-        Code::PermissionDenied
-    );
-    let saved = client.unary::<contracts::settings::UpdateAppearance>(auth(appearance, CONTROL_TOKEN)).await.unwrap().into_inner();
+    let saved = client.unary::<contracts::settings::UpdateAppearance>(auth(appearance, TOKEN)).await.unwrap().into_inner();
     assert_eq!(saved.appearance.unwrap().theme_mode, model::settings::wire::ThemeMode::Dark);
     assert_eq!(saved.restart_required, initial.restart_required);
 
-    // The Data Root Needs Admin And Applies On Restart
+    // The Data Root Applies On Restart.
     let chosen = environment.root.path().join("chosen-data");
     let data_root = contracts::settings::UpdateDataRoot { data_root: Some(chosen.display().to_string()) };
-    assert_eq!(
-        client.unary::<contracts::settings::UpdateDataRoot>(auth(data_root.clone(), CONTROL_TOKEN)).await.unwrap_err().code(),
-        Code::PermissionDenied
-    );
     let relative = contracts::settings::UpdateDataRoot { data_root: Some("relative".into()) };
-    assert_eq!(
-        client.unary::<contracts::settings::UpdateDataRoot>(auth(relative, ADMIN_TOKEN)).await.unwrap_err().code(),
-        Code::InvalidArgument
-    );
-    let saved = client.unary::<contracts::settings::UpdateDataRoot>(auth(data_root, ADMIN_TOKEN)).await.unwrap().into_inner();
+    assert_eq!(client.unary::<contracts::settings::UpdateDataRoot>(auth(relative, TOKEN)).await.unwrap_err().code(), Code::InvalidArgument);
+    let saved = client.unary::<contracts::settings::UpdateDataRoot>(auth(data_root, TOKEN)).await.unwrap().into_inner();
     assert_eq!(saved.configured_data_root, Some(chosen.display().to_string()));
     assert!(saved.restart_required);
     assert!(chosen.is_dir(), "the chosen root is proven writable");

@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, process::Command, time::Duration};
+
 // Third Party Imports
 
 // Local Imports
@@ -36,7 +38,6 @@ use dokime_domain::model::values::Value;
 /* === Implementations === */
 
 /* === Public Functions === */
-/* === Functions === */
 
 #[cfg(not(windows))]
 pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions) -> Result<BTreeMap<String, Value>, String> {
@@ -68,6 +69,7 @@ pub(crate) fn linux_bluetooth_snapshot(options: &HostOptions) -> Result<BTreeMap
 }
 
 /* === Private Functions === */
+
 #[cfg(not(windows))]
 fn bluetoothctl_output(args: &[&str]) -> Result<String, String> {
     let mut command = Command::new("bluetoothctl");

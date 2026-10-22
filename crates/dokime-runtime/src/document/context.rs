@@ -36,6 +36,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Default)]
 pub(crate) struct Context<'a> {
     executions: Executions<'a>,
@@ -51,6 +52,7 @@ pub(super) struct Entry<'a> {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 enum Executions<'a> {
     Slice(&'a [TestExecution]),
@@ -60,6 +62,7 @@ enum Executions<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> Context<'a> {
     pub(crate) fn new(executions: &'a [TestExecution], selection: &'a RecordScope) -> Self {
         Self { executions: Executions::Slice(executions), selection: Some(selection) }
@@ -217,6 +220,7 @@ impl<'a> From<&'a TestExecution> for Entry<'a> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn member(execution: &RecordScope, selected: &RecordScope) -> bool {
     scoped(execution, selected, true)
 }

@@ -12,12 +12,15 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 #[cfg(not(windows))]
 pub use crate::platform::linux::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
+
 #[cfg(windows)]
 pub use crate::platform::windows::wifi::WifiLink;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -25,13 +28,16 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
+
 // Third Party Imports
 use sysinfo::Networks;
+
 // Local Imports
 use crate::{HostOptions, HostStreamSample, HostTelemetryStream, Result, collectors::maybe_insert};
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const WIFI_CONGESTION_MODEL_24_GHZ: &str = "2.4ghz_adjacent_channel_v1";
 const WIFI_CONGESTION_MODEL_SAME_CHANNEL: &str = "same_channel_v1";
 const DEFAULT_WIFI_LATENCY_HOST: &str = "1.1.1.1";
@@ -46,6 +52,7 @@ const WIFI_5_GHZ_CHANNELS: &[u32] = &[
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct WifiCollector {
     sample_index: u64,
     latency_sample_index: u64,
@@ -90,6 +97,7 @@ pub(crate) struct WifiCongestionCache {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl WifiCollector {
     pub(crate) fn new(options: HostOptions, congestion_cache: Arc<Mutex<WifiCongestionCache>>) -> Self {
         Self {
@@ -442,6 +450,7 @@ impl WifiCongestionCache {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn wifi_congestion_summary(
     active_channel: Option<u32>, active_band: Option<String>, channels: &[WifiChannelCount],
 ) -> WifiCongestionSummary {

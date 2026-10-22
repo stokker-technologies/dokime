@@ -24,7 +24,7 @@ use std::sync::Arc;
 // Local Imports
 use super::content::UploadGate;
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -41,6 +41,7 @@ use dokime_domain::model;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 #[tokio::test]
 async fn media_capture_artifacts() {
     let root = tempfile::tempdir().unwrap();
@@ -53,12 +54,7 @@ async fn media_capture_artifacts() {
     .await
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
-    let server = Server::start(
-        owner.handle(),
-        Config::local().with_bearer_auth(vec![grant(Role::Control)]).unwrap().with_max_message_bytes(1024 * 1024),
-    )
-    .await
-    .unwrap();
+    let server = Server::start(owner.handle(), Config::local().with_max_message_bytes(1024 * 1024)).await.unwrap();
     let client = connect(&server).await;
     let scope = running_execution(&owner, &client, &gate).await;
 
@@ -131,7 +127,7 @@ async fn media_capture_artifacts() {
                 .expect("artifact query succeeds")
                 .iter()
                 .filter(|record| record.filename.starts_with("audio/"))
-                .filter(|record| record.status == dokime_runtime::artifacts::ArtifactStatus::Complete)
+                .filter(|record| record.status == dokime::artifacts::ArtifactStatus::Complete)
                 .count();
             (audio == 2).then_some(())
         })
@@ -188,6 +184,7 @@ async fn media_capture_artifacts() {
 }
 
 /* === Private Functions === */
+
 pub(super) async fn running_execution(owner: &Runtime, client: &WireClient, gate: &UploadGate) -> model::content::wire::ArtifactScope {
     let cycle_id = support::planned_cycle(
         client,
@@ -204,14 +201,7 @@ pub(super) async fn running_execution(owner: &Runtime, client: &WireClient, gate
     )
     .await
     .unwrap();
-    client
-        .unary::<contracts::execution::RunCycle>(authenticated(contracts::execution::RunCycle {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
-        .await
-        .unwrap();
+    client.start_first(authenticated(contracts::execution::GetCycle { cycle_id: cycle_id.clone() })).await.unwrap();
     gate.started.notified().await;
     let execution_id = client
         .unary::<contracts::execution::ListExecutions>(authenticated(contracts::execution::ListExecutions {
@@ -242,9 +232,9 @@ async fn recording(
 
 async fn recording_refusal<O>(client: &WireClient, request: O) -> tonic::Status
 where
-    O: contracts::Endpoint<Output = harmos::operations::Stream<model::media::wire::RecordingFrame>>,
-    O: harmos::domain::Portable + Sync,
-    O::Response: harmos::domain::Portable + harmos::MemorySize,
+    O: contracts::Endpoint<Output = dokime::harmos::operations::Stream<model::media::wire::RecordingFrame>>,
+    O: dokime::harmos::domain::Portable + Sync,
+    O::Response: dokime::harmos::domain::Portable + dokime::harmos::MemorySize,
 {
     match client.download::<O>(authenticated(request)).await {
         Err(status) => status,

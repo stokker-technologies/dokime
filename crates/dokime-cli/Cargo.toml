@@ -1,0 +1,84 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+name = "dokime-cli"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
+pkg-fmt = "bin"
+
+[dependencies]
+# Local
+dokime = { workspace = true, features = ["client", "terminal", "diagnostics"] }
+
+# Git
+harmos-packaging = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utilities
+sha2 = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+clap = { workspace = true }
+dotenv = { workspace = true }
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# UI
+anstream = { workspace = true }
+anstyle = { workspace = true }
+indicatif = { workspace = true }
+
+[[bin]]
+name = "dokime"
+path = "src/main.rs"
+doc = false
+
+[dev-dependencies]
+# Local
+dokime = { workspace = true, features = ["plugin-sidecar"] }
+
+# Git
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
+
+# Utilities
+time = { workspace = true }
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Networking
+tonic = { workspace = true }
+
+# UI
+portable-pty = { workspace = true }
+
+# Testing
+criterion = { workspace = true }

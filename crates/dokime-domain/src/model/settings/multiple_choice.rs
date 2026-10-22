@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::SettingsError;
 use crate::model::values::Value;
@@ -28,6 +31,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Choice {
     pub value: String,
@@ -41,6 +45,7 @@ pub struct MultipleChoice {
     pub description: Option<String>,
     pub default: String,
     pub choices: Vec<Choice>,
+
     #[serde(default)]
     pub provider: Option<String>,
 }
@@ -50,6 +55,7 @@ pub struct MultipleChoice {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl MultipleChoice {
     pub fn validate(&self) -> crate::Result<()> {
         let mut values = BTreeSet::new();

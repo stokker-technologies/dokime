@@ -10,11 +10,14 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(crate) use crate::streams::AggregateOutput;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::borrow::Cow;
+
 // Third Party Imports
 use harmos::Aggregate;
 use harmos::signal::{Aggregates, Series};
@@ -41,6 +44,7 @@ use dokime_domain::model::values::ValueType;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn project_samples(contracts: &[TelemetryContract], samples: &[TelemetrySample]) -> Vec<AggregateOutput> {
     let mut outputs = Vec::new();
     for contract in contracts {
@@ -66,6 +70,7 @@ pub(crate) fn project_samples(contracts: &[TelemetryContract], samples: &[Teleme
 }
 
 /* === Private Functions === */
+
 fn project_field(stream: &Identifier, field: &str, values: &[f64]) -> Vec<AggregateOutput> {
     let (Some(first), Some(last)) = (values.first(), values.last()) else {
         return Vec::new();

@@ -12,15 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{future::Future, net::Ipv4Addr, sync::Arc};
 // Third Party Imports
 use tokio::sync::Notify;
 // Local Imports
 use super::fixture::{Gate, Listener, Service, UploadInput, server_health};
-use dokime_client::contracts::{backend, catalog};
-use dokime_client::{Client, Error, Target};
-use dokime_domain::model;
+use dokime::client::contracts::{backend, catalog};
+use dokime::client::{Client, Error, Target};
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -39,6 +40,7 @@ use dokime_domain::model;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn assert_pending<F: Future + Unpin>(future: &mut F) {
     tokio::task::yield_now().await;
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
@@ -46,6 +48,7 @@ async fn assert_pending<F: Future + Unpin>(future: &mut F) {
 }
 
 /* === Tests === */
+
 #[tokio::test]
 async fn client_close_cancels() {
     let server = Listener::start(Service::new("shared"), false, Ipv4Addr::LOCALHOST).await;

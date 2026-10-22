@@ -23,7 +23,6 @@ import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type { HubRecord, RecordScope } from "@/lib/types";
 import {
   mapNativeSeverity,
-  NATIVE_MAX_PAGES,
   NativeApiLimitError,
   nativeEvidenceScope,
   nativeValueObjectToJson,
@@ -37,60 +36,45 @@ import {
 type RecordPage = Wire<Awaited<ReturnType<typeof rpc.evidenceListRecords>>>;
 type CapturedRecord = RecordPage["records"][number];
 
+/* === Constants === */
+
+/**
+ * How many of a scope's latest records the GUI holds: the server's page
+ * bound, so the tail arrives in one call and later records append from the
+ * record stream instead of a fresh replay.
+ */
+export const RECORD_TAIL = 1_000;
+
 /* === Public API === */
 
-export async function fetchNativeRecords(
-  session: SessionIdentity,
-  options: { limit?: number; scope?: RecordScope | null } = {},
-): Promise<HubRecord[]> {
-  const records: CapturedRecord[] = [];
-  const selection = {
-    scope: nativeEvidenceScope(options.scope),
-    recordTypes: [],
-    sources: [],
-    severities: [],
-  };
-  let after: Cursor | undefined;
-  let through: Cursor | undefined;
-  for (let page = 0; page < NATIVE_MAX_PAGES; page++) {
-    const reply: RecordPage = await rpc.evidenceListRecords(session, {
-      selection,
-      after,
-      through,
-    });
-    records.push(...reply.records);
-    if (reply.replayComplete) break;
-    if (!reply.scanned || !reply.through) {
-      throw new NativeApiLimitError("Evidence.ListRecords", "replay page did not include continuation cursors");
-    }
-    if (sameCursor(reply.scanned, after) && sameCursor(reply.through, through)) {
-      throw new NativeApiLimitError("Evidence.ListRecords", "replay cursors did not advance");
-    }
-    after = reply.scanned;
-    through = reply.through;
-    if (page === NATIVE_MAX_PAGES - 1) {
-      throw new NativeApiLimitError("Evidence.ListRecords", `more than ${NATIVE_MAX_PAGES} pages`);
-    }
-  }
-  const limit = options.limit ?? records.length;
-  if (limit < 0 || !Number.isSafeInteger(limit)) {
-    throw new NativeApiLimitError("Evidence.ListRecords", `invalid result limit ${limit}`);
-  }
-  return (limit === 0 ? [] : records.slice(-limit)).map(mapNativeRecord);
+/** A scope's latest records and the cursor its live tail continues from. */
+export type RecordTail = { records: HubRecord[]; cursor: Cursor | null };
+
+/**
+ * The latest `RECORD_TAIL` records of one scope, oldest first, in one call.
+ *
+ * The server scans the replay itself and returns the tail with the frontier
+ * it read through; `openNativeRecordStream` continues from that cursor.
+ */
+export async function fetchNativeRecordTail(session: SessionIdentity, scope: RecordScope | null): Promise<RecordTail> {
+  const reply: RecordPage = await rpc.evidenceListRecords(session, {
+    selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
+    latest: RECORD_TAIL,
+  });
+  if (!reply.replayComplete) throw new NativeApiLimitError("Evidence.ListRecords", "the record tail did not complete in one page");
+  return { cursor: reply.through ?? null, records: reply.records.map(mapNativeRecord) };
 }
 
-export async function fetchNativeCycleRecords(
-  session: SessionIdentity,
-  cycleId: string,
-  options: { executionId?: string | null; limit?: number } = {},
-): Promise<HubRecord[]> {
-  return fetchNativeRecords(session, {
-    limit: options.limit,
-    scope: {
-      test_cycle_id: cycleId,
-      test_execution_id: options.executionId ?? null,
-    },
-  });
+/**
+ * The tail after `appended`, keeping only the latest `RECORD_TAIL` records. A
+ * record the tail already holds is not appended twice, so a stream that
+ * overlaps a re-read tail never duplicates a row.
+ */
+export function appendRecordTail(tail: RecordTail, appended: readonly HubRecord[], cursor: Cursor | null): RecordTail {
+  const held = new Set(tail.records.map((record) => record.record_id));
+  const fresh = appended.filter((record) => !held.has(record.record_id));
+  const records = fresh.length ? [...tail.records, ...fresh].slice(-RECORD_TAIL) : tail.records;
+  return { cursor: cursor ?? tail.cursor, records };
 }
 
 /* === Streams === */
@@ -101,16 +85,19 @@ export interface NativeEvidenceSession extends SessionIdentity {
 }
 
 /**
- * The console's live tail: `Evidence.WatchRecords` for one scope, already
- * projected. The frames arrive as pages, and each page is handed on whole so
- * the drawer appends once rather than per record.
+ * A scope's live tail: `Evidence.WatchRecords` for one scope from `after`,
+ * already projected. The frames arrive as pages, and each page is handed on
+ * whole, with the cursor it was read through, so a holder appends once per
+ * page rather than per record.
  */
 export async function openNativeRecordStream(
   session: NativeEvidenceSession,
   scope: RecordScope | null,
-): Promise<NativeStream<HubRecord[]>> {
+  after?: Cursor | null,
+): Promise<NativeStream<{ records: HubRecord[]; cursor: Cursor | null }>> {
   const reader = await rpc.evidenceWatchRecords(session, {
     selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
+    after: after ?? undefined,
   });
   let settled = false;
   let cancelPromise: Promise<void> | undefined;
@@ -131,7 +118,7 @@ export async function openNativeRecordStream(
   const forward = (async function* () {
     let exhausted = false;
     try {
-      for await (const page of reader) yield page.records.map(mapNativeRecord);
+      for await (const page of reader) yield { cursor: page.scanned ?? null, records: page.records.map(mapNativeRecord) };
       exhausted = true;
     } finally {
       if (!exhausted) await cancelReader().catch(() => undefined);
@@ -189,8 +176,4 @@ export function mapNativeRecord(record: CapturedRecord): HubRecord {
     related_artifact_id: record.relatedArtifactId ?? null,
     scope: recordScopeFromNative(record.scope),
   };
-}
-
-function sameCursor(left?: Cursor, right?: Cursor): boolean {
-  return left?.epoch === right?.epoch && left?.stream === right?.stream && left?.position === right?.position;
 }

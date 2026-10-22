@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod addition;
 pub mod column;
 pub mod definition;
@@ -16,6 +17,7 @@ pub mod host;
 pub mod validation;
 
 /* === Re-Exports === */
+
 pub use addition::DocumentAddition;
 pub use column::Column;
 pub use definition::AxisScale;
@@ -77,6 +79,7 @@ pub use definition::validate_plot_definition;
 pub use validation::validate_document_definition;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

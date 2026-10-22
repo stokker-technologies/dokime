@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::definition::{MaterializedParameter, ParameterDefinition, ParameterSource, TestCase, TestCaseTemplate, TestSuite};
 use crate::model::document::DocumentDefinition;
@@ -32,6 +35,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, PartialEq, thiserror::Error)]
 #[error("parameter {name:?}: {reason}")]
 pub struct SnapshotError {
@@ -42,8 +46,10 @@ pub struct SnapshotError {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ExecutionPluginIdentity {
     pub source: String,
+
     #[serde(default)]
     pub version: Option<String>,
+
     pub implementation: ExecutionImplementation,
 }
 
@@ -52,16 +58,21 @@ pub struct ExecutionPluginIdentity {
 pub struct ExecutionSnapshot {
     case: TestCase,
     template: Option<TestCaseTemplate>,
+
     #[serde(default)]
     parameter_definitions: Vec<ParameterDefinition>,
+
     plugin: Option<ExecutionPluginIdentity>,
+
     #[serde(default)]
     host_version: Option<String>,
+
     parameters: BTreeMap<String, MaterializedParameter>,
     documents: BTreeMap<DocumentId, DocumentDefinition>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ExecutionImplementation {
@@ -72,6 +83,7 @@ pub enum ExecutionImplementation {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for ExecutionSnapshot {
     fn memory_size(&self) -> usize {
         let fields = [

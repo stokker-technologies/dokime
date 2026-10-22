@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -20,8 +21,8 @@ use prost::Message;
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
-use dokime_domain::model;
-use dokime_runtime::domains::installed_plugins::{ResolvedBrand, load_brand};
+use dokime::domain::model;
+use dokime::domains::installed_plugins::{ResolvedBrand, load_brand};
 
 /* === Constants === */
 
@@ -40,8 +41,9 @@ use dokime_runtime::domains::installed_plugins::{ResolvedBrand, load_brand};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn brand(path: &std::path::Path) -> ResolvedBrand {
-    let mut brand = load_brand(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../branding")).unwrap();
+    let mut brand = load_brand(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../organization")).unwrap();
     brand.customization.logo_assets[0].path = path.to_string_lossy().into_owned();
     brand
 }
@@ -66,7 +68,7 @@ async fn appearance_asset_bound() {
     let mut owner = runtime(root.path()).await;
     owner.handle().set_brand(Some(brand(&path)));
     let expected = owner.handle().appearance_frame().await;
-    let server = Server::start(owner.handle(), Config::local().with_bearer_auth(vec![grant(Role::Read)]).unwrap()).await.unwrap();
+    let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let appearance = WireClient::connect(server.local_endpoint()).await.unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
@@ -105,7 +107,12 @@ async fn appearance_asset_bound() {
     assert_eq!(light_variables, expected.themes[0].light.variables);
     assert_eq!(theme.dark.as_ref().unwrap().plot_palette, expected.themes[0].dark.plot_palette);
     assert_eq!(theme.corner_radii.as_ref().unwrap().four_xl, expected.themes[0].corner_radii.four_xl);
-    let logo = actual.logo.unwrap();
+    assert_eq!(actual.logos.len(), 4);
+    assert_eq!(
+        actual.logos.iter().map(|logo| logo.variant).collect::<Vec<_>>(),
+        expected.logos.iter().map(|logo| logo.variant).collect::<Vec<_>>()
+    );
+    let logo = actual.logos.into_iter().next().unwrap();
     assert_eq!(logo.alt.as_deref(), Some("Dokime"));
     let metadata = logo.asset.unwrap();
     assert_eq!(metadata.size_bytes, bytes.len() as u64);

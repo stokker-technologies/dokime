@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -26,8 +27,9 @@ use crate::domain::model::readiness::Readiness;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
+
+#[dokime::message]
+#[dokime::operation(
     id = "obc-plugin.check_readiness",
     response = Readiness,
     version = 1,

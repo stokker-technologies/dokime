@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{HOST_STREAMS, HostTelemetryStream};
 use dokime_domain::model::time::DurationMillis;
 
 /* === Constants === */
+
 pub const DEFAULT_HOST_INTERVAL: DurationMillis = DurationMillis(1_000);
 pub const DEFAULT_NETWORK_LINK_INTERVAL: DurationMillis = DurationMillis(5_000);
 pub const DEFAULT_WIFI_LATENCY_INTERVAL: DurationMillis = DurationMillis(10_000);
@@ -33,6 +36,7 @@ pub const DEFAULT_BLUETOOTH_DEEP_SCAN_INTERVAL: DurationMillis = DurationMillis(
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostTelemetryConfig {
     pub enabled: bool,
@@ -59,6 +63,7 @@ pub struct HostOptions {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HostTelemetrySourceKind {
@@ -69,6 +74,7 @@ pub enum HostTelemetrySourceKind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for HostTelemetryConfig {
     fn default() -> Self {
         Self {

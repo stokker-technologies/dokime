@@ -14,8 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use super::executions::{CaptureInputs, ExecutionStorage};
-use crate::execution::context::captured::source::CapturedSource;
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
@@ -23,7 +21,9 @@ use harmos::storage::ObjectVersion;
 
 // Local Imports
 use super::execution::ExecutionView;
+use super::executions::{CaptureInputs, ExecutionStorage};
 use crate::RuntimeHandle;
+use crate::execution::context::captured::source::CapturedSource;
 use crate::runtime::Error;
 use crate::runtime::Result;
 use dokime_domain::model::execution::result::CycleView;
@@ -39,9 +39,11 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Structs === */
 
 /* === Enums === */
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn execution_snapshot(&self, execution: &dokime_domain::model::identity::TestExecutionId) -> Result<ExecutionView> {
         let identity = execution.clone();
@@ -106,11 +108,9 @@ impl ExecutionStorage {
             .await?
             .value?;
         let mut frame = appearance.frame;
-        if let Some(asset) = appearance.logo {
-            let url = super::presentation::capture_logo(&asset).await?;
-            if let Some(logo) = &mut frame.logo {
-                logo.url = url;
-            }
+        for (logo, asset) in frame.logos.iter_mut().zip(appearance.logos) {
+            let asset = asset.ok_or_else(|| invalid("selected report logo is unavailable"))?;
+            logo.url = super::presentation::capture_logo(&asset).await?;
         }
         Ok(frame)
     }
@@ -170,7 +170,7 @@ impl ExecutionStorage {
             })
             .transpose()?;
         let captured_at = crate::model::time::now_utc();
-        let (mut context, logo, owner_node_id, record_contracts, telemetry_contracts) = self
+        let (mut context, logos, owner_node_id, record_contracts, telemetry_contracts) = self
             .state_manager
             .state()
             .read(|state| {
@@ -182,7 +182,7 @@ impl ExecutionStorage {
                     .values()
                     .map(|contract| (contract.stream.clone(), BTreeMap::from([(contract.schema_version, contract.clone())])))
                     .collect();
-                Ok::<_, Error>((captured.context, captured.logo, state.identity.node.node_id.clone(), records.clone(), telemetry))
+                Ok::<_, Error>((captured.context, captured.logos, state.identity.node.node_id.clone(), records.clone(), telemetry))
             })
             .await?
             .value?;
@@ -212,11 +212,8 @@ impl ExecutionStorage {
         for document in context.execution_documents.values_mut() {
             defaults.apply(document);
         }
-        if let Some(asset) = logo {
-            let captured = super::presentation::capture_logo(&asset).await?;
-            if let Some(logo) = &mut context.appearance.logo {
-                logo.url = captured;
-            }
+        for (logo, asset) in context.appearance.logos.iter_mut().zip(logos) {
+            logo.url = super::presentation::capture_logo(&asset).await?;
         }
         let captured = Arc::new(CapturedSource {
             captured_at,
@@ -238,6 +235,7 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }

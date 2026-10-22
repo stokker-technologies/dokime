@@ -8,12 +8,15 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod connection;
 
 /* === Re-Exports === */
+
 pub(crate) use connection::Observed;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,7 +32,8 @@ pub(crate) use connection::Observed;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Listeners {
     Observed(Observed),
 }

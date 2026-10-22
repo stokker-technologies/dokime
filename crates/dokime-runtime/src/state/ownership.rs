@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use super::{InstalledPlugin, RuntimeState};
 
@@ -26,18 +28,21 @@ use super::{InstalledPlugin, RuntimeState};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleCatalog {
     pub package: String,
     pub path: String,
     pub installation: Option<String>,
+
     #[serde(default)]
     pub content_digest: String,
-    #[serde(alias = "artifacts")]
+
     pub plugins: Vec<InstalledPlugin>,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PluginOwner {
@@ -49,6 +54,7 @@ pub enum PluginOwner {
         package: String,
         path: String,
         installation: Option<String>,
+
         #[serde(default)]
         content_digest: String,
     },
@@ -58,16 +64,13 @@ pub enum PluginOwner {
 #[serde(rename_all = "snake_case", tag = "kind", content = "catalog")]
 pub enum ProviderCatalog {
     Bundle(BundleCatalog),
-    Embedded {
-        #[serde(alias = "artifact")]
-        plugin: Box<InstalledPlugin>,
-        generation: String,
-    },
+    Embedded { plugin: Box<InstalledPlugin>, generation: String },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeState {
     pub(crate) fn execution_identity(&self, source: &str) -> Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity> {
         use dokime_domain::model::execution::snapshot::ExecutionImplementation;
@@ -145,11 +148,12 @@ impl RuntimeState {
     }
 
     pub(crate) fn providers_current<C: Clone + Into<ProviderCatalog>>(&self, catalogs: &[C]) -> bool {
-        self.provider_candidate(catalogs, None).is_ok_and(|candidate| candidate == *self)
+        self.provider_candidate(catalogs, None).is_ok_and(|candidate| self.same_catalog(&candidate))
     }
 
     pub fn reconcile_providers<C: Clone + Into<ProviderCatalog>>(&mut self, catalogs: &[C]) -> Result<(), String> {
-        *self = self.provider_candidate(catalogs, None)?;
+        let candidate = self.provider_candidate(catalogs, None)?;
+        self.adopt_catalog(candidate);
         Ok(())
     }
 
@@ -164,7 +168,8 @@ impl RuntimeState {
     pub(crate) fn reload_provider_catalog<C: Clone + Into<ProviderCatalog>>(
         &mut self, catalogs: &[C], package: &str,
     ) -> Result<(), String> {
-        *self = self.provider_candidate(catalogs, Some(package))?;
+        let candidate = self.provider_candidate(catalogs, Some(package))?;
+        self.adopt_catalog(candidate);
         Ok(())
     }
 
@@ -175,7 +180,7 @@ impl RuntimeState {
         {
             return Err("record redefinition requires a configured or embedded provider".into());
         }
-        let mut candidate = self.clone();
+        let mut candidate = self.catalog_candidate();
         let old: Vec<_> = candidate
             .installed_plugins
             .keys()
@@ -226,3 +231,19 @@ impl RuntimeState {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::BundleCatalog;
+
+    #[test]
+    fn bundle_catalog_requires_plugin_inventory() {
+        let current = serde_json::json!({"package": "instruments", "path": "/bundle", "installation": null, "plugins": []});
+        let catalog: BundleCatalog = serde_json::from_value(current.clone()).unwrap();
+        assert!(catalog.plugins.is_empty());
+        let mut obsolete = current;
+        obsolete.as_object_mut().unwrap().remove("plugins");
+        obsolete["artifacts"] = serde_json::json!([]);
+        assert!(serde_json::from_value::<BundleCatalog>(obsolete).is_err());
+    }
+}

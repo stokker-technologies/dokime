@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::{Application, state::Origin as HarmosOrigin};
+
 // Local Imports
 use crate::config::Config;
 use crate::runtime_state::RuntimeState;
@@ -30,13 +32,9 @@ use dokime_domain::state::records::Records;
 /* === Type Aliases === */
 
 pub type Origin = HarmosOrigin<RuntimeState>;
-
 pub(crate) type Builder = harmos::Builder<Dokime>;
-
 pub(crate) type HarmosRuntime = harmos::Runtime<Dokime>;
-
 pub(crate) type StateManager = harmos::state::StateManager<Dokime>;
-
 pub(crate) type Streams = harmos::streams::StreamManager<Dokime>;
 
 #[cfg(feature = "simulation")]
@@ -54,17 +52,13 @@ pub struct Resources {
     pub(crate) storage_settings: crate::config::StorageSettings,
 }
 
-impl Resources {
-    pub fn new(storage_settings: crate::config::StorageSettings) -> Self {
-        Self { analysis: crate::report::analysis::Resources::new(), renderer: crate::report::Renderer, storage_settings }
-    }
-}
-
 /* === Enums === */
+
 #[harmos::lanes]
 pub enum Lanes {
     #[default]
     Open,
+
     #[lane(serial)]
     Execution,
 }
@@ -72,6 +66,13 @@ pub enum Lanes {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Resources {
+    pub fn new(storage_settings: crate::config::StorageSettings) -> Self {
+        Self { analysis: crate::report::analysis::Resources::new(), renderer: crate::report::Renderer, storage_settings }
+    }
+}
+
 impl Application for Dokime {
     type State = RuntimeState;
     type Transaction = Transactions;
@@ -81,7 +82,6 @@ impl Application for Dokime {
 }
 
 /* === Public Functions === */
-/* === Functions === */
 
 pub(crate) fn builder(origin: impl Into<Origin>, resources: Resources) -> Builder {
     HarmosRuntime::builder(origin, resources)
@@ -107,7 +107,7 @@ pub(crate) fn builder(origin: impl Into<Origin>, resources: Resources) -> Builde
 pub async fn launch(config: Config) -> crate::runtime::Result<crate::Runtime> {
     let (runtime_config, mut startup) = config.into_runtime_config();
     if let Some(brand) = &mut startup.brand {
-        brand.materialize_logo(&runtime_config.paths().cache().join("brand"))?;
+        brand.materialize_logos(&runtime_config.paths().cache().join("brand"))?;
     }
     let runtime = crate::Runtime::start(runtime_config).await?;
     let handle = runtime.handle();

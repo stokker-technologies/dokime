@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::HealthItemId;
@@ -28,6 +30,7 @@ use crate::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HealthItem {
     pub health_item_id: HealthItemId,
@@ -39,6 +42,7 @@ pub struct HealthItem {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HealthSeverity {
@@ -50,6 +54,7 @@ pub enum HealthSeverity {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for HealthItem {
     fn memory_size(&self) -> usize {
         let fields = [

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::process::{Command, Stdio};
 // Third Party Imports
@@ -20,7 +21,7 @@ use serde_json::json;
 // Local Imports
 use crate::support::bridge::{Harness, Local};
 use crate::support::{artifact, server::Fixture};
-use dokime_domain::model;
+use dokime::domain::model;
 use dokime_gui::rpc::Bridge;
 
 /* === Constants === */
@@ -40,20 +41,20 @@ use dokime_gui::rpc::Bridge;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn base64(bytes: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
 /* === Tests === */
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn typescript_facade_bridge() {
     let fixture = Fixture::new().await;
     fixture.runtime.handle().set_brand(Some(
-        dokime_runtime::domains::installed_plugins::load_brand(
-            &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../branding"),
-        )
-        .unwrap(),
+        dokime::domains::installed_plugins::load_brand(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../organization"))
+            .unwrap(),
     ));
     let artifact_id = artifact::seed(&fixture.runtime.handle(), &fixture.artifacts).await;
     let harness = Harness::new(fixture.session.clone());

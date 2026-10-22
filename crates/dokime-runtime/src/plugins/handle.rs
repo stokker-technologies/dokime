@@ -12,16 +12,20 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use uuid::Uuid;
+
 // Local Imports
 use super::store::read_bounded;
 use super::{PluginEntry, PluginError, PluginProvenance, PluginStore, inspect};
 use crate::RuntimeHandle;
 
 /* === Constants === */
+
 const GENERIC_BOOT_ERROR: &str = "Plugin was not admitted at this application startup.";
 
 /* === Macros === */
@@ -35,6 +39,7 @@ const GENERIC_BOOT_ERROR: &str = "Plugin was not admitted at this application st
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub fn plugin_process_state(&self, entry: &mut PluginEntry) {
         let boot = self.plugin_boot.read().expect("plugin boot lock poisoned");
@@ -74,6 +79,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn process_state(entry: &mut PluginEntry, attempted: Option<bool>) {
     entry.active = attempted == Some(true);
     entry.restart_required = match entry.installation.state {

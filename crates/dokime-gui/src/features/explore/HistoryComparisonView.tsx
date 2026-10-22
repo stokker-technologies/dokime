@@ -19,6 +19,7 @@ import { type DataTableColumns, dataTableColumns } from "@/components/data-table
 import { Button } from "@/components/ui/button";
 import { type ExploreEntry, exploreEntryKey } from "@/features/explore/explore-contracts";
 import { formatDuration } from "@/lib/format";
+import { PageBleed, PageNotice, PageToolbar } from "@/shell/PageShell";
 
 /* === Types === */
 
@@ -76,25 +77,25 @@ export function HistoryComparisonView({ cycles, onBack }: HistoryComparisonViewP
   }, [cycles]);
 
   return (
-    <div className="grid content-start">
-      <div className="grid h-[calc(var(--sidebar-row-height)+0.625rem)] grid-cols-[auto_minmax(0,1fr)] items-center gap-[var(--shell-gap)] px-[var(--shell-inset)] pt-2 pb-0.5">
+    <>
+      <PageToolbar>
         <Button className="h-[var(--control-height)]" onClick={onBack} size="sm" variant="ghost">
           <ArrowLeft />
           History Library
         </Button>
         <span className="text-sm text-muted-foreground">{cycles.length >= 2 ? `Comparing ${cycles.length} entries` : "Comparison"}</span>
-      </div>
+      </PageToolbar>
 
       {cycles.length < 2 ? (
-        <p className="p-[var(--shell-inset)] text-sm text-muted-foreground">Select at least two entries in the library to compare them.</p>
+        <PageNotice>Select at least two entries in the library to compare them.</PageNotice>
       ) : (
         <>
-          <DataTable columns={columns} data={COMPARISON_ROWS} emptyText="Nothing to compare." getRowId={rowLabel} />
-          <p className="px-[var(--shell-inset)] py-[var(--shell-gap)] text-xs text-muted-foreground">
-            Comparison covers the summary metrics above.
-          </p>
+          <PageBleed>
+            <DataTable columns={columns} data={COMPARISON_ROWS} emptyText="Nothing to compare." getRowId={rowLabel} />
+          </PageBleed>
+          <p className="text-xs text-muted-foreground">Comparison covers the summary metrics above.</p>
         </>
       )}
-    </div>
+    </>
   );
 }
