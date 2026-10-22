@@ -124,7 +124,8 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher) -> Result<Listing> {
         }
         let metadata = match entry.metadata() {
             Ok(metadata) => metadata,
-            Err(_) => continue,
+            Err(source) if source.io_error().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) => continue,
+            Err(source) => return Err(invalid(format!("cannot inspect watch source {relative:?}: {source}"))),
         };
         std::fs::File::open(entry.path()).map_err(|source| source_error(&relative, source))?;
         listing.insert(

@@ -253,6 +253,47 @@ async fn latest_empty_baseline_is_fixed_unless_wait_was_requested() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn source_wait_rejects_invalid_paths_and_permission_failures() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let file = tree.path().join("source.log");
+    write(&file, b"retained\n");
+    for root in [std::path::Path::new("relative"), file.as_path()] {
+        let request = FileWatch {
+            wait_for_source_seconds: Some(30),
+            ..request(&bench.execution, local(root), vec![include("*.log")], FileWatchPolicy::Stream)
+        };
+        let error = bench.handle.open_file_watch(&request, None).await.err().unwrap();
+        assert_eq!(code(&error), INVALID);
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let request = FileWatch {
+            wait_for_source_seconds: Some(30),
+            ..request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Stream)
+        };
+        let mut watch = bench.handle.open_file_watch(&request, None).await.unwrap();
+        let metadata = std::fs::metadata(&file).unwrap();
+        let permissions = metadata.permissions();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let inaccessible = std::fs::File::open(&file).is_err();
+
+        let mut events = Vec::new();
+        let result = watch.poll(&mut events).await;
+        std::fs::set_permissions(&file, permissions).unwrap();
+        assert!(inaccessible, "the permission proof requires an unprivileged test process");
+        assert_eq!(code(&result.unwrap_err()), INVALID);
+        assert!(!events.iter().any(|event| matches!(event, WatchEvent::Armed { .. })));
+        seal(&mut watch).await;
+    }
+
+    bench.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn vanished_paths_release_slots_before_new_paths_are_admitted() {
     let bench = Bench::start(|config, _| config).await;
     let tree = tempdir().unwrap();
