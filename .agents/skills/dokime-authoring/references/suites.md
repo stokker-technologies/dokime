@@ -36,6 +36,12 @@ Use the vocabulary in this order: initialize, traceability, steps, criteria, obs
 
 Keep handles used only by steps in template state. Return observer-shared handles beside that state during initialize.
 
+## File Capture Readiness
+
+After submitting `WatchFile`, await `watch.armed().await?` before starting the producer. Readiness means the baseline and capture were admitted; an accessible empty directory is a valid baseline for `All` and `New`. The streaming `FileWatch` API reports the same boundary through its `Armed` frame. Join or cancel the watcher within the owning step.
+
+Selection is independent of capture policy: `All` follows baseline files and arrivals, `Latest` selects the newest baseline file and follows its rotation, and `New` captures later discoveries from byte zero. Use `wait_for_source_seconds` only when an absent source is expected. Its deadline precedes the capture duration; cancellation, permission failures and invalid paths remain failures. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access.
+
 ## Layout
 
 Keep `suites/mod.rs` as the suite catalog and module declarations. Put each template in `suites/<suite>/<template>.rs`, with its suite declaration in `suites/<suite>/mod.rs`. Suite names carry no product prefix. Retain the repository skeleton and its section markers without an additional item-order rule.

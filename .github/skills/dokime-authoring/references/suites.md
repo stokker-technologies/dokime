@@ -1,4 +1,4 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/suites.md; sha256:dffc531e5aa7619aaf6eb02c0fa3c106c5a9b44d17d2057736566f43e24a9b54 -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-authoring/references/suites.md; sha256:3d168a2900bace35fd2dc8006eb09d418b7bcede7ba7d38720321fd5847aeb80 -->
 
 # Dokime Suite
 
@@ -37,6 +37,12 @@ Use the vocabulary in this order: initialize, traceability, steps, criteria, obs
 | document | Declared sections, cards and plots over captured evidence. |
 
 Keep handles used only by steps in template state. Return observer-shared handles beside that state during initialize.
+
+## File Capture Readiness
+
+After submitting `WatchFile`, await `watch.armed().await?` before starting the producer. Readiness means the baseline and capture were admitted; an accessible empty directory is a valid baseline for `All` and `New`. The streaming `FileWatch` API reports the same boundary through its `Armed` frame. Join or cancel the watcher within the owning step.
+
+Selection is independent of capture policy: `All` follows baseline files and arrivals, `Latest` selects the newest baseline file and follows its rotation, and `New` captures later discoveries from byte zero. Use `wait_for_source_seconds` only when an absent source is expected. Its deadline precedes the capture duration; cancellation, permission failures and invalid paths remain failures. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access.
 
 ## Layout
 
