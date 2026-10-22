@@ -57,7 +57,7 @@ impl Transaction<RuntimeState> for SetSuiteSet {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        let mut projected = state.clone();
+        let mut projected = state.catalog_candidate();
         set_suites(&mut projected, &self.source, &self.catalog)
     }
 
@@ -73,7 +73,7 @@ impl Transaction<RuntimeState> for RemoveSuiteSet {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        let mut projected = state.clone();
+        let mut projected = state.catalog_candidate();
         remove_suites(&mut projected, &self.source)
     }
 

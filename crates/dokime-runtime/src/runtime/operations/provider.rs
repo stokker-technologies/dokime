@@ -85,7 +85,6 @@ struct RunProviderCycle {
 struct ProviderInvocation {
     job: ProviderCycleRequest,
     runtime: RuntimeHandle,
-    after: harmos::state::Position,
     started: Arc<std::sync::atomic::AtomicU8>,
     finalization: crate::execution_runtime::run::Finalization,
     outcome: Arc<std::sync::Mutex<Option<ProviderOutcome>>>,
@@ -160,7 +159,7 @@ impl RuntimeHandle {
                 target: serde_json::to_value(&request.target).expect("provider target serializes"),
             }
         };
-        job.submit(self.clone(), self.state_manager.applied());
+        job.submit(self.clone());
     }
 
     pub(crate) fn provider_completion_result(&self) -> crate::runtime::Result<()> {
@@ -207,13 +206,10 @@ impl Operation for ProviderState {
         let runtime = invocation.runtime.clone();
         let providers = Arc::clone(&runtime.providers);
         let job = invocation.job.clone();
-        let after = invocation.after;
         let cancelled = self.work.cancelled.clone();
         let finalization = invocation.finalization.clone();
-        let outcome = self
-            .work
-            .run(Box::pin(async move { run_provider_cycle(runtime, &providers, job, after, cancelled, finalization).await }))
-            .await;
+        let outcome =
+            self.work.run(Box::pin(async move { run_provider_cycle(runtime, &providers, job, cancelled, finalization).await })).await;
         *slot.lock().expect("provider outcome lock poisoned") = Some(outcome);
         Ok(().into())
     }
@@ -255,7 +251,7 @@ impl ProviderTask {
 }
 
 impl ProviderCycleRequest {
-    pub(crate) fn submit(self, runtime: RuntimeHandle, after: harmos::state::Position) {
+    pub(crate) fn submit(self, runtime: RuntimeHandle) {
         let registry = runtime.provider_tasks.clone();
         let mut tasks = registry.lock().unwrap();
         // Admission already committed this request and retains its capacity
@@ -276,7 +272,6 @@ impl ProviderCycleRequest {
             ProviderInvocation {
                 job: self.clone(),
                 runtime: runtime.clone(),
-                after,
                 started: Arc::clone(&started),
                 finalization: finalization.clone(),
                 outcome: Arc::clone(&settlement),
@@ -388,8 +383,8 @@ fn interruption_stage(outcome: &harmos::Error, shutting_down: bool) -> &'static 
     fields(cycle_id = %job.test_cycle_id),
 )]
 async fn run_provider_cycle(
-    runtime: RuntimeHandle, providers: &ProviderExecutorRegistry, job: ProviderCycleRequest, after: harmos::state::Position,
-    cancelled: tokio::sync::watch::Receiver<bool>, finalization: crate::execution_runtime::run::Finalization,
+    runtime: RuntimeHandle, providers: &ProviderExecutorRegistry, job: ProviderCycleRequest, cancelled: tokio::sync::watch::Receiver<bool>,
+    finalization: crate::execution_runtime::run::Finalization,
 ) -> std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure> {
     let test_cycle_id = TestCycleId::from_uuid(job.test_cycle_id.as_str()).expect("journaled provider-cycle test cycle id is valid");
     let target: ExecutionProviderTarget = serde_json::from_value(job.target.clone()).expect("journaled provider-cycle target deserializes");
@@ -398,7 +393,7 @@ async fn run_provider_cycle(
         .with_request(request_id.clone())
         .with_cancellation(cancelled)
         .with_finalization(finalization);
-    prepare_attempts(&context, &request_id, after).await?;
+    prepare_attempts(&context, &request_id).await?;
     let mut changes = runtime.state_watch.subscribe();
     loop {
         let summary = runtime.state_read().run_requests[&request_id].summary.clone();
@@ -444,7 +439,7 @@ async fn run_provider_cycle(
 }
 
 async fn prepare_attempts(
-    context: &ExecutionFixtureContext, request_id: &dokime_domain::model::identity::CommandId, _after: harmos::state::Position,
+    context: &ExecutionFixtureContext, request_id: &dokime_domain::model::identity::CommandId,
 ) -> Result<(), ProviderExecutionFailure> {
     let runtime = &context.runtime;
     let mut changes = runtime.state_watch.subscribe();

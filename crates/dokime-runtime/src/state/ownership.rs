@@ -154,11 +154,12 @@ impl RuntimeState {
     }
 
     pub(crate) fn providers_current<C: Clone + Into<ProviderCatalog>>(&self, catalogs: &[C]) -> bool {
-        self.provider_candidate(catalogs, None).is_ok_and(|candidate| candidate == *self)
+        self.provider_candidate(catalogs, None).is_ok_and(|candidate| self.same_catalog(&candidate))
     }
 
     pub fn reconcile_providers<C: Clone + Into<ProviderCatalog>>(&mut self, catalogs: &[C]) -> Result<(), String> {
-        *self = self.provider_candidate(catalogs, None)?;
+        let candidate = self.provider_candidate(catalogs, None)?;
+        self.adopt_catalog(candidate);
         Ok(())
     }
 
@@ -173,7 +174,8 @@ impl RuntimeState {
     pub(crate) fn reload_provider_catalog<C: Clone + Into<ProviderCatalog>>(
         &mut self, catalogs: &[C], package: &str,
     ) -> Result<(), String> {
-        *self = self.provider_candidate(catalogs, Some(package))?;
+        let candidate = self.provider_candidate(catalogs, Some(package))?;
+        self.adopt_catalog(candidate);
         Ok(())
     }
 
@@ -184,7 +186,7 @@ impl RuntimeState {
         {
             return Err("record redefinition requires a configured or embedded provider".into());
         }
-        let mut candidate = self.clone();
+        let mut candidate = self.catalog_candidate();
         let old: Vec<_> = candidate
             .installed_plugins
             .keys()

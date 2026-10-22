@@ -351,7 +351,7 @@ async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut
         }
         staged = Some(progress);
         if tokio::time::Instant::now() >= deadline {
-            return Err(Diagnostic::of("host did not settle execution inputs before the deadline"));
+            return Err(Diagnostic::of(format!("host did not settle execution inputs before the deadline; accepted inputs: {progress}")));
         }
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_millis(5)) => {},

@@ -1271,6 +1271,7 @@ async fn replay_stream(
         harmos::Identifier::new(execution.test_execution_id.as_str()).map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let scope_json = serde_json::to_string(&execution.scope).map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let codec = crate::storage::telemetry::codec(contract).map_err(|error| samples_failure(replay_codec_error(error)))?;
+    tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, after = *replayed, "sample replay opening query");
     let mut reader = context
         .runtime
         .storage()
@@ -1290,12 +1291,14 @@ async fn replay_stream(
         })
         .await
         .map_err(samples_failure)?;
+    tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, "sample replay query opened");
     let owner = &execution.scope;
     while let Some(output) = reader.next().await.map_err(samples_failure)? {
         let QueryArrow::Batch(batch) = output else {
             continue;
         };
         let raw = batch.as_record_batch();
+        tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, rows = raw.num_rows(), "sample replay decoding batch");
         let positions = raw
             .column_by_name("_storage")
             .and_then(|column| column.as_any().downcast_ref::<arrow_array::StructArray>())
@@ -1334,8 +1337,10 @@ async fn replay_stream(
         }
         deliver_replayed(target, execution, &scope_json, samples).await?;
         *replayed = through;
+        tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, through, "sample replay batch delivered");
     }
     reader.completion().map_err(samples_failure)?;
+    tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, "sample replay completed");
     Ok(())
 }
 

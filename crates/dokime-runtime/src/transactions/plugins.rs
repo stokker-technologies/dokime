@@ -60,7 +60,7 @@ impl Transaction<RuntimeState> for InstallHostPlugin {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         active(state)?;
-        state.clone().install_host_plugin(self.installation.clone())
+        state.catalog_candidate().install_host_plugin(self.installation.clone())
     }
     fn apply(&self, state: &mut RuntimeState) {
         state.install_host_plugin(self.installation.clone()).expect("host catalog admission was checked");

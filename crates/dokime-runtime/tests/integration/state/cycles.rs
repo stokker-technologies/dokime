@@ -312,6 +312,65 @@ fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestE
 /* === Tests === */
 
 #[test]
+fn catalog_reconciliation_preserves_execution_evidence() {
+    use dokime_runtime::state::ProviderCatalog;
+    use dokime_runtime::transactions::ReconcileProviders;
+
+    let (mut state, _) = admitted();
+    state.record_count = 42;
+    let before = state.clone();
+    let plugin = dokime_runtime::InstalledPlugin { source: "fixture.plugin".into(), version: "2.0.0".into(), ..Default::default() };
+    let provider = ProviderCatalog::Embedded { plugin: Box::new(plugin), generation: "replacement".into() };
+    let update = ReconcileProviders { providers: vec![provider.clone()] };
+    update.check(&state).unwrap();
+    assert_eq!(state, before);
+
+    update.apply(&mut state);
+    assert_eq!(state.installed_plugins["fixture.plugin"].version, "2.0.0");
+    assert_eq!(state.cycles, before.cycles);
+    assert_eq!(state.executions, before.executions);
+    assert_eq!(state.run_requests, before.run_requests);
+    assert_eq!(state.run_queue, before.run_queue);
+    assert_eq!(state.records, before.records);
+    assert_eq!(state.record_count, 42);
+    assert_eq!(state.identity, before.identity);
+
+    let committed = state.clone();
+    let duplicate = ReconcileProviders { providers: vec![provider.clone(), provider] };
+    assert!(duplicate.check(&state).is_err());
+    assert_eq!(state, committed);
+}
+
+#[test]
+fn evidence_admission_requires_existing_owners() {
+    use dokime_runtime::transactions::{AddExecutionDocumentParts, RecordExecutionTraceability, UpdateExecutionPhase};
+
+    let (mut state, cycle_id) = admitted();
+    let execution_id = state.cycles[&cycle_id].execution_ids[0].clone();
+    let scope = state.executions[&execution_id].scope.clone();
+    let occurred_at = Timestamp::new("2026-10-05T09:00:00Z");
+    let documents = AddExecutionDocumentParts { scope: scope.clone(), additions: vec![], occurred_at: occurred_at.clone() };
+    let traceability = RecordExecutionTraceability { scope: scope.clone(), sections: vec![], occurred_at: occurred_at.clone() };
+    let phase = UpdateExecutionPhase {
+        scope,
+        identifier: Identifier::new("fixture.phase").unwrap(),
+        label: "Fixture Phase".into(),
+        status: "running".into(),
+        occurred_at,
+    };
+    let before = state.executions[&execution_id].clone();
+    traceability.check(&state).unwrap();
+    phase.check(&state).unwrap();
+    assert_eq!(state.executions[&execution_id], before);
+
+    state.cycles.remove(&cycle_id);
+    assert!(documents.check(&state).is_err());
+    assert!(traceability.check(&state).is_err());
+    assert!(phase.check(&state).is_err());
+    assert_eq!(state.executions[&execution_id], before);
+}
+
+#[test]
 fn reruns_invalidate_steps() {
     use dokime_runtime::transactions::{BeginStepAttempt, RecordStepAttempt};
     use dokime_runtime::{StepAttemptId, StepId};

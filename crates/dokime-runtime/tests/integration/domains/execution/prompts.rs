@@ -661,6 +661,32 @@ async fn answer_rules_commit() {
     restarted.shutdown().await.unwrap();
 }
 
+#[tokio::test]
+async fn answered_execution_question() {
+    let root = tempdir().unwrap();
+    let config = config(root.path()).register(Arc::new(Asking));
+    let (mut owner, runtime) = started(config).await;
+    let suite = AskingChecks::definition().suite;
+    let cases = crate::service_support::suites::materialize_cases("fixture.asking.checks", &suite);
+    let cycle = start_cases(&runtime, metadata("question.answer", "Answered Question"), cases).await;
+    let receipt = runtime.start_next_execution(cycle.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+
+    let asked = until_state(&runtime, |state| !state.pending_prompt_projection().is_empty()).await;
+    let id = asked.state().pending_prompt_projection()[0].prompt_id.clone();
+    runtime.submit_prompt_response(id.clone(), "yes".into(), "operator".into(), BTreeMap::new(), true).await.unwrap();
+    wait_for_run_settled(&runtime, &receipt.command_id).await;
+    let ended = cycle_snapshot(&runtime, &cycle).await;
+    assert_eq!(ended.test_executions[0].status, ExecutionStatus::Passed);
+    assert!(ended.test_executions[0].saved.is_some());
+    assert!(runtime.pending_prompt_projection().await.is_empty());
+    assert!(runtime.prompt_response(&id).await.unwrap().accepted);
+    assert_eq!(runtime.prompt_response_records().await.unwrap().len(), 1);
+
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 // stopping the one execution whose step waits on an operator settles the question.
 #[tokio::test(flavor = "multi_thread")]
 async fn stopped_execution_question() {

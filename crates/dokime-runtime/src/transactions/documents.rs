@@ -70,7 +70,7 @@ impl Transaction<RuntimeState> for AddExecutionDocumentParts {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        add_execution_document_parts(&mut state.clone(), self.clone()).map_err(|error| error.to_string())
+        check_document_additions(state, self).map_err(|error| error.to_string())
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -161,6 +161,7 @@ impl UpdatePlotSettings {
 /* === Private Functions === */
 
 fn add_execution_document_parts(state: &mut RuntimeState, update: AddExecutionDocumentParts) -> Result<(), Error> {
+    check_document_additions(state, &update)?;
     let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("document addition scope missing cycle"))?;
     let test_execution_id = update.scope.test_execution_id.clone().ok_or_else(|| not_found("document addition scope missing execution"))?;
     let execution = state
@@ -177,6 +178,21 @@ fn add_execution_document_parts(state: &mut RuntimeState, update: AddExecutionDo
 
     state.cycles.get_mut(&test_cycle_id).expect("the cycle was found above").touch_at(update.occurred_at);
 
+    Ok(())
+}
+
+fn check_document_additions(state: &RuntimeState, update: &AddExecutionDocumentParts) -> Result<(), Error> {
+    let cycle_id = update.scope.test_cycle_id.as_ref().ok_or_else(|| not_found("document addition scope missing cycle"))?;
+    let execution_id = update.scope.test_execution_id.as_ref().ok_or_else(|| not_found("document addition scope missing execution"))?;
+    let execution = state
+        .executions
+        .get(execution_id)
+        .filter(|execution| &execution.test_cycle_id == cycle_id && state.cycles.contains_key(cycle_id))
+        .ok_or_else(|| not_found("execution not found"))?;
+    let default_id = DocumentId::from_identifier(crate::documents::DEFAULT_DOCUMENT_ID).map_err(|error| not_found(error.to_string()))?;
+    if !execution.documents.contains_key(&default_id) {
+        return Err(not_found("execution has no default document"));
+    }
     Ok(())
 }
 

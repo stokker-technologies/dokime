@@ -294,11 +294,10 @@ impl RuntimeHandle {
         if let Err(error) = self.request_storage.begin(receipt).await {
             return rejected_receipt(command_id, &context, accepted_at, unavailable_rejection(error.to_string()));
         }
-        let before = self.state_manager.applied();
         match self.commit_keyed(RequestKey::new(format!("execution-request:{command_id}")), transaction).await {
             Ok(committed) => {
                 if self.state_read().run_queue.front() == Some(&command_id) {
-                    job.submit(self.clone(), before);
+                    job.submit(self.clone());
                 }
                 self.accepted_job_receipt(command_id, accepted_at, job_id, &context, committed.frontier, started).await
             }

@@ -54,7 +54,7 @@ impl Transaction<RuntimeState> for InstallPlugin {
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         ensure_runtime_active(state)?;
-        state.clone().install_plugin(self.installation.clone())
+        state.catalog_candidate().install_plugin(self.installation.clone())
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -67,7 +67,7 @@ impl Transaction<RuntimeState> for RemovePlugin {
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         ensure_runtime_active(state)?;
-        state.clone().remove_plugin(&self.source)
+        state.catalog_candidate().remove_plugin(&self.source)
     }
 
     fn apply(&self, state: &mut RuntimeState) {

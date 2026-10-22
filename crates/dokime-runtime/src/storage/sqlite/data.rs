@@ -83,6 +83,8 @@ CREATE INDEX IF NOT EXISTS storage_data_retired_object_position
     ON storage_data_entries(position, retired_at)
     WHERE kind='object' AND retired_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS storage_data_scope ON storage_data_entries(kind, scope, position);
+CREATE INDEX IF NOT EXISTS storage_data_schema_scope ON storage_data_entries(kind, schema_key, scope, position);
+CREATE INDEX IF NOT EXISTS storage_data_schema_position ON storage_data_entries(kind, schema_key, position);
 ";
 
 /* === Macros === */
@@ -359,7 +361,7 @@ fn read_object(connection: &Connection, at: u64, generation: u64, point: &Object
     Ok(Some(object))
 }
 
-fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> {
+fn scan_query(scan: &Scan) -> Result<(String, Vec<Value>), Error> {
     let mut arguments = vec![
         Value::Text(scan.kind.into()),
         Value::Text(position(scan.page.after)),
@@ -396,13 +398,26 @@ fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> 
         );
     }
     let rows = i64::try_from(scan.page.rows.get()).map_err(|_| Error::Data("page row limit exceeds SQLite range"))?;
-    // A Scoped Selection Walks Only Its Owner's Entries In Position Order.
-    let index = if scan.filters.iter().any(|(column, _)| *column == "scope") { "storage_data_scope" } else { "storage_data_kind_position" };
+    // Schema And Owner Must Both Narrow The Index Before Reading Row Bodies.
+    // In particular, an absent stream must not scan another stream's payloads.
+    let scoped = scan.filters.iter().any(|(column, _)| *column == "scope");
+    let schema = scan.filters.iter().any(|(column, _)| *column == "schema_key");
+    let index = match (schema, scoped) {
+        (true, true) => "storage_data_schema_scope",
+        (true, false) => "storage_data_schema_position",
+        (false, true) => "storage_data_scope",
+        (false, false) => "storage_data_kind_position",
+    };
     let sql = format!(
         "SELECT entries.position,entries.body,entries.digest FROM storage_data_entries AS entries
          INDEXED BY {index} WHERE {} ORDER BY entries.position ASC LIMIT {rows}",
         clauses.join(" AND ")
     );
+    Ok((sql, arguments))
+}
+
+fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> {
+    let (sql, arguments) = scan_query(scan)?;
     let mut statement = connection.prepare(&sql)?;
     let mut selected = statement.query(rusqlite::params_from_iter(arguments))?;
     let mut entries = Vec::new();
@@ -426,3 +441,33 @@ fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> 
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::num::NonZeroUsize;
+
+    #[test]
+    fn absent_schema_does_not_scan_other_streams() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        connection
+            .execute_batch(
+                "WITH RECURSIVE rows(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM rows WHERE n<4096)
+             INSERT INTO storage_data_entries(position,kind,identity,schema_key,item,scope,body,digest)
+             SELECT printf('%016x',n),'stream',printf('row-%d',n),'populated','item','execution',x'00',zeroblob(32) FROM rows;",
+            )
+            .unwrap();
+
+        for scope in [None, Some("execution".to_owned())] {
+            let page = ScanPage { after: 0, rows: NonZeroUsize::new(1024).unwrap(), bytes: NonZeroUsize::new(1024 * 1024).unwrap() };
+            let scan = Scan::new("stream", 4096, 0, page).filter("schema_key", Some("absent".to_owned())).filter("scope", scope);
+            let (sql, arguments) = scan_query(&scan).unwrap();
+            let mut statement = connection.prepare(&sql).unwrap();
+            assert!(!statement.exists(rusqlite::params_from_iter(arguments)).unwrap());
+            let steps = statement.get_status(rusqlite::StatementStatus::VmStep);
+            assert!(steps < 100, "an absent schema performed {steps} VM steps over unrelated rows");
+            assert!(read_scan(&connection, &scan).unwrap().is_empty());
+        }
+    }
+}

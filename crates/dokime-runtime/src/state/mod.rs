@@ -131,6 +131,41 @@ pub enum RuntimeStateInstallError {
 /* === Implementations === */
 
 impl RuntimeState {
+    // Catalog Validation Needs Cross-Provider Definitions, Never Execution Evidence.
+    pub(crate) fn catalog_candidate(&self) -> Self {
+        Self {
+            installed_plugins: self.installed_plugins.clone(),
+            plugin_owners: self.plugin_owners.clone(),
+            suites: self.suites.clone(),
+            prompt_definitions: self.prompt_definitions.clone(),
+            record_definitions: self.record_definitions.clone(),
+            record_history: self.record_history.clone(),
+            telemetry_definitions: self.telemetry_definitions.clone(),
+            ..Self::new(self.session_id.clone())
+        }
+    }
+
+    fn adopt_catalog(&mut self, candidate: Self) {
+        self.installed_plugins = candidate.installed_plugins;
+        self.plugin_owners = candidate.plugin_owners;
+        self.suites = candidate.suites;
+        self.prompt_definitions = candidate.prompt_definitions;
+        self.record_definitions = candidate.record_definitions;
+        self.record_history = candidate.record_history;
+        self.telemetry_definitions = candidate.telemetry_definitions;
+    }
+
+    fn same_catalog(&self, candidate: &Self) -> bool {
+        let owners = self.installed_plugins == candidate.installed_plugins
+            && self.plugin_owners == candidate.plugin_owners
+            && self.suites == candidate.suites;
+        let definitions = self.prompt_definitions == candidate.prompt_definitions
+            && self.record_definitions == candidate.record_definitions
+            && self.record_history == candidate.record_history
+            && self.telemetry_definitions == candidate.telemetry_definitions;
+        owners && definitions
+    }
+
     pub fn case_definition_revision(&self, case: &crate::definition::TestCase) -> Result<String, String> {
         use sha2::{Digest, Sha256};
         let suite = self.suites.suite_for_case(case).ok_or("case owning suite is not installed")?;

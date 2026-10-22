@@ -259,6 +259,8 @@ async fn cancellation_retains_verdict() {
         let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
         assert_eq!(receipt.status, CommandStatus::Accepted);
         probe.entered.notified().await;
+        let prepared = handle.run_request(&receipt.command_id).await.unwrap().unwrap();
+        assert_eq!(prepared.summary.prepared, 1, "provider dispatch follows the saved attempt preparation");
         let stopped = {
             let handle = handle.clone();
             let cycle_id = cycle_id.clone();
@@ -288,6 +290,8 @@ async fn cancellation_retains_verdict() {
         let log = files.iter().find(|file| file.relative_path.ends_with("stream.log")).unwrap();
         let content =
             handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
+        let log_path = log.relative_path.clone();
+        let checkpoint = handle.execution_saved_checkpoint(execution.test_execution_id.clone()).await.unwrap();
         let log = without_timestamps(&String::from_utf8(content.bytes).unwrap());
         if mode == Settlement::Refused {
             assert!(log.starts_with("[ERROR] "), "{log}");
@@ -300,6 +304,23 @@ async fn cancellation_retains_verdict() {
         }
         drop(handle);
         owner.shutdown().await.unwrap();
+        drop(owner);
+
+        let probe = Arc::new(Probe::new(mode));
+        let provider = Provider(probe);
+        let configuration = config(root.path()).register(Arc::new(provider));
+        let (mut restarted, handle) = started(configuration).await;
+        let saved = crate::service_support::native::open(&handle, &checkpoint).await;
+        assert_eq!(saved.execution().status, ExecutionStatus::Cancelled);
+        let restored = handle.run_request(&receipt.command_id).await.unwrap().unwrap();
+        assert!(restored.summary.phase.terminal());
+        assert_eq!(restored.summary.prepared, 1);
+        let content = handle.execution_file_content(&execution.test_execution_id, log_path, 0, 4096).await.unwrap().unwrap();
+        let restored_log = without_timestamps(&String::from_utf8(content.bytes).unwrap());
+        assert_eq!(restored_log, log, "cancellation evidence survives a fresh host session");
+        drop(saved);
+        drop(handle);
+        restarted.shutdown().await.unwrap();
     }
 }
 

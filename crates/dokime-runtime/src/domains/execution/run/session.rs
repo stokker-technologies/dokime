@@ -15,10 +15,9 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 // Third Party Imports
+use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use super::artifacts::ArtifactBridge;
@@ -35,8 +34,6 @@ use crate::transport::{
 use dokime_domain::model::execution::result::TestExecution;
 
 /* === Constants === */
-
-const ANSWER_POLL: Duration = Duration::from_millis(100);
 
 /* === Macros === */
 
@@ -66,7 +63,7 @@ pub(crate) struct Session {
     record_subscription_after: u64,
     pages: tokio::sync::Mutex<Pages>,
     replayed: tokio::sync::Mutex<bool>,
-    cancelling: AtomicBool,
+    cancelling: CancellationToken,
     refusal: tokio::sync::Mutex<Option<ProviderExecutionFailure>>,
 }
 
@@ -106,7 +103,7 @@ impl Session {
                 phase: opened.phase,
             }),
             replayed: tokio::sync::Mutex::new(false),
-            cancelling: AtomicBool::new(false),
+            cancelling: CancellationToken::new(),
             refusal: tokio::sync::Mutex::new(None),
         }
     }
@@ -162,25 +159,17 @@ impl Session {
             .request(&self.context, &self.execution.scope, &question.prompt_json)
             .await
             .map_err(|refusal| refusal.message)?;
-        loop {
-            if let Some(response) = self.context.runtime.prompt_response(&prompt_id).await {
-                self.prompts.lock().await.outstanding.remove(&prompt_id);
-                return serde_json::to_string(&response)
-                    .map(|response_json| OperatorAnswer { response_json })
-                    .map_err(|error| error.to_string());
-            }
-            // A stop settles the question in its own transaction, before the
-            // watch loop cancels the run: the run is being stopped, so the
-            // question ends as a cancellation rather than a refused answer.
-            let settled = self.context.runtime.prompt_settled_at(&prompt_id).await;
-            if settled.is_some() {
-                self.prompts.lock().await.outstanding.remove(&prompt_id);
-            }
-            if self.cancelling.load(Ordering::Acquire) || settled.is_some() {
-                return Err("the execution was stopped while the question was outstanding".into());
-            }
-            tokio::time::sleep(ANSWER_POLL).await;
+        let response = self.context.runtime.wait_for_prompt_response_for_cycle(prompt_id.clone(), self.execution.test_cycle_id.clone());
+        let answered = tokio::select! {
+            biased;
+            answer = response => answer.map_err(|error| error.to_string()),
+            () = self.cancelling.cancelled() => Err("the execution was stopped while the question was outstanding".into()),
+        };
+        if answered.is_ok() || self.context.runtime.prompt_settled_at(&prompt_id).await.is_some() {
+            self.prompts.lock().await.outstanding.remove(&prompt_id);
         }
+        let answered = answered?;
+        serde_json::to_string(&answered).map(|response_json| OperatorAnswer { response_json }).map_err(|error| error.to_string())
     }
 
     pub(crate) async fn lease(&self, ask: LeaseAsk) -> LeaseResolution {
@@ -191,7 +180,7 @@ impl Session {
     }
 
     pub(super) async fn cancel(&self) {
-        self.cancelling.store(true, Ordering::Release);
+        self.cancelling.cancel();
         self.prompts.lock().await.settle_on_cancel(&self.context).await;
     }
 
@@ -295,7 +284,7 @@ impl Session {
     async fn admit(&self, pages: &mut Pages, mut batch: EvidenceBatch) -> Result<EvidenceReceipt, ProviderExecutionFailure> {
         let context = &self.context;
         let execution = &self.execution;
-        let cancelling = self.cancelling.load(Ordering::Acquire);
+        let cancelling = self.cancelling.is_cancelled();
         validate_cursor(pages.cursor, &batch)?;
         // Rows the run published reach the host on their own calls, ahead of
         // this page; they are stamped with the phase current when they are
@@ -315,7 +304,7 @@ impl Session {
         let observed =
             pages.phase.observe(context, &execution.scope, &batch.phase, execution, !cancelling && !context.is_cancelled()).await;
         if let Err(refusal) = observed
-            && !(context.is_cancelled() || self.cancelling.load(Ordering::Acquire))
+            && !(context.is_cancelled() || self.cancelling.is_cancelled())
         {
             return Err(refusal);
         }
@@ -404,12 +393,15 @@ impl Session {
         let close = replayed.is_some();
         let context = &self.context;
         let execution = &self.execution;
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement flushing publications");
         context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement publications flushed");
         let cycle_id = execution.test_cycle_id.clone();
         let execution_id = execution.test_execution_id.clone();
         if close {
             close_record_subscriptions(context, execution).await?;
         }
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement subscriptions closed");
         let ids = context
             .runtime
             .state_manager
@@ -426,12 +418,14 @@ impl Session {
             .value
             .ok_or_else(|| failure("sidecar_records", "record subscription execution disappeared"))?;
         let through = context.runtime.state_manager.applied().0;
+        tracing::debug!(execution_id = %execution.test_execution_id, through, "record settlement waiting for capture");
         context
             .runtime
             .record_source
             .wait_through(&context.runtime.state_manager, through)
             .await
             .map_err(|error| failure("sidecar_records", error.to_string()))?;
+        tracing::debug!(execution_id = %execution.test_execution_id, through, "record settlement capture reached");
         let mut remaining = ids;
         if !remaining.is_empty() {
             let mut reader = context
@@ -471,8 +465,10 @@ impl Session {
             }
         }
         if let Some(replayed) = replayed {
+            tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");
             super::replay_sample_inputs(context, &self.target, execution, replayed).await?;
         }
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement finished");
         Ok(())
     }
 }

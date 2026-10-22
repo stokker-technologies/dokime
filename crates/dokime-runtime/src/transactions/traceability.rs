@@ -32,6 +32,7 @@ use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::traceability::TraceabilitySection;
 use dokime_domain::model::traceability::derived_traceability_group_named;
@@ -97,7 +98,7 @@ impl Transaction<RuntimeState> for RecordExecutionTraceability {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        record_execution_traceability(&mut state.clone(), self.clone()).map_err(|error| error.to_string())
+        check_traceability(state, self).map_err(|error| error.to_string())
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -108,7 +109,7 @@ impl Transaction<RuntimeState> for RecordExecutionTraceability {
 impl Transaction<RuntimeState> for SetCapturePhase {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
-        set_capture_phase(&mut state.clone(), self).map_err(|error| error.to_string())
+        check_capture_phase(state, self).map_err(|error| error.to_string())
     }
     fn apply(&self, state: &mut RuntimeState) {
         set_capture_phase(state, self).expect("checked capture phase");
@@ -118,7 +119,7 @@ impl Transaction<RuntimeState> for SetCapturePhase {
 impl Transaction<RuntimeState> for BeginStepAttempt {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
-        begin_step_attempt(&mut state.clone(), self).map_err(|error| error.to_string())
+        check_step_start(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
     fn apply(&self, state: &mut RuntimeState) {
         begin_step_attempt(state, self).expect("Harmos checked step admission before activation");
@@ -128,7 +129,7 @@ impl Transaction<RuntimeState> for BeginStepAttempt {
 impl Transaction<RuntimeState> for RecordStepAttempt {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
-        admit_step_attempt(&mut state.clone(), self).map_err(|error| error.to_string())
+        check_step_attempt(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
     fn apply(&self, state: &mut RuntimeState) {
         admit_step_attempt(state, self).expect("Harmos checked the step attempt before admission");
@@ -142,7 +143,7 @@ impl Transaction<RuntimeState> for UpdateExecutionPhase {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        update_execution_phase(&mut state.clone(), self.clone()).map_err(|error| error.to_string())
+        check_execution_phase(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
@@ -190,34 +191,12 @@ impl UpdateExecutionPhase {
 /* === Public Functions === */
 
 pub fn update_execution_phase(state: &mut RuntimeState, update: UpdateExecutionPhase) -> Result<(), Error> {
+    let execution_id = check_execution_phase(state, &update)?;
     let step_id = phase_step_id(&update);
-    let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("execution phase scope missing cycle"))?;
+    let test_cycle_id = update.scope.test_cycle_id.as_ref().expect("checked cycle scope");
     let step_status = phase_step_status(&update.status);
-    let cycle = state.cycles.get_mut(&test_cycle_id).ok_or_else(|| not_found("cycle not found"))?;
-    let execution_index = if let Some(id) = &update.scope.test_execution_id {
-        cycle.execution_ids.iter().position(|execution_id| execution_id == id)
-    } else if let Some(id) = &update.scope.test_case_id {
-        let mut matches = cycle
-            .execution_ids
-            .iter()
-            .enumerate()
-            .filter(|(_, execution_id)| state.executions.get(*execution_id).is_some_and(|execution| &execution.test_case_id == id));
-        let first = matches.next().map(|(index, _)| index);
-        if matches.next().is_some() {
-            return Err(conflict("execution phase scope is ambiguous; provide an execution id"));
-        }
-        first
-    } else {
-        None
-    }
-    .ok_or_else(|| not_found("execution not found"))?;
-    let execution = state.executions.get_mut(&cycle.execution_ids[execution_index]).expect("cycle execution owner exists");
-
-    if !matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Ready)
-        || !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
-    {
-        return Err(conflict("execution phase updates require an active cycle and execution"));
-    }
+    let cycle = state.cycles.get_mut(test_cycle_id).expect("checked cycle owner");
+    let execution = state.executions.get_mut(&execution_id).expect("checked execution owner");
 
     if execution.status == ExecutionStatus::Pending && step_status != StepStatus::Pending {
         execution.status = ExecutionStatus::Running;
@@ -226,10 +205,6 @@ pub fn update_execution_phase(state: &mut RuntimeState, update: UpdateExecutionP
     if execution.started_at.is_none() && execution.status == ExecutionStatus::Running {
         execution.started_at = Some(update.occurred_at.clone());
     }
-    if execution.status != ExecutionStatus::Running {
-        return Err(conflict("execution is not running"));
-    }
-
     let step = match execution.steps.iter_mut().find(|step| step.metadata.identifier == update.identifier) {
         Some(step) => step,
         None => {
@@ -261,9 +236,40 @@ pub fn update_execution_phase(state: &mut RuntimeState, update: UpdateExecutionP
 
 /* === Private Functions === */
 
-fn set_capture_phase(state: &mut RuntimeState, update: &SetCapturePhase) -> Result<(), Error> {
+fn check_execution_phase(state: &RuntimeState, update: &UpdateExecutionPhase) -> Result<TestExecutionId, Error> {
+    let cycle_id = update.scope.test_cycle_id.as_ref().ok_or_else(|| not_found("execution phase scope missing cycle"))?;
+    let cycle = state.cycles.get(cycle_id).ok_or_else(|| not_found("cycle not found"))?;
+    let execution_id = if let Some(id) = &update.scope.test_execution_id {
+        cycle.execution_ids.iter().find(|execution_id| *execution_id == id)
+    } else if let Some(id) = &update.scope.test_case_id {
+        let mut matching = cycle
+            .execution_ids
+            .iter()
+            .filter(|execution_id| state.executions.get(*execution_id).is_some_and(|execution| &execution.test_case_id == id));
+        let first = matching.next();
+        if matching.next().is_some() {
+            return Err(conflict("execution phase scope is ambiguous; provide an execution id"));
+        }
+        first
+    } else {
+        None
+    }
+    .ok_or_else(|| not_found("execution not found"))?;
+    let execution = state.executions.get(execution_id).ok_or_else(|| not_found("execution not found"))?;
+    if !matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Ready)
+        || !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+    {
+        return Err(conflict("execution phase updates require an active cycle and execution"));
+    }
+    if execution.status == ExecutionStatus::Pending && phase_step_status(&update.status) == StepStatus::Pending {
+        return Err(conflict("execution is not running"));
+    }
+    Ok(execution_id.clone())
+}
+
+fn check_capture_phase(state: &RuntimeState, update: &SetCapturePhase) -> Result<(), Error> {
     let id = update.scope.test_execution_id.as_ref().ok_or_else(|| conflict("capture phase requires an execution"))?;
-    let execution = state.executions.get_mut(id).ok_or_else(|| not_found("execution not found"))?;
+    let execution = state.executions.get(id).ok_or_else(|| not_found("execution not found"))?;
     if update.scope.test_cycle_id.as_ref() != Some(&execution.test_cycle_id)
         || update.scope.test_case_id.as_ref() != Some(&execution.test_case_id)
     {
@@ -280,6 +286,13 @@ fn set_capture_phase(state: &mut RuntimeState, update: &SetCapturePhase) -> Resu
     {
         return Err(conflict("initialization cannot resume after a step attempt"));
     }
+    Ok(())
+}
+
+fn set_capture_phase(state: &mut RuntimeState, update: &SetCapturePhase) -> Result<(), Error> {
+    check_capture_phase(state, update)?;
+    let id = update.scope.test_execution_id.as_ref().expect("checked execution scope");
+    let execution = state.executions.get_mut(id).expect("checked execution owner");
     execution.capture_phase = update.phase;
     if update.phase == dokime_domain::model::execution::CapturePhase::Initialization {
         execution.status = ExecutionStatus::Running;
@@ -288,7 +301,7 @@ fn set_capture_phase(state: &mut RuntimeState, update: &SetCapturePhase) -> Resu
     Ok(())
 }
 
-fn begin_step_attempt(state: &mut RuntimeState, update: &BeginStepAttempt) -> Result<(), Error> {
+fn check_step_start(state: &RuntimeState, update: &BeginStepAttempt) -> Result<bool, Error> {
     if state.shutting_down {
         return Err(conflict("runtime is shutting down"));
     }
@@ -298,7 +311,7 @@ fn begin_step_attempt(state: &mut RuntimeState, update: &BeginStepAttempt) -> Re
         return Err(conflict("step admission requires a running cycle"));
     }
     let id = update.scope.test_execution_id.as_ref().ok_or_else(|| not_found("step admission requires an execution"))?;
-    let execution = state.executions.get_mut(id).ok_or_else(|| not_found("execution not found"))?;
+    let execution = state.executions.get(id).ok_or_else(|| not_found("execution not found"))?;
     if &execution.test_cycle_id != cycle_id || update.scope.test_case_id.as_ref() != Some(&execution.test_case_id) {
         return Err(conflict("step admission scope differs from its execution owner"));
     }
@@ -313,18 +326,27 @@ fn begin_step_attempt(state: &mut RuntimeState, update: &BeginStepAttempt) -> Re
         return Err(conflict("completed step attempt cannot be invoked again"));
     }
     if let Some(active) = &execution.active_step_attempt {
-        return if active == &update.start { Ok(()) } else { Err(conflict("another step attempt is already active")) };
+        return if active == &update.start { Ok(false) } else { Err(conflict("another step attempt is already active")) };
     }
     execution.validate_step_invocation(&update.start).map_err(conflict)?;
+    Ok(true)
+}
+
+fn begin_step_attempt(state: &mut RuntimeState, update: &BeginStepAttempt) -> Result<(), Error> {
+    if !check_step_start(state, update)? {
+        return Ok(());
+    }
+    let id = update.scope.test_execution_id.as_ref().expect("checked execution scope");
+    let execution = state.executions.get_mut(id).expect("checked execution owner");
     execution.capture_phase = dokime_domain::model::execution::CapturePhase::Default;
     execution.active_step_attempt = Some(update.start.clone());
     execution.refresh_step_records();
     Ok(())
 }
 
-fn admit_step_attempt(state: &mut RuntimeState, update: &RecordStepAttempt) -> Result<(), Error> {
+fn check_step_attempt(state: &RuntimeState, update: &RecordStepAttempt) -> Result<bool, Error> {
     let id = update.scope.test_execution_id.as_ref().ok_or_else(|| not_found("step attempt requires an execution"))?;
-    let execution = state.executions.get_mut(id).ok_or_else(|| not_found("execution not found"))?;
+    let execution = state.executions.get(id).ok_or_else(|| not_found("execution not found"))?;
     if update.scope.test_cycle_id.as_ref() != Some(&execution.test_cycle_id)
         || update.scope.test_case_id.as_ref() != Some(&execution.test_case_id)
     {
@@ -332,7 +354,7 @@ fn admit_step_attempt(state: &mut RuntimeState, update: &RecordStepAttempt) -> R
     }
     execution.validate_step_attempt(&update.attempt).map_err(conflict)?;
     if let Some(existing) = execution.step_attempts.iter().find(|attempt| attempt.attempt_id == update.attempt.attempt_id) {
-        return if existing == &update.attempt { Ok(()) } else { Err(conflict("step attempt identity has different content")) };
+        return if existing == &update.attempt { Ok(false) } else { Err(conflict("step attempt identity has different content")) };
     }
     if !matches!(execution.status, ExecutionStatus::Running) || execution.finished_at.is_some() {
         return Err(conflict("step attempt requires a running unsealed execution"));
@@ -340,6 +362,15 @@ fn admit_step_attempt(state: &mut RuntimeState, update: &RecordStepAttempt) -> R
     if execution.active_step_attempt.as_ref() != Some(&update.attempt.start()) {
         return Err(conflict("completion differs from the admitted active step attempt"));
     }
+    Ok(true)
+}
+
+fn admit_step_attempt(state: &mut RuntimeState, update: &RecordStepAttempt) -> Result<(), Error> {
+    if !check_step_attempt(state, update)? {
+        return Ok(());
+    }
+    let id = update.scope.test_execution_id.as_ref().expect("checked execution scope");
+    let execution = state.executions.get_mut(id).expect("checked execution owner");
     execution.step_attempts.push(update.attempt.clone());
     execution.active_step_attempt = None;
     execution.refresh_step_records();
@@ -347,15 +378,10 @@ fn admit_step_attempt(state: &mut RuntimeState, update: &RecordStepAttempt) -> R
 }
 
 fn record_execution_traceability(state: &mut RuntimeState, update: RecordExecutionTraceability) -> Result<(), Error> {
-    admissible_sections(&update.sections)?;
-    let test_cycle_id = update.scope.test_cycle_id.clone().ok_or_else(|| not_found("authored traceability scope missing cycle"))?;
-    let test_execution_id =
-        update.scope.test_execution_id.clone().ok_or_else(|| not_found("authored traceability scope missing execution"))?;
-    let execution = state
-        .executions
-        .get_mut(&test_execution_id)
-        .filter(|execution| execution.test_cycle_id == test_cycle_id)
-        .ok_or_else(|| not_found("execution not found"))?;
+    check_traceability(state, &update)?;
+    let test_cycle_id = update.scope.test_cycle_id.as_ref().expect("checked cycle scope");
+    let test_execution_id = update.scope.test_execution_id.as_ref().expect("checked execution scope");
+    let execution = state.executions.get_mut(test_execution_id).expect("checked execution owner");
 
     for section in update.sections {
         match execution.traceability.iter_mut().find(|stated| stated.identifier == section.identifier) {
@@ -363,7 +389,17 @@ fn record_execution_traceability(state: &mut RuntimeState, update: RecordExecuti
             None => execution.traceability.push(section),
         }
     }
-    state.cycles.get_mut(&test_cycle_id).expect("the cycle was found above").touch_at(update.occurred_at);
+    state.cycles.get_mut(test_cycle_id).expect("checked cycle owner").touch_at(update.occurred_at);
+    Ok(())
+}
+
+fn check_traceability(state: &RuntimeState, update: &RecordExecutionTraceability) -> Result<(), Error> {
+    admissible_sections(&update.sections)?;
+    let cycle = update.scope.test_cycle_id.as_ref().ok_or_else(|| not_found("authored traceability scope missing cycle"))?;
+    let execution = update.scope.test_execution_id.as_ref().ok_or_else(|| not_found("authored traceability scope missing execution"))?;
+    if !state.cycles.contains_key(cycle) || !state.executions.get(execution).is_some_and(|owner| &owner.test_cycle_id == cycle) {
+        return Err(not_found("execution not found"));
+    }
     Ok(())
 }
 
