@@ -529,7 +529,14 @@ fn export(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session
                 let started = Instant::now();
                 let download = session.client.download_evidence(request.clone(), destination.clone(), true);
                 let delivered = executor.block_on(download).unwrap();
-                elapsed += started.elapsed();
+                let duration = started.elapsed();
+                elapsed += duration;
+                eprintln!(
+                    "evidence_export bytes={} elapsed_ms={} bytes_per_second={:.0}",
+                    delivered.size_bytes,
+                    duration.as_millis(),
+                    delivered.size_bytes as f64 / duration.as_secs_f64()
+                );
                 assert!(delivered.size_bytes >= BYTES, "the export includes the whole uncompressed payload");
                 assert_eq!(std::fs::metadata(&destination).unwrap().len(), delivered.size_bytes);
             }
