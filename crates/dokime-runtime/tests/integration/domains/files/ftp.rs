@@ -87,6 +87,18 @@ fn ftp(url: String, secret: Option<&str>) -> FileWatchSourcePayload {
     FileWatchSourcePayload::Ftp(FtpWatchSource { url, secret_id: secret.map(str::to_owned) })
 }
 
+async fn adopt_ftp_secret(bench: &Bench) {
+    let path = bench._root.path().join("secrets.json");
+    let original = std::fs::read(&path).unwrap();
+    let request = dokime_domain::operations::secrets::Adopt {
+        metadata: dokime_domain::model::secrets::catalog::Metadata { name: SECRET.into(), label: "FTP Password".into(), description: None },
+        legacy_id: SECRET.into(),
+        generation: 0,
+    };
+    bench.handle.operations().call(request).await.unwrap();
+    assert_eq!(std::fs::read(path).unwrap(), original);
+}
+
 // Preserve The Real Server's Data Plane While Refusing REST On Its Control Plane
 async fn refusing_resume(port: u16) -> (u16, tokio::task::JoinHandle<()>) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -135,6 +147,7 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
             .with_secret_backend(RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::LocalFile, local_file: Some(secrets) })
     })
     .await;
+    adopt_ftp_secret(&bench).await;
     let served = tempdir().unwrap();
     let log = served.path().join("bench/device.log");
     write(&log, b"");
@@ -197,6 +210,7 @@ async fn stream_ftp_source() {
             .with_secret_backend(RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::LocalFile, local_file: Some(secrets) })
     })
     .await;
+    adopt_ftp_secret(&bench).await;
     let served = tempdir().unwrap();
     let log = served.path().join("bench/logs/charger.log");
     write(&log, b"before the watch\n");
