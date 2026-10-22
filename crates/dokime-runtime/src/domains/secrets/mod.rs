@@ -245,11 +245,9 @@ impl SecretStore {
             document.secrets = next.clone();
             Ok(())
         });
-        if let Err(error) = publication {
-            // A Directory Flush Can Fail After Rename. Retain Both Generations' Slots
-            // So Either Complete Catalog Remains Readable After Recovery.
-            return Err(error);
-        }
+        // A Directory Flush Can Fail After Rename. Retain Both Generations' Slots
+        // So Either Complete Catalog Remains Readable After Recovery.
+        publication?;
 
         // Readers Hold The Same Guard Through Their Snapshot's Secure Reads.
         let mut cleanup_pending = false;
