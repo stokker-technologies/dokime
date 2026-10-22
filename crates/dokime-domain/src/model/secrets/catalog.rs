@@ -105,7 +105,7 @@ impl Catalog {
         }
         for (name, entry) in &self.entries {
             entry.metadata.validate()?;
-            if name != &entry.metadata.name || uuid::Uuid::parse_str(&entry.slot).is_err() {
+            if name != &entry.metadata.name || crate::model::identity::id::validate_uuid("SecretSlot", &entry.slot).is_err() {
                 return Err("The host secret catalog has an invalid slot or name");
             }
         }

@@ -212,9 +212,7 @@ pub(crate) fn seeded_uuid(type_name: &str, seed: &str) -> String {
     format_uuid(left, right, 5)
 }
 
-/* === Private Functions === */
-
-fn validate_uuid(type_name: &'static str, value: &str) -> Result<(), HubIdError> {
+pub(crate) fn validate_uuid(type_name: &'static str, value: &str) -> Result<(), HubIdError> {
     let valid = value.len() == 36
         && value.bytes().enumerate().all(
             |(index, byte)| {
@@ -223,6 +221,8 @@ fn validate_uuid(type_name: &'static str, value: &str) -> Result<(), HubIdError>
         );
     if valid { Ok(()) } else { Err(HubIdError::InvalidUuid { type_name }) }
 }
+
+/* === Private Functions === */
 
 fn fnv1a64(bytes: &[u8], seed: u64) -> u64 {
     bytes.iter().fold(seed, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3))
