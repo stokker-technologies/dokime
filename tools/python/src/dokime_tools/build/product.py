@@ -20,7 +20,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import bench, dependencies, frontend, outputs, paths, run, wheel
+from dokime_tools.build import bench, cargo, dependencies, frontend, outputs, paths, run, wheel
 from dokime_tools.package import fixtures
 from dokime_tools.package.staging import clear_output, stage_file, sync_output
 from dokime_tools.prepare import bindings, generated
@@ -49,9 +49,7 @@ def rust(profile: str) -> list[str]:
     output = paths.output(ROOT, "build", profile)
     messages = output / "product/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        "cargo",
-        "build",
+    arguments = [
         "--locked",
         "--workspace",
         "--exclude",
@@ -62,8 +60,9 @@ def rust(profile: str) -> list[str]:
         profile,
         "--features",
         "dokime-server-cli/media-native",
-        "--message-format=json-render-diagnostics",
     ]
+    cargo.clippy(ROOT, arguments)
+    command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
     with messages.open("w", encoding="utf-8") as written:
         subprocess.run(
             command,
@@ -116,9 +115,7 @@ def desktop(profile: str) -> list[str]:
         raise ValueError("build the matching frontend before compiling the desktop")
     sync_output(output / "web", frontend.WEB_ROOT / "dist")
     messages = output / "product/desktop-compiler.json"
-    command = [
-        "cargo",
-        "build",
+    arguments = [
         "--locked",
         "--package",
         "dokime-gui",
@@ -126,8 +123,9 @@ def desktop(profile: str) -> list[str]:
         profile,
         "--features",
         "tauri/custom-protocol",
-        "--message-format=json-render-diagnostics",
     ]
+    cargo.clippy(ROOT, arguments)
+    command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
     with messages.open("w", encoding="utf-8") as written:
         subprocess.run(
             command,
@@ -150,6 +148,7 @@ def tests(profile: str) -> list[str]:
     output = paths.output(ROOT, "build", profile)
     if not (output / "product/target.txt").is_file():
         raise ValueError("build the matching Product before its Tests producer")
+    _compatibility(profile)
     messages = archive.build(ROOT, profile, ["--features", "dokime-runtime/fault-injection"]).with_name(archive.MESSAGES)
     metadata = messages.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
@@ -194,7 +193,13 @@ def main(arguments: list[str] | None = None) -> int:
         if options.step == "bench":
             benchmarks()
         else:
-            {"rust": rust, "typescript": typescript, "desktop": desktop, "python": python, "tests": tests}[options.step](options.profile)
+            {
+                "rust": rust,
+                "typescript": typescript,
+                "desktop": desktop,
+                "python": python,
+                "tests": tests,
+            }[options.step](options.profile)
     except (policy.TestError, OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"build {options.step}: {error}", file=sys.stderr)
         return 1
@@ -202,6 +207,17 @@ def main(arguments: list[str] | None = None) -> int:
 
 
 # === Private Functions === #
+
+
+def _compatibility(profile: str) -> None:
+    """Compile Every Declared Feature And Browser Target In The Optional Tests Producer."""
+    compiler_profile = "release-tests" if profile == "release" else profile
+    for selected in (
+        ["--workspace", "--all-targets", "--all-features"],
+        ["--workspace", "--lib", "--bins", "--no-default-features"],
+        ["--package", "dokime-domain", "--target", "wasm32-unknown-unknown"],
+    ):
+        cargo.clippy(ROOT, ["--locked", "--profile", compiler_profile, *selected])
 
 
 def _exe() -> str:

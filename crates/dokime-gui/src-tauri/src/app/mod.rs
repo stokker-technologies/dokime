@@ -222,6 +222,23 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         // before WebView2 raises the HTML5 events the plugin drop zone uses.
         #[cfg(windows)]
         let builder = builder.drag_and_drop(false);
+        // Elevated WebView2 Hosts Ignore Environment Overrides. Forward The
+        // Existing WebDriver Opt-In Through The Native Environment Options.
+        #[cfg(windows)]
+        let builder = if std::env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true") {
+            let builder = match std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+                Ok(arguments) if !arguments.is_empty() => builder.additional_browser_args(&format!(
+                    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required {arguments}"
+                )),
+                _ => builder,
+            };
+            match std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").filter(|directory| !directory.is_empty()) {
+                Some(directory) => builder.data_directory(directory.into()),
+                None => builder,
+            }
+        } else {
+            builder
+        };
         builder.build()?;
     }
     Ok(())

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:5b3722daf0026cb1d22c0104f0c56649fd5b6c8357a7a44b70cf893a0f0d9a9e
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:48dd49e696a38f1fa4f9458c74e47e939eb0b46cb97fb95b1a32d90ffe797ccb
 # ***
 #
 # Dokime
@@ -23,7 +23,7 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from .. import temporary
-from ..build import paths
+from ..build import cargo, paths
 from . import policy
 
 # Type Checking Imports
@@ -64,6 +64,11 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
     path = location(directory, profile)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
+    compiler_profile = "release-tests" if profile == "release" else profile
+    cargo.clippy(
+        directory,
+        ["--locked", "--workspace", "--tests", "--profile", compiler_profile, *extra],
+    )
     command = [
         "cargo",
         "nextest",
@@ -72,7 +77,7 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         "--workspace",
         "--tests",
         "--cargo-profile",
-        "release-tests" if profile == "release" else profile,
+        compiler_profile,
         "--cargo-message-format",
         "json",
         "--archive-file",
@@ -81,7 +86,13 @@ def build(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
     ]
     with path.with_name(MESSAGES).open("w", encoding="utf-8") as output:
         result = subprocess.run(
-            command, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), cwd=directory, stdout=output, check=False
+            command,
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            cwd=directory,
+            stdout=output,
+            check=False,
         )
     if result.returncode:
         path.unlink(missing_ok=True)
@@ -131,7 +142,12 @@ def binaries(directory: Path, profile: str) -> dict[str, str]:
             "json",
         ]
         result = subprocess.run(
-            command, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), cwd=directory, capture_output=True, text=True, check=False
+            command,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if result.returncode:
             raise policy.TestError(f"nextest could not list test binaries: {result.stderr.strip()}")
@@ -257,7 +273,10 @@ def _digest(path: Path) -> str:
 
 def _toolchain(directory: Path) -> str:
     return subprocess.check_output(
-        ["rustc", "-Vv"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), cwd=directory, text=True
+        ["rustc", "-Vv"],
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        cwd=directory,
+        text=True,
     ).strip()
 
 

@@ -118,7 +118,7 @@ run = "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else
 
 [tasks.lint]
 description = "Lint Every Language"
-depends = ["lint:rust", "lint:python", "lint:typescript"]
+depends = ["lint:python", "lint:typescript"]
 
 [tasks."lint:python"]
 description = "Lint Python"
@@ -128,11 +128,6 @@ run = [
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ty check --project tools/python",
 ]
-
-[tasks."lint:rust"]
-description = "Lint Rust"
-depends = ["prepare"]
-run = "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings"
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
@@ -168,15 +163,7 @@ run = [{ task = "format:toml --check" }, "shellcheck --version", "actionlint"]
 [tasks."check:rust"]
 description = "Check Rust"
 depends = ["prepare"]
-run = [
-  "{{vars.tools}} dokime_tools.prepare.resources --check",
-  { task = "format:rust --check" },
-  { task = "lint:rust" },
-  "cargo-machete --skip-target-dir",
-  "cargo check --locked --workspace --all-targets --all-features",
-  "cargo check --locked --workspace --lib --bins --no-default-features",
-  "cargo check --locked -p dokime-domain --target wasm32-unknown-unknown",
-]
+run = ["{{vars.tools}} dokime_tools.prepare.resources --check", { task = "format:rust --check" }, "cargo-machete --skip-target-dir"]
 
 [tasks."check:typescript"]
 description = "Check TypeScript"

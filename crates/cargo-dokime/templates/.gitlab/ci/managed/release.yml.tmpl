@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:c76e28c179c3301d548d5f49455a1849aa897a6c60ad40ba8f6b665fdc9d6053
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:6cb391121ffee9b4a388ef3b10f41e13827a211e4a642469023ee620f1853141
 Release / Publish:
   stage: Release
   tags:
@@ -211,10 +211,7 @@ Release / Publish:
   - job: Check / Rust (linux)
     artifacts: false
     optional: true
-  - job: Build / Product (linux)
-    artifacts: false
-    optional: true
-  - job: Build / Tests (linux)
+  - job: Build / Native (linux)
     artifacts: false
     optional: true
   - job: Test / Rust / Unit (linux)
@@ -229,10 +226,7 @@ Release / Publish:
   - job: Check / Rust (windows)
     artifacts: false
     optional: true
-  - job: Build / Product (windows)
-    artifacts: false
-    optional: true
-  - job: Build / Tests (windows)
+  - job: Build / Native (windows)
     artifacts: false
     optional: true
   - job: Test / Rust / Unit (windows)

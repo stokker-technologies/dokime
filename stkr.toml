@@ -46,19 +46,6 @@ max_workspaces = 5
 [ci.impact]
 default = "full"
 
-# --- Stage / Check --- #
-
-[[ci.jobs]]
-id = "check:rust"
-platform = "linux"
-runner = "stokker-local-linux-x64"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "check:rust"
-platform = "windows"
-runner = "stokker-local-windows-x64"
-
 # --- Stage / Build --- #
 
 [[ci.jobs]]
@@ -78,17 +65,6 @@ platform = "linux"
 runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
-
-[[ci.jobs]]
-id = "build:rust:tests"
-platform = "linux"
-runner = "stokker-local-linux-x64"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "build:rust:tests"
-platform = "windows"
-runner = "stokker-local-windows-x64"
 
 # --- Stage / Test --- #
 

@@ -330,7 +330,9 @@ async function startSession(work, endpoint, evidence) {
   const port = await unusedPort();
   const driver =
     process.env.DOKIME_E2E_DRIVER ?? (windows ? join(workspace, "target/tooling/desktop/msedgedriver.exe") : "WebKitWebDriver");
-  driverProcess = spawn(driver, ["--host=127.0.0.1", `--port=${port}`], {
+  const driverArguments = ["--host=127.0.0.1", `--port=${port}`];
+  if (windows) driverArguments.push("--verbose", `--log-path=${join(evidence, `webdriver-${port}.log`)}`);
+  driverProcess = spawn(driver, driverArguments, {
     detached: !windows,
     windowsHide: true,
     env: {
@@ -930,9 +932,24 @@ async function settle(session) {
 
 /** Answer every prompt the open cycle is waiting on, through the banner or Control. */
 async function answerPendingPrompts(session) {
-  /* The banner is gone the moment a prompt is answered, so what it showed is
+  const selection = await session.execute(`
+    if (document.querySelector('section[aria-label="Pending Prompts"]')) return null;
+    const attention = document.querySelector('[data-testid="navigation-prompt-count"]');
+    const executionId = new URL(location.href).searchParams.get('executionId');
+    return Number(attention?.textContent) > 0 && executionId && /^\\/cycles\\/[^/]+$/.test(location.pathname)
+      ? {cycle: location.pathname, executionId} : null;
+  `);
+  if (selection) {
+    await session.clickCss('nav[aria-label="Navigation"] li[data-level="overview"] button[data-tree-select]');
+    await until("the selected cycle's prompt overview", async () => {
+      const location = await session.location();
+      return location.pathname === selection.cycle && location.searchParams.get("view") === "cycle";
+    });
+  }
+  try {
+    /* The banner is gone the moment a prompt is answered, so what it showed is
      read here, before Respond, and asserted once the run is over. */
-  const sighting = await session.execute(`
+    const sighting = await session.execute(`
     const banner = document.querySelector('section[aria-label="Pending Prompts"]');
     if (!banner) return null;
     const cards = [...banner.querySelectorAll('li[data-prompt-level]')];
@@ -948,8 +965,8 @@ async function answerPendingPrompts(session) {
         document.querySelector('[data-testid="navigation-prompt-count"]')?.innerText ?? null,
     };
   `);
-  if (sighting) promptSightings.push(sighting);
-  const pending = await session.execute(`
+    if (sighting) promptSightings.push(sighting);
+    const pending = await session.execute(`
     const banner = document.querySelector('section[aria-label="Pending Prompts"]');
     if (!banner) return 0;
     const respond = [...banner.querySelectorAll('button')].filter(
@@ -962,10 +979,10 @@ async function answerPendingPrompts(session) {
       ? banner.querySelectorAll('li[data-prompt-level]').length
       : 0;
   `);
-  if (!pending) return 0;
-  await delay(600);
-  await session.execute(
-    `const note = arguments[0];
+    if (!pending) return 0;
+    await delay(600);
+    await session.execute(
+      `const note = arguments[0];
      const panel = document.querySelector('[aria-labelledby="active-prompt-title"]') ?? document.body;
      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
      for (const input of panel.querySelectorAll('input[type="text"], input[type="number"]')) {
@@ -977,10 +994,10 @@ async function answerPendingPrompts(session) {
      for (const box of panel.querySelectorAll('[role="checkbox"], [role="switch"]')) {
        if (box.getAttribute('aria-checked') !== 'true') box.click();
      }`,
-    [OPERATOR_NOTE],
-  );
-  await delay(400);
-  const submitted = await session.execute(`
+      [OPERATOR_NOTE],
+    );
+    await delay(400);
+    const submitted = await session.execute(`
     const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
     if (!panel) return false;
     const submit = [...panel.querySelectorAll('button')].find((button) =>
@@ -990,8 +1007,17 @@ async function answerPendingPrompts(session) {
     submit.click();
     return true;
   `);
-  if (submitted) await delay(1500);
-  return pending;
+    if (submitted) await delay(1500);
+    return pending;
+  } finally {
+    if (selection) {
+      await session.clickCss(`nav[aria-label="Navigation"] li[data-execution-id="${selection.executionId}"] button[data-tree-select]`);
+      await until("the measured execution selection restored", async () => {
+        const location = await session.location();
+        return location.pathname === selection.cycle && location.searchParams.get("executionId") === selection.executionId;
+      });
+    }
+  }
 }
 
 /** Wait for a condition while answering whatever prompts appear meanwhile. */
@@ -1471,6 +1497,45 @@ async function cycleJourney(session, cycleId) {
     [PROTECTION_TEMPLATE],
   );
 
+  // Answer Another Execution's Prompt Without Losing The Measured Selection
+  const completionDeadline = Date.now() + 300000;
+  await until(
+    "the startup prompt's attention badge",
+    () => session.execute("return Number(document.querySelector('[data-testid=\"navigation-prompt-count\"]')?.textContent) > 0;"),
+    completionDeadline - Date.now(),
+  );
+  const measuredExecution = await session.execute(
+    `const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+       .find((candidate) => candidate.innerText.includes(arguments[0]));
+     row.querySelector('button[data-tree-select]').click();
+     return row.dataset.executionId;`,
+    [PROTECTION_TEMPLATE],
+  );
+  await until(
+    "the measured execution before answering",
+    async () => (await session.location()).searchParams.get("executionId") === measuredExecution,
+  );
+  assert.equal(
+    await session.execute("return Boolean(document.querySelector('section[aria-label=\"Pending Prompts\"]'));"),
+    false,
+    "An execution page must not show another execution's prompt",
+  );
+  listened ||= await session.execute(
+    `return globalThis.__dokimeStreamReads > arguments[0]
+      && globalThis.__dokimeStreams.some((stream) => !stream.done && stream.reads >= 2);`,
+    [beforeReads],
+  );
+  await until(
+    "the other execution's prompt answered through the cycle overview",
+    async () => {
+      const answered = await answerPendingPrompts(session);
+      const location = await session.location();
+      assert.equal(location.pathname, `/cycles/${cycleId}`, "Answering must stay in the current cycle");
+      assert.equal(location.searchParams.get("executionId"), measuredExecution, "Answering must restore the measured execution selection");
+      return answered > 0;
+    },
+    completionDeadline - Date.now(),
+  );
   await runUntil(
     session,
     "cycle completion",
@@ -1488,7 +1553,7 @@ async function cycleJourney(session, cycleId) {
       }
       return /\b(Passed|Failed|Blocked)\b/.test(rows);
     },
-    300000,
+    completionDeadline - Date.now(),
   );
 
   /* The Startup Prompt Was A Warning Banner With Counts In Header And Navigation. */

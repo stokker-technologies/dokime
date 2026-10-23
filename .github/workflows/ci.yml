@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:a9b268d64120eba41a47a9bb03a82884b05851c56d44f90cd8b4de5deb779321
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:0de11cec0cc089d7ba60c8f762d6975a93f6e27be0e62b4e2a71a08a6567f1a0
 name: CI
 "on":
   push:
@@ -26,7 +26,7 @@ jobs:
     uses: ./.github/workflows/managed-build-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"build_product_linux\":120,\"build_tests_linux\":120}"
+      timeouts: "{\"build_product_linux\":120}"
     secrets: inherit
     needs:
     - validated
@@ -41,7 +41,7 @@ jobs:
     uses: ./.github/workflows/managed-build-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"build_product_windows\":120,\"build_tests_windows\":120}"
+      timeouts: "{\"build_product_windows\":120}"
     secrets: inherit
     needs:
     - validated
@@ -131,9 +131,6 @@ jobs:
     - check_generated
     - check_linux
     - check_windows
-    - test
-    - test_linux
-    - test_windows
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
@@ -162,8 +159,6 @@ jobs:
     - check
     - check_generated
     - check_linux
-    - test
-    - test_linux
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
@@ -192,8 +187,6 @@ jobs:
     - check
     - check_generated
     - check_windows
-    - test
-    - test_windows
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,

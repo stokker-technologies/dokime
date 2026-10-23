@@ -677,9 +677,12 @@ mise run release:publish:dry
 mise run ci
 ```
 
-`check` combines language formatting/linting, Rust feature checks and the
-WebAssembly domain build. `build` exports shipping binaries, the OBC bundle,
-frontend and generated clients under `target/build/<profile>/<target>/`.
+`check` combines formatting, noncompiling lint and type checks. `build` exports
+shipping binaries, the OBC bundle, frontend and generated clients under
+`target/build/<profile>/<target>/`. `build:rust:tests` owns Rust feature and
+WebAssembly compatibility proofs and the test archive. Matching Clippy precedes
+each producer's compilation. Native CI runs Product and required Tests producers
+in one job per platform, then tests and packages consume their separate artifacts.
 The `dokime-cli` and `dokime-server-cli` crates own the `dokime` and
 `dokime-server` executables and never publish to crates.io. The `dokime` and
 `dokime-server` library packages retain their public names and APIs.

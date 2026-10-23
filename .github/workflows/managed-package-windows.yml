@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-windows.yml; sha256:cc8b2d68b38497e9ed0fc3307a9a8012d3e75b864e7a6eeb27332e7c6efa2d15
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-windows.yml; sha256:ecb94692f1daea004a8a3c3c6a6272e4c53e046f7e044290701ce3bd6b1e98da
 name: Package
 "on":
   workflow_call:
@@ -685,11 +685,7 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
-    if: >-
-      always() && true && true && inputs.stable_release == 'true' &&
-      (!startsWith(github.ref, 'refs/tags/v') || (true && true && true && (true) && true && true &&
-      (true) && true && (true) && true && true && (true) && (true) && (true) && (true) &&
-      (true)))
+    if: always() && true && true && inputs.stable_release == 'true'
     environment: release
     permissions:
       contents: read

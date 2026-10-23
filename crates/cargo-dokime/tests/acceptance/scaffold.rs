@@ -74,9 +74,7 @@ fn run(plugin: &Path, program: &str, arguments: &[&str]) {
     command.creation_flags(0x0800_0000);
     // The Starter Runs As Its Author Would, Outside The Lane That Runs This Story.
     for (variable, _) in std::env::vars_os() {
-        if variable.to_str().is_some_and(|variable| {
-            variable.starts_with("NEXTEST") || matches!(variable, "VIRTUAL_ENV" | "MISE_LOCKED" | "MISE_ENABLE_TOOLS")
-        }) {
+        if variable.to_str().is_some_and(|variable| variable.starts_with("NEXTEST") || variable == "VIRTUAL_ENV") {
             command.env_remove(variable);
         }
     }
@@ -127,7 +125,9 @@ fn isolate_mise(command: &mut Command, plugin: &Path) -> tempfile::NamedTempFile
     command
         .env("MISE_GLOBAL_CONFIG_FILE", configuration.path())
         .env("MISE_SYSTEM_CONFIG_FILE", configuration.path())
-        .env("MISE_CEILING_PATHS", ceiling);
+        .env("MISE_CEILING_PATHS", ceiling)
+        .env_remove("MISE_LOCKED")
+        .env_remove("MISE_ENABLE_TOOLS");
     configuration
 }
 
@@ -253,7 +253,8 @@ fn mise_ignores_machine_tools() {
         .env("MISE_SYSTEM_CONFIG_FILE", system.path())
         .env("MISE_TRUSTED_CONFIG_PATHS", parent.path())
         .env("MISE_OFFLINE", "true")
-        .env_remove("MISE_ENABLE_TOOLS");
+        .env("MISE_LOCKED", "1")
+        .env("MISE_ENABLE_TOOLS", "python");
     let _configuration = isolate_mise(&mut command, &plugin);
     let output = command.output().expect("mise resolves tools without installation");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

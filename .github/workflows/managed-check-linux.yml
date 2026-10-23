@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-linux.yml; sha256:465caff1c797b7ff0c280b67681f2a7c321d4d5fde673608844ab90acd96a741
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-linux.yml; sha256:7df1a31486b3aab4c22475e9e8121bb081d3b67982fe9d499c4e3b62c4c7f6b8
 name: Check
 "on":
   workflow_call:
@@ -22,7 +22,7 @@ env:
 jobs:
   check_rust_linux:
     name: Rust (linux)
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).check_rust_linux }}
     steps:
     - name: Configure Checkout Git
@@ -76,8 +76,6 @@ jobs:
           if command -v sha256sum >/dev/null; then digest=$(printf '%s' "$root" | sha256sum); else digest=$(printf '%s' "$root" | shasum -a 256); fi
           printf '%s=%s\n' "$name" "${digest%% *}" >> "$GITHUB_ENV"
         done
-    - name: Bootstrap
-      run: python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages
     - name: Prepare Windows Tools
       if: runner.os == 'Windows'
       shell: pwsh
@@ -232,33 +230,7 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
-    - name: Compiler Cache Storage
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
-      with:
-        script: |-
-          for (const key of ['ACTIONS_RUNTIME_TOKEN', 'ACTIONS_RESULTS_URL', 'ACTIONS_CACHE_URL']) {
-            const value = process.env[key];
-            if (value) { core.setSecret(value); core.exportVariable(key, value); }
-          }
-          if (process.env.ACTIONS_CACHE_SERVICE_V2) {
-            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
-          }
-    - name: Compiler Cache Storage
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
-      with:
-        script: |-
-          for (const key of ['ACTIONS_RUNTIME_TOKEN', 'ACTIONS_RESULTS_URL', 'ACTIONS_CACHE_URL']) {
-            const value = process.env[key];
-            if (value) { core.setSecret(value); core.exportVariable(key, value); }
-          }
-          if (process.env.ACTIONS_CACHE_SERVICE_V2) {
-            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
-          }
-    - run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.sccache
-      env:
-        STKR_SCCACHE_SCRIPT: mise run check:rust
+    - run: mise run check:rust
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'
@@ -300,10 +272,4 @@ jobs:
         path: .cache/uv/
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
-      STKR_SCCACHE_BACKEND: gha
-      STKR_SCCACHE_MODE: >-
-        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
+        go,node,python,rust,pnpm,uv,github:bnjbvr/cargo-machete,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,npm:@fission-ai/openspec,taplo

@@ -71,3 +71,25 @@ All local implementation and validation SHALL use the assigned worktree. Local p
 - WHEN the candidate completes its source and applicable local validation in the assigned worktree
 - THEN the next PR update starts required native runner checks with archive workspace remapping
 - AND integration remains blocked until distinct-path consumers and every required native platform pass
+
+### Requirement: Share Native Compilation Ownership
+
+One native Build job per platform and profile SHALL produce Product and required Tests in one checkout and Cargo directory. Repository tasks SHALL retain declared features, targets and profiles with matching Clippy and child-scoped warning denial. Check SHALL remain noncompiling; Test and Package SHALL consume separate existing exports without rebuilding them.
+
+#### Scenario: Build A Native Candidate
+
+- WHEN native CI builds the candidate
+- THEN one Build / Native job per platform invokes Product followed by required Tests production
+- AND the existing full-feature, no-default-feature and WebAssembly compatibility proofs remain in Build
+- AND artifact consumers run after that producer without a separate compiler Check or Tests build job
+
+#### Scenario: Build Shipping Artifacts Without Tests
+
+- WHEN an ordinary Product build runs without the optional Tests producer
+- THEN only shipping configurations compile
+- AND compatibility proofs remain owned by Tests
+
+#### Scenario: Compile Release Compatibility Proofs
+
+- WHEN the Tests producer runs for a release candidate
+- THEN its compatibility proofs retain their declared selectors and use the release-tests compiler profile
