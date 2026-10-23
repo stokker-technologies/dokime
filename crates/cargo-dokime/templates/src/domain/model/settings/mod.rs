@@ -40,10 +40,7 @@ pub struct Chamber {
     #[setting(label = "Sensor Port", discovered = DetectPort, description = "Serial port of the bench sensor.\n`discovered = DetectPort` names the operation that computes it. The host calls it once the plugin is initialized, and only for a field nobody saved, and what it found is stored beside the saved values with a marker the card shows. It is not used by a run until an operator saves it, which is why this is an `Option<PathBuf>`: the bench has to open without it, and a discovered value is a suggestion rather than a setting.")]
     pub sensor_port: Option<PathBuf>,
 
-    #[setting(
-        label = "Cloud Token",
-        description = "Optional token for result upload."
-    )]
+    #[setting(label = "Cloud Token", description = "Optional token for result upload.")]
     pub cloud_token: Option<Secret>,
 }
 

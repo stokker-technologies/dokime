@@ -2,6 +2,8 @@
 
 ## Implementation
 
+- [x] 1.17 Canonically order root stkr.toml sections and format eight of 23 authored Rust starter sources with the generated 140-column rustfmt policy. Targeted native skeleton/Taplo and expanded Rust formatting checks pass; values, placeholders and behavior are preserved. Acceptance and affected artifact rebuilding remain required proof.
+
 - [x] 1.15 Remove the authored starter TOML trailing blank line and adopt the canonical release policy explicit-stdio correction. Native expanded-template Taplo and targeted Python lint/format/type checks pass; acceptance remains unproved after the restart.
 - [x] 1.16 Adopt canonical Nextest JUnit reporting for explicitly ignored tests so wrapper counts preserve native skipped outcomes. Targeted Python lint/format/type and root/starter parity checks pass; retain the opt-in Wi-Fi hardware test and every applicable gate.
 

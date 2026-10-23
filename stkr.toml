@@ -182,16 +182,6 @@ selection = "{{selection}}"
 
 # === === Release === === #
 
-[version]
-value = "0.1.0"
-files = [
-  "Cargo.toml",
-  "pyproject.toml",
-  "packages/dokime/pyproject.toml",
-  "crates/dokime-gui/package.json",
-  "crates/dokime-gui/src-tauri/tauri.conf.json",
-]
-
 [release]
 provider = "github"
 repository = "stokker-technologies/dokime"
@@ -216,33 +206,6 @@ signature_checks = [
 language = "rust"
 platform = "windows"
 secrets = ["TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]
-
-[[package.executables]]
-package = "dokime-cli"
-command = "dokime"
-name = "dokime-cli"
-targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
-release = true
-verify = ["--version"]
-installers = ["mise"]
-
-[[package.executables]]
-package = "dokime-server-cli"
-command = "dokime-server"
-name = "dokime-server-cli"
-targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
-release = true
-verify = ["--version"]
-installers = ["mise"]
-
-[[package.executables]]
-package = "cargo-dokime"
-command = "cargo-dokime"
-name = "cargo-dokime"
-targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
-release = true
-verify = ["--version"]
-installers = ["mise"]
 
 [[release.assets]]
 target = "linux-x86_64"
@@ -280,3 +243,40 @@ name = "obc-plugin-{version}-{target}.dokime"
 target = "windows-x86_64"
 path = "target/package/{profile}/{target}/rust/plugins/obc-plugin.dokime"
 name = "obc-plugin-{version}-{target}.dokime"
+
+[version]
+value = "0.1.0"
+files = [
+  "Cargo.toml",
+  "pyproject.toml",
+  "packages/dokime/pyproject.toml",
+  "crates/dokime-gui/package.json",
+  "crates/dokime-gui/src-tauri/tauri.conf.json",
+]
+
+[[package.executables]]
+package = "dokime-cli"
+command = "dokime"
+name = "dokime-cli"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+release = true
+verify = ["--version"]
+installers = ["mise"]
+
+[[package.executables]]
+package = "dokime-server-cli"
+command = "dokime-server"
+name = "dokime-server-cli"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+release = true
+verify = ["--version"]
+installers = ["mise"]
+
+[[package.executables]]
+package = "cargo-dokime"
+command = "cargo-dokime"
+name = "cargo-dokime"
+targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
+release = true
+verify = ["--version"]
+installers = ["mise"]

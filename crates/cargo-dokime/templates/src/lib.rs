@@ -27,9 +27,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::harmos::operations::{
-    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
-};
+use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
 use dokime_runtime::harmos::plugin::{Attachment, Declared};
 use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime_runtime::prelude::*;
@@ -72,17 +70,11 @@ pub enum Records {}
 /* === Implementations === */
 impl Bench {
     pub(crate) fn observed(&self, unit: String) {
-        self.units
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(unit);
+        self.units.lock().unwrap_or_else(PoisonError::into_inner).push(unit);
     }
 
     pub fn connected(&self) -> Vec<String> {
-        self.units
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.units.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
 }
 
@@ -110,8 +102,7 @@ impl dokime_runtime::Plugin for Plugin {
     type Resources = Bench;
 
     fn prepare(config: Configuration) -> std::result::Result<Self, Refusal> {
-        let settings =
-            dokime_runtime::plugin::refusal(config.settings::<domain::model::settings::BenchSettings>())?;
+        let settings = dokime_runtime::plugin::refusal(config.settings::<domain::model::settings::BenchSettings>())?;
         // The port is discovered, so it is absent until an operator saves what
         // the card offered them: a plugin has to open before discovery can run,
         // which is exactly why a discovered field is an `Option<T>`.
@@ -133,10 +124,7 @@ impl dokime_runtime::Plugin for Plugin {
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
-        self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(
-            self.resources(),
-            <Self as Declared>::STREAMS,
-        )?);
+        self.observers = Some(ObserverAttachment::from_catalog::<observers::Observers>(self.resources(), <Self as Declared>::STREAMS)?);
         Ok(())
     }
 
@@ -144,10 +132,7 @@ impl dokime_runtime::Plugin for Plugin {
         Arc::clone(&self.bench)
     }
 
-    fn bind_operations(
-        &self,
-        table: &mut WireTable<Supervisor>,
-    ) -> std::result::Result<(), ServingError> {
+    fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> std::result::Result<(), ServingError> {
         table.bind_operations::<operations::Implemented, _>(self.resources())?;
         table.bind_operations::<listeners::Listeners, _>(self.resources())?;
         dokime_runtime::execution::serve::<Self, suites::Suites>(table)?;
@@ -156,9 +141,7 @@ impl dokime_runtime::Plugin for Plugin {
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
-        self.observers
-            .as_ref()
-            .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
+        self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
 
     async fn stop(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {

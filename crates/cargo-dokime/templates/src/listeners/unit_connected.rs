@@ -44,11 +44,7 @@ impl UnitConnected {
         Self { bench }
     }
 
-    async fn hear(
-        &mut self,
-        _: &Supervisor,
-        acquired: ToolConnectionAcquired,
-    ) -> Result<(), Error> {
+    async fn hear(&mut self, _: &Supervisor, acquired: ToolConnectionAcquired) -> Result<(), Error> {
         self.bench.observed(acquired.resource_id);
         Ok(())
     }
