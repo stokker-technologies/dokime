@@ -81,8 +81,12 @@ Check, Build, Test, Package and Release stages, with required Rust, native build
 and package jobs on Linux and Windows. Pull requests and development pushes
 run the same non-publishing proof, including Package and Release / Dry.
 Sparse `ci.jobs` declarations select Linux native/desktop prerequisites and
-exact whole-job limits; jobs without bootstrap receive none. The six
-`STKR_RUNNER_*` repository variables select configured native runners.
+exact whole-job limits; jobs without bootstrap receive none. Heavy Rust jobs
+select `runner = "stokker-local-linux-x64"` or
+`runner = "stokker-local-windows-x64"` in their matching `ci.jobs` selector.
+Nightly benchmarks use the local Linux runner. Lightweight checks, generated
+checks, packaging and coverage retain hosted defaults. Provider variables do
+not override these routes.
 Tags select release-profile packaging and protected publication.
 `nightly.yml` runs coverage and benches. `mise.toml` owns every recipe the
 workflows call.

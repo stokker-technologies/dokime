@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-nightly.yml; sha256:bc734daec2b5777a3b76604e7fe288166abea1d7423a24a3f839762cb8e46422
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-nightly.yml; sha256:cdfceb78a3e39cf75814c6bf25e1b3b9b475d15d1da82cc79f848648972f05bd
 name: Build
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   build_bench:
     name: Bench
-    runs-on: ${{ fromJSON(inputs.runners).nightly.small }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: ${{ fromJSON(inputs.timeouts).build_bench }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -131,6 +131,7 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
+        compression-level: 0
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         success() && github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||

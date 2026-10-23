@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:2f33fa833896bf54b485e87a1a40974cbc25e2f807ebca157808ef131b25aa8a
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:05fc8d444de201ae5640618e3d254484a681cda02b574ca58e21ca793277ccb1
 stages:
 - Check
 - Build
@@ -28,12 +28,6 @@ variables:
   MISE_DOWNLOADS_DIR: $CI_PROJECT_DIR/.cache/mise/downloads
   npm_config_store_dir: $CI_PROJECT_DIR/.cache/pnpm
   UV_CACHE_DIR: $CI_PROJECT_DIR/.cache/uv
-  STKR_RUNNER_LINUX_SMALL: saas-linux-medium-amd64
-  STKR_RUNNER_LINUX_LARGE: saas-linux-medium-amd64
-  STKR_RUNNER_WINDOWS_SMALL: saas-windows-medium-amd64
-  STKR_RUNNER_WINDOWS_LARGE: saas-windows-medium-amd64
-  STKR_RUNNER_NIGHTLY_SMALL: saas-linux-medium-amd64
-  STKR_RUNNER_NIGHTLY_COVERAGE: saas-linux-medium-amd64
 workflow:
   rules:
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/

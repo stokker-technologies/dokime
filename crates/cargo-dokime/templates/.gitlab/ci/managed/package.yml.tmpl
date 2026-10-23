@@ -1,8 +1,8 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:ef03ca84198ac7c5d2a4a59c01fd30e582c28110f6d89eb5a3967d523e99c1b2
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:25f0783ee8126039a81a51228d2df197928572d6e0e85ced4dbb5e3d1bdfbde3
 Package / Rust (linux):
   stage: Package
   tags:
-  - $STKR_RUNNER_LINUX_LARGE
+  - saas-linux-medium-amd64
   timeout: 30 minutes
   needs:
   - job: Check / Repository
@@ -67,7 +67,7 @@ Package / Rust (linux):
 Package / Rust (windows):
   stage: Package
   tags:
-  - $STKR_RUNNER_WINDOWS_LARGE
+  - saas-windows-medium-amd64
   timeout: 30 minutes
   needs:
   - job: Check / Repository

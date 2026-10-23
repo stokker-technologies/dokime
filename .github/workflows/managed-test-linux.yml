@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:10a71e3b6d725e468fdb8fb4731057ff3295b0e22785268c7b3b2f91a4305f7d
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:ac5e67af6fdf72c4ff4480f9d1c4134fd60cc9f6755aefc39696c27bc61add95
 name: Test
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   validate_test_rust_unit_linux:
     name: Rust / Unit (linux)
-    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit_linux }}
     env:
       MISE_ENABLE_TOOLS: >-
@@ -153,7 +153,7 @@ jobs:
         path: .cache/uv/
   validate_test_rust_integration_linux:
     name: Rust / Integration (linux)
-    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration_linux }}
     env:
       MISE_ENABLE_TOOLS: >-
@@ -285,7 +285,7 @@ jobs:
         path: .cache/uv/
   validate_test_rust_acceptance_linux:
     name: Rust / Acceptance (linux)
-    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: ${{ 'linux' == 'windows' && 21 || ('linux' == 'linux' && 21 || (30)) }}
     env:
       MISE_ENABLE_TOOLS: >-
@@ -423,7 +423,7 @@ jobs:
         path: .cache/uv/
   validate_test_rust_system_linux:
     name: Rust / System (linux)
-    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_system_linux }}
     env:
       MISE_ENABLE_TOOLS: >-

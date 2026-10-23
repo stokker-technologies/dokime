@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:3b4d9cc5e0bd616c5f07db9f1646986cf6a7e2b878187da9880bc3fa20b8b91b
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:3baa7df0a859635446bf3ab1b6cf51e3dcf94004ea8fbfa0e90e7a1e3748300d
 name: CI
 "on":
   push:
@@ -28,7 +28,7 @@ jobs:
     name: Build
     uses: ./.github/workflows/managed-build-linux.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_linux\":30,\"build_tests_linux\":30}"
     secrets: inherit
     needs:
@@ -40,7 +40,7 @@ jobs:
     name: Build
     uses: ./.github/workflows/managed-build-windows.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_windows\":30,\"build_tests_windows\":30}"
     secrets: inherit
     needs:
@@ -52,7 +52,7 @@ jobs:
     name: Check
     uses: ./.github/workflows/managed-check.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"check_python\":10,\"check_typescript\":10,\"source\":10}"
     secrets: inherit
     needs:
@@ -64,7 +64,7 @@ jobs:
     name: Check
     uses: ./.github/workflows/managed-check-generated.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"check_generated_python\":10,\"check_generated_typescript\":10}"
     secrets: inherit
     needs:
@@ -77,7 +77,7 @@ jobs:
     name: Check
     uses: ./.github/workflows/managed-check-linux.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"check_rust_linux\":30}"
     secrets: inherit
     needs:
@@ -89,7 +89,7 @@ jobs:
     name: Check
     uses: ./.github/workflows/managed-check-windows.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"check_rust_windows\":30}"
     secrets: inherit
     needs:
@@ -101,7 +101,7 @@ jobs:
     name: Package
     uses: ./.github/workflows/managed-package.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"package_python\":30}"
       validated: ${{ needs.validated.outputs.validated }}
       review_run: ${{ needs.validated.outputs.review_run }}
@@ -128,7 +128,7 @@ jobs:
     name: Package
     uses: ./.github/workflows/managed-package-linux.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"package_rust_linux\":30}"
       stable_release: >-
         ${{ needs.check.outputs.stable_release ||
@@ -155,7 +155,7 @@ jobs:
     name: Package
     uses: ./.github/workflows/managed-package-windows.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"package_rust_windows\":30,\"package_signing_windows_rust_windows\":30}"
       stable_release: >-
         ${{ needs.check.outputs.stable_release ||
@@ -182,7 +182,7 @@ jobs:
     name: Test
     uses: ./.github/workflows/managed-test.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"validate_test_python_acceptance\":30,\"validate_test_python_integration\":30,\"validate_test_typescript_integration\":30,\"validate_test_typescript_system\":14}"
     secrets: inherit
     needs:
@@ -195,7 +195,7 @@ jobs:
     name: Test
     uses: ./.github/workflows/managed-test-linux.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"validate_test_rust_acceptance_linux\":30,\"validate_test_rust_integration_linux\":30,\"validate_test_rust_system_linux\":30,\"validate_test_rust_unit_linux\":30}"
     secrets: inherit
     needs:
@@ -208,7 +208,7 @@ jobs:
     name: Test
     uses: ./.github/workflows/managed-test-windows.yml
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"validate_test_rust_acceptance_windows\":30,\"validate_test_rust_integration_windows\":30,\"validate_test_rust_system_windows\":30,\"validate_test_rust_unit_windows\":30}"
     secrets: inherit
     needs:
@@ -219,7 +219,7 @@ jobs:
       'cancelled') && needs.validated.outputs.validated != 'true'
   validated:
     name: Validated / Repository
-    runs-on: ${{ vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     if: >-
       github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
@@ -455,7 +455,7 @@ jobs:
       attestations: write
       packages: write
     with:
-      runners: "{\"linux\":{\"small\":${{ toJSON(vars.STKR_RUNNER_LINUX_SMALL || 'ubuntu-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_LINUX_LARGE || 'ubuntu-latest') }}},\"windows\":{\"small\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_SMALL || 'windows-latest') }},\"large\":${{ toJSON(vars.STKR_RUNNER_WINDOWS_LARGE || 'windows-latest') }}},\"nightly\":{\"small\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_SMALL || 'ubuntu-latest') }},\"coverage\":${{ toJSON(vars.STKR_RUNNER_NIGHTLY_COVERAGE || 'ubuntu-latest') }}}}"
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       review_run: ${{ needs.validated.outputs.review_run }}
       review_profile: ${{ needs.validated.outputs.review_profile }}
       review_sha: ${{ needs.validated.outputs.review_sha }}

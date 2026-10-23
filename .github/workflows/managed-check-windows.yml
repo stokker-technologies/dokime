@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-windows.yml; sha256:07c7146af461f71111684f4d0cb75a7cc00ff043266ce3c9a13ed712b84d6426
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-windows.yml; sha256:f6c5f0441227dd0084fc2bb4213ff554fbe128b657e299617921006bd73a6d3e
 name: Check
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   check_rust_windows:
     name: Rust (windows)
-    runs-on: ${{ fromJSON(inputs.runners).windows.large }}
+    runs-on: stokker-local-windows-x64
     timeout-minutes: ${{ 'windows' == 'windows' && 120 || ('windows' == 'linux' && 120 || (30)) }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-windows.yml; sha256:34118b8478f6e87721fb8213eca4577aa056eae974bb8825a025c37681ef1b28
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-windows.yml; sha256:4e6595f0072a35dfeb0fc31f92681487a85d54f550986a30bd7c82ca52954df0
 name: Build
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   build_product_windows:
     name: Product (windows)
-    runs-on: ${{ fromJSON(inputs.runners).windows.large }}
+    runs-on: stokker-local-windows-x64
     timeout-minutes: ${{ 'windows' == 'windows' && 50 || ('windows' == 'linux' && 50 || (30)) }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -144,6 +144,7 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+        compression-level: 0
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
@@ -192,7 +193,7 @@ jobs:
         github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
   build_tests_windows:
     name: Tests (windows)
-    runs-on: ${{ fromJSON(inputs.runners).windows.large }}
+    runs-on: stokker-local-windows-x64
     timeout-minutes: ${{ fromJSON(inputs.timeouts).build_tests_windows }}
     needs:
     - build_product_windows
@@ -325,6 +326,7 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+        compression-level: 0
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:

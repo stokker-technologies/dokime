@@ -1,8 +1,8 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/test.yml; sha256:df503147210ef8157da7951eaab94377b7827fb456b4a43277db54ec92363012
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/test.yml; sha256:80e5f6a191bdd73930e57fbfed785e75fec0d34c3048b6a5eaa5a97433569d1c
 Test / Rust / Unit (linux):
   stage: Test
   tags:
-  - $STKR_RUNNER_LINUX_SMALL
+  - saas-linux-medium-amd64
   timeout: 30 minutes
   needs:
   - job: Build / Tests (linux)
@@ -63,7 +63,7 @@ Test / Rust / Unit (linux):
 Test / Rust / Integration (linux):
   stage: Test
   tags:
-  - $STKR_RUNNER_LINUX_SMALL
+  - saas-linux-medium-amd64
   timeout: 30 minutes
   needs:
   - job: Build / Tests (linux)
@@ -124,7 +124,7 @@ Test / Rust / Integration (linux):
 Test / Rust / Unit (windows):
   stage: Test
   tags:
-  - $STKR_RUNNER_WINDOWS_SMALL
+  - saas-windows-medium-amd64
   timeout: 30 minutes
   needs:
   - job: Build / Tests (windows)
@@ -188,7 +188,7 @@ Test / Rust / Unit (windows):
 Test / Rust / Integration (windows):
   stage: Test
   tags:
-  - $STKR_RUNNER_WINDOWS_SMALL
+  - saas-windows-medium-amd64
   timeout: 30 minutes
   needs:
   - job: Build / Tests (windows)
@@ -252,7 +252,7 @@ Test / Rust / Integration (windows):
 Test / Rust / Coverage:
   stage: Test
   tags:
-  - $STKR_RUNNER_NIGHTLY_COVERAGE
+  - saas-linux-medium-amd64
   timeout: 180 minutes
   needs:
   - job: Build / Product (linux)

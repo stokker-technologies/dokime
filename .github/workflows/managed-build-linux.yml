@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-linux.yml; sha256:ee667b44e8d5070f4c0628e25daad4d3298dfd5f8a633b22f9cae9a4926918bf
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-linux.yml; sha256:ce7f11a68655cb4f68dfeb737e93af67c7a03ef5b50b09ec71df1b31d4fe55ec
 name: Build
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   build_product_linux:
     name: Product (linux)
-    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: ${{ 'linux' == 'windows' && 50 || ('linux' == 'linux' && 50 || (30)) }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -149,6 +149,7 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+        compression-level: 0
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
@@ -197,7 +198,7 @@ jobs:
         github.ref == 'refs/heads/main') && 'READ_WRITE' || 'READ_ONLY' }}
   build_tests_linux:
     name: Tests (linux)
-    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: ${{ fromJSON(inputs.timeouts).build_tests_linux }}
     needs:
     - build_product_linux
@@ -333,6 +334,7 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true
+        compression-level: 0
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:

@@ -47,12 +47,14 @@ default = "full"
 [[ci.jobs]]
 id = "check:rust"
 platform = "linux"
+runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 timeout_minutes = 120
 
 [[ci.jobs]]
 id = "check:rust"
 platform = "windows"
+runner = "stokker-local-windows-x64"
 timeout_minutes = 120
 
 # --- Stage / Build --- #
@@ -60,52 +62,48 @@ timeout_minutes = 120
 [[ci.jobs]]
 id = "build"
 platform = "linux"
+runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 timeout_minutes = 50
 
 [[ci.jobs]]
 id = "build"
 platform = "windows"
+runner = "stokker-local-windows-x64"
 timeout_minutes = 50
-
-[[ci.jobs]]
-id = "build:rust:tests"
-platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "build:rust:bench"
 platform = "linux"
+runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
+
+[[ci.jobs]]
+id = "build:rust:tests"
+platform = "linux"
+runner = "stokker-local-linux-x64"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "build:rust:tests"
+platform = "windows"
+runner = "stokker-local-windows-x64"
 
 # --- Stage / Test --- #
 
 [[ci.jobs]]
-id = "test:rust:unit"
-platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "test:rust:integration"
-platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
 id = "test:rust:acceptance"
 platform = "linux"
+runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 timeout_minutes = 21
 
 [[ci.jobs]]
 id = "test:rust:acceptance"
 platform = "windows"
+runner = "stokker-local-windows-x64"
 timeout_minutes = 21
-
-[[ci.jobs]]
-id = "test:rust:system"
-platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "test:rust:coverage"
@@ -113,10 +111,60 @@ platform = "linux"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
+id = "test:rust:integration"
+platform = "linux"
+runner = "stokker-local-linux-x64"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "test:rust:integration"
+platform = "windows"
+runner = "stokker-local-windows-x64"
+
+[[ci.jobs]]
+id = "test:rust:system"
+platform = "linux"
+runner = "stokker-local-linux-x64"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "test:rust:system"
+platform = "windows"
+runner = "stokker-local-windows-x64"
+
+[[ci.jobs]]
+id = "test:rust:unit"
+platform = "linux"
+runner = "stokker-local-linux-x64"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "test:rust:unit"
+platform = "windows"
+runner = "stokker-local-windows-x64"
+
+[[ci.jobs]]
 id = "test:typescript:system"
 platform = "linux"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages --desktop"]
 timeout_minutes = 14
+
+# --- Stage / Bench --- #
+
+[[ci.jobs]]
+id = "bench:rust:integration"
+platform = "linux"
+runner = "stokker-local-linux-x64"
+
+[[ci.jobs]]
+id = "bench:rust:system"
+platform = "linux"
+runner = "stokker-local-linux-x64"
+
+[[ci.jobs]]
+id = "bench:rust:unit"
+platform = "linux"
+runner = "stokker-local-linux-x64"
 
 # --- Stage / Package --- #
 

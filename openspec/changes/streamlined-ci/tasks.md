@@ -2,6 +2,7 @@
 
 ## Implementation
 
+- [x] 1.18 Adopt Hub snapshot dd8f13d1f440 or its reviewed successor and explicit per-job runner routing. Merge runner fields into existing selectors, retire generated provider-variable routing, keep lightweight jobs hosted and heavy native compilation/test jobs local. Preserve all bootstrap, exact timeouts, caches, platform gates and unaffected successful proof. Update CONTRIBUTING routing guidance, adopt canonical compressed-artifact upload optimization and refresh starter/agent copies with --no-provider; Targeted native Actionlint, Taplo, skeleton and exact 18-selector routing checks pass; canonical Actionlint metadata inventories both declared local labels without suppressing diagnostics. All writers handed off; source reclosed, remaining behavioral proof stays open.
 - [x] 1.17 Canonically order root stkr.toml sections and format eight of 23 authored Rust starter sources with the generated 140-column rustfmt policy. Targeted native skeleton/Taplo and expanded Rust formatting checks pass; values, placeholders and behavior are preserved. Acceptance and affected artifact rebuilding remain required proof.
 
 - [x] 1.15 Remove the authored starter TOML trailing blank line and adopt the canonical release policy explicit-stdio correction. Native expanded-template Taplo and targeted Python lint/format/type checks pass; acceptance remains unproved after the restart.

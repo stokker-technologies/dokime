@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-linux.yml; sha256:38e1fcf071b3bb1b17916c18d0ff94b7c972823056bfb56c4d8b1729ddb9edcc
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-linux.yml; sha256:af2a9616d7f324fa3844ff87e13621022242d331ab15e71a78ef7a4abc0db6a6
 name: Check
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   check_rust_linux:
     name: Rust (linux)
-    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: ${{ 'linux' == 'windows' && 120 || ('linux' == 'linux' && 120 || (30)) }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
