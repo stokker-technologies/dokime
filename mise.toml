@@ -63,7 +63,7 @@ generated_python = "packages/dokime-client/src/dokime_client/_wire packages/doki
 
 [tasks.prepare]
 description = "Prepare Tools And Inputs"
-run = ["uv sync --locked --all-groups --no-install-package dokime", "pnpm --dir crates/dokime-gui install --frozen-lockfile"]
+run = ["uv sync --locked --all-groups --no-install-package dokime-client", "pnpm --dir crates/dokime-gui install --frozen-lockfile"]
 
 [tasks."prepare:harmos"]
 description = "Prepare The Pinned Harmos Authoring Tool"
