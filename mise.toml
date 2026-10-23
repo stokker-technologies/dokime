@@ -57,7 +57,7 @@ PYTHONDONTWRITEBYTECODE = "1"
 python = "uv run --locked --project tools/python"
 tools = "uv run --locked --project tools/python python -m"
 lane = "uv run --locked --project tools/python python -m dokime_tools.test.run test"
-generated_python = "packages/dokime/src/dokime/_wire packages/dokime/src/dokime/operation.py packages/dokime/src/dokime/dynamic.py packages/dokime/src/dokime/__init__.py packages/dokime/src/dokime/__init__.pyi"
+generated_python = "packages/dokime-client/src/dokime_client/_wire packages/dokime-client/src/dokime_client/operation.py packages/dokime-client/src/dokime_client/dynamic.py packages/dokime-client/src/dokime_client/__init__.py packages/dokime-client/src/dokime_client/__init__.pyi"
 
 # === Prepare === #
 
@@ -91,7 +91,7 @@ depends = [
 description = "Format Python"
 usage = 'flag "--check"'
 run = [
-  "{{vars.python}} ruff format packages/dokime{% if usage.check %} --check{% endif %}",
+  "{{vars.python}} ruff format packages/dokime-client{% if usage.check %} --check{% endif %}",
   "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
 ]
 
@@ -122,7 +122,7 @@ depends = ["lint:rust", "lint:python", "lint:typescript"]
 description = "Lint Python"
 depends = ["prepare"]
 run = [
-  "{{vars.python}} ruff check packages/dokime",
+  "{{vars.python}} ruff check packages/dokime-client",
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ty check --project tools/python",
 ]
@@ -152,10 +152,10 @@ description = "Check The Generated Python Client"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  "{{vars.python}} ty check --project packages/dokime --exit-zero-on-warning",
+  "{{vars.python}} ty check --project packages/dokime-client --exit-zero-on-warning",
   "{{vars.python}} ruff check --force-exclude {{vars.generated_python}}",
   "{{vars.tools}} dokime_tools.test.archive --install-wheels --profile {{usage.profile}}",
-  "{{vars.python}} python -c \"import dokime, dokime.client\"",
+  "{{vars.python}} python -c \"import dokime_client, dokime_client.client\"",
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
@@ -286,19 +286,19 @@ env = { CARGO_INCREMENTAL = "0" }
 description = "Test Integration Python"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime"
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime-client"
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:acceptance"]
 description = "Test Acceptance Python"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language python --project packages/dokime -- --build-profile {{usage.profile}}"
+run = "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language python --project packages/dokime-client -- --build-profile {{usage.profile}}"
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:coverage"]
 description = "Measure Python Coverage Over Instrumented Lanes"
-run = "{{vars.tools}} dokime_tools.test.run coverage --language python --project packages/dokime"
+run = "{{vars.tools}} dokime_tools.test.run coverage --language python --project packages/dokime-client"
 
 [tasks."test:rust"]
 description = "Test Rust Layers"
@@ -459,7 +459,7 @@ run = [
   "{{vars.tools}} dokime_tools.release.version check",
   "{{vars.tools}} dokime_tools.release.run dry",
   "{{vars.tools}} dokime_tools.release.run crates-dry",
-  "{{vars.tools}} dokime_tools.test.publish --python packages/dokime",
+  "{{vars.tools}} dokime_tools.test.publish --python packages/dokime-client",
 ]
 
 [tasks."release:publish:finalize"]

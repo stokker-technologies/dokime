@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:a7a5e7c46586447eb7e45b6970b0812c6c52367570d4cb292e84200c6a1f582a
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:4c38c84f98b157cb51ff34a0d49538028bcf2056bce45a5c635b4883c038a8dc
 name: Nightly
 "on":
   schedule:
@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/managed-bench.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"bench_rust_integration\":180,\"bench_rust_system\":180,\"bench_rust_unit\":180}"
+      timeouts: "{\"bench_rust_integration\":120,\"bench_rust_system\":120,\"bench_rust_unit\":120}"
     secrets: inherit
     needs:
     - build_nightly
@@ -32,35 +32,35 @@ jobs:
     uses: ./.github/workflows/managed-build-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"build_product_linux\":30,\"build_tests_linux\":30}"
+      timeouts: "{\"build_product_linux\":120,\"build_tests_linux\":120}"
     secrets: inherit
   build_windows:
     name: Build
     uses: ./.github/workflows/managed-build-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"build_product_windows\":30,\"build_tests_windows\":30}"
+      timeouts: "{\"build_product_windows\":120,\"build_tests_windows\":120}"
     secrets: inherit
   build_nightly:
     name: Build
     uses: ./.github/workflows/managed-build-nightly.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"build_bench\":180}"
+      timeouts: "{\"build_bench\":120}"
     secrets: inherit
   check:
     name: Check
     uses: ./.github/workflows/managed-check.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"check_python\":10,\"check_typescript\":10,\"source\":10}"
+      timeouts: "{\"check_python\":120,\"check_typescript\":120,\"source\":120}"
     secrets: inherit
   check_generated:
     name: Check
     uses: ./.github/workflows/managed-check-generated.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"check_generated_python\":10,\"check_generated_typescript\":10}"
+      timeouts: "{\"check_generated_python\":120,\"check_generated_typescript\":120}"
     secrets: inherit
     needs:
     - build_linux
@@ -69,21 +69,21 @@ jobs:
     uses: ./.github/workflows/managed-check-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"check_rust_linux\":30}"
+      timeouts: "{\"check_rust_linux\":120}"
     secrets: inherit
   check_windows:
     name: Check
     uses: ./.github/workflows/managed-check-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"check_rust_windows\":30}"
+      timeouts: "{\"check_rust_windows\":120}"
     secrets: inherit
   package:
     name: Package
     uses: ./.github/workflows/managed-package.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"package_python\":30}"
+      timeouts: "{\"package_python\":120}"
     secrets: inherit
     permissions:
       contents: read
@@ -103,7 +103,7 @@ jobs:
     uses: ./.github/workflows/managed-package-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"package_rust_linux\":30}"
+      timeouts: "{\"package_rust_linux\":120}"
       stable_release: ${{ needs.check.outputs.stable_release }}
     secrets: inherit
     permissions:
@@ -121,7 +121,7 @@ jobs:
     uses: ./.github/workflows/managed-package-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"package_rust_windows\":30,\"package_signing_windows_rust_windows\":30}"
+      timeouts: "{\"package_rust_windows\":120,\"package_signing_windows_rust_windows\":120}"
       stable_release: ${{ needs.check.outputs.stable_release }}
     secrets: inherit
     permissions:
@@ -139,7 +139,7 @@ jobs:
     uses: ./.github/workflows/managed-test.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_python_acceptance\":30,\"validate_test_python_integration\":30,\"validate_test_typescript_integration\":30,\"validate_test_typescript_system\":14}"
+      timeouts: "{\"validate_test_python_acceptance\":120,\"validate_test_python_integration\":120,\"validate_test_typescript_integration\":120,\"validate_test_typescript_system\":120}"
     secrets: inherit
     needs:
     - build_linux
@@ -148,7 +148,7 @@ jobs:
     uses: ./.github/workflows/managed-test-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_rust_acceptance_linux\":30,\"validate_test_rust_integration_linux\":30,\"validate_test_rust_system_linux\":30,\"validate_test_rust_unit_linux\":30}"
+      timeouts: "{\"validate_test_rust_acceptance_linux\":120,\"validate_test_rust_integration_linux\":120,\"validate_test_rust_system_linux\":120,\"validate_test_rust_unit_linux\":120}"
     secrets: inherit
     needs:
     - build_linux
@@ -157,7 +157,7 @@ jobs:
     uses: ./.github/workflows/managed-test-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_rust_acceptance_windows\":30,\"validate_test_rust_integration_windows\":30,\"validate_test_rust_system_windows\":30,\"validate_test_rust_unit_windows\":30}"
+      timeouts: "{\"validate_test_rust_acceptance_windows\":120,\"validate_test_rust_integration_windows\":120,\"validate_test_rust_system_windows\":120,\"validate_test_rust_unit_windows\":120}"
     secrets: inherit
     needs:
     - build_windows
@@ -166,7 +166,7 @@ jobs:
     uses: ./.github/workflows/managed-test-nightly.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_coverage_python\":180,\"validate_coverage_rust\":180}"
+      timeouts: "{\"validate_coverage_python\":120,\"validate_coverage_rust\":120}"
     secrets: inherit
     needs:
     - build_linux

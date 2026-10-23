@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:62de4b2c0b04576859a6aecde926b7f6395c2035f921ff7cff0427b8aed5b3ca
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:64986c4d5540da0d0ddca05ee73fcd081889b27f42d84dc517e6afb56880bbce
 name: CI
 "on":
   push:
@@ -20,52 +20,58 @@ name: CI
         default: auto
 permissions:
   contents: read
-concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   build_linux:
     name: Build
     uses: ./.github/workflows/managed-build-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"build_product_linux\":30,\"build_tests_linux\":30}"
+      timeouts: "{\"build_product_linux\":120,\"build_tests_linux\":120}"
     secrets: inherit
     needs:
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-build_linux-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   build_windows:
     name: Build
     uses: ./.github/workflows/managed-build-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"build_product_windows\":30,\"build_tests_windows\":30}"
+      timeouts: "{\"build_product_windows\":120,\"build_tests_windows\":120}"
     secrets: inherit
     needs:
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-build_windows-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   check:
     name: Check
     uses: ./.github/workflows/managed-check.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"check_python\":10,\"check_typescript\":10,\"source\":10}"
+      timeouts: "{\"check_python\":120,\"check_typescript\":120,\"source\":120}"
     secrets: inherit
     needs:
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-check-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   check_generated:
     name: Check
     uses: ./.github/workflows/managed-check-generated.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"check_generated_python\":10,\"check_generated_typescript\":10}"
+      timeouts: "{\"check_generated_python\":120,\"check_generated_typescript\":120}"
     secrets: inherit
     needs:
     - build_linux
@@ -73,36 +79,45 @@ jobs:
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-check_generated-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   check_linux:
     name: Check
     uses: ./.github/workflows/managed-check-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"check_rust_linux\":30}"
+      timeouts: "{\"check_rust_linux\":120}"
     secrets: inherit
     needs:
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-check_linux-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   check_windows:
     name: Check
     uses: ./.github/workflows/managed-check-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"check_rust_windows\":30}"
+      timeouts: "{\"check_rust_windows\":120}"
     secrets: inherit
     needs:
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-check_windows-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   package:
     name: Package
     uses: ./.github/workflows/managed-package.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"package_python\":30}"
+      timeouts: "{\"package_python\":120}"
       validated: ${{ needs.validated.outputs.validated }}
       review_run: ${{ needs.validated.outputs.review_run }}
     secrets: inherit
@@ -124,12 +139,15 @@ jobs:
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (needs.validated.outputs.validated != 'true' ||
       startsWith(github.ref, 'refs/tags/v'))
+    concurrency:
+      group: "ci-${{ github.workflow }}-package-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   package_linux:
     name: Package
     uses: ./.github/workflows/managed-package-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"package_rust_linux\":30}"
+      timeouts: "{\"package_rust_linux\":120}"
       stable_release: >-
         ${{ needs.check.outputs.stable_release ||
         needs.validated.outputs.stable_release }}
@@ -151,12 +169,15 @@ jobs:
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (needs.validated.outputs.validated != 'true' ||
       startsWith(github.ref, 'refs/tags/v'))
+    concurrency:
+      group: "ci-${{ github.workflow }}-package_linux-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   package_windows:
     name: Package
     uses: ./.github/workflows/managed-package-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"package_rust_windows\":30,\"package_signing_windows_rust_windows\":30}"
+      timeouts: "{\"package_rust_windows\":120,\"package_signing_windows_rust_windows\":120}"
       stable_release: >-
         ${{ needs.check.outputs.stable_release ||
         needs.validated.outputs.stable_release }}
@@ -178,12 +199,15 @@ jobs:
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && (needs.validated.outputs.validated != 'true' ||
       startsWith(github.ref, 'refs/tags/v'))
+    concurrency:
+      group: "ci-${{ github.workflow }}-package_windows-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   test:
     name: Test
     uses: ./.github/workflows/managed-test.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_python_acceptance\":30,\"validate_test_python_integration\":30,\"validate_test_typescript_integration\":30,\"validate_test_typescript_system\":14}"
+      timeouts: "{\"validate_test_python_acceptance\":120,\"validate_test_python_integration\":120,\"validate_test_typescript_integration\":120,\"validate_test_typescript_system\":120}"
     secrets: inherit
     needs:
     - build_linux
@@ -191,12 +215,15 @@ jobs:
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-test-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   test_linux:
     name: Test
     uses: ./.github/workflows/managed-test-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_rust_acceptance_linux\":30,\"validate_test_rust_integration_linux\":30,\"validate_test_rust_system_linux\":30,\"validate_test_rust_unit_linux\":30}"
+      timeouts: "{\"validate_test_rust_acceptance_linux\":120,\"validate_test_rust_integration_linux\":120,\"validate_test_rust_system_linux\":120,\"validate_test_rust_unit_linux\":120}"
     secrets: inherit
     needs:
     - build_linux
@@ -204,12 +231,15 @@ jobs:
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-test_linux-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   test_windows:
     name: Test
     uses: ./.github/workflows/managed-test-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_rust_acceptance_windows\":30,\"validate_test_rust_integration_windows\":30,\"validate_test_rust_system_windows\":30,\"validate_test_rust_unit_windows\":30}"
+      timeouts: "{\"validate_test_rust_acceptance_windows\":120,\"validate_test_rust_integration_windows\":120,\"validate_test_rust_system_windows\":120,\"validate_test_rust_unit_windows\":120}"
     secrets: inherit
     needs:
     - build_windows
@@ -217,10 +247,13 @@ jobs:
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-test_windows-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   validated:
     name: Validated / Repository
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 120
     if: >-
       github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
       startsWith(github.ref, 'refs/tags/v'))
@@ -430,6 +463,9 @@ jobs:
                     stream.write("".join(f"{key}={value}\n" for key, value in result.items()))
                 print(f"validated={result['validated']} review_run={result['review_run']}")
         STKR_REVIEW
+    concurrency:
+      group: "ci-${{ github.workflow }}-validated-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   release:
     name: Release
     needs:

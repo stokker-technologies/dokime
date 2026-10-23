@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:05fc8d444de201ae5640618e3d254484a681cda02b574ca58e21ca793277ccb1
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:8f157264ee74cbb522a5df60e89f234e5fed4498604fe0871e72679c05b05a26
 stages:
 - Check
 - Build
@@ -35,7 +35,12 @@ workflow:
       PROFILE: release
     auto_cancel:
       on_new_commit: none
-  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: "$CI_PIPELINE_SOURCE == \"push\" && $CI_COMMIT_BRANCH == \"dev\" && $CI_COMMIT_TITLE =~ /^chore\\(release\\): prepare v[0-9]+\\.[0-9]+\\.[0-9]+$/"
+    variables:
+      PROFILE: dev
+    auto_cancel:
+      on_new_commit: none
+  - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"
     variables:
       PROFILE: dev
     auto_cancel:
@@ -43,9 +48,13 @@ workflow:
   - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(dev|main)$/
     variables:
       PROFILE: dev
-      STKR_CACHE_POLICY: pull-push
     auto_cancel:
       on_new_commit: none
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    variables:
+      PROFILE: dev
+    auto_cancel:
+      on_new_commit: interruptible
   - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
     when: never
   - if: $CI_COMMIT_BRANCH
@@ -59,3 +68,9 @@ include:
 - local: .gitlab/ci/managed/test.yml
 - local: .gitlab/ci/managed/package.yml
 - local: .gitlab/ci/managed/release.yml
+- local: .gitlab/ci/managed/trusted-cache.yml
+  rules:
+  - if: >-
+      $CI_COMMIT_REF_PROTECTED == "true" && $CI_PIPELINE_SOURCE !=
+      "merge_request_event" && ($CI_COMMIT_BRANCH =~ /^(dev|main)$/ || $CI_COMMIT_TAG =~
+      /^v[0-9]+\.[0-9]+\.[0-9]+$/)

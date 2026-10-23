@@ -1537,7 +1537,10 @@ async function cycleJourney(session, cycleId) {
   assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
   assert.match(await sidebarText(session), /Re-Run Of #\d+/, "The new row must name its previous execution");
   /* Plot Settings Persist In The Native Frozen Document. */
-  await session.clickCss("button[aria-label^='Plot settings for ']");
+  const plotSettingsName = await until("the selected plot's settings control", () =>
+    session.execute("return document.querySelector(\"button[aria-label^='Plot settings for ']\")?.getAttribute('aria-label');"),
+  );
+  await session.clickNamed("button", plotSettingsName);
   const settingsText = await until(
     "plot settings dialog",
     () =>
@@ -1567,16 +1570,22 @@ async function cycleJourney(session, cycleId) {
   }
   await session.goto("/cycles");
   await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`);
-  await session.clickCss("button[aria-label^='Plot settings for ']");
+  await session.clickNamed("button", plotSettingsName);
   const persistedPoints = await until(
     "persisted display point budget",
     () =>
       session.execute(`
-        return document.querySelector('[role=dialog][data-state=open] input[type=number]')?.value;
+        const dialog = document.querySelector('[role=dialog][data-state=open]');
+        const input = dialog?.querySelector('input[type=number]');
+        return input ? {value: input.value, description: dialog.innerText} : null;
       `),
     30000,
   );
-  assert.equal(persistedPoints, "2500", "The backend must retain the plot budget after remounting");
+  assert.equal(
+    persistedPoints.value,
+    "2500",
+    `The backend must retain ${plotSettingsName}'s budget after remounting: ${normalize(persistedPoints.description)}`,
+  );
   await session.clickNamed("button", "Cancel");
 
   await runUntil(
@@ -1707,8 +1716,7 @@ async function executionStopJourney(session, cycleId) {
   /* The startup case holds its run open on the operator's inspection prompt,
      so a stop always lands while it is still running. */
   let running = null;
-  await runUntil(
-    session,
+  await until(
     "the copy's startup execution running",
     async () => {
       running = await session.execute(
@@ -2247,8 +2255,10 @@ async function journey(name, run) {
 
 async function terminate(child, signal = "SIGTERM") {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
+  const exited = signal === "SIGKILL" ? once(child, "exit") : null;
   if (windows) {
     await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"]);
+    if (exited) await exited;
     return;
   }
   try {
@@ -2256,6 +2266,7 @@ async function terminate(child, signal = "SIGTERM") {
   } catch (error) {
     if (error.code !== "ESRCH") throw error;
   }
+  if (exited) await exited;
 }
 
 async function sha256(path) {
@@ -2589,7 +2600,9 @@ try {
   if (driverProcess)
     await terminate(driverProcess).catch((error) => failures.push({ kind: "failure", name: "shell cleanup", reason: error.message }));
   if (backend) {
-    await terminate(backend.child).catch((error) => failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }));
+    await terminate(backend.child, "SIGKILL").catch((error) =>
+      failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }),
+    );
     await backend.log.close().catch((error) => failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }));
   }
   if (installerAttempted) {

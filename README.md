@@ -328,6 +328,10 @@ stay outside JSON. Python reads explicitly named profiles with
 `DokimeClient.from_profile("lab", token=token)`; it uses the same configuration
 location and accepts an explicit `path` override.
 
+Add the Python client with `uv add dokime-client` and import `DokimeClient` from
+`dokime_client.client`. See the [Python Client](packages/dokime-client/README.md)
+for local distribution installation and complete examples.
+
 ## Planning And Creating Cycles
 
 Name a template by its readable ID, `<suite id>.<segment>`, as `dokime catalog

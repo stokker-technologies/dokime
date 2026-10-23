@@ -195,7 +195,7 @@ def collect_development(root: Path = ROOT, *, bundles: Path, profile: str) -> No
 
 def package_wheel(root: Path = ROOT, *, profile: str) -> None:
     """Gather The Built Client Wheel Beside The Other Packages Of This Platform."""
-    wheels = sorted((paths.output(root, "build", profile) / "python").glob("dokime-*"))
+    wheels = sorted((paths.output(root, "build", profile) / "python").glob("dokime_client-*"))
     if not wheels:
         raise ValueError("packaging requires the built client wheel; run `mise run build` first")
     destination = paths.output(root, "package", profile) / "python"

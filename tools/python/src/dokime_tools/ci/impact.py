@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/impact.py; sha256:882a24cd527557c27fdb6d5d8f8e035473a812b5b791acb9775764f4850bc8d1
+# Rendered by stkr project update from templates/python/ci/impact.py; sha256:546b55b39cca75873a1ac9ffd8d1faeaa9baf7ae9b5d1abe710d8a6bf87a3e7c
 # ***
 #
 # Dokime
@@ -6,8 +6,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-
-
 """Select Conservative Native CI Jobs And Emit A GitLab Child Pipeline."""
 
 # === Imports === #
@@ -42,14 +40,22 @@ def changed_paths(target: str) -> set[str] | None:
 
     def git(*arguments: str) -> str:
         return subprocess.check_output(
-            ["git", *arguments], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), stderr=subprocess.DEVNULL, timeout=30
+            ["git", *arguments],
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stderr=subprocess.DEVNULL,
+            timeout=30,
         ).decode("utf-8")
 
     try:
         if os.environ.get("GITLAB_CI") == "true" and target.startswith("origin/"):
             branch = target.removeprefix("origin/")
             git("check-ref-format", "--branch", branch)
-            git("fetch", "--no-tags", "origin", f"refs/heads/{branch}:refs/remotes/origin/{branch}")
+            git(
+                "fetch",
+                "--no-tags",
+                "origin",
+                f"refs/heads/{branch}:refs/remotes/origin/{branch}",
+            )
         revision = git("rev-parse", "--verify", "--end-of-options", target + "^{commit}").strip()
         bases = git("merge-base", "--all", revision, "HEAD").splitlines()
         if len(bases) != 1:
@@ -92,6 +98,15 @@ def main(plan: dict) -> None:
     selected = select(plan, paths)
     if "document" in plan:
         document = plan["document"]
+        # Only Native Protected Non-MR Refs May Receive Shared Cache Configuration.
+        protected = os.environ.get("CI_COMMIT_REF_PROTECTED") == "true"
+        source = os.environ.get("CI_PIPELINE_SOURCE")
+        branch = os.environ.get("CI_COMMIT_BRANCH")
+        tag = os.environ.get("CI_COMMIT_TAG", "")
+        stable = re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) is not None
+        if protected and source != "merge_request_event" and (branch in ("dev", "main") or stable):
+            for name, fields in plan.get("trusted_cache", {}).items():
+                document[name].update(fields)
         for name in list(document):
             if isinstance(document[name], dict) and "stage" in document[name] and name not in selected:
                 del document[name]

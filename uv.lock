@@ -8,7 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "dokime",
+    "dokime-client",
     "dokime-rust-workspace",
     "dokime-tools",
 ]
@@ -171,9 +171,9 @@ wheels = [
 ]
 
 [[package]]
-name = "dokime"
+name = "dokime-client"
 version = "0.1.0"
-source = { editable = "packages/dokime" }
+source = { editable = "packages/dokime-client" }
 dependencies = [
     { name = "grpcio" },
     { name = "protobuf" },
@@ -192,7 +192,7 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
-    { name = "dokime" },
+    { name = "dokime-client" },
     { name = "dokime-tools" },
     { name = "git-cliff" },
     { name = "hatchling" },
@@ -213,7 +213,7 @@ test = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "dokime", editable = "packages/dokime" },
+    { name = "dokime-client", editable = "packages/dokime-client" },
     { name = "dokime-tools", editable = "tools/python" },
     { name = "git-cliff", specifier = "==2.14.2" },
     { name = "hatchling", specifier = "==1.32.4" },

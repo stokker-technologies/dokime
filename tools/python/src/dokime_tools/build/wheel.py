@@ -20,6 +20,7 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from dokime_tools.build import paths
+from dokime_tools.package.staging import clear_output
 
 # Type Checking Imports
 
@@ -43,10 +44,20 @@ def build(root: Path, profile: str) -> Path:
     if not python.is_file():
         raise ValueError("prepare the locked repository-root Python environment before building the wheel")
     output = paths.output(root, "build", profile) / "python"
+    clear_output(output)
     output.mkdir(parents=True, exist_ok=True)
-    for stale in output.glob("dokime-*"):
-        stale.unlink()
-    command = ["uv", "build", "--no-build-isolation", "--offline", "--python", str(python), "--package", "dokime", "--out-dir", str(output)]
+    command = [
+        "uv",
+        "build",
+        "--no-build-isolation",
+        "--offline",
+        "--python",
+        str(python),
+        "--package",
+        "dokime-client",
+        "--out-dir",
+        str(output),
+    ]
     if profile != "release":
         command += ["--wheel"]
     subprocess.run(
@@ -59,9 +70,9 @@ def build(root: Path, profile: str) -> Path:
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
-    wheels = sorted(output.glob("dokime-*.whl"))
+    wheels = sorted(output.glob("dokime_client-*.whl"))
     if len(wheels) != 1:
-        raise ValueError(f"expected one dokime wheel in {output}, found {len(wheels)}")
+        raise ValueError(f"expected one dokime-client wheel in {output}, found {len(wheels)}")
     return wheels[0]
 
 

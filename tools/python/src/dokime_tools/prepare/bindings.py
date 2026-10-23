@@ -67,8 +67,8 @@ def generate(
         if messages is None:
             raise ValueError("a selected contract build is required")
         export = locate(messages)
-    project = tomllib.loads((root / "packages/dokime/pyproject.toml").read_text())["project"]
-    destination = root / "packages/dokime/src/dokime"
+    project = tomllib.loads((root / "packages/dokime-client/pyproject.toml").read_text())["project"]
+    destination = root / "packages/dokime-client/src/dokime_client"
     with tempfile.TemporaryDirectory(prefix="dokime-bindings-") as directory:
         package = Path(directory) / "package"
         subprocess.run(
@@ -84,7 +84,7 @@ def generate(
                 "--distribution",
                 project["name"],
                 "--module",
-                "dokime",
+                "dokime_client",
                 "--package-version",
                 project["version"],
                 "--description",
@@ -99,7 +99,7 @@ def generate(
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        source = package / "src/dokime"
+        source = package / "src/dokime_client"
         generated = {}
         for path in source.rglob("*"):
             if not path.is_file():
@@ -155,7 +155,7 @@ def fingerprint(root: Path = ROOT) -> str:
     """The SHA-256 of the committed contract set this tree's bindings carry."""
     digest = hashlib.sha256()
     for name in CONTRACT_SET:
-        digest.update((root / "packages/dokime/src/dokime" / name).read_bytes())
+        digest.update((root / "packages/dokime-client/src/dokime_client" / name).read_bytes())
     return digest.hexdigest()
 
 
@@ -176,7 +176,7 @@ def _skeleton(source: str) -> str:
             continue
         if line.startswith("#") and not body and not local and not third_party:
             provenance.append(line)
-        elif line.startswith(("from dokime.", "import dokime.")):
+        elif line.startswith(("from dokime_client.", "import dokime_client.")):
             local.append(line)
         elif line.startswith(("from ", "import ")):
             third_party.append(line)
@@ -221,7 +221,7 @@ def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
     for relative in selected:
         (source / relative).write_bytes(generated[relative])
     paths = [str(source / relative) for relative in selected]
-    configuration = str(root / "packages/dokime/ruff.toml")
+    configuration = str(root / "packages/dokime-client/ruff.toml")
     subprocess.run(
         [
             sys.executable,
