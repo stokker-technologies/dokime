@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:cbd1cf437b174e63e6cce18b28f3a65846a48528dd96a3eb2bbb5e6dd8ce3d68
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:1c2f3e5a2f21b5a2a15db45f4b1dd863d1bd5bbf9d561802c4c338e7679697f8
 Release / Publish:
   stage: Release
   tags:
@@ -38,7 +38,9 @@ Release / Publish:
             return redirected
     # === Public Functions === #
     def command(*args):
-        return subprocess.run(args, check=True, capture_output=True, text=True, timeout=120).stdout.strip()
+        return subprocess.run(
+            args, check=True, capture_output=True, text=True, timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        ).stdout.strip()
     def request(endpoint, *, binary=False):
         if os.environ.get("GITHUB_ACTIONS"):
             return json.loads(command("gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/{endpoint}"))

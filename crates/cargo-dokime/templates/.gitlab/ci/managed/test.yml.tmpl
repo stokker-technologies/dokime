@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/test.yml; sha256:80e5f6a191bdd73930e57fbfed785e75fec0d34c3048b6a5eaa5a97433569d1c
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/test.yml; sha256:6e845f544dcb67ec06b57454aab41a152945f78aa5cb37aff94589906530df77
 Test / Rust / Unit (linux):
   stage: Test
   tags:
@@ -133,7 +133,28 @@ Test / Rust / Unit (windows):
     artifacts: true
     optional: true
   script:
-  - tar --zstd -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst"
+  - |-
+    $candidates = @(Get-Command tar.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+    foreach ($git in @(Get-Command git.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+      $root = Split-Path -Parent (Split-Path -Parent $git.Source)
+      $candidates += Join-Path $root 'usr/bin/tar.exe'
+    }
+    $tar = $null
+    foreach ($candidate in @($candidates | Select-Object -Unique)) {
+      if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+      try {
+        $version = & $candidate --version 2>$null
+        if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
+        $capabilities = & $candidate --help 2>$null
+        if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
+        $tar = $candidate
+        break
+      } catch { continue }
+    }
+    if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required; repair native runner provisioning' }
+    $env:PATH = (Split-Path -Parent $tar) + [IO.Path]::PathSeparator + $env:PATH
+    & $tar -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   - mise run test:rust:unit --profile $env:PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -197,7 +218,28 @@ Test / Rust / Integration (windows):
     artifacts: true
     optional: true
   script:
-  - tar --zstd -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst"
+  - |-
+    $candidates = @(Get-Command tar.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+    foreach ($git in @(Get-Command git.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+      $root = Split-Path -Parent (Split-Path -Parent $git.Source)
+      $candidates += Join-Path $root 'usr/bin/tar.exe'
+    }
+    $tar = $null
+    foreach ($candidate in @($candidates | Select-Object -Unique)) {
+      if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+      try {
+        $version = & $candidate --version 2>$null
+        if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
+        $capabilities = & $candidate --help 2>$null
+        if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
+        $tar = $candidate
+        break
+      } catch { continue }
+    }
+    if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required; repair native runner provisioning' }
+    $env:PATH = (Split-Path -Parent $tar) + [IO.Path]::PathSeparator + $env:PATH
+    & $tar -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   - mise run test:rust:integration --profile $env:PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:55442ffcf207acdc4f0e2aca40b4726fd7ae255d932ed0630ea84602fe7a2902
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:0190832bf0d7ed13893a6a3e0d27723c3a604fabc62ef044547090fe6cd28fed
 name: Test
 "on":
   workflow_call:
@@ -109,7 +109,26 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+        $candidates = @(Get-Command tar.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+        foreach ($git in @(Get-Command git.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+          $root = Split-Path -Parent (Split-Path -Parent $git.Source)
+          $candidates += Join-Path $root 'usr/bin/tar.exe'
+        }
+        $tar = $null
+        foreach ($candidate in @($candidates | Select-Object -Unique)) {
+          if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+          try {
+            $version = & $candidate --version 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
+            $capabilities = & $candidate --help 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
+            $tar = $candidate
+            break
+          } catch { continue }
+        }
+        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required; repair native runner provisioning' }
+        $env:PATH = (Split-Path -Parent $tar) + [IO.Path]::PathSeparator + $env:PATH
+        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - run: mise run test:rust:unit --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -241,7 +260,26 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+        $candidates = @(Get-Command tar.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+        foreach ($git in @(Get-Command git.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+          $root = Split-Path -Parent (Split-Path -Parent $git.Source)
+          $candidates += Join-Path $root 'usr/bin/tar.exe'
+        }
+        $tar = $null
+        foreach ($candidate in @($candidates | Select-Object -Unique)) {
+          if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+          try {
+            $version = & $candidate --version 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
+            $capabilities = & $candidate --help 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
+            $tar = $candidate
+            break
+          } catch { continue }
+        }
+        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required; repair native runner provisioning' }
+        $env:PATH = (Split-Path -Parent $tar) + [IO.Path]::PathSeparator + $env:PATH
+        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - run: mise run test:rust:integration --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -373,7 +411,26 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+        $candidates = @(Get-Command tar.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+        foreach ($git in @(Get-Command git.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+          $root = Split-Path -Parent (Split-Path -Parent $git.Source)
+          $candidates += Join-Path $root 'usr/bin/tar.exe'
+        }
+        $tar = $null
+        foreach ($candidate in @($candidates | Select-Object -Unique)) {
+          if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+          try {
+            $version = & $candidate --version 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
+            $capabilities = & $candidate --help 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
+            $tar = $candidate
+            break
+          } catch { continue }
+        }
+        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required; repair native runner provisioning' }
+        $env:PATH = (Split-Path -Parent $tar) + [IO.Path]::PathSeparator + $env:PATH
+        & $tar -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -381,7 +438,26 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+        $candidates = @(Get-Command tar.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+        foreach ($git in @(Get-Command git.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+          $root = Split-Path -Parent (Split-Path -Parent $git.Source)
+          $candidates += Join-Path $root 'usr/bin/tar.exe'
+        }
+        $tar = $null
+        foreach ($candidate in @($candidates | Select-Object -Unique)) {
+          if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+          try {
+            $version = & $candidate --version 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
+            $capabilities = & $candidate --help 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
+            $tar = $candidate
+            break
+          } catch { continue }
+        }
+        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required; repair native runner provisioning' }
+        $env:PATH = (Split-Path -Parent $tar) + [IO.Path]::PathSeparator + $env:PATH
+        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - run: mise run test:rust:acceptance --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -513,7 +589,26 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+        $candidates = @(Get-Command tar.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+        foreach ($git in @(Get-Command git.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+          $root = Split-Path -Parent (Split-Path -Parent $git.Source)
+          $candidates += Join-Path $root 'usr/bin/tar.exe'
+        }
+        $tar = $null
+        foreach ($candidate in @($candidates | Select-Object -Unique)) {
+          if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+          try {
+            $version = & $candidate --version 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
+            $capabilities = & $candidate --help 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
+            $tar = $candidate
+            break
+          } catch { continue }
+        }
+        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required; repair native runner provisioning' }
+        $env:PATH = (Split-Path -Parent $tar) + [IO.Path]::PathSeparator + $env:PATH
+        & $tar -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -521,7 +616,26 @@ jobs:
     - name: Extract Build
       shell: pwsh
       run: |-
-        & "$env:ProgramFiles\Git\usr\bin\tar.exe" -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+        $candidates = @(Get-Command tar.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source })
+        foreach ($git in @(Get-Command git.exe -CommandType Application -All -ErrorAction SilentlyContinue)) {
+          $root = Split-Path -Parent (Split-Path -Parent $git.Source)
+          $candidates += Join-Path $root 'usr/bin/tar.exe'
+        }
+        $tar = $null
+        foreach ($candidate in @($candidates | Select-Object -Unique)) {
+          if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+          try {
+            $version = & $candidate --version 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
+            $capabilities = & $candidate --help 2>$null
+            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
+            $tar = $candidate
+            break
+          } catch { continue }
+        }
+        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required; repair native runner provisioning' }
+        $env:PATH = (Split-Path -Parent $tar) + [IO.Path]::PathSeparator + $env:PATH
+        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - run: mise run test:rust:system --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
