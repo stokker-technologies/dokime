@@ -134,13 +134,16 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
               Known References: {entry.knownUses.length ? entry.knownUses.join(", ") : "None"}. Plugins may also look up this name
               dynamically.
             </p>
-            {deleting?.name === entry.metadata.name && (
+            {deleting && deleting.name === entry.metadata.name && (
               <fieldset className="flex flex-wrap items-center gap-2" aria-label={`Confirm deletion of ${deleting.name}`}>
                 <p className="text-sm">Future lookups will fail. Already fetched values remain with their callers.</p>
                 <Button
                   disabled={busy}
                   variant="destructive"
-                  onClick={() => void change(() => removeSecret(session.identity, entry.metadata.name, deleting.generation))}
+                  onClick={() => {
+                    const removal = deleting;
+                    if (removal) void change(() => removeSecret(session.identity, entry.metadata.name, removal.generation));
+                  }}
                 >
                   Confirm Delete
                 </Button>

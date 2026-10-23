@@ -16,7 +16,6 @@ import importlib.metadata
 import importlib.util
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from zipfile import ZipFile
 

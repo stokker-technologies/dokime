@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:260411869b09572b05636be8d16545343ea9aad1c881f3690ea47725f6e84b12
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:b0ac5c5b3dbd143fe67c2ca4d8163e6bf645ca22012af87f21c55724f2410941
 name: Release
 "on":
   workflow_call:
@@ -56,7 +56,7 @@ env:
 jobs:
   dry:
     name: Dry
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
     timeout-minutes: 120
     steps:
     - name: Configure Checkout Git
@@ -333,7 +333,7 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     env:
-      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,node,pnpm,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,minisign,node,pnpm,python,rust,sccache,uv
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
         ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
@@ -608,7 +608,7 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
       RELEASE_BUMP: ${{ inputs.bump }}
       RELEASE_TOKEN: ${{ secrets.release_token }}
       GH_TOKEN: ${{ github.token }}
@@ -621,7 +621,7 @@ jobs:
       contents: read
   rehearsal:
     name: Rehearsal
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: 120
     steps:
     - name: Configure Checkout Git
@@ -889,7 +889,7 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
     if: >-
       ${{ inputs.ready && (github.event_name == 'pull_request' && github.base_ref ==
       'dev' && startsWith(github.head_ref, 'release/v')) }}
@@ -901,7 +901,7 @@ jobs:
       cancel-in-progress: false
   tag:
     name: Tag
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: 120
     steps:
     - name: Configure Checkout Git
@@ -1178,7 +1178,7 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     if: "${{ inputs.ready && (github.event_name == 'push' && github.ref == 'refs/heads/dev' && startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
     environment: release
@@ -1421,7 +1421,7 @@ jobs:
     - if: inputs.review_run != ''
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-release-python-linux
+        name: package-release-python-any
         path: target/ci
         run-id: ${{ inputs.review_run }}
         github-token: ${{ github.token }}
@@ -1496,7 +1496,7 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     env:
-      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,node,pnpm,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,minisign,node,pnpm,python,rust,sccache,uv
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
         ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
@@ -1766,7 +1766,7 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
     environment: release
     needs:
     - publish
@@ -2026,7 +2026,7 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
     environment: release
     needs:
     - publish

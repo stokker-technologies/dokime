@@ -142,7 +142,8 @@ fn write_brand(dir: &Path, manifest: &str) {
 
 #[test]
 fn generated_organization_stylesheet_matches_runtime_resolution() {
-    let directory = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("../../organization");
+    let directory = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+        .join("../../organization");
     let resolved = load_brand(&directory).unwrap();
     let stylesheet = resolved.theme.unwrap().stylesheet.unwrap();
     let generated = fs::read_to_string(directory.join("generated/theme.css")).unwrap();

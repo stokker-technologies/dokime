@@ -65,7 +65,15 @@ def build(profile: str) -> list[str]:
     metadata = built.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
         command = ["cargo", "metadata", "--locked", "--format-version", "1", "--features", features]
-        subprocess.run(command, cwd=ROOT, stdout=written, check=True)
+        subprocess.run(
+            command,
+            cwd=ROOT,
+            stdout=written,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+        )
     staged.append(metadata)
     # Compile The Starter Here; Ordinary Stories Consume Already Built Inputs.
     with temporary.directory() as directory:

@@ -70,7 +70,10 @@ def main() -> None:
 
 
 def _brand_files() -> list[Path]:
-    return [BRAND / "organization.toml", *(file for folder in BRAND_FOLDERS for file in sorted((BRAND / folder).iterdir()) if file.is_file())]
+    return [
+        BRAND / "organization.toml",
+        *(file for folder in BRAND_FOLDERS for file in sorted((BRAND / folder).iterdir()) if file.is_file()),
+    ]
 
 
 def _compare(source: Path, destination: Path) -> None:

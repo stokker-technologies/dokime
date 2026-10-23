@@ -14,16 +14,16 @@ Use CPython `>=3.13,<3.16`. For the beginner host/second-PC workflow, follow the
 [locked uv setup](examples/remote/python/README.md). That environment uses a
 bundled candidate wheel and makes no published-registry availability claim.
 
-For a separately supplied matching wheel, install it in your application environment:
+Add the published distribution to a uv project with `uv add dokime-client`. For a separately supplied matching wheel:
 
 ```sh
-python -m pip install dokime_client-0.1.0-py3-none-any.whl
+uv add ./dokime_client-0.1.0-py3-none-any.whl
 ```
 
 Install the prepared source distribution with the same Python toolchain:
 
 ```sh
-python -m pip install dokime_client-0.1.0.tar.gz
+uv add ./dokime_client-0.1.0.tar.gz
 ```
 
 The source package uses Hatchling and requires no Rust compiler or contract

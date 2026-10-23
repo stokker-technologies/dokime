@@ -107,10 +107,12 @@ impl Artifacts {
         Ok(self.locked().root()?)
     }
 
+    #[cfg(feature = "native")]
     pub(crate) fn scan(&self) -> Vec<String> {
         self.locked().scan()
     }
 
+    #[cfg(feature = "native")]
     pub(crate) fn sweep(&self) -> Vec<String> {
         self.locked().sweep()
     }

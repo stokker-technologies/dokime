@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -42,7 +43,15 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
     root = root.resolve()
     metadata = messages.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
-        subprocess.run(["cargo", "metadata", "--locked", "--format-version", "1"], cwd=root, stdout=written, check=True)
+        subprocess.run(
+            ["cargo", "metadata", "--locked", "--format-version", "1"],
+            cwd=root,
+            stdout=written,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+        )
     clear_output(output)
     output.mkdir(parents=True)
     staged: list[Path] = []
@@ -51,9 +60,25 @@ def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Pat
         collector = [str(tool), "dokime", "build", "--from-cargo-json", str(messages), "--metadata-json", str(metadata)]
         collector += ["--profile", profile, "--package", package, "--json"]
         with build_json.open("w", encoding="utf-8") as written:
-            subprocess.run(collector, cwd=root, stdout=written, check=True)
+            subprocess.run(
+                collector,
+                cwd=root,
+                stdout=written,
+                check=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stderr=sys.stderr,
+            )
         packager = [str(tool), "dokime", "package", "--build-json", str(build_json), "--output", str(output), "--json"]
-        packaged = subprocess.run(packager, cwd=root, capture_output=True, text=True, check=True).stdout
+        packaged = subprocess.run(
+            packager,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+        ).stdout
         for item in json.loads(packaged):
             path = Path(item["path"])
             staged.append(path if path.is_absolute() else root / path)
@@ -71,7 +96,14 @@ def release_feed(assets: list[tuple[Path, str]], *, tool: Path, requires_dokime:
         parsed = urlsplit(url)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
             raise ValueError("plugin release assets require credential-free HTTPS URLs")
-        inspected = subprocess.run([str(tool), "dokime", "inspect", str(path)], capture_output=True, text=True, check=True)
+        inspected = subprocess.run(
+            [str(tool), "dokime", "inspect", str(path)],
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+        )
         manifest = json.loads(inspected.stdout)["manifest"]
         selected = (manifest["identity"]["name"], manifest["identity"]["version"])
         if identity is not None and identity != selected:

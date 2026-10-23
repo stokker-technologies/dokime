@@ -43,7 +43,11 @@ use dokime::domains::installed_plugins::{ResolvedBrand, load_brand};
 /* === Private Functions === */
 
 fn brand(path: &std::path::Path) -> ResolvedBrand {
-    let mut brand = load_brand(&std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("../../organization")).unwrap();
+    let mut brand = load_brand(
+        &std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+            .join("../../organization"),
+    )
+    .unwrap();
     brand.customization.logo_assets[0].path = path.to_string_lossy().into_owned();
     brand
 }

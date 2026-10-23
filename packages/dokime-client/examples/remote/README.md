@@ -27,7 +27,7 @@ Download these artifacts from that same run:
 | --- | --- | --- |
 | Windows x86-64 installer and host plugin | `package-dev-rust-windows` | `package-dev-rust-windows.tar` |
 | Linux x86-64 installers and host plugin | `package-dev-rust-linux` | `package-dev-rust-linux.tar` |
-| Portable Python client and examples | `package-dev-python-linux` | `package-dev-python-linux.tar` |
+| Portable Python client and examples | `package-dev-python-any` | `package-dev-python-any.tar` |
 
 GitHub wraps each artifact in a ZIP. Extract that ZIP, then extract its TAR,
 for example `tar -xf package-dev-rust-windows.tar` on Windows or
@@ -36,26 +36,26 @@ commands, not source-build commands. The extracted `target/` directory is
 packaged content; no repository checkout, Rust compiler, mise or development
 server is needed.
 
-The current candidate's application version is 0.1.0. Find these files after
-extraction:
+Use the version shown in the candidate artifact filenames in place of `<version>`.
+Find these files after extraction:
 
 | Platform | Installer | Matching Host Plugin |
 | --- | --- | --- |
-| Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-0.1.0-windows-x86_64-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/obc-plugin.dokime` |
-| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_0.1.0_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/obc-plugin.dokime` |
-| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-0.1.0-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/obc-plugin.dokime` |
+| Windows | `target/package/dev/windows-x86_64/rust/installers/dokime-<version>-windows-x86_64-setup.exe` | `target/package/dev/windows-x86_64/rust/plugins/obc-plugin.dokime` |
+| Debian/Ubuntu x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime_<version>_amd64.deb` | `target/package/dev/linux-x86_64/rust/plugins/obc-plugin.dokime` |
+| RPM-based Linux x86-64 | `target/package/dev/linux-x86_64/rust/installers/dokime-<version>-1.x86_64.rpm` | `target/package/dev/linux-x86_64/rust/plugins/obc-plugin.dokime` |
 
 The Python artifact contains
-`target/package/dev/any/python/dokime-remote-examples-0.1.0.zip` and the client
+`target/package/dev/any/python/dokime-remote-examples-<version>.zip` and the client
 distribution under `target/package/dev/any/python/`. Extract the examples ZIP
-into a new folder named `remote-demo` on the remote PC. It contains this guide,
+on the remote PC, then rename its `remote/` directory to `remote-demo/`. That directory contains this guide,
 `cli/`, `python/`, `wheels/` and `.env.example`. Preserve the folder layout:
 the Python environment uses the candidate wheel under `wheels/`.
 On Windows, set `$INSTALL_DOKIME = $false` in `cli/bootstrap.ps1` for this
 unreleased candidate, then run `cli/bootstrap.bat` (or `cli/bootstrap.ps1`)
 to install PowerShell 7.6.7, mise and uv without elevation. The default
-`INSTALL_DOKIME=true` setup uses cargo-binstall to install the exact published
-Dokime CLI; this walkthrough instead uses the matching candidate installer.
+`INSTALL_DOKIME=true` setup uses mise to install the exact official GitHub
+release asset for the Dokime CLI; this walkthrough instead uses the matching candidate installer.
 Follow the
 [Windows bootstrap instructions](cli/README.md#bootstrap-windows-tools),
 then open a new terminal. These are optional client-tool prerequisites;
@@ -74,7 +74,7 @@ Install the matching native package on both PCs if using CLI scripts. The
 Python-only remote path needs the examples and Python environment, not a local
 Dokime server.
 
-On Windows, run `dokime-0.1.0-windows-x86_64-setup.exe` and complete installation.
+On Windows, run `dokime-<version>-windows-x86_64-setup.exe` and complete installation.
 The installer adds its directory to your user `PATH`. Close existing terminals
 and open a new one afterward. The installed CLI, server and GUI stay together;
 do not move only `dokime.exe` out of that directory.
@@ -82,13 +82,13 @@ do not move only `dokime.exe` out of that directory.
 On Debian/Ubuntu, open a terminal in the extracted `installers/` directory:
 
 ```sh
-sudo apt install ./dokime_0.1.0_amd64.deb
+sudo apt install ./dokime_<version>_amd64.deb
 ```
 
 On an RPM-based system with DNF, from its `installers/` directory:
 
 ```sh
-sudo dnf install ./dokime-0.1.0-1.x86_64.rpm
+sudo dnf install ./dokime-<version>-1.x86_64.rpm
 ```
 
 Use your package manager to resolve the package's native desktop dependencies.

@@ -28,7 +28,7 @@ The completed inventory reads both product branches' drop proposal, design and n
 | Clients And Bindings | Complete updated Rust/Python/TypeScript catalogs, authoring macros and transport consumers | dokime-client distribution, dokime_client imports and uv-only examples; regenerate bindings from the combined catalog |
 | Plugins And Starters | plugin-sidecar consumers, renamed SDK support, compile-time catalog checks and generated client/module staging | Offline standalone mise boundaries, root uv workspace, current managed tooling and no private tool dependency |
 | Build And Package | Product fixture staging, wheel/source distribution publication, exact tutorial-wheel lock and explicit relock authoring | Shared native producer, shipping-only Product, optional Tests compatibility configurations, matched Clippy and release-tests; artifact-only consumers |
-| CI And Bootstrap | Required native prerequisites for the complete newer workflows | Reviewed Hub 876aab97e97a root/starter generation, hosted noncompiler jobs, declared bootstrap, 120-minute job defaults, protections and cache/cancellation policy |
+| CI And Bootstrap | Required native prerequisites for the complete newer workflows | Reviewed Hub 8bf06e66c8ae root/starter generation, hosted jobs, declared bootstrap, 120-minute job defaults, protections and cache/cancellation policy |
 | Documentation And Specifications | Full feature-drop inventory, organization/secrets guidance, linear examples and published surface documentation | Update current contracts together; historical proof is not final acceptance; optional benchmarks remain deferred |
 
 The eight drop-only commits cover the stkr 0.1.7 render, generated client/fixture staging, fixture metadata and desktop click stability, linear shell examples and device guard exit status, a bounded record-wait test, Python source-distribution publication, and executable publication boundaries. Preserve their intended behavior through the newer owners rather than restoring obsolete Validate tooling or executable targets inside publishable libraries.
@@ -40,6 +40,26 @@ No unresolved public-contract or data-loss decision was found in this inventory.
 Integrate specification-completion first because it carries the later absorbed product ownership, then merge the eight divergent drop changes explicitly. Preserve both inputs in local merge history. Resolve authored functionality by these contracts; regenerate managed root/starter outputs from Hub rather than hand-merging generated bodies. Port staging, packaging and native harness repairs into the resulting owners, remove superseded paths, then regenerate clients and review the complete source inventory before final proof.
 
 Preserve the migration's library API identities, non-publishable executable owners, dokime-client distribution and dokime_client import, uv examples, self-contained published runtime assets with freshness checks, shared native Build with configuration-matched Clippy, optional Tests production, hosted-compatible bootstrap and native Windows/Linux UI coverage. Apply the latest reviewed local Hub override and regenerate root and starter workflows without provider credentials or protection writes.
+
+## Combined Producer And Consumer Ownership
+
+Native Build compiles shipping Rust before checking both tracked Python and TypeScript contracts against its one server export, then embeds the built frontend in the desktop. The independent Python producer builds tracked wheel/source distributions and their exact tutorial without invoking Rust. Tests Build owns compatibility Clippy, the nextest archive, frozen client/module fixtures and the standalone starter compilation. Acceptance consumes these prepared outputs and runs on hosted Linux and Windows; it no longer needs the former local compiler routing or development-header bootstrap. New Python and TypeScript unit leaves retain their distinct layers. The starter wheelhouse uses uv export for resolution, selects a compatible wheel from the locked URLs and verifies its SHA-256 before staging it; separately pinned editable-backend support follows the same verification. No pip subprocess or independent dependency resolver is introduced.
+
+## Versioned Tutorial Packaging
+
+Development Package requires the built pure Python wheel and frozen tutorial; release Package additionally requires the built source distribution. Version preparation explicitly updates the tutorial project version, exact client dependency and bundled wheel source, plus the CLI bootstrap version, before building the candidate wheel and refreshing its lock with uv. Ordinary Build only validates the authored candidate lock and never silently repairs it. Declared bundle paths and destinations expand the release version; shell-script inputs carry explicit executable permission bits so Windows and Linux packages preserve the same runnable POSIX scripts.
+
+## Hosted Runner Ownership
+
+The user's latest direction retires local GitHub runners for this delivery. All job-specific local runner overrides are removed, including compiler, coverage, benchmark and release jobs; the rendered graph uses hosted platform defaults. Native Windows and Linux coverage, declared bootstrap and job budgets remain unchanged. Runner provisioning and repository runner-variable reconciliation belong to the orchestrator.
+
+## Starter Authoring Tool
+
+Starter Build and Package use the pinned GitHub release-asset backend for `cargo-dokime`, with an anchored binary-name filter and normal native platform detection. The tool is non-publishable on crates.io. mise lock authoritatively records the exact requested version and backend options before the first release; unavailable platform URL/checksum receipts remain absent, never fabricated. Tests Build supplies the exact built candidate through a disposable integration path override until those public release assets exist.
+
+## Ordinary User Validation
+
+The user explicitly removed the three tutorial symlink-specific test cases (wheel, script and directory) because product validation must not require Developer Mode or elevated setup for them. Production rejection of linked inputs and parents remains unchanged; all other tutorial integrity, version, lock, package and refusal cases remain required. The earlier elevated diagnostic run is not ordinary-user final proof. Stale elevated pytest temporary links are separate machine residue and are not part of product cleanup.
 
 ## Proof And Delivery
 

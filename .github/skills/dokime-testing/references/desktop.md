@@ -1,4 +1,4 @@
-<!-- Rendered by stkr project update from .agents/skills/dokime-testing/references/desktop.md; sha256:7e9044c80802b83627230b2c4c3fd39c10e16f038483f33437adbbe45e594134 -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-testing/references/desktop.md; sha256:dce38513374811f684d9974a840d3ae65e9028db2cbae1855073ab832cc0e91f -->
 
 # Dokime Desktop Validation
 

@@ -11,13 +11,21 @@
 # === Imports === #
 
 # Standard Library Imports
-import ensurepip
+import hashlib
 import subprocess
 import sys
+import tomllib
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 # Third Party Imports
+from packaging.requirements import Requirement
+from packaging.tags import sys_tags
+from packaging.utils import parse_wheel_filename
+
 # Local Imports
+from dokime_tools import temporary
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
@@ -66,9 +74,6 @@ def wheelhouse(root: Path, directory: Path) -> list[Path]:
     wheels = directory / "wheels"
     clear_output(requirements)
     clear_output(wheels)
-    bundled = list((Path(ensurepip.__file__).parent / "_bundled").glob("pip-*.whl"))
-    if len(bundled) != 1:
-        raise ValueError("the selected Python must supply one bundled ensurepip wheel")
     with requirements.open("w", encoding="utf-8") as output:
         subprocess.run(
             ["uv", "export", "--locked", "--all-groups", "--no-emit-project", "--project", str(tools / "tools/python")],
@@ -79,31 +84,64 @@ def wheelhouse(root: Path, directory: Path) -> list[Path]:
             stdin=sys.stdin,
             stderr=sys.stderr,
         )
-    loader = "import runpy,sys; sys.path.insert(0,sys.argv.pop(1)); runpy.run_module('pip',run_name='__main__')"
-    download = [sys.executable, "-c", loader, str(bundled[0]), "download", "--dest", str(wheels), "--require-hashes", "--only-binary=:all:"]
-    subprocess.run(
-        [*download, "--requirement", str(requirements)],
-        cwd=root,
-        check=True,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
-    # Hatchling Requests `editables` Only For Editable Installs, So No Lock Names It; The Hash-Checked
-    # Requirement Is Tracked So Every Lane Runner Installs The Same Wheel.
-    subprocess.run(
-        [*download, "--no-deps", "--requirement", str(root / "tools/python/editables.txt")],
-        cwd=root,
-        check=True,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
+    # uv Owns Resolution; Fetch Only Its Locked, Hash-Verified Native Wheels.
+    locked = tomllib.loads((tools / "uv.lock").read_text(encoding="utf-8"))["package"]
+    selected = requirements.read_text(encoding="utf-8").replace("\\\n", " ")
+    for line in selected.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        requirement = Requirement(line.split("--hash=", 1)[0].strip())
+        if requirement.marker is not None and not requirement.marker.evaluate():
+            continue
+        packages = [package for package in locked if package["name"] == requirement.name and package["version"] in requirement.specifier]
+        if len(packages) != 1:
+            raise ValueError(f"expected one locked starter dependency: {requirement}")
+        entry = _compatible(packages[0].get("wheels", []))
+        _fetch(entry["url"], entry["hash"], wheels)
+
+    # Editable Backend Support Is Explicitly Pinned Separately From uv's Runtime Lock.
+    support = (root / "tools/python/editables.txt").read_text(encoding="utf-8").strip()
+    declaration, digest = support.split(" --hash=", 1)
+    requirement = Requirement(declaration)
+    if not requirement.url:
+        raise ValueError("editable backend support requires one pinned wheel URL")
+    _compatible([{"url": requirement.url, "hash": digest}])
+    _fetch(requirement.url, digest, wheels)
     return [requirements, *sorted(wheels.glob("*.whl"))]
 
 
 # === Private Functions === #
+
+
+def _compatible(wheels: list[dict]) -> dict:
+    tags = {tag: index for index, tag in enumerate(sys_tags())}
+    choices = []
+    for wheel in wheels:
+        name = Path(urllib.parse.urlsplit(wheel["url"]).path).name
+        _name, _version, _build, supported = parse_wheel_filename(name)
+        ranks = [tags[tag] for tag in supported if tag in tags]
+        if ranks:
+            choices.append((min(ranks), name, wheel))
+    if not choices:
+        raise ValueError("the starter dependency has no compatible locked binary wheel")
+    return min(choices, key=lambda item: (item[0], item[1]))[2]
+
+
+def _fetch(url: str, expected: str, output: Path) -> None:
+    parsed = urllib.parse.urlsplit(url)
+    name = Path(parsed.path).name
+    if parsed.scheme != "https" or not name.endswith(".whl") or not expected.startswith("sha256:"):
+        raise ValueError("starter wheels require HTTPS and a locked SHA-256")
+    digest = hashlib.sha256()
+    with temporary.directory() as scratch:
+        candidate = scratch / name
+        with urllib.request.urlopen(url, timeout=120) as response, candidate.open("wb") as written:
+            while block := response.read(1024 * 1024):
+                digest.update(block)
+                written.write(block)
+        if f"sha256:{digest.hexdigest()}" != expected:
+            raise ValueError(f"starter wheel hash differs from its lock: {name}")
+        stage_file(candidate, output / name)
+
 
 # === Entry Point === #

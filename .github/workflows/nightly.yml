@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:c05964f75f2c9a600a3cc19863c6140e87107ddb3910f27b55c4218a8f81aa11
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:0e4f8e2eba2e83af12f263d51992fd5661251e4c65660c3f01b0e5d7cd24f0fb
 name: Nightly
 "on":
   schedule:
@@ -27,6 +27,13 @@ jobs:
     - test_linux
     - test_nightly
     - test_windows
+  build:
+    name: Build
+    uses: ./.github/workflows/managed-build.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_python_any\":120}"
+    secrets: inherit
   build_linux:
     name: Build
     uses: ./.github/workflows/managed-build-linux.yml
@@ -34,6 +41,8 @@ jobs:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_linux\":120}"
     secrets: inherit
+    needs:
+    - build
   build_windows:
     name: Build
     uses: ./.github/workflows/managed-build-windows.yml
@@ -41,6 +50,8 @@ jobs:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_windows\":120}"
     secrets: inherit
+    needs:
+    - build
   build_nightly:
     name: Build
     uses: ./.github/workflows/managed-build-nightly.yml
@@ -63,6 +74,7 @@ jobs:
       timeouts: "{\"check_generated_python\":120,\"check_generated_typescript\":120}"
     secrets: inherit
     needs:
+    - build
     - build_linux
   check_linux:
     name: Check
@@ -89,8 +101,7 @@ jobs:
       contents: read
       actions: read
     needs:
-    - build_linux
-    - build_windows
+    - build
     - check
     - check_generated
     - check_linux
@@ -132,9 +143,10 @@ jobs:
     uses: ./.github/workflows/managed-test.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_python_acceptance\":120,\"validate_test_python_integration\":120,\"validate_test_typescript_integration\":120}"
+      timeouts: "{\"validate_test_python_acceptance\":120,\"validate_test_python_integration\":120,\"validate_test_python_unit\":120,\"validate_test_typescript_integration\":120,\"validate_test_typescript_unit\":120}"
     secrets: inherit
     needs:
+    - build
     - build_linux
   test_linux:
     name: Test
@@ -144,6 +156,7 @@ jobs:
       timeouts: "{\"validate_test_rust_acceptance_linux\":120,\"validate_test_rust_integration_linux\":120,\"validate_test_rust_system_linux\":120,\"validate_test_rust_unit_linux\":120,\"validate_test_typescript_system_linux\":120}"
     secrets: inherit
     needs:
+    - build
     - build_linux
   test_windows:
     name: Test
@@ -153,6 +166,7 @@ jobs:
       timeouts: "{\"validate_test_rust_acceptance_windows\":120,\"validate_test_rust_integration_windows\":120,\"validate_test_rust_system_windows\":120,\"validate_test_rust_unit_windows\":120,\"validate_test_typescript_system_windows\":120}"
     secrets: inherit
     needs:
+    - build
     - build_windows
   test_nightly:
     name: Test
@@ -162,4 +176,5 @@ jobs:
       timeouts: "{\"validate_coverage_python\":120,\"validate_coverage_rust\":120}"
     secrets: inherit
     needs:
+    - build
     - build_linux

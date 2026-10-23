@@ -139,7 +139,15 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
         *bundle_args(sys.platform, signed=signed),
         *([] if release else ["--debug"]),
     ]
-    subprocess.run(command, cwd=root / WEB, check=True)
+    subprocess.run(
+        command,
+        cwd=root / WEB,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     collect(root, profile=profile, signed=signed, bundles=bundles)
 
 
@@ -277,6 +285,8 @@ def verify_signature(root: Path, installer: Path, signature: Path) -> None:
             cwd=root,
             capture_output=True,
             check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
         )
     if result.returncode:
         raise ValueError("installer signature does not match its bytes and the configured updater public key")

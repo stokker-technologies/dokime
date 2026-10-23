@@ -1128,11 +1128,11 @@ Generated TypeScript messages live under `target/generated/typescript/`.
 
 | Task | Layer |
 | --- | --- |
-| `mise run test:rust:unit` | Curated Rust, Python and TypeScript invariants. |
-| `mise run test:integration` | In-process stories per crate, plus Python and TypeScript client stories. |
-| `mise run test:generated` | The generated Python and TypeScript clients: types, lint and an import smoke. |
-| `mise run test:acceptance` | Whole stories over one process and a client: the server, the CLI, the Python client. |
-| `mise run test:system` | Two walkthroughs: the server with the built OBC plugin, and the desktop shell over its backend. |
+| `test:rust:unit`, `test:python:unit`, `test:typescript:unit` | Curated invariants. |
+| `test:rust:integration`, `test:python:integration`, `test:typescript:integration` | In-process and client stories. |
+| `check:python:generated`, `check:typescript:generated` | Generated client types, lint and imports. |
+| `test:rust:acceptance`, `test:python:acceptance` | Native process and client workflows. |
+| `test:rust:system`, `test:typescript:system` | Server/plugin walkthrough and the native desktop journeys. |
 
 The same desktop walkthrough runs on Windows with WebView2 and an exact matching EdgeDriver, and through WebKitWebDriver on Linux
 and needs an X11 display (a private Xvfb display is suitable). Its native plugin
@@ -1141,9 +1141,9 @@ The installation journey selects a real bundle,
 checks its digest in the consent dialog and verifies the saved restart requirement.
 The organization journey imports a pack through the native picker, verifies next-start
 activation, and checks that an invalid pending pack preserves the active appearance.
-`mise run ci` simulates the rendered provider
-graph from committed source with cold dependency homes;
-`mise run ci:nightly` adds `test:coverage` and benches.
+`mise run ci` runs the declared Check, Build, generated-client checks, correctness tests, Package and Dry tasks
+in order in the current worktree. Native provider runners supply unavailable-platform and transported-artifact proof.
+`mise run ci:nightly` adds the declared Rust/Python coverage and benchmark leaves.
 
 The runtime Cargo package carries its embedded report and brand payload.
 Contributors refresh that tracked payload with `mise run prepare:report` when

@@ -14,6 +14,8 @@
 /* === Imports === */
 
 // Standard Library Imports
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::process::{Command, Stdio};
 // Third Party Imports
 use crate::support::wire::WireMessage;
@@ -54,13 +56,19 @@ async fn typescript_facade_bridge() {
     let manifest = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"));
     let fixture = Fixture::new().await;
     fixture.runtime.handle().set_brand(Some(
-        dokime::domains::installed_plugins::load_brand(&std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("../../../organization"))
-            .unwrap(),
+        dokime::domains::installed_plugins::load_brand(
+            &std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+                .join("../../../organization"),
+        )
+        .unwrap(),
     ));
     let artifact_id = artifact::seed(&fixture.runtime.handle(), &fixture.artifacts).await;
     let harness = Harness::new(fixture.session.clone());
     let snapshot = fixture.session.status();
-    let mut child = Command::new("node")
+    let mut command = Command::new("node");
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let mut child = command
         .env("DOKIME_TEST_GENERATION", &snapshot.generation)
         .env("DOKIME_TEST_BACKEND_ID", &snapshot.backend.as_ref().unwrap().backend_id)
         .env("DOKIME_TEST_ARTIFACT_ID", artifact_id)

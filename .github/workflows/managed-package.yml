@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package.yml; sha256:b4a3f28c2b886511ef940f1d7f5339e0e04f0755032306e600620d7fc0d43cc6
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package.yml; sha256:2fce9b1c10af308737e10e772ff6e9afab6dff6071f48fdc35bf699369e230f4
 name: Package
 "on":
   workflow_call:
@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_python }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -241,22 +241,21 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-linux
-    - name: Extract Build
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
       shell: bash
-      run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
     - run: mise run package:python --profile ${{ env.PROFILE }}
     - name: Archive Package
       shell: bash
       run: |-
-        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths package --profile ${{ env.PROFILE }})"
-        native="${native##*/}"
+        native=any
         mkdir -p target/ci
-        tar -cf "target/ci/package-${{ env.PROFILE }}-python-linux.tar" -- "target/package/${{ env.PROFILE }}/${native}/python"
+        tar -cf "target/ci/package-${{ env.PROFILE }}-python-any.tar" -- "target/package/${{ env.PROFILE }}/${native}/python"
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: package-${{ env.PROFILE }}-python-linux
-        path: target/ci/package-${{ env.PROFILE }}-python-linux.tar
+        name: package-${{ env.PROFILE }}-python-any
+        path: target/ci/package-${{ env.PROFILE }}-python-any.tar
         if-no-files-found: error
         retention-days: 7
         include-hidden-files: true

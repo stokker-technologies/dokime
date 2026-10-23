@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-linux.yml; sha256:5e397a630d46615bd2e5cad2104738be0e1e2dd4654b72964a01c7e332dd58c7
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-linux.yml; sha256:add46fc6606a2815bef445199eaecd8949be36d3b7a78e6112bdd6d586a64594
 name: Build
 "on":
   workflow_call:
@@ -22,8 +22,18 @@ env:
 jobs:
   build_product_linux:
     name: Native (linux)
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).build_product_linux }}
+    env:
+      MISE_TASK_SKIP: build:python
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
+      STKR_SCCACHE_BACKEND: gha
+      STKR_SCCACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -254,6 +264,12 @@ jobs:
           if (process.env.ACTIONS_CACHE_SERVICE_V2) {
             core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
           }
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.sccache
@@ -270,7 +286,7 @@ jobs:
           if [ -e "$path" ]; then outputs+=("$path"); fi
         done
         [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/ci/build-product-${{ env.PROFILE }}-linux.tar.zst" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- "${outputs[@]}"
+        tar --zstd -cf "target/ci/build-product-${{ env.PROFILE }}-linux.tar.zst" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' --exclude='target/build/${{ env.PROFILE }}/any/python' --exclude='target/generated/python' -- "${outputs[@]}"
       shell: bash
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
@@ -361,12 +377,3 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
-    env:
-      MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
-      STKR_SCCACHE_BACKEND: gha
-      STKR_SCCACHE_MODE: >-
-        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}

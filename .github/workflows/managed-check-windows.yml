@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-windows.yml; sha256:808a1f23e4f027ee65c64e2a698e546b6b295edaa8e4ba8fe5510d853f8f6ea4
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-windows.yml; sha256:2df2f130a804ba14f816af8f6554daae23fad6c927c6c8770b68682a4ee8bce2
 name: Check
 "on":
   workflow_call:
@@ -272,4 +272,4 @@ jobs:
         path: .cache/uv/
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,github:bnjbvr/cargo-machete,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,npm:@fission-ai/openspec,taplo
+        go,node,python,rust,pnpm,uv,github:bnjbvr/cargo-machete,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo

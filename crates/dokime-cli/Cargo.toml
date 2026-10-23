@@ -29,15 +29,12 @@ dokime = { workspace = true, features = ["client", "terminal", "diagnostics"] }
 harmos-packaging = { workspace = true }
 
 # Error Handling
-thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true }
 
 # Utilities
 sha2 = { workspace = true }
 uuid = { workspace = true }
-zeroize = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -45,7 +42,6 @@ serde_json = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
-dotenv = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
@@ -54,9 +50,6 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 
 # UI
-anstream = { workspace = true }
-anstyle = { workspace = true }
-indicatif = { workspace = true }
 
 [[bin]]
 name = "dokime"

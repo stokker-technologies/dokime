@@ -161,6 +161,7 @@ impl Streams {
         }
     }
 
+    #[cfg(feature = "native")]
     pub(crate) async fn published(&self, stream: &Identifier, values: BTreeMap<String, Value>, payload: Vec<u8>) {
         self.published_as(stream, values, Some(payload), stream.as_str()).await;
     }

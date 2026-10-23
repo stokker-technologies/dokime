@@ -40,10 +40,14 @@ def main() -> int:
     directory = paths.output(policy.root(), "build", options.profile) / "fixtures/python"
     wheels = list(directory.glob("dokime_client-*.whl"))
     if len(wheels) != 1:
-        raise SystemExit(f"expected one staged client wheel in {directory}; run `mise run build:tests`")
+        raise SystemExit(f"expected one staged client wheel in {directory}; run `mise run build:rust:tests`")
     subprocess.run(
         ["uv", "pip", "install", "--python", sys.executable, "--no-deps", "--reinstall", str(wheels[0])],
         check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
     return run.main(["test", "--profile", options.profile, "--language", "python", "--project", "packages/dokime-client", *arguments])
 

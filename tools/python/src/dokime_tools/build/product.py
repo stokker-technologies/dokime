@@ -22,7 +22,7 @@ from pathlib import Path
 from dokime_tools.build import cargo, frontend, outputs, paths, run, wheel
 from dokime_tools.package import examples, plugins
 from dokime_tools.package.staging import clear_output, stage_file, sync_output
-from dokime_tools.prepare import generated
+from dokime_tools.prepare import bindings, generated
 from dokime_tools.test import policy
 
 # Type Checking Imports
@@ -105,6 +105,7 @@ def rust(profile: str) -> list[str]:
 def typescript(profile: str) -> list[str]:
     """Generate The GUI Message Modules From The Server Export And Build The Live Frontend."""
     messages = _messages(profile)
+    bindings.generate(messages, check=True)
     subprocess.run(
         ["node", str(frontend.WEB_ROOT / "tools/bindings.mjs"), str(messages), "--check"],
         cwd=ROOT,

@@ -6,8 +6,8 @@ attempts with record and sample readers, and answer a confirmation. Begin with t
 install/configure the host plugin and transfer the public certificate and key.
 
 This environment uses the **bundled candidate wheel**, not a published-registry
-claim. Its `dokime-client==0.1.0` dependency resolves to
-`../wheels/dokime_client-0.1.0-py3-none-any.whl`. The accompanying `uv.lock` records
+claim. Its exact `dokime-client` dependency resolves to the matching wheel in
+`../wheels/`. The accompanying `uv.lock` records
 that wheel's exact SHA-256 and the dependency versions. Keep the entire
 extracted examples tree together; a copied script by itself is not the locked
 tutorial environment.

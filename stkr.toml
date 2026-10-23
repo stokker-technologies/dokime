@@ -8,6 +8,10 @@
 name = "Dokime"
 platforms = ["linux", "windows"]
 
+[tools]
+# Verify Detached Updater Signatures With The Compiled Public Key.
+include = ["minisign"]
+
 [features]
 # The Build Scripts Compile The Operation Contracts With Protoc.
 proto = true
@@ -37,10 +41,6 @@ generated = ["target/generated/typescript", "crates/dokime-gui/src/lib/rpc/gener
 
 # === === Repository === === #
 
-[tools]
-# Verify Detached Updater Signatures With The Compiled Public Key.
-include = ["minisign"]
-
 [housekeeping]
 max_workspaces = 5
 
@@ -56,18 +56,15 @@ default = "full"
 [[ci.jobs]]
 id = "build"
 platform = "linux"
-runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "build"
 platform = "windows"
-runner = "stokker-local-windows-x64"
 
 [[ci.jobs]]
 id = "build:rust:bench"
 platform = "linux"
-runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
 
@@ -76,18 +73,11 @@ caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
 [[ci.jobs]]
 id = "test:rust:acceptance"
 platform = "linux"
-runner = "stokker-local-linux-x64"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "test:rust:acceptance"
-platform = "windows"
-runner = "stokker-local-windows-x64"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:coverage"
 platform = "linux"
-runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
@@ -127,19 +117,16 @@ bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packag
 [[ci.jobs]]
 id = "release:publish:dry"
 platform = "linux"
-runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "release:rehearse"
 platform = "linux"
-runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "release:tag"
 platform = "linux"
-runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 # === === Hooks === === #
@@ -197,6 +184,47 @@ provider = "github"
 repository = "stokker-technologies/dokime"
 product = "dokime"
 crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
+# Prepare The Tutorial From The Same Versioned Client Bytes As The Release.
+lock_commands = [
+  [
+    "cargo",
+    "update",
+    "--workspace",
+  ],
+  [
+    "pnpm",
+    "install",
+    "--lockfile-only",
+    "--ignore-scripts",
+    "--dir",
+    "crates/dokime-gui",
+  ],
+  [
+    "uv",
+    "lock",
+    "--offline",
+  ],
+  [
+    "uv",
+    "sync",
+    "--locked",
+    "--all-groups",
+    "--no-install-package",
+    "dokime-client",
+  ],
+  [
+    "uv",
+    "run",
+    "--locked",
+    "--no-sync",
+    "--package",
+    "dokime-tools",
+    "python",
+    "-m",
+    "dokime_tools.package.examples",
+    "--prepare-release",
+  ],
+]
 targets = ["linux-x86_64", "windows-x86_64"]
 signature_checks = [
   [
@@ -270,6 +298,7 @@ files = [
   "Cargo.toml",
   "pyproject.toml",
   "packages/dokime-client/pyproject.toml",
+  "packages/dokime-client/examples/remote/python/pyproject.toml",
   "crates/dokime-gui/package.json",
   "crates/dokime-gui/src-tauri/tauri.conf.json",
 ]
@@ -314,9 +343,9 @@ inputs = [
   { path = "target/build/{profile}/{target}/python/examples/remote/cli/README.md", destination = "remote/cli/README.md" },
   { path = "target/build/{profile}/{target}/python/examples/remote/cli/bootstrap.ps1", destination = "remote/cli/bootstrap.ps1" },
   { path = "target/build/{profile}/{target}/python/examples/remote/cli/bootstrap.bat", destination = "remote/cli/bootstrap.bat" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.sh", destination = "remote/cli/control-device.sh" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.sh", destination = "remote/cli/control-test.sh" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.sh", destination = "remote/cli/control-prompt.sh" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.sh", destination = "remote/cli/control-device.sh", mode = 0o755 },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.sh", destination = "remote/cli/control-test.sh", mode = 0o755 },
+  { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.sh", destination = "remote/cli/control-prompt.sh", mode = 0o755 },
   { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-device.ps1", destination = "remote/cli/control-device.ps1" },
   { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-test.ps1", destination = "remote/cli/control-test.ps1" },
   { path = "target/build/{profile}/{target}/python/examples/remote/cli/control-prompt.ps1", destination = "remote/cli/control-prompt.ps1" },
@@ -329,5 +358,5 @@ inputs = [
   { path = "target/build/{profile}/{target}/python/examples/remote/python/README.md", destination = "remote/python/README.md" },
   { path = "target/build/{profile}/{target}/python/examples/remote/python/pyproject.toml", destination = "remote/python/pyproject.toml" },
   { path = "target/build/{profile}/{target}/python/examples/remote/python/uv.lock", destination = "remote/python/uv.lock" },
-  { path = "target/build/{profile}/{target}/python/examples/remote/wheels/dokime_client-0.1.0-py3-none-any.whl", destination = "remote/wheels/dokime_client-0.1.0-py3-none-any.whl" },
+  { path = "target/build/{profile}/{target}/python/examples/remote/wheels/dokime_client-{version}-py3-none-any.whl", destination = "remote/wheels/dokime_client-{version}-py3-none-any.whl" },
 ]

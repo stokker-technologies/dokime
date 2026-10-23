@@ -13,9 +13,11 @@
 # Standard Library Imports
 import argparse
 import hashlib
+import re
 import shutil
 import stat
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -25,7 +27,7 @@ from packaging.utils import parse_wheel_filename
 
 # Local Imports
 from dokime_tools import temporary
-from dokime_tools.build import paths
+from dokime_tools.build import paths, wheel
 from dokime_tools.package.run import assemble, definitions
 from dokime_tools.package.staging import clear_output, stage_file
 
@@ -106,9 +108,11 @@ def package(root: Path, profile: str) -> None:
         raise ValueError("packaging requires exactly one matching built client wheel")
     _environment(source / "python", wheels[0])
     version = parse_wheel_filename(wheels[0].name)[1]
-    distribution = built / f"dokime_client-{version}.tar.gz"
-    _regular(distribution)
-    distributions = [wheels[0], distribution]
+    distributions = [wheels[0]]
+    if profile == "release":
+        distribution = built / f"dokime_client-{version}.tar.gz"
+        _regular(distribution)
+        distributions.append(distribution)
 
     destination = paths.output(root, "package", profile, "any") / "python"
     names = [path.name for path in distributions]
@@ -148,10 +152,47 @@ def relock(root: Path, profile: str) -> None:
             shutil.copy2(project / name, staged / name)
         bundled = scratch / "wheels" / wheel.name
         stage_file(wheel, bundled)
-        subprocess.run(["uv", "lock", "--project", str(staged), "--upgrade-package", "dokime-client"], cwd=root, check=True)
+        subprocess.run(
+            ["uv", "lock", "--project", str(staged), "--upgrade-package", "dokime-client"],
+            cwd=root,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=subprocess.DEVNULL,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         _environment(staged, bundled)
         stage_file(staged / "uv.lock", project / "uv.lock")
     print(f"Relocked {project.relative_to(root).as_posix()}/uv.lock")
+
+
+def prepare_release(root: Path) -> None:
+    """Update Tutorial Inputs And Lock The Exact Wheel After Release Version Sync."""
+    version = tomllib.loads((root / "stkr.toml").read_text(encoding="utf-8"))["version"]["value"]
+    project = root / "packages/dokime-client/examples/remote/python"
+    manifest = project / "pyproject.toml"
+    text = manifest.read_text(encoding="utf-8")
+    declaration = tomllib.loads(text)["project"]
+    if declaration["version"] != version:
+        raise ValueError("sync the tutorial project version before release preparation")
+    dependencies = declaration.get("dependencies", [])
+    if len(dependencies) != 1 or re.fullmatch(r"dokime-client==[0-9]+\.[0-9]+\.[0-9]+", dependencies[0]) is None:
+        raise ValueError("release preparation requires one exact tutorial client dependency")
+    candidate = _candidate(project)
+    name, _old_version, _build, _tags = parse_wheel_filename(candidate.name)
+    if name != "dokime-client":
+        raise ValueError("the tutorial source must name a Dokime client wheel")
+    filename = f"dokime_client-{version}-py3-none-any.whl"
+    updated = text.replace(f'"{dependencies[0]}"', f'"dokime-client=={version}"', 1)
+    updated = updated.replace(f'"../wheels/{candidate.name}"', f'"../wheels/{filename}"', 1)
+    bootstrap = project.parent / "cli/bootstrap.ps1"
+    script, count = re.subn(r"(?m)^\$DOKIME_VERSION = '[^']*'$", f"$DOKIME_VERSION = '{version}'", bootstrap.read_text(encoding="utf-8"))
+    if count != 1:
+        raise ValueError("release preparation requires one explicit CLI tutorial version")
+    manifest.write_text(updated, encoding="utf-8")
+    bootstrap.write_text(script, encoding="utf-8")
+    wheel.build(root, "dev")
+    relock(root, "dev")
 
 
 def main() -> None:
@@ -159,8 +200,11 @@ def main() -> None:
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
     parser.add_argument("--target", choices=("any",), default="any")
     parser.add_argument("--relock", action="store_true", help="refresh the authored tutorial lock from the built candidate wheel")
+    parser.add_argument("--prepare-release", action="store_true", help="prepare versioned tutorial inputs and their candidate lock")
     options = parser.parse_args()
-    if options.relock:
+    if options.prepare_release:
+        prepare_release(Path.cwd())
+    elif options.relock:
         relock(Path.cwd(), options.profile)
     else:
         package(Path.cwd(), options.profile)

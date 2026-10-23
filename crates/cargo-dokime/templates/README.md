@@ -85,15 +85,14 @@ the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`
 to retain the resolved revisions.
 
 Run `cargo generate-lockfile` and `mise install` once, then commit both lockfiles:
-CI installs the locked dependencies and tools. `mise run check` formats, lints
-and type-checks. `mise run build` compiles the plugin and freezes its catalog
+CI installs the locked dependencies and tools. Build and Package install the pinned `cargo-dokime` raw executable from Dokime's official GitHub release assets, selecting the host platform; the executable is not a crates.io package. `mise run check` verifies source and formatting; Build runs configuration-matched Clippy before compiling. `mise run build` compiles the plugin and freezes its catalog
 under `target/build/<profile>/<target>/plugins/{{package}}.dokime`.
 Standalone development builds retain line tables with separate debug information,
 matching Dokime's development profile while keeping the packaged executable bounded.
 Workspace members inherit their workspace root's profiles; configure the same
 development settings there rather than adding ignored member profiles.
-`mise run build:tests` prepares the shared test archive; `mise run test:unit`
-and `mise run test:integration:rust` consume it.
+`mise run build:rust:tests` prepares the shared test archive; `mise run test:rust:unit`
+and `mise run test:rust:integration` consume it.
 
 `mise run package` copies and inspects that exact built bundle under
 `target/package/<profile>/<target>/rust/plugins/`, without compiling. Profiles

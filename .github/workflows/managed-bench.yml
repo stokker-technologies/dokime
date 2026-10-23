@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-bench.yml; sha256:0f605c15f7d2ed761ac50006ea030390ad9a52e4a73b079058d2ed0b7cbdd133
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-bench.yml; sha256:8de02355eb2d566a66ba54163a529fe5f67a0541e56b0eb58d0516538d480d42
 name: Bench
 "on":
   workflow_call:
@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).bench_rust_integration }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -296,7 +296,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).bench_rust_system }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -566,7 +566,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).bench_rust_unit }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'

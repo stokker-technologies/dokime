@@ -63,34 +63,35 @@ entry points are described in [`README.md`](README.md).
   execution evidence` or `docs: clarify sidecar setup`.
 
 Run the matching checks while iterating. `mise run check` covers the complete
-Check stage. For committed changes with project-wide impact, simulate the pull
-request graph:
+Check stage. After source closure, run the applicable full flow in the assigned worktree:
 
 ```sh
 mise run check
-mise run ci --event pr
+mise run ci
 ```
 
-The simulation uses a clean clone of HEAD and cold dependency homes; a failing
-lane fails the run. `build --profile dev` produces binaries, the OBC bundle,
+The local flow runs the same declared tasks in this worktree; a failing lane fails the run. Native provider runners supply unavailable-platform and transported-artifact proof. `build --profile dev` produces binaries, the OBC bundle,
 the frontend and generated clients under `target/build/<profile>/<target>/`.
-The canonical Python wheel uses target `any`. `build:tests --profile dev`
+The canonical Python wheel uses target `any`. `build:rust:tests --profile dev`
 separately compiles the shared Nextest archive and fixtures, runs the macro
 compile contracts and verifies the generated starter. Test lanes consume that
 archive; acceptance and system lanes also require the matching Product
 exports. Reports use `target/tests/<profile>/<target>/<layer>-<language>/`.
-`test:generated` checks the Python and TypeScript clients' types, lint and import
+`check:python:generated` and `check:typescript:generated` check the Python and TypeScript clients' types, lint and import
 smoke. `package --profile dev` assembles unsigned installers, companion CLIs,
-the plugin bundle and Python distributions from Build bytes without compiling,
+the plugin bundle and Python wheel from Build bytes without compiling,
 under `target/package/<profile>/<target>/`.
 
 `.github/workflows/ci.yml` and `nightly.yml` are thin callers of the rendered
 `managed-*.yml` workflows. Pull requests and `dev` pushes run Check, Build,
-Validate, development Package and `Release / Dry`; configured native jobs run
-on both Linux and Windows. Nightly adds `test:coverage` and benches.
+Test, development Package and `Release / Dry`; configured native jobs run
+on both Linux and Windows. Nightly adds the declared coverage and benchmark leaves.
 `mise.toml` owns every recipe the workflows call.
 
 Run `Release / Prepare` manually from `dev` with the requested version bump.
+Version preparation updates the tutorial project, exact client wheel source and CLI version,
+then builds the versioned Python wheel and refreshes the tutorial lock with uv.
+Ordinary Build checks that lock without repairing it; release Build adds the source distribution.
 It opens a `release/v<version>` review into `dev`, which runs the required
 native graph and unsigned `Release / Rehearsal`. Squash-merging that review
 starts `Release / Tag`: it verifies the rehearsed tree, tags the merged `dev`

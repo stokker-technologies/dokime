@@ -74,7 +74,7 @@ GUI_RUNTIME_PACKAGES = (
     "libasound2t64",
     "libssl3t64",
 )
-DESKTOP_PACKAGES = ("webkit2gtk-driver", "xvfb", "desktop-file-utils", "xdg-utils", "dbus", "gnome-keyring")
+DESKTOP_PACKAGES = ("webkit2gtk-driver", "xvfb", "xdotool", "desktop-file-utils", "xdg-utils", "dbus", "gnome-keyring")
 HARMOS_PACKAGES = ("harmos", "harmos-domain", "harmos-packaging", "harmos-sdk")
 CRATES_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 

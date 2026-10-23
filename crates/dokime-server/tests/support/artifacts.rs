@@ -47,7 +47,8 @@ pub fn workspace_root() -> PathBuf {
     std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
         .ancestors()
         .find(|directory| directory.join("Cargo.lock").is_file())
-        .expect("the workspace root holds Cargo.lock").to_owned()
+        .expect("the workspace root holds Cargo.lock")
+        .to_owned()
 }
 
 /* === Private Functions === */

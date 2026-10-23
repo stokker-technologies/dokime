@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/build.yml; sha256:82e4cfb9fab8bc12e42f306268ae27edc5507459bb91e13383eb3a230c7a645a
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/build.yml; sha256:14d7304047fc01875616eb436be4d94c081ef2ecbc8ec5ea9a1c8ba4dcf9e63b
 Build / Native (linux):
   stage: Build
   tags:
@@ -46,7 +46,7 @@ Build / Native (linux):
   variables:
     STKR_BUILD_TESTS: "true"
     MISE_ENABLE_TOOLS: >-
-      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
+      aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
   artifacts:
     expire_in: 7 days
     paths:
@@ -185,7 +185,7 @@ Build / Native (windows):
   variables:
     STKR_BUILD_TESTS: "true"
     MISE_ENABLE_TOOLS: >-
-      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
+      aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
   artifacts:
     expire_in: 7 days
     paths:

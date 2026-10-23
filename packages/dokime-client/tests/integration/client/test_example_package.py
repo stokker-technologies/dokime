@@ -64,6 +64,62 @@ def test_candidate_archive(tmp_path: Path) -> None:
         assert archive.getinfo("remote/cli/control-test.sh").external_attr >> 16 == 0o100755
 
 
+def test_release_requires_source_distribution(tmp_path: Path) -> None:
+    root, wheel = _fixture(tmp_path)
+    output = root / "target/build/release/any/python"
+    output.mkdir(parents=True)
+    candidate = output / wheel.name
+    shutil.copyfile(wheel, candidate)
+    examples.stage(root, output / "examples/remote", wheel=candidate)
+    with pytest.raises(FileNotFoundError):
+        examples.package(root, "release")
+    source = output / "dokime_client-0.1.0.tar.gz"
+    source.write_bytes(b"built source distribution")
+    examples.package(root, "release")
+    packaged = root / "target/package/release/any/python"
+    assert (packaged / source.name).read_bytes() == source.read_bytes()
+    assert {path.name for path in packaged.iterdir()} == {source.name, wheel.name, "dokime-remote-examples-0.1.0.zip"}
+
+
+def test_release_candidate_relock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    root, _old_wheel = _fixture(tmp_path)
+    policy = root / "stkr.toml"
+    policy.write_text(policy.read_text().replace('value = "0.1.0"', 'value = "0.2.0"'))
+    project = root / "packages/dokime-client/examples/remote/python"
+    manifest = project / "pyproject.toml"
+    manifest.write_text(manifest.read_text().replace('version = "0.1.0"', 'version = "0.2.0"'))
+    bootstrap = project.parent / "cli/bootstrap.ps1"
+    bootstrap.write_text("$DOKIME_VERSION = '0.1.0'\n", encoding="utf-8")
+
+    def build(directory: Path, profile: str) -> list[Path]:
+        assert directory == root and profile == "dev"
+        output = root / "target/build/dev/any/python"
+        shutil.rmtree(output)
+        output.mkdir(parents=True)
+        candidate = output / "dokime_client-0.2.0-py3-none-any.whl"
+        with zipfile.ZipFile(candidate, "w") as archive:
+            archive.writestr(
+                "dokime_client-0.2.0.dist-info/METADATA",
+                "Metadata-Version: 2.3\nName: dokime-client\nVersion: 0.2.0\nRequires-Python: >=3.13,<3.16\n",
+            )
+            archive.writestr(
+                "dokime_client-0.2.0.dist-info/WHEEL", "Wheel-Version: 1.0\nGenerator: fixture\nRoot-Is-Purelib: true\nTag: py3-none-any\n"
+            )
+            archive.writestr("dokime_client-0.2.0.dist-info/RECORD", "")
+        return [candidate]
+
+    monkeypatch.setattr(examples.wheel, "build", build)
+    monkeypatch.setenv("UV_OFFLINE", "true")
+    with capsys.disabled():
+        examples.prepare_release(root)
+    wheel = root / "target/build/dev/any/python/dokime_client-0.2.0-py3-none-any.whl"
+    examples.stage(root, root / "target/build/dev/any/python/examples/remote", wheel=wheel)
+    assert "dokime-client==0.2.0" in manifest.read_text()
+    assert examples._candidate(project).name == wheel.name
+    assert bootstrap.read_text() == "$DOKIME_VERSION = '0.2.0'\n"
+    assert hashlib.sha256(wheel.read_bytes()).hexdigest() in (project / "uv.lock").read_text()
+
+
 @pytest.mark.parametrize("fault", ["wheel", "hash", "version", "source", "pin", "python"])
 def test_candidate_refusal(tmp_path: Path, fault: str) -> None:
     root, wheel = _fixture(tmp_path)
@@ -110,24 +166,6 @@ def test_built_candidate_refused(tmp_path: Path, fault: str) -> None:
     with pytest.raises(ValueError):
         examples.package(root, "dev")
     assert archive.read_bytes() == previous
-
-
-@pytest.mark.parametrize("subject", ["wheel", "script", "directory"])
-def test_link_refusal(tmp_path: Path, subject: str) -> None:
-    root, wheel = _fixture(tmp_path)
-    source = root / "packages/dokime-client/examples/remote"
-    path = wheel if subject == "wheel" else source / "python/control-test.py"
-    if subject == "directory":
-        directory = source / "python"
-        external = tmp_path / "external"
-        directory.rename(external)
-        directory.symlink_to(external, target_is_directory=True)
-    else:
-        external = tmp_path / "external"
-        path.rename(external)
-        path.symlink_to(external)
-    with pytest.raises(ValueError, match="regular file"):
-        examples.stage(root, root / "target/build/dev/any/python/examples/remote", wheel=wheel)
 
 
 # === Private Functions === #

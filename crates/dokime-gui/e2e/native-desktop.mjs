@@ -458,33 +458,36 @@ async function startSession(work, endpoint, evidence) {
 
   const port = await unusedPort();
   const driver = process.env.DOKIME_E2E_DRIVER ?? (windows ? "msedgedriver.exe" : "WebKitWebDriver");
-  driverProcess = spawn(driver, ["--host=127.0.0.1", `--port=${port}`, ...(windows ? ["--verbose", `--log-path=${join(evidence, "webdriver.log")}`] : [])], {
-    windowsHide: true,
-    detached: !windows,
-    windowsHide: true,
-    env: {
-      ...process.env,
-      TAURI_WEBVIEW_AUTOMATION: "true",
-      DOKIME_APPLICATION_ROOT: join(home, "application"),
-      ...(windows
-        ? {
-            WEBVIEW2_USER_DATA_FOLDER: join(home, "webview"),
-            APPDATA: join(home, "data"),
-            LOCALAPPDATA: join(home, "data"),
-          }
-        : {
-            GDK_BACKEND: "x11",
-            HOME: home,
-            PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
-            XDG_CACHE_HOME: join(home, "cache"),
-            XDG_CONFIG_HOME: join(home, "config"),
-            XDG_DATA_HOME: join(home, "data"),
-            XDG_DOWNLOAD_DIR: downloads,
-            XDG_STATE_HOME: join(home, "state"),
-          }),
+  driverProcess = spawn(
+    driver,
+    ["--host=127.0.0.1", `--port=${port}`, ...(windows ? ["--verbose", `--log-path=${join(evidence, "webdriver.log")}`] : [])],
+    {
+      detached: !windows,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        TAURI_WEBVIEW_AUTOMATION: "true",
+        DOKIME_APPLICATION_ROOT: join(home, "application"),
+        ...(windows
+          ? {
+              WEBVIEW2_USER_DATA_FOLDER: join(home, "webview"),
+              APPDATA: join(home, "data"),
+              LOCALAPPDATA: join(home, "data"),
+            }
+          : {
+              GDK_BACKEND: "x11",
+              HOME: home,
+              PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
+              XDG_CACHE_HOME: join(home, "cache"),
+              XDG_CONFIG_HOME: join(home, "config"),
+              XDG_DATA_HOME: join(home, "data"),
+              XDG_DOWNLOAD_DIR: downloads,
+              XDG_STATE_HOME: join(home, "state"),
+            }),
+      },
+      stdio: ["ignore", "ignore", "inherit"],
     },
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  );
   const webdriver = driverProcess;
   const base = `http://127.0.0.1:${port}`;
 
@@ -1182,8 +1185,8 @@ async function answerPendingPrompts(session) {
     });
   }
   try {
-  /* The cycle page answers nothing an execution asked: it names where. */
-  const cycleSighting = await session.execute(`
+    /* The cycle page answers nothing an execution asked: it names where. */
+    const cycleSighting = await session.execute(`
     const needed = document.querySelector('[data-input-needed]');
     if (!needed) return null;
     return {
@@ -1192,17 +1195,17 @@ async function answerPendingPrompts(session) {
       responsePanels: document.querySelectorAll('[aria-labelledby="active-prompt-title"]').length,
     };
   `);
-  if (cycleSighting) {
-    cycleInputSightings.push(cycleSighting);
-    await session.execute(`
+    if (cycleSighting) {
+      cycleInputSightings.push(cycleSighting);
+      await session.execute(`
       const link = [...document.querySelectorAll('[data-input-needed] button')].find((button) => /^Answer On #/.test(button.innerText.trim()));
       link?.click();
     `);
-    await delay(800);
-  }
-  /* The queue is gone the moment its last prompt is answered, so what it
+      await delay(800);
+    }
+    /* The queue is gone the moment its last prompt is answered, so what it
      showed is read here, before answering, and asserted once the run is over. */
-  const sighting = await session.execute(`
+    const sighting = await session.execute(`
     const queue = document.querySelector('ol[aria-label="Pending Prompts"]');
     if (!queue) return null;
     const cards = [...queue.querySelectorAll('li[data-prompt-level]')];
@@ -1230,11 +1233,11 @@ async function answerPendingPrompts(session) {
         document.querySelector('[data-testid="navigation-prompt-count"]')?.innerText ?? null,
     };
   `);
-  if (sighting) promptSightings.push(sighting);
-  const pending = sighting?.cards.length ?? 0;
-  if (!pending) return 0;
-  await session.execute(
-    `const note = arguments[0];
+    if (sighting) promptSightings.push(sighting);
+    const pending = sighting?.cards.length ?? 0;
+    if (!pending) return 0;
+    await session.execute(
+      `const note = arguments[0];
      const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]') ?? document.body;
      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
      for (const input of panel.querySelectorAll('input[type="text"], input[type="number"]')) {
@@ -1246,10 +1249,10 @@ async function answerPendingPrompts(session) {
      for (const box of panel.querySelectorAll('[role="checkbox"], [role="switch"]')) {
        if (box.getAttribute('aria-checked') !== 'true') box.click();
      }`,
-    [OPERATOR_NOTE],
-  );
-  await delay(400);
-  const submitted = await session.execute(`
+      [OPERATOR_NOTE],
+    );
+    await delay(400);
+    const submitted = await session.execute(`
     const panel = document.querySelector('li[data-prompt-state="open"] [aria-labelledby="active-prompt-title"]');
     if (!panel) return false;
     const submit = [...panel.querySelectorAll('button')].find((button) =>
@@ -1259,16 +1262,19 @@ async function answerPendingPrompts(session) {
     submit.click();
     return true;
   `);
-  if (submitted) await delay(1500);
-  return pending;
+    if (submitted) await delay(1500);
+    return pending;
   } finally {
     if (selection) {
-      await session.execute(`
+      await session.execute(
+        `
         const row = [...document.querySelectorAll('nav[aria-label="Navigation"] li[data-execution-id]')]
           .find((candidate) => candidate.dataset.executionId === arguments[0]);
         if (!row) throw new Error('The measured execution disappeared while answering another prompt');
         row.querySelector('button[data-tree-select]').click();
-      `, [selection.executionId]);
+      `,
+        [selection.executionId],
+      );
       await until("the restored measured execution", async () => {
         const location = await session.location();
         return location.pathname === selection.cycle && location.searchParams.get("executionId") === selection.executionId;
@@ -2659,7 +2665,7 @@ async function remoteAccessJourney() {
     delete env.DOKIME_ENDPOINT;
     let result;
     try {
-      result = await promisify(execFile)(cliBinary, args, { cwd: work, env, timeout: 15000 });
+      result = await promisify(execFile)(cliBinary, args, { windowsHide: true, cwd: work, env, timeout: 15000 });
     } catch (error) {
       assert.ok(!accepted, "the saved remote secrets establish a real CLI connection");
       assert.equal(error.killed, false, "secret refusal returns without killing the client");
@@ -3110,7 +3116,11 @@ async function reportJourney(session, cycleId) {
   let chromeProcess;
   let socket;
   try {
-    const chrome = process.env.DOKIME_E2E_CHROME ?? (windows ? join(process.env["ProgramFiles(x86)"] ?? process.env.ProgramFiles, "Microsoft/Edge/Application/msedge.exe") : "google-chrome");
+    const chrome =
+      process.env.DOKIME_E2E_CHROME ??
+      (windows
+        ? join(process.env["ProgramFiles(x86)"] ?? process.env.ProgramFiles, "Microsoft/Edge/Application/msedge.exe")
+        : "google-chrome");
     const port = await unusedPort();
     chromeProcess = spawn(
       chrome,
@@ -3355,7 +3365,7 @@ async function journey(name, run) {
 async function terminate(child, signal = "SIGTERM") {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
   if (windows) {
-    await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"]);
+    await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
     return;
   }
   try {
@@ -3399,6 +3409,7 @@ async function installWindowsCandidate() {
   installation = join(work, "installation");
   installerAttempted = true;
   await promisify(execFile)(resolve(installer), ["/S", `/D=${installation}`], {
+    windowsHide: true,
     windowsVerbatimArguments: true,
     timeout: 120000,
   });
@@ -3636,6 +3647,7 @@ async function emptyCycleHistory(session, cycleId, title, ownership) {
   );
   const archive = join(evidence, `empty-cycle-${cycleId}.zip`);
   const result = await promisify(execFile)(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
+    windowsHide: true,
     cwd: work,
     timeout: 60000,
   });
@@ -3864,7 +3876,7 @@ async function chooseNativeFile(picker, file) {
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
       if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
-      const run = (args) => promisify(execFile)("xdotool", args, { timeout: 10000 });
+      const run = (args) => promisify(execFile)("xdotool", args, { windowsHide: true, timeout: 10000 });
       const found = await run(["search", "--all", "--onlyvisible", "--pid", pid, "--name", "^Open File$"]).catch((error) => {
         if (error.code === 1) return null;
         throw error;
@@ -3904,6 +3916,7 @@ async function chooseNativeFile(picker, file) {
         }
       }`;
   const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    windowsHide: true,
     env: { ...process.env, DOKIME_PICKER_SHELL: resolve(shellBinary), DOKIME_PICKER_FILE: resolve(file) },
     timeout: 10000,
   });
@@ -3948,7 +3961,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
       archive,
       manifest,
     ],
-    { timeout: 10000 },
+    { windowsHide: true, timeout: 10000 },
   );
   const choose = async () => {
     await session.goto("/settings/appearance");
@@ -4134,7 +4147,7 @@ async function startSecretService() {
         "org.freedesktop.DBus.NameHasOwner",
         "string:org.freedesktop.secrets",
       ],
-      { timeout: 5000 },
+      { windowsHide: true, timeout: 5000 },
     );
     return result.stdout.includes("boolean true");
   });
@@ -4278,6 +4291,7 @@ try {
       const uninstallers = (await readdir(installation)).filter((name) => /^uninstall.*\.exe$/i.test(name));
       assert.equal(uninstallers.length, 1, "the candidate installs its native uninstaller");
       await promisify(execFile)(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
+        windowsHide: true,
         windowsVerbatimArguments: true,
         timeout: 120000,
       });

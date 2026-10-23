@@ -7,7 +7,7 @@
   "outputs": [
     {
       "path": "crates/dokime-gui/src-tauri/icons/128x128.png",
-      "sha256": "d6dbb96d65025a6542e65bd789ba4f93e74e747289f4e9cf0cca2d53466e49be"
+      "sha256": "cfdf50fb189c7791b50db678f8c3171a295bac709f1bc67d76503ef7a20d4861"
     },
     {
       "path": "crates/dokime-gui/src-tauri/icons/128x128@2x.png",
@@ -20,6 +20,18 @@
     {
       "path": "crates/dokime-gui/src-tauri/icons/64x64.png",
       "sha256": "b11b03b33d6f209f1988b0e5a350ae1702c6394685b8d00e3cdf7ee102d36982"
+    },
+    {
+      "path": "crates/dokime-gui/src-tauri/icons/icon.icns",
+      "sha256": "766db820ff811de7c3b8f967bccae6ce0518568aa97d277789083521f603d23f"
+    },
+    {
+      "path": "crates/dokime-gui/src-tauri/icons/icon.ico",
+      "sha256": "ae3e19e0ae4a669ba9bd21100c498dc96469f174a2148cda8744fb6ab9908af3"
+    },
+    {
+      "path": "crates/dokime-gui/src-tauri/icons/icon.png",
+      "sha256": "478098b87f2ae0295196aa030384d4a8c0e631ee0b01bc54195840994091040d"
     },
     {
       "path": "crates/dokime-gui/src-tauri/icons/Square107x107Logo.png",
@@ -60,18 +72,6 @@
     {
       "path": "crates/dokime-gui/src-tauri/icons/StoreLogo.png",
       "sha256": "13906c80f98ed678386c00d2d3370cf927015b749d9adfd2e3409122d07c72ad"
-    },
-    {
-      "path": "crates/dokime-gui/src-tauri/icons/icon.icns",
-      "sha256": "fba22f8ebd6e1627a09a73d381755946845570554d739ac47a23d4147815ef45"
-    },
-    {
-      "path": "crates/dokime-gui/src-tauri/icons/icon.ico",
-      "sha256": "ae3e19e0ae4a669ba9bd21100c498dc96469f174a2148cda8744fb6ab9908af3"
-    },
-    {
-      "path": "crates/dokime-gui/src-tauri/icons/icon.png",
-      "sha256": "478098b87f2ae0295196aa030384d4a8c0e631ee0b01bc54195840994091040d"
     }
   ]
 }

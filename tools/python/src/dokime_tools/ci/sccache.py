@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/sccache.py; sha256:7f19e4524e10e8639c713343e4f48bb7652b9b72ac7380e426a8dd676bfe2560
+# Rendered by stkr project update from templates/python/ci/sccache.py; sha256:7f021ea58644370d2b0a37d8ad661852b070b9a62e6c720a9fbeb262f4d20d36
 # ***
 #
 # Dokime
@@ -148,15 +148,31 @@ def _execute(script: str, shell: str | None, environment: dict[str, str], backen
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 env=child_environment,
             ) as child:
-                while child.poll() is None:
-                    if server.poll() is not None:
-                        child.terminate()
-                        raise RuntimeError("sccache: owned compiler cache server exited during the command")
-                    try:
-                        return child.wait(timeout=0.2)
-                    except subprocess.TimeoutExpired:
-                        continue
-                return child.returncode
+                try:
+                    while child.poll() is None:
+                        if server.poll() is not None:
+                            child.terminate()
+                            raise RuntimeError("sccache: owned compiler cache server exited during the command")
+                        try:
+                            return child.wait(timeout=0.2)
+                        except subprocess.TimeoutExpired:
+                            continue
+                    return child.returncode
+                finally:
+                    if server.poll() is None:
+                        try:
+                            subprocess.run(
+                                ["sccache", "--show-stats"],
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                                env=child_environment,
+                                stdin=subprocess.DEVNULL,
+                                stdout=sys.stdout,
+                                stderr=subprocess.DEVNULL,
+                                check=True,
+                                timeout=10,
+                            )
+                        except (OSError, subprocess.SubprocessError):
+                            print("sccache: final statistics unavailable", file=sys.stderr)
         finally:
             # The Process Handle Is Ours; Never Issue Stop-Server Against A Reused Endpoint.
             if server.poll() is None:

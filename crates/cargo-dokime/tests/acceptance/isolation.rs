@@ -46,7 +46,6 @@ fn isolate_mise(command: &mut Command, plugin: &Path) -> tempfile::NamedTempFile
     configuration
 }
 
-
 /* === Tests === */
 
 #[test]

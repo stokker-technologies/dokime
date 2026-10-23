@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:59b55a12e4eb04234f15371e1ba63f54e35e4131a7c761733ce3e799a45fee3d
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:f4cf4543992cabe69913fdfc6476027f63c6911f9df0f437d3913cf035820e15
 name: Test
 "on":
   workflow_call:
@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -314,7 +314,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -598,11 +598,11 @@ jobs:
         path: .cache/uv/
   validate_test_rust_acceptance_windows:
     name: Rust / Acceptance (windows)
-    runs-on: stokker-local-windows-x64
+    runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_acceptance_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -836,6 +836,12 @@ jobs:
         if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
         & $tar -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-windows
@@ -917,7 +923,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_system_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -1153,6 +1159,12 @@ jobs:
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
         name: build-tests-${{ env.PROFILE }}-windows
     - name: Extract Build
       shell: pwsh
@@ -1232,7 +1244,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_typescript_system_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -1468,6 +1480,12 @@ jobs:
         if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
         & $tar -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-windows

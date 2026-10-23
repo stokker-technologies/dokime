@@ -58,7 +58,11 @@ fn installation(programs: &[&Path]) -> tempfile::TempDir {
 
 fn server() -> PathBuf {
     let platform = if cfg!(windows) { "windows" } else { "linux" };
-    let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).ancestors().find(|path| path.join("Cargo.lock").is_file()).unwrap().to_owned();
+    let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+        .ancestors()
+        .find(|path| path.join("Cargo.lock").is_file())
+        .unwrap()
+        .to_owned();
     let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
     let target = format!("{platform}-{}", std::env::consts::ARCH);
     let server =

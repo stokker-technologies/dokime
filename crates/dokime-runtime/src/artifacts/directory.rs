@@ -15,21 +15,37 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
-use std::io::{self, Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::io;
+
+#[cfg(feature = "native")]
+use std::io::{Read, Seek, SeekFrom};
+
+#[cfg(feature = "native")]
+use std::path::Path;
+
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
+
+#[cfg(feature = "native")]
 use std::time::SystemTime;
 
 // Third Party Imports
 
 // Local Imports
-use super::stream::{ArtifactSink, inferred_mime, transfer_identity, validated};
+use super::stream::{ArtifactSink, validated};
+
+#[cfg(feature = "native")]
+use super::stream::{inferred_mime, transfer_identity};
+
+#[cfg(feature = "native")]
 use crate::transport::{ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES};
 
 /* === Constants === */
 
+#[cfg(feature = "native")]
 const GROWTH_FLOOR: u64 = 64 * 1024;
+
 const ARTIFACTS: &str = "artifacts";
 
 // The registration name of the whole artifacts folder.
@@ -43,13 +59,23 @@ const ROOT: &str = "";
 
 pub(super) struct Directories {
     area: PathBuf,
+
+    #[cfg(feature = "native")]
     token: Arc<str>,
+
+    #[cfg(feature = "native")]
     sink: Arc<dyn ArtifactSink>,
+
+    #[cfg(feature = "native")]
     ordinals: Arc<AtomicU64>,
+
     registered: BTreeMap<String, PathBuf>,
+
+    #[cfg(feature = "native")]
     watched: BTreeMap<String, Watched>,
 }
 
+#[cfg(feature = "native")]
 struct Watched {
     transfer_id: String,
     mime: String,
@@ -68,7 +94,21 @@ struct Watched {
 
 impl Directories {
     pub(super) fn new(token: Arc<str>, sink: Arc<dyn ArtifactSink>, ordinals: Arc<AtomicU64>) -> Self {
-        Self { area: working_area(&token), token, sink, ordinals, registered: BTreeMap::new(), watched: BTreeMap::new() }
+        #[cfg(not(feature = "native"))]
+        let _ = (sink, ordinals);
+
+        Self {
+            area: working_area(&token),
+            #[cfg(feature = "native")]
+            token,
+            #[cfg(feature = "native")]
+            sink,
+            #[cfg(feature = "native")]
+            ordinals,
+            registered: BTreeMap::new(),
+            #[cfg(feature = "native")]
+            watched: BTreeMap::new(),
+        }
     }
 
     pub(super) fn directory(&mut self, name: &str) -> io::Result<PathBuf> {
@@ -97,10 +137,12 @@ impl Directories {
         Ok(path)
     }
 
+    #[cfg(feature = "native")]
     pub(super) fn scan(&mut self) -> Vec<String> {
         self.walk(false)
     }
 
+    #[cfg(feature = "native")]
     pub(super) fn sweep(&mut self) -> Vec<String> {
         if self.registered.is_empty() {
             return Vec::new();
@@ -114,6 +156,7 @@ impl Directories {
         notes
     }
 
+    #[cfg(feature = "native")]
     fn walk(&mut self, sweeping: bool) -> Vec<String> {
         let mut notes = Vec::new();
         let registered = std::mem::take(&mut self.registered);
@@ -131,6 +174,7 @@ impl Directories {
         notes
     }
 
+    #[cfg(feature = "native")]
     fn file(&mut self, name: String, path: &Path, sweeping: bool, notes: &mut Vec<String>) {
         if self.watched.get(&name).is_some_and(|watched| watched.refused) {
             return;
@@ -208,11 +252,13 @@ impl Directories {
         }
     }
 
+    #[cfg(feature = "native")]
     fn refuse(&mut self, name: String) {
         self.watched.entry(name).or_insert_with(|| Watched::new(String::new(), String::new())).refused = true;
     }
 }
 
+#[cfg(feature = "native")]
 impl Watched {
     fn new(transfer_id: String, mime: String) -> Self {
         Self { transfer_id, mime, sequence: 0, sent: 0, modified: None, restart: false, refused: false }
@@ -252,6 +298,7 @@ fn working_area(token: &str) -> PathBuf {
     std::env::temp_dir().join(format!("dokime-{readable}-{:016x}", hasher.finish()))
 }
 
+#[cfg(feature = "native")]
 fn files(name: &str, root: &Path, notes: &mut Vec<String>) -> Vec<(String, PathBuf)> {
     let mut found = Vec::new();
     let mut pending = vec![(name.to_owned(), root.to_owned())];
@@ -283,6 +330,7 @@ fn files(name: &str, root: &Path, notes: &mut Vec<String>) -> Vec<(String, PathB
     found
 }
 
+#[cfg(feature = "native")]
 fn read(path: &Path, from: u64, pending: u64, sweeping: bool) -> io::Result<Vec<Vec<u8>>> {
     let mut file = std::fs::File::open(path)?;
     file.seek(SeekFrom::Start(from))?;

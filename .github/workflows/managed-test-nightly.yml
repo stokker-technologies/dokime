@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-nightly.yml; sha256:fa3df6827b7301c38e735ac2f03f01df1070e3c91d591ace5218c01fe089e159
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-nightly.yml; sha256:080c09c8b94b76023c97f92a86bd2061beee9e774b23291e9ec0c9838c158d39
 name: Test
 "on":
   workflow_call:
@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_coverage_python }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,npm:@fission-ai/openspec,taplo,protoc
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -241,6 +241,12 @@ jobs:
       run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
         name: build-tests-${{ env.PROFILE }}-linux
     - name: Extract Build
       shell: bash
@@ -296,11 +302,11 @@ jobs:
     if: github.event_name == 'schedule'
   validate_coverage_rust:
     name: Rust / Coverage
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).nightly.coverage }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_coverage_rust }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,npm:@fission-ai/openspec,taplo,protoc
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -515,6 +521,12 @@ jobs:
     - name: Extract Build
       shell: bash
       run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-linux

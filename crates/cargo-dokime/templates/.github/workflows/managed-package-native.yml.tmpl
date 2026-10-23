@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-native.yml; sha256:b0a8e3585d79912bebfb5e92fb39ff95a94f3e3b0683c0149de244c165b0f9c4
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-native.yml; sha256:bb5320d5517dd8648a992e78302bc3380ea3b2307e031f3bb247a9ff8adceb6c
 name: Package
 "on":
   workflow_call:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_rust }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'

@@ -1,25 +1,31 @@
-# Dokime brand — typed app identity, theme policy, and geometry.
+# Dokime Organization Pack — App Identity, Theme Policy And Geometry.
 #
-# This file is the root manifest of the brand bundle: the single,
-# highest-precedence source of the app's appearance. It beats any artifact
-# catalog's customization contribution, which in turn beats the built-in neutral
-# default. A fork rebrands by editing this manifest and the per-concern folders
-# beside it — no Rust or GUI changes.
+# This authored pack supplies the compiled appearance. An installed Organization
+# Pack can override appearance on the next desktop start; bundle identity,
+# storage identity, deep-link registration and signing trust remain compiled.
+# A fork changes its compiled identity here and rebuilds the application.
 #
-# Bundle layout (one folder per concern; compiled into `dokime-app` when the
-# binaries are built, so a rebrand needs a rebuild):
+# Pack Layout (Compiled Into `dokime-gui` When The Binaries Are Built):
 #
-#   brand.toml    this manifest — identity, theme policy, corner geometry
-#   logos/        app marks, named `<treatment>-<theme>.<ext>`
+#   organization.toml    this manifest — identity, theme policy, corner geometry
+#   logos/        app marks, named `<treatment>-on-<surface>.<ext>`
 #   icons/        OS app-icon sources (icon.png is the desktop icon master)
 #   theme/        authored CSS: typography.css, base.css, light.css, dark.css
 #   fonts/        vendored woff2 faces (offline; never fetched at runtime)
 #   generated/    tracked build outputs — never hand-edited
 #
-# Brand assets are compiled into dokime-app; rebuild after editing.
+# Run `mise run prepare:organization` and rebuild after editing compiled assets.
 #
 # Typography and palette values live in theme/. This TOML intentionally has no
 # font or color values.
+
+[updates]
+mode = "manual"
+source = "dokime"
+
+[updates.sources.dokime]
+kind = "github"
+repository = "stokker-technologies/dokime"
 
 [app]
 # Display name shown in the title bar and app shell.
@@ -39,15 +45,16 @@ name = "Stokker Technologies"
 # unit = "..."       # optional
 # website = "..."    # optional
 
-[app.logo]
-# The mark the app shell and reports render, resolved from this bundle's logos/
-# folder. Files there are named `<treatment>-<theme>`: `treatment` is the
-# artwork form (`contained` sits on its own plate, `transparent` is plate-less),
-# `theme` is the mark's own ink tone. Only the SVG is loaded by the runtime; a
-# same-named raster beside it is the export master.
-file = "contained-dark.svg"
-mime_type = "image/svg+xml"
-alt = "Dokime"
+# Stoa categories: treatment and intended background surface, not ink tone.
+# Runtime sources are SVG filenames within logos/; matching PNGs are exports.
+# The shell prefers transparent artwork and falls back within the same surface.
+[app.logos.transparent]
+on_light = "transparent-on-light.svg"
+on_dark = "transparent-on-dark.svg"
+
+[app.logos.contained]
+on_light = "contained-on-light.svg"
+on_dark = "contained-on-dark.svg"
 
 [theme]
 # register_only | default | required.

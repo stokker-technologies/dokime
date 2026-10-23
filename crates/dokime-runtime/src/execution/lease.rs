@@ -40,7 +40,10 @@ pub struct Lease<'a, R> {
     stream: Identifier,
     lease_token: String,
     release: Arc<dyn LeaseRelease>,
+
+    #[cfg(feature = "native")]
     streams: Streams,
+
     row: PhantomData<fn() -> R>,
     borrowed: PhantomData<&'a ()>,
 }
@@ -57,7 +60,18 @@ pub trait LeaseRelease: Send + Sync {
 
 impl<'a, R> Lease<'a, R> {
     pub fn new(stream: Identifier, hold: LeaseHold, streams: Streams) -> Self {
-        Self { stream, lease_token: hold.lease_token, release: hold.release, streams, row: PhantomData, borrowed: PhantomData }
+        #[cfg(not(feature = "native"))]
+        let _ = streams;
+
+        Self {
+            stream,
+            lease_token: hold.lease_token,
+            release: hold.release,
+            #[cfg(feature = "native")]
+            streams,
+            row: PhantomData,
+            borrowed: PhantomData,
+        }
     }
 
     pub fn stream(&self) -> &Identifier {

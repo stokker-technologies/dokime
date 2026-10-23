@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-windows.yml; sha256:ecb94692f1daea004a8a3c3c6a6272e4c53e046f7e044290701ce3bd6b1e98da
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-windows.yml; sha256:6a5eb9932288b850181de3cf5c477ba97607498a8733d420d3766034308374f1
 name: Package
 "on":
   workflow_call:
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_rust_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -356,7 +356,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_signing_windows_rust_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,minisign
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'

@@ -36,7 +36,6 @@ media-native = ["dokime-server/media-native"]
 [dependencies]
 # Local
 dokime = { version = "0.1.0", path = "../dokime" }
-dokime-runtime = { version = "0.1.0", path = "../dokime-runtime" }
 dokime-server = { version = "0.1.0", path = "../dokime-server" }
 
 # Git

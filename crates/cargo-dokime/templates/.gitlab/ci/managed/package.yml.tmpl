@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:5eb62948f5d532f244e99e449d912507aea92a0d0fb74d6251f5f469494a7379
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:306ea9ef44913d1fe247f6f18c73d821878f6700852d3e5122440b7a367f20c4
 Package / Rust (linux):
   stage: Package
   tags:
@@ -28,7 +28,7 @@ Package / Rust (linux):
     - target/package/$PROFILE/linux-*/rust/
   variables:
     MISE_ENABLE_TOOLS: >-
-      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
   before_script:
   - >-
     if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
@@ -245,4 +245,4 @@ Package / Rust (windows):
   - mise install --yes
   variables:
     MISE_ENABLE_TOOLS: >-
-      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv

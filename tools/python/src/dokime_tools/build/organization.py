@@ -19,6 +19,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 from pathlib import Path
@@ -84,8 +85,24 @@ def generate_icons() -> None:
     cli = ROOT / "crates/dokime-gui/node_modules/@tauri-apps/cli/tauri.js"
     with tempfile.TemporaryDirectory(prefix="organization-icons-") as directory:
         command = ["node", str(cli), "icon", str(BRAND / "icons/icon.png"), "--output", directory]
-        subprocess.run(command, cwd=ROOT, check=True)
-        subprocess.run([*command, "--png", "64"], cwd=ROOT, check=True)
+        subprocess.run(
+            command,
+            cwd=ROOT,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        subprocess.run(
+            [*command, "--png", "64"],
+            cwd=ROOT,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         outputs = sorted(path for path in Path(directory).iterdir() if path.is_file())
         for path in outputs:
             shutil.copyfile(path, destination / path.name)

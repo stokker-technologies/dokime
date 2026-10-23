@@ -15,6 +15,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -72,12 +73,30 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
         )
         # Generate Through The Built Product In An Independent Git And Cargo Boundary.
         plugin = scratch / "starter-plugin"
-        subprocess.run([str(executable), "dokime", "new", str(plugin)], cwd=scratch, env=environment, check=True)
-        subprocess.run(["git", "init", "--initial-branch=feat/starter"], cwd=plugin, env=environment, check=True)
+        subprocess.run(
+            [str(executable), "dokime", "new", str(plugin)],
+            cwd=scratch,
+            env=environment,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        subprocess.run(
+            ["git", "init", "--initial-branch=feat/starter"],
+            cwd=plugin,
+            env=environment,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
 
         # The Candidate Supplies Its Authoring Tool Before That Version Is Published.
         candidate = json.dumps(str(built))
-        tool = f'"cargo:cargo-dokime" = {{ path = {candidate} }}\n'
+        tool = f'"github:stokker-technologies/dokime" = {{ path = {candidate} }}\n'
         overrides = f'[tasks.build.tools]\n{tool}\n[tasks."package:rust".tools]\n{tool}'
         (plugin / "mise.local.toml").write_text(overrides, encoding="utf-8", newline="\n")
 
@@ -127,18 +146,52 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
         lock = plugin / "uv.lock"
         before = _pins(lock)
         subprocess.run(
-            ["mise", "exec", "--", "uv", "lock", "--offline", "--project", "tools/python"], cwd=plugin, env=environment, check=True
+            ["mise", "exec", "--", "uv", "lock", "--offline", "--project", "tools/python"],
+            cwd=plugin,
+            env=environment,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
         if _pins(lock) != before:
             raise ValueError("the offline wheelhouse changed the starter's shipped Python pins")
 
         # The Local SDK Path Varies With The Checkout, So Its Override Takes The Starter's Own TOML Layout.
-        subprocess.run(["mise", "run", "format:toml"], cwd=plugin, env=environment, check=True)
+        subprocess.run(
+            ["mise", "run", "format:toml"],
+            cwd=plugin,
+            env=environment,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
 
         # The Starter's Own Recipes Prove Its Feature Edges, Product, Test Archive And Unit Lane.
-        subprocess.run(["mise", "run", "check"], cwd=plugin, env=environment, check=True)
+        subprocess.run(
+            ["mise", "run", "check"],
+            cwd=plugin,
+            env=environment,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         for task in ("build", "build:rust:tests", "test:rust:unit"):
-            subprocess.run(["mise", "run", task, "--profile", profile], cwd=plugin, env=environment, check=True)
+            subprocess.run(
+                ["mise", "run", task, "--profile", profile],
+                cwd=plugin,
+                env=environment,
+                check=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
 
 
 # === Private Functions === #

@@ -601,7 +601,7 @@ mod tests {
     }
 
     fn organization_folder() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../organization")
+        PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("../../../organization")
     }
 
     fn zip_folder(root: &Path, prefix: &str) -> Vec<u8> {

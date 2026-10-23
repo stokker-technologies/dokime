@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:6cb391121ffee9b4a388ef3b10f41e13827a211e4a642469023ee620f1853141
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:c9e9f4e7caca4fb82eb63b51078e0b8fedfef559e24a3e1130a72847105034f7
 Release / Publish:
   stage: Release
   tags:
@@ -70,6 +70,24 @@ Release / Publish:
             return False
         command("git", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "origin", head)
         return command("git", "rev-parse", "--verify", head + "^{tree}") == tree
+    def github_review_run(run, review):
+        if run.get("head_sha") != review["head"]["sha"]:
+            return False
+        associations = run.get("pull_requests")
+        if associations:
+            return any(pr.get("number") == review["number"] for pr in associations)
+        # GitHub Can Drop The Association After The Merged Source Branch Is Deleted.
+        repository = review["head"].get("repo", {}).get("id")
+        return (
+            associations == []
+            and isinstance(repository, int)
+            and repository > 0
+            and run.get("event") == "pull_request"
+            and run.get("head_branch") == review["head"]["ref"]
+            and run.get("head_repository", {}).get("id") == repository
+            and run.get("repository", {}).get("id") == review.get("base", {}).get("repo", {}).get("id")
+            and isinstance(run.get("repository", {}).get("id"), int)
+        )
     def lookup():
         sha = command("git", "rev-parse", "HEAD")
         tree = command("git", "rev-parse", "HEAD^{tree}")
@@ -98,7 +116,7 @@ Release / Publish:
             required += json.loads(os.environ.get("REVIEW_BUILDS", "[]"))
         if github:
             runs = pages(f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={head}", "workflow_runs")
-            runs = [run for run in runs if run.get("head_sha") == head and any(pr.get("number") == review["number"] for pr in run.get("pull_requests", []))]
+            runs = [run for run in runs if github_review_run(run, review)]
             run = max(runs, key=lambda item: item["id"])
             if run.get("status") != "completed" or run.get("conclusion") != "success":
                 raise ValueError("review run is not green")

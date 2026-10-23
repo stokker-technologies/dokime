@@ -464,6 +464,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         }
     }
 
+    #[cfg(feature = "native")]
     pub(crate) fn selecting(mut self, attempts: Arc<BTreeSet<StepAttemptId>>) -> Self {
         self.selected_attempts = attempts;
         self

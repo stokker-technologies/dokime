@@ -51,7 +51,10 @@ struct SdkArtifact {
 fn sdk_artifact() -> &'static SdkArtifact {
     static SDK: std::sync::OnceLock<SdkArtifact> = std::sync::OnceLock::new();
     SDK.get_or_init(|| {
-        let manifest = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("../dokime/Cargo.toml").canonicalize().unwrap();
+        let manifest = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+            .join("../dokime/Cargo.toml")
+            .canonicalize()
+            .unwrap();
         let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
         let target = std::env::var_os("CARGO_TARGET_DIR").map(|path| workspace.join(path)).unwrap_or_else(|| workspace.join("target"));
         // Tests Build Records The Selected SDK And Dependency Graph Beside Its Archive.
@@ -207,7 +210,11 @@ fn compile_configured(source: &str, configuration: Option<&str>) -> (std::proces
     let built = rustc
         .arg("--edition=2024")
         .arg("--crate-type=bin")
-        .arg(std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("tests").join(source))
+        .arg(
+            std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+                .join("tests")
+                .join(source),
+        )
         .arg("--extern")
         .arg(format!("sdk={}", sdk.library.display()))
         .arg("--extern")

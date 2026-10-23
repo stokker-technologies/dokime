@@ -13,6 +13,7 @@
 # Standard Library Imports
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
@@ -42,17 +43,63 @@ def build(root: Path, profile: str) -> None:
     messages = output / "product/compiler.json"
     metadata = messages.with_name("metadata.json")
     with metadata.open("w", encoding="utf-8") as written:
-        subprocess.run(["cargo", "metadata", "--locked", "--format-version", "1"], cwd=root, stdout=written, check=True)
+        subprocess.run(
+            ["cargo", "metadata", "--locked", "--format-version", "1"],
+            cwd=root,
+            stdout=written,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stderr=sys.stderr,
+        )
 
     # Freeze The Catalog And Assets From Those Exact Compiler Outputs
     with temporary.directory() as scratch:
         collected = scratch / "collected.json"
-        command = ["cargo", "dokime", "build", "--package", PACKAGE, "--profile", profile, "--json"]
-        command += ["--from-cargo-json", str(messages), "--metadata-json", str(metadata)]
+        command = [
+            "cargo",
+            "dokime",
+            "build",
+            "--package",
+            PACKAGE,
+            "--profile",
+            profile,
+            "--json",
+        ]
+        command += [
+            "--from-cargo-json",
+            str(messages),
+            "--metadata-json",
+            str(metadata),
+        ]
         with collected.open("w", encoding="utf-8") as written:
-            subprocess.run(command, cwd=root, stdout=written, check=True)
+            subprocess.run(
+                command,
+                cwd=root,
+                stdout=written,
+                check=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stderr=sys.stderr,
+            )
         bundles = scratch / "bundles"
-        subprocess.run(["cargo", "dokime", "package", "--build-json", str(collected), "--output", str(bundles)], cwd=root, check=True)
+        subprocess.run(
+            [
+                "cargo",
+                "dokime",
+                "package",
+                "--build-json",
+                str(collected),
+                "--output",
+                str(bundles),
+            ],
+            cwd=root,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         paths.replace(root, bundles, output / "plugins", origin=scratch)
 
 

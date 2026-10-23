@@ -150,6 +150,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             .expect("a bound workflow is run against the binding it was built from")
     }
 
+    #[cfg(feature = "native")]
     #[must_use]
     pub(crate) fn declaring(mut self, document: Arc<std::sync::Mutex<DocumentIndex>>) -> Self {
         self.document = document;

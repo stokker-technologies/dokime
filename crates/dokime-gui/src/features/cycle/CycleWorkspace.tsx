@@ -59,6 +59,7 @@ import {
   type CycleExecutionRow,
   type CycleSelection,
   cycleState,
+  type FollowState,
   finishedCaseCount,
   followSelection,
   isActiveExecutionStatus,

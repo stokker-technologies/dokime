@@ -14,6 +14,7 @@
 import argparse
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
@@ -39,14 +40,24 @@ PACKAGE = "{{package}}"
 def package(root: Path, profile: str) -> None:
     source = paths.output(root, "build", profile) / "plugins" / f"{PACKAGE}.dokime"
     if source.is_symlink() or not source.is_file():
-        raise ValueError("packaging requires the matching built plugin; run mise run build first")
+        raise ValueError(
+            "packaging requires the matching built plugin; run mise run build first"
+        )
     destination = paths.output(root, "package", profile) / "rust/plugins"
 
     # Package Consumes The Built Bundle Without Cargo Compilation
     with temporary.directory() as scratch:
         shutil.copy2(source, scratch / source.name)
         paths.replace(root, scratch, destination, origin=scratch)
-    subprocess.run(["cargo", "dokime", "inspect", str(destination / source.name)], cwd=root, check=True)
+    subprocess.run(
+        ["cargo", "dokime", "inspect", str(destination / source.name)],
+        cwd=root,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
 
 
 def main() -> None:

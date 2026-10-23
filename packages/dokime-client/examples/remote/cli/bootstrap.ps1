@@ -18,7 +18,7 @@ $INSTALL_DOKIME = $true
 # https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows
 # https://mise.jdx.dev/installing-mise.html#windows
 # https://mise.jdx.dev/shell-setup.html
-# https://github.com/cargo-bins/cargo-binstall
+# https://mise.jdx.dev/dev-tools/backends/github.html
 
 # Check Native Windows Prerequisites Before Changing Anything
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
@@ -135,16 +135,17 @@ try {
         $Dokime = Join-Path $CliBin 'dokime.exe'
         Push-Location -LiteralPath $env:USERPROFILE
         try {
-            & $Mise use -g aqua:cargo-bins/cargo-binstall
-            if ($LASTEXITCODE -ne 0) { throw "mise Returned Exit Code $LASTEXITCODE" }
-            & $Mise exec aqua:cargo-bins/cargo-binstall -- cargo-binstall dokime --version "=$DOKIME_VERSION" --root $CliRoot --no-confirm --strategies crate-meta-data --disable-strategies 'quick-install,compile'
+            if ($Architecture -ne 'x64') { throw 'The Published Dokime CLI Requires Windows x64' }
+            $Asset = "dokime-cli-$DOKIME_VERSION-x86_64-pc-windows-msvc.exe"
+            $Tool = "github:stokker-technologies/dokime[asset_pattern=$Asset,bin=dokime.exe]@$DOKIME_VERSION"
+            & $Mise install-into $Tool $CliBin
             if ($LASTEXITCODE -ne 0) { throw "mise Returned Exit Code $LASTEXITCODE" }
         } catch {
-            throw "Dokime $DOKIME_VERSION Installation Failed: $_. Its Registry Package And Official Windows Asset Must Be Published; No Source Build Was Attempted."
+            throw "Dokime $DOKIME_VERSION Installation Failed: $_. Its Official Windows Release Asset Must Be Published; No Registry Or Source Build Was Attempted."
         } finally {
             Pop-Location
         }
-        if (-not (Test-Path -LiteralPath $Dokime -PathType Leaf)) { throw 'cargo-binstall Did Not Install dokime.exe' }
+        if (-not (Test-Path -LiteralPath $Dokime -PathType Leaf)) { throw 'Mise Did Not Install dokime.exe' }
         & $Dokime --version
         if ($LASTEXITCODE -ne 0) { throw 'The Installed Dokime CLI Did Not Start' }
         # Preserve Unexpanded Variables And Existing User Entries
@@ -185,7 +186,6 @@ public static extern System.IntPtr SendMessageTimeout(System.IntPtr window, uint
     Write-Host '  mise doctor'
     Write-Host '  uv --version'
     if ($INSTALL_DOKIME) {
-        Write-Host '  cargo-binstall --version'
         Write-Host '  dokime --version'
         Write-Host "Dokime CLI: $Dokime"
     } else {

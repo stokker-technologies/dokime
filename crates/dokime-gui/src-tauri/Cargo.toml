@@ -18,7 +18,6 @@ build = "build.rs"
 default-run = "dokime-gui"
 version = { workspace = true }
 # Ships Inside The Desktop Installers, Not Through crates.io.
-publish = false
 
 [features]
 default = ["updater"]

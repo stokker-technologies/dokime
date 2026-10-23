@@ -132,8 +132,10 @@ export type FollowState = {
   active: string | null;
   /** The execution it named on the previous render. */
   previousActive: string | null;
-  /** Whether the selected execution ended since the previous render. */
-  selectedEnded: boolean;
+  /** The selected execution status is absent until its data arrives. */
+  selectedStatus: TestExecution["status"] | undefined;
+  /** The previous observation belongs to this exact selected execution. */
+  previousSelected: { executionId?: string; status: TestExecution["status"] | undefined } | null;
 };
 
 /** One entry of a node's "…" menu. */

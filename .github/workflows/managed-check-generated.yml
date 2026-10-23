@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-generated.yml; sha256:f741b93758fb8dad11065c310694c0b6bf2c6631bee61346a25b2e4d273efd21
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-generated.yml; sha256:295c5e02a1e6193dc1e8d6709a3cea0f76ff1a5d79106dcadeb92f89f7e6d0f8
 name: Check
 "on":
   workflow_call:
@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).check_generated_python }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -239,6 +239,12 @@ jobs:
     - name: Extract Build
       shell: bash
       run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.test.archive --profile ${{ env.PROFILE }} --install-wheels
@@ -288,7 +294,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).check_generated_typescript }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -501,6 +507,12 @@ jobs:
     - name: Extract Build
       shell: bash
       run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+    - name: Extract Python Product
+      shell: bash
+      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.test.archive --profile ${{ env.PROFILE }} --install-wheels

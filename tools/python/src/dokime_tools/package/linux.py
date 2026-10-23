@@ -16,6 +16,7 @@ import hashlib
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path, PurePosixPath
 
 # Third Party Imports
@@ -67,7 +68,14 @@ def _contents(package: Path) -> dict[str, str]:
     if executable is None:
         raise ValueError("Linux installer verification requires rpm; install it before packaging")
     query = "%{FILEDIGESTALGO}\n[%{FILENAMES}\t%{FILEDIGESTS}\n]"
-    result = subprocess.run([executable, "-qp", "--qf", query, str(package)], capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        [executable, "-qp", "--qf", query, str(package)],
+        capture_output=True,
+        text=True,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+    )
     lines = result.stdout.splitlines()
     if not lines or lines[0] != "8":
         raise ValueError("RPM icon verification requires SHA-256 file digests")
