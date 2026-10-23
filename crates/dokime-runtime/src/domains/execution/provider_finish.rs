@@ -273,7 +273,7 @@ impl RuntimeHandle {
             let Some(request) = state.run_requests.get(request_id) else {
                 return false;
             };
-            if request.groups.is_empty() {
+            if state.shutting_down || request.summary.stop_requested || !request.pending.is_empty() || request.groups.is_empty() {
                 return false;
             }
             // Fail-fast is the cycle's policy, and it spans groups: a target

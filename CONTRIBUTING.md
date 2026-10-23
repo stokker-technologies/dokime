@@ -41,6 +41,12 @@ sudo dnf install alsa-lib-devel kernel-headers clang
 The installed server then needs only `libasound.so.2` at runtime, plus a
 running `xdg-desktop-portal` for screenshots.
 
+Native desktop system validation runs the same scenarios on Windows and Linux.
+`mise run prepare:desktop` installs a Microsoft EdgeDriver matching the installed
+WebView2 runtime on Windows; `test:typescript:system` runs this setup automatically.
+Run Windows UI validation in an interactive desktop session. Linux uses
+WebKitWebDriver and a display; CI bootstrap supplies its runtime libraries and Xvfb.
+
 Start the desktop application with `mise run dev`. The repository layout and other
 entry points are described in [`README.md`](README.md).
 

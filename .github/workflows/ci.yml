@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:64986c4d5540da0d0ddca05ee73fcd081889b27f42d84dc517e6afb56880bbce
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:a9b268d64120eba41a47a9bb03a82884b05851c56d44f90cd8b4de5deb779321
 name: CI
 "on":
   push:
@@ -207,7 +207,7 @@ jobs:
     uses: ./.github/workflows/managed-test.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_python_acceptance\":120,\"validate_test_python_integration\":120,\"validate_test_typescript_integration\":120,\"validate_test_typescript_system\":120}"
+      timeouts: "{\"validate_test_python_acceptance\":120,\"validate_test_python_integration\":120,\"validate_test_typescript_integration\":120}"
     secrets: inherit
     needs:
     - build_linux
@@ -223,7 +223,7 @@ jobs:
     uses: ./.github/workflows/managed-test-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_rust_acceptance_linux\":120,\"validate_test_rust_integration_linux\":120,\"validate_test_rust_system_linux\":120,\"validate_test_rust_unit_linux\":120}"
+      timeouts: "{\"validate_test_rust_acceptance_linux\":120,\"validate_test_rust_integration_linux\":120,\"validate_test_rust_system_linux\":120,\"validate_test_rust_unit_linux\":120,\"validate_test_typescript_system_linux\":120}"
     secrets: inherit
     needs:
     - build_linux
@@ -239,7 +239,7 @@ jobs:
     uses: ./.github/workflows/managed-test-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
-      timeouts: "{\"validate_test_rust_acceptance_windows\":120,\"validate_test_rust_integration_windows\":120,\"validate_test_rust_system_windows\":120,\"validate_test_rust_unit_windows\":120}"
+      timeouts: "{\"validate_test_rust_acceptance_windows\":120,\"validate_test_rust_integration_windows\":120,\"validate_test_rust_system_windows\":120,\"validate_test_rust_unit_windows\":120,\"validate_test_typescript_system_windows\":120}"
     secrets: inherit
     needs:
     - build_windows

@@ -18,12 +18,15 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import tomllib
 import urllib.parse
+import urllib.request
+import zipfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -95,9 +98,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.gui_packages or arguments.gui_runtime:
         install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop)
     if arguments.desktop:
-        if sys.platform != "linux":
-            raise ValueError("the declared WebKit desktop bootstrap requires Linux")
-        if not os.environ.get("DISPLAY"):
+        if sys.platform == "win32":
+            prepare_windows_desktop(Path.cwd())
+        elif sys.platform != "linux":
+            raise ValueError("native desktop validation requires Windows or Linux")
+        elif not os.environ.get("DISPLAY"):
             github_environment = os.environ.get("GITHUB_ENV")
             if not github_environment:
                 raise ValueError("the desktop job needs DISPLAY or GitHub's environment file")
@@ -323,7 +328,71 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
     _run([*prefix, "apt-get", "install", "-y", "--no-install-recommends", *packages])
 
 
+def prepare_windows_desktop(root: Path) -> Path:
+    """Resolve WebView2 And Install Its Exact Microsoft WebDriver."""
+    version = _webview_version()
+    if version is None:
+        with tempfile.TemporaryDirectory(prefix="dokime-webview-") as temporary:
+            installer = Path(temporary) / "MicrosoftEdgeWebview2Setup.exe"
+            urllib.request.urlretrieve("https://go.microsoft.com/fwlink/p/?LinkId=2124703", installer)
+            _run([str(installer), "/silent", "/install"])
+        version = _webview_version()
+    if version is None or len(version.split(".")) != 4 or not all(part.isdigit() for part in version.split(".")):
+        raise ValueError("WebView2 did not report a valid installed runtime version")
+    destination = root / "target/tooling/desktop"
+    driver = destination / "msedgedriver.exe"
+    if not driver.is_file() or _driver_version(driver) != version:
+        with tempfile.TemporaryDirectory(prefix="dokime-edgedriver-") as temporary:
+            archive = Path(temporary) / "edgedriver.zip"
+            urllib.request.urlretrieve(f"https://msedgedriver.microsoft.com/{version}/edgedriver_win64.zip", archive)
+            with zipfile.ZipFile(archive) as downloaded:
+                executable = downloaded.read("msedgedriver.exe")
+            destination.mkdir(parents=True, exist_ok=True)
+            staged = destination / "msedgedriver.exe.new"
+            staged.write_bytes(executable)
+            actual = _driver_version(staged)
+            if actual != version:
+                staged.unlink()
+                raise ValueError(f"Microsoft WebDriver {actual!r} differs from WebView2 {version}")
+            staged.replace(driver)
+    _step(f"WebView2 and Microsoft WebDriver use {version}")
+    github_path = os.environ.get("GITHUB_PATH")
+    if github_path:
+        with Path(github_path).open("a", encoding="utf-8") as written:
+            written.write(str(destination) + "\n")
+    return driver
+
+
 # === Private Functions === #
+
+
+def _webview_version() -> str | None:
+    import winreg
+
+    key = r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        for view in (winreg.KEY_WOW64_32KEY, winreg.KEY_WOW64_64KEY):
+            try:
+                with winreg.OpenKey(hive, key, 0, winreg.KEY_READ | view) as installed:
+                    version = str(winreg.QueryValueEx(installed, "pv")[0])
+                    if version != "0.0.0.0":
+                        return version
+            except FileNotFoundError:
+                continue
+    return None
+
+
+def _driver_version(driver: Path) -> str:
+    output = subprocess.check_output(
+        [str(driver), "--version"],
+        text=True,
+        encoding="utf-8",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stderr=sys.stderr,
+    )
+    version = re.search(r"\b\d+\.\d+\.\d+\.\d+\b", output)
+    return version.group() if version else ""
 
 
 def _is_revision(value: object) -> bool:

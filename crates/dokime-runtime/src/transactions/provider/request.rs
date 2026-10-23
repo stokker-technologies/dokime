@@ -264,15 +264,15 @@ impl Transaction<RuntimeState> for AdvanceRunGroup {
         if request.completion_at.is_some() {
             return Err("run request completion has already been staged".into());
         }
-        if !request.pending.is_empty() {
-            // The group is already current: a replayed advance changes nothing.
-            return Ok(());
-        }
         if state.shutting_down || request.summary.stop_requested {
             return Err("run request is stopping".into());
         }
         if request.summary.phase.terminal() {
             return Err("run request is terminal".into());
+        }
+        if !request.pending.is_empty() {
+            // The group is already current: a replayed advance changes nothing.
+            return Ok(());
         }
         if request.groups.is_empty() {
             return Err("run request has no further provider target".into());

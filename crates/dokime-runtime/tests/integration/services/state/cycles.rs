@@ -674,6 +674,25 @@ fn admission_freezes_them() {
 }
 
 #[test]
+fn group_replay_respects_stopping() {
+    let (state, _, id) = queued();
+    assert!(!state.run_requests[&id].pending.is_empty());
+    let advance = dokime_runtime::transactions::AdvanceRunGroup { request_id: id.clone(), at: dokime_runtime::model::time::now_utc() };
+    advance.check(&state).unwrap();
+    let mut replayed = state.clone();
+    advance.apply(&mut replayed);
+    assert_eq!(replayed.run_requests[&id].pending, state.run_requests[&id].pending);
+
+    let mut stopping = state.clone();
+    stopping.run_requests.get_mut(&id).unwrap().summary.stop_requested = true;
+    assert!(advance.check(&stopping).is_err());
+
+    let mut shutdown = state.clone();
+    shutdown.shutting_down = true;
+    assert!(advance.check(&shutdown).is_err());
+}
+
+#[test]
 fn settlement_replay_timestamp() {
     let (mut state, cycle_id, id) = queued();
     state.run_requests.get_mut(&id).unwrap().summary.phase = dokime_domain::model::execution::request::RunPhase::Finishing;

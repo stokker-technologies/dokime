@@ -698,11 +698,15 @@ their checkout and transported Build outputs. Generated-client static checks run
 | `mise run test:rust:unit` | Curated invariants inside the crates. |
 | `mise run test:rust:integration`, `test:python:integration`, `test:typescript:integration` | In-process crate and client stories. |
 | `mise run test:rust:acceptance`, `test:python:acceptance` | Stories over one process and a client: server, CLI and Python client. |
-| `mise run test:rust:system`, `test:typescript:system` | Server/OBC walkthrough and the Linux native desktop walkthrough. |
+| `mise run test:rust:system`, `test:typescript:system` | Server/OBC walkthrough and the native desktop walkthrough on Windows and Linux. |
 
-The desktop walkthrough drives the built shell through WebKitWebDriver on Linux
-and needs a display. `mise run ci` runs the applicable local checks, producers,
-tests, packaging and dry publication; native provider CI proves every configured
+The desktop walkthrough drives the same native shell journeys on Windows through
+WebView2 and its matching Microsoft EdgeDriver, and on Linux through
+WebKitWebDriver with a display. `mise run prepare:desktop` provisions native
+automation prerequisites; the system task runs it automatically. Windows resolves
+the installed WebView2 runtime and verifies the exact matching driver before use.
+`mise run ci` runs the applicable local checks, producers, tests, packaging and dry
+publication; native provider CI proves every configured
 platform. `mise run ci:nightly` adds coverage and a separate benchmark producer.
 CI installs runtime libraries for prebuilt test jobs; compilation and packaging
 jobs retain their declared development dependencies.

@@ -57,19 +57,21 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<Conne
             shutdown_stdin = true;
             continue;
         }
-        let slot = match argument.as_str() {
+        let (name, value) = argument.split_once('=').map_or((argument.as_str(), None), |(name, value)| (name, Some(value)));
+        let slot = match name {
             "--endpoint" => &mut endpoint,
             "--expected-backend-id" => &mut backend_id,
             _ => return Err("Unknown desktop argument".into()),
         };
         if slot.is_some() {
-            return Err(format!("Duplicate desktop argument: {argument}"));
+            return Err(format!("Duplicate desktop argument: {name}"));
         }
         *slot = Some(
-            arguments
-                .next()
+            value
+                .map(str::to_owned)
+                .or_else(|| arguments.next())
                 .filter(|value| !value.starts_with("--") && !value.is_empty())
-                .ok_or_else(|| format!("Missing value for {argument}"))?,
+                .ok_or_else(|| format!("Missing value for {name}"))?,
         );
     }
     match endpoint {
@@ -118,3 +120,35 @@ pub fn desktop_session_launch(state: tauri::State<'_, DesktopLaunch>) -> Result<
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::parse;
+    use crate::connection::ConnectionTarget;
+
+    #[test]
+    fn launch_value_forms() {
+        for arguments in [
+            vec!["--endpoint", "http://127.0.0.1:3210", "--expected-backend-id=backend"],
+            vec!["--endpoint=http://127.0.0.1:3210", "--expected-backend-id", "backend"],
+        ] {
+            let request = parse(arguments.into_iter().map(str::to_owned)).unwrap().unwrap();
+            assert!(matches!(request.target, ConnectionTarget::Local { endpoint } if endpoint == "http://127.0.0.1:3210"));
+            assert_eq!(request.expected_backend_id.as_deref(), Some("backend"));
+        }
+    }
+
+    #[test]
+    fn launch_rejects_invalid_values() {
+        for arguments in [vec!["--endpoint"], vec!["--endpoint="], vec!["--endpoint", "--expected-backend-id=backend"]] {
+            assert_eq!(parse(arguments.into_iter().map(str::to_owned)).err().as_deref(), Some("Missing value for --endpoint"));
+        }
+        for arguments in [
+            vec!["--endpoint=http://127.0.0.1:3210", "--endpoint", "http://127.0.0.1:3211"],
+            vec!["--endpoint", "http://127.0.0.1:3210", "--endpoint=http://127.0.0.1:3211"],
+        ] {
+            assert_eq!(parse(arguments.into_iter().map(str::to_owned)).err().as_deref(), Some("Duplicate desktop argument: --endpoint"));
+        }
+        assert_eq!(parse(["--unknown=value".to_owned()]).err().as_deref(), Some("Unknown desktop argument"));
+    }
+}

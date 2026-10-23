@@ -277,7 +277,8 @@ async function startBackend(work, evidence, endpoint, label = "backend") {
     ],
     {
       cwd: work,
-      detached: true,
+      detached: !windows,
+      windowsHide: true,
       env: {
         ...process.env,
         DOKIME_TEST_HUB_OPERATOR: "Gate Operator",
@@ -327,9 +328,11 @@ async function startSession(work, endpoint, evidence) {
   }
 
   const port = await unusedPort();
-  const driver = process.env.DOKIME_E2E_DRIVER ?? (windows ? "msedgedriver.exe" : "WebKitWebDriver");
+  const driver =
+    process.env.DOKIME_E2E_DRIVER ?? (windows ? join(workspace, "target/tooling/desktop/msedgedriver.exe") : "WebKitWebDriver");
   driverProcess = spawn(driver, ["--host=127.0.0.1", `--port=${port}`], {
-    detached: true,
+    detached: !windows,
+    windowsHide: true,
     env: {
       ...process.env,
       TAURI_WEBVIEW_AUTOMATION: "true",
@@ -387,7 +390,7 @@ async function startSession(work, endpoint, evidence) {
             "ms:edgeChromium": true,
             "ms:edgeOptions": {
               binary: resolve(shellBinary),
-              args: endpoint ? ["--endpoint", endpoint] : [],
+              args: endpoint ? [`--endpoint=${endpoint}`] : [],
             },
           }
         : {
@@ -431,6 +434,44 @@ async function startSession(work, endpoint, evidence) {
    */
   session.click = async (element) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
+    // Center Before The Driver Chooses Pointer Coordinates
+    // A deep-linked document grows while its records arrive. The driver's
+    // bottom-aligned scroll can leave the control beneath the fixed status bar.
+    await session.executeAsync(
+      `const element = arguments[0];
+       const done = arguments[arguments.length - 1];
+       element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+       window.__dokimeSettingsObserver?.disconnect();
+       if (element.getAttribute('aria-label')?.startsWith('Plot settings for ')) {
+         const rect = element.getBoundingClientRect();
+         const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+         const evidence = {
+           name: element.getAttribute('aria-label'), events: [], states: [],
+           target: {x: rect.x, y: rect.y, width: rect.width, height: rect.height, hit: hit?.outerHTML.slice(0, 300)},
+         };
+         window.__dokimeSettingsClick = evidence;
+         for (const type of ['pointerdown', 'pointerup', 'click']) {
+           element.addEventListener(type, (event) => evidence.events.push({
+             type, trusted: event.isTrusted, target: event.target.tagName, x: event.clientX, y: event.clientY,
+           }), {once: true, capture: true});
+         }
+         const capture = () => {
+           const state = {
+             connected: element.isConnected,
+             openDialogs: document.querySelectorAll('[role=dialog][data-state=open]').length,
+             bodyPointerEvents: document.body.style.pointerEvents,
+           };
+           if (JSON.stringify(evidence.states.at(-1)) !== JSON.stringify(state) && evidence.states.length < 20) {
+             evidence.states.push(state);
+           }
+         };
+         capture();
+         window.__dokimeSettingsObserver = new MutationObserver(capture);
+         window.__dokimeSettingsObserver.observe(document.body, {subtree: true, childList: true, attributes: true});
+       }
+       requestAnimationFrame(() => requestAnimationFrame(() => done(null)));`,
+      [element],
+    );
     try {
       return await session.request("POST", `/element/${key}/click`, {});
     } catch (failure) {
@@ -548,6 +589,7 @@ async function startSession(work, endpoint, evidence) {
         pathname: location.pathname,
         search: location.search,
         bodyPointerEvents: document.body.style.pointerEvents || '',
+        settingsClick: window.__dokimeSettingsClick ?? null,
         bodyAriaHidden: document.body.getAttribute('aria-hidden'),
         dialogs: [...document.querySelectorAll('[role=dialog]')].map((node) => ({
           state: node.getAttribute('data-state'),
@@ -2098,7 +2140,11 @@ async function reportJourney(session, cycleId) {
   const served = `http://127.0.0.1:${server.address().port}/report.html`;
   let dom = "";
   try {
-    const chrome = process.env.DOKIME_E2E_CHROME ?? (windows ? "msedge.exe" : "google-chrome");
+    const chrome =
+      process.env.DOKIME_E2E_CHROME ??
+      (windows
+        ? join(process.env["ProgramFiles(x86)"] ?? process.env.ProgramFiles, "Microsoft/Edge/Application/msedge.exe")
+        : "google-chrome");
     /* Headless Chrome's virtual time budget is wall-clock blind: under build
        load the bundle may still be hydrating when the budget runs out, so the
        render is retried with a growing budget until the page bar has drawn. */
@@ -2114,7 +2160,7 @@ async function reportJourney(session, cycleId) {
           "--dump-dom",
           served,
         ],
-        { maxBuffer: 64 * 1024 * 1024 },
+        { maxBuffer: 64 * 1024 * 1024, windowsHide: true },
       );
       dom = rendered.stdout;
       if (/Frozen Report/.test(dom) && /Attempt 1 Of/.test(dom)) break;
@@ -2244,6 +2290,7 @@ async function journey(name, run) {
            took: a journey that waits on something that never answers says so
            here and nowhere else. */
         await writeFile(join(evidence, `invokes-${name}.json`), JSON.stringify(await drainInvokeLedger(session), null, 2));
+        await session.dump(`layers-${name}`, await session.modalLayers());
         process.stdout.write(`   evidence: ${shot}\n`);
       } catch {
         // A dead WebView has no DOM left to photograph.
@@ -2257,7 +2304,7 @@ async function terminate(child, signal = "SIGTERM") {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
   const exited = signal === "SIGKILL" ? once(child, "exit") : null;
   if (windows) {
-    await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"]);
+    await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
     if (exited) await exited;
     return;
   }
@@ -2304,6 +2351,7 @@ async function installWindowsCandidate() {
   installerAttempted = true;
   await promisify(execFile)(resolve(installer), ["/S", `/D=${installation}`], {
     windowsVerbatimArguments: true,
+    windowsHide: true,
     timeout: 120000,
   });
   const hashes = {};
@@ -2370,7 +2418,6 @@ async function stopBackend() {
 
 async function ownedStartupJourney() {
   session = await startSession(work, undefined, evidence);
-  await session.clickNamed("button", "Start Local Backend");
   await session.connected();
   const status = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
@@ -2413,7 +2460,7 @@ async function restartJourney() {
   await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 60000);
   await setDensity(session, densities.desktop);
   const cycle = await libraryJourney(session);
-  await cycleJourney(session, cycle);
+  await cycleJourney(session, cycle.id);
   await session.screenshot("native-restart");
 }
 
@@ -2515,10 +2562,8 @@ async function main() {
     if (!existsSync(path)) throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
   }
 
-  if (windows) {
-    const owned = await journey("owned-startup", ownedStartupJourney);
-    if (!owned.ok) throw new Error("Windows ownership acceptance failed");
-  }
+  const owned = await journey("owned-startup", ownedStartupJourney);
+  if (!owned.ok) throw new Error("Native ownership acceptance failed");
   backend = await startBackend(work, evidence);
   session = await startSession(work, backend.endpoint, evidence);
   await sizeViewport(session, densities.desktop);
@@ -2570,7 +2615,7 @@ async function main() {
       "the session must name the endpoint it was attached to",
     );
   });
-  if (windows) await journey("restart", restartJourney);
+  await journey("restart", restartJourney);
 }
 
 /* === Entry Point === */
@@ -2611,6 +2656,7 @@ try {
       assert.equal(uninstallers.length, 1, "the candidate installs its native uninstaller");
       await promisify(execFile)(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
         windowsVerbatimArguments: true,
+        windowsHide: true,
         timeout: 120000,
       });
     } catch (error) {

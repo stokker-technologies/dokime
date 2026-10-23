@@ -129,6 +129,11 @@ id = "test:typescript:system"
 platform = "linux"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]
 
+[[ci.jobs]]
+id = "test:typescript:system"
+platform = "windows"
+bootstrap = ["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]
+
 # --- Stage / Package --- #
 
 [[ci.jobs]]

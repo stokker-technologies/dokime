@@ -363,10 +363,14 @@ run = [
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
+[tasks."prepare:desktop"]
+description = "Prepare Native Desktop Automation"
+depends = ["prepare"]
+run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
+
 [tasks."test:typescript:system"]
 description = "Test System TypeScript"
-skip_if = "python -c \"import sys; sys.exit(sys.platform == 'linux')\""
-depends = ["prepare"]
+depends = ["prepare:desktop"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --profile {{usage.profile}} --junit {junit}"
 env = { CARGO_INCREMENTAL = "0" }
