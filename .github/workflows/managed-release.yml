@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:e5b6bcfaf726a1a7106531d60d5aeaa5583742c5ed02d6a65c2de0f05cb106d6
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:bfcbb941ce0fbcecccf1d686e1c506e3c4817fa9edd9b06f0ecab9173b0c1044
 name: Release
 "on":
   workflow_call:
@@ -55,7 +55,7 @@ env:
 jobs:
   dry:
     name: Dry
-    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: 120
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -362,7 +362,7 @@ jobs:
       contents: read
   rehearsal:
     name: Rehearsal
-    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: 120
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -434,6 +434,8 @@ jobs:
           stkr-v4-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock')
           }}-${{ hashFiles('uv.lock', 'mise.lock') }}
         path: .cache/uv/
+    - name: Bootstrap
+      run: python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         RUSTC_WRAPPER: ""
@@ -511,7 +513,7 @@ jobs:
       cancel-in-progress: false
   tag:
     name: Tag
-    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
+    runs-on: stokker-local-linux-x64
     timeout-minutes: 120
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -584,6 +586,8 @@ jobs:
           stkr-v4-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock')
           }}-${{ hashFiles('uv.lock', 'mise.lock') }}
         path: .cache/uv/
+    - name: Bootstrap
+      run: python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages
     - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
       env:
         RUSTC_WRAPPER: ""

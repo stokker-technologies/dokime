@@ -10,6 +10,8 @@
 - [x] 1.7 Apply the user's explicit default two-hour CI job policy by removing unnecessary authored job timeout overrides and adopting the matching Hub default; exceptions require a concrete hang/deadlock reason in thirty-minute increments. All rendered ordinary job budgets inherit the default; individual test deadlines remain unchanged.
 - [x] 1.4 Close the complete source inventory after targeted generation/format/import/wheel checks and the sole writer handoff. Python identity/consumers, desktop harness repairs and canonical cache/job policy are combined; no implementation writer or unresolved source item remains. Available-local final proof and required native provider System proof remain separate obligations.
 
+- [x] 1.8 Audit actual crate-compiling jobs and reserve local routing for them; route all other jobs to native hosted runners through stkr.toml, regenerate without provider changes and verify rendered routing/affected claims before reclosing combined source. Canonical 2c4890d6b158 rendering passes: thirteen crate-compiling jobs are local and twenty-seven noncompiling jobs use hosted defaults; release overrides, Actionlint, Taplo and strict specification checks pass. No embedded template or application/runtime delta requires compilation repeats.
+
 ## Validation
 
 - [ ] 2.1 Run affected final available-local Python checks, generated freshness, wheel/sdist build, integration/acceptance and package/publication dry checks; refresh the embedded-starter consumer/Tests archive and prove affected starter/GUI stories plus locally applicable desktop harness checks, preserving unaffected final native suites. Linux native desktop System proof remains required from provider CI before merge.

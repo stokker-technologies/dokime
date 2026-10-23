@@ -22,3 +22,11 @@ Ordinary CI jobs SHALL inherit the canonical 120-minute default without unnecess
 - WHEN the candidate regenerates its native CI graph
 - THEN ordinary jobs use the canonical 120-minute budget
 - AND test failures remain blocking within their existing story deadlines
+
+### Requirement: Reserve Local Runners For Crate Compilation
+Jobs that compile crates, including nested scaffold builds, instrumented coverage and Cargo publication verification, SHALL use local native runners. Jobs that consume existing artifacts without crate compilation SHALL use matching hosted runners. Release Rehearsal and release preparation SHALL retain their existing release profile and behavior.
+
+#### Scenario: Render Producer And Consumer Routing
+- WHEN native CI renders the actual task graph
+- THEN Rust Check, Product, Tests and Bench producers, Rust acceptance with generated-project builds, Rust coverage and Release Dry, Rehearsal and Tag use local runners
+- AND artifact-only tests, benchmark execution, packaging and other noncompiling jobs use matching hosted platforms

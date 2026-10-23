@@ -17,3 +17,8 @@ Provider System proof exposed plot-settings remount, execution-stop synchronizat
 
 ## CI Job Budget
 The user's final decision supersedes the earlier minimum-only policy: ordinary CI jobs default to 120 minutes. Remove unnecessary product overrides rather than retaining shorter historical limits. Exceptions require a concrete hang/deadlock reason and thirty-minute increments. Hub owns the canonical default and pull-request cache-write policy; regenerate from the parent's validated snapshot without provider writes. This does not change individual test deadlines or waive the desktop failures.
+
+## Runner Routing
+Reserve local runners only for jobs that actually compile crates, including nested fixture builds, coverage and Cargo publication verification. Route all artifact-only tests, benchmarks, packaging and other noncompiling jobs to matching hosted platforms. Existing stkr.toml job overrides own routing; preserve bootstrap, artifacts, deadlines and required native gates. Reopen affected source before editing and retain unaffected completed proof.
+
+Rust acceptance remains local on both platforms because generated_plugin_contract runs actual scaffold check, build and Tests producers. Unit, integration and system leaves plus benchmark execution consume existing artifacts and use hosted runners. Rust coverage instruments and compiles crates locally; Release Dry, Rehearsal and Tag perform Cargo publication verification locally. Prepare, Publish and Verify remain hosted.

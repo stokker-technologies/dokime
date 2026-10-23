@@ -106,62 +106,28 @@ runner = "stokker-local-windows-x64"
 [[ci.jobs]]
 id = "test:rust:coverage"
 platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "test:rust:integration"
-platform = "linux"
 runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "test:rust:integration"
-platform = "windows"
-runner = "stokker-local-windows-x64"
-
-[[ci.jobs]]
-id = "test:rust:system"
 platform = "linux"
-runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "test:rust:system"
-platform = "windows"
-runner = "stokker-local-windows-x64"
-
-[[ci.jobs]]
-id = "test:rust:unit"
 platform = "linux"
-runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "test:rust:unit"
-platform = "windows"
-runner = "stokker-local-windows-x64"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 [[ci.jobs]]
 id = "test:typescript:system"
 platform = "linux"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages --desktop"]
-
-# --- Stage / Bench --- #
-
-[[ci.jobs]]
-id = "bench:rust:integration"
-platform = "linux"
-runner = "stokker-local-linux-x64"
-
-[[ci.jobs]]
-id = "bench:rust:system"
-platform = "linux"
-runner = "stokker-local-linux-x64"
-
-[[ci.jobs]]
-id = "bench:rust:unit"
-platform = "linux"
-runner = "stokker-local-linux-x64"
 
 # --- Stage / Package --- #
 
@@ -175,6 +141,19 @@ bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packag
 [[ci.jobs]]
 id = "release:publish:dry"
 platform = "linux"
+runner = "stokker-local-linux-x64"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "release:rehearse"
+platform = "linux"
+runner = "stokker-local-linux-x64"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "release:tag"
+platform = "linux"
+runner = "stokker-local-linux-x64"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 # === === Hooks === === #

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:b21b41e11177af62c822cba91ddfd008524db49d0d3c4f8a485980a2e159b0da
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:580e25fb6e751791c71cc894facedeae862802cb2ebb74c526b6f0463e2283a6
 name: Test
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   validate_test_rust_unit_windows:
     name: Rust / Unit (windows)
-    runs-on: stokker-local-windows-x64
+    runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
@@ -180,7 +180,7 @@ jobs:
         path: .cache/uv/
   validate_test_rust_integration_windows:
     name: Rust / Integration (windows)
-    runs-on: stokker-local-windows-x64
+    runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
@@ -525,7 +525,7 @@ jobs:
         path: .cache/uv/
   validate_test_rust_system_windows:
     name: Rust / System (windows)
-    runs-on: stokker-local-windows-x64
+    runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_system_windows }}
     env:
       MISE_ENABLE_TOOLS: >-

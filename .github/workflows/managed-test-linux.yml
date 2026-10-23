@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:d1d5c13f8ff62828538904014c2646899656627935de18aeb8a827564e9d9159
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:00bac4904f3beefbe8a9b329549dc3f4e062858343b5c4a44445426885b9ed55
 name: Test
 "on":
   workflow_call:
@@ -21,7 +21,7 @@ env:
 jobs:
   validate_test_rust_unit_linux:
     name: Rust / Unit (linux)
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit_linux }}
     env:
       MISE_ENABLE_TOOLS: >-
@@ -161,7 +161,7 @@ jobs:
         path: .cache/uv/
   validate_test_rust_integration_linux:
     name: Rust / Integration (linux)
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration_linux }}
     env:
       MISE_ENABLE_TOOLS: >-
@@ -447,7 +447,7 @@ jobs:
         path: .cache/uv/
   validate_test_rust_system_linux:
     name: Rust / System (linux)
-    runs-on: stokker-local-linux-x64
+    runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_system_linux }}
     env:
       MISE_ENABLE_TOOLS: >-
