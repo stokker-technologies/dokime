@@ -56,6 +56,12 @@ entry points are described in [`README.md`](README.md).
 - Use Conventional Commit subjects, such as `fix(runtime): preserve stopped
   execution evidence` or `docs: clarify sidecar setup`.
 
+Changes to the GUI report or root branding must refresh their tracked runtime
+payload with `mise run prepare:report`. Commit the resulting `dist-report/` and
+`dist-brand/` directories in `crates/dokime-runtime/`; Rust Check reproduces and
+compares them without rewriting stale files. These crate-local resources let
+published host-feature builds work outside the repository.
+
 Run targeted checks while implementing. Once the complete source is ready,
 run the local CI flow before opening a pull request:
 

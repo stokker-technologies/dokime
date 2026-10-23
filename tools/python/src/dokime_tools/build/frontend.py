@@ -6,15 +6,12 @@
 #
 # ***
 
-
 """Prepare Frontend And Report Assets"""
 
 # === Imports === #
 
 # Standard Library Imports
-
 import argparse
-import hashlib
 import subprocess
 import sys
 import tempfile
@@ -27,7 +24,6 @@ from dokime_tools.package.staging import clear_output, sync_output
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
@@ -35,67 +31,33 @@ from dokime_tools.package.staging import clear_output, sync_output
 ROOT = Path(__file__).resolve().parents[5]
 WEB_ROOT = ROOT / "crates/dokime-gui"
 REPORT = ROOT / "crates/dokime-runtime/dist-report/report.html"
-STAMP = ROOT / "target/report-template/inputs.sha256"
-INPUT_ROOTS = [
-    WEB_ROOT / "src",
-    WEB_ROOT / "report.html",
-    WEB_ROOT / "vite.report.config.ts",
-    WEB_ROOT / "tsconfig.json",
-    WEB_ROOT / "package.json",
-    ROOT / "branding/brand.toml",
-    ROOT / "branding/theme",
-    ROOT / "branding/fonts",
-    WEB_ROOT / "pnpm-lock.yaml",
-]
-
 
 # === Types === #
 
 # === Classes === #
 
-
 # === Public Functions === #
 
 
-def is_stale(previous_hash: str | None, current_hash: str, source_exists: bool) -> bool:
-    return previous_hash != current_hash or not source_exists
-
-
 def ensure_report() -> None:
-    digest = hashlib.sha256()
-    for path in sorted({file for root in INPUT_ROOTS for file in _files(root)}):
-        digest.update(str(path.relative_to(WEB_ROOT, walk_up=True)).encode())
-        digest.update(b"\0")
-        digest.update(path.read_bytes())
-        digest.update(b"\0")
-    current = digest.hexdigest()
-    previous = STAMP.read_text(encoding="utf-8").strip() if STAMP.exists() else None
-    if is_stale(previous, current, REPORT.exists()):
-        vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
-        STAMP.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="dokime-report-") as directory:
-            output = Path(directory)
-            subprocess.run(
-                [
-                    "node",
-                    str(vite),
-                    "build",
-                    "--config",
-                    "vite.report.config.ts",
-                    "--outDir",
-                    str(output),
-                ],
-                cwd=WEB_ROOT,
-                check=True,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-            )
-            if not (output / REPORT.name).is_file():
-                raise ValueError(f"report build did not produce {REPORT.name}")
-            sync_output(output, REPORT.parent)
-        STAMP.write_text(current + "\n", encoding="utf-8")
+    with tempfile.TemporaryDirectory(prefix="dokime-report-") as directory:
+        output = Path(directory)
+        render_report(output)
+        sync_output(output, REPORT.parent)
+
+
+def render_report(output: Path) -> None:
+    subprocess.run(
+        ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--config", "vite.report.config.ts", "--outDir", str(output)],
+        cwd=WEB_ROOT,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+    if not (output / REPORT.name).is_file():
+        raise ValueError(f"report build did not produce {REPORT.name}")
 
 
 def build_live(args: list[str]) -> None:

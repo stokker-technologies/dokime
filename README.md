@@ -699,6 +699,9 @@ and needs a display. `mise run ci` runs the applicable local checks, producers,
 tests, packaging and dry publication; native provider CI proves every configured
 platform. `mise run ci:nightly` adds coverage and a separate benchmark producer.
 
+The runtime Cargo package carries its embedded report and brand payload.
+Contributors refresh that tracked payload with `mise run prepare:report` when
+changing the GUI report or root branding; Rust Check verifies its freshness.
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
 ### Generated Clients

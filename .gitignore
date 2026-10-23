@@ -93,9 +93,6 @@ Thumbs.db
 /core
 /core.*
 
-# Generated report embedded by the runtime and included in source distributions.
-/crates/dokime-runtime/dist-report/
-
 # Retired Private Namespace Must Never Enter History
 /.stkr/agents/
 

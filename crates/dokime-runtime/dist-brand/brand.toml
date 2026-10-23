@@ -1,0 +1,75 @@
+# Dokime brand — typed app identity, theme policy, and geometry.
+#
+# This file is the root manifest of the brand bundle: the single,
+# highest-precedence source of the app's appearance. It beats any artifact
+# catalog's customization contribution, which in turn beats the built-in neutral
+# default. A fork rebrands by editing this manifest and the per-concern folders
+# beside it — no Rust or GUI changes.
+#
+# Bundle layout (one folder per concern; compiled into `dokime-app` when the
+# binaries are built, so a rebrand needs a rebuild):
+#
+#   brand.toml    this manifest — identity, theme policy, corner geometry
+#   logos/        app marks, named `<treatment>-<theme>.<ext>`
+#   icons/        OS app-icon sources (icon.png is the desktop icon master)
+#   theme/        authored CSS: typography.css, base.css, light.css, dark.css
+#   fonts/        vendored woff2 faces (offline; never fetched at runtime)
+#   generated/    tracked build outputs — never hand-edited
+#
+# Brand assets are compiled into dokime-app; rebuild after editing.
+#
+# Typography and palette values live in theme/. This TOML intentionally has no
+# font or color values.
+
+[app]
+# Display name shown in the title bar and app shell.
+label = "Dokime"
+# `{app}` is substituted with `label`.
+title_template = "{app}"
+# Lowercase slug. Derives the default output root (`<slug>-data`) and is the
+# basis a fork uses for storage-key / data-dir naming.
+slug = "dokime"
+# OS bundle identifier written into the generated Tauri config.
+identifier = "com.stokker.dokime"
+# Custom URL scheme for deep links (mirrors the Tauri deep-link plugin).
+deep_link_scheme = "dokime-test-hub"
+
+[app.organization]
+name = "Stokker Technologies"
+# unit = "..."       # optional
+# website = "..."    # optional
+
+[app.logo]
+# The mark the app shell and reports render, resolved from this bundle's logos/
+# folder. Files there are named `<treatment>-<theme>`: `treatment` is the
+# artwork form (`contained` sits on its own plate, `transparent` is plate-less),
+# `theme` is the mark's own ink tone. Only the SVG is loaded by the runtime; a
+# same-named raster beside it is the export master.
+file = "contained-dark.svg"
+mime_type = "image/svg+xml"
+alt = "Dokime"
+
+[theme]
+# register_only | default | required.
+#   register_only — offer the theme in the picker but do not force it active.
+#   default        — make it the default active family (users can still switch).
+#   required       — lock the app to this family and the mode below.
+# The brand's label/organization/title/logo apply regardless of this policy;
+# it governs only the theme.
+policy = "required"
+# user_or_system | force_system | force_light | force_dark (used when required).
+default_mode = "user_or_system"
+label = "Default"
+description = "Dokime's charcoal and gilt workshop theme."
+
+# Shared corner geometry for both modes. Values map to Tailwind's radius scale;
+# only genuinely circular controls use `rounded-full` outside this family scale.
+[theme.corner_radii]
+base = "0.1875rem"
+sm = "0.0625rem"
+md = "0.125rem"
+lg = "0.1875rem"
+xl = "0.25rem"
+"2xl" = "0.3125rem"
+"3xl" = "0.375rem"
+"4xl" = "0.5rem"

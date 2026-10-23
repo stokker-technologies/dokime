@@ -71,7 +71,6 @@ tokio-util = { workspace = true, features = ["rt"] }
 # Networking
 rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["server", "tls-ring"] }
-tonic-prost = { workspace = true }
 tonic-types = { workspace = true }
 
 [build-dependencies]

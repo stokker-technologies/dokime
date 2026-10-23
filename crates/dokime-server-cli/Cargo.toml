@@ -34,15 +34,40 @@ media-native = ["dokime-server/media-native"]
 # === Dependencies === #
 
 [dependencies]
-
 # Local
 dokime = { version = "0.1.0", path = "../dokime" }
-dokime-server = { version = "0.1.0", path = "../dokime-server" }
 dokime-runtime = { version = "0.1.0", path = "../dokime-runtime" }
+dokime-server = { version = "0.1.0", path = "../dokime-server" }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
 
 # Configuration
 clap = { workspace = true }
 dotenv = { workspace = true }
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Build Dependencies === #
 

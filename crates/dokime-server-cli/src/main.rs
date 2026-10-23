@@ -31,18 +31,22 @@ use dokime_server::host::{self, Error, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, Parser)]
 #[command(name = "dokime-server", about = "Run The Dokime Backend.", version)]
 struct Cli {
     #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime::terminal::ColorMode), help = "Color output: auto, always, or never.")]
     color: dokime::terminal::ColorMode,
+
     #[command(flatten)]
     args: host::Args,
+
     #[command(subcommand)]
     command: Option<Command>,
 }
 
 /* === Enums === */
+
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Version(host::version::Args),
@@ -55,6 +59,7 @@ enum Command {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     dokime::terminal::set_color_mode(cli.color);

@@ -673,15 +673,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake2"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b5d4d889834ee8ecfc0f8426ad30faf7cdcb10f741a8e6d7224d95325479f6f"
-dependencies = [
- "digest 0.11.3",
-]
-
-[[package]]
 name = "block"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2016,7 +2007,6 @@ version = "0.1.0"
 dependencies = [
  "dokime-domain",
  "dokime-runtime",
- "serde",
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
@@ -2126,11 +2116,9 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
- "arrow-select",
  "ashpd",
  "async-trait",
  "base64 0.23.1",
- "blake2",
  "cpal",
  "criterion",
  "cssparser 0.38.0",
@@ -2153,7 +2141,6 @@ dependencies = [
  "rusqlite",
  "rustls-platform-verifier",
  "serde",
- "serde_arrow",
  "serde_json",
  "sha2 0.11.1",
  "suppaftp",
@@ -2210,7 +2197,6 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tonic",
- "tonic-prost",
  "tonic-types",
  "tracing",
  "tracing-appender",
@@ -3178,7 +3164,6 @@ version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b"
 dependencies = [
- "bytemuck",
  "cfg-if 1.0.5",
  "crunchy",
  "num-traits",
@@ -4455,21 +4440,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "marrow"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "789b43b5511b6037f7230829f87eac922fcfa13568362a5aa2eccb1bc0b07cb0"
-dependencies = [
- "arrow-array",
- "arrow-buffer",
- "arrow-data",
- "arrow-schema",
- "bytemuck",
- "half",
- "serde",
-]
-
-[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5034,7 +5004,6 @@ dependencies = [
  "futures-util",
  "harmos",
  "obc-runtime",
- "serde",
  "serde_json",
  "sha2 0.11.1",
  "sysinfo",
@@ -6836,21 +6805,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
 dependencies = [
  "ordered-float",
- "serde",
-]
-
-[[package]]
-name = "serde_arrow"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eef6f03bec0418bbde0fa9c070a5fee5b793c9cc4a392613d37c1de7ee211db5"
-dependencies = [
- "arrow-array",
- "arrow-schema",
- "bytemuck",
- "chrono",
- "half",
- "marrow",
  "serde",
 ]
 

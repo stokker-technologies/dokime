@@ -6,13 +6,11 @@
 #
 # ***
 
-
 """Supervise Owned Desktop Development Processes"""
 
 # === Imports === #
 
 # Standard Library Imports
-
 import json
 import os
 import signal
@@ -23,20 +21,18 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build.frontend import ROOT, WEB_ROOT, ensure_report
+from dokime_tools.build.frontend import ROOT, WEB_ROOT
+from dokime_tools.prepare.resources import refresh
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
 # === Constants === #
 
-
 # === Types === #
 
 # === Classes === #
-
 
 # === Public Functions === #
 
@@ -191,7 +187,7 @@ def main() -> int:
     if print_config:
         print(json.dumps(description, indent=2))
         return 0
-    ensure_report()
+    refresh()
     commands = []
     if environment.get("DOKIME_DEV_REPORT_WATCH") != "0":
         commands.append(
@@ -209,7 +205,6 @@ def main() -> int:
 
 
 # === Private Functions === #
-
 
 # === Entry Point === #
 

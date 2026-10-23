@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-windows.yml; sha256:4e6595f0072a35dfeb0fc31f92681487a85d54f550986a30bd7c82ca52954df0
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-windows.yml; sha256:9b987f7738f305c605674fc4b8ecf0bc8d42718e99f92227d20727eac8d3b45f
 name: Build
 "on":
   workflow_call:
@@ -186,7 +186,7 @@ jobs:
         path: .cache/uv/
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,node,pnpm,protoc,python,rust,sccache,taplo,uv
+        aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,github:bnjbvr/cargo-machete,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
         ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
@@ -368,7 +368,7 @@ jobs:
         path: .cache/uv/
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,node,pnpm,protoc,python,rust,sccache,taplo,uv
+        aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,github:bnjbvr/cargo-machete,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
         ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||

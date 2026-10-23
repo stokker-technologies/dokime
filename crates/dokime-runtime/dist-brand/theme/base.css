@@ -1,0 +1,10 @@
+/* Shared brand behavior. Palette and typography values belong in their mode files. */
+
+html {
+  accent-color: var(--primary);
+}
+
+::selection {
+  color: var(--accent-foreground);
+  background: var(--accent);
+}

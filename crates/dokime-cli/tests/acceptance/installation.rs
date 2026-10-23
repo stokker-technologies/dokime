@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -23,6 +24,7 @@ use std::process::Command;
 // Local Imports
 
 /* === Constants === */
+
 const ENDPOINT: &str = "http://127.0.0.1:8765";
 
 /* === Macros === */
@@ -40,6 +42,7 @@ const ENDPOINT: &str = "http://127.0.0.1:8765";
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn installation(programs: &[&Path]) -> tempfile::TempDir {
     let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir().unwrap();
     for program in programs {
@@ -88,7 +91,6 @@ fn refused(output: std::process::Output) -> String {
     String::from_utf8(output.stderr).unwrap()
 }
 
-/* === Tests === */
 // the server beside the CLI answers its identity through serve.
 
 fn server_beside_cli() {
@@ -155,6 +157,16 @@ fn gui_receives_endpoint() {
     assert_eq!(std::fs::read_to_string(&arguments).unwrap(), format!("--endpoint {ENDPOINT}"));
 }
 
+// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
+fn cli_executable() -> String {
+    std::env::var("NEXTEST_BIN_EXE_dokime")
+        .ok()
+        .or_else(|| option_env!("CARGO_BIN_EXE_dokime").map(str::to_owned))
+        .expect("workspace executable")
+}
+
+/* === Tests === */
+
 #[test]
 fn installation_contract() {
     {
@@ -174,12 +186,4 @@ fn installation_contract() {
         eprintln!("Scenario: gui_receives_endpoint");
         gui_receives_endpoint();
     }
-}
-
-// The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
-fn cli_executable() -> String {
-    std::env::var("NEXTEST_BIN_EXE_dokime")
-        .ok()
-        .or_else(|| option_env!("CARGO_BIN_EXE_dokime").map(str::to_owned))
-        .expect("workspace executable")
 }

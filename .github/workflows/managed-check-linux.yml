@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-linux.yml; sha256:af2a9616d7f324fa3844ff87e13621022242d331ab15e71a78ef7a4abc0db6a6
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-linux.yml; sha256:5fcb593d986f27a36c9792090d1a6235862dba1fe58f90a4a9a53b780c759de5
 name: Check
 "on":
   workflow_call:
@@ -162,7 +162,7 @@ jobs:
         path: .cache/uv/
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,node,pnpm,protoc,python,rust,sccache,taplo,uv
+        aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,github:bnjbvr/cargo-machete,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
         ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-nightly.yml; sha256:cdfceb78a3e39cf75814c6bf25e1b3b9b475d15d1da82cc79f848648972f05bd
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-nightly.yml; sha256:242891d6dc598345340ad52bcee93dd7b5a007e17feb322dd1d43266d9eb5a12
 name: Build
 "on":
   workflow_call:
@@ -159,7 +159,7 @@ jobs:
     if: github.event_name == 'schedule'
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,node,pnpm,protoc,python,rust,sccache,taplo,uv
+        aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,github:bnjbvr/cargo-machete,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
         ${{ github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||

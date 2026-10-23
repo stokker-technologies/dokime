@@ -200,8 +200,8 @@ system = 64
 dokime-starter-check = "crates/cargo-dokime/templates"
 
 [skeletons]
-# Audit native source and the dedicated project policy skeleton.
-include = ["**/*.rs", "**/*.py", "stkr.toml"]
+# Audit Native Sources And Cargo/CI Policy Skeletons.
+include = ["**/*.rs", "**/*.py", "**/Cargo.toml", "mise.toml", "stkr.toml"]
 # Generated RPC output is owned and checked by the binding generators.
 exclude = ["packages/dokime/src/dokime/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 
@@ -211,7 +211,7 @@ exclude = ["packages/dokime/src/dokime/client/_generated/**", "crates/dokime-gui
 exclude = ["crates/dokime-runtime/src/prelude.rs", "crates/dokime-runtime/src/plugin/sidecar.rs"]
 
 [markdown]
-include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**"]
+include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**"]
 
 # === === Templates === === #
 

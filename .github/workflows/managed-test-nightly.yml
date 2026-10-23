@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-nightly.yml; sha256:e962d089d71cad911d6f13f8aa53f926fde1f728ed7f4692ef31ed012dd9df96
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-nightly.yml; sha256:74a521e8c3f35292c15ad27522db7cb147042628da4ca5fe1521647d3f6a991c
 name: Test
 "on":
   workflow_call:
@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_coverage_python }}
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo,protoc
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,npm:@fission-ai/openspec,taplo,protoc
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -162,7 +162,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_coverage_rust }}
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo,protoc
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,npm:@fission-ai/openspec,taplo,protoc
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:

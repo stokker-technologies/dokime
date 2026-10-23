@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check.yml; sha256:615984192f9f1a1219a9784e03112b9cfc99a7640bc7aa93f70c364677209c22
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check.yml; sha256:4c0960a73dbe8ec152412ef7ad0f1d321e60c36be9de59660bcc225c24387984
 name: Check
 "on":
   workflow_call:
@@ -150,7 +150,7 @@ jobs:
         path: .cache/uv/
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,sccache,aqua:rhysd/actionlint,taplo,protoc,git-cliff
+        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,npm:@fission-ai/openspec,taplo,protoc,git-cliff
     outputs:
       stable_release: ${{ steps.release_kind.outputs.stable_release }}
   check_python:
