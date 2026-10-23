@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/policy.py; sha256:da830ae69ab4731d182f4fd9b0eda0872fd06a2966821a802567819dcb5def60
+# Rendered by stkr project update from templates/python/release/policy.py; sha256:76dc9bde34451255b15bc62effba6e94e16f1b6824f513571d7d0aa1a924a34c
 # ***
 #
 # {{package}}
@@ -92,7 +92,9 @@ def execute(directory: Path, arguments: Sequence[str], *, capture: bool = False)
         check=False,
         text=True,
         encoding="utf-8",
-        capture_output=capture,
+        stdin=sys.stdin,
+        stdout=subprocess.PIPE if capture else sys.stdout,
+        stderr=subprocess.PIPE if capture else sys.stderr,
     )
     if result.returncode:
         raise ToolError(f"{arguments[0]} failed with exit code {result.returncode}: {result.stderr or ''}")
