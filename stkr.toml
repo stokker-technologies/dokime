@@ -234,6 +234,7 @@ selection = "{{selection}}"
 provider = "github"
 repository = "stokker-technologies/dokime"
 product = "dokime"
+crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
 targets = ["linux-x86_64", "windows-x86_64"]
 signature_checks = [
   [

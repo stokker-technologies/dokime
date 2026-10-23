@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:41d0792727aa3560f6cfa5b888282267919ffe31b7c8909bf22b91a391834990
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:be977f3b32832f0a2ee01ac4d2949cb8ce1e36d879d1b4a8b487fbb3e4095424
 name: Release
 "on":
   workflow_call:
@@ -29,7 +29,7 @@ name: Release
     secrets:
       release_token:
         required: false
-      CRATES_BOOTSTRAP_TOKEN:
+      CARGO_REGISTRY_TOKEN:
         required: false
       mirror_deploy_key:
         required: false
@@ -335,7 +335,7 @@ jobs:
       RELEASE_BUMP: ${{ inputs.bump }}
       RELEASE_TOKEN: ${{ secrets.release_token }}
       GH_TOKEN: ${{ github.token }}
-      CRATES_BOOTSTRAP_AVAILABLE: ${{ secrets.CRATES_BOOTSTRAP_TOKEN != '' }}
+      CRATES_BOOTSTRAP_AVAILABLE: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
     if: >-
       ${{ inputs.ready && (github.event_name == 'workflow_dispatch' && github.ref ==
       'refs/heads/dev') }}
@@ -624,7 +624,7 @@ jobs:
         path: .cache/uv/
     env:
       MISE_ENABLE_TOOLS: node,python,rust,pnpm,uv,gh,git-cliff,glab
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_BOOTSTRAP_TOKEN }}
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     if: "${{ inputs.ready && (github.event_name == 'push' && github.ref == 'refs/heads/dev' && startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
     environment: release
     permissions:

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:fdcf4af6fd4fc3823eaf7a1248e41a2e70dbde8c3dfd26a4e218e4e9629b5020
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:62de4b2c0b04576859a6aecde926b7f6395c2035f921ff7cff0427b8aed5b3ca
 name: CI
 "on":
   push:
@@ -471,4 +471,4 @@ jobs:
       mirror_deploy_key: ${{ secrets.MIRROR_DEPLOY_KEY }}
       mirror_ssh_url: ${{ secrets.MIRROR_SSH_URL }}
       runner_group_read_token: ${{ secrets.RUNNER_GROUP_READ_TOKEN }}
-      CRATES_BOOTSTRAP_TOKEN: ${{ secrets.CRATES_BOOTSTRAP_TOKEN }}
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
