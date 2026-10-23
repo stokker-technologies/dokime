@@ -47,7 +47,6 @@ dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
-anyhow = { workspace = true }
 thiserror = { workspace = true }
 
 # Logging
