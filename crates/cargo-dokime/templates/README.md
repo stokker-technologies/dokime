@@ -92,3 +92,5 @@ exactly the locked tools. `mise run check` formats, lints and type-checks.
 `test:rust:integration`. `mise run package:rust` copies and inspects the existing
 bundle under `target/package/<profile>/<target>/rust/` without recompiling.
 The CI workflows invoke those same producers and consumers.
+The standalone starter keeps line-table debug information in development builds.
+For a plugin inside an existing Cargo workspace, its root manifest owns profiles.
