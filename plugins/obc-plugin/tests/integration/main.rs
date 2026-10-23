@@ -8,14 +8,17 @@
  */
 
 /* === Modules === */
+
 mod charger;
 mod lifecycle;
+mod operations;
 mod plugin;
 mod runs;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -23,10 +26,10 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::definition::{SuiteSet, materialize_template_cases};
-use dokime_runtime::execution::{Answering, Caller};
-use dokime_runtime::harmos::operations::OperationDeclaration;
-use dokime_runtime::{ValidationMode, ValueType};
+use dokime::definition::{SuiteSet, materialize_template_cases};
+use dokime::execution::{Answering, Caller};
+use dokime::harmos::operations::OperationDeclaration;
+use dokime::{ValidationMode, ValueType};
 use obc_plugin::domain::model::readiness::Readiness;
 use obc_plugin::domain::operations::AskReadiness;
 use obc_plugin::{ObcChecks, Pulse};
@@ -38,7 +41,8 @@ use obc_plugin::{ObcChecks, Pulse};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime_runtime::stream(
+
+#[dokime::stream(
     id = "obc-plugin.system",
     window = 4096,
     label = "Testbench Health",
@@ -60,10 +64,11 @@ struct SystemRow {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn answering<O, F>(answer: F) -> (String, Answering)
 where
-    O: OperationDeclaration + dokime_runtime::harmos::Message,
-    O::Response: dokime_runtime::harmos::Message,
+    O: OperationDeclaration + dokime::harmos::Message,
+    O::Response: dokime::harmos::Message,
     F: Fn(O) -> O::Response + Send + Sync + 'static,
 {
     let answer = Arc::new(answer);
@@ -72,19 +77,19 @@ where
         Arc::new(move |payload: Vec<u8>| {
             let answer = Arc::clone(&answer);
             Box::pin(async move {
-                let request = <O as dokime_runtime::harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
-                Ok(dokime_runtime::harmos::Message::encode_to_vec(&answer(request)))
+                let request = <O as dokime::harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
+                Ok(dokime::harmos::Message::encode_to_vec(&answer(request)))
             }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
         }),
     )
 }
 
 // The options a host materializes one registration's cases with.
-fn materialization() -> dokime_runtime::definition::CaseMaterializationOptions {
-    dokime_runtime::definition::CaseMaterializationOptions {
-        max_cases: dokime_runtime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+fn materialization() -> dokime::definition::CaseMaterializationOptions {
+    dokime::definition::CaseMaterializationOptions {
+        max_cases: dokime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
         force: false,
-        registration_id: dokime_runtime::model::identity::new_id(),
+        registration_id: dokime::model::identity::new_id(),
         first_label_number: 1,
     }
 }
@@ -93,10 +98,8 @@ fn road() -> Caller {
     Caller::local(BTreeMap::from([answering::<AskReadiness, _>(|_| Readiness { stopped: false })]))
 }
 
-fn measured<C: dokime_runtime::telemetry::TelemetryStream>(
-    rows: impl IntoIterator<Item = C::Row>,
-) -> dokime_runtime::plugin::testing::Harness {
-    dokime_runtime::plugin::testing::Harness::template("obc.checks.pulse").measuring::<C>(rows)
+fn measured<C: dokime::telemetry::TelemetryStream>(rows: impl IntoIterator<Item = C::Row>) -> dokime::plugin::testing::Harness {
+    dokime::plugin::testing::Harness::template("obc.checks.pulse").measuring::<C>(rows)
 }
 
 /* === Tests === */
@@ -118,7 +121,7 @@ fn suite_export_bound() {
 fn contracts_bind_fields() {
     let registration = ObcChecks::definition();
     // The suite declares no telemetry of its own: this contract came off the
-    // `#[dokime_runtime::observer]` that publishes on the stream, through the template that
+    // `#[dokime::observer]` that publishes on the stream, through the template that
     // declares it.
     let contract = &registration.telemetry_contracts[0];
 
@@ -157,7 +160,7 @@ fn default_case_phases() {
     assert_eq!(template.test_case_template_id, Pulse::template_id());
     assert_eq!(
         template.parameters.iter().map(|parameter| parameter.metadata.identifier.as_str()).collect::<Vec<_>>(),
-        vec!["sample_count", "tolerance", "capture_system"]
+        vec!["sample_count", "tolerance", "capture_system", "require_confirmation"]
     );
     // The sidecar names one of these phase ids in every drain reply.
     assert_eq!(
@@ -199,11 +202,34 @@ async fn pulse_leases_unmeasured() {
     assert!(report.passed(), "{}", report.diagnostics());
     assert!(!report.samples::<obc_plugin::PulseRow>().is_empty());
 
-    let refused = dokime_runtime::plugin::testing::Harness::template("obc.checks.pulse")
+    let refused = dokime::plugin::testing::Harness::template("obc.checks.pulse")
         .parameter("capture_system", true)
         .parameter("sample_count", 2)
         .run::<obc_plugin::suites::Suites>()
         .await
         .unwrap();
     assert!(!refused.passed(), "an unmeasured global stream is refused");
+}
+
+#[tokio::test]
+async fn pulse_confirmation() {
+    use dokime::plugin::testing::Harness;
+    for (action, passed) in [(None, true), (Some("yes"), true), (Some("no"), false), (Some("cancel"), false)] {
+        let mut harness = Harness::template("obc.checks.pulse").parameter("sample_count", 2);
+        if let Some(action) = action {
+            harness = harness.parameter("require_confirmation", true).answer(
+                "obc.checks.pulse.confirm",
+                action,
+                std::iter::empty::<(&str, dokime::Value)>(),
+            );
+        }
+        let report = harness.run::<obc_plugin::suites::Suites>().await.unwrap();
+        assert_eq!(report.passed(), passed, "action {action:?}: {}", report.diagnostics());
+        let samples = report.samples::<obc_plugin::PulseRow>();
+        if passed {
+            assert!(samples.len() >= 2);
+        } else {
+            assert!(samples.is_empty(), "capture stays disarmed until confirmation succeeds");
+        }
+    }
 }

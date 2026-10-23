@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod annotations;
 mod artifacts;
 pub mod case;
@@ -37,6 +38,7 @@ mod templates;
 /* === Structs === */
 
 /* === Enums === */
+
 #[harmos::catalog]
 pub enum Objects {
     Case(case::Case),

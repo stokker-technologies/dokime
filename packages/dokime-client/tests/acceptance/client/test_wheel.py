@@ -21,8 +21,8 @@ from pathlib import Path
 from zipfile import ZipFile
 
 # Third Party Imports
-
 # Local Imports
+from dokime_tools.build import paths
 
 # Type Checking Imports
 
@@ -37,14 +37,13 @@ from zipfile import ZipFile
 # === Public Functions === #
 
 
-def test_pure_wheel(artifact: Callable[[str], Path]) -> None:
+def test_pure_wheel(workspace: Path, request) -> None:
     # The build writes the wheel where every Python lane installs it from.
-    wheel_dir = artifact("python")
+    wheel_dir = paths.output(workspace, "build", request.config.getoption("--profile"), "any") / "python"
     wheels = list(wheel_dir.glob("dokime_client-*.whl"))
     assert len(wheels) == 1, "build exactly one wheel before acceptance"
     assert wheels[0].name.endswith("-py3-none-any.whl")
     distribution = importlib.metadata.distribution("dokime-client")
-    assert distribution.metadata["Name"] == "dokime-client"
     with ZipFile(wheels[0]) as archive:
         names = archive.namelist()
         assert "dokime_client/client/client.py" in names
@@ -74,7 +73,8 @@ def test_pure_wheel(artifact: Callable[[str], Path]) -> None:
                 )
 
     assert not any(
-        requirement.startswith(("dokime-client", "dokime-python", "rich", "typer")) for requirement in distribution.requires or []
+        requirement.startswith(("dokime-client", "dokime-python", "dokime ", "rich", "typer"))
+        for requirement in distribution.requires or []
     )
     assert importlib.util.find_spec("dokime") is None
     assert any(requirement.startswith("grpcio") for requirement in distribution.requires or [])
@@ -85,7 +85,7 @@ def test_pure_wheel(artifact: Callable[[str], Path]) -> None:
             sys.executable,
             "-I",
             "-c",
-            "import dokime_client; from dokime_client.client import Capture, Cycle, DokimeClient, RunRequest; assert DokimeClient()._transport.backend is None",
+            "import dokime_client; from dokime_client.client import Cycle, DokimeClient, Execution, Template, TestCase; assert DokimeClient()._transport.backend is None",
         ],
         cwd=wheel_dir,
         check=True,

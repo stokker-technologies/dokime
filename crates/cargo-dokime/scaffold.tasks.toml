@@ -11,22 +11,21 @@ description = "Rebuild And Reload The Plugin In A Development Host"
 run = "cargo dokime dev"
 
 [tasks.build]
-description = "Build The Plugin Bundle From The Shipping Compiler Output"
+description = "Build The Plugin And Its Frozen Catalog"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "uv run --locked --project tools/python python -m project_tools.build.plugin build --profile {{usage.profile}}"
+tools = { "cargo:cargo-dokime" = "0.1.0" }
+run = "uv run --locked --project tools/python python -m project_tools.build.plugin --profile {{usage.profile}}"
 
 [tasks."package:rust"]
 description = "Package Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "uv run --locked --project tools/python python -m project_tools.build.plugin package --profile {{usage.profile}}"
+tools = { "cargo:cargo-dokime" = "0.1.0" }
+run = "uv run --locked --project tools/python python -m project_tools.package.plugin --profile {{usage.profile}}"
 
 [tasks."release:publish"]
-description = "Attach The Release Bundle To The Tagged Release"
-run = '''
-if [ -n "$GITHUB_ACTIONS" ]; then
-  gh release create "$GITHUB_REF_NAME" target/package/release/*/rust/{{package}}.dokime --verify-tag
-else
-  glab release create "$CI_COMMIT_TAG" target/package/release/*/rust/{{package}}.dokime
-fi
-'''
-shell = "bash -c"
+description = "Publish Through The Configured Native Release Policy"
+run = [
+  "uv run --locked --project tools/python python -m project_tools.release.run stage",
+  "uv run --locked --project tools/python python -m project_tools.release.run publish",
+  "uv run --locked --project tools/python python -m project_tools.release.run finalize",
+]

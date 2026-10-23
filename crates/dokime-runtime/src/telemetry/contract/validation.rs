@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+
 // Third Party Imports
 
 // Local Imports
@@ -41,6 +43,7 @@ use dokime_domain::model::values::value_matches_type;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn validate_telemetry_sample(
     contract: Option<&TelemetryContract>, sample: &TelemetrySample, default_mode: ValidationMode,
 ) -> crate::Result<BTreeMap<String, Value>> {
@@ -79,6 +82,7 @@ pub fn validate_normalized_telemetry_sample(
 }
 
 /* === Private Functions === */
+
 fn validate_columns(
     stream: &str, payload: &BTreeMap<String, Value>, columns: &[TelemetryColumn], allow_extra_fields: bool,
 ) -> crate::Result<BTreeMap<String, Value>> {

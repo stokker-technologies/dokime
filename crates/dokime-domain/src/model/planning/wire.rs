@@ -119,6 +119,8 @@ pub struct PlannedCase {
     pub parameters: Option<Value>,
     pub ordinal: u64,
     pub selection_index: u64,
+    pub definition_revision: String,
+    pub provider: String,
 }
 
 /* === Enums === */

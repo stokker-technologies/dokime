@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Arc, Mutex};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{
     FixtureHostTelemetrySource, HOST_FIXTURE_SOURCE, HostOptions, HostStreamSample, HostTelemetryConfig, HostTelemetrySourceKind,
@@ -38,6 +41,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct Host {
     source: HostTelemetrySourceKind,
@@ -66,6 +70,7 @@ pub struct HostSnapshot {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Default for Host {
     fn default() -> Self {
         Self::new(HostTelemetryConfig::default())

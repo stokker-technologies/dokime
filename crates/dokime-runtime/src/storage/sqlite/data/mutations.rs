@@ -26,6 +26,7 @@ use super::super::{Error, State};
 use super::{entry, saved};
 
 /* === Constants === */
+
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_mutations (
     window TEXT NOT NULL, key TEXT NOT NULL, expires TEXT NOT NULL,
@@ -46,6 +47,7 @@ const RECEIPT_BYTES: usize = 32 * 1024;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl State {
     pub(super) async fn mutations_save(&self, receipts: Vec<MutationReceipt>) -> Result<(), Error> {
         self.call(move |connection| {
@@ -57,9 +59,10 @@ impl State {
                 for receipt in receipts {
                     let expires = expiry(receipt.expires_at)?;
                     if expires <= now {
+                        entry::check_size(&receipt, RECEIPT_BYTES)?;
                         continue;
                     }
-                    let encoded = entry::encode(&receipt, RECEIPT_BYTES)?;
+                    // Flushes Repeat The Unexpired Receipt Snapshot. Encode Only New Receipts.
                     let prior: Option<Vec<u8>> = transaction
                         .query_row(
                             "SELECT body FROM storage_mutations WHERE window=?1 AND key=?2",
@@ -73,10 +76,12 @@ impl State {
                         }
                         let prior: MutationReceipt = serde_json::from_slice(&body)?;
                         if prior != receipt {
+                            entry::check_size(&receipt, RECEIPT_BYTES)?;
                             return Err(Error::Conflict("mutation receipt retry differs"));
                         }
                         continue;
                     }
+                    let encoded = entry::encode(&receipt, RECEIPT_BYTES)?;
                     match &receipt.value {
                         MutationValue::Cursor(cursor) => {
                             history.check(&cursor.history)?;
@@ -125,7 +130,7 @@ impl State {
                         params![receipt.mutation.window.as_str(), receipt.mutation.key.as_str(), expires, encoded],
                     )?;
                 }
-                transaction.commit()?;
+                super::super::commit(transaction)?;
                 Ok(())
             })())
         })
@@ -172,6 +177,7 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn expiry(at: SystemTime) -> Result<String, Error> {
     let value = at.duration_since(UNIX_EPOCH).map_err(|_| Error::Data("receipt expiry precedes epoch"))?.as_nanos();
     Ok(format!("{value:032x}"))

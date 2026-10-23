@@ -1,11 +1,14 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { useEffect } from "react";
 import { useApplicationSettings } from "@/lib/application-settings";
-import { defaultBrand } from "@/lib/brand";
+import { defaultBrand, organizationPack } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 import { applyThemeStylesheet, applyThemeVariables, themeCornerRadiusVariables } from "@/lib/theme";
 import { useUiStore } from "@/stores/ui-store";
+
+/** The compiled brand's theme family, as the runtime registers it. */
+const BRAND_THEME_ID = "brand.theme";
 
 /** Apply typed native appearance. Every backend's DOM resources leave with its generation. */
 export function NativeAppearance({ resource }: { resource: AppearanceResource | null }) {
@@ -31,6 +34,12 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
         appearance.themes.find((theme) => theme.themeId === selected) ??
         appearance.themes.find((theme) => theme.themeId === appearance.activeTheme) ??
         appearance.themes[0];
+      // An operator's organization pack replaces the compiled brand theme; its stylesheet is already in place.
+      if (organizationPack && family?.themeId === BRAND_THEME_ID) {
+        applyThemeVariables(null);
+        applyThemeStylesheet(null);
+        return;
+      }
       const variant = dark ? family?.dark : family?.light;
       const radii = family?.cornerRadii;
       applyThemeVariables({
@@ -47,7 +56,9 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
        second `applyDensity` here re-ran on every settings refetch and undid
        whatever the current density was between the cleanup and the reapply. */
     useUiStore.getState().setUiState({ density: settings.data?.appearance.density ?? "comfortable" });
-    const title = (appearance.titleTemplate ?? "{app}").replaceAll("{app}", appearance.appName).trim() || defaultBrand.label;
+    const title = organizationPack
+      ? organizationPack.titleTemplate.replaceAll("{app}", organizationPack.label).trim() || organizationPack.label
+      : (appearance.titleTemplate ?? "{app}").replaceAll("{app}", appearance.appName).trim() || defaultBrand.label;
     document.title = title;
     void commands.desktopSetTitle(title).catch(() => {});
     return () => {

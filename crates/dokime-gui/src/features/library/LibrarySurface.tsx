@@ -11,13 +11,13 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
-import { useCycleLabelQuery, useTestSuitesQuery } from "@/components/suite-picker/server-state";
+import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,22 +25,11 @@ import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { TemplateStepTimeline } from "@/features/library/TemplateStepTimeline";
+import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { useBrand } from "@/lib/brand";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
-import { usePageChrome } from "@/shell/page-chrome";
-
-/* === Types === */
-
-type LibrarySurfaceProps = {
-  /** The active cycle materialized cases join; without one nothing is added. */
-  appendTo?: string;
-};
-
-type OpenTemplate = {
-  suite: TestSuiteEntry;
-  template: SuiteTemplateEntry;
-};
+import { PageShell, PageToolbar } from "@/shell/PageShell";
 
 /* === Constants === */
 
@@ -58,6 +47,18 @@ const TITLE_COLUMNS = "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center 
    chevron, size-4 + gap-2), not under the chevron. */
 const SUITE_IDENTIFIER_INSET = "pl-6";
 
+/* === Types === */
+
+type LibrarySurfaceProps = {
+  /** A cycle to make active on arrival, as Add Cases names it; a closed one is ignored. */
+  appendTo?: string;
+};
+
+type OpenTemplate = {
+  suite: TestSuiteEntry;
+  template: SuiteTemplateEntry;
+};
+
 /* === Components === */
 
 /**
@@ -70,7 +71,18 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const brand = useBrand();
   const navigate = useNavigate();
   const suitesQuery = useTestSuitesQuery();
-  const cycleLabelQuery = useCycleLabelQuery(appendTo);
+  const active = useActiveCycle();
+  const { choose, cycles: openCycles } = active;
+  const destinationId = active.cycle?.cycleId;
+  /* Add Cases arrives naming its cycle: that cycle becomes the active one, as
+     the picker would make it, once the open cycles confirm it is open. Each
+     arrival applies once, so a later pick is never reverted by a refetch. */
+  const applied = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!appendTo || applied.current === appendTo || !openCycles.some((cycle) => cycle.cycleId === appendTo)) return;
+    applied.current = appendTo;
+    choose(appendTo);
+  }, [appendTo, choose, openCycles]);
   const suites = suitesQuery.data ?? null;
   const pluginsQuery = useInstalledPluginsQuery();
   const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
@@ -82,10 +94,10 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
   const actions = useMemo(
     () =>
-      appendTo ? (
+      destinationId ? (
         <Button
           className="h-[var(--control-height)]"
-          onClick={() => void navigate({ params: { cycleId: appendTo }, to: "/cycles/$cycleId" })}
+          onClick={() => void navigate({ params: { cycleId: destinationId }, to: "/cycles/$cycleId" })}
           type="button"
           variant="outline"
         >
@@ -96,10 +108,8 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
           New Cycle
         </Button>
       ),
-    [appendTo, navigate],
+    [destinationId, navigate],
   );
-
-  usePageChrome({ actions, title: "Library" });
 
   const suiteRows = useMemo(
     () => filterTestSuites(suites ?? [], suiteSearch, (suite) => pluginSearchText(plugins.get(suite.source), brand.label)),
@@ -108,17 +118,11 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const hasSearch = suiteSearch.trim().length > 0;
 
   return (
-    <div className="grid content-start gap-4 p-[var(--shell-inset)]">
-      {appendTo ? (
-        <p className="text-muted-foreground">
-          Cases materialized here are added to <span className="text-foreground">{cycleLabelQuery.data ?? appendTo}</span>.
-        </p>
-      ) : (
-        <p className="text-muted-foreground">No cycle is active. Create one, or add cases from a cycle, to materialize templates.</p>
-      )}
+    <PageShell actions={actions} trail={["Library"]}>
+      {active.failed ? <p role="alert">Open cycles could not be read. Reconnect and try again.</p> : null}
 
       <section aria-labelledby="library-suites" className="grid gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)] border-b">
+        <PageToolbar>
           <h2 className="font-heading font-semibold tracking-wide" id="library-suites">
             Suites
           </h2>
@@ -132,7 +136,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
               value={suiteSearch}
             />
           </div>
-        </div>
+        </PageToolbar>
 
         {suitesQuery.isError ? (
           <p className="text-destructive" role="alert">
@@ -233,14 +237,15 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
       {openTemplate ? (
         <TemplateDialog
-          cycleId={appendTo}
-          cycleLabel={cycleLabelQuery.data}
+          activeCycle={active.cycle}
+          hasOpenCycles={openCycles.length > 0}
           key={selectionDraftKey(openTemplate.suite.suite_id, templateSelectionId(openTemplate.template))}
           onOpenChange={(next) => {
             if (!next) setOpenTemplate(null);
           }}
-          open
+          onChangeCycle={active.openPicker}
           onNewCycle={() => setCreating(true)}
+          open
           suite={openTemplate.suite}
           template={openTemplate.template}
         />
@@ -249,11 +254,14 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
       {/* A cycle created here becomes the active one: the Library stays put,
           and an open template dialog can add to it at once. */}
       <NewCycleDialog
-        onCreated={(cycleId) => void navigate({ search: { appendTo: cycleId }, to: "/library" })}
+        onCreated={(cycleId) => {
+          choose(cycleId);
+          void navigate({ search: { appendTo: cycleId }, to: "/library" });
+        }}
         onOpenChange={setCreating}
         open={creating}
       />
-    </div>
+    </PageShell>
   );
 }
 

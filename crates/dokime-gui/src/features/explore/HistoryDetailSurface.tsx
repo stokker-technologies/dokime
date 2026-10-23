@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
 import { mapStepStatus } from "@/lib/api/native-planning";
-import { downloadNativeCycleReport, openNativeReport } from "@/lib/api/native-reports";
+import { openNativeReport } from "@/lib/api/native-reports";
 import { timestampIso } from "@/lib/api/native-values";
 import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
 import { usePageChrome } from "@/shell/page-chrome";
@@ -122,7 +122,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
         {query.isPending ? <p>Loading executions…</p> : null}
         {query.isError ? (
           <p role="alert" className="text-destructive">
-            Unable to load history: {query.error.message}
+            Unable to load history: {query.error?.message}
           </p>
         ) : null}
         {query.coverage && !query.coverage.discovery_complete ? (
@@ -181,10 +181,13 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
             {unrunCaption(entry.unrun_count)}
           </p>
         ) : null}
+        {entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0 ? (
+          <p>This sealed cycle contains no executions.</p>
+        ) : null}
         {!query.isPending && !query.isError && !entry && !unrun ? <p>No executions found in the loaded history.</p> : null}
         {query.hasNextPage ? (
           <Button variant="outline" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
-            {query.isFetchingNextPage ? "Loading…" : "Load more executions"}
+            {query.isFetchingNextPage ? "Loading…" : "Load More History"}
           </Button>
         ) : null}
         {selected?.checkpoint ? <CheckpointInspection key={checkpointKey(selected.checkpoint)} entry={selected} /> : null}
@@ -342,8 +345,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
     setBusy(true);
     try {
       setError(null);
-      const report = await downloadNativeCycleReport({ ...session.identity, own: session.own }, cycleId);
-      await openNativeReport(report, session.identity);
+      await openNativeReport(session.identity, { kind: "cycle_report", cycleId });
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -357,7 +359,11 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
         {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
         {busy ? "Opening…" : "Open Report"}
       </Button>
-      {error ? <span className="text-xs text-destructive">{error}</span> : null}
+      {error ? (
+        <span role="alert" className="text-xs text-destructive">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }

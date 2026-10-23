@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -24,6 +26,7 @@ use crate::model::values::ValueType;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(FieldError, formatter {
     Self { field, declared, found: Some(found) } => write!(
         formatter,
@@ -38,6 +41,7 @@ product_error!(FieldError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldError {
     pub field: String,
@@ -48,6 +52,7 @@ pub struct FieldError {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait FieldValue: Sized {
     const VALUE_TYPE: ValueType;
 
@@ -57,6 +62,7 @@ pub trait FieldValue: Sized {
 }
 
 /* === Implementations === */
+
 impl FieldError {
     #[must_use]
     pub fn named(mut self, field: impl Into<String>) -> Self {
@@ -256,6 +262,7 @@ pub fn field<T: FieldValue>(values: &BTreeMap<String, Value>, name: &str) -> Res
 }
 
 /* === Private Functions === */
+
 fn described(value: &Value) -> String {
     match value {
         Value::Null => "null",
@@ -269,8 +276,6 @@ fn described(value: &Value) -> String {
     }
     .to_owned()
 }
-
-/* === Functions === */
 
 fn narrowed(value: Option<&Value>) -> Result<i64, FieldError> {
     match value {

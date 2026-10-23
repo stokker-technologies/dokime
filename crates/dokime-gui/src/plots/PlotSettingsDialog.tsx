@@ -30,8 +30,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useReportDefaults } from "@/lib/application-settings";
 import type { DocumentDownsampleTechnique } from "@/lib/types";
-import type { PlotSettingsButtonProps } from "./plot-settings";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
+import type { PlotSettingsButtonProps } from "./plot-settings";
 
 /* === Constants === */
 

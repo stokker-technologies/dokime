@@ -4,12 +4,12 @@ Agent context for the Dokime GUI. This is a Tauri 2 desktop application with a
 Vite, React 19, and Tailwind CSS v4 frontend. The same frontend code supports the
 live operator shell and the self-contained report renderer.
 
-## Brand Assets
+## Organization Assets
 
-- Brand values live in `../../branding/brand.toml` and are compiled into
-  `dokime-app` (its `brand::theme` module). Preserve committed frontend assets under
-  `../../branding/generated/`; runtime appearance owns the compiled stylesheet.
-- Treat `../dokime-app/dist-report/report.html` as generated output. The report
+- Brand values live in `../../organization/organization.toml` and are compiled into
+  `dokime-runtime` (its `domains::installed_plugins::brand::theme` module). Preserve committed frontend assets under
+  `../../organization/generated/`; runtime appearance owns the compiled stylesheet.
+- Treat `../dokime-runtime/dist-report/report.html` as generated output. The report
   build owns it.
 
 ## Project Shape
@@ -29,11 +29,11 @@ live operator shell and the self-contained report renderer.
 
 - Install locked dependencies with `mise run prepare`.
 - After authored brand changes, rebuild the compiled theme and report with
-  `mise run prepare:report`, then run the repository checks.
+  `mise run prepare:organization` and `mise run prepare:report`, then run the repository checks.
 - Run focused checks for changed frontend behavior while implementing. Generated
   client type checks belong to `check:typescript:generated` after Product Build.
   After source closure, run the applicable full proof, including TypeScript
-  integration and the Linux native desktop system gate.
+  integration and the native Windows and Linux desktop system gates.
 
 ## Canonical Bindings And Transport
 

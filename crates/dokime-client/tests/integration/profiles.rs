@@ -24,8 +24,8 @@ use zeroize::Zeroizing;
 
 // Local Imports
 use dokime_client::{
-    credentials::{Error as CredentialError, SecretStore},
-    profiles::{Credential, Document, Error, Store},
+    profiles::{Document, Error, Secret, Store},
+    secrets::{Error as SecretError, SecretStore},
 };
 
 /* === Constants === */
@@ -54,22 +54,22 @@ struct Case {
 
 /* === Implementations === */
 impl SecretStore for Secrets {
-    fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, CredentialError> {
+    fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
         if self.unavailable {
-            return Err(CredentialError::Unavailable);
+            return Err(SecretError::Unavailable);
         }
         Ok(self.values.lock().unwrap().get(endpoint).cloned().map(Zeroizing::new))
     }
-    fn write(&self, endpoint: &str, token: &str) -> Result<(), CredentialError> {
+    fn write(&self, endpoint: &str, token: &str) -> Result<(), SecretError> {
         if self.unavailable {
-            return Err(CredentialError::Unavailable);
+            return Err(SecretError::Unavailable);
         }
         self.values.lock().unwrap().insert(endpoint.to_owned(), token.to_owned());
         Ok(())
     }
-    fn remove(&self, endpoint: &str) -> Result<(), CredentialError> {
+    fn remove(&self, endpoint: &str) -> Result<(), SecretError> {
         if self.unavailable {
-            return Err(CredentialError::Unavailable);
+            return Err(SecretError::Unavailable);
         }
         self.values.lock().unwrap().remove(endpoint);
         Ok(())
@@ -93,11 +93,11 @@ fn shared_language_conformance() {
 fn selection_snapshot_bound() {
     let cases: Vec<Case> = serde_json::from_str(include_str!("../fixtures/profiles.json")).unwrap();
     let mut document = Document::decode(cases[0].document.as_bytes()).unwrap();
-    document.profiles[0].credential = Credential::Keyring;
+    document.profiles[0].secret = Secret::Keyring;
     let selected = document.select(Some("local"), None, Some("unknown")).unwrap();
     assert_eq!(selected.expected_backend_id.as_deref(), Some("machine-1"));
     let direct = document.select(None, Some("http://127.0.0.1:9000"), Some("unknown")).unwrap();
-    assert_eq!(direct.credential, Credential::None);
+    assert_eq!(direct.secret, Secret::None);
     assert!(direct.expected_backend_id.is_none());
     assert!(document.select(Some("local"), Some("http://127.0.0.1"), None).is_err());
     assert!(document.select(None, None, Some("unknown")).is_err());
@@ -140,7 +140,7 @@ fn edits_refuse_contention() {
 }
 
 #[test]
-fn credentials_keep_profile() {
+fn secrets_keep_profile() {
     let cases: Vec<Case> = serde_json::from_str(include_str!("../fixtures/profiles.json")).unwrap();
     let original = Document::decode(cases[0].document.as_bytes()).unwrap();
     let directory = tempfile::tempdir().unwrap();
@@ -161,7 +161,7 @@ fn credentials_keep_profile() {
         })
         .unwrap();
     store.remember(&selection, "private-token", &secrets).unwrap();
-    assert_eq!(store.load().unwrap().get("local").unwrap().credential, Credential::Keyring);
+    assert_eq!(store.load().unwrap().get("local").unwrap().secret, Secret::Keyring);
     assert_eq!(secrets.read(selection.target.endpoint()).unwrap().unwrap().as_str(), "private-token");
     let bytes = std::fs::read(store.path()).unwrap();
     assert!(!String::from_utf8(bytes).unwrap().contains("private-token"));
@@ -180,6 +180,6 @@ fn credentials_keep_profile() {
     assert_eq!(std::fs::read(store.path()).unwrap(), before);
     let current = store.load().unwrap().select(Some("local"), None, None).unwrap();
     let unavailable = Secrets { unavailable: true, ..Secrets::default() };
-    assert!(matches!(store.remember(&current, "private-token", &unavailable), Err(Error::Credentials(CredentialError::Unavailable))));
+    assert!(matches!(store.remember(&current, "private-token", &unavailable), Err(Error::Secrets(SecretError::Unavailable))));
     assert_eq!(std::fs::read(store.path()).unwrap(), before);
 }

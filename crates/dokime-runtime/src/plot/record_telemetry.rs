@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde_json::Value as JsonValue;
 use time::OffsetDateTime;
+
 // Local Imports
 use super::record_timing::{RecordFilterLookup, scoped_record_time_between};
 use crate::expressions::{DataExpression, DataSource, DataTransform, RecordTimingRecord};
@@ -36,6 +39,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 struct RecordTelemetryExpression<'a> {
     label: String,
@@ -60,6 +64,7 @@ struct RecordTelemetryValue<'a> {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn record_telemetry_series(
     telemetry: &[TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, unit: Option<&str>, max_points: usize,
     technique: DownsampleTechnique,
@@ -89,6 +94,7 @@ pub(crate) fn record_telemetry_series(
 }
 
 /* === Private Functions === */
+
 fn plain_record_telemetry_series(
     telemetry: &[TelemetrySample], records: &[RecordEntry], request: &PlotPayloadRequest, expressions: Vec<RecordTelemetryExpression<'_>>,
     unit: Option<&str>, max_points: usize, technique: DownsampleTechnique,

@@ -13,18 +13,18 @@
 
 /* === Local Imports === */
 
-import type { Wire } from "@/lib/rpc/canonical";
-import * as rpc from "@/lib/rpc/generated/client";
-import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { FileDefinition, ParameterDefinition, ParameterListDefinition, SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import type {
   Row8 as GeneratedFileParameterDefinition,
   Row7 as GeneratedParameterSchema,
   Row2 as GeneratedSuiteDefinition,
   Row3 as GeneratedSuiteIdentity,
   Row4 as GeneratedTemplateDefinition,
-} from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row3 as GeneratedCursor } from "../../../.generated/dokime/v1/CatalogMessages/ListSuites/messages_pb";
+} from "@generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row3 as GeneratedCursor } from "@generated/dokime/v1/CatalogMessages/ListSuites/messages_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
+import type { SessionIdentity } from "@/lib/rpc/transport";
+import type { FileDefinition, ParameterDefinition, ParameterListDefinition, SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import {
   jsonToNativeValue,
   mapBounded,
@@ -95,7 +95,6 @@ function mapSuite(definition: SuiteDefinition, identity?: SuiteIdentity): TestSu
     source: suiteIdentity.source,
     path: [name],
     tags: uniqueStrings(definition.tags),
-    continue_on_failure: false,
     members: definition.templates.map((template) => mapSuiteTemplate(template, name)),
     metadata: metadataJson(suiteIdentity.metadata),
   };
@@ -113,7 +112,6 @@ function mapSuiteTemplate(template: TemplateDefinition, suiteName: string): Suit
     description: template.metadata?.description ?? null,
     path: [suiteName, name],
     tags: uniqueStrings(template.tags),
-    continue_on_failure: template.continueOnFailure,
     parameter_definitions: template.parameters.map(mapParameter),
     file_definitions: template.files.map(mapFile),
     steps: template.steps.map((step, index) => ({

@@ -48,9 +48,9 @@ def workspace() -> Path:
 
 
 @pytest.fixture(scope="session")
-def artifact(workspace: Path, pytestconfig: pytest.Config) -> Callable[[str], Path]:
-    """Resolve The Explicit Profile's Native Product Artifacts, Failing When Absent"""
-    build = paths.output(workspace, "build", pytestconfig.getoption("build_profile"))
+def artifact(workspace: Path, request: pytest.FixtureRequest) -> Callable[[str], Path]:
+    """Resolve A Matching Profile/Target Build Artifact, Failing When Absent"""
+    build = paths.output(workspace, "build", request.config.getoption("--build-profile"))
 
     def resolve(relative: str) -> Path:
         path = build / relative

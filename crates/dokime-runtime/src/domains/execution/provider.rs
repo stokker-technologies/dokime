@@ -8,14 +8,18 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod admission;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::runtime::operations::provider::ProviderCycleRequest;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
+
 // Third Party Imports
 
 // Local Imports
@@ -49,6 +53,7 @@ pub type ExecutionFixtureFuture<'a> =
     Pin<Box<dyn Future<Output = std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure>> + Send + 'a>>;
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct ExecutionFixtureContext {
     pub(crate) runtime: RuntimeHandle,
@@ -82,6 +87,7 @@ pub trait ExecutionFixture: Send + Sync + 'static {
 }
 
 /* === Implementations === */
+
 impl ExecutionFixtureContext {
     pub(crate) fn new(runtime: RuntimeHandle) -> Self {
         Self { runtime, request_id: None, cancellation: None, finalization: Default::default() }
@@ -144,7 +150,7 @@ impl ExecutionFixtureContext {
             .state_read()
             .run_requests
             .get(request_id)
-            .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
+            .is_some_and(|request| request.summary.stop_requested && request.test_execution_id.as_ref() == Some(test_execution_id))
     }
 
     pub async fn execution_stopped(&self, test_execution_id: &TestExecutionId) {
@@ -152,15 +158,14 @@ impl ExecutionFixtureContext {
             return std::future::pending().await;
         };
         let mut state = self.runtime.watch_state();
-        let _ = state
-            .wait_until(|snapshot| {
-                snapshot
-                    .state()
-                    .run_requests
-                    .get(request_id)
-                    .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
-            })
-            .await;
+        let _ =
+            state
+                .wait_until(|snapshot| {
+                    snapshot.state().run_requests.get(request_id).is_some_and(|request| {
+                        request.summary.stop_requested && request.test_execution_id.as_ref() == Some(test_execution_id)
+                    })
+                })
+                .await;
     }
 
     pub async fn cycle_lifecycle(&self, test_cycle_id: &TestCycleId) -> Option<CycleStatus> {
@@ -280,11 +285,6 @@ impl ProviderExecutorRegistry {
 }
 
 /* === Public Functions === */
-pub(crate) fn provider_target_for_cycle(
-    state: &RuntimeState, test_cycle_id: &TestCycleId, selected_execution_id: Option<&TestExecutionId>,
-) -> Option<ExecutionProviderTarget> {
-    provider_targets_for_cycle(state, test_cycle_id, selected_execution_id).into_iter().next()
-}
 
 pub(crate) fn provider_targets_for_cycle(
     state: &RuntimeState, test_cycle_id: &TestCycleId, selected_execution_id: Option<&TestExecutionId>,
@@ -296,9 +296,7 @@ pub(crate) fn provider_targets_for_cycle(
     let resolved = state
         .executions_for_cycle(cycle)
         .filter(|execution| {
-            execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped
-                && execution.started_at.is_none()
-                && execution.finished_at.is_none()
+            crate::transactions::provider::execution_available(state, execution)
                 && selected_execution_id.is_none_or(|id| &execution.test_execution_id == id)
         })
         .filter_map(|execution| state.suites.provider_target_for_case(execution.snapshot.case()));
@@ -312,4 +310,5 @@ pub(crate) fn provider_targets_for_cycle(
 }
 
 /* === Private Functions === */
+
 /* === Tests === */

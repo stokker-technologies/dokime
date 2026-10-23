@@ -12,18 +12,20 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::MemorySize;
-use harmos::domain::Portable;
-use harmos::operations::StreamOutput;
+use dokime::harmos::MemorySize;
+use dokime::harmos::domain::Portable;
+use dokime::harmos::operations::StreamOutput;
 use sha2::{Digest as _, Sha256};
-use std::num::NonZeroUsize;
 use tonic::Status;
+
 // Local Imports
-use dokime_runtime::runtime::ArtifactReader;
+use crate::grpc::transcode::Transcode;
+use dokime::runtime::ArtifactReader;
 
 /* === Constants === */
 
@@ -32,7 +34,8 @@ use dokime_runtime::runtime::ArtifactReader;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct ArtifactFrames(pub(super) harmos::operations::Response<dokime_domain::model::content::wire::ArtifactFrame>);
+
+pub(super) struct ArtifactFrames(pub(super) dokime::harmos::operations::Response<dokime::domain::model::content::wire::ArtifactFrame>);
 
 pub(super) struct Download<F> {
     pub(super) frames: F,
@@ -46,17 +49,20 @@ pub(super) struct Download<F> {
 }
 
 /* === Enums === */
+
 pub(super) enum Source {
     Bytes { data: Vec<u8>, read: usize },
     Artifact(Box<ArtifactReader>),
+    Evidence(Box<dokime::domains::exports::evidence::Bundle>),
 }
 
 /* === Traits === */
+
 pub(super) trait Frames: Send + 'static {
     type Frame: Portable + MemorySize + Send + Sync + 'static;
 
     fn metadata(&self) -> Self::Frame;
-    fn metadata_owned(&self) -> Option<harmos::operations::Response<Self::Frame>> {
+    fn metadata_owned(&self) -> Option<dokime::harmos::operations::Response<Self::Frame>> {
         None
     }
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame;
@@ -64,29 +70,30 @@ pub(super) trait Frames: Send + 'static {
 }
 
 /* === Implementations === */
+
 impl Frames for ArtifactFrames {
-    type Frame = dokime_domain::model::content::wire::ArtifactFrame;
+    type Frame = dokime::domain::model::content::wire::ArtifactFrame;
 
     fn metadata(&self) -> Self::Frame {
-        dokime_domain::model::content::wire::ArtifactFrame { payload: self.0.payload.clone() }
+        dokime::domain::model::content::wire::ArtifactFrame { payload: self.0.payload.clone() }
     }
 
-    fn metadata_owned(&self) -> Option<harmos::operations::Response<Self::Frame>> {
+    fn metadata_owned(&self) -> Option<dokime::harmos::operations::Response<Self::Frame>> {
         Some(self.0.clone())
     }
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(
-                dokime_domain::model::content::wire::ArtifactChunk { offset, data },
+        dokime::domain::model::content::wire::ArtifactFrame {
+            payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Chunk(
+                dokime::domain::model::content::wire::ArtifactChunk { offset, data },
             )),
         }
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Complete(
-                dokime_domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
+        dokime::domain::model::content::wire::ArtifactFrame {
+            payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Complete(
+                dokime::domain::model::content::wire::ArtifactCompletion { size_bytes, sha256 },
             )),
         }
     }
@@ -101,9 +108,14 @@ impl Source {
         Self::Artifact(Box::new(reader))
     }
 
-    async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<Vec<u8>>, dokime_runtime::runtime::Error> {
+    async fn next_chunk(&mut self, maximum: NonZeroUsize, failure: &'static str) -> Result<Option<Vec<u8>>, Status> {
         match self {
-            Self::Artifact(reader) => reader.next_chunk(maximum).await,
+            Self::Artifact(reader) => reader.next_chunk(maximum).await.map_err(|error| file_failure(error, failure)),
+            Self::Evidence(reader) => reader
+                .next_chunk(maximum)
+                .await
+                .map(|chunk| chunk.map(|chunk| chunk.data))
+                .map_err(|error| super::content::evidence::failure(&error)),
             Self::Bytes { .. } => unreachable!("captured byte sources use direct bounded slices"),
         }
     }
@@ -144,11 +156,11 @@ impl<F: Frames> Download<F> {
                             let mut payload = Vec::new();
                             payload
                                 .try_reserve_exact(bytes.len())
-                                .map_err(|_| harmos::Error::ResourceExhausted { resource: "file frame allocation" })?;
+                                .map_err(|_| dokime::harmos::Error::ResourceExhausted { resource: "file frame allocation" })?;
                             payload.extend_from_slice(bytes);
                             let frame = frames.chunk(offset, payload);
                             if frame.wire_len()? > limit {
-                                return Err(harmos::Error::ResourceExhausted { resource: "file frame encoding" });
+                                return Err(dokime::harmos::Error::ResourceExhausted { resource: "file frame encoding" });
                             }
                             Ok(frame)
                         })
@@ -157,9 +169,8 @@ impl<F: Frames> Download<F> {
                     *read = end;
                     offset = next;
                 }
-                Source::Artifact(_) => {
-                    let Some(chunk) = self.source.next_chunk(maximum).await.map_err(|source| file_failure(source, self.read_failure))?
-                    else {
+                Source::Artifact(_) | Source::Evidence(_) => {
+                    let Some(chunk) = self.source.next_chunk(maximum, self.read_failure).await? else {
                         break;
                     };
                     let count = chunk.len();
@@ -197,24 +208,27 @@ impl<F: Frames> Download<F> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn checked_offset(offset: u64, count: usize, size: u64, noun: &str) -> Result<u64, Status> {
     offset
         .checked_add(count as u64)
         .filter(|delivered| *delivered <= size)
         .ok_or_else(|| Status::data_loss(format!("{noun} exceeds its declared length")))
 }
-fn file_failure(source: dokime_runtime::runtime::Error, message: &'static str) -> Status {
+
+fn file_failure(source: dokime::runtime::Error, message: &'static str) -> Status {
     let status = match &source {
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => Status::resource_exhausted(message),
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => Status::unavailable(message),
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) => Status::resource_exhausted(message),
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::NotReady { .. }) => Status::unavailable(message),
         _ => Status::internal(message),
     };
     super::error::detailed(status, &source)
 }
-fn stream_failure(error: harmos::Error) -> Status {
+
+fn stream_failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
+        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
         _ => Status::internal(error.to_string()),
     }
 }

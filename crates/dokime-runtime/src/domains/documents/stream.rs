@@ -29,6 +29,7 @@ use crate::{ExecutionFileContent, runtime::Result, runtime::storage::native_outp
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ExecutionFileStream {
     source: Source,
     metadata: ExecutionFileContent,
@@ -36,6 +37,7 @@ pub struct ExecutionFileStream {
 }
 
 /* === Enums === */
+
 enum Source {
     Live(Reader),
     Saved(Box<SavedOutputFile>),
@@ -44,6 +46,7 @@ enum Source {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFileStream {
     pub(crate) fn live(reader: Reader) -> Result<Self> {
         let metadata = ExecutionFileContent { offset: 0, bytes: Vec::new(), ..reader.metadata().clone() };
@@ -88,6 +91,7 @@ impl ExecutionFileStream {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn end(content: &ExecutionFileContent) -> harmos::Result<u64> {
     content.offset.checked_add(content.bytes.len() as u64).ok_or_else(|| invalid("chunk offset overflows"))
 }

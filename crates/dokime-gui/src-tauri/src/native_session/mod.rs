@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod backend;
 mod contract;
 mod diagnostics;
@@ -16,10 +17,12 @@ mod owner;
 pub mod storage;
 
 /* === Re-Exports === */
+
 pub use contract::*;
 pub use owner::DesktopSession;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,6 +36,7 @@ pub use owner::DesktopSession;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct DesktopSessionControl(DesktopSession);
 
 /* === Enums === */
@@ -40,6 +44,7 @@ pub struct DesktopSessionControl(DesktopSession);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DesktopSessionControl {
     pub fn active(owner: DesktopSession) -> Self {
         Self(owner)
@@ -48,12 +53,17 @@ impl DesktopSessionControl {
         self.0.shutdown().await?;
         Ok(())
     }
+    // End the owned backend without the rest of its orderly stop.
+    pub fn abandon(&self) {
+        self.0.abandon();
+    }
     pub fn status(&self) -> DesktopSessionSnapshot {
         self.0.status()
     }
 }
 
 /* === Public Functions === */
+
 pub async fn desktop_session_select(
     state: tauri::State<'_, DesktopSessionControl>, selection: BackendSelection,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
@@ -159,12 +169,13 @@ pub async fn desktop_open_backend_log(
     .map_err(|error| error.to_string())?
 }
 
-pub fn desktop_profiles_list() -> Result<dokime_client::profiles::Document, String> {
-    let store = dokime_client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
+pub fn desktop_profiles_list() -> Result<dokime::client::profiles::Document, String> {
+    let store = dokime::client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
     store.load().map_err(|error| error.to_string())
 }
 
 /* === Private Functions === */
+
 fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageRoot, DesktopSessionError> {
     use tauri::Manager;
 

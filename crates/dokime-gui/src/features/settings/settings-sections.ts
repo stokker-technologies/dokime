@@ -9,21 +9,7 @@
 
 /* === External Imports === */
 
-import { Activity, CircleUser, Info, type LucideIcon, PackagePlus, Palette, Settings } from "lucide-react";
-
-/* === Types === */
-
-export type SettingsSectionId = string;
-
-export type SettingsSectionGroup = "primary" | "utility";
-
-export type SettingsSection = {
-  id: SettingsSectionId;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  group: SettingsSectionGroup;
-};
+import { Activity, CircleUser, Info, type LucideIcon, Network, PackagePlus, Palette, Settings } from "lucide-react";
 
 /* === Constants === */
 
@@ -33,6 +19,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "General",
     description: "Execution storage and restart",
     icon: Settings,
+    group: "primary",
+  },
+  {
+    id: "remote",
+    label: "Remote Access",
+    description: "Listener, access key and public certificate",
+    icon: Network,
     group: "primary",
   },
   {
@@ -64,6 +57,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: "primary",
   },
   {
+    id: "secrets",
+    label: "Secret Storage",
+    description: "Shared named secrets on the connected host",
+    icon: CircleUser,
+    group: "primary",
+  },
+  {
     id: "diagnostics",
     label: "Diagnostics",
     description: "Server health, lanes, and run folder",
@@ -80,3 +80,17 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 ];
 
 export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = "general";
+
+/* === Types === */
+
+export type SettingsSectionId = string;
+
+export type SettingsSectionGroup = "primary" | "utility";
+
+export type SettingsSection = {
+  id: SettingsSectionId;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  group: SettingsSectionGroup;
+};

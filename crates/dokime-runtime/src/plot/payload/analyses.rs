@@ -23,10 +23,12 @@ use serde::Serialize;
 // Local Imports
 use super::{PlotPayloadRequest, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, parse_timestamp};
 use crate::document::PlotType;
+
 #[cfg(feature = "fft")]
 use crate::document::{FftDetrend, FftWindow, FrequencyLevelUnit};
 
 /* === Constants === */
+
 const WIFI_BANDS: [&str; 3] = ["2.4 GHz", "5 GHz", "6 GHz"];
 
 /* === Macros === */
@@ -34,12 +36,14 @@ const WIFI_BANDS: [&str; 3] = ["2.4 GHz", "5 GHz", "6 GHz"];
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct HistogramBin {
     pub lower: f64,
     pub upper: f64,
     pub count: usize,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct HistogramSeries {
     pub key: String,
@@ -47,6 +51,7 @@ pub struct HistogramSeries {
     pub count: usize,
     pub statistics: Option<HistogramStatistics>,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct HistogramStatistics {
     pub mean: f64,
@@ -56,6 +61,7 @@ pub struct HistogramStatistics {
     pub min: f64,
     pub max: f64,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct BoxSummary {
     pub key: String,
@@ -70,6 +76,7 @@ pub struct BoxSummary {
     pub upper_whisker: f64,
     pub outliers: Vec<f64>,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SigmaBin {
     pub x: f64,
@@ -78,17 +85,20 @@ pub struct SigmaBin {
     pub lower: f64,
     pub upper: f64,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SigmaSeries {
     pub key: String,
     pub bins: Vec<SigmaBin>,
     pub raw_points: usize,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WifiChannelCount {
     pub channel: i64,
     pub count: usize,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WifiBandScan {
     pub band: String,
@@ -96,6 +106,7 @@ pub struct WifiBandScan {
     pub total_networks: usize,
     pub peak_count: usize,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WifiScan {
     pub time: String,
@@ -105,6 +116,7 @@ pub struct WifiScan {
     pub total_networks: usize,
     pub peak_count: usize,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WifiBandWindow {
     pub band: String,
@@ -112,6 +124,7 @@ pub struct WifiBandWindow {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PlotAnalysis {
@@ -127,6 +140,7 @@ pub enum PlotAnalysis {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -> Option<PlotAnalysis> {
     if request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
         return Some(PlotAnalysis::Error { message: "Z expressions must select a scalar field without transforms".into() });
@@ -215,7 +229,120 @@ pub(super) fn reduce_spectrum(points: Vec<PlotPoint>, max_points: usize) -> (Vec
     (reduced, true)
 }
 
+pub(super) fn point_x(point: &PlotPoint) -> Option<f64> {
+    point
+        .x
+        .as_f64()
+        .or_else(|| {
+            point
+                .x
+                .as_str()
+                .and_then(|text| parse_timestamp(text).map(|value| value.unix_timestamp_nanos() as f64 / 1e9).or_else(|| text.parse().ok()))
+        })
+        .filter(|value| value.is_finite())
+}
+
+#[cfg(feature = "fft")]
+pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Result<(), String> {
+    let options = &request.fft;
+    let scale = if matches!(options.level_unit, FrequencyLevelUnit::Dbu | FrequencyLevelUnit::Dbm) {
+        match entry.unit.as_deref() {
+            Some("V" | "volt" | "volts") => 1.0,
+            Some("mV") => 0.001,
+            _ => {
+                entry.points.clear();
+                return Err("dBu and dBm spectra require voltage samples in V or mV; dBm uses a 50-ohm load".into());
+            }
+        }
+    } else {
+        1.0
+    };
+    let samples = values(entry).into_iter().map(|value| value * scale).collect::<Vec<_>>();
+    let n = samples.len();
+    let rate = options.sample_rate_hz.or_else(|| {
+        let origin = entry.points.first()?.x.as_str().and_then(parse_timestamp);
+        let times = entry
+            .points
+            .iter()
+            .map(|point| {
+                if let Some(origin) = origin {
+                    Some((parse_timestamp(point.x.as_str()?)? - origin).as_seconds_f64())
+                } else {
+                    point_x(point)
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+        if times.len() != n || n < 2 {
+            return None;
+        }
+        let step = (times[n - 1] - times[0]) / (n - 1) as f64;
+        // A Fourier spectrum needs uniform sampling. Missing/irregular rows must not silently compress time.
+        if step <= 0.0 || times.windows(2).any(|pair| ((pair[1] - pair[0]) - step).abs() > step.abs() * 1e-4 + 1e-9) {
+            return None;
+        }
+        Some(1.0 / step)
+    });
+    let Some(rate) = rate.filter(|rate| rate.is_finite() && *rate > 0.0 && n >= 2 && n == entry.points.len()) else {
+        entry.points.clear();
+        return Err("FFT requires at least two finite samples and a positive sample rate or uniformly spaced timestamps".into());
+    };
+    let size = n.next_power_of_two();
+    let mean = if matches!(options.detrend, FftDetrend::Mean) { samples.iter().sum::<f64>() / n as f64 } else { 0.0 };
+    let mut windowed = vec![0.0; size];
+    let mut gain = 0.0;
+    for (index, sample) in samples.into_iter().enumerate() {
+        let weight = match options.window {
+            FftWindow::Rectangular => 1.0,
+            FftWindow::Hann => 0.5 * (1.0 - (std::f64::consts::TAU * index as f64 / n as f64).cos()),
+        };
+        gain += weight;
+        windowed[index] = (sample - mean) * weight;
+    }
+    // Window Before Padding; Preserve The Original Sample Coherent Gain.
+    let spectrum = harmos::signal::transform(&windowed, rate, harmos::signal::Taper::Rectangular);
+    entry.points = spectrum
+        .real
+        .iter()
+        .zip(&spectrum.imag)
+        .enumerate()
+        .take(size / 2 + 1)
+        .filter_map(|(index, (&real, &imaginary))| {
+            let frequency = index as f64 * rate / size as f64;
+            if (index == 0 && !options.include_dc)
+                || options.min_frequency_hz.is_some_and(|min| frequency < min)
+                || options.max_frequency_hz.is_some_and(|max| frequency > max)
+            {
+                return None;
+            }
+            let amplitude = real.hypot(imaginary) * size as f64 / gain;
+            let rms = if index == 0 || index == size / 2 { amplitude } else { amplitude / std::f64::consts::SQRT_2 };
+            let level = match options.level_unit {
+                FrequencyLevelUnit::Linear => amplitude,
+                FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
+                FrequencyLevelUnit::Dbu => 20.0 * (rms / 0.775).max(f64::MIN_POSITIVE).log10(),
+                // Voltage amplitude into the conventional 50-ohm reference load.
+                FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
+            };
+            Some(PlotPoint { x: frequency.into(), y: Some(level), z: None })
+        })
+        .collect();
+    entry.unit = match options.level_unit {
+        FrequencyLevelUnit::Linear => entry.unit.clone(),
+        FrequencyLevelUnit::Db => Some("dB".into()),
+        FrequencyLevelUnit::Dbu => Some("dBu".into()),
+        FrequencyLevelUnit::Dbm => Some("dBm".into()),
+    };
+    Ok(())
+}
+
+#[cfg(not(feature = "fft"))]
+pub(super) fn fft(entry: &mut PlotSeries, _: &PlotPayloadRequest) -> Result<(), String> {
+    entry.points.clear();
+    Err("FFT analysis is unavailable in this build".into())
+}
+
 /* === Private Functions === */
+
 fn values(entry: &PlotSeries) -> Vec<f64> {
     entry.points.iter().filter_map(|point| point.y.filter(|value| value.is_finite())).collect()
 }
@@ -293,19 +420,6 @@ fn box_summary(entry: &PlotSeries) -> Option<BoxSummary> {
         upper_whisker: upper,
         outliers: values.iter().copied().filter(|value| *value < lower || *value > upper).collect(),
     })
-}
-
-pub(super) fn point_x(point: &PlotPoint) -> Option<f64> {
-    point
-        .x
-        .as_f64()
-        .or_else(|| {
-            point
-                .x
-                .as_str()
-                .and_then(|text| parse_timestamp(text).map(|value| value.unix_timestamp_nanos() as f64 / 1e9).or_else(|| text.parse().ok()))
-        })
-        .filter(|value| value.is_finite())
 }
 
 fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
@@ -422,105 +536,6 @@ fn wifi_band(channel: i64) -> Option<&'static str> {
         1_001..=1_233 if (channel - 1_000) % 4 == 1 => Some(WIFI_BANDS[2]),
         _ => None,
     }
-}
-
-#[cfg(feature = "fft")]
-pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Result<(), String> {
-    let options = &request.fft;
-    let scale = if matches!(options.level_unit, FrequencyLevelUnit::Dbu | FrequencyLevelUnit::Dbm) {
-        match entry.unit.as_deref() {
-            Some("V" | "volt" | "volts") => 1.0,
-            Some("mV") => 0.001,
-            _ => {
-                entry.points.clear();
-                return Err("dBu and dBm spectra require voltage samples in V or mV; dBm uses a 50-ohm load".into());
-            }
-        }
-    } else {
-        1.0
-    };
-    let samples = values(entry).into_iter().map(|value| value * scale).collect::<Vec<_>>();
-    let n = samples.len();
-    let rate = options.sample_rate_hz.or_else(|| {
-        let origin = entry.points.first()?.x.as_str().and_then(parse_timestamp);
-        let times = entry
-            .points
-            .iter()
-            .map(|point| {
-                if let Some(origin) = origin {
-                    Some((parse_timestamp(point.x.as_str()?)? - origin).as_seconds_f64())
-                } else {
-                    point_x(point)
-                }
-            })
-            .collect::<Option<Vec<_>>>()?;
-        if times.len() != n || n < 2 {
-            return None;
-        }
-        let step = (times[n - 1] - times[0]) / (n - 1) as f64;
-        // A Fourier spectrum needs uniform sampling. Missing/irregular rows must not silently compress time.
-        if step <= 0.0 || times.windows(2).any(|pair| ((pair[1] - pair[0]) - step).abs() > step.abs() * 1e-4 + 1e-9) {
-            return None;
-        }
-        Some(1.0 / step)
-    });
-    let Some(rate) = rate.filter(|rate| rate.is_finite() && *rate > 0.0 && n >= 2 && n == entry.points.len()) else {
-        entry.points.clear();
-        return Err("FFT requires at least two finite samples and a positive sample rate or uniformly spaced timestamps".into());
-    };
-    let size = n.next_power_of_two();
-    let mean = if matches!(options.detrend, FftDetrend::Mean) { samples.iter().sum::<f64>() / n as f64 } else { 0.0 };
-    let mut windowed = vec![0.0; size];
-    let mut gain = 0.0;
-    for (index, sample) in samples.into_iter().enumerate() {
-        let weight = match options.window {
-            FftWindow::Rectangular => 1.0,
-            FftWindow::Hann => 0.5 * (1.0 - (std::f64::consts::TAU * index as f64 / n as f64).cos()),
-        };
-        gain += weight;
-        windowed[index] = (sample - mean) * weight;
-    }
-    // Window Before Padding; Preserve The Original Sample Coherent Gain.
-    let spectrum = harmos::signal::transform(&windowed, rate, harmos::signal::Taper::Rectangular);
-    entry.points = spectrum
-        .real
-        .iter()
-        .zip(&spectrum.imag)
-        .enumerate()
-        .take(size / 2 + 1)
-        .filter_map(|(index, (&real, &imaginary))| {
-            let frequency = index as f64 * rate / size as f64;
-            if (index == 0 && !options.include_dc)
-                || options.min_frequency_hz.is_some_and(|min| frequency < min)
-                || options.max_frequency_hz.is_some_and(|max| frequency > max)
-            {
-                return None;
-            }
-            let amplitude = real.hypot(imaginary) * size as f64 / gain;
-            let rms = if index == 0 || index == size / 2 { amplitude } else { amplitude / std::f64::consts::SQRT_2 };
-            let level = match options.level_unit {
-                FrequencyLevelUnit::Linear => amplitude,
-                FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
-                FrequencyLevelUnit::Dbu => 20.0 * (rms / 0.775).max(f64::MIN_POSITIVE).log10(),
-                // Voltage amplitude into the conventional 50-ohm reference load.
-                FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
-            };
-            Some(PlotPoint { x: frequency.into(), y: Some(level), z: None })
-        })
-        .collect();
-    entry.unit = match options.level_unit {
-        FrequencyLevelUnit::Linear => entry.unit.clone(),
-        FrequencyLevelUnit::Db => Some("dB".into()),
-        FrequencyLevelUnit::Dbu => Some("dBu".into()),
-        FrequencyLevelUnit::Dbm => Some("dBm".into()),
-    };
-    Ok(())
-}
-
-#[cfg(not(feature = "fft"))]
-pub(super) fn fft(entry: &mut PlotSeries, _: &PlotPayloadRequest) -> Result<(), String> {
-    entry.points.clear();
-    Err("FFT analysis is unavailable in this build".into())
 }
 
 /* === Tests === */

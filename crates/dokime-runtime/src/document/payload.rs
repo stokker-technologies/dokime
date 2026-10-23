@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::artifacts::ArtifactStatus;
 use crate::document::{
@@ -31,6 +33,7 @@ use dokime_domain::model::records::evidence::RecordMarker;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 pub(crate) const MAX_UNAVAILABLE_REASON_BYTES: usize = 512;
 
 /* === Macros === */
@@ -38,15 +41,19 @@ pub(crate) const MAX_UNAVAILABLE_REASON_BYTES: usize = 512;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentPayload {
     pub document_id: DocumentId,
     pub metadata: Metadata,
     pub selection: DocumentSelection,
+
     #[serde(default)]
     pub cards: Vec<DocumentCardPayload>,
+
     #[serde(default)]
     pub layout: DocumentLayoutPayload,
+
     pub plot_descriptors: Vec<PlotDescriptor>,
     pub plot_inputs: Vec<crate::document::definition::PlotInput>,
     pub record_markers: Vec<RecordMarker>,
@@ -64,6 +71,7 @@ pub struct DocumentLayoutPayload {
 pub struct DocumentSectionNodePayload {
     pub node_id: Identifier,
     pub metadata: Metadata,
+
     #[serde(default)]
     pub children: Vec<DocumentNodePayload>,
 }
@@ -71,6 +79,7 @@ pub struct DocumentSectionNodePayload {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentCardPlacementPayload {
     pub card_id: Identifier,
+
     #[serde(default)]
     pub layout: DocumentCardLayout,
 }
@@ -78,6 +87,7 @@ pub struct DocumentCardPlacementPayload {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DocumentCardPayload {
     pub metadata: Metadata,
+
     #[serde(flatten)]
     pub body: DocumentCardBodyPayload,
 }
@@ -85,6 +95,7 @@ pub struct DocumentCardPayload {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySummaryGroupPayload {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub tiles: Vec<TelemetrySummaryTilePayload>,
 }
@@ -93,16 +104,22 @@ pub struct TelemetrySummaryGroupPayload {
 pub struct TelemetrySummaryTilePayload {
     pub metadata: Metadata,
     pub value: Option<Value>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unavailable: Option<String>,
+
     #[serde(default)]
     pub stat: TelemetrySummaryStat,
+
     #[serde(default)]
     pub format: TelemetrySummaryFormat,
+
     #[serde(default)]
     pub presentation: TelemetrySummaryPresentation,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state: Option<TelemetrySummaryState>,
 }
@@ -121,6 +138,7 @@ pub struct DocumentWarning {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum DocumentNodePayload {
@@ -149,6 +167,7 @@ pub enum DocumentCardBodyPayload {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::MemorySize for DocumentPayload {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -294,10 +313,11 @@ impl harmos::MemorySize for DocumentSectionNodePayload {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(crate) fn valid_unavailable_reason(reason: &str) -> bool {
     !reason.trim().is_empty() && reason.len() <= MAX_UNAVAILABLE_REASON_BYTES
 }
+
+/* === Private Functions === */
 
 fn owned_heap(owned: usize, inline: usize) -> usize {
     if owned == usize::MAX { usize::MAX } else { owned.saturating_sub(inline) }

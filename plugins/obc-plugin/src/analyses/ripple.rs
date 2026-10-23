@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::convert::Infallible;
 use std::time::Duration;
@@ -19,7 +20,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::analysis::{Analysis, Limits, Output, Response, ResultData, Samples, Values};
+use dokime::analysis::{Analysis, Limits, Output, Response, ResultData, Samples, Values};
 
 /* === Constants === */
 
@@ -28,6 +29,7 @@ use dokime_runtime::analysis::{Analysis, Limits, Output, Response, ResultData, S
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Ripple;
 
 pub struct Amplitude {
@@ -40,6 +42,7 @@ pub struct Amplitude {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Analysis for Ripple {
     type Parameters = ();
     type Output = Amplitude;

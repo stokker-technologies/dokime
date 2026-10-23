@@ -16,6 +16,7 @@ import { useEffect } from "react";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
+import { cyclesHomeQueryKeys } from "@/features/cycles-home/cycles-queries";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { operationsFromFrame } from "@/shell/status-bar-operations";
@@ -60,6 +61,7 @@ export function useRuntimeStream(): void {
       await Promise.all([
         invalidateRuntimeProjectionQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }, { cancelRefetch: false }),
+        queryClient.invalidateQueries({ queryKey: cyclesHomeQueryKeys.all }, { cancelRefetch: false }),
       ]);
       documentRefresh.request();
     });

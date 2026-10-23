@@ -41,6 +41,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy)]
 pub(in crate::report) struct Header<'a> {
     pub session_id: &'a SessionId,
@@ -57,7 +58,6 @@ pub(in crate::report) struct Cycle<'a> {
     pub lifecycle: CycleStatus,
     pub created_at: &'a Timestamp,
     pub result: Option<&'a ResultSummary>,
-    pub continue_on_failure: bool,
 }
 
 /* === Enums === */
@@ -65,6 +65,7 @@ pub(in crate::report) struct Cycle<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<'a> Header<'a> {
     pub(in crate::report) fn cycle(snapshot: &'a CycleSnapshot, documents: &'a BTreeMap<DocumentId, Capture>) -> Self {
         let source = snapshot.source();
@@ -76,7 +77,6 @@ impl<'a> Header<'a> {
                 lifecycle: source.lifecycle,
                 created_at: &source.created_at,
                 result: source.result.as_ref(),
-                continue_on_failure: source.continue_on_failure,
             },
             documents,
             plots: None,
@@ -95,7 +95,6 @@ impl<'a> From<&'a CycleReportInput> for Header<'a> {
                 lifecycle: captured_status(input),
                 created_at: &input.cycle.created_at,
                 result: input.cycle.result.as_ref(),
-                continue_on_failure: input.cycle.continue_on_failure,
             },
             documents: &input.documents,
             plots: Some(&input.plots),
@@ -107,6 +106,7 @@ impl<'a> From<&'a CycleReportInput> for Header<'a> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // A Captured Report States Its Cycle By Its Members: Running, Else Its Result.
 fn captured_status(input: &CycleReportInput) -> CycleStatus {
     if input.cycle.test_executions.iter().any(|execution| matches!(execution.status, ExecutionStatus::Running)) {

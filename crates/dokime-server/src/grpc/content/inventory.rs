@@ -12,23 +12,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use crate::grpc::value::{self, projection};
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::content as wire;
-use dokime_runtime::ExecutionFileEntry;
-use dokime_runtime::RuntimeHandle;
+use dokime::ExecutionFileEntry;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domain::operations::content as wire;
 
 /* === Constants === */
+
 const INVENTORY_LIMIT: usize = 512;
 
 /* === Macros === */
@@ -36,13 +38,16 @@ const INVENTORY_LIMIT: usize = 512;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct List {
     resources: Arc<Resources>,
 }
+
 struct Count {
     after: usize,
     returned: usize,
@@ -54,6 +59,7 @@ struct Count {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for List {
     type Declaration = wire::ListExecutionFiles;
     type Resources = Resources;
@@ -65,7 +71,7 @@ impl Operation for List {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ListExecutionFiles, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::content::wire::ListExecutionFilesReply>, Status> {
+    ) -> Result<Response<dokime::domain::model::content::wire::ListExecutionFilesReply>, Status> {
         let (id, epoch) = super::files::execution(&self.resources.runtime, &request.execution_id)?;
         value::text(&request.after_path)?;
         if request.limit > 100 {
@@ -87,19 +93,21 @@ impl Operation for List {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
 
 /* === Private Functions === */
+
 fn project(
     entries: &[ExecutionFileEntry], id: &TestExecutionId, epoch: &str, request: &wire::ListExecutionFiles, maximum: usize,
-) -> harmos::Result<dokime_domain::model::content::wire::ListExecutionFilesReply> {
+) -> dokime::harmos::Result<dokime::domain::model::content::wire::ListExecutionFilesReply> {
     let counted = count(entries, request)?;
     let mut files = projection::slots(entries.len())?;
     for entry in entries {
@@ -115,7 +123,7 @@ fn project(
     }
     let digest = hash.finalize();
     if request.cursor.as_ref().is_some_and(|cursor| cursor.metadata_sha256.as_slice() != digest.as_slice()) {
-        return Err(harmos::Error::InvalidInput { field: "execution files cursor", reason: "metadata fingerprint differs" });
+        return Err(dokime::harmos::Error::InvalidInput { field: "execution files cursor", reason: "metadata fingerprint differs" });
     }
     let mut selected = projection::slots(counted.returned)?;
     selected.extend(files.into_iter().skip(counted.after).take(counted.returned));
@@ -123,10 +131,10 @@ fn project(
         if counted.more { Some(projection::text(&selected.last().ok_or_else(invalid_wire)?.relative_path)?) } else { None };
     let mut metadata_sha256 = projection::slots(digest.len())?;
     metadata_sha256.extend_from_slice(&digest);
-    let page = dokime_domain::model::content::wire::ListExecutionFilesReply {
+    let page = dokime::domain::model::content::wire::ListExecutionFilesReply {
         files: selected,
         next_after_path,
-        cursor: Some(dokime_domain::model::content::wire::ExecutionFilesCursor {
+        cursor: Some(dokime::domain::model::content::wire::ExecutionFilesCursor {
             epoch: projection::text(epoch)?,
             execution_id: projection::text(id.as_str())?,
             metadata_sha256,
@@ -137,7 +145,8 @@ fn project(
     }
     Ok(page)
 }
-fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> harmos::Result<Count> {
+
+fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> dokime::harmos::Result<Count> {
     if entries.len() > INVENTORY_LIMIT {
         return Err(exhausted());
     }
@@ -151,7 +160,7 @@ fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> 
             .iter()
             .position(|entry| entry.relative_path == request.after_path)
             .map(|index| index + 1)
-            .ok_or(harmos::Error::InvalidInput { field: "execution files after path", reason: "after path not found" })?
+            .ok_or(dokime::harmos::Error::InvalidInput { field: "execution files after path", reason: "after path not found" })?
     };
     let limit = if request.limit == 0 { 50 } else { request.limit as usize };
     let returned = entries.len().saturating_sub(after).min(limit);
@@ -164,8 +173,9 @@ fn count(entries: &[ExecutionFileEntry], request: &wire::ListExecutionFiles) -> 
     }
     Ok(Count { after, returned, more })
 }
-fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileMetadata> {
-    Ok(dokime_domain::model::content::wire::ExecutionFileMetadata {
+
+fn metadata(entry: &ExecutionFileEntry) -> dokime::harmos::Result<dokime::domain::model::content::wire::ExecutionFileMetadata> {
+    Ok(dokime::domain::model::content::wire::ExecutionFileMetadata {
         relative_path: projection::text(&entry.relative_path)?,
         content_type: entry.content_type.as_deref().map(projection::text).transpose()?,
         kind: super::files::kind(&entry.content_kind),
@@ -174,18 +184,20 @@ fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<dokime_domain::model::
         created_at: Some(timestamp(entry)?),
     })
 }
-fn timestamp(entry: &ExecutionFileEntry) -> harmos::Result<dokime_domain::model::identity::wire::Timestamp> {
-    let at = time::OffsetDateTime::parse(entry.updated_at.as_str(), &time::format_description::well_known::Rfc3339)
-        .map_err(|source| harmos::Error::backend("parse original output creation time", harmos::BackendFailure::Corrupt, source))?;
-    Ok(dokime_domain::model::identity::wire::Timestamp { seconds: at.unix_timestamp(), nanos: at.nanosecond() as i32 })
+
+fn timestamp(entry: &ExecutionFileEntry) -> dokime::harmos::Result<dokime::domain::model::identity::wire::Timestamp> {
+    let at = time::OffsetDateTime::parse(entry.updated_at.as_str(), &time::format_description::well_known::Rfc3339).map_err(|source| {
+        dokime::harmos::Error::backend("parse original output creation time", dokime::harmos::BackendFailure::Corrupt, source)
+    })?;
+    Ok(dokime::domain::model::identity::wire::Timestamp { seconds: at.unix_timestamp(), nanos: at.nanosecond() as i32 })
 }
 
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource: "canonical execution inventory" }
+fn exhausted() -> dokime::harmos::Error {
+    dokime::harmos::Error::ResourceExhausted { resource: "canonical execution inventory" }
 }
 
-fn invalid_wire() -> harmos::Error {
-    harmos::Error::InvalidInput { field: "canonical execution inventory", reason: "original order or encoded length differs" }
+fn invalid_wire() -> dokime::harmos::Error {
+    dokime::harmos::Error::InvalidInput { field: "canonical execution inventory", reason: "original order or encoded length differs" }
 }
 
 /* === Tests === */

@@ -16,16 +16,16 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from "@/lib/api/native-content";
 import { prepareNativeMedia } from "@/lib/api/native-delivery";
 import { isReportBuild } from "@/lib/ui-mode";
-import {
-  type MediaArtifactCandidate,
-  type MediaPreviewState,
-  type MediaGalleryProps,
-  artifactContentKey,
-  mediaBlobType,
-  isNativeArtifactSource,
-  mediaArtifactSource,
-} from "./media-gallery-model";
 import { MediaGallerySurface, useMediaGallery } from "./MediaGalleryView";
+import {
+  artifactContentKey,
+  isNativeArtifactSource,
+  type MediaArtifactCandidate,
+  type MediaGalleryProps,
+  type MediaPreviewState,
+  mediaArtifactSource,
+  mediaBlobType,
+} from "./media-gallery-model";
 
 /* === Types === */
 type MediaUrlEntry = {

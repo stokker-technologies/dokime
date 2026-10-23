@@ -7,12 +7,13 @@
  * ***
  */
 
-// TODO: Describe this module's responsibility.
+// Canonical Identities And Identifier Observation Patterns
 
 /* === Modules === */
 
 pub mod id;
 pub mod identities;
+mod pattern;
 pub mod wire;
 
 /* === Re-Exports === */
@@ -52,6 +53,7 @@ pub use identities::DokimeIdentity;
 pub use identities::DokimeNodeIdentity;
 pub use identities::ExternalIdentityMapping;
 pub use identities::ExternalIdentityProvider;
+pub use pattern::IdentifierPattern;
 
 /* === Imports === */
 

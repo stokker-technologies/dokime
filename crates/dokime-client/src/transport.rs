@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 
@@ -42,6 +43,7 @@ use super::{Client, Error, ResponseStream, Result, request, stream::Input};
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Client {
     pub(super) async fn download<O>(&self, path: &'static str, message: O) -> Result<ResponseStream<<O::Output as Direction>::Item>>
     where
@@ -123,7 +125,6 @@ impl Client {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(super) fn value<T>(reply: StreamItem<T>) -> Result<T> {
     // Transfer The Decoded Allocation; Never Clone A Payload To Drop Its Owner.
     reply.into_request().map(|(value, _claims)| value).map_err(|error| Error::Rpc(tonic::Status::data_loss(error.to_string())))
@@ -163,6 +164,8 @@ where
         .map(tonic::Response::into_inner)
         .map_err(Error::Rpc)
 }
+
+/* === Private Functions === */
 
 fn status(error: Error) -> tonic::Status {
     match error {

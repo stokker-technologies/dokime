@@ -18,13 +18,10 @@
 
 /* === Local Imports === */
 
+import type { Row2 as GeneratedAggregateReply, Row14 as GeneratedValue } from "@generated/dokime/v1/QueryMessages/Aggregate/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type {
-  Row2 as GeneratedAggregateReply,
-  Row14 as GeneratedValue,
-} from "../../../.generated/dokime/v1/QueryMessages/Aggregate/messages_pb";
 import { aggregateMessage } from "./native-aggregate";
 import { jsonToNativeValue, NativeApiLimitError, safeNumber } from "./native-values";
 

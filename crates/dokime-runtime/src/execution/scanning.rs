@@ -12,18 +12,22 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Arc, PoisonError};
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use tokio::sync::{oneshot, watch};
+
 // Local Imports
 use super::log::Level;
 use crate::artifacts::Artifacts;
 use crate::transport::buffer::{BufferedFrame, Executions, Tasks, lock};
 
 /* === Constants === */
+
 const SCAN_INTERVAL: Duration = Duration::from_millis(100);
 
 /* === Macros === */
@@ -31,6 +35,7 @@ const SCAN_INTERVAL: Duration = Duration::from_millis(100);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Scanning {
     stop: watch::Sender<bool>,
     completion: oneshot::Receiver<()>,
@@ -43,6 +48,7 @@ pub(super) struct Scanning {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn start(artifacts: Artifacts, executions: &Executions, token: &str, tasks: &Tasks) -> Scanning {
     let (stop, mut listener) = watch::channel(false);
     let (completed, completion) = oneshot::channel();
@@ -75,6 +81,7 @@ pub(super) async fn settle(scanning: Scanning, artifacts: &Artifacts, executions
 }
 
 /* === Private Functions === */
+
 async fn scan_blocking(artifacts: &Artifacts) -> Vec<String> {
     let artifacts = artifacts.clone();
     tokio::task::spawn_blocking(move || artifacts.scan()).await.expect("a scan tick does not panic")

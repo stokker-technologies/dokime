@@ -10,14 +10,18 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::document::DownsampleTechnique;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+
 // Local Imports
 use crate::document::{AxisScale, DocumentFilter, FftOptions, HistogramOptions, PlotType, SigmaIntervalOptions};
 use crate::expressions::DataExpression;
@@ -32,59 +36,86 @@ use dokime_domain::model::values::ValueFormat;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PlotPayloadRequest {
     #[serde(default)]
     pub analysis: Option<crate::analysis::Selection>,
+
     #[serde(default)]
     pub plot_id: Option<String>,
+
     #[serde(default)]
     pub plot_type: Option<PlotType>,
+
     #[serde(default)]
     pub x_scale: AxisScale,
+
     #[serde(default)]
     pub y_scale: AxisScale,
+
     pub stream: String,
+
     #[serde(default)]
     pub y_keys: Vec<String>,
+
     #[serde(default)]
     pub marker_record_types: Vec<String>,
+
     #[serde(default)]
     pub filters: Vec<DocumentFilter>,
+
     pub x_key: Option<String>,
     pub series_by: Option<String>,
+
     #[serde(default)]
     pub x_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub y_expressions: Vec<DataExpression>,
+
     #[serde(default)]
     pub series_by_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub z_expression: Option<DataExpression>,
+
     #[serde(default)]
     pub fft: FftOptions,
+
     #[serde(default)]
     pub interval: SigmaIntervalOptions,
+
     #[serde(default)]
     pub histogram: HistogramOptions,
+
     pub z_stream: Option<String>,
     pub z_field: Option<String>,
+
     #[serde(default)]
     pub unit: Option<String>,
+
     #[serde(default)]
     pub x_format: Option<ValueFormat>,
+
     #[serde(default)]
     pub y_format: Option<ValueFormat>,
+
     pub max_points: Option<usize>,
+
     #[serde(default, deserialize_with = "deserialize_window_s")]
     // Validation preserves the nullable JSON number representation.
     pub window_s: Option<f64>,
+
     pub scope: Option<RecordScope>,
+
     #[serde(default)]
     pub cursor: Option<PlotPayloadCursor>,
+
     #[serde(default)]
     pub technique: DownsampleTechnique,
+
     #[serde(default)]
     pub summary_window: Option<PlotWindow>,
 }
@@ -94,6 +125,7 @@ pub struct PlotPayloadRequest {
 pub struct PlotPayloadCursor {
     #[serde(default)]
     pub telemetry_streams: BTreeMap<String, u64>,
+
     #[serde(default)]
     pub record_sequence: Option<u64>,
 }
@@ -114,25 +146,33 @@ pub struct PlotPayloadEnvelope {
 pub struct PlotPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub computed: Option<PlotComputation>,
+
     pub stream: String,
     pub x_key: String,
     pub series_by: Option<String>,
     pub context: BTreeMap<String, Value>,
     pub series: Vec<PlotSeries>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cartesian: Option<PlotCartesianFrame>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub analysis: Option<super::analyses::PlotAnalysis>,
+
     pub markers: Vec<PlotMarker>,
     pub max_points: usize,
     pub window_s: Option<f64>,
     pub generated_at: String,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub x_format: Option<ValueFormat>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_started_at: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cycle_started_at: Option<String>,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub summaries: Vec<PlotSeriesSummary>,
 }
@@ -171,8 +211,10 @@ pub struct PlotEvidence {
     pub epoch: String,
     pub stream: String,
     pub scope: Option<RecordScope>,
+
     #[serde(serialize_with = "serialize_analysis_cursor")]
     pub cursor: PlotPayloadCursor,
+
     pub window_s: Option<f64>,
     pub fields: Vec<String>,
     pub x_key: String,
@@ -236,6 +278,7 @@ pub struct PlotSeries {
     pub points: Vec<PlotPoint>,
     pub raw_points: usize,
     pub downsampled: bool,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<ValueFormat>,
 }
@@ -246,6 +289,7 @@ pub struct PlotPoint {
     // Both native value types encode the same recursive JSON vocabulary.
     pub x: JsonValue,
     pub y: Option<f64>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub z: Option<f64>,
 }
@@ -261,6 +305,7 @@ pub struct PlotMarker {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlotPayloadStreamKind {
@@ -284,7 +329,6 @@ pub enum PlotCartesianMode {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/* === Functions === */
 
 fn deserialize_window_s<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where
@@ -299,8 +343,6 @@ where
     Ok(window_s)
 }
 
-/* === Tests === */
-
 fn serialize_analysis_cursor<S: serde::Serializer>(cursor: &PlotPayloadCursor, serializer: S) -> Result<S::Ok, S::Error> {
     #[derive(Serialize)]
     struct Cursor {
@@ -313,3 +355,5 @@ fn serialize_analysis_cursor<S: serde::Serializer>(cursor: &PlotPayloadCursor, s
     }
     .serialize(serializer)
 }
+
+/* === Tests === */

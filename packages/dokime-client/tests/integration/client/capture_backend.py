@@ -13,6 +13,7 @@
 # Standard Library Imports
 import asyncio
 import hashlib
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -24,7 +25,7 @@ import grpc
 from dokime_client.client import DokimeClient, _wire
 
 from . import backend
-from .backend import CASE_ID, CYCLE_ID, EXECUTION_ID, BackendFixture
+from .backend import CASE_ID, COMMAND_ID, CYCLE_ID, EXECUTION_ID, BackendFixture
 from .canonical import _message, _value
 
 # Type Checking Imports
@@ -63,10 +64,12 @@ class CaptureBackend(BackendFixture):
             "DownloadCheckpointArtifact",
         ]
         self.methods["Reports"] = ["DownloadCycleReport"]
-        self.methods["Prompts"] = ["ListPending", "GetPrompt"]
+        self.methods["Prompts"] = ["ListPending", "GetPrompt", "Respond"]
         self.pending: list[dict[str, Any]] = []
+        self.prompt_responses: dict[str, dict[str, Any]] = {}
+        self.response_calls: list[str] = []
         self.bad_report = ""
-        self.prompt_stream = "prompts.pending:c4e98c8f616061bebf0d5119b0b549f764f8207d9a4660c207dcff2523da467b"
+        self.prompt_stream: str | None = None
         self.report_stalled = asyncio.Event()
         self.report_cancelled = asyncio.Event()
         self.history_issue = False
@@ -87,6 +90,9 @@ class CaptureBackend(BackendFixture):
     async def ListPending(self, request: Any, context: Any) -> Any:
         assert request.cycle_id == CYCLE_ID
         # Native Selection Golden Verified By The Portable Prompt Tests.
+        execution = request.execution_id if request.HasField("execution_id") else None
+        selection = json.dumps([CYCLE_ID, execution], separators=(",", ":")).encode()
+        stream = self.prompt_stream or "prompts.pending:" + hashlib.sha256(selection).hexdigest()
         return _message(
             "Prompts",
             "ListPending",
@@ -100,6 +106,8 @@ class CaptureBackend(BackendFixture):
                     "created_at": prompt["created_at"],
                 }
                 for prompt in self.pending
+                if prompt["prompt_id"] not in self.prompt_responses
+                and (execution is None or prompt["scope"].get("execution_id") == execution)
             ],
             cursor=_message(
                 "Evidence",
@@ -107,7 +115,7 @@ class CaptureBackend(BackendFixture):
                 direction="request",
                 path="after",
                 epoch=self.epoch,
-                stream=self.prompt_stream,
+                stream=stream,
                 position=1,
             ),
         )
@@ -120,11 +128,33 @@ class CaptureBackend(BackendFixture):
             direction="response",
             path="",
             prompt=prompt,
+            response=self.prompt_responses.get(request.prompt_id),
             observed_cursor={
                 "epoch": self.epoch,
-                "stream": self.prompt_stream,
+                "stream": self.prompt_stream or "prompts",
                 "position": 1,
             },
+        )
+
+    async def Respond(self, request: Any, context: Any) -> Any:
+        self.response_calls.append(request.prompt_id)
+        if request.prompt_id in self.prompt_responses:
+            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, "prompt already answered")
+        self.prompt_responses[request.prompt_id] = {
+            "prompt_id": request.prompt_id,
+            "action": request.action,
+            "values": request.values,
+            "accepted": request.accepted,
+        }
+        return _message(
+            "Prompts",
+            "Respond",
+            direction="response",
+            path="",
+            prompt_id=request.prompt_id,
+            command_id=COMMAND_ID,
+            committed_revision=2,
+            observed_cursor={"epoch": self.epoch, "stream": "prompts", "position": 2},
         )
 
     async def ListExecutions(self, request: Any, context: Any) -> Any:

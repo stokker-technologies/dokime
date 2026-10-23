@@ -13,12 +13,11 @@
 # Standard Library Imports
 import asyncio
 import hashlib
-import ipaddress
 import json
 import math
 import os
 import re
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,9 +28,8 @@ import grpc
 from google.protobuf.json_format import ParseDict
 from google.protobuf.message import DecodeError, Message
 
-from ..dynamic import from_contract
-
 # Local Imports
+from ..dynamic import from_contract
 from ..operation import Operation
 from . import _contracts, _wire
 from .errors import BackendChanged, ClientClosed, ProtocolError, RpcError
@@ -42,6 +40,7 @@ from .models import Backend
 # === Public Exports === #
 
 # === Constants === #
+
 _MAX_MESSAGE_BYTES = 16 * 1024 * 1024
 _DISCOVERY_BYTES = 1024 * 1024
 
@@ -61,11 +60,9 @@ class Transport:
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
     ) -> None:
-        self._target, self._remote = _target(endpoint)
+        self._target, self._tls = _target(endpoint)
         if token is not None and (not 32 <= len(token) <= 4096 or not all(33 <= ord(c) <= 126 for c in token)):
             raise ValueError("bearer token must contain 32–4096 visible ASCII characters")
-        if self._remote and not token:
-            raise ValueError("HTTPS endpoints require a bearer token")
         if expected_backend_id is not None and (
             not expected_backend_id
             or len(expected_backend_id.encode("utf-8")) > 256
@@ -75,7 +72,7 @@ class Transport:
         self._expected_backend_id = expected_backend_id
         if ca_certificate is not None and ca_certificate_pem is not None:
             raise ValueError("CA certificate file and PEM text are mutually exclusive")
-        if (ca_certificate is not None or ca_certificate_pem is not None) and not self._remote:
+        if (ca_certificate is not None or ca_certificate_pem is not None) and not self._tls:
             raise ValueError("CA certificates require HTTPS")
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("RPC timeout must be positive and finite")
@@ -116,10 +113,10 @@ class Transport:
             self._channel = (
                 grpc.aio.secure_channel(
                     self._target,
-                    grpc.ssl_channel_credentials(self._ca),
+                    grpc.ssl_channel_secrets(self._ca),
                     options=options,
                 )
-                if self._remote
+                if self._tls
                 else grpc.aio.insecure_channel(self._target, options=options)
             )
             try:
@@ -167,6 +164,9 @@ class Transport:
                     source_revision=identity.source_revision if identity.HasField("source_revision") else None,
                     sdk_revision=identity.sdk_revision if identity.HasField("sdk_revision") else None,
                     descriptor_sha256=bytes(identity.api.descriptor_sha256),
+                    max_evidence_bytes=availability.limits.max_evidence_bytes
+                    if availability.limits.HasField("max_evidence_bytes")
+                    else None,
                 )
                 return self.backend
             except BaseException:
@@ -247,6 +247,7 @@ class Transport:
         cursors = set()
         after = None
         used = 0
+        seen_rows = 0
         async with asyncio.timeout(self.timeout):
             while True:
                 page = await self._invoke_operation(
@@ -264,8 +265,9 @@ class Transport:
                     batch = json.loads(page.entries, object_pairs_hook=_object)
                 except (ValueError, UnicodeError) as error:
                     raise ProtocolError("invalid caller operation catalog") from error
-                if not isinstance(batch, list) or len(batch) > 64 or len(entries) + len(batch) > 4096:
+                if not isinstance(batch, list) or len(batch) > 64 or seen_rows + len(batch) > 4096:
                     raise ProtocolError("operation catalog exceeds row limit")
+                seen_rows += len(batch)
                 for row in batch:
                     if (
                         not isinstance(row, dict)
@@ -278,6 +280,11 @@ class Transport:
                         or not isinstance(row.get("grants"), list)
                     ):
                         raise ProtocolError("invalid provider operation metadata")
+                    # Native-Only Contracts Have No Protobuf Projection Or Remote Binding.
+                    contract = row.get("contract")
+                    native_only = isinstance(contract, dict) and "grpc" not in contract and not row["grpc_available"]
+                    if native_only:
+                        continue
                     try:
                         descriptor = from_contract(row["contract"])
                     except (ValueError, TypeError, KeyError) as error:
@@ -390,8 +397,15 @@ class Transport:
         request: Message,
         destination: Path,
         expected: tuple[int, str] | None = None,
+        *,
+        endpoint: tuple[str, str] | None = None,
+        validate: Callable[[Message], tuple[int, str]] | None = None,
+        maximum_bytes: int | None = None,
+        overwrite: bool = True,
     ) -> tuple[int, str, Message]:
-        service, method = ("History", "DownloadCheckpointArtifact") if expected is not None else ("Reports", "DownloadCycleReport")
+        service, method = endpoint or (
+            ("History", "DownloadCheckpointArtifact") if expected is not None else ("Reports", "DownloadCycleReport")
+        )
         reader = await self.stream(service, method, request)
         partial = destination.with_name(destination.name + ".part")
         owned = False
@@ -412,17 +426,25 @@ class Transport:
                     kind = kind.lower()
                     if kind in ("metadata", "report") and metadata is None:
                         metadata = payload
-                        if expected is not None:
+                        if validate is not None:
+                            expected = validate(metadata)
+                        elif expected is not None:
                             if metadata.artifact_id != request.artifact_id or (metadata.size_bytes, metadata.sha256) != expected:
                                 raise ProtocolError("artifact identity or inventory changed")
                         elif metadata.test_cycle_id != request.cycle_id or metadata.identifier != request.identifier:
                             raise ProtocolError("report identity differs from request")
+                        if expected is not None and maximum_bytes is not None and expected[0] > maximum_bytes:
+                            raise ProtocolError("download exceeds its byte limit")
                     elif kind == "chunk" and metadata is not None:
                         chunk = payload
                         if chunk.offset != offset or not chunk.data:
                             raise ProtocolError("chunks are not contiguous")
-                        output.write(chunk.data)
-                        offset += len(chunk.data)
+                        end = offset + len(chunk.data)
+                        if maximum_bytes is not None and end > maximum_bytes or expected is not None and end > expected[0]:
+                            raise ProtocolError("download exceeds its declared size or byte limit")
+                        if output.write(chunk.data) != len(chunk.data):
+                            raise OSError("download did not write the complete chunk")
+                        offset = end
                         digest.update(chunk.data)
                     elif kind == "complete" and metadata is not None:
                         complete = payload
@@ -437,13 +459,19 @@ class Transport:
                     raise ProtocolError("download ended without metadata or completion")
                 output.flush()
                 os.fsync(output.fileno())
-            os.replace(partial, destination)
+            if overwrite:
+                os.replace(partial, destination)
+            else:
+                os.link(partial, destination)
+                partial.unlink()
             owned = False
             return offset, digest.hexdigest(), metadata
         finally:
-            await reader.close()
-            if owned:
-                partial.unlink(missing_ok=True)
+            try:
+                await reader.close()
+            finally:
+                if owned:
+                    partial.unlink(missing_ok=True)
 
     async def verify(self, expected: Backend, *, live: bool = False) -> None:
         identity = await self.unary("Backend", "GetIdentity", _contracts.request("Backend", "GetIdentity"))
@@ -638,23 +666,16 @@ def _target(endpoint: str) -> tuple[str, bool]:
             or url.fragment
         ):
             raise ValueError
-        remote = url.scheme == "https"
-        if not remote:
-            host = "127.0.0.1" if host == "localhost" else host
-            if not ipaddress.ip_address(host).is_loopback:
-                raise ValueError
+        tls = url.scheme == "https"
+        if not tls and host == "localhost":
+            host = "127.0.0.1"
         authority = f"[{host}]" if ":" in host else host
         return (
-            f"{authority}:{port if port is not None else (443 if remote else 80)}",
-            remote,
+            f"{authority}:{port if port is not None else (443 if tls else 80)}",
+            tls,
         )
     except ValueError as error:
-        raise ValueError(
-            "use an HTTPS origin or an HTTP literal loopback origin without user information, path, query or fragment"
-        ) from error
-
-
-# === Entry Point === #
+        raise ValueError("use an HTTP(S) origin without user information, path, query or fragment") from error
 
 
 def _object(items: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -664,3 +685,6 @@ def _object(items: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError("duplicate catalog field")
         result[key] = value
     return result
+
+
+# === Entry Point === #

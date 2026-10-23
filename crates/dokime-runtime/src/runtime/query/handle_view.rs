@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +37,7 @@ use crate::queries::{
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn query_runtime_view(&self, query: RuntimeViewQuery) -> crate::runtime::Result<RuntimeViewFrame> {
         let snapshot = self.capture_state().await?;
@@ -91,7 +93,7 @@ impl RuntimeHandle {
                     // Display reduction runs outside Harmos's writer task.
                     let samples = self
                         .collect_telemetry(&crate::evidence_runtime::TelemetrySelection {
-                            streams: stream.clone().into_iter().collect(),
+                            streams: stream.clone().into_iter().map(Into::into).collect(),
                             ..crate::evidence_runtime::TelemetrySelection::default()
                         })
                         .await;
@@ -167,6 +169,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> Option<RuntimeViewPayload> {
     let scope = query.scope.as_ref();
     let window = &query.window;

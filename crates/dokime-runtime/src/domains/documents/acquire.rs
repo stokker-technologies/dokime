@@ -12,17 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeSet, io::Write, mem::size_of};
+
 // Third Party Imports
 use harmos::{MemorySize, streams::PageLimits, streams::ReadCut, streams::ReadLimits};
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use crate::document::{DocumentDataInput, DocumentSelection, bounded::document_size};
 use crate::streams::TelemetryRow;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
+
 const SOURCE_BYTES: usize = 16 * 1024 * 1024;
 pub(super) const SOURCE_ROWS: usize = 100_000;
 
@@ -31,6 +35,7 @@ pub(super) const SOURCE_ROWS: usize = 100_000;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Acquired {
     pub data: DocumentDataInput,
     pub records: Vec<crate::runtime::CapturedRecord>,
@@ -40,16 +45,21 @@ pub(super) struct Acquired {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub(super) enum DocumentAcquisitionFailure {
     #[error("document source or materialization budget exceeded")]
     Limit,
+
     #[error("document selection not found")]
     Missing,
+
     #[error("selected evidence capture is incomplete")]
     IncompleteCapture,
+
     #[error("selected telemetry history has been retained away")]
     Retained,
+
     #[error("document evidence is unavailable: {0}")]
     Source(String),
 }
@@ -57,6 +67,7 @@ pub(super) enum DocumentAcquisitionFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<DocumentAcquisitionFailure> for crate::runtime::Error {
     fn from(error: DocumentAcquisitionFailure) -> Self {
         match error {
@@ -70,6 +81,7 @@ impl From<DocumentAcquisitionFailure> for crate::runtime::Error {
 }
 
 /* === Public Functions === */
+
 pub(super) async fn acquire(
     runtime: &crate::RuntimeHandle, selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records_needed: bool,
     telemetry_needed: bool, artifacts_needed: bool,
@@ -209,6 +221,7 @@ pub(super) async fn acquire(
 }
 
 /* === Private Functions === */
+
 fn validate_cycle_artifacts(
     selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records: &[crate::artifacts::ArtifactRecord],
 ) -> harmos::Result<()> {

@@ -25,11 +25,15 @@ use super::{Error, Result};
 
 /* === Constants === */
 
+const STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
+const CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Target {
     endpoint: String,
@@ -42,6 +46,7 @@ pub struct Target {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Target {
     pub fn new(endpoint: impl Into<String>, ca_certificate_pem: Option<String>) -> Result<Self> {
         Self::parse(endpoint.into(), None, ca_certificate_pem)
@@ -78,17 +83,13 @@ impl Target {
         if remote.is_none() && url.scheme() == "http" && url.host_str() == Some("localhost") {
             url.set_host(Some("127.0.0.1")).map_err(|_| invalid_target("Invalid loopback endpoint."))?;
         }
-        let remote = remote.unwrap_or(url.scheme() == "https");
-        if remote && url.scheme() != "https" {
-            return Err(invalid_target("Remote backends require HTTPS."));
-        }
+        let loopback = matches!(url.host(), Some(Host::Ipv4(ip)) if ip.is_loopback())
+            || matches!(url.host(), Some(Host::Ipv6(ip)) if ip.is_loopback());
+        let remote = remote.unwrap_or(url.scheme() == "https" || !loopback);
         if ca.is_some() && url.scheme() != "https" {
             return Err(invalid_target("CA certificates require HTTPS."));
         }
-        if !remote
-            && !matches!(url.host(), Some(Host::Ipv4(ip)) if ip.is_loopback())
-            && !matches!(url.host(), Some(Host::Ipv6(ip)) if ip.is_loopback())
-        {
+        if !remote && !loopback {
             return Err(invalid_target("Local endpoints require a literal loopback IP address."));
         }
         Ok(Self { endpoint: url.to_string(), remote, ca })
@@ -109,6 +110,11 @@ impl Target {
             .http2_keep_alive_interval(Duration::from_secs(10))
             .keep_alive_timeout(Duration::from_secs(5))
             .keep_alive_while_idle(true)
+            // Hyper's 2 MiB stream window bounds one download at about 100 MB/s
+            // per 20 ms of round trip; the larger windows keep a fast remote
+            // link bandwidth-bound rather than window-bound.
+            .initial_stream_window_size(STREAM_WINDOW_BYTES)
+            .initial_connection_window_size(CONNECTION_WINDOW_BYTES)
             // Every RPC on this channel shares one deadline too; the
             // backend's own per-route `Deadlines` layer already fails fast
             // (10s) for ordinary calls and allows up to 300s for uploads and
@@ -137,8 +143,38 @@ impl Target {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn invalid_target(message: &'static str) -> Error {
     Error::InvalidTarget { message }
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn endpoint_transport_policy() {
+        for (endpoint, remote) in [
+            ("http://localhost:8765", false),
+            ("http://127.0.0.1:8765", false),
+            ("http://[::1]:8765", false),
+            ("http://lab.example:8765", true),
+            ("http://192.0.2.1:8765", true),
+            ("https://127.0.0.1:8765", true),
+            ("https://lab.example:8765", true),
+        ] {
+            assert_eq!(Target::new(endpoint, None).unwrap().is_remote(), remote, "{endpoint}");
+        }
+        assert_eq!(Target::new("http://localhost:8765", None).unwrap().endpoint(), "http://127.0.0.1:8765/");
+        assert!(Target::remote("http://127.0.0.1:8765", None).unwrap().is_remote());
+        assert!(Target::local("http://lab.example:8765").is_err());
+        assert!(Target::new("http://lab.example:8765", Some("certificate".into())).is_err());
+        for endpoint in
+            ["https://user:password@lab.example", "http://lab.example/path", "http://lab.example/?key=value", "ftp://lab.example"]
+        {
+            assert!(Target::new(endpoint, None).is_err(), "{endpoint}");
+        }
+    }
+}

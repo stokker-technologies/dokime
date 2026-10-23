@@ -21,10 +21,10 @@ import { ChevronLeft } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
 import { cn } from "@/lib/utils";
 import { focusPresentation, useFocusMode } from "./focus-mode";
 import { PageChromeProvider, usePageChromeState } from "./page-chrome";
+import type { FrozenCycleStatus } from "./StatusBarFrame";
 
 // Local Imports
 
@@ -38,7 +38,7 @@ const TOP_LEVEL = new Set(["/cycles", "/library", "/history", "/settings"]);
 export type FrozenShell = {
   selection: { caseId?: string; executionId?: string };
   cycleId: string;
-  status: CycleLifecycle;
+  status: FrozenCycleStatus;
   /** ISO timestamp the report was generated at. */
   generatedAt: string | null;
   title: string;

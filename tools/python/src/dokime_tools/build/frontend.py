@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import argparse
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -19,8 +20,9 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output, sync_output
+
+from . import organization, paths
 
 # Type Checking Imports
 
@@ -31,6 +33,20 @@ from dokime_tools.package.staging import clear_output, sync_output
 ROOT = Path(__file__).resolve().parents[5]
 WEB_ROOT = ROOT / "crates/dokime-gui"
 REPORT = ROOT / "crates/dokime-runtime/dist-report/report.html"
+STAMP = ROOT / "target/report-template/inputs.sha256"
+INPUT_ROOTS = [
+    WEB_ROOT / "src",
+    WEB_ROOT / "report.html",
+    WEB_ROOT / "vite.report.config.ts",
+    WEB_ROOT / "tsconfig.json",
+    WEB_ROOT / "package.json",
+    ROOT / "organization/organization.toml",
+    ROOT / "organization/theme",
+    ROOT / "organization/fonts",
+    ROOT / "organization/logos",
+    ROOT / "organization/generated/default-organization.json",
+    WEB_ROOT / "pnpm-lock.yaml",
+]
 
 # === Types === #
 
@@ -39,11 +55,27 @@ REPORT = ROOT / "crates/dokime-runtime/dist-report/report.html"
 # === Public Functions === #
 
 
+def is_stale(previous_hash: str | None, current_hash: str, source_exists: bool) -> bool:
+    return previous_hash != current_hash or not source_exists
+
+
 def ensure_report() -> None:
-    with tempfile.TemporaryDirectory(prefix="dokime-report-") as directory:
-        output = Path(directory)
-        render_report(output)
-        sync_output(output, REPORT.parent)
+    organization.generate()
+    digest = hashlib.sha256()
+    for path in sorted({file for root in INPUT_ROOTS for file in _files(root)}):
+        digest.update(str(path.relative_to(WEB_ROOT, walk_up=True)).encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    current = digest.hexdigest()
+    previous = STAMP.read_text(encoding="utf-8").strip() if STAMP.exists() else None
+    if is_stale(previous, current, REPORT.exists()):
+        STAMP.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="dokime-report-") as directory:
+            output = Path(directory)
+            render_report(output)
+            sync_output(output, REPORT.parent)
+        STAMP.write_text(current + "\n", encoding="utf-8")
 
 
 def render_report(output: Path) -> None:
@@ -61,6 +93,7 @@ def render_report(output: Path) -> None:
 
 
 def build_live(args: list[str]) -> None:
+    organization.generate()
     vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
     command = ["node", str(vite), "build"]
     if args:
@@ -89,6 +122,7 @@ def build_live(args: list[str]) -> None:
 
 def build(profile: str) -> Path:
     """Build The Live Frontend Once And Mirror It Where The Desktop Shell Serves It From."""
+    organization.generate()
     output = paths.output(ROOT, "build", profile) / "web"
     clear_output(output)
     subprocess.run(

@@ -98,7 +98,7 @@ fn stub(directory: &Path, publish: Publish<'_>) -> std::path::PathBuf {
         ),
         Publish::Crash => (
             "crash",
-            "i=1\nwhile [ $i -le 250 ]; do echo \"startup diagnostic line $i\" >&2; i=$((i+1)); done\necho \"Authorization: Bearer s3cret-credential\" >&2\necho \"plugin admission failed\" >&2\nexit 3".to_owned(),
+            "i=1\nwhile [ $i -le 250 ]; do echo \"startup diagnostic line $i\" >&2; i=$((i+1)); done\necho \"Authorization: Bearer s3cret-secret\" >&2\necho \"plugin admission failed\" >&2\nexit 3".to_owned(),
         ),
     };
     let path = directory.join(format!("dokime-stub-{name}"));

@@ -12,13 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
-use dokime_runtime::telemetry::TelemetrySample;
+use dokime::telemetry::TelemetrySample;
 
 /* === Constants === */
 
@@ -35,8 +37,9 @@ use dokime_runtime::telemetry::TelemetrySample;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>();
+    let mut bytes = std::mem::size_of::<dokime::domain::model::telemetry::wire::TelemetrySample>();
     for text in [sample.sample_id.as_str(), sample.stream.as_str(), &sample.source] {
         value::text(text)?;
         bytes = bytes.saturating_add(text.len());
@@ -53,9 +56,9 @@ pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status>
     Ok(bytes)
 }
 
-pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<dokime_domain::model::telemetry::wire::TelemetrySample, Status> {
+pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<dokime::domain::model::telemetry::wire::TelemetrySample, Status> {
     memory(sample)?;
-    Ok(dokime_domain::model::telemetry::wire::TelemetrySample {
+    Ok(dokime::domain::model::telemetry::wire::TelemetrySample {
         sample_id: sample.sample_id.to_string(),
         stream: sample.stream.to_string(),
         schema_version: sample.schema_version,

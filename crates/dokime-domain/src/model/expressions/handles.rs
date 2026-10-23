@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,6 +29,7 @@ use crate::model::expressions::data::DataTransform;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecordMarker {
     record_type: String,
@@ -44,6 +46,7 @@ pub struct RecordField {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordMarker {
     pub fn new(record_type: impl Into<String>) -> Self {
         Self { record_type: record_type.into() }
@@ -113,6 +116,7 @@ impl From<RecordField> for RecordMarker {
 }
 
 /* === Public Functions === */
+
 pub fn marker(record_type: impl Into<String>) -> RecordMarker {
     RecordMarker::new(record_type)
 }

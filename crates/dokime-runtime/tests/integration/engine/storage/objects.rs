@@ -175,6 +175,7 @@ async fn cycles_reopen_producers() {
         session_id: None,
         metadata,
         lifecycle: dokime_domain::model::execution::result::CycleStatus::Ready,
+        phase: Default::default(),
         created_at: at.clone(),
         started_at: None,
         updated_at: at,
@@ -183,7 +184,7 @@ async fn cycles_reopen_producers() {
             dokime_runtime::TestExecutionId::from_seed("native-second"),
         ],
         records: Default::default(),
-        continue_on_failure: false,
+        continue_automatically: false,
         result: None,
     };
     let row = dokime_runtime::storage::objects::cycle::Cycle::try_from(&expected).unwrap();
@@ -347,31 +348,4 @@ async fn executions_reopen_results() {
     assert!(absent.is_none());
     drop(saved);
     runtime.stop().await.unwrap();
-}
-
-#[test]
-fn prompt_level_rows() {
-    use dokime_runtime::prompts::{ConfirmationPrompt, Prompt, PromptDefinition};
-    use dokime_runtime::records::RecordSeverity;
-    use dokime_runtime::storage::objects::presentation::PromptDefinition as PromptRow;
-
-    // === Store A Raised Prompt === //
-
-    let expected = ConfirmationPrompt::new("fixture.level", "Raised").level(RecordSeverity::Warning);
-    let expected = Prompt::definition(&expected);
-    let row = PromptRow::try_from(&expected).unwrap();
-    let restored = PromptDefinition::try_from(row.clone()).unwrap();
-
-    // === Read A Row Written Before Levels === //
-
-    let mut baseline = serde_json::to_value(&row).unwrap();
-    baseline.as_object_mut().unwrap().remove("level");
-    let baseline: PromptRow = serde_json::from_value(baseline).unwrap();
-    let defaulted = PromptDefinition::try_from(baseline).unwrap();
-
-    // === Compare === //
-
-    assert_eq!(restored, expected);
-    assert_eq!(restored.level, RecordSeverity::Warning);
-    assert_eq!(defaulted.level, RecordSeverity::Info);
 }

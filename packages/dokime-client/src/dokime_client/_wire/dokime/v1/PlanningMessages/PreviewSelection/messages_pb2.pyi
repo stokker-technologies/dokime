@@ -33,7 +33,7 @@ class Row3(_message.Message):
     def __init__(self, selections: _Optional[_Iterable[_Union[Row6, _Mapping]]] = ..., max_cases: _Optional[int] = ..., case_ids: _Optional[_Iterable[str]] = ..., cycle_id: _Optional[str] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("case_id", "suite_id", "template_id", "metadata", "parameters", "ordinal", "selection_index")
+    __slots__ = ("case_id", "suite_id", "template_id", "metadata", "parameters", "ordinal", "selection_index", "definition_revision", "provider")
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -41,6 +41,8 @@ class Row4(_message.Message):
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     SELECTION_INDEX_FIELD_NUMBER: _ClassVar[int]
+    DEFINITION_REVISION_FIELD_NUMBER: _ClassVar[int]
+    PROVIDER_FIELD_NUMBER: _ClassVar[int]
     case_id: str
     suite_id: str
     template_id: str
@@ -48,7 +50,9 @@ class Row4(_message.Message):
     parameters: Row8
     ordinal: int
     selection_index: int
-    def __init__(self, case_id: _Optional[str] = ..., suite_id: _Optional[str] = ..., template_id: _Optional[str] = ..., metadata: _Optional[_Union[Row7, _Mapping]] = ..., parameters: _Optional[_Union[Row8, _Mapping]] = ..., ordinal: _Optional[int] = ..., selection_index: _Optional[int] = ...) -> None: ...
+    definition_revision: str
+    provider: str
+    def __init__(self, case_id: _Optional[str] = ..., suite_id: _Optional[str] = ..., template_id: _Optional[str] = ..., metadata: _Optional[_Union[Row7, _Mapping]] = ..., parameters: _Optional[_Union[Row8, _Mapping]] = ..., ordinal: _Optional[int] = ..., selection_index: _Optional[int] = ..., definition_revision: _Optional[str] = ..., provider: _Optional[str] = ...) -> None: ...
 
 class Row5(_message.Message):
     __slots__ = ("epoch", "stream", "position")

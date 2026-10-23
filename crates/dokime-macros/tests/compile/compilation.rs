@@ -31,6 +31,7 @@ use std::os::windows::process::CommandExt;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct SdkArtifact {
     library: std::path::PathBuf,
     serde: std::path::PathBuf,
@@ -46,13 +47,14 @@ struct SdkArtifact {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn sdk_artifact() -> &'static SdkArtifact {
     static SDK: std::sync::OnceLock<SdkArtifact> = std::sync::OnceLock::new();
     SDK.get_or_init(|| {
-        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dokime-runtime/Cargo.toml").canonicalize().unwrap();
+        let manifest = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("../dokime/Cargo.toml").canonicalize().unwrap();
         let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
         let target = std::env::var_os("CARGO_TARGET_DIR").map(|path| workspace.join(path)).unwrap_or_else(|| workspace.join("target"));
-        // The build records its compiler messages beside its nextest archive, under the profile this story was built with.
+        // Tests Build Records The Selected SDK And Dependency Graph Beside Its Archive.
         let directory =
             std::env::current_exe().unwrap().parent().and_then(std::path::Path::parent).unwrap().file_name().unwrap().to_owned();
         let profile = if directory == "debug" {
@@ -66,7 +68,7 @@ fn sdk_artifact() -> &'static SdkArtifact {
             workspace.join("target/build").join(profile).join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)).join("tests");
         let messages = built_tests.join("compiler.json");
         let built = std::fs::read_to_string(&messages)
-            .unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", messages.display()));
+            .unwrap_or_else(|error| panic!("run mise run build:tests to produce {}: {error}", messages.display()));
         // Only the SDK's own dependency closure links into a plugin: another member's build script output (the
         // desktop shell's import stub libraries) would shadow the platform's runtime libraries on the search path.
         let closure = sdk_closure(&built_tests.join("metadata.json"), &manifest);
@@ -113,7 +115,7 @@ fn sdk_artifact() -> &'static SdkArtifact {
 
             if value["reason"] != "compiler-artifact"
                 || !value["manifest_path"].as_str().is_some_and(|path| same_path(&manifest, path))
-                || value["target"]["name"] != "dokime_runtime"
+                || value["target"]["name"] != "dokime"
             {
                 continue;
             }
@@ -152,7 +154,8 @@ fn sdk_artifact() -> &'static SdkArtifact {
 // Every package the SDK depends on, by Cargo package id, from the build's resolved metadata.
 fn sdk_closure(metadata: &std::path::Path, manifest: &std::path::Path) -> std::collections::BTreeSet<String> {
     let metadata: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(metadata).unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", metadata.display())),
+        &std::fs::read_to_string(metadata)
+            .unwrap_or_else(|error| panic!("run mise run build:tests to produce {}: {error}", metadata.display())),
     )
     .unwrap();
     let root = metadata["packages"]
@@ -184,6 +187,10 @@ fn same_path(left: &std::path::Path, right: &str) -> bool {
 }
 
 fn compile(source: &str) -> (std::process::Output, std::path::PathBuf) {
+    compile_configured(source, None)
+}
+
+fn compile_configured(source: &str, configuration: Option<&str>) -> (std::process::Output, std::path::PathBuf) {
     let sdk = sdk_artifact();
     let dependencies = sdk.library.parent().unwrap();
     assert!(dependencies.is_dir(), "Cargo dependency directory missing");
@@ -193,6 +200,9 @@ fn compile(source: &str) -> (std::process::Output, std::path::PathBuf) {
     let mut rustc = std::process::Command::new("rustc");
     #[cfg(windows)]
     rustc.creation_flags(0x0800_0000);
+    if let Some(configuration) = configuration {
+        rustc.args(["--cfg", configuration]);
+    }
     // These inspection fixtures have empty mains; retain their uncalled
     // sidecar declarations instead of letting MSVC discard the metadata.
     #[cfg(target_env = "msvc")]
@@ -200,7 +210,7 @@ fn compile(source: &str) -> (std::process::Output, std::path::PathBuf) {
     let built = rustc
         .arg("--edition=2024")
         .arg("--crate-type=bin")
-        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join(source))
+        .arg(std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("tests").join(source))
         .arg("--extern")
         .arg(format!("sdk={}", sdk.library.display()))
         .arg("--extern")
@@ -364,6 +374,29 @@ fn declaration_of(source: &str) -> sdk::harmos::plugin::inventory::Declaration {
 /* === Tests === */
 
 #[test]
+fn catalog_identifiers_are_unique() {
+    for (configuration, identifier) in [
+        ("duplicate_suites", "checks"),
+        ("duplicate_templates", "checks.probe"),
+        ("duplicate_records", "checks.record"),
+        ("duplicate_streams", "checks.samples"),
+    ] {
+        let (built, _) = compile_configured("fixtures/catalog_identifiers.rs", Some(configuration));
+        let diagnostics = String::from_utf8_lossy(&built.stderr);
+        assert!(!built.status.success(), "{configuration} compiled");
+        // Rust 1.99 supports the single-str panic format in const evaluation,
+        // so diagnostics must name the actual duplicate, even for const ids.
+        assert!(diagnostics.contains(&format!("evaluation panicked: {identifier}")), "{diagnostics}");
+        assert!(diagnostics.contains("assert_unique"), "{diagnostics}");
+        assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
+    }
+
+    let (built, output) = compile("fixtures/catalog_identifiers.rs");
+    assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
+    std::fs::remove_file(output).unwrap();
+}
+
+#[test]
 fn alias_inventory_declared() {
     let declaration = declaration_of("integration/renamed_sdk.rs");
     assert_eq!(declaration.id, "renamed");
@@ -469,8 +502,8 @@ fn foreign_stream_unpublished() {
     for unsatisfied in [
         "the trait bound `GatewayRssi: Publishable` is not satisfied",
         "the trait bound `GatewayRssi: OwnedStream` is not satisfied",
-        "the trait bound `dokime_runtime::host::System: Publishable` is not satisfied",
-        "the trait bound `dokime_runtime::host::System: OwnedStream` is not satisfied",
+        "the trait bound `dokime::host::System: Publishable` is not satisfied",
+        "the trait bound `dokime::host::System: OwnedStream` is not satisfied",
     ] {
         assert!(diagnostics.contains(unsatisfied), "{diagnostics}");
     }
@@ -485,9 +518,9 @@ fn undeclared_call_refused() {
     let diagnostics = String::from_utf8_lossy(&built.stderr);
     // The plugin serves the operation; the template never said it would call it,
     // so the refusal is on the call and names the catalog to add it to.
-    assert!(diagnostics.contains("ProbeRequired: dokime_runtime::catalog::Contains<GetCurrent>"), "{diagnostics}");
+    assert!(diagnostics.contains("ProbeRequired: dokime::catalog::Contains<GetCurrent>"), "{diagnostics}");
     assert_eq!(
-        diagnostics.matches("ProbeRequired: dokime_runtime::catalog::Contains<GetVoltage>").count(),
+        diagnostics.matches("ProbeRequired: dokime::catalog::Contains<GetVoltage>").count(),
         0,
         "a declared request is not refused: {diagnostics}"
     );

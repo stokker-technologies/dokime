@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -24,9 +25,9 @@ use std::{
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use dokime_runtime::__harmos as harmos;
-use dokime_runtime::execution::ExecutionScope;
-use dokime_runtime::transport::{
+use dokime::__harmos as harmos;
+use dokime::execution::ExecutionScope;
+use dokime::transport::{
     DeliverSamplesRequest, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion,
     RunExecution, SidecarExecutionOutcome, StepAdmission,
 };
@@ -42,11 +43,13 @@ use obc_plugin::ObcPlugin;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type NoticeHandler = Box<dyn Fn(&harmos::services::Service<Fixture>, harmos::sidecar::Notice) + Send + Sync>;
 type Resident = harmos::sidecar::Supervised<Fixture, harmos::sidecar::Executable, NoticeHandler>;
 type Publication = harmos::sidecar::Publish<Fixture, harmos::sidecar::Executable, NoticeHandler>;
 
 /* === Structs === */
+
 struct Fixture;
 
 struct Backend {
@@ -60,8 +63,8 @@ struct Backend {
 
 #[derive(Default)]
 struct Captures {
-    scopes: BTreeMap<String, dokime_runtime::RecordScope>,
-    publications: Vec<(harmos::streams::ManagedPublication, dokime_runtime::RecordScope)>,
+    scopes: BTreeMap<String, dokime::RecordScope>,
+    publications: Vec<(harmos::streams::ManagedPublication, dokime::RecordScope)>,
 }
 
 struct Hosting {
@@ -92,8 +95,10 @@ struct Filing;
 
 struct Lease;
 
-// The step built-in a suite plugin requires; this host watches no files.
+// The step built-ins a suite plugin requires; this host watches no files.
 struct Watching;
+
+struct AwaitingWatch;
 
 struct Publishing {
     hosting: Arc<Hosting>,
@@ -101,7 +106,8 @@ struct Publishing {
 }
 
 /* === Enums === */
-#[harmos::lanes(harmos_path = dokime_runtime::__harmos)]
+
+#[harmos::lanes(harmos_path = dokime::__harmos)]
 enum Lanes {
     #[default]
     Open,
@@ -110,9 +116,10 @@ enum Lanes {
 /* === Traits === */
 
 /* === Implementations === */
-impl dokime_runtime::__harmos::Application for Fixture {
+
+impl dokime::__harmos::Application for Fixture {
     type State = ();
-    type Transaction = dokime_runtime::__harmos::state::Never;
+    type Transaction = dokime::__harmos::state::Never;
     type Record = ();
     type Streams = ();
     type Resources = ();
@@ -140,19 +147,19 @@ impl Hosting {
         };
         let operations = self.operations.get().expect("the host operations are set");
         for (publication, scope) in published {
-            use dokime_runtime::telemetry::TelemetryRow;
+            use dokime::telemetry::TelemetryRow;
             use harmos::Message;
             let row = obc_plugin::suites::checks::pulse::PulseRow::decode(publication.payload()).unwrap();
             let micros = u64::try_from(publication.published_unix_micros().unwrap()).unwrap();
             let instant = std::time::UNIX_EPOCH.checked_add(Duration::from_micros(micros)).unwrap();
-            let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
-                dokime_runtime::model::identity::new_id(),
-                dokime_runtime::Identifier::new(publication.stream()).unwrap(),
+            let mut sample = dokime::telemetry::TelemetrySample::new(
+                dokime::model::identity::new_id(),
+                dokime::Identifier::new(publication.stream()).unwrap(),
                 publication.sequence(),
-                dokime_runtime::Timestamp::from_system_time(instant),
+                dokime::Timestamp::from_system_time(instant),
                 publication.owner(),
             );
-            sample.sample_id = dokime_runtime::TelemetrySampleId::from_seed(format!(
+            sample.sample_id = dokime::TelemetrySampleId::from_seed(format!(
                 "{}/{}/{:?}/{}",
                 publication.owner(),
                 publication.stream(),
@@ -172,7 +179,7 @@ impl Hosting {
             };
             operations
                 .call_encoded(
-                    <dokime_runtime::execution::Signal<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID,
+                    <dokime::execution::Signal<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID,
                     signal.encode_to_vec(),
                 )
                 .await?;
@@ -203,12 +210,12 @@ impl Operation for Evidence {
         let batch = std::mem::take(batch);
         let mut admitted = Vec::new();
         for encoded in &batch.step_begins {
-            let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+            let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             {
                 let mut captures = self.0.captures.lock().unwrap();
                 let scope = captures.scopes.get_mut(&token).unwrap();
                 scope.step_id = Some(start.step_id.clone());
-                scope.origin = dokime_runtime::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
+                scope.origin = dokime::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
             }
             admitted.push(StepAdmission { attempt_id: start.attempt_id.to_string(), accepted: true, message: String::new() });
         }
@@ -244,11 +251,11 @@ impl Operation for Question {
 }
 
 impl harmos::operations::Declares for Filing {
-    type Declaration = dokime_runtime::records::RecordPublication;
+    type Declaration = dokime::records::RecordPublication;
 }
 
 impl Operation for Filing {
-    type Declaration = dokime_runtime::records::RecordPublication;
+    type Declaration = dokime::records::RecordPublication;
     type Resources = Hosting;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -259,14 +266,14 @@ impl Operation for Filing {
     }
 
     async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, _: &mut dokime_runtime::records::RecordPublication, _: &mut (),
+        &mut self, _: Self::Context<'ctx>, _: &mut dokime::records::RecordPublication, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
         Ok(harmos::operations::Response::new(()))
     }
 }
 
 impl Operation for Watching {
-    type Declaration = dokime_runtime::operations::files::WatchFile;
+    type Declaration = dokime::operations::files::WatchFile;
     type Resources = Hosting;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -277,8 +284,26 @@ impl Operation for Watching {
     }
 
     async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, _: &mut dokime_runtime::operations::files::WatchFile, _: &mut (),
-    ) -> harmos::Result<harmos::operations::Response<dokime_domain::model::files::wire::WatchFileOutcome>> {
+        &mut self, _: Self::Context<'ctx>, _: &mut dokime::operations::files::WatchFile, _: &mut (),
+    ) -> harmos::Result<harmos::operations::Response<dokime::domain::model::files::wire::WatchFileOutcome>> {
+        Err(harmos::Error::InvalidInput { field: "file watch", reason: "the test host watches no files" })
+    }
+}
+
+impl Operation for AwaitingWatch {
+    type Declaration = dokime::operations::files::AwaitFileWatchArmed;
+    type Resources = Hosting;
+    type Error = harmos::Error;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(_: Arc<Hosting>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
+        Ok(Self)
+    }
+
+    async fn run<'ctx>(
+        &mut self, _: Self::Context<'ctx>, _: &mut Self::Declaration, _: &mut (),
+    ) -> harmos::Result<harmos::operations::Response<dokime::domain::model::files::wire::FileWatchArmed>> {
         Err(harmos::Error::InvalidInput { field: "file watch", reason: "the test host watches no files" })
     }
 }
@@ -390,6 +415,7 @@ impl PluginLifecycle for Host {
                 self.operations.register_wire_operation::<Filing>("fixture.records", Lanes::Open, Arc::clone(&self.hosting)),
                 self.operations.register_wire_operation::<Publishing>("fixture.publications", Lanes::Open, Arc::clone(&self.hosting)),
                 self.operations.register_wire_operation::<Watching>("fixture.files", Lanes::Open, Arc::clone(&self.hosting)),
+                self.operations.register_wire_operation::<AwaitingWatch>("fixture.files", Lanes::Open, Arc::clone(&self.hosting)),
             ] {
                 registered?;
             }
@@ -508,7 +534,7 @@ impl Bench {
         let path = std::path::PathBuf::from(executable());
         let bytes = std::fs::read(&path).unwrap();
         let declaration = harmos::sidecar::Executable::at(&path).unwrap().declaration().clone();
-        let configuration = serde_json::to_vec(&dokime_runtime::plugin::Configuration::declared::<obc_plugin::BenchSettings>()).unwrap();
+        let configuration = serde_json::to_vec(&dokime::plugin::Configuration::declared::<obc_plugin::BenchSettings>()).unwrap();
         let mut registrar = harmos::plugin::Registrar::new();
         <ObcPlugin as harmos::Plugin>::register(&mut registrar).unwrap();
         let definition = PluginDefinition {
@@ -562,15 +588,15 @@ impl Bench {
         Self { runtime, plugins, host, declaration }
     }
 
-    fn start(&self, token: &str, parameters: &BTreeMap<&str, dokime_runtime::Value>) -> tokio::task::JoinHandle<SidecarExecutionOutcome> {
+    fn start(&self, token: &str, parameters: &BTreeMap<&str, dokime::Value>) -> tokio::task::JoinHandle<SidecarExecutionOutcome> {
         use harmos::Message;
-        let cycle = dokime_runtime::TestCycleId::from_seed("native-cycle");
+        let cycle = dokime::TestCycleId::from_seed("native-cycle");
         self.host.hosting.captures.lock().unwrap().scopes.insert(
             token.to_owned(),
-            dokime_runtime::RecordScope {
+            dokime::RecordScope {
                 test_cycle_id: Some(cycle.clone()),
-                test_execution_id: Some(dokime_runtime::TestExecutionId::from_uuid(token.to_owned()).unwrap()),
-                origin: dokime_runtime::EvidenceOrigin::Initialization,
+                test_execution_id: Some(dokime::TestExecutionId::from_uuid(token.to_owned()).unwrap()),
+                origin: dokime::EvidenceOrigin::Initialization,
                 ..Default::default()
             },
         );
@@ -590,7 +616,7 @@ impl Bench {
         tokio::spawn(async move {
             let bytes = operations
                 .call_encoded(
-                    <dokime_runtime::execution::Run<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID,
+                    <dokime::execution::Run<obc_plugin::Pulse> as harmos::operations::OperationDeclaration>::ID,
                     request.encode_to_vec(),
                 )
                 .await
@@ -608,6 +634,7 @@ impl Bench {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn dispatch(operations: &harmos::operations::OperationManager, method: &str, request: Vec<u8>) {
     let response = operations.call_encoded(method, request).await;
     match response {
@@ -622,6 +649,7 @@ async fn dispatch(operations: &harmos::operations::OperationManager, method: &st
 }
 
 /* === Tests === */
+
 #[tokio::test]
 async fn inventory_matches_dispatch() {
     use harmos::Message;
@@ -632,7 +660,7 @@ async fn inventory_matches_dispatch() {
     let mut served = Vec::new();
 
     // Every template of every suite serves its run and its signal.
-    for template in dokime_runtime::catalog::entries::<obc_plugin::suites::Suites, dokime_runtime::catalog::Suites>()
+    for template in dokime::catalog::entries::<obc_plugin::suites::Suites, dokime::catalog::Suites>()
         .into_iter()
         .flat_map(|definition| definition().suite.test_case_templates)
         .map(|template| template.metadata.identifier.to_string())
@@ -641,19 +669,23 @@ async fn inventory_matches_dispatch() {
         let signal = format!("{template}.signal");
         dispatch(&runtime.operations, &run, RunExecution::default().encode_to_vec()).await;
         dispatch(&runtime.operations, &signal, ExecutionSignal::default().encode_to_vec()).await;
-        served.push((run, <dokime_runtime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
-        served.push((signal, <dokime_runtime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
+        served.push((run, <dokime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
+        served.push((signal, <dokime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
+    use obc_plugin::domain::operations::device::{ReadDevice, SetPower};
     use obc_plugin::domain::operations::{AskReadiness, GetStatus, ListConnections};
     for (operation, timeout) in [
         (<GetStatus as OperationDeclaration>::ID, <GetStatus as OperationDeclaration>::POLICY.timeout),
         (<AskReadiness as OperationDeclaration>::ID, <AskReadiness as OperationDeclaration>::POLICY.timeout),
         (<ListConnections as OperationDeclaration>::ID, <ListConnections as OperationDeclaration>::POLICY.timeout),
+        (<ReadDevice as OperationDeclaration>::ID, <ReadDevice as OperationDeclaration>::POLICY.timeout),
     ] {
-        // All three bench operations have an empty native request.
+        // These Bench Operations Have Empty Native Requests.
         runtime.operations.call_encoded(operation, Vec::new()).await.unwrap();
         served.push((operation.to_owned(), timeout.as_millis() as u64));
     }
+    runtime.operations.call_encoded(<SetPower as OperationDeclaration>::ID, SetPower { enabled: false }.encode_to_vec()).await.unwrap();
+    served.push((<SetPower as OperationDeclaration>::ID.to_owned(), <SetPower as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
 
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.
@@ -695,12 +727,9 @@ async fn inventory_matches_dispatch() {
     let observe = <harmos::operations::observers::Control as harmos::operations::OperationDeclaration>::ID;
     dispatch(&runtime.operations, observe, harmos::operations::observers::Control::default().encode_to_vec()).await;
     // The ripple analysis is reached too; an empty request is refused all the same.
-    let ripple = <obc_plugin::analyses::ripple::Ripple as dokime_runtime::analysis::Analysis>::ID;
+    let ripple = <obc_plugin::analyses::ripple::Ripple as dokime::analysis::Analysis>::ID;
     dispatch(&runtime.operations, ripple, Vec::new()).await;
-    served.push((
-        ripple.to_owned(),
-        <obc_plugin::analyses::ripple::Ripple as dokime_runtime::analysis::Analysis>::TIMEOUT.as_millis() as u64,
-    ));
+    served.push((ripple.to_owned(), <obc_plugin::analyses::ripple::Ripple as dokime::analysis::Analysis>::TIMEOUT.as_millis() as u64));
     served.sort();
     let mut inspected = declared
         .operations
@@ -714,7 +743,7 @@ async fn inventory_matches_dispatch() {
 
 #[tokio::test]
 async fn samples_keep_context() {
-    use dokime_runtime::Value;
+    use dokime::Value;
     use harmos::Message;
 
     let mut bench = Bench::new().await;
@@ -722,24 +751,25 @@ async fn samples_keep_context() {
         ("sample_count", Value::Integer(3)),
         ("tolerance", Value::from(obc_plugin::DEFAULT_TOLERANCE)),
         ("capture_system", Value::from(false)),
+        ("require_confirmation", Value::from(false)),
     ]);
-    let tokens = ["native-a", "native-b"].map(|seed| dokime_runtime::TestExecutionId::from_seed(seed).to_string());
+    let tokens = ["native-a", "native-b"].map(|seed| dokime::TestExecutionId::from_seed(seed).to_string());
     let runs = tokens.iter().map(|token| bench.start(token, &parameters)).collect::<Vec<_>>();
 
     for (token, run) in tokens.iter().zip(runs) {
         let outcome = run.await.unwrap();
         assert!(outcome.passed, "local criteria must retain their evidence: {outcome:?}");
-        assert!(<EvidenceBatch as dokime_runtime::schema::Described>::FIELDS.iter().all(|field| field.name != "samples"));
+        assert!(<EvidenceBatch as dokime::schema::Described>::FIELDS.iter().all(|field| field.name != "samples"));
         let pages = bench.host.hosting.pages.lock().unwrap().get(token).cloned().expect("the host admitted this run's pages");
         let mut admitted = std::collections::BTreeSet::new();
         let mut completed = std::collections::BTreeSet::new();
         for page in &pages {
             for encoded in &page.step_begins {
-                let start: dokime_domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+                let start: dokime::domain::model::execution::result::StepAttemptStart = serde_json::from_str(encoded).unwrap();
                 assert!(admitted.insert(start.attempt_id.clone()));
             }
             for encoded in &page.step_attempts {
-                let attempt: dokime_domain::model::execution::result::TestStepAttempt = serde_json::from_str(encoded).unwrap();
+                let attempt: dokime::domain::model::execution::result::TestStepAttempt = serde_json::from_str(encoded).unwrap();
                 assert!(admitted.contains(&attempt.attempt_id));
                 assert!(completed.insert(attempt.attempt_id));
             }

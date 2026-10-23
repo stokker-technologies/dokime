@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -28,6 +30,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct TestCycleInstance {
     pub cycle: CycleView,
@@ -39,6 +42,7 @@ pub struct TestCycleInstance {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestCycleInstance {
     pub fn new(cycle: CycleView) -> Self {
         let executions = cycle

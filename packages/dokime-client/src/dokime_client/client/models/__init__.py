@@ -146,21 +146,6 @@ class ExecutionCommandReceipt:
         return self.phase.terminal
 
 
-class RunPhase(StrEnum):
-    QUEUED = "queued"
-    PREPARING = "preparing"
-    RUNNING = "running"
-    FINISHING = "finishing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    STOPPED = "stopped"
-    INTERRUPTED = "interrupted"
-
-    @property
-    def terminal(self) -> bool:
-        return self in {self.COMPLETED, self.FAILED, self.STOPPED, self.INTERRUPTED}
-
-
 @dataclass(frozen=True)
 class Backend:
     id: str
@@ -172,6 +157,7 @@ class Backend:
     source_revision: str | None = None
     sdk_revision: str | None = None
     descriptor_sha256: bytes = b""
+    max_evidence_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -204,31 +190,8 @@ class Prompt:
 
 
 @dataclass(frozen=True)
-class RunStatus:
-    id: str
-    cycle_id: str
-    phase: RunPhase
-    paused: bool
-    stop_requested: bool
-    planned: int
-    prepared: int
-    finished: int
-    failed: int
-    unstarted: int
-    claimed: int
-    last_execution_id: str | None
-    accepted_at: datetime | None
-    finished_at: datetime | None
-    interruption: str | None
-
-    @property
-    def terminal(self) -> bool:
-        return self.phase.terminal
-
-
-@dataclass(frozen=True)
 class ResultSummary:
-    """Backend-provided result counters, separate from run-request progress."""
+    """Backend-provided result counters."""
 
     status: str
     passed: int

@@ -21,7 +21,3 @@ export function testCaseTitle(testCase: TestCase | undefined, fallback: string):
   const parameterStart = label.indexOf(" (");
   return parameterStart > 0 ? label.slice(0, parameterStart) : label;
 }
-
-export function testCaseParameterEntries(testCase: TestCase | undefined): Array<[string, unknown]> {
-  return Object.entries(testCase?.parameters ?? {});
-}

@@ -34,11 +34,11 @@ use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const COMMON: &[&str] =
     &["label", "description", "tags", "attributes", "definition_identifier", "definition_created_at", "definition_updated_at"];
 const CASE: &[&str] = &["identifier", "template_identifier", "suite_identifier", "generation_index"];
-const CYCLE: &[&str] =
-    &["identifier", "session_identifier", "status", "created_at", "updated_at", "started_at", "continue_on_failure", "execution_count"];
+const CYCLE: &[&str] = &["identifier", "session_identifier", "status", "created_at", "updated_at", "started_at", "execution_count"];
 const EXECUTION: &[&str] = &[
     "identifier",
     "case_identifier",
@@ -91,6 +91,7 @@ const RECORD: &[&str] = &[
 /* === Structs === */
 
 /* === Enums === */
+
 pub(super) enum Row<'a> {
     Case(&'a TestCase),
     Cycle(&'a TestCycle),
@@ -101,7 +102,6 @@ pub(super) enum Row<'a> {
 
 pub(super) enum Field<'a> {
     Null,
-    Bool(bool),
     Unsigned(u64),
     Number(f64),
     Datetime(time::OffsetDateTime),
@@ -113,6 +113,7 @@ pub(super) enum Field<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Row<'_> {
     pub(super) fn source(&self) -> AggregateSource {
         match self {
@@ -153,7 +154,6 @@ impl Row<'_> {
                 "created_at" => timestamp(Some(&cycle.created_at))?,
                 "updated_at" => timestamp(Some(&cycle.updated_at))?,
                 "started_at" => timestamp(cycle.started_at.as_ref())?,
-                "continue_on_failure" => Field::Bool(cycle.continue_on_failure),
                 "execution_count" => {
                     Field::Unsigned(u64::try_from(cycle.execution_ids.len()).map_err(|_| invalid("cycle membership count overflows"))?)
                 }
@@ -208,7 +208,6 @@ impl Field<'_> {
     pub(super) fn project(&self) -> Result<Value> {
         Ok(match self {
             Self::Null => Value::Null,
-            Self::Bool(value) => Value::Bool(*value),
             Self::Unsigned(value) => Value::Unsigned(*value),
             Self::Number(value) if value.is_finite() => Value::Number(*value),
             Self::Number(_) => return Err(invalid("aggregate number must be finite")),
@@ -221,6 +220,7 @@ impl Field<'_> {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn columns(source: AggregateSource) -> impl Iterator<Item = &'static str> {
     let specific = match source {
         AggregateSource::Cases => CASE,
@@ -238,6 +238,7 @@ pub(super) fn known(source: AggregateSource, name: &str) -> bool {
 }
 
 /* === Private Functions === */
+
 fn metadata_field<'a>(metadata: &'a Metadata, name: &str) -> Option<Field<'a>> {
     Some(match name {
         "label" => Field::Text(&metadata.label),
@@ -250,6 +251,7 @@ fn metadata_field<'a>(metadata: &'a Metadata, name: &str) -> Option<Field<'a>> {
         _ => return None,
     })
 }
+
 fn execution_field<'a>(execution: &'a TestExecution, name: &str) -> Result<Field<'a>> {
     Ok(match name {
         "identifier" => Field::Text(execution.test_execution_id.as_str()),
@@ -264,15 +266,18 @@ fn execution_field<'a>(execution: &'a TestExecution, name: &str) -> Result<Field
         _ => return Err(invalid("native execution column has no projection")),
     })
 }
+
 fn text(value: Option<&str>) -> Field<'_> {
     value.map_or(Field::Null, Field::Text)
 }
+
 fn timestamp(value: Option<&Timestamp>) -> Result<Field<'_>> {
     value
         .map(|value| value.to_datetime().map(Field::Datetime).map_err(|_| invalid("invalid aggregate timestamp")))
         .transpose()
         .map(|value| value.unwrap_or(Field::Null))
 }
+
 fn duration(start: Option<&Timestamp>, finish: Option<&Timestamp>) -> Result<Field<'static>> {
     let (Some(start), Some(finish)) = (start, finish) else {
         return Ok(Field::Null);
@@ -286,6 +291,7 @@ fn duration(start: Option<&Timestamp>, finish: Option<&Timestamp>) -> Result<Fie
     }
     Ok(Field::Number(nanos as f64 / 1_000_000.0))
 }
+
 fn execution_status(status: &ExecutionStatus) -> &'static str {
     match status {
         ExecutionStatus::Skipped => "skipped",
@@ -299,6 +305,7 @@ fn execution_status(status: &ExecutionStatus) -> &'static str {
         ExecutionStatus::Interrupted => "interrupted",
     }
 }
+
 fn step_status(status: &StepStatus) -> &'static str {
     match status {
         StepStatus::Pending => "pending",
@@ -309,6 +316,7 @@ fn step_status(status: &StepStatus) -> &'static str {
         StepStatus::Cancelled => "cancelled",
     }
 }
+
 fn cycle_status(status: CycleStatus) -> &'static str {
     match status {
         CycleStatus::Ready => "ready",
@@ -321,6 +329,7 @@ fn cycle_status(status: CycleStatus) -> &'static str {
         CycleStatus::Stopped => "stopped",
     }
 }
+
 fn invalid(message: &'static str) -> Error {
     Error::validation("aggregate_query_invalid", message, Vec::new())
 }

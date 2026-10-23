@@ -8,19 +8,23 @@
  */
 
 /* === Modules === */
+
 pub(super) mod lifecycle;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::PathBuf,
     sync::Arc,
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use super::{Runtime, progress::Operation};
 use crate::domains::installed_plugins::contributions::decode_registrations;
@@ -36,9 +40,10 @@ use crate::{
 };
 
 /* === Constants === */
+
 const PLUGIN_LOG_VARIABLE: &str = "DOKIME_PLUGIN_LOG";
 
-/* === Extraction Cache === */
+// Extraction Cache
 const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
 
 /* === Macros === */
@@ -46,6 +51,7 @@ const EXTRACTION_MARKER_FILE: &str = ".extraction-marker.json";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Package {
     input: PluginBundle,
     catalog: BundleCatalog,
@@ -97,6 +103,7 @@ struct ExtractionMarker {
 }
 
 /* === Enums === */
+
 enum Extraction {
     Ephemeral(tempfile::TempDir),
     Cached(std::path::PathBuf),
@@ -106,6 +113,7 @@ enum Extraction {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Extraction {
     fn path(&self) -> &std::path::Path {
         match self {
@@ -137,26 +145,6 @@ impl Extraction {
         }
         result
     }
-}
-
-async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
-    #[cfg(windows)]
-    let delays = [0, 10, 25, 50, 100, 200, 400, 800];
-    #[cfg(not(windows))]
-    let delays = [0];
-
-    for (attempt, delay) in delays.into_iter().enumerate() {
-        if delay != 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-        }
-        match tokio::fs::remove_dir_all(path).await {
-            Ok(()) => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && attempt + 1 < delays.len() => {}
-            Err(error) => return Err(error),
-        }
-    }
-    unreachable!("the final removal attempt returns its result")
 }
 
 impl StagedPackages {
@@ -392,6 +380,7 @@ impl Runtime {
         if reconcile && let Err(error) = self.handle.commit(ReconcileProviders { providers }).await {
             return Err(operation(error));
         }
+        self.capture_ready_catalogs().await?;
         self.recover_plugin_executions().await?;
         for active in self.plugins.values() {
             if let PluginProvenance::Installed { install_id, .. } = active.package.input.provenance {
@@ -419,6 +408,18 @@ impl Runtime {
                     .map(|provider| provider.catalog.clone()),
             )
             .collect()
+    }
+
+    async fn capture_ready_catalogs(&mut self) -> Result<()> {
+        let ready: Vec<_> = self.plugin_manager.as_ref().expect("manager is initialized").ready().map(str::to_owned).collect();
+        // Catalog Reconciliation Must Precede Schema Capture And Recovery.
+        let contracts = self.handle.state_read().telemetry_contracts();
+        self.handle.execution_storage.register_schemas(&contracts).await?;
+        for source in ready {
+            self.handle.capture_suite_objects(&source).await?;
+        }
+        self.handle.storage().flush().await?;
+        Ok(())
     }
 
     fn expose_plugins(&mut self) -> Result<()> {
@@ -486,6 +487,7 @@ impl Runtime {
         }
 
         self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: source }).await.map_err(operation)?;
+        self.capture_ready_catalogs().await?;
         self.expose_plugins()?;
         Ok(())
     }
@@ -643,6 +645,7 @@ impl Runtime {
             return Err(error.into());
         }
         self.handle.commit(ReloadProviderCatalog { providers: catalogs, provider: name.clone() }).await.map_err(operation)?;
+        self.capture_ready_catalogs().await?;
         self.expose_plugins()?;
         std::mem::take(&mut self.pending_plugins).close().await.map_err(operation)?;
         for (record, version) in redefined {
@@ -686,6 +689,15 @@ impl Runtime {
                 .await
                 .map_err(operation)?;
         }
+        let cycles = self.handle.state_read().cycles.keys().cloned().collect::<Vec<_>>();
+        if cycles.is_empty() {
+            return Ok(());
+        }
+        for cycle in cycles {
+            self.handle.seal_cycle_inner(cycle, crate::CommandContext::default()).await?;
+        }
+        // The Stop Left These Active; Once Sealed They Are Served From Native History Like Any Earlier Session's.
+        self.handle.commit(crate::transactions::RecoverInterruptedCycles { at: crate::model::time::now_utc() }).await.map_err(operation)?;
         Ok(())
     }
 }
@@ -693,6 +705,27 @@ impl Runtime {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let delays = [0, 10, 25, 50, 100, 200, 400, 800];
+    #[cfg(not(windows))]
+    let delays = [0];
+
+    for (attempt, delay) in delays.into_iter().enumerate() {
+        if delay != 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+        }
+        match tokio::fs::remove_dir_all(path).await {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && attempt + 1 < delays.len() => {}
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("the final removal attempt returns its result")
+}
+
 fn start_failure(error: &harmos::Error) -> Option<(&str, &harmos::Error, &[harmos::plugin::PluginCleanupFailure])> {
     match error {
         harmos::Error::PluginLifecycle { source } => match source.as_ref() {

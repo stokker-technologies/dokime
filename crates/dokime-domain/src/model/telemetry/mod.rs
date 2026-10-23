@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod contract;
 pub mod evidence;
 pub mod host;
@@ -17,6 +18,7 @@ pub mod stream;
 pub mod wire;
 
 /* === Re-Exports === */
+
 pub use crate::model::validation::CompatibilityStatus;
 pub use crate::model::validation::ValidationMode;
 pub use contract::TelemetryColumn;
@@ -45,6 +47,7 @@ pub use sampling::TelemetrySourceKind;
 pub use stream::TelemetryStream;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

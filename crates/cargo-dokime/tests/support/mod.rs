@@ -12,7 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 
 // Third Party Imports
 
@@ -26,13 +30,32 @@
 
 /* === Structs === */
 
+pub struct StandaloneDirectory {
+    path: PathBuf,
+    owner: Child,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl StandaloneDirectory {
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for StandaloneDirectory {
+    fn drop(&mut self) {
+        drop(self.owner.stdin.take());
+        let _ = self.owner.wait();
+    }
+}
+
 /* === Public Functions === */
+
 pub fn tool() -> std::path::PathBuf {
     artifact("cargo-dokime")
 }
@@ -49,35 +72,34 @@ pub fn workspace_root() -> std::path::PathBuf {
         .to_owned()
 }
 
-pub fn build_root() -> std::path::PathBuf {
-    workspace_root().join("target/build").join(if cfg!(debug_assertions) { "dev" } else { "release" }).join(format!(
-        "{}-{}",
-        std::env::consts::OS,
-        std::env::consts::ARCH
-    ))
-}
-
-pub fn standalone_directory() -> tempfile::TempDir {
-    let preferred = std::env::temp_dir().canonicalize().unwrap();
-    let mut parent = preferred.as_path();
-    for ancestor in preferred.ancestors() {
-        if ancestor.join("Cargo.toml").is_file() {
-            parent = ancestor.parent().expect("filesystem root cannot be a Cargo workspace");
-        }
-    }
-    let directory = tempfile::Builder::new().prefix("dokime-plugin-").tempdir_in(parent).unwrap();
-    // A generated standalone plugin must never join an enclosing workspace.
-    assert!(
-        directory.path().ancestors().all(|ancestor| !ancestor.join("Cargo.toml").exists()),
-        "{} lies inside a Cargo workspace",
-        directory.path().display()
-    );
-    directory
+pub fn standalone_directory() -> StandaloneDirectory {
+    let mut owner = Command::new("uv")
+        .args(["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.fixture"])
+        .current_dir(workspace_root())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("the repository tooling owns the temporary fixture");
+    let output = owner.stdout.take().unwrap();
+    let mut ready = String::new();
+    BufReader::new(output).read_line(&mut ready).unwrap();
+    let path = PathBuf::from(ready.trim_end());
+    assert!(path.is_absolute() && path.is_dir(), "the fixture owner reported no temporary directory");
+    StandaloneDirectory { path, owner }
 }
 
 /* === Private Functions === */
+
 fn artifact(name: &str) -> std::path::PathBuf {
-    let path = build_root().join("bin").join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+    let platform = if cfg!(windows) { "windows" } else { "linux" };
+    let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
+    let target = format!("{platform}-{}", std::env::consts::ARCH);
+    let path = workspace_root()
+        .join("target/build")
+        .join(profile)
+        .join(target)
+        .join("bin")
+        .join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
     assert!(path.is_file(), "{} is missing: run mise run build", path.display());
     path
 }

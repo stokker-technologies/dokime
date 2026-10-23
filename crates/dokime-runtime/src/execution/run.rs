@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use tokio::sync::watch;
 use tracing::Instrument;
+
 // Local Imports
 use super::Environment;
 use super::ExecutionEvidence;
@@ -39,8 +42,8 @@ use dokime_domain::model::execution::termination::TerminationReason;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const CRITERION_BUDGET: Duration = Duration::from_secs(1);
 
+const CRITERION_BUDGET: Duration = Duration::from_secs(1);
 const INITIALIZATION: &str = "initialization";
 const TRACEABILITY: &str = "traceability";
 const PARAMETERS: &str = "resolving parameters";
@@ -50,6 +53,7 @@ const PARAMETERS: &str = "resolving parameters";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Inputs {
     pub controls: Arc<crate::transport::control::Controls>,
     pub callbacks: super::Callbacks,
@@ -65,6 +69,7 @@ pub(super) struct Inputs {
 }
 
 /* === Enums === */
+
 enum Ended {
     Completed,
     Cancelled { step: String },
@@ -76,6 +81,7 @@ enum Ended {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn run<T: SidecarTemplate>(
     executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs, cancel: watch::Receiver<bool>,
     observer_tasks: Tasks,
@@ -91,6 +97,7 @@ pub(crate) async fn run<T: SidecarTemplate>(
 }
 
 /* === Private Functions === */
+
 async fn execute<T: SidecarTemplate>(
     executions: Executions, token: String, source: String, declaration: TestCaseTemplate, inputs: Inputs,
     mut cancel: watch::Receiver<bool>, observer_tasks: Tasks,
@@ -330,21 +337,22 @@ async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut
     let was_cancelled = *cancel.borrow();
     let bound = if was_cancelled { Duration::from_secs(1) } else { Duration::from_secs(35) };
     // The host settles by handing captured records and samples back. Bound
-    // idle time between accepted inputs, rather than total replay duration.
+    // idle time between new inputs or their first settlement confirmation,
+    // rather than total replay duration.
     let mut deadline = tokio::time::Instant::now() + bound;
     let mut staged = None;
     loop {
         let progress = match lock(executions).get(token) {
             None => return Ok(()),
             Some(state) if state.record_subscriptions_settled() => return Ok(()),
-            Some(state) => state.staged_inputs(),
+            Some(state) => state.settlement_progress(),
         };
         if !was_cancelled && staged.is_some_and(|staged| progress > staged) {
             deadline = tokio::time::Instant::now() + bound;
         }
         staged = Some(progress);
         if tokio::time::Instant::now() >= deadline {
-            return Err(Diagnostic::of("host did not settle execution inputs before the deadline"));
+            return Err(Diagnostic::of(format!("host did not settle execution inputs before the deadline; input progress: {progress}")));
         }
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_millis(5)) => {},
@@ -691,3 +699,34 @@ fn report(executions: &Executions, token: &str, outcome: SidecarExecutionOutcome
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transport::buffer::ExecutionState;
+
+    #[tokio::test(start_paused = true)]
+    async fn settlement_live_sample_replay_extends_idle_deadline() {
+        let (cancel, mut cancelled) = watch::channel(false);
+        let mut state = ExecutionState::new(Default::default(), cancel);
+        let stream = dokime_domain::model::identity::Identifier::new("reading").unwrap();
+        let sample =
+            crate::telemetry::TelemetrySample::new(crate::model::identity::new_id(), stream, 1, crate::model::time::now_utc(), "fixture");
+        state.receive(sample.clone()).unwrap();
+        let states = std::collections::BTreeMap::from([("fixture".into(), state)]);
+        let executions = Arc::new(std::sync::Mutex::new(states));
+        let waiting = Arc::clone(&executions);
+        let settlement = tokio::spawn(async move { settle_record_inputs(&waiting, "fixture", &mut cancelled).await });
+        tokio::task::yield_now().await;
+
+        tokio::time::advance(Duration::from_secs(20)).await;
+        assert!(!lock(&executions).get_mut("fixture").unwrap().receive(sample).unwrap());
+        tokio::time::advance(Duration::from_millis(10)).await;
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(20)).await;
+        tokio::task::yield_now().await;
+        assert!(!settlement.is_finished(), "first confirmation keeps a live-delivered sample's settlement active");
+        lock(&executions).get_mut("fixture").unwrap().settle_record_subscriptions();
+        assert!(settlement.await.unwrap().is_ok());
+    }
+}

@@ -11,7 +11,7 @@
 
     python -m dokime_tools.prepare.generated
 
-The build regenerates the ignored `crates/dokime-gui/.generated` modules from the server's contract
+The build regenerates `target/generated/typescript` modules from the server's contract
 export and stages a copy under `target/build/<profile>/<target>/generated/typescript`, a path the build
 artifact carries. A lane runner has only the artifact, so the TypeScript lanes restore the staged
 modules before they compile or import the GUI.
@@ -36,7 +36,7 @@ from dokime_tools.package.staging import sync_output
 # === Constants === #
 
 ROOT = Path(__file__).resolve().parents[5]
-MODULES = ROOT / "crates/dokime-gui/.generated"
+MODULES = ROOT / "target/generated/typescript"
 
 # === Types === #
 
@@ -45,9 +45,11 @@ MODULES = ROOT / "crates/dokime-gui/.generated"
 # === Public Functions === #
 
 
-def stage(profile: str) -> None:
+def stage(profile: str) -> Path:
     """Copy The Freshly Generated Modules Into The Build Output."""
-    sync_output(MODULES, paths.output(ROOT, "build", profile) / "generated/typescript")
+    staged = paths.output(ROOT, "build", profile) / "generated/typescript"
+    sync_output(MODULES, staged)
+    return staged
 
 
 def restore(profile: str, *, fixtures: bool = False) -> None:

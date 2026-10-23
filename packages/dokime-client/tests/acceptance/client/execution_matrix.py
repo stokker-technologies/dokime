@@ -21,7 +21,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_client.client import DokimeClient, _wire
+from dokime_client.client import DokimeClient, Execution, _wire
 
 # Type Checking Imports
 
@@ -40,15 +40,17 @@ from dokime_client.client import DokimeClient, _wire
 async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
     client = DokimeClient(endpoint)
     try:
-        run_cycle = await client.new_cycle(suite=contract["suite"], template=contract["template"])
-        (control,) = run_cycle.executions
-        run = await control.start(request_key=scenario["name"])
-        await run.status()
+        template = await client.template(contract["template"])
+        (case,) = await template.materialize()
+        control = Execution(case)
+        run_cycle = await client.create_cycle(label="Execution Matrix", continue_automatically=False)
+        await run_cycle.append([control])
+        await control.start()
+        execution_id = control.id
         while not (pending := [prompt async for prompt in run_cycle.pending_prompts()]):
-            assert not (await run.status()).terminal
+            assert await control.checkpoint() is None
             await asyncio.sleep(0.01)
         assert len(pending) == 1
-        execution_id = (await run.status()).last_execution_id
 
         async def progress_at(completed: int) -> None:
             progress_stream = await client._transport.stream(
@@ -74,41 +76,39 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         await progress_at(0)
         # Prompt admission does not certify that independent evidence readers
         # have reached the publisher. Follow each frontier to its first item.
-        async with aclosing(run_cycle.records(record_types=[contract["record"]], until=run)) as events:
+        async with aclosing(control.records(record_types=[contract["record"]], follow=True)) as events:
             await anext(events)
-        async with aclosing(run_cycle.samples(streams=[contract["stream"]], page_size=1, until=run)) as samples:
+        async with aclosing(control.samples(streams=[contract["stream"]], page_size=1, follow=True)) as samples:
             await anext(samples)
 
         live_records = [item async for item in run_cycle.records()]
         live_rows = [item async for item in run_cycle.samples(streams=[contract["stream"]], page_size=1)]
         assert [row.values["value"] for row in live_rows] == [1]
-        assert not (await run.status()).terminal
+        assert await control.checkpoint() is None
         ready = next(item for item in live_records if item.type == contract["record"])
         assert ready.details == {"phase": "ready"}
         selected = [item async for item in run_cycle.records(record_ids=[ready.id])]
         assert [item.id for item in selected] == [ready.id]
 
         if scenario["action"] == "stop":
-            progress = await run.status()
-            assert progress.last_execution_id is not None
-            control = await client.execution(progress.last_execution_id)
             await control.stop()
         else:
             await run_cycle.respond(pending[0].id, action=scenario["action"])
         if scenario["action"] == "yes":
             while not (next_prompts := [item async for item in run_cycle.pending_prompts() if item.id != pending[0].id]):
-                assert not (await run.status()).terminal
+                assert await control.checkpoint() is None
                 await asyncio.sleep(0.01)
             await progress_at(1)
             await run_cycle.respond(next_prompts[0].id, action="yes")
-        status = await run.wait(poll_interval=0.02)
+        status = await control.wait(poll_interval=0.02)
         records = [item async for item in run_cycle.records()]
         rows = [item async for item in run_cycle.samples(streams=[contract["stream"]], page_size=1)]
+        await run_cycle.seal()
         summary = await run_cycle.result()
         cycle_document = await run_cycle.document()
         inventory = await client._transport.unary("Content", "ListArtifacts", _wire.request("Content", "ListArtifacts"))
         artifact = next(item for item in inventory.artifacts if item.filename.endswith("matrix.txt"))
-        assert artifact.scope.execution_id == status.last_execution_id
+        assert artifact.scope.execution_id == control.id
         assert _wire.enum_name(artifact.state) == "complete"
         download = await client._transport.stream(
             "Content",
@@ -130,13 +130,13 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
         assert completed
         assert data == b"open\ncleanup\n"
         authored = [item for item in records if item.type == contract["record"]]
-        execution = status.last_execution_id
+        execution = control.id
         assert execution
         assert len({item.id for item in records}) == len(records)
         assert len({row.id for row in rows}) == len(rows)
         assert [item.sequence for item in records] == sorted(item.sequence for item in records)
         for item in [*authored, *rows]:
-            assert item.scope["cycle_id"] == run.cycle_id
+            assert item.scope["cycle_id"] == run_cycle.id
             assert item.scope["execution_id"] == execution
             assert item.timestamp is not None
         assert {row.id for row in live_rows} <= {row.id for row in rows}
@@ -144,7 +144,7 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
             json.dumps(
                 {
                     "status": summary.status,
-                    "phase": status.phase.value,
+                    "phase": {"passed": "completed", "failed": "failed", "cancelled": "stopped"}[status.status],
                     "values": [row.values["value"] for row in rows],
                     "records": [item.details["phase"] for item in authored],
                     "cases": int(cycle_document.get("case_count", "0")),

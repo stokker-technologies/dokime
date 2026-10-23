@@ -42,6 +42,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct ExecutionView {
     storage: Manager,
@@ -55,6 +56,7 @@ pub struct ExecutionView {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionView {
     pub async fn open(storage: &Manager, id: &TestExecutionId, version: ObjectVersion) -> Result<Option<Self>> {
         let saved = storage.cursor_saved();
@@ -249,6 +251,7 @@ impl ExecutionView {
 }
 
 /* === Public Functions === */
+
 pub(super) async fn verify_file(mut reader: FileReader) -> Result<()> {
     while reader.next().await?.is_some() {}
     Ok(())
@@ -262,6 +265,7 @@ pub(crate) fn check_seal_position(position: &StorageCursor, dependencies: &Stora
 }
 
 /* === Private Functions === */
+
 fn whole() -> harmos::storage::ByteRange {
     harmos::storage::ByteRange { offset: 0, limit: None }
 }

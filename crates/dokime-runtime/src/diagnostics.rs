@@ -12,6 +12,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::diagnostics::*;
 
 /* === Imports === */
@@ -24,9 +25,11 @@ use std::{any::Any, cell::RefCell, sync::Once};
 // Local Imports
 
 /* === Constants === */
+
 static HOOK: Once = Once::new();
 
 /* === Macros === */
+
 thread_local! {
     static PANIC: RefCell<Option<Diagnostic>> = const { RefCell::new(None) };
 }
@@ -42,6 +45,7 @@ thread_local! {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn install_panic_hook() {
     HOOK.call_once(|| {
         std::panic::set_hook(Box::new(|info| {
@@ -73,6 +77,7 @@ pub fn panicked(carried: &(dyn Any + Send)) -> Diagnostic {
 }
 
 /* === Private Functions === */
+
 fn payload(carried: &(dyn Any + Send)) -> String {
     carried
         .downcast_ref::<&str>()

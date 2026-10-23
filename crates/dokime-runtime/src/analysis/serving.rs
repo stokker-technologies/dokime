@@ -29,6 +29,7 @@ use super::{Analysis, Error, Operation, Request, Response};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Handler<A> {
     state: State,
     analysis: std::marker::PhantomData<fn() -> A>,
@@ -46,6 +47,7 @@ struct State {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<A: Analysis> harmos::operations::Operation for Handler<A> {
     type Declaration = Operation<A>;
     type Resources = ();

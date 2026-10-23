@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::PromptDefinition;
 use crate::model::diagnostics::ValidationIssue;
@@ -33,6 +36,7 @@ use crate::model::values::ValueType;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rule {
     pub predicate: BooleanExpression,
@@ -44,6 +48,7 @@ pub struct Rule {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for Rule {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -57,6 +62,7 @@ impl harmos_domain::MemorySize for Rule {
 }
 
 /* === Public Functions === */
+
 pub fn validate_rules(definition: &PromptDefinition) -> Vec<ValidationIssue> {
     if definition.rules.len() > 32 {
         return vec![issue(0, "a prompt may declare at most 32 answer rules")];
@@ -81,6 +87,7 @@ pub fn validate_rules(definition: &PromptDefinition) -> Vec<ValidationIssue> {
 }
 
 /* === Private Functions === */
+
 fn expression_type(
     expression: &Expression, definition: &PromptDefinition, depth: usize, remaining: &mut usize,
 ) -> Result<ValueType, &'static str> {

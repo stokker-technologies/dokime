@@ -16,6 +16,7 @@ import json
 import shutil
 import subprocess
 from collections.abc import Callable, Iterator
+from contextlib import aclosing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
@@ -24,7 +25,7 @@ from typing import IO, Any
 import pytest
 
 # Local Imports
-from dokime_client.client import Capture, DokimeClient, ExecutionEvidence, RunPhase
+from dokime_client.client import DokimeClient, Execution, ExecutionEvidence
 
 # Type Checking Imports
 
@@ -40,7 +41,7 @@ PARAMETERS = {
     "duration_s": 0.3,
     "sample_interval_s": 0.1,
 }
-# The Packaging Lane Ships The Completed Capture's Sealed Report As Its Example.
+# The Packaging Lane Ships The Saved Cycle Report As Its Example.
 EXAMPLE_REPORT = "target/validation/examples/charger-report.html"
 
 # === Types === #
@@ -127,16 +128,12 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
         async with DokimeClient(native.endpoint) as client:
             suite = await client.suite(SUITE)
             assert suite.templates
-            capture = await Capture.prepare(
-                client,
-                output=output,
-                suite=suite.id,
-                template=suite.templates[0].id,
-                parameters=PARAMETERS,
-            )
-            run = await capture.start()
-            cycle = await client.cycle(run.cycle_id)
-            (handle,) = cycle.executions
+            template = await client.template(suite.templates[0].id)
+            (case,) = await template.materialize(parameters=PARAMETERS)
+            handle = Execution(case)
+            cycle = await client.create_cycle(label="Native Evidence", continue_automatically=False)
+            await cycle.append([handle])
+            await handle.start()
             records = []
             samples = []
             live_sample = asyncio.Event()
@@ -155,7 +152,7 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
                 tasks.create_task(events())
                 tasks.create_task(telemetry())
                 await live_sample.wait()
-                assert not (await run.status()).terminal
+                assert await handle.checkpoint() is None
                 pending = await _pending(cycle)
                 assert "submit" in pending[0].actions
                 await cycle.respond(
@@ -166,8 +163,8 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
                         "accepted": True,
                     },
                 )
-                status = await run.wait()
-            assert status.phase is RunPhase.COMPLETED
+                status = await handle.wait()
+            assert status.status == "passed"
             assert records and samples
             assert len({e.id for e in records}) == len(records)
             assert len({s.id for s in samples}) == len(samples)
@@ -195,12 +192,14 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
             }
             assert {item.sample.id for item in historical_samples} == {item.id for item in samples}
 
-            # The Capture Saves Live Records And The Sealed Report
-            await capture.collect(run)
-            assert capture.result.output == output
-            saved_records = [json.loads(line) for line in (output / "records.jsonl").read_text().splitlines()]
-            assert {item["id"] for item in saved_records if item["scope"].get("execution_id") == handle.id} == {item.id for item in records}
-            assert (output / "report.html").read_text(encoding="utf-8").strip()
+            # Export Saved Server Evidence Independently Of Local Observations
+            output.mkdir()
+            await handle.export(output / "execution.zip")
+            await cycle.seal()
+            await cycle.export(output / "cycle.zip")
+            report = await cycle.download_report(output / "report.html")
+            assert report.path.read_text(encoding="utf-8").strip()
+            assert (output / "execution.zip").is_file() and (output / "cycle.zip").is_file()
 
     asyncio.run(scenario())
     _export_example(output / "report.html", workspace / EXAMPLE_REPORT)
@@ -211,27 +210,24 @@ def test_native_stop(native: Host, tmp_path: Path) -> None:
         async with DokimeClient(native.endpoint) as client:
             suite = await client.suite(SUITE)
             output = tmp_path / "cancelled-capture"
-            capture = await Capture.prepare(
-                client,
-                output=output,
-                suite=suite.id,
-                template=suite.templates[0].id,
-                parameters=PARAMETERS,
-            )
-            cancelled = await capture.start()
+            template = await client.template(suite.templates[0].id)
+            (case,) = await template.materialize(parameters=PARAMETERS)
+            execution = Execution(case)
+            cycle = await client.create_cycle(label="Native Stop", continue_automatically=False)
+            await cycle.append([execution])
+            await execution.start()
 
-            # Stop Once Admission Has Reached Provider Dispatch
-            async for status in cancelled.updates(poll_interval=0.05):
-                if status.phase not in {RunPhase.QUEUED, RunPhase.PREPARING}:
-                    break
-            status = await cancelled.status()
-            assert status.last_execution_id is not None
-            await (await client.execution(status.last_execution_id)).stop()
-
-            await capture.collect(cancelled)
-            assert (await cancelled.wait()).phase is RunPhase.STOPPED
-            assert capture.result.request.phase is RunPhase.STOPPED
-            assert (output / "report.html").is_file()
+            # A First Sample Confirms Provider Dispatch Before Stop
+            async with aclosing(execution.samples(follow=True)) as samples:
+                await anext(samples)
+            await execution.stop()
+            outcome = await execution.wait()
+            assert outcome.status == "cancelled"
+            output.mkdir()
+            await execution.export(output / "execution.zip")
+            await cycle.seal()
+            await cycle.export(output / "cycle.zip")
+            assert (output / "execution.zip").is_file() and (output / "cycle.zip").is_file()
 
     asyncio.run(scenario())
 

@@ -19,6 +19,7 @@ import { type ReactNode, useCallback } from "react";
 
 /* === Local Imports === */
 
+import type { DocumentCardContentProps } from "@/components/document/DocumentSurfaceView";
 import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
 import { type DocumentBlockChrome, DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
@@ -42,8 +43,6 @@ import type {
 } from "@/lib/types";
 import type { LivePlotStateMap } from "@/plots/live-frames";
 import type { PlotSettingsChange } from "./PlotGroupGrid";
-
-import type { DocumentCardContentProps } from "@/components/document/DocumentSurfaceView";
 
 /* === Constants === */
 

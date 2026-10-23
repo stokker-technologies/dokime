@@ -17,14 +17,14 @@ readme = "README.md"
 description = "Async remote control and evidence collection for Dokime."
 requires-python = ">=3.13,<3.16"
 license = "Apache-2.0"
-license-files = ["LICENSE-APACHE"]
-dependencies = ["grpcio>=1.84.0,<2", "protobuf>=7.36.2,<8"]
+license-files = ["LICENSE"]
+dependencies = ["grpcio>=1.84.0,<2", "protobuf>=7.36.2,<8", "python-dotenv==1.2.4"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dokime_client"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/dokime_client", "examples", "README.md", "pyproject.toml", "LICENSE-APACHE"]
+include = ["src/dokime_client", "examples", "README.md", "pyproject.toml", "LICENSE"]
 
 [tool.ty.environment]
 python-version = "3.13"

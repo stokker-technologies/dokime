@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -22,6 +23,7 @@ use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Attribute, Data, DeriveInput, Error, Expr, Field, Fields, FieldsNamed, Ident, Meta, MetaList, Token, Type};
+
 // Local Imports
 
 /* === Constants === */
@@ -31,6 +33,7 @@ use syn::{Attribute, Data, DeriveInput, Error, Expr, Field, Fields, FieldsNamed,
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, Default)]
 pub(crate) struct FieldEntries {
     flags: Vec<Ident>,
@@ -43,6 +46,7 @@ pub(crate) struct Arguments {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Shape {
     Required,
@@ -54,6 +58,7 @@ pub(crate) enum Shape {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Arguments {
     pub(crate) fn read(attribute: TokenStream, kind: &str, known: &[&str]) -> Result<Self, Error> {
         let span = attribute.span();
@@ -144,6 +149,7 @@ impl FieldEntries {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn documentation(attributes: &[Attribute]) -> String {
     let mut paragraphs: Vec<String> = Vec::new();
     let mut paragraph = String::new();
@@ -370,6 +376,7 @@ pub(crate) fn titled(name: &str) -> String {
 }
 
 /* === Private Functions === */
+
 fn documented(attribute: &Attribute) -> Option<String> {
     let Meta::NameValue(named) = &attribute.meta else {
         return None;

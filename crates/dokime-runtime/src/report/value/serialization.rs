@@ -29,6 +29,7 @@ use super::Value;
 use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
+
 const MAX_DEPTH: usize = 128;
 
 /* === Macros === */
@@ -36,21 +37,26 @@ const MAX_DEPTH: usize = 128;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug)]
 struct EncodingError(String);
+
 struct Budget {
     limit: usize,
     used: usize,
     build: bool,
 }
+
 struct Encoder<'a> {
     budget: &'a mut Budget,
     depth: usize,
 }
+
 struct Node {
     value: Option<Value>,
     string: bool,
 }
+
 struct Sequence<'a> {
     encoder: Encoder<'a>,
     expected: usize,
@@ -58,6 +64,7 @@ struct Sequence<'a> {
     values: Option<Vec<Value>>,
     tag: Option<String>,
 }
+
 struct Object<'a> {
     encoder: Encoder<'a>,
     expected: usize,
@@ -67,7 +74,9 @@ struct Object<'a> {
     pending: bool,
     tag: Option<String>,
 }
+
 struct Count(usize);
+
 struct Text {
     value: String,
     limit: usize,
@@ -84,12 +93,15 @@ impl fmt::Display for EncodingError {
         formatter.write_str(&self.0)
     }
 }
+
 impl std::error::Error for EncodingError {}
+
 impl serde::ser::Error for EncodingError {
     fn custom<T: fmt::Display>(message: T) -> Self {
         Self(message.to_string())
     }
 }
+
 impl Budget {
     fn charge(&mut self, bytes: usize) -> std::result::Result<(), EncodingError> {
         let total = self.used.checked_add(bytes).ok_or_else(|| error("report value memory overflows"))?;
@@ -100,6 +112,7 @@ impl Budget {
         Ok(())
     }
 }
+
 impl Encoder<'_> {
     fn scalar(self, make: impl FnOnce() -> Value) -> std::result::Result<Node, EncodingError> {
         Ok(Node { value: self.budget.build.then(make), string: false })
@@ -116,6 +129,7 @@ impl Encoder<'_> {
         Ok(())
     }
 }
+
 impl<'a> Serializer for Encoder<'a> {
     type Ok = Node;
     type Error = EncodingError;
@@ -290,6 +304,7 @@ impl<'a> Serializer for Encoder<'a> {
         Ok(Node { value: text, string: true })
     }
 }
+
 impl Sequence<'_> {
     fn element<T: ?Sized + Serialize>(&mut self, value: &T) -> std::result::Result<(), EncodingError> {
         if self.seen == self.expected {
@@ -310,6 +325,7 @@ impl Sequence<'_> {
         Ok(Node { value, string: false })
     }
 }
+
 impl Object<'_> {
     fn key<T: ?Sized + Serialize>(&mut self, key: &T) -> std::result::Result<(), EncodingError> {
         if self.pending || self.seen == self.expected {
@@ -352,6 +368,7 @@ impl Object<'_> {
         Ok(Node { value, string: false })
     }
 }
+
 impl SerializeSeq for Sequence<'_> {
     type Ok = Node;
     type Error = EncodingError;
@@ -362,6 +379,7 @@ impl SerializeSeq for Sequence<'_> {
         self.finish()
     }
 }
+
 impl SerializeTuple for Sequence<'_> {
     type Ok = Node;
     type Error = EncodingError;
@@ -372,6 +390,7 @@ impl SerializeTuple for Sequence<'_> {
         self.finish()
     }
 }
+
 impl SerializeTupleStruct for Sequence<'_> {
     type Ok = Node;
     type Error = EncodingError;
@@ -382,6 +401,7 @@ impl SerializeTupleStruct for Sequence<'_> {
         self.finish()
     }
 }
+
 impl SerializeTupleVariant for Sequence<'_> {
     type Ok = Node;
     type Error = EncodingError;
@@ -406,6 +426,7 @@ impl SerializeMap for Object<'_> {
         self.finish()
     }
 }
+
 impl SerializeStruct for Object<'_> {
     type Ok = Node;
     type Error = EncodingError;
@@ -416,6 +437,7 @@ impl SerializeStruct for Object<'_> {
         self.finish()
     }
 }
+
 impl SerializeStructVariant for Object<'_> {
     type Ok = Node;
     type Error = EncodingError;
@@ -433,6 +455,7 @@ impl fmt::Write for Count {
         Ok(())
     }
 }
+
 impl fmt::Write for Text {
     fn write_str(&mut self, text: &str) -> fmt::Result {
         if self.value.len().checked_add(text.len()).is_none_or(|total| total > self.limit) {
@@ -444,11 +467,13 @@ impl fmt::Write for Text {
 }
 
 /* === Public Functions === */
+
 pub(super) fn memory<T: ?Sized + Serialize>(value: &T) -> Result<usize> {
     let mut budget = Budget { limit: usize::MAX, used: std::mem::size_of::<Value>(), build: false };
     value.serialize(Encoder { budget: &mut budget, depth: 0 }).map_err(|error| Error::InvalidReportInputs(error.0))?;
     Ok(budget.used)
 }
+
 pub(super) fn build<T: ?Sized + Serialize>(value: &T, allowance: NonZeroUsize) -> Result<Value> {
     let bytes = memory(value)?;
     if bytes == usize::MAX || bytes > allowance.get() {
@@ -461,13 +486,16 @@ pub(super) fn build<T: ?Sized + Serialize>(value: &T, allowance: NonZeroUsize) -
 }
 
 /* === Private Functions === */
+
 fn error(message: &str) -> EncodingError {
     EncodingError(message.into())
 }
+
 fn object_heap(count: usize) -> usize {
     let bytes = harmos::btree_map_memory::<String, Value>(count.max(1));
     if bytes == usize::MAX { usize::MAX } else { bytes.saturating_sub(std::mem::size_of::<BTreeMap<String, Value>>()) }
 }
+
 fn slots(count: usize) -> std::result::Result<Vec<Value>, EncodingError> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| error("report value slots allocation failed"))?;
@@ -476,6 +504,7 @@ fn slots(count: usize) -> std::result::Result<Vec<Value>, EncodingError> {
     }
     Ok(values)
 }
+
 fn copy_text(source: &str) -> std::result::Result<String, EncodingError> {
     let mut text = String::new();
     text.try_reserve_exact(source.len()).map_err(|_| error("report text allocation failed"))?;
@@ -485,6 +514,7 @@ fn copy_text(source: &str) -> std::result::Result<String, EncodingError> {
     text.push_str(source);
     Ok(text)
 }
+
 fn tagged(value: Value, tag: Option<String>) -> Value {
     match tag {
         Some(tag) => Value::Object(BTreeMap::from([(tag, value)])),

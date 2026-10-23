@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod acquire;
 mod construction;
 mod current;
@@ -18,6 +19,7 @@ pub(crate) mod saved;
 mod stream;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::transactions::documents::AddExecutionDocumentParts;
 pub(crate) use construction::construction_memory;
 pub use current::{CurrentDocumentCapture, CurrentDocumentTelemetryCut, PreparedCurrentDocument};
@@ -25,6 +27,7 @@ pub use follow::ExecutionFileFollower;
 pub use stream::ExecutionFileStream;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -50,6 +53,7 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
+
 pub(crate) const DEFAULT_DOCUMENT_ID: &str = "default";
 
 /* === Macros === */
@@ -57,6 +61,7 @@ pub(crate) const DEFAULT_DOCUMENT_ID: &str = "default";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RuntimeDocumentData {
     pub(crate) records: Vec<RecordEntry>,
@@ -69,6 +74,7 @@ pub(crate) struct RuntimeDocumentData {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeDocumentData {
     pub(crate) fn into_input(self) -> DocumentDataInput {
         DocumentDataInput { records: self.records, telemetry: self.telemetry, artifacts: self.artifacts }
@@ -76,6 +82,7 @@ impl RuntimeDocumentData {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn resolve_cycle_document(
     suites: &SuiteRegistry, cycle: &TestCycleInstance, document_id: &DocumentId, mut selection: DocumentSelection,
     data: RuntimeDocumentData,
@@ -148,6 +155,7 @@ pub(crate) fn selected_execution_template(execution: &TestExecution) -> Option<&
 }
 
 /* === Private Functions === */
+
 fn authored_document(cycle: &TestCycleInstance, document_id: &DocumentId, scope: &RecordScope) -> Result<Option<DocumentDefinition>> {
     let id = scope.test_execution_id.as_ref().ok_or_else(|| Error::Operation("document selection requires an execution".into()))?;
     let execution = selected_execution(&cycle.cycle, id)?;

@@ -8,18 +8,22 @@
  */
 
 /* === Modules === */
+
 pub mod bounds;
 pub mod limits;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
@@ -31,6 +35,7 @@ use crate::model::values::ValueType;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(ParameterResolverError, formatter {
     Self::DuplicateParameter(parameter) => write!(formatter, "duplicate parameter definition for {parameter}"),
     Self::UnknownReference { parameter, reference } => write!(formatter, "parameter {parameter:?} references unknown parameter {reference:?}"),
@@ -53,32 +58,44 @@ product_error!(ParameterResolverError, formatter {
 });
 
 /* === Type Aliases === */
+
 pub type ParameterGroupId = Identifier;
 pub type DynamicDefaultResolver = dyn Fn(DynamicDefaultKey) -> Option<Value> + Send + Sync;
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ParameterDefinition {
     #[serde(default)]
     pub expansion: ParameterExpansion,
+
     pub parameter_id: ParameterId,
     pub metadata: Metadata,
+
     #[serde(default)]
     pub group_id: Option<ParameterGroupId>,
+
     pub value_type: ValueType,
     pub unit: Option<MeasurementUnit>,
+
     #[serde(default)]
     pub min: Option<f64>,
+
     #[serde(default)]
     pub max: Option<f64>,
+
     pub required: bool,
     pub expression: ParameterExpr,
+
     #[serde(default)]
     pub runtime_writable: bool,
+
     #[serde(default)]
     pub selection: Option<ParameterSelection>,
+
     #[serde(default)]
     pub list: Option<ParameterList>,
+
     #[serde(default)]
     pub extensions: BTreeMap<String, Value>,
 }
@@ -86,8 +103,10 @@ pub struct ParameterDefinition {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ParameterList {
     pub element_type: ValueType,
+
     #[serde(default)]
     pub min_items: Option<usize>,
+
     #[serde(default)]
     pub max_items: Option<usize>,
 }
@@ -107,8 +126,10 @@ pub struct ParameterSelection {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MaterializedParameter {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub group_id: Option<ParameterGroupId>,
+
     pub source: ParameterSource,
     pub value: Value,
     pub unit: Option<MeasurementUnit>,
@@ -121,11 +142,13 @@ pub struct ResolvedParameterSpace {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ParameterExpansion {
     #[default]
     Single,
+
     Cartesian,
     Zip {
         group: Identifier,
@@ -158,12 +181,14 @@ pub enum ParameterExpr {
     Range {
         start: i64,
         stop: i64,
+
         #[serde(default = "default_integer_step")]
         step: i64,
     },
     Arange {
         start: f64,
         stop: f64,
+
         #[serde(default = "default_number_step")]
         step: f64,
     },
@@ -177,6 +202,7 @@ pub enum ParameterExpr {
     },
     DynamicDefault {
         key: DynamicDefaultKey,
+
         #[serde(default)]
         fallback: Option<Box<ParameterExpr>>,
     },
@@ -244,6 +270,7 @@ enum EvaluatedExpr {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for ParameterExpansion {
     fn memory_size(&self) -> usize {
         let heap = match self {
@@ -344,6 +371,7 @@ impl ParameterSource {
 }
 
 /* === Public Functions === */
+
 pub fn resolve_parameter_spaces(
     definitions: &[ParameterDefinition], dynamic_defaults: &DynamicDefaultResolver,
 ) -> crate::Result<BTreeMap<String, ResolvedParameterSpace>> {
@@ -564,6 +592,7 @@ pub(crate) fn validate_parameter_value(definition: &ParameterDefinition, value: 
 }
 
 /* === Private Functions === */
+
 fn parameter_expression_memory(expression: &ParameterExpr, depth: usize) -> usize {
     if depth > 64 {
         return usize::MAX;

@@ -153,7 +153,6 @@ def test_expected_backend() -> None:
 @pytest.mark.parametrize(
     "endpoint",
     [
-        "http://remote.example:8765",
         "ftp://localhost:8765",
         "https://user:pass@host:8765",
         "https://host:8765/path",
@@ -163,6 +162,23 @@ def test_expected_backend() -> None:
 def test_endpoint_refusals(endpoint: str) -> None:
     with pytest.raises(ValueError):
         DokimeClient(endpoint)
+
+
+@pytest.mark.parametrize("endpoint", ["http://lab.example:8765", "https://lab.example:8765", "http://192.0.2.1:8765"])
+def test_transport_secrets(endpoint: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("DOKIME_KEY", raising=False)
+    client = DokimeClient(endpoint)
+    assert client._transport._channel is None
+    assert client._transport._metadata == ()
+    if endpoint.startswith("http:"):
+        with pytest.raises(ValueError, match="CA certificates require HTTPS"):
+            DokimeClient(endpoint, ca_certificate_pem="certificate")
+    else:
+        trusted = DokimeClient(endpoint, ca_certificate_pem="certificate")
+        assert trusted._transport._channel is None
+
+    with pytest.raises(ValueError, match="selected secret input must be a regular file"):
+        DokimeClient(endpoint, key_file=tmp_path / "missing.key")
 
 
 # === Private Functions === #

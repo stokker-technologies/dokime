@@ -9,7 +9,7 @@ license = "Apache-2.0"
 
 [dependencies]
 tracing = "0.1"
-dokime-runtime = { git = "{{repository}}", branch = "dev" }
+dokime = { git = "{{repository}}", branch = "dev", features = ["plugin-sidecar"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -17,3 +17,25 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"
 
 [profile.dev]
 debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.release-tests]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = false
+
+[profile.bench]
+inherits = "release"
+lto = false
+incremental = false
+debug = "line-tables-only"
+strip = "none"

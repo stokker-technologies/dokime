@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn traceability_snapshots(state: &RuntimeState) -> Vec<TraceabilitySnapshot> {
     crate::traceability::snapshots_from_state(state, None, crate::model::time::now_utc())
 }

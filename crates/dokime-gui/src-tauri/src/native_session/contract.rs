@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 
@@ -26,6 +28,7 @@ use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopSessionSnapshot {
@@ -46,6 +49,7 @@ pub struct BackendDiagnostics {
 }
 
 /* === Enums === */
+
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BackendSelection {

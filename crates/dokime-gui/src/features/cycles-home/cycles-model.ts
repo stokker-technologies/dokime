@@ -12,12 +12,24 @@
 
 /* === Local Imports === */
 
+import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import { type CycleState, cycleState } from "@/features/cycle/cycle-workspace-model";
+import { mapCycleStatus } from "@/lib/api/native-planning";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import type { PromptRequest } from "@/lib/types";
 
-type CycleSummary = Wire<GeneratedCycleSummary>;
+/* === Constants === */
+
+const STATE_TONES: Record<CycleState["variant"], CycleRow["statusTone"]> = {
+  default: "good",
+  outline: "neutral",
+  secondary: "neutral",
+  warning: "warn",
+};
 
 /* === Types === */
+
+type CycleSummary = Wire<GeneratedCycleSummary>;
 
 export type CycleGroupId = "attention" | "active" | "recent" | "archived";
 
@@ -31,6 +43,7 @@ export type CycleRow = {
   cycleId: string;
   executionCount: number;
   label: string;
+  phase: "Active" | "Sealing" | "Sealed" | "Unknown";
   status: NonNullable<NonNullable<CycleSummary["status"]>["HarmosVariant"]["case"]>;
   statusLabel: string;
   statusTone: "neutral" | "good" | "warn" | "bad";
@@ -46,49 +59,38 @@ export type CycleGroup = {
   rows: CycleRow[];
 };
 
-/* === Constants === */
-
-const ACTIVE_STATUSES = ["Running", "Paused", "Stopping"];
-
-/**
- * The lifecycles after which a skipped attempt is a real skip.
- *
- * A cycle nobody has run yet already holds one attempt per planned case, each
- * reported `SKIPPED` because the runtime may still select it. Counting those as
- * finished made every fresh cycle read as complete on this page, so they only
- * count once the cycle is sealed.
- */
-const SEALED_STATUSES = ["Completed", "Failed", "Stopped"];
-
-const STATUS_LABELS: Record<CycleRow["status"], string> = {
-  Unspecified: "Unknown",
-  Ready: "Ready",
-  Running: "Running",
-  Paused: "Paused",
-  Stopping: "Stopping",
-  Completed: "Completed",
-  Failed: "Failed",
-  Blocked: "Blocked",
-  Stopped: "Stopped",
-};
-
 /* === Public Functions === */
 
 export function cycleRows(cycles: CycleSummary[], attentionByCycleId: ReadonlyMap<string, number>): CycleRow[] {
-  return cycles.map((cycle) => ({
-    attentionCount: attentionByCycleId.get(cycle.cycleId) ?? 0,
-    caseCount: Number(cycle.caseCount),
-    createdAtIso: isoOrNull(createdMs(cycle)),
-    cycleId: cycle.cycleId,
-    finishedCount: finishedCases(cycle),
-    executionCount: Number(cycle.executionCount),
-    label: cycle.metadata?.label || cycle.cycleId,
-    status: cycle.status?.HarmosVariant.case ?? "Unspecified",
-    statusLabel: STATUS_LABELS[cycle.status?.HarmosVariant.case ?? "Unspecified"] ?? "Unknown",
-    statusTone: statusTone(cycle.status),
-    updatedAtIso: isoOrNull(timestampMs(cycle)),
-    updatedAtMs: timestampMs(cycle),
-  }));
+  return cycles.map((cycle) => {
+    const attentionCount = attentionByCycleId.get(cycle.cycleId) ?? 0;
+    const state = cycleState(statePhase(cycle), mapCycleStatus(cycle.status), attentionCount > 0);
+    return {
+      attentionCount,
+      caseCount: Number(cycle.caseCount),
+      createdAtIso: isoOrNull(createdMs(cycle)),
+      cycleId: cycle.cycleId,
+      finishedCount: finishedCases(cycle),
+      executionCount: Number(cycle.executionCount),
+      label: cycle.metadata?.label || cycle.cycleId,
+      phase: cycle.phase?.HarmosVariant.case ?? "Unknown",
+      status: cycle.status?.HarmosVariant.case ?? "Unspecified",
+      statusLabel: state.label,
+      statusTone: STATE_TONES[state.variant],
+      updatedAtIso: isoOrNull(timestampMs(cycle)),
+      updatedAtMs: timestampMs(cycle),
+    };
+  });
+}
+
+/** How many open prompts wait in each cycle, keyed by cycle identifier. */
+export function promptCountsByCycle(prompts: readonly PromptRequest[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const prompt of prompts) {
+    const cycleId = prompt.scope?.test_cycle_id;
+    if (cycleId) counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /**
@@ -104,7 +106,7 @@ export function cycleRows(cycles: CycleSummary[], attentionByCycleId: ReadonlyMa
 export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[] {
   const attention = rows.filter((row) => row.attentionCount > 0 || row.status === "Blocked");
   const attentionIds = new Set(attention.map((row) => row.cycleId));
-  const active = rows.filter((row) => !attentionIds.has(row.cycleId) && ACTIVE_STATUSES.includes(row.status));
+  const active = rows.filter((row) => !attentionIds.has(row.cycleId) && row.phase !== "Sealed");
   const activeIds = new Set(active.map((row) => row.cycleId));
   const recent = rows.filter((row) => !attentionIds.has(row.cycleId) && !activeIds.has(row.cycleId));
 
@@ -115,7 +117,7 @@ export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[]
       rows: attention,
       title: "Needs Attention",
     },
-    { emptyText: "No Cycle Is Running", id: "active", rows: active, title: "Active" },
+    { emptyText: "No Active Cycles", id: "active", rows: active, title: "Active" },
     {
       emptyText: filtered ? "No Cycles Match This Filter" : "No Cycles Loaded Yet",
       id: "recent",
@@ -156,34 +158,28 @@ export function applyFrozenOrder(rows: CycleRow[], frozenIds: readonly string[])
 
 /* === Private Functions === */
 
-function statusTone(status: CycleSummary["status"]): CycleRow["statusTone"] {
-  switch (status?.HarmosVariant.case) {
-    case "Running":
-    case "Completed":
-      return "good";
-    case "Paused":
-    case "Stopping":
-    case "Blocked":
-      return "warn";
-    case "Failed":
-      return "bad";
+function statePhase(cycle: CycleSummary): Parameters<typeof cycleState>[0] {
+  switch (cycle.phase?.HarmosVariant.case) {
+    case "Sealing":
+      return "sealing";
+    case "Sealed":
+      return "sealed";
     default:
-      return "neutral";
+      return "active";
   }
 }
 
 /**
  * The cases this cycle has finished, as its own result summary states them.
  *
- * The summary carries no result until the cycle is sealed, and an unsealed
- * cycle's `skipped` cases are planned work rather than outcomes, so both cases
- * agree: nothing is finished until the runtime says something finished.
+ * Execution Results Arrive Independently Of The Container Seal. Planned
+ * Members Remain Unfinished Until The Cycle Seal Settles Them.
  */
 function finishedCases(cycle: CycleSummary): number {
   const result = cycle.result;
   if (!result) return 0;
   const ended = result.passed + result.failed + result.blocked;
-  return SEALED_STATUSES.includes(cycle.status?.HarmosVariant.case ?? "") ? ended + result.skipped : ended;
+  return statePhase(cycle) === "active" ? ended : ended + result.skipped;
 }
 
 function isoOrNull(milliseconds: number | null): string | null {

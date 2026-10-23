@@ -12,17 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::fmt;
 use std::str::FromStr;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(PermissionError, formatter {
     Self::WrongSegmentCount => formatter.write_str("permission atom must have `family:action:target` segments"),
     Self::EmptySegment { segment } => write!(formatter, "permission atom `{segment}` segment is empty"),
@@ -32,6 +36,7 @@ product_error!(PermissionError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct Permission {
@@ -52,6 +57,7 @@ pub enum PermissionError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Permission {
     pub fn new(family: impl Into<String>, action: impl Into<String>, target: impl Into<String>) -> crate::Result<Self> {
         let permission = Self { family: family.into(), action: action.into(), target: target.into() };
@@ -119,6 +125,7 @@ impl TryFrom<String> for Permission {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn segment_covers(grant: &str, required: &str) -> bool {
     grant == "*" || grant == required
 }

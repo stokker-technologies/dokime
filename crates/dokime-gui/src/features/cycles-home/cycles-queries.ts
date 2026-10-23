@@ -16,13 +16,13 @@ import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tan
 
 /* === Local Imports === */
 
+import type { Row2 as GeneratedCycleSummary } from "@generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { PromptRequest } from "@/lib/types";
-import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 
 type CycleSummary = Wire<GeneratedCycleSummary>;
 
@@ -85,8 +85,8 @@ export function useCyclesQuery(selection: CyclesQuerySelection = {}): UseQueryRe
   return useQuery({
     queryFn: () => listNativeCycles(session.identity, cycleListSelection({ archived, text })),
     queryKey: cyclesHomeQueryKeys.cycles(session.identity.generation, { archived, text }),
-    refetchInterval: 5_000,
-    staleTime: 2_000,
+    // The runtime stream invalidates the lists on every runtime change; nothing polls.
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 
@@ -98,8 +98,7 @@ export function usePendingPromptsQuery(): UseQueryResult<PromptRequest[]> {
     // The workflow prompt key, so every runtime change that invalidates the
     // cycle's prompts refreshes the navigation and status counts at once.
     queryKey: [...workflowQueryKeys.prompts(), session.identity.generation],
-    refetchInterval: 5_000,
-    staleTime: 2_000,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 

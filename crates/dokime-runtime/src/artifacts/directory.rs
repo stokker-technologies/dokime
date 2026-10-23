@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::io::{self, Read, Seek, SeekFrom};
@@ -19,6 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::time::SystemTime;
+
 // Third Party Imports
 
 // Local Imports
@@ -26,8 +28,8 @@ use super::stream::{ArtifactSink, inferred_mime, transfer_identity, validated};
 use crate::transport::{ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES};
 
 /* === Constants === */
-const GROWTH_FLOOR: u64 = 64 * 1024;
 
+const GROWTH_FLOOR: u64 = 64 * 1024;
 const ARTIFACTS: &str = "artifacts";
 
 // The registration name of the whole artifacts folder.
@@ -38,6 +40,7 @@ const ROOT: &str = "";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Directories {
     area: PathBuf,
     token: Arc<str>,
@@ -62,6 +65,7 @@ struct Watched {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Directories {
     pub(super) fn new(token: Arc<str>, sink: Arc<dyn ArtifactSink>, ordinals: Arc<AtomicU64>) -> Self {
         Self { area: working_area(&token), token, sink, ordinals, registered: BTreeMap::new(), watched: BTreeMap::new() }
@@ -238,6 +242,7 @@ impl Watched {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn working_area(token: &str) -> PathBuf {
     use std::hash::{DefaultHasher, Hash, Hasher};
     let mut hasher = DefaultHasher::new();

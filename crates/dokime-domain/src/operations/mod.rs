@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod appearance;
 pub mod backend;
 pub mod catalog;
@@ -26,8 +27,10 @@ pub mod plugins;
 pub mod process;
 pub mod prompts;
 pub mod query;
+pub mod remote;
 pub mod reports;
 pub mod runtime;
+pub mod secrets;
 pub mod settings;
 pub mod telemetry;
 
@@ -47,16 +50,19 @@ use harmos_domain::operations::RestartPolicy;
 use harmos_domain::operations::RetryPolicy;
 use harmos_domain::operations::WireDeclaration;
 use harmos_domain::schema::Described;
-use serde::Deserialize;
-use serde::Serialize;
 
 // Local Imports
 
 /* === Constants === */
+
 pub const PACKAGE: &str = "dokime.v1";
 
 // Bounds One Ordinary Request From Admission To Its Response.
 pub const ORDINARY: OperationPolicy = policy(Duration::from_secs(10));
+
+// Bounds A Mutation That Writes Many Rows Or Files, Such As Creating, Copying Or
+// Deleting Whole Cycles And Executions, Materializing Cases Or Moving Storage.
+pub const MUTATION: OperationPolicy = policy(Duration::from_secs(120));
 
 // Bounds A Transfer, Including Every Streamed Item.
 pub const TRANSFER: OperationPolicy = policy(Duration::from_secs(300));
@@ -74,85 +80,104 @@ pub const FOLLOW: OperationPolicy = policy(Duration::from_secs(86_400));
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Endpoints;
 
 pub struct Declaration {
     pub path: &'static str,
-    pub access: Access,
     pub local_only: bool,
     pub wire: WireDeclaration,
     pub rust_type: fn() -> &'static str,
 }
 
 /* === Enums === */
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Access {
-    Read,
-    Control,
-    Admin,
-}
 
 #[harmos_domain::catalog]
 pub enum Operations {
     Host(harmos_domain::operations::host::Catalog),
     Health(runtime::GetHealth),
     Identity(runtime::GetIdentity),
+
     #[nested]
     Appearance(appearance::Operations),
+
     #[nested]
     Backend(backend::Operations),
+
     #[nested]
     Catalog(catalog::Operations),
+
     #[nested]
     Content(content::Operations),
+
     #[nested]
     Documents(documents::Operations),
+
     #[nested]
     Evidence(evidence::Operations),
+
     #[nested]
     Execution(execution::Operations),
+
     #[nested]
     Files(files::Operations),
+
     #[nested]
     History(history::Operations),
+
     #[nested]
     Media(media::Operations),
+
     #[nested]
     Notes(notes::Operations),
+
     #[nested]
     Observation(observation::Operations),
+
     #[nested]
     Planning(planning::Operations),
+
     #[nested]
     Plots(plots::Operations),
+
     #[nested]
     Plugins(plugins::Operations),
+
     #[nested]
     Prompts(prompts::Operations),
+
     #[nested]
     Query(query::Operations),
+
     #[nested]
     Reports(reports::Operations),
+
+    #[nested]
+    Remote(remote::Operations),
+
+    #[nested]
+    Secrets(secrets::Operations),
+
     #[nested]
     Settings(settings::Operations),
+
     #[nested]
     Telemetry(telemetry::Operations),
 }
 
 /* === Traits === */
-// The Dokime authorization of one public operation, enforced at the listener.
+
+// Public Transport Binding And Its Native-Only Boundary.
 pub trait Endpoint: OperationDeclaration {
     const PATH: &'static str;
-    const ACCESS: Access;
-    // Served only to a loopback listener, because the reply names a host path.
+    // Native Listener Trust Never Comes From A Remote Call's Loopback Address.
     const LOCAL_ONLY: bool = false;
 }
 
 /* === Implementations === */
+
 impl Endpoint for harmos_domain::operations::host::Catalog {
     const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Visitor for Endpoints {
@@ -164,17 +189,14 @@ where
     O: Endpoint,
     O::Response: Described,
 {
-    const ENTRY: Declaration = Declaration {
-        path: O::PATH,
-        access: O::ACCESS,
-        local_only: O::LOCAL_ONLY,
-        wire: WireDeclaration::of::<O>(),
-        rust_type: std::any::type_name::<O>,
-    };
+    const ENTRY: Declaration =
+        Declaration { path: O::PATH, local_only: O::LOCAL_ONLY, wire: WireDeclaration::of::<O>(), rust_type: std::any::type_name::<O> };
 }
 
 /* === Public Functions === */
+
 /* === Private Functions === */
+
 const fn policy(timeout: Duration) -> OperationPolicy {
     OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
 }

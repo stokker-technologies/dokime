@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::queries::{
     RuntimeCursor, RuntimeResolution, RuntimeViewFrame, RuntimeViewPayload, RuntimeWindow, reduction::reduce_timestamped_items,
@@ -32,6 +35,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeTelemetryFrame {
     pub streams: Vec<RuntimeTelemetryStreamFrame>,
@@ -53,6 +57,7 @@ pub struct RuntimeTelemetryStreamFrame {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn telemetry_sample_matches(sample: &TelemetrySample, stream_filter: Option<&Identifier>, scope: Option<&RecordScope>) -> bool {
     if stream_filter.is_some_and(|filter| &sample.stream != filter) {
         return false;

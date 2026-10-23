@@ -6,14 +6,12 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("cycle_id", "case_id", "context")
-    CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
-    CASE_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("execution_id", "context")
+    EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     CONTEXT_FIELD_NUMBER: _ClassVar[int]
-    cycle_id: str
-    case_id: str
+    execution_id: str
     context: Row3
-    def __init__(self, cycle_id: _Optional[str] = ..., case_id: _Optional[str] = ..., context: _Optional[_Union[Row3, _Mapping]] = ...) -> None: ...
+    def __init__(self, execution_id: _Optional[str] = ..., context: _Optional[_Union[Row3, _Mapping]] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("observed_cursor",)

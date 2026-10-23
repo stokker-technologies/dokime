@@ -26,6 +26,7 @@ use crate::model::identity::wire::Timestamp;
 use crate::model::values::Value as Core;
 
 /* === Constants === */
+
 // Nesting deeper than this is refused when a wire value is rebuilt.
 pub const MAX_DEPTH: usize = 64;
 
@@ -34,6 +35,7 @@ pub const MAX_DEPTH: usize = 64;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // A dynamic value flattened into its nodes, so its schema stays small and its
 // nesting is bounded by data rather than by the protobuf descriptor.
 //
@@ -74,6 +76,7 @@ pub struct ValueField {
 }
 
 /* === Enums === */
+
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValueKind {
@@ -93,16 +96,22 @@ pub enum ValueKind {
 pub enum ValueError {
     #[error("value has no root node")]
     Empty,
+
     #[error("value node {0} has no kind")]
     Unset(usize),
+
     #[error("value member index {0} is out of order or out of range")]
     Member(usize),
+
     #[error("value node {0} is not a member of exactly one container")]
     Shared(usize),
+
     #[error("value nests deeper than {MAX_DEPTH} levels")]
     Depth,
+
     #[error("value timestamp is out of range")]
     Timestamp,
+
     #[error("value object repeats a key")]
     Duplicate,
 }
@@ -110,6 +119,7 @@ pub enum ValueError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Value {
     pub fn null() -> Self {
         Self::from(&crate::model::values::Value::Null)

@@ -19,10 +19,8 @@ import pytest
 
 # Local Imports
 import dokime_client
-from dokime_client.client import Aggregate, DatetimeValue, _wire
+from dokime_client.client import Aggregate, DatetimeValue, UnsignedValue, _contracts, _wire
 from dokime_client.client._wire import decode, encode
-
-from .canonical import _message, _value
 
 # Type Checking Imports
 
@@ -41,7 +39,8 @@ def test_number_values() -> None:
     for integer in [-(2**63), 2**63 - 1, 2**63, 2**64 - 1]:
         assert decode(_round_trip(integer)) == integer
     assert _wire.variant(_project(2**64 - 1).nodes[0].kind) == "Unsigned"
-    zero = decode(_value(unsigned_value=0))
+    unsigned_zero = UnsignedValue(0)
+    zero = decode(_project(unsigned_zero))
     assert _wire.variant(_project(zero).nodes[0].kind) == "Unsigned"
 
     for number in [float("nan"), float("inf"), float("-inf")]:
@@ -55,7 +54,7 @@ def test_datetime_values() -> None:
     assert decode(_project(date)) == date
 
     # Nanosecond Precision Survives And Orders After The Microsecond Value
-    precise = _value(datetime_value="2026-09-28T12:13:14.123456789Z")
+    precise = _project(DatetimeValue.from_rfc3339("2026-09-28T12:13:14.123456789Z"))
     assert _project(decode(precise)) == precise
     decoded = decode(precise)
     assert isinstance(decoded, datetime)
@@ -64,8 +63,10 @@ def test_datetime_values() -> None:
     assert len({decoded, date}) == 2
 
     # Arithmetic Keeps The Precise Wire Representation
-    replaced = decode(_project(decoded.replace(second=15)))
-    shifted = decode(_project(decoded + timedelta(seconds=1)))
+    replaced_value = decoded.replace(second=15)
+    shifted_value = decoded + timedelta(seconds=1)
+    replaced = decode(_project(replaced_value))
+    shifted = decode(_project(shifted_value))
     assert isinstance(replaced, DatetimeValue)
     assert isinstance(shifted, DatetimeValue)
     assert replaced._wire_text is not None
@@ -92,15 +93,14 @@ def test_aggregate_codec() -> None:
     # An Absent Member Reads As Count, As The Harmos Codec Decodes It.
     assert Aggregate.from_wire(type(count)()) == Aggregate.count()
     for rank in (-1, 101):
-        with pytest.raises(ValueError, match="outside 0 to 100"):
-            Aggregate.percentile(rank)
+        pytest.raises(ValueError, Aggregate.percentile, rank).match("outside 0 to 100")
 
 
 # === Private Functions === #
 
 
 def _project(item):
-    return _message("Evidence", "ListRecords", path="records.details", **encode(item))
+    return _contracts.nested("Evidence", "ListRecords", "records.details", direction="response", **encode(item))
 
 
 def _round_trip(item):

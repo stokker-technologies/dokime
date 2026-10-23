@@ -8,7 +8,9 @@
  */
 
 /* === Modules === */
+
 pub(super) mod artifacts;
+pub(super) mod evidence;
 mod execution;
 pub(super) mod files;
 mod follow;
@@ -18,54 +20,74 @@ mod upload;
 pub(super) mod window;
 
 /* === Re-Exports === */
+
 pub(super) use upload::{artifact_scope, content_failure};
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use tonic::Status;
+
 // Local Imports
-use dokime_runtime::{
+use dokime::{
     RuntimeHandle,
     artifacts::{ArtifactRecord, ArtifactStatus},
 };
 
 /* === Constants === */
+
 pub(super) const MAX_CONTENT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+// Uploads stay small: every call on a listener shares its decode retention budget.
 const MAX_TRANSFER_CHUNK_BYTES: usize = 64 * 1024;
+// Downloads are encoded once per frame and decoded by one client, so they use half a message.
+const MAX_DOWNLOAD_CHUNK_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    evidence::register(runtime, maximum)?;
     artifacts::register(runtime, maximum)
+}
+
+pub(super) fn download_chunk_bytes(max_message_bytes: usize) -> usize {
+    MAX_DOWNLOAD_CHUNK_BYTES.min(max_message_bytes / 2).max(transfer_chunk_bytes(max_message_bytes))
 }
 
 pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
     // Reserve Both The Wire Envelope And The Retained Stream Frame.
-    let chunk = dokime_domain::model::content::wire::ArtifactChunk { offset: u64::MAX, data: Vec::new() };
+    let chunk = dokime::domain::model::content::wire::ArtifactChunk { offset: u64::MAX, data: Vec::new() };
     let overhead = [
-        transfer_frame_memory(dokime_domain::model::content::wire::ArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime::domain::model::content::wire::ArtifactFrame {
+            payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Chunk(chunk.clone())),
         }),
-        transfer_frame_memory(dokime_domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime::domain::model::content::wire::UploadArtifactFrame {
+            payload: Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Chunk(chunk.clone())),
         }),
-        transfer_frame_memory(dokime_domain::model::content::wire::ExecutionFileDownloadFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime::domain::model::content::wire::ExecutionFileDownloadFrame {
+            payload: Some(dokime::domain::model::content::wire::ExecutionFileDownloadFramePayload::Chunk(chunk.clone())),
         }),
-        transfer_frame_memory(dokime_domain::model::content::wire::ExecutionFileFollowFrame {
-            payload: Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime::domain::model::content::wire::ExecutionFileFollowFrame {
+            payload: Some(dokime::domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk.clone())),
         }),
-        transfer_frame_memory(dokime_domain::model::content::wire::AppearanceAssetFrame {
-            payload: Some(dokime_domain::model::content::wire::AppearanceAssetFramePayload::Chunk(chunk.clone())),
+        transfer_frame_memory(dokime::domain::model::content::wire::AppearanceAssetFrame {
+            payload: Some(dokime::domain::model::content::wire::AppearanceAssetFramePayload::Chunk(chunk.clone())),
+        }),
+        transfer_frame_memory(dokime::domain::model::exports::EvidenceExportFrame {
+            payload: Some(dokime::domain::model::exports::EvidenceExportPayload::Chunk(chunk.clone())),
         }),
     ]
     .into_iter()
@@ -78,7 +100,7 @@ pub(super) fn metadata_memory(record: &ArtifactRecord) -> Result<usize, Status> 
     if record.status == ArtifactStatus::Staged {
         return Err(Status::data_loss("invalid stored artifact metadata"));
     }
-    let mut bytes = std::mem::size_of::<dokime_domain::model::content::wire::ArtifactMetadata>()
+    let mut bytes = std::mem::size_of::<dokime::domain::model::content::wire::ArtifactMetadata>()
         .saturating_add(record.artifact_id.as_str().len())
         .saturating_add(record.upload_id.as_str().len())
         .saturating_add(record.filename.len())
@@ -100,16 +122,16 @@ pub(super) fn metadata_memory(record: &ArtifactRecord) -> Result<usize, Status> 
     Ok(bytes)
 }
 
-pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, Status> {
+pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, Status> {
     metadata_memory(record)?;
     let invalid = || Status::data_loss("invalid stored artifact metadata");
     let sha256 = artifact_digest(record)?.to_owned();
     let created =
         time::OffsetDateTime::parse(record.created_at.as_str(), &time::format_description::well_known::Rfc3339).map_err(|_| invalid())?;
-    Ok(dokime_domain::model::content::wire::ArtifactMetadata {
+    Ok(dokime::domain::model::content::wire::ArtifactMetadata {
         artifact_id: record.artifact_id.as_str().to_owned(),
         upload_id: record.upload_id.as_str().to_owned(),
-        scope: Some(dokime_domain::model::content::wire::ArtifactScope {
+        scope: Some(dokime::domain::model::content::wire::ArtifactScope {
             cycle_id: record.scope.test_cycle_id.as_ref().map(|id| id.as_str().to_owned()),
             case_id: record.scope.test_case_id.as_ref().map(|id| id.as_str().to_owned()),
             execution_id: record.scope.test_execution_id.as_ref().map(|id| id.as_str().to_owned()),
@@ -119,12 +141,12 @@ pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime_domain::model::
         size_bytes: record.size_bytes,
         sha256,
         state: match record.status {
-            ArtifactStatus::Complete => dokime_domain::model::content::wire::ArtifactState::Complete,
-            ArtifactStatus::Cancelled => dokime_domain::model::content::wire::ArtifactState::Cancelled,
-            ArtifactStatus::Rejected => dokime_domain::model::content::wire::ArtifactState::Rejected,
+            ArtifactStatus::Complete => dokime::domain::model::content::wire::ArtifactState::Complete,
+            ArtifactStatus::Cancelled => dokime::domain::model::content::wire::ArtifactState::Cancelled,
+            ArtifactStatus::Rejected => dokime::domain::model::content::wire::ArtifactState::Rejected,
             ArtifactStatus::Staged => return Err(invalid()),
         },
-        created_at: Some(dokime_domain::model::identity::wire::Timestamp {
+        created_at: Some(dokime::domain::model::identity::wire::Timestamp {
             seconds: created.unix_timestamp(),
             nanos: created.nanosecond() as i32,
         }),
@@ -132,11 +154,12 @@ pub(super) fn metadata(record: &ArtifactRecord) -> Result<dokime_domain::model::
 }
 
 /* === Private Functions === */
-fn transfer_frame_memory<T: harmos::domain::Portable>(frame: T) -> usize {
-    let retained = std::mem::size_of::<T>().saturating_add(std::mem::size_of::<harmos::operations::StreamItem<T>>());
+
+fn transfer_frame_memory<T: dokime::harmos::domain::Portable>(frame: T) -> usize {
+    let retained = std::mem::size_of::<T>().saturating_add(std::mem::size_of::<dokime::harmos::operations::StreamItem<T>>());
     let decoded = T::decoding_memory(&frame.encode_to_vec())
         .unwrap_or(usize::MAX)
-        .saturating_add(std::mem::size_of::<harmos::grpc::InputEnvelope<T, T>>());
+        .saturating_add(std::mem::size_of::<dokime::harmos::grpc::InputEnvelope<T, T>>());
     retained.max(decoded)
 }
 

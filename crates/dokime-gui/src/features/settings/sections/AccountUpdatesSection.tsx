@@ -18,23 +18,25 @@ import { DesktopUpdateDialog } from "@/components/DesktopUpdateDialog";
 import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
+import { commands } from "@/lib/desktop/commands";
+import type { UpdateStatus } from "@/lib/desktop/updates";
 import { isTauriDesktop } from "@/lib/desktop-open";
-import { type GitlabAuthStatus, gitlabAuthStatus } from "@/lib/desktop-updates";
 
 /* === Components === */
 
 export function AccountUpdatesSection() {
   const desktop = isTauriDesktop();
-  const [auth, setAuth] = useState<GitlabAuthStatus | null>(null);
+  const [auth, setAuth] = useState<UpdateStatus | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (!desktop) {
+    if (!desktop || dialogOpen) {
       return;
     }
     let active = true;
     // Re-reads when the manage/updates dialog closes, so a sign-in there is reflected.
-    gitlabAuthStatus()
+    commands
+      .desktopUpdatesStatus()
       .then((status) => {
         if (active) {
           setAuth(status);
@@ -48,21 +50,29 @@ export function AccountUpdatesSection() {
     return () => {
       active = false;
     };
-  }, [desktop]);
+  }, [desktop, dialogOpen]);
 
   const accountLabel = !desktop
     ? "Available in the desktop app."
-    : auth?.signedIn
+    : auth?.user
       ? `Signed in as ${auth.user?.name ?? auth.user?.username ?? "GitLab user"}.`
-      : "Not signed in.";
+      : "Public sources do not require sign-in.";
+  const modeLabel =
+    auth?.mode === "automatic_check"
+      ? "Automatic Check"
+      : auth?.mode === "manual"
+        ? "Manual"
+        : auth?.mode === "disabled"
+          ? "Disabled"
+          : "Unavailable";
 
   return (
     <>
       <SettingsCard title="Account">
-        <SettingsRow description={accountLabel} label="GitLab">
+        <SettingsRow description={accountLabel} label={auth?.host ?? "Release Account"}>
           <Button disabled={!desktop} onClick={() => setDialogOpen(true)} size="sm" variant="outline">
             <LogIn />
-            {auth?.signedIn ? "Manage" : "Sign In"}
+            Manage
           </Button>
         </SettingsRow>
       </SettingsCard>
@@ -71,7 +81,7 @@ export function AccountUpdatesSection() {
         <SettingsRow label="Current Version">
           <span className="font-mono text-sm">v{__APP_VERSION__}</span>
         </SettingsRow>
-        <SettingsRow description="Check GitLab releases for a newer desktop build." label="Updates">
+        <SettingsRow description={auth?.error ?? `Source: ${auth?.source ?? "None"}. Checks: ${modeLabel}.`} label="Updates">
           <Button disabled={!desktop} onClick={() => setDialogOpen(true)} size="sm" variant="outline">
             <RefreshCw />
             Check For Updates

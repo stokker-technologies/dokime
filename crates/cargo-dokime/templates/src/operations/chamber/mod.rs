@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -21,7 +22,7 @@ use std::sync::Arc;
 use crate::Bench;
 use crate::domain::model::chamber::ChamberReading;
 use crate::domain::operations::{DetectPort, ReadChamber};
-use dokime_runtime::prelude::*;
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -30,6 +31,7 @@ use dokime_runtime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ChamberReader {
     bench: Arc<Bench>,
 }
@@ -43,7 +45,8 @@ pub struct PortDetector {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation]
+
+#[dokime::operation]
 impl ChamberReader {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }
@@ -53,14 +56,11 @@ impl ChamberReader {
         if let Some(scope) = ExecutionScope::serving::<Self>(ctx) {
             tracing::debug!(key = %scope.key(), "reading the chamber for a run");
         }
-        Ok(ChamberReading {
-            celsius: dokime_runtime::plugin::refusal(self.bench.sensor.read_celsius())?,
-            sensor: self.bench.sensor.describe(),
-        })
+        Ok(ChamberReading { celsius: dokime::plugin::refusal(self.bench.sensor.read_celsius())?, sensor: self.bench.sensor.describe() })
     }
 }
 
-#[dokime_runtime::operation]
+#[dokime::operation]
 impl PortDetector {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }

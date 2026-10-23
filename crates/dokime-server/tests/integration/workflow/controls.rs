@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 
 /* === Constants === */
 
@@ -55,26 +56,21 @@ async fn cycle_edits_state() {
     client
         .unary::<contracts::execution::UpdateCyclePolicy>(authenticated(contracts::execution::UpdateCyclePolicy {
             cycle_id: id.clone(),
-            continue_on_failure: true,
+            continue_automatically: false,
             context: None,
         }))
         .await
         .unwrap();
     assert!(
-        client
+        !client
             .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.clone() }))
             .await
             .unwrap()
             .into_inner()
-            .continue_on_failure
+            .continue_automatically
     );
     client
-        .unary::<contracts::execution::RunCase>(authenticated(contracts::execution::RunCase {
-            cycle_id: id.clone(),
-            case_id: case.case_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: case.case_id.clone(), context: None }))
         .await
         .unwrap();
     gate.started.notified().await;
@@ -91,10 +87,12 @@ async fn cycle_edits_state() {
         Code::FailedPrecondition
     );
     client
-        .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(contracts::execution::ScheduleCaseRerun {
+        .unary::<contracts::execution::AppendExecutions>(authenticated(contracts::execution::AppendExecutions {
             cycle_id: case.cycle_id.clone(),
-            case_id: case.case_id.clone(),
-            context: None,
+            executions: vec![contracts::execution::ExecutionBinding {
+                execution_id: uuid::Uuid::now_v7().to_string(),
+                case_id: case.case_id.clone(),
+            }],
         }))
         .await
         .unwrap();
@@ -104,12 +102,7 @@ async fn cycle_edits_state() {
     assert_ne!(planned[1].execution_id, first[0].execution_id);
     assert_eq!(planned[1].status, model::execution::wire::ExecutionStatus::Skipped);
     client
-        .unary::<contracts::execution::RunCase>(authenticated(contracts::execution::RunCase {
-            cycle_id: id.clone(),
-            case_id: case.case_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: case.case_id.clone(), context: None }))
         .await
         .unwrap();
     gate.started.notified().await;
@@ -120,6 +113,39 @@ async fn cycle_edits_state() {
     assert_eq!(second[0], first[0]);
     assert_ne!(second[0].execution_id, second[1].execution_id);
 
+    client
+        .unary::<contracts::execution::AppendExecutions>(authenticated(contracts::execution::AppendExecutions {
+            cycle_id: case.cycle_id.clone(),
+            executions: vec![contracts::execution::ExecutionBinding {
+                execution_id: uuid::Uuid::now_v7().to_string(),
+                case_id: case.case_id.clone(),
+            }],
+        }))
+        .await
+        .unwrap();
+    let retained = attempts(&mut client, &id).await;
+    assert_eq!(retained.len(), 3);
+    assert_eq!(&retained[..2], &second[..]);
+    assert_eq!(retained[2].case_id, case.case_id);
+    assert_eq!(retained[2].status, model::execution::wire::ExecutionStatus::Skipped);
+    assert!(second.iter().all(|previous| previous.execution_id != retained[2].execution_id));
+    assert_eq!(client.unary::<contracts::execution::DeleteCase>(authenticated(case)).await.unwrap_err().code(), Code::FailedPrecondition);
+    // A Re-Run Makes The Cycle Ready Again, Which Is Not Terminal
+    assert_eq!(
+        client.unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, true))).await.unwrap_err().code(),
+        Code::FailedPrecondition
+    );
+    client
+        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: cases[0].case_id.clone(), context: None }))
+        .await
+        .unwrap();
+    gate.started.notified().await;
+    gate.release.notify_one();
+    completed(&owner.handle(), &mut client, &id).await;
+    client
+        .unary::<contracts::execution::SealCycle>(authenticated(contracts::execution::SealCycle { cycle_id: id.clone(), context: None }))
+        .await
+        .unwrap();
     // A Completed Cycle Archives: Hidden From The Default List, Shown When Asked
     client.unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, true))).await.unwrap();
     let archived = client
@@ -150,26 +176,6 @@ async fn cycle_edits_state() {
         .unwrap();
     client.unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, false))).await.unwrap();
     assert!(listed(&mut client, &id, None).await);
-    client
-        .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(contracts::execution::ScheduleCaseRerun {
-            cycle_id: case.cycle_id.clone(),
-            case_id: case.case_id.clone(),
-            context: None,
-        }))
-        .await
-        .unwrap();
-    let retained = attempts(&mut client, &id).await;
-    assert_eq!(retained.len(), 3);
-    assert_eq!(&retained[..2], &second[..]);
-    assert_eq!(retained[2].case_id, case.case_id);
-    assert_eq!(retained[2].status, model::execution::wire::ExecutionStatus::Skipped);
-    assert!(second.iter().all(|previous| previous.execution_id != retained[2].execution_id));
-    assert_eq!(client.unary::<contracts::execution::DeleteCase>(authenticated(case)).await.unwrap_err().code(), Code::FailedPrecondition);
-    // A Re-Run Makes The Cycle Ready Again, Which Is Not Terminal
-    assert_eq!(
-        client.unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, true))).await.unwrap_err().code(),
-        Code::FailedPrecondition
-    );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -227,29 +233,24 @@ async fn labels_rename_state() {
         .cases;
     assert_eq!(cases[0].metadata.as_ref().unwrap().label, "Charger Soak");
 
-    // Once The Run Seals, Both Refuse With FailedPrecondition
+    // Complete The Execution, Then Seal Its Cycle Explicitly.
     client
-        .unary::<contracts::execution::RunCase>(authenticated(contracts::execution::RunCase {
-            cycle_id: id.clone(),
-            case_id: case_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .start_case(authenticated(support::wire::CaseSelection { cycle_id: id.clone(), case_id: case_id.clone(), context: None }))
         .await
         .unwrap();
     gate.started.notified().await;
     gate.release.notify_one();
     completed(&owner.handle(), &mut client, &id).await;
-    support::on_state_change(&owner.handle(), async || {
-        client
-            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.clone() }))
-            .await
-            .unwrap()
-            .into_inner()
-            .sealed
-            .then_some(())
-    })
-    .await;
+    client
+        .unary::<contracts::execution::SealCycle>(authenticated(contracts::execution::SealCycle { cycle_id: id.clone(), context: None }))
+        .await
+        .unwrap();
+    let sealed = client
+        .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.clone() }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(sealed.sealed);
     assert!(attempts(&mut client, &id).await[0].sealed);
     let late = client
         .unary::<contracts::execution::RenameCycle>(authenticated(contracts::execution::RenameCycle {
@@ -311,16 +312,16 @@ async fn attempts(client: &mut WireClient, id: &str) -> Vec<model::execution::wi
         .executions
 }
 
-async fn completed(handle: &dokime_runtime::RuntimeHandle, client: &mut WireClient, id: &str) {
+async fn completed(handle: &dokime::RuntimeHandle, client: &mut WireClient, id: &str) {
     support::on_state_change(handle, async || {
-        if client
-            .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.into() }))
-            .await
-            .unwrap()
-            .into_inner()
-            .status
-            == model::execution::wire::CycleStatus::Completed
-        {
+        if support::cycle_settled(
+            &client
+                .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.into() }))
+                .await
+                .unwrap()
+                .into_inner(),
+            model::execution::wire::ResultStatus::Passed,
+        ) {
             return Some(());
         }
         None

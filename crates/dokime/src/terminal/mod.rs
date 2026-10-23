@@ -8,14 +8,17 @@
  */
 
 /* === Modules === */
+
 mod error;
 mod output;
 
 /* === Re-Exports === */
+
 pub use error::{Error, Result};
 pub use output::{ColorMode, Progress, Terminal, color_mode, set_color_mode};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -37,6 +40,7 @@ pub use output::{ColorMode, Progress, Terminal, color_mode, set_color_mode};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // A byte count the way a person reads one: binary units, one decimal from
 // kibibytes upwards, whole bytes below.
 pub fn size_label(bytes: u64) -> String {
@@ -53,12 +57,13 @@ pub fn size_label(bytes: u64) -> String {
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[cfg(test)]
 mod tests {
     use super::size_label;
 
     #[test]
-    fn size_label_picks_the_unit_a_person_reads() {
+    fn readable_size_units() {
         assert_eq!(size_label(0), "0 B");
         assert_eq!(size_label(1023), "1023 B");
         assert_eq!(size_label(1024), "1.0 KiB");

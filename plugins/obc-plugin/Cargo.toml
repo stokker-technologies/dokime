@@ -18,10 +18,12 @@ license.workspace = true
 [package.metadata.dokime]
 debuginfo = false
 
+[features]
+benchmarks = []
+
 [dependencies]
 # Local
-dokime-domain = { version = "0.1.0", path = "../../crates/dokime-domain" }
-dokime-runtime = { version = "0.1.0", path = "../../crates/dokime-runtime" }
+dokime = { workspace = true, features = ["plugin-sidecar"] }
 obc-runtime = { version = "0.1.0", path = "runtime" }
 
 # Error Handling
@@ -40,9 +42,6 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
-# Git
-harmos = { workspace = true, features = ["plugin-sidecar"] }
-
 # Utilities
 sha2 = { workspace = true }
 

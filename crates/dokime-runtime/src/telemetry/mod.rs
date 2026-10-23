@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod capture;
 pub mod contract;
 pub mod lease;
@@ -15,6 +16,7 @@ pub mod row;
 pub mod stream;
 
 /* === Re-Exports === */
+
 pub use crate::values::field;
 pub use capture::capture_payload;
 pub use contract::{
@@ -38,6 +40,7 @@ pub use row::{FieldError, FieldValue, TelemetryRow};
 pub use stream::{OwnedStream, Pushing, SampleSink, StreamSelection, Streams, TelemetryStream};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

@@ -33,6 +33,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Sample {
@@ -48,6 +49,7 @@ pub struct Sample {
     pub(super) summary: Vec<values::Cell>,
     pub(super) metadata: Vec<values::Cell>,
 }
+
 pub(super) struct Fields<'a> {
     pub(super) strings: [&'a String; 5],
     pub(super) maps: [&'a [values::Cell]; 3],
@@ -59,6 +61,7 @@ pub(super) struct Fields<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Sample {
     pub fn encoding_memory(sample: &TelemetrySample) -> Result<usize> {
         sample.timestamp.to_datetime()?;
@@ -156,7 +159,6 @@ impl Sample {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(super) fn projection_memory(fields: Fields<'_>) -> Result<usize> {
     let mut bytes =
         fields.strings.into_iter().fold(std::mem::size_of::<TelemetrySample>(), |bytes, text| bytes.saturating_add(text.capacity()));
@@ -173,6 +175,7 @@ pub(super) fn projection_memory(fields: Fields<'_>) -> Result<usize> {
     }
     Ok(bytes)
 }
+
 pub(super) fn copy_text(source: &str) -> Result<String> {
     let mut text = String::new();
     text.try_reserve_exact(source.len()).map_err(|_| error("telemetry text allocation failed"))?;
@@ -182,6 +185,9 @@ pub(super) fn copy_text(source: &str) -> Result<String> {
     text.push_str(source);
     Ok(text)
 }
+
+/* === Private Functions === */
+
 fn error(reason: &'static str) -> Error {
     Error::Invalid(reason)
 }

@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod get_definition;
 mod get_prompt;
 mod list_definitions;
@@ -15,6 +16,7 @@ mod list_pending;
 mod respond;
 
 /* === Re-Exports === */
+
 pub use get_definition::GetDefinition;
 pub use get_prompt::GetPrompt;
 pub use list_definitions::ListDefinitions;
@@ -28,19 +30,20 @@ pub use respond::Respond;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::execution::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::values::wire::Value;
-
 use crate::model::prompts::wire::*;
+use crate::model::values::wire::Value;
 
 /* === Constants === */
 
@@ -49,14 +52,18 @@ use crate::model::prompts::wire::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+/* === Enums === */
+
 // Current definitions are ordered by prompt type; pending requests by prompt ID.
+
 // Subsequent pages require the same runtime epoch/revision and selection.
 
 // Responder identity comes from the authenticated principal, never a request
-// label. This mutation follows MutationContext's no-automatic-retry contract.
-// After an ambiguous failure, GetPrompt resolves whether an answer was recorded.
 
-/* === Enums === */
+// label. This mutation follows MutationContext's no-automatic-retry contract.
+
+// After an ambiguous failure, GetPrompt resolves whether an answer was recorded.
 
 #[harmos_domain::catalog]
 pub enum Operations {
@@ -70,29 +77,25 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Endpoint for ListDefinitions {
     const PATH: &'static str = "/dokime.v1.Prompts/ListDefinitions";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetDefinition {
     const PATH: &'static str = "/dokime.v1.Prompts/GetDefinition";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListPending {
     const PATH: &'static str = "/dokime.v1.Prompts/ListPending";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetPrompt {
     const PATH: &'static str = "/dokime.v1.Prompts/GetPrompt";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for Respond {
     const PATH: &'static str = "/dokime.v1.Prompts/Respond";
-    const ACCESS: Access = Access::Control;
 }
 
 /* === Public Functions === */

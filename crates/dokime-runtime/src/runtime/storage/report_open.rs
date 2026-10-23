@@ -23,9 +23,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use harmos::storage::ObjectVersion;
+
 // Local Imports
 use super::execution::ExecutionView;
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
@@ -36,11 +39,13 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct OpenedReport {
     pub test_cycle_id: TestCycleId,
     pub test_execution_id: Option<TestExecutionId>,
@@ -51,6 +56,7 @@ pub struct OpenedReport {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReportOrigin {
     Sealed,
@@ -60,6 +66,7 @@ pub enum ReportOrigin {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn open_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
         let live = self.watch_state().latest().state().cycles.get(id).map(|cycle| cycle.saved.is_none());
@@ -175,6 +182,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn not_found(code: &str, message: &str) -> Error {
     Error::Admission(AdmissionFailure::NotFound { code: code.into(), message: message.into() })
 }

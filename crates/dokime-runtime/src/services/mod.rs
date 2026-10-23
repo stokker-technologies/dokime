@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod telemetry;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -24,6 +26,7 @@ pub(crate) mod telemetry;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 // One lease on a resident service instance of the operation manager; the
 // last lease released stops the instance.
 pub(crate) type Lease = harmos::operations::OperationInstance<harmos::operations::resident::Activation>;

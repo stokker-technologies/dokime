@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Explicit Named Backend Profile Loading Without Network Or Secret Store IO"""
 
 # === Imports === #
@@ -27,13 +26,12 @@ from ._transport import _target
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
+
 _MAX_BYTES = 1024 * 1024
 _NAME = re.compile(r"[A-Za-z0-9_.-]{1,64}\Z")
-
 
 # === Types === #
 
@@ -48,7 +46,7 @@ class Profile:
     endpoint: str
     expected_backend_id: str | None
     ca_certificate_pem: str | None
-    credential: str
+    secret: str
 
 
 @dataclass(frozen=True)
@@ -133,14 +131,14 @@ def decode(data: bytes) -> Document:
 def _profile(value: object) -> Profile:
     value = _fields(
         value,
-        {"name", "endpoint", "expected_backend_id", "ca_certificate_pem", "credential"},
-        {"name", "endpoint", "credential"},
+        {"name", "endpoint", "expected_backend_id", "ca_certificate_pem", "secret"},
+        {"name", "endpoint", "secret"},
     )
     name = _name(value["name"])
     endpoint = value["endpoint"]
     if not isinstance(endpoint, str):
         raise TypeError("invalid backend endpoint")
-    _, remote = _target(endpoint)
+    _, tls = _target(endpoint)
     identity = value.get("expected_backend_id")
     if identity is not None and (
         not isinstance(identity, str)
@@ -150,12 +148,12 @@ def _profile(value: object) -> Profile:
     ):
         raise ValueError("invalid expected backend identity")
     ca = value.get("ca_certificate_pem")
-    if ca is not None and (not isinstance(ca, str) or not ca or len(ca.encode("utf-8")) > _MAX_BYTES or "\0" in ca or not remote):
+    if ca is not None and (not isinstance(ca, str) or not ca or len(ca.encode("utf-8")) > _MAX_BYTES or "\0" in ca or not tls):
         raise ValueError("invalid CA certificate association")
-    credential = value["credential"]
-    if credential not in ("none", "keyring"):
-        raise ValueError("invalid credential association")
-    return Profile(name, endpoint, identity, ca, credential)
+    secret = value["secret"]
+    if secret not in ("none", "keyring"):
+        raise ValueError("invalid secret association")
+    return Profile(name, endpoint, identity, ca, secret)
 
 
 def _fields(value: object, allowed: set[str], required: set[str]) -> dict[str, Any]:

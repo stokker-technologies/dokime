@@ -34,6 +34,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct RecordRow {
@@ -74,6 +75,32 @@ pub(crate) struct OriginRow {
     phase: u32,
     attempt_id: Option<String>,
 }
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct ErrorRow {
+    pub message: String,
+    pub code: Option<String>,
+    pub source: Option<String>,
+    pub cause_chain: Vec<CauseRow>,
+    pub stacktrace_attachment: Option<String>,
+    pub trace_id: Option<String>,
+    pub correlation_id: Option<String>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct CauseRow {
+    pub message: String,
+    pub code: Option<String>,
+    pub source: Option<String>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 impl From<&dokime_domain::model::execution::RecordScope> for ScopeRow {
     fn from(scope: &dokime_domain::model::execution::RecordScope) -> Self {
@@ -196,6 +223,7 @@ impl serde::Serialize for OriginRow {
         serde::Serialize::serialize(&origin, serializer)
     }
 }
+
 impl<'de> serde::Deserialize<'de> for OriginRow {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         use dokime_domain::model::execution::EvidenceOrigin;
@@ -209,31 +237,6 @@ impl<'de> serde::Deserialize<'de> for OriginRow {
     }
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct ErrorRow {
-    pub message: String,
-    pub code: Option<String>,
-    pub source: Option<String>,
-    pub cause_chain: Vec<CauseRow>,
-    pub stacktrace_attachment: Option<String>,
-    pub trace_id: Option<String>,
-    pub correlation_id: Option<String>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct CauseRow {
-    pub message: String,
-    pub code: Option<String>,
-    pub source: Option<String>,
-}
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
 impl RecordRow {
     pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
         let native = <Self as Message>::decoding_memory(bytes)?;
@@ -500,6 +503,7 @@ impl TryFrom<ErrorRow> for dokime_domain::model::records::error::RecordErrorDeta
 }
 
 /* === Public Functions === */
+
 pub fn encode(entry: &RecordEntry, max_bytes: usize) -> Result<Vec<u8>> {
     let row = RecordRow::from_entry(entry)?;
     if row.encoded_len() > max_bytes {
@@ -521,9 +525,11 @@ pub fn schema() -> SchemaKey {
 }
 
 /* === Private Functions === */
+
 fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
     if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
 }
+
 fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
     match value {
         RecordSeverity::Debug => "debug",
@@ -532,6 +538,7 @@ fn severity_name(value: crate::records::RecordSeverity) -> &'static str {
         RecordSeverity::Error => "error",
     }
 }
+
 fn exact_slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();
     values.try_reserve_exact(count).map_err(|_| error("record allocation failed"))?;
@@ -540,6 +547,7 @@ fn exact_slots<T>(count: usize) -> Result<Vec<T>> {
     }
     Ok(values)
 }
+
 fn copy_text(source: &str) -> Result<String> {
     let mut text = String::new();
     text.try_reserve_exact(source.len()).map_err(|_| error("record text allocation failed"))?;

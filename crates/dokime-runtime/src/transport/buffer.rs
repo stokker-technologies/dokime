@@ -12,39 +12,38 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+
 // Third Party Imports
 // Third-Party Imports
 use harmos::sidecar::{Frame, Refusal};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
+
 // Local Imports
 use crate::prompts::PromptResponse;
 use crate::transport::{ArtifactChunk, EvidenceBatch, RunExecution, SidecarExecutionOutcome};
 use dokime_domain::model::identity::PromptId;
 
 /* === Constants === */
+
 pub(crate) const MAX_BUFFERED_FRAMES: usize = 1024;
-
 const MAX_LOCAL_SAMPLES: usize = 1024;
-
 pub(crate) const MAX_BUFFERED_ARTIFACT_BYTES: u64 = 16 * 1024 * 1024;
-
-pub(crate) const PROMPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
-
 const MAX_DELIVERED_RECORDS: usize = 256;
 
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(crate) type Executions = Arc<Mutex<BTreeMap<String, ExecutionState>>>;
 
+pub(crate) type Executions = Arc<Mutex<BTreeMap<String, ExecutionState>>>;
 pub(crate) type Tasks = Arc<Mutex<Vec<JoinHandle<()>>>>;
 
 /* === Structs === */
+
 pub(crate) struct ExecutionState {
     pub(crate) local_inputs: bool,
     local_scope: dokime_domain::model::execution::RecordScope,
@@ -55,6 +54,10 @@ pub(crate) struct ExecutionState {
     pub(crate) controls: Arc<super::control::Controls>,
     pub(crate) cancel: watch::Sender<bool>,
     pub(crate) changed: Arc<tokio::sync::Notify>,
+
+    // Wakes every host-exchange waiter when a prompt, lease or step settles, the run is cancelled, or it is evicted.
+    settled: Arc<tokio::sync::Notify>,
+
     frames: VecDeque<BufferedFrame>,
     next_cursor: u64,
     oldest_cursor: u64,
@@ -66,7 +69,8 @@ pub(crate) struct ExecutionState {
     terminal: bool,
     prompt: Option<PromptExchange>,
     stream_rows: Vec<crate::telemetry::TelemetrySample>,
-    sample_positions: BTreeMap<dokime_domain::model::identity::TelemetrySampleId, usize>,
+    sample_positions: BTreeMap<dokime_domain::model::identity::TelemetrySampleId, SamplePosition>,
+    confirmed_samples: usize,
     samples_closed: bool,
     local_samples: Vec<crate::telemetry::TelemetrySample>,
     // How many of the held local samples a wait has already reported.
@@ -80,6 +84,11 @@ pub(crate) struct ExecutionState {
     dropped: usize,
     gaps: Vec<crate::telemetry::LeaseGap>,
     leases: BTreeMap<String, LeaseOutcome>,
+}
+
+struct SamplePosition {
+    index: usize,
+    confirmed: bool,
 }
 
 #[derive(Default)]
@@ -108,6 +117,7 @@ struct PromptExchange {
 }
 
 /* === Enums === */
+
 pub(crate) enum PromptOutcome {
     Answered(Box<PromptResponse>),
     Cancelled,
@@ -123,9 +133,8 @@ pub(crate) enum LeaseOutcome {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionState {
-    /// Whether samples arrived since a wait last reported them; reporting
-    /// them once keeps a waiter that does not consume them from spinning.
     pub(crate) fn announce_local_samples(&mut self) -> bool {
         let fresh = self.local_samples.len() > self.local_samples_announced;
         self.local_samples_announced = self.local_samples.len();
@@ -177,6 +186,7 @@ impl ExecutionState {
             request,
             cancel,
             changed: Arc::new(tokio::sync::Notify::new()),
+            settled: Arc::new(tokio::sync::Notify::new()),
             frames: VecDeque::new(),
             next_cursor: 1,
             oldest_cursor: 1,
@@ -189,6 +199,7 @@ impl ExecutionState {
             prompt: None,
             stream_rows: Vec::new(),
             sample_positions: BTreeMap::new(),
+            confirmed_samples: 0,
             samples_closed: false,
             local_samples: Vec::new(),
             local_samples_announced: 0,
@@ -214,11 +225,11 @@ impl ExecutionState {
 
     pub(crate) fn validate_sample(&self, sample: &crate::telemetry::TelemetrySample) -> Result<(), String> {
         if let Some(position) = self.sample_positions.get(&sample.sample_id)
-            && let Some(field) = sample_difference(&self.stream_rows[*position], sample, self.local_inputs)
+            && let Some(field) = sample_difference(&self.stream_rows[position.index], sample, self.local_inputs)
         {
             let key = (field == "values")
                 .then(|| {
-                    let previous = &self.stream_rows[*position].values;
+                    let previous = &self.stream_rows[position.index].values;
                     previous.keys().chain(sample.values.keys()).find(|key| !value_equivalent(previous.get(*key), sample.values.get(*key)))
                 })
                 .flatten();
@@ -261,6 +272,7 @@ impl ExecutionState {
             true => LeaseOutcome::Granted,
             false => LeaseOutcome::Refused(message.to_owned()),
         };
+        self.settled.notify_waiters();
     }
 
     pub(crate) fn lease_settled(&self, lease_token: &str) -> Option<&LeaseOutcome> {
@@ -287,8 +299,8 @@ impl ExecutionState {
         self.subscriptions_settled
     }
 
-    pub(crate) fn staged_inputs(&self) -> usize {
-        self.stream_rows.len() + self.captured_records.len()
+    pub(crate) fn settlement_progress(&self) -> usize {
+        self.stream_rows.len() + self.captured_records.len() + self.confirmed_samples
     }
 
     pub(crate) fn settle_record_subscriptions(&mut self) {
@@ -420,9 +432,13 @@ impl ExecutionState {
                 *outcome = LeaseOutcome::Cancelled;
             }
         }
+        if let Some((_, answer)) = &mut self.step_admission {
+            answer.get_or_insert_with(|| Err("execution cancelled before step acknowledgement".to_owned()));
+        }
         // A producer parked on the artifact backlog gate must not outlive the
         // cancellation either: nothing is going to drain it now.
         self.artifact_condvar.notify_all();
+        self.settled.notify_waiters();
     }
 
     pub(crate) fn artifact_condvar(&self) -> Arc<Condvar> {
@@ -446,6 +462,7 @@ impl ExecutionState {
         };
         if id.as_str() == request.attempt_id && answer.is_none() {
             *answer = Some(if request.accepted { Ok(()) } else { Err(request.message.clone()) });
+            self.settled.notify_waiters();
         }
     }
 
@@ -509,6 +526,7 @@ impl ExecutionState {
             && exchange.outcome.is_none()
         {
             exchange.outcome = Some(PromptOutcome::Answered(Box::new(response)));
+            self.settled.notify_waiters();
         }
     }
 
@@ -521,11 +539,17 @@ impl ExecutionState {
             return Ok(false);
         }
         self.validate_sample(&sample)?;
-        if self.sample_positions.contains_key(&sample.sample_id) {
+        if let Some(position) = self.sample_positions.get_mut(&sample.sample_id) {
+            // Live Delivery May Precede Settlement. Its First Replay Confirms
+            // Durable Evidence; Repeated Replay Of That Identity Is Not Progress.
+            let confirmed = self.subscriptions_settling && !position.confirmed;
+            position.confirmed |= confirmed;
+            self.confirmed_samples += usize::from(confirmed);
             return Ok(false);
         }
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
-        self.sample_positions.insert(sample.sample_id.clone(), self.stream_rows.len());
+        let position = SamplePosition { index: self.stream_rows.len(), confirmed: self.subscriptions_settling };
+        self.sample_positions.insert(sample.sample_id.clone(), position);
         self.stream_rows.push(sample);
         Ok(true)
     }
@@ -743,6 +767,13 @@ impl ExecutionState {
     }
 }
 
+// An Evicted Run Settles Every Exchange Still Waiting On It.
+impl Drop for ExecutionState {
+    fn drop(&mut self) {
+        self.settled.notify_waiters();
+    }
+}
+
 impl BufferedFrame {
     pub(crate) fn capture_phase(phase: String) -> Self {
         Self { capture_phase: Some(phase), ..Default::default() }
@@ -799,8 +830,45 @@ impl BufferedFrame {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn lock(executions: &Executions) -> MutexGuard<'_, BTreeMap<String, ExecutionState>> {
     executions.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+// Waits Without Polling Until `check` Settles The Run's Exchange; `gone` Answers An Evicted Run.
+// The waiter registers before each check, so a settlement between check and wait still wakes it.
+pub(crate) async fn settled<T>(
+    executions: &Executions, token: &str, gone: impl Fn() -> T, check: impl Fn(&ExecutionState) -> Option<T>,
+) -> T {
+    let mut signal = match lock(executions).get(token) {
+        Some(state) => Arc::clone(&state.settled),
+        None => return gone(),
+    };
+    loop {
+        let current = {
+            let notified = signal.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            let current = {
+                let live = lock(executions);
+                let Some(state) = live.get(token) else {
+                    return gone();
+                };
+                if let Some(outcome) = check(state) {
+                    return outcome;
+                }
+                (!Arc::ptr_eq(&state.settled, &signal)).then(|| Arc::clone(&state.settled))
+            };
+            if current.is_none() {
+                notified.await;
+            }
+            current
+        };
+        // A Reused Token Replaced The Run; Wait On Its Own Signal.
+        if let Some(current) = current {
+            signal = current;
+        }
+    }
 }
 
 /* === Private Functions === */
@@ -884,6 +952,34 @@ mod tests {
     use dokime_domain::model::identity::TestExecutionId;
     use dokime_domain::model::time::Timestamp;
     use dokime_domain::model::values::Value;
+
+    #[test]
+    fn settlement_counts_each_live_sample_confirmation_once() {
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let mut state = super::ExecutionState::new(Default::default(), cancel);
+        let stream = Identifier::new("reading").unwrap();
+        let sample = TelemetrySample::new(crate::model::identity::new_id(), stream, 1, crate::model::time::now_utc(), "fixture");
+        assert!(state.receive(sample.clone()).unwrap());
+        assert!(!state.receive(sample.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 1);
+
+        state.begin_record_settle();
+        let mut changed = sample.clone();
+        changed.values.insert("value".into(), Value::from(2.0));
+        assert!(state.receive(changed).is_err());
+        assert_eq!(state.settlement_progress(), 1);
+        assert!(!state.receive(sample.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 2);
+        assert!(!state.receive(sample.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 2);
+
+        let mut late = sample;
+        late.sample_id = crate::model::identity::new_id();
+        assert!(state.receive(late.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 3);
+        assert!(!state.receive(late).unwrap());
+        assert_eq!(state.settlement_progress(), 3);
+    }
 
     #[test]
     fn sample_replay_preserves_producer_identity() {

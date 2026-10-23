@@ -47,20 +47,22 @@ fn installation(programs: &[&Path]) -> tempfile::TempDir {
     let directory = tempfile::Builder::new().prefix("dokime-installation-").tempdir().unwrap();
     for program in programs {
         let program = program.canonicalize().expect("the program under test exists");
-        std::fs::copy(&program, directory.path().join(program.file_name().unwrap())).unwrap();
+        let destination = directory.path().join(program.file_name().unwrap());
+        if let Err(error) = std::fs::hard_link(&program, &destination) {
+            assert_eq!(error.kind(), std::io::ErrorKind::CrossesDevices, "installation fixture link: {error}");
+            std::fs::copy(&program, destination).unwrap();
+        }
     }
     directory
 }
 
 fn server() -> PathBuf {
-    let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"));
-    let root = manifest.ancestors().find(|path| path.join("Cargo.lock").is_file()).unwrap();
-    let server = root
-        .join("target/build")
-        .join(if cfg!(debug_assertions) { "dev" } else { "release" })
-        .join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH))
-        .join("bin")
-        .join(format!("dokime-server{}", std::env::consts::EXE_SUFFIX));
+    let platform = if cfg!(windows) { "windows" } else { "linux" };
+    let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).ancestors().find(|path| path.join("Cargo.lock").is_file()).unwrap().to_owned();
+    let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
+    let target = format!("{platform}-{}", std::env::consts::ARCH);
+    let server =
+        root.join("target/build").join(profile).join(target).join("bin").join(format!("dokime-server{}", std::env::consts::EXE_SUFFIX));
     assert!(server.is_file(), "run mise run build to produce {}", server.display());
     server
 }
@@ -70,7 +72,8 @@ fn dokime(directory: &Path) -> Command {
     let mut command = Command::new(executable);
     #[cfg(windows)]
     command.creation_flags(0x0800_0000);
-    command.env_remove("DOKIME_HOME");
+    // The story's own directory is the whole installation: a Dokime installed on the host is never found.
+    command.env("DOKIME_HOME", directory);
     command
 }
 
@@ -91,6 +94,8 @@ fn refused(output: std::process::Output) -> String {
     assert!(!output.status.success());
     String::from_utf8(output.stderr).unwrap()
 }
+
+/* === Tests === */
 
 // the server beside the CLI answers its identity through serve.
 

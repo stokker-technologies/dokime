@@ -10,14 +10,18 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use dokime_domain::model::execution::saved::ExecutionCheckpoint;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::storage::ObjectRevision;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::execution::storage::{ExecutionDocument, ExecutionMetadata};
 use crate::runtime::query::executions::{self, ExecutionFilter, ExecutionOrder};
@@ -37,6 +41,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ExecutionBrowseQuery {
     pub after: Option<TestExecutionId>,
@@ -81,6 +86,7 @@ pub struct ExecutionBrowsePage {
 pub struct ExecutionBrowseCycle {
     pub cycle_id: TestCycleId,
     pub label: Option<String>,
+    pub phase: Option<dokime_domain::model::execution::result::CyclePhase>,
     pub lifecycle: ExecutionBrowseLifecycle,
     pub result_status: Option<ResultStatus>,
     pub case_count: usize,
@@ -142,6 +148,7 @@ pub struct ExecutionCheckpointContext {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionBrowseLifecycle {
@@ -164,6 +171,7 @@ pub enum ExecutionAvailability {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Archived {
     fn covers(&self, metadata: &ExecutionMetadata) -> bool {
         self.executions.contains(&metadata.execution_id) || self.cycles.contains(&metadata.cycle_id)
@@ -194,6 +202,7 @@ impl CycleFold<'_> {
         ExecutionBrowseCycle {
             cycle_id: cycle_id.clone(),
             label: None,
+            phase: None,
             lifecycle,
             result_status,
             case_count: self.cases.len(),
@@ -247,10 +256,18 @@ impl RuntimeHandle {
             let mut live = Vec::new();
             for cycle in state.cycles.values() {
                 for execution in state.executions_for_cycle(cycle) {
+                    let mut metadata = ExecutionMetadata::new(execution);
+                    let queued = state
+                        .run_requests
+                        .values()
+                        .any(|request| !request.summary.phase.terminal() && request.pending.contains(&execution.test_execution_id));
+                    if queued {
+                        metadata.status = ExecutionStatus::Pending;
+                    }
                     live.push(ExecutionBrowseEntry {
-                        metadata: ExecutionMetadata::new(execution),
+                        metadata,
                         checkpoint: None,
-                        availability: if active.binary_search(&execution.test_execution_id).is_ok() {
+                        availability: if queued || active.binary_search(&execution.test_execution_id).is_ok() {
                             ExecutionAvailability::Live
                         } else {
                             ExecutionAvailability::Uncheckpointed
@@ -268,13 +285,17 @@ impl RuntimeHandle {
         let mut page = browse_page(&stored, &live, &query, &archived, limit)?;
         // Each Group Is Titled By Its Own Cycle, Live Or Sealed In History.
         for cycle in &mut page.cycles {
-            let live = self.state_read().cycles.get(&cycle.cycle_id).map(|header| header.metadata.label.clone());
-            cycle.label = match live {
-                Some(label) => Some(label),
+            let live = self.state_read().cycles.get(&cycle.cycle_id).cloned();
+            let header = match live {
+                Some(header) => Some(header),
                 None => crate::storage::objects::cycle::read(self.storage(), &cycle.cycle_id, harmos::storage::ObjectVersion::Latest)
                     .await?
-                    .map(|revision| revision.value.metadata.label),
+                    .map(|revision| revision.value),
             };
+            if let Some(header) = header {
+                cycle.label = Some(header.metadata.label);
+                cycle.phase = Some(header.phase);
+            }
         }
         Ok(page)
     }
@@ -357,6 +378,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn stored_rows(rows: Vec<ObjectRevision<dokime_domain::model::execution::result::TestExecution>>) -> Vec<ExecutionBrowseEntry> {
     rows.into_iter()
         .map(|row| {

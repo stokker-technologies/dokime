@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use cssparser::{Parser, Token};
+
 // Local Imports
 use super::error;
 use crate::{installed_plugins::RuntimeAppearanceFrame, runtime::Result};
@@ -35,6 +37,7 @@ use crate::{installed_plugins::RuntimeAppearanceFrame, runtime::Result};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn validate(appearance: &RuntimeAppearanceFrame) -> Result<()> {
     for theme in &appearance.themes {
         let radii = &theme.corner_radii;
@@ -69,6 +72,7 @@ pub(super) fn validate(appearance: &RuntimeAppearanceFrame) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 fn validate_css(css: &str) -> std::result::Result<(), &'static str> {
     let mut input = Parser::new(css);
     scan(&mut input, 0).map_err(|_| "CSS must use embedded data URLs or document fragments; imports, dynamic resource functions and malformed tokens are unsupported")

@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
 use std::fmt::Write;
+
 // Third Party Imports
 
 // Local Imports
@@ -28,6 +30,7 @@ use crate::model::document::definition::validate_plot_definition;
 use crate::model::identity::Identifier;
 
 /* === Constants === */
+
 const MAX_LAYOUT_DEPTH: usize = 12;
 
 /* === Macros === */
@@ -43,6 +46,7 @@ const MAX_LAYOUT_DEPTH: usize = 12;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn validate_document_definition(definition: &DocumentDefinition) -> Result<(), Vec<String>> {
     let (cards, layout) = definition.normalized_parts();
     validate_normalized_parts(&cards, &layout)
@@ -70,6 +74,7 @@ pub fn validate_normalized_parts(cards: &[DocumentCardDefinition], layout: &Docu
 }
 
 /* === Private Functions === */
+
 fn validate_layout(layout: &DocumentLayout, card_ids: &BTreeSet<&Identifier>, issues: &mut Vec<String>) {
     let mut node_ids = BTreeSet::<&Identifier>::new();
 

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@ use crate::model::values::ValueFormat;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn normal() -> ValueFormat {
     ValueFormat::Normal { max_fraction_digits: None }
 }

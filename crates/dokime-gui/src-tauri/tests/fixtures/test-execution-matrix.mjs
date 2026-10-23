@@ -15,7 +15,7 @@
 
 // Standard Library Imports
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 // Third Party Imports
@@ -46,37 +46,28 @@ try {
   const suite = await api.catalogGetSuite(session, { suiteId: contract.suite });
   const template = suite.templates.find((item) => item.metadata.identifier === contract.template);
   assert.ok(template);
-  // A cycle is created empty; its cases join through a registered plan, as the desktop does.
+  // Materialize Cases And Append Explicit Unstarted Attempts
   const cycle = await api.executionCreateCycle(session, {
     metadata: { identifier: `matrix.${scenario.name}`, label: "Execution Matrix" },
   });
   const cycleId = cycle.cycleId;
-  const registered = await api.planningRegisterSelection(session, {
-    plan: {
-      maxCases: 1,
-      cycleId,
-      selections: [{ suiteId: suite.identity.suiteId, templateId: template.templateId }],
-    },
-    idempotencyKey: `${scenario.name}.plan`,
+  const registered = await api.planningMaterializeTemplate(session, {
+    selection: { suiteId: suite.identity.suiteId, templateId: template.templateId },
   });
-  await api.executionAppendPlannedCases(session, {
+  assert.equal(registered.cases.length, 1);
+  const liveExecutionId = randomUUID();
+  await api.executionAppendExecutions(session, {
     cycleId,
-    plan: { caseIds: registered.cases.map((item) => item.caseId) },
+    executions: [{ executionId: liveExecutionId, caseId: registered.cases[0].caseId }],
   });
-  const admission = await api.executionRunCycle(session, {
-    cycleId,
-    idempotencyKey: scenario.name,
+  const admission = await api.executionStartExecution(session, {
+    executionId: liveExecutionId,
+    mode: { HarmosVariant: { case: "Automatic", value: {} } },
   });
   assert.equal(admission.outcome.HarmosVariant.case, "Accepted");
-  const requestId = admission.outcome.HarmosVariant.value.field0.commandId;
-  const status = () => api.executionGetRunRequest(session, { requestId });
+  const status = () => api.executionGetExecution(session, { executionId: liveExecutionId });
   const terminal = (status) => {
-    const phase = status.phase.HarmosVariant.case;
-    assert.ok([
-      "Unspecified", "Queued", "Preparing", "Running", "Finishing",
-      "Completed", "Failed", "Stopped", "Interrupted",
-    ].includes(phase), "run request phase must be declared");
-    return ["Completed", "Failed", "Stopped", "Interrupted"].includes(phase);
+    return status.summary.sealed;
   };
   // No RPC signals a pending prompt or a published row, so the driver polls the live
   // backend between short yields; the lane deadline bounds every wait.
@@ -88,7 +79,6 @@ try {
     pending = await api.promptsListPending(session, { cycleId });
   }
   assert.equal(pending.prompts.length, 1);
-  const liveExecutionId = (await status()).lastClaim.executionId;
   async function progressAt(completed) {
     const progressStream = await api.observationWatchExecutionProgress(session, {
       testExecutionId: liveExecutionId,
@@ -168,7 +158,7 @@ try {
   const filtered = (await records()).filter((record) => record.recordId === ready.recordId);
   assert.equal(filtered.length, 1);
 
-  if (scenario.action === "stop") await api.executionStopCycle(session, { cycleId });
+  if (scenario.action === "stop") await api.executionStopExecution(session, { executionId: liveExecutionId });
   else
     await api.promptsRespond(session, {
       promptId: pending.prompts[0].promptId,
@@ -204,7 +194,7 @@ try {
   const inventory = await api.contentListArtifacts(session, {});
   const artifact = inventory.artifacts.find((item) => item.filename.endsWith("matrix.txt"));
   assert.ok(artifact);
-  assert.equal(artifact.scope.executionId, finished.lastClaim.executionId);
+  assert.equal(artifact.scope.executionId, liveExecutionId);
   assert.equal(artifact.state.HarmosVariant.case, "Complete");
   const download = await api.contentDownloadArtifact(session, { artifactId: artifact.artifactId });
   const chunks = [];
@@ -240,10 +230,11 @@ try {
     finalRecords.map((record) => record.sequence),
     finalRecords.map((record) => record.sequence).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
   );
-  assert.ok(finished.lastClaim.executionId);
+  assert.equal(finished.summary.executionId, liveExecutionId);
+  assert.equal(summary.phase.HarmosVariant.case, "Active");
   for (const item of [...authored, ...rows]) {
     assert.equal(item.scope.cycleId, cycleId);
-    assert.equal(item.scope.executionId, finished.lastClaim.executionId);
+    assert.equal(item.scope.executionId, liveExecutionId);
     assert.ok(item.timestamp);
   }
   assert.ok(liveRows.every((live) => rows.some((row) => row.sampleId === live.sampleId)));
@@ -251,7 +242,7 @@ try {
     `${JSON.stringify({
       result: {
         status: { Passed: "passed", Failed: "failed", Cancelled: "cancelled" }[summary.result.status.HarmosVariant.case],
-        phase: { Completed: "completed", Failed: "failed", Stopped: "stopped" }[finished.phase.HarmosVariant.case],
+        phase: { Passed: "completed", Failed: "failed", Cancelled: "stopped" }[finished.summary.status.HarmosVariant.case],
         values: rows.map(reading),
         records: authored.map(phase),
         cases: Number(summary.caseCount),

@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 mod upload;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,13 +23,13 @@ use serde_json::json;
 use sha2::Digest;
 // Local Imports
 use crate::support::bridge::{self, Harness, fenced};
-use crate::support::server::{Fixture, TOKEN};
-use dokime_domain::model;
-use dokime_domain::operations::backend;
+use crate::support::server::Fixture;
+use dokime::domain::model;
+use dokime::domain::operations::backend;
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES};
-use dokime_server::grpc::access::Role;
 
 /* === Constants === */
+
 const STAGE: &str = "/dokime.v1.Plugins/Stage";
 
 /* === Macros === */
@@ -35,6 +37,7 @@ const STAGE: &str = "/dokime.v1.Plugins/Stage";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct StageInput {
     entered: Option<tokio::sync::oneshot::Sender<()>>,
     dropped: Option<tokio::sync::oneshot::Sender<()>>,
@@ -45,6 +48,7 @@ struct StageInput {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl tokio_stream::Stream for StageInput {
     type Item = model::plugins::wire::StagePluginFrame;
 
@@ -74,23 +78,24 @@ impl Drop for StageInput {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn large_bundle(resource_bytes: usize) -> Vec<u8> {
-    bundle_for_target(resource_bytes, dokime_runtime::plugins::NATIVE_TARGET)
+    bundle_for_target(resource_bytes, dokime::plugins::NATIVE_TARGET)
 }
 
 fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
     let owner = "fixture";
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"});
-    let policy = harmos::operations::OperationPolicy {
+    let policy = dokime::harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
-        retries: harmos::operations::RetryPolicy::Never,
-        restart: harmos::operations::RestartPolicy::Never,
+        retries: dokime::harmos::operations::RetryPolicy::Never,
+        restart: dokime::harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
-        harmos::operations::lifecycle::Descriptor::new(harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
+        dokime::harmos::operations::lifecycle::Descriptor::new(dokime::harmos::operations::lifecycle::Action::Initialize, policy).unwrap(),
+        dokime::harmos::operations::lifecycle::Descriptor::new(dokime::harmos::operations::lifecycle::Action::Shutdown, policy).unwrap(),
     ];
     let contracts =
         serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"provides":[],"requires":[],"lifecycle":lifecycle});
@@ -99,7 +104,7 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
     let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
+        prefix = std::str::from_utf8(dokime::harmos::artifacts::PREFIX).unwrap()
     );
     let resource = vec![0xCDu8; resource_bytes];
     harmos_packaging::bundle::Bundle::build(
@@ -188,9 +193,10 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 /* === Tests === */
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn refuses_invalid_dispatch() {
-    let fixture = Fixture::with_role(Role::Admin).await;
+    let fixture = Fixture::new().await;
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     for command in ["rpc", "rpc_stream_open"] {
@@ -284,7 +290,7 @@ fn client_stream_opens() {
 #[test]
 fn stages_large_bundle() {
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::with_role(Role::Admin));
+    let fixture = runtime.block_on(Fixture::new());
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     let bytes = large_bundle(70 * 1024 * 1024);
@@ -303,7 +309,7 @@ fn stages_large_bundle() {
 fn refuses_foreign_bundle() {
     let target = if cfg!(windows) { "x86_64-unknown-linux-gnu" } else { "x86_64-pc-windows-msvc" };
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::with_role(Role::Admin));
+    let fixture = runtime.block_on(Fixture::new());
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     let frames = stage(&harness, generation, &bundle_for_target(1024, target));
@@ -321,9 +327,7 @@ fn refuses_foreign_bundle() {
 async fn owner_cancellation_health() {
     use tauri::Manager;
 
-    // Staging is an administrator operation: under any lesser role the call
-    // fails on its own before the cancellation reaches it.
-    let fixture = Fixture::with_role(Role::Admin).await;
+    let fixture = Fixture::new().await;
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     let (stream, channel) = harness.open(generation, STAGE, &envelope(1, &[]), true).unwrap();
@@ -335,9 +339,8 @@ async fn owner_cancellation_health() {
     let frames = harness.settle(channel);
     let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
     assert_eq!(error["kind"], "cancelled");
-    let client = dokime_client::Client::connect(dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(), Some(TOKEN), None)
-        .await
-        .unwrap();
+    let client =
+        dokime::client::Client::connect(dokime::client::Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
     assert!(client.backend_get_health(backend::GetHealth {}).await.is_ok());
     fixture.close().await;
 }
@@ -365,10 +368,10 @@ async fn generation_fences_streams() {
 
 #[tokio::test]
 async fn client_close_drops() {
-    use dokime_client::{Client, Error, Target};
+    use dokime::client::{Client, Error, Target};
 
-    let fixture = Fixture::with_role(Role::Admin).await;
-    let client = Client::connect(Target::local(fixture.server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+    let fixture = Fixture::new().await;
+    let client = Client::connect(Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
     let (entered, ready) = tokio::sync::oneshot::channel();
     let (dropped, released) = tokio::sync::oneshot::channel();
     let uploading = client.clone();

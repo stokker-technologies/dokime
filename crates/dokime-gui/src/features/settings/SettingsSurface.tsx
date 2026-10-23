@@ -33,6 +33,8 @@ import { GeneralSection } from "@/features/settings/sections/GeneralSection";
 import { IdentitySection } from "@/features/settings/sections/IdentitySection";
 import { PluginSettingsSection } from "@/features/settings/sections/PluginSettingsSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
+import { RemoteSection } from "@/features/settings/sections/RemoteSection";
+import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
 import { DEFAULT_SETTINGS_SECTION, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
@@ -71,19 +73,13 @@ export function SettingsSurface({ close, section = DEFAULT_SETTINGS_SECTION }: S
 
   return (
     <div className="flex min-h-full min-w-0 flex-col">
-      {section === "plugins" ? (
-        <div className="flex min-h-0 flex-1 flex-col p-[var(--shell-inset)]">
-          <PluginsSection />
-        </div>
-      ) : (
-        /* Every section returns its cards as siblings so they land directly
-           in the one settings grid. */
-        <div className="p-[var(--shell-inset)]">
-          <SettingsGrid>
-            <SectionContent frame={frame} loadError={settings.error} loading={settings.loading} retry={settings.retry} section={section} />
-          </SettingsGrid>
-        </div>
-      )}
+      {/* Every section returns its cards as siblings so they land directly
+          in the one settings grid. */}
+      <div className="p-[var(--shell-inset)]">
+        <SettingsGrid>
+          <SectionContent frame={frame} loadError={settings.error} loading={settings.loading} retry={settings.retry} section={section} />
+        </SettingsGrid>
+      </div>
     </div>
   );
 }
@@ -110,6 +106,9 @@ function SectionContent({
       </>
     );
   if (section === "appearance") return <AppearanceSection />;
+  if (section === "remote") return <RemoteSection />;
+  if (section === "plugins") return <PluginsSection />;
+  if (section === "secrets") return <SecretsSection />;
 
   if (loading) {
     return (
@@ -135,8 +134,6 @@ function SectionContent({
   switch (section) {
     case "identity":
       return <IdentitySection frame={frame} />;
-    case "plugins":
-      return null;
     case "account-updates":
       return <AccountUpdatesSection />;
     case "diagnostics":

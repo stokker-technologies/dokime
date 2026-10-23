@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::cmp::Ordering;
 use std::fmt;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
 /* === Constants === */
@@ -29,6 +32,7 @@ use serde::Serialize;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Timestamp(String);
@@ -42,6 +46,7 @@ pub struct DurationMillis(pub u64);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for Timestamp {
     fn memory_size(&self) -> usize {
         harmos_domain::MemorySize::memory_size(&self.0)
@@ -131,6 +136,7 @@ impl From<Timestamp> for crate::model::values::Value {
 }
 
 /* === Public Functions === */
+
 pub fn datetime_text(value: time::OffsetDateTime) -> String {
     value
         .to_offset(time::UtcOffset::UTC)
@@ -139,6 +145,7 @@ pub fn datetime_text(value: time::OffsetDateTime) -> String {
 }
 
 /* === Private Functions === */
+
 fn parse_rfc3339(value: &str) -> Option<i128> {
     time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok().map(|value| value.unix_timestamp_nanos())
 }

@@ -12,17 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
+use tonic::Status;
 
 // Local Imports
 use super::super::value::canonical;
 use super::value;
-use dokime_domain::model::plugins::wire as plugins_model;
-use dokime_runtime::plugins::{PluginEntry, PluginLastBoot, PluginState};
-use tonic::Status;
+use crate::grpc::transcode::Transcode;
+use dokime::domain::model::plugins::wire as plugins_model;
+use dokime::plugins::{PluginEntry, PluginLastBoot, PluginState};
 
 /* === Constants === */
 
@@ -39,6 +40,7 @@ use tonic::Status;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_model::PluginInstallation, Status> {
     normalize(&mut entry, limit)?;
     let installation = entry.installation;
@@ -98,7 +100,7 @@ pub(super) fn disclosure(entry: &PluginEntry, limit: usize) -> Result<(), Status
     if entry.metadata.is_none() {
         return Err(Status::failed_precondition("verified permission metadata is unavailable; consent refused"));
     }
-    dokime_runtime::document::bounded::document_size(entry, limit / 2, 32)
+    dokime::document::bounded::document_size(entry, limit / 2, 32)
         .map_err(|_| Status::resource_exhausted("complete permission metadata exceeds response budget; consent refused"))?;
     Ok(())
 }
@@ -108,10 +110,11 @@ pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Sta
         entry.metadata = None;
         entry.error = Some("Verified permission metadata exceeds response budget; consent is unavailable. Installation identity and state remain accessible.".into());
     }
-    dokime_runtime::document::bounded::document_size(&entry, limit / 2, 32)
+    dokime::document::bounded::document_size(&entry, limit / 2, 32)
         .map_err(|_| Status::resource_exhausted("plugin installation state exceeds response budget"))?;
     Ok(())
 }
+
 pub(super) fn memory(entry: &PluginEntry) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<plugins_model::PluginInstallation>() + 36;
     let mut add = |text: &str| -> Result<(), Status> {

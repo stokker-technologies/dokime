@@ -8,12 +8,15 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod system;
 
 /* === Re-Exports === */
+
 pub(crate) use system::System;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,7 +32,8 @@ pub(crate) use system::System;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Observers {
     System(System),
 }

@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod build;
 mod dev;
 mod inspect;
@@ -17,6 +18,7 @@ mod package;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -32,6 +34,7 @@ mod package;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(clap::Subcommand)]
 pub enum Command {
     New(new::Args),
@@ -44,6 +47,7 @@ pub enum Command {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Command {
     #[tracing::instrument(level = "debug", skip_all)]
     pub async fn run(self) -> Result<(), crate::error::Error> {

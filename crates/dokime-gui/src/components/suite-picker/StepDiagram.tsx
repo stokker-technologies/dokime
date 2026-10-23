@@ -128,7 +128,6 @@ function TemplateFacts({ selectedIndex, stepCount, template }: { selectedIndex: 
     ["Steps", `${selectedIndex + 1} of ${stepCount}`],
     ["Parameters", String(template.parameter_definitions.length)],
     ["Files", String(template.file_definitions.length)],
-    ["Continue On Failure", template.continue_on_failure ? "Yes" : "No"],
   ];
   return (
     <dl className="grid grid-cols-[auto_auto] items-baseline gap-x-4 gap-y-0.5 text-xs md:min-w-48">

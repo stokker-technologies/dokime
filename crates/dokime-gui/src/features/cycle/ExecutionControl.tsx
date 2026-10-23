@@ -7,134 +7,202 @@
  * ***
  */
 
-/* The Control section: everything on the execution page that acts on the run.
+/* The execution page's Control card and the lifecycle actions it offers.
  *
- * A pending prompt leads, printed in place exactly as the prompt states it —
- * its "Run Paused" line, title, instruction, fields and actions — with no box
- * of its own and nothing clipping it, so a long form pushes the page down
- * rather than scrolling inside itself. There is usually one; any others wait
- * as one line each under it and open in turn as the first is answered. The
- * step progress the runtime streams and the execution's run controls follow on
- * one row. The section exists only while live: a file has nothing to command.
+ * `useExecutionActions` decides once, from the runtime's own statement of the
+ * execution (`executionControlState`), what the card says and which actions
+ * it offers; the card and the page bar's primary action both read that one
+ * decision, so they never disagree. Start and Cancel belong to an attempt that
+ * has not started: Cancel skips it, recording it Cancelled while the cycle
+ * continues. Pause or Resume and Stop belong to a running attempt; Stop is the
+ * only destructive action. Once the last step settles the card says it is
+ * finalizing and offers nothing until the attempt ends; an ended attempt
+ * offers Re-Run, which appends a new attempt and selects it. The card exists
+ * only while live: a file has nothing to command.
  */
 
-/* === External Imports === */
+/* === Imports === */
 
-import { useMemo } from "react";
+// Standard Library Imports
 
-/* === Local Imports === */
+// Third Party Imports
+
+import { Ban, Pause, Play, RotateCcw, Square } from "lucide-react";
+import type { ReactNode } from "react";
+import { toast } from "sonner";
+
+// Local Imports
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
-import { PromptPanel } from "@/components/PromptPanel";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { type PromptValue, promptResponseValues } from "@/lib/prompts";
-import { recordLevelLabel, recordLevelVariant } from "@/lib/record-display";
-import type { PromptField, PromptRequest } from "@/lib/types";
-import { CycleExecutionControls } from "./CycleExecutionControls";
-import { type CycleSelection, progressStepLabel, STATUS_PILL_CLASS } from "./cycle-workspace-model";
-import { ExecutionSectionCard } from "./ExecutionSectionCard";
-import { orderPendingPrompts } from "./prompt-banner-model";
-import { usePromptResponseMutation } from "./server-state";
-import { usePromptValues } from "./use-prompt-values";
+import { stepRecordLabel } from "@/components/document/StepRecordsCard";
+import { Button } from "@/components/ui/button";
+import type { PromptRequest, TestExecution } from "@/lib/types";
+import { ControlCard } from "./ControlCard";
+import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
+import { useCycleCommands, useRerunCase } from "./cycle-queries";
+import { type CycleExecutionRow, caseActionTooltip, progressStepLabel } from "./cycle-workspace-model";
+
+/* === Re-Exports === */
+
+/* === Constants === */
+
+const REPORTS: Record<ExecutionAction, { done: string; failed: string }> = {
+  Cancel: { done: "Execution Cancelled", failed: "Execution Could Not Be Cancelled" },
+  Pause: { done: "Execution Pause Requested", failed: "Execution Control Failed" },
+  "Re-Run": { done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" },
+  Resume: { done: "Execution Resume Requested", failed: "Execution Control Failed" },
+  Start: { done: "Execution Started", failed: "Execution Could Not Start" },
+  Stop: { done: "Execution Stopped And Evidence Saved", failed: "Execution Control Failed" },
+};
+
+const ACTION_ICONS: Record<ExecutionAction, ReactNode> = {
+  Cancel: <Ban data-icon="inline-start" />,
+  Pause: <Pause data-icon="inline-start" />,
+  "Re-Run": <RotateCcw data-icon="inline-start" />,
+  Resume: <Play data-icon="inline-start" />,
+  Start: <Play data-icon="inline-start" />,
+  Stop: <Square data-icon="inline-start" />,
+};
 
 /* === Types === */
 
+export type ExecutionActions = {
+  state: ExecutionControlState;
+  progress: { completed: number; total: number } | null;
+  /** Whether the action's command is in flight or refused right now. */
+  disabled: (action: ExecutionAction) => boolean;
+  run: (action: ExecutionAction) => void;
+  /** Why the runtime refuses the actions, when it does. */
+  refusal?: string;
+};
+
 export type ExecutionControlProps = {
-  cycleId: string;
-  /** The running execution whose progress the section states; `null` before it starts. */
-  executionId: string | null;
-  /** Answerable prompts for this page, in any order. */
-  prompts: PromptRequest[];
-  selection: CycleSelection;
-  onSelectExecution: (executionId: string) => void;
+  actions: ExecutionActions;
+  ordinal: number;
+};
+
+export type ExecutionActionButtonProps = {
+  action: ExecutionAction;
+  actions: ExecutionActions;
 };
 
 /* === Components === */
 
-export function ExecutionControl({ cycleId, executionId, prompts, selection, onSelectExecution }: ExecutionControlProps) {
-  const ordered = useMemo(() => orderPendingPrompts(prompts), [prompts]);
-  const [first, ...waiting] = ordered;
-  const progress = useExecutionProgress(executionId);
-  const progressShown = progress && progress.testExecutionId === executionId ? progress : null;
-
+export function ExecutionControl({ actions, ordinal }: ExecutionControlProps) {
   return (
-    <ExecutionSectionCard title="Control">
-      {first ? (
-        <section aria-label="Pending Prompts" aria-live="polite" className="grid min-w-0 gap-3">
-          <ul className="grid min-w-0 gap-3">
-            <li data-prompt-id={first.correlation_id} data-prompt-level={first.level}>
-              <OpenPrompt key={first.correlation_id} prompt={first} />
-            </li>
-            {waiting.map((prompt) => (
-              <li
-                className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-2 text-sm"
-                data-prompt-id={prompt.correlation_id}
-                data-prompt-level={prompt.level}
-                key={prompt.correlation_id}
-              >
-                <Badge className={STATUS_PILL_CLASS} variant={recordLevelVariant(prompt.level)}>
-                  {recordLevelLabel(prompt.level)}
-                </Badge>
-                <span className="truncate text-muted-foreground" title={prompt.title}>
-                  Waiting · {prompt.title}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2">
-        {progressShown ? (
-          <div className="grid min-w-0 gap-1.5">
-            <p className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 text-xs">
-              <span className="truncate">{progressStepLabel(progressShown.stepId, progressShown.phase)}</span>
-              <span className="text-muted-foreground tabular-nums">
-                {progressShown.completed}/{progressShown.total}
-              </span>
-            </p>
-            <Progress
-              aria-label="Execution Progress"
-              value={progressShown.total > 0 ? (progressShown.completed / progressShown.total) * 100 : 0}
-            />
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{first ? "The run waits on the prompt above." : "No step in progress."}</p>
-        )}
-        <CycleExecutionControls cycleId={cycleId} onSelectExecution={onSelectExecution} selection={selection} />
-      </div>
-    </ExecutionSectionCard>
+    <ControlCard
+      detail={actions.state.detail}
+      actions={actions.state.actions.map((action) => <ExecutionActionButton action={action} actions={actions} key={action} />)}
+      label={`Execution #${ordinal} Controls`}
+      progress={actions.progress}
+      state={actions.state.line}
+    />
   );
 }
 
-/* === Private Components === */
-
-/** The most urgent prompt, open in place with its own draft and response. */
-function OpenPrompt({ prompt }: { prompt: PromptRequest }) {
-  const responseMutation = usePromptResponseMutation();
-  const [values, setValues] = usePromptValues(prompt);
-
-  const submit = (action: string) =>
-    responseMutation.mutate({
-      action,
-      correlationId: prompt.correlation_id,
-      values: promptResponseValues(prompt, values),
-    });
-  const changeValue = (field: PromptField, value: PromptValue) => setValues((current) => ({ ...current, [field.name]: value }));
-
+/** One lifecycle action, styled by what it does: Start leads, Stop warns. */
+export function ExecutionActionButton({ action, actions }: ExecutionActionButtonProps) {
+  const disabled = actions.disabled(action);
   return (
-    <div className="grid min-w-0 gap-3">
-      <PromptPanel
-        onAction={submit}
-        onValueChange={changeValue}
-        prompt={prompt}
-        submittingAction={responseMutation.isPending ? (responseMutation.variables?.action ?? null) : null}
-        values={values}
-      />
-      {responseMutation.isError ? (
-        <p className="text-sm text-destructive">The response was not accepted. Check the values and submit again.</p>
-      ) : null}
-    </div>
+    <Button
+      className="h-[var(--bar-control-height)] px-3"
+      disabled={disabled}
+      onClick={() => actions.run(action)}
+      title={disabled ? actions.refusal : undefined}
+      variant={action === "Start" ? "default" : action === "Stop" ? "danger" : "outline"}
+    >
+      {ACTION_ICONS[action]}
+      {action === "Start" || action === "Re-Run" ? action : `${action} Execution`}
+    </Button>
   );
 }
+
+/* === Hooks === */
+
+/** The one decision both the Control card and the page bar read. */
+export function useExecutionActions({
+  cycleActive,
+  cycleId,
+  execution,
+  onSelectExecution,
+  prompts,
+  row,
+}: {
+  cycleActive: boolean;
+  cycleId: string;
+  /** `null` in a file, or for a case that never ran: nothing to command. */
+  execution: TestExecution | null;
+  onSelectExecution: (executionId: string) => void;
+  prompts: readonly PromptRequest[];
+  row: CycleExecutionRow;
+}): ExecutionActions | null {
+  const commands = useCycleCommands(cycleId);
+  const rerunCase = useRerunCase(cycleId);
+  const live = useExecutionProgress(execution?.test_execution_id ?? null);
+  if (!execution) return null;
+  const progress = live && live.testExecutionId === execution.test_execution_id ? live : null;
+  const state = executionControlState({
+    controls: execution.controls,
+    progress: progress
+      ? {
+          completed: progress.completed,
+          id: progress.stepId,
+          label: stepLabel(execution, progress.stepId, progress.phase),
+          total: progress.total,
+        }
+      : null,
+    promptWaiting: prompts.some((prompt) => prompt.scope?.test_execution_id === execution.test_execution_id),
+    status: execution.status,
+    stopping: commands.stopExecution.isPending,
+  });
+  const id = execution.test_execution_id;
+  const commandOf = (action: ExecutionAction): { pending: boolean; run: () => Promise<unknown> } => {
+    switch (action) {
+      case "Start":
+        return { pending: commands.startExecution.isPending, run: () => commands.startExecution.mutateAsync(id) };
+      case "Cancel":
+        return { pending: commands.cancelExecution.isPending, run: () => commands.cancelExecution.mutateAsync(id) };
+      case "Pause":
+        return { pending: commands.pauseExecution.isPending, run: () => commands.pauseExecution.mutateAsync(id) };
+      case "Resume":
+        return { pending: commands.resumeExecution.isPending, run: () => commands.resumeExecution.mutateAsync(id) };
+      case "Stop":
+        return { pending: commands.stopExecution.isPending, run: () => commands.stopExecution.mutateAsync(id) };
+      case "Re-Run":
+        return {
+          pending: rerunCase.pending,
+          run: async () => {
+            const created = await rerunCase.rerun(execution.case_id);
+            if (created) onSelectExecution(created);
+          },
+        };
+    }
+  };
+  return {
+    disabled: (action) => !cycleActive || commandOf(action).pending,
+    progress: state.phase === "running" || state.phase === "waiting" || state.phase === "paused" ? progress : null,
+    refusal: cycleActive ? undefined : (caseActionTooltip(row.case) ?? "Only Active Cycles Accept Commands"),
+    run: (action) => {
+      const report = REPORTS[action];
+      void commandOf(action)
+        .run()
+        .then(() => toast.success(report.done))
+        .catch((error: unknown) =>
+          toast.error(report.failed, {
+            description: error instanceof Error ? error.message : String(error),
+          }),
+        );
+    },
+    state,
+  };
+}
+
+/* === Public Functions === */
+
+/** The running step's human label, as the Steps card names it; the phase for an opaque id. */
+export function stepLabel(execution: Pick<TestExecution, "steps">, stepId: string, phase: string): string {
+  const record = execution.steps.find((item) => item.record_type === "step" && item.step_id === stepId);
+  return record ? stepRecordLabel(record, false) : progressStepLabel(stepId, phase);
+}
+
+/* === Private Functions === */

@@ -46,3 +46,7 @@ Preserve the migration's library API identities, non-publishable executable owne
 Previously completed proof remains useful baseline evidence but does not establish the combined product tree. Stop the owned validation sequence at its current safe terminal boundary; do not interrupt unrelated runner work. During integration run targeted checks only. Close every implementation item and review the complete combined tree before one full applicable local validation. Repair failures and rerun affected lanes without weakening assertions or deadlines.
 
 Update the existing PR only after local proof passes. Verify the pushed SHA, retain provider protections and auto-merge, monitor required native CI, and verify the merge into dev. Release remains subject to the existing authorized publication flow and its prerequisites; no new Hub release is authorized. Do not delete the input branches or historical work as part of conflict resolution.
+
+## Remote Operator Authorization
+
+The specification-completion README (13c0fd6, Native Remote Access, lines250–262) explicitly grants a valid access key full remote product and installed-plugin control, including request-dependent scopes, with no per-user roles or server permission files. Preserve that operator model while retaining native-only/internal-provider refusal, runtime-owned plugin identity, and declared plugin-to-host/plugin requirements. Authentication, compiled trust, origin scoping and shared-secret boundaries remain required; operator authority cannot expand a plugin's declared capabilities.

@@ -19,36 +19,22 @@ pub mod service_support;
 #[macro_use]
 mod macros;
 pub mod artifacts;
-
 pub mod catalog;
-
 pub mod contributions;
-
 pub mod definition;
-
 pub mod diagnostics;
-
 pub mod document;
-
 pub mod domains;
-
 pub mod error;
-
 pub mod evidence;
-
 pub mod execution;
 
 #[cfg(feature = "native")]
 pub mod files;
-
-pub mod paths;
-
 pub mod host;
-
 pub mod model;
-
 pub mod parameters;
-
+pub mod paths;
 pub mod plugin;
 
 #[cfg(feature = "native")]
@@ -56,26 +42,16 @@ pub mod prelude;
 
 #[cfg(feature = "native")]
 pub mod process;
-
 pub mod prompts;
-
 pub mod publication;
-
 pub mod records;
 
+pub mod analysis;
 #[cfg(feature = "storage")]
 pub mod storage;
-
 pub mod telemetry;
-
 pub mod traceability;
-
 pub mod transport;
-
-pub mod analysis;
-
-pub use dokime_domain::model::values;
-
 pub mod __answer {
     pub trait Answer {
         type Ok;
@@ -109,25 +85,34 @@ pub mod __answer {
 
 #[cfg(feature = "host")]
 pub mod app;
+
 #[cfg(feature = "host")]
 pub mod config;
-pub use dokime_domain::operations;
+
 #[cfg(feature = "host")]
 mod persistence;
+
 #[cfg(feature = "host")]
 mod plot;
+
 #[cfg(feature = "host")]
 pub mod plugins;
+
 #[cfg(feature = "host")]
 pub mod report;
+
 #[cfg(feature = "host")]
 pub mod runtime;
+
 #[cfg(feature = "host")]
 mod services;
+
 #[cfg(feature = "host")]
 pub mod state;
+
 #[cfg(feature = "host")]
 pub mod streams;
+
 #[cfg(feature = "host")]
 pub mod transactions;
 
@@ -138,21 +123,26 @@ pub mod brand {
 
 /* === Re-Exports === */
 
-pub use dokime_domain::model::expressions;
-
 pub use definition::{Parameter, ParameterDefault, ParameterExpansion};
 pub use dokime_domain::DEV_PROTOCOL;
 pub use dokime_domain::Error as ApiError;
 pub use dokime_domain::READINESS_PROTOCOL;
 pub use dokime_domain::model::appearance::{HostCardBlock, HostCardBody, HostCardKeyValue, HostCardMetric, HostCardTone};
-pub use dokime_domain::model::credentials::*;
 pub use dokime_domain::model::diagnostics::*;
 pub use dokime_domain::model::execution::*;
+pub use dokime_domain::model::expressions;
 pub use dokime_domain::model::identity::*;
+pub use dokime_domain::model::secrets::*;
+
 pub use dokime_domain::model::settings;
 pub use dokime_domain::model::time::*;
 pub use dokime_domain::model::validation::*;
+pub use dokime_domain::model::values;
 pub use dokime_domain::model::values::*;
+pub use dokime_domain::operations;
+#[cfg(feature = "fault-injection")]
+pub use domains::secrets::TestStore as SecretTestStore;
+
 // Several model globs carry a `wire` module; the value wire form is the one this crate names.
 pub use dokime_domain::model::values::wire;
 pub use error::{Error, Result};
@@ -168,10 +158,10 @@ pub use harmos::Plugin;
 pub use harmos::catalog::RequirementEntry as Requirement;
 pub use harmos::operations::{CallContext, Declares, Operation};
 pub use harmos::plugin::{Contribution, Grant};
-#[cfg(feature = "native")]
-pub use harmos::sidecar::{Refusal, Supervisor};
 
 pub use harmos;
+#[cfg(feature = "native")]
+pub use harmos::sidecar::{Refusal, Supervisor};
 pub use values::{FieldError, FieldValue};
 
 // The authoring attributes, re-exported so suites and sidecars write
@@ -187,10 +177,8 @@ pub use dokime_macros::{
 pub use harmos::{Message, StreamSpec, schema};
 
 // Generated authoring code resolves implementation dependencies through the SDK.
-
 pub use dokime_domain as __domain;
 pub use harmos as __harmos;
-
 pub use prost as __prost;
 
 #[cfg(feature = "native")]
@@ -198,40 +186,51 @@ pub use tokio as __tokio;
 
 #[cfg(feature = "host")]
 pub(crate) use domains::{
-    credentials, documents, evidence as evidence_runtime, execution as execution_runtime, exports, installed_plugins,
-    parameters as parameter_runtime, prompts as prompt_runtime, telemetry as telemetry_runtime, traceability as traceability_runtime,
+    documents, evidence as evidence_runtime, execution as execution_runtime, exports, installed_plugins, parameters as parameter_runtime,
+    prompts as prompt_runtime, secrets, telemetry as telemetry_runtime, traceability as traceability_runtime,
 };
+
 #[cfg(feature = "host")]
 pub(crate) use runtime::command as commands;
+
 #[cfg(feature = "host")]
 pub(crate) use runtime::command::CommandReceipt;
+
 #[cfg(feature = "host")]
 pub(crate) use runtime::query as queries;
+
 #[cfg(feature = "host")]
 pub(crate) use runtime::{handle, state as runtime_state};
 
 #[cfg(feature = "host")]
 pub use app::Dokime;
+
 #[cfg(feature = "host")]
-pub use config::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, SidecarNoticeHandler};
+pub use config::{InstalledSidecar, RuntimeConfig, RuntimeSecretConfig, SidecarNoticeHandler};
 
 #[cfg(feature = "host")]
 pub use dokime_domain::model::plugins::InstalledPlugin;
+
 #[cfg(feature = "host")]
 pub use domains::documents::{
     CurrentDocumentCapture, CurrentDocumentTelemetryCut, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument,
 };
+
 #[cfg(feature = "host")]
 pub use domains::execution::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState};
+
 #[cfg(feature = "host")]
 pub use domains::execution::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
+
 #[cfg(feature = "host")]
 pub use domains::telemetry::LeaseFact;
 
 #[cfg(feature = "host")]
 pub(crate) use runtime::RuntimeState;
+
 #[cfg(feature = "host")]
 pub(crate) use runtime::command::{internal_rejection, rejected_receipt, unavailable_rejection};
+
 #[cfg(feature = "host")]
 pub use runtime::{OpenedReport, ReportOrigin, Runtime, RuntimeHandle};
 
@@ -242,12 +241,15 @@ pub use runtime::{OpenedReport, ReportOrigin, Runtime, RuntimeHandle};
 // Third Party Imports
 // Generated authoring paths resolve the same way inside and outside this crate.
 extern crate self as dokime_runtime;
+
 // Local Imports
 
 /* === Constants === */
-pub const MACRO_CONTRACT: u32 = 26;
+
+pub const MACRO_CONTRACT: u32 = 27;
 
 /* === Macros === */
+
 /* === Type Aliases === */
 
 /* === Structs === */

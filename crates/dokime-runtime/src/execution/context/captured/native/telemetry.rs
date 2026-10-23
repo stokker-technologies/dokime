@@ -37,20 +37,24 @@ use dokime_domain::model::values::ValueType;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Declarations = BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>;
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Contracts {
     streams: Vec<Stream>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Stream {
     key: String,
     versions: Vec<Contract>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Contract {
@@ -69,6 +73,7 @@ struct Contract {
     validation_mode: Option<u32>,
     foreign: bool,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Column {
@@ -90,6 +95,7 @@ struct Column {
 /* === Implementations === */
 
 impl Contracts {}
+
 impl TryFrom<&Declarations> for Contracts {
     type Error = Error;
     fn try_from(values: &Declarations) -> Result<Self> {
@@ -104,6 +110,7 @@ impl TryFrom<&Declarations> for Contracts {
         Ok(Self { streams })
     }
 }
+
 impl TryFrom<Contracts> for Declarations {
     type Error = Error;
     fn try_from(value: Contracts) -> Result<Self> {
@@ -120,7 +127,9 @@ impl TryFrom<Contracts> for Declarations {
         Ok(streams)
     }
 }
+
 impl Contract {}
+
 impl TryFrom<&TelemetryContract> for Contract {
     type Error = Error;
     fn try_from(value: &TelemetryContract) -> Result<Self> {
@@ -146,6 +155,7 @@ impl TryFrom<&TelemetryContract> for Contract {
         })
     }
 }
+
 impl TryFrom<Contract> for TelemetryContract {
     type Error = Error;
     fn try_from(value: Contract) -> Result<Self> {
@@ -171,7 +181,9 @@ impl TryFrom<Contract> for TelemetryContract {
         })
     }
 }
+
 impl Column {}
+
 impl TryFrom<&TelemetryColumn> for Column {
     type Error = Error;
     fn try_from(value: &TelemetryColumn) -> Result<Self> {
@@ -188,6 +200,7 @@ impl TryFrom<&TelemetryColumn> for Column {
         })
     }
 }
+
 impl TryFrom<Column> for TelemetryColumn {
     type Error = Error;
     fn try_from(value: Column) -> Result<Self> {
@@ -207,19 +220,6 @@ impl TryFrom<Column> for TelemetryColumn {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
-fn invalid(message: &str) -> Error {
-    Error::InvalidReportInputs(message.into())
-}
-fn slots<T>(count: usize) -> Result<Vec<T>> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(count).map_err(|_| invalid("telemetry declaration allocation failed"))?;
-    if values.capacity() > count {
-        return Err(invalid("telemetry declaration slots exceed admission"));
-    }
-    Ok(values)
-}
 pub(super) fn value_type_code(value: &ValueType) -> u32 {
     match value {
         ValueType::Boolean => 1,
@@ -232,6 +232,7 @@ pub(super) fn value_type_code(value: &ValueType) -> u32 {
         ValueType::Array => 8,
     }
 }
+
 pub(super) fn value_type(value: u32) -> Result<ValueType> {
     match value {
         1 => Ok(ValueType::Boolean),
@@ -245,6 +246,37 @@ pub(super) fn value_type(value: u32) -> Result<ValueType> {
         _ => Err(invalid("unknown captured value_type")),
     }
 }
+
+pub(super) fn validation_mode_code(value: &ValidationMode) -> u32 {
+    match value {
+        ValidationMode::Strict => 1,
+        ValidationMode::Prototype => 2,
+    }
+}
+
+pub(super) fn validation_mode(value: u32) -> Result<ValidationMode> {
+    match value {
+        1 => Ok(ValidationMode::Strict),
+        2 => Ok(ValidationMode::Prototype),
+        _ => Err(invalid("unknown captured validation_mode")),
+    }
+}
+
+/* === Private Functions === */
+
+fn invalid(message: &str) -> Error {
+    Error::InvalidReportInputs(message.into())
+}
+
+fn slots<T>(count: usize) -> Result<Vec<T>> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|_| invalid("telemetry declaration allocation failed"))?;
+    if values.capacity() > count {
+        return Err(invalid("telemetry declaration slots exceed admission"));
+    }
+    Ok(values)
+}
+
 fn role_code(value: &TelemetryRole) -> u32 {
     match value {
         TelemetryRole::Value => 1,
@@ -255,6 +287,7 @@ fn role_code(value: &TelemetryRole) -> u32 {
         TelemetryRole::Throughput => 6,
     }
 }
+
 fn role(value: u32) -> Result<TelemetryRole> {
     match value {
         1 => Ok(TelemetryRole::Value),
@@ -264,19 +297,6 @@ fn role(value: u32) -> Result<TelemetryRole> {
         5 => Ok(TelemetryRole::Latency),
         6 => Ok(TelemetryRole::Throughput),
         _ => Err(invalid("unknown telemetry role")),
-    }
-}
-pub(super) fn validation_mode_code(value: &ValidationMode) -> u32 {
-    match value {
-        ValidationMode::Strict => 1,
-        ValidationMode::Prototype => 2,
-    }
-}
-pub(super) fn validation_mode(value: u32) -> Result<ValidationMode> {
-    match value {
-        1 => Ok(ValidationMode::Strict),
-        2 => Ok(ValidationMode::Prototype),
-        _ => Err(invalid("unknown captured validation_mode")),
     }
 }
 

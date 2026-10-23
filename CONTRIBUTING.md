@@ -62,60 +62,43 @@ entry points are described in [`README.md`](README.md).
 - Use Conventional Commit subjects, such as `fix(runtime): preserve stopped
   execution evidence` or `docs: clarify sidecar setup`.
 
-Changes to the GUI report or root branding must refresh their tracked runtime
-payload with `mise run prepare:report`. Commit the resulting `dist-report/` and
-`dist-brand/` directories in `crates/dokime-runtime/`; Rust Check reproduces and
-compares them without rewriting stale files. These crate-local resources let
-published host-feature builds work outside the repository.
-
-Run targeted checks while implementing. Once the complete source is ready,
-run the local CI flow before opening a pull request:
+Run the matching checks while iterating. `mise run check` covers the complete
+Check stage. For committed changes with project-wide impact, simulate the pull
+request graph:
 
 ```sh
-mise run ci
+mise run check
+mise run ci --event pr
 ```
 
-`ci` orders Check, shipping Product Build, Tests Build, generated-client Check,
-ordinary Test layers, Package and Release / Dry. A failed required command
-blocks delivery. Product exports live under `target/build/<profile>/<target>/`;
-Tests Build owns its archive and stamped fixtures there, including the offline
-starter dependency closure. Compile-contract stories run inside Tests Build.
-Test leaves such as `test:rust:integration` consume existing artifacts
-and retain JUnit under `target/tests/<profile>/<target>/<layer>-<language>/`.
-Generated-client types/lint/import checks are `check:<language>:generated`.
-Package consumes matching Product bytes without compiling, retaining unsigned
-development installers, companion executables, wheels and plugin bundles under
-`target/package/<profile>/<target>/<language>/`. Development installers embed
-their frontend and launch without a development server.
+The simulation uses a clean clone of HEAD and cold dependency homes; a failing
+lane fails the run. `build --profile dev` produces binaries, the OBC bundle,
+the frontend and generated clients under `target/build/<profile>/<target>/`.
+The canonical Python wheel uses target `any`. `build:tests --profile dev`
+separately compiles the shared Nextest archive and fixtures, runs the macro
+compile contracts and verifies the generated starter. Test lanes consume that
+archive; acceptance and system lanes also require the matching Product
+exports. Reports use `target/tests/<profile>/<target>/<layer>-<language>/`.
+`test:generated` checks the Python and TypeScript clients' types, lint and import
+smoke. `package --profile dev` assembles unsigned installers, companion CLIs,
+the plugin bundle and Python distributions from Build bytes without compiling,
+under `target/package/<profile>/<target>/`.
 
-`.github/workflows/ci.yml` is rendered from the shared pipeline shape: the
-Check, Build, Test, Package and Release stages, with required Rust, native build
-and package jobs on Linux and Windows. Pull requests and development pushes
-run the same non-publishing proof, including Package and Release / Dry.
-Sparse `ci.jobs` declarations select Linux native/desktop prerequisites and
-exact whole-job limits; jobs without bootstrap receive none. Heavy Rust jobs
-select `runner = "stokker-local-linux-x64"` or
-`runner = "stokker-local-windows-x64"` in their matching `ci.jobs` selector.
-Nightly benchmarks use the local Linux runner. Lightweight checks, generated
-checks, packaging and coverage retain hosted defaults. Provider variables do
-not override these routes.
-Tags select release-profile packaging and protected publication.
-`nightly.yml` runs coverage and benches. `mise.toml` owns every recipe the
-workflows call.
+`.github/workflows/ci.yml` and `nightly.yml` are thin callers of the rendered
+`managed-*.yml` workflows. Pull requests and `dev` pushes run Check, Build,
+Validate, development Package and `Release / Dry`; configured native jobs run
+on both Linux and Windows. Nightly adds `test:coverage` and benches.
+`mise.toml` owns every recipe the workflows call.
 
-Windows signing runs only for stable-tag Package jobs under the protected
-release environment. Updater signatures and `latest.json` are required signed
-release assets and are excluded from unsigned candidate/rehearsal packages.
-Release verification checks their presence, installer/version/manifest
-consistency and downloaded checksums. The existing consistency check does not
-independently verify minisign cryptographic authenticity.
-
-Cut `release/<version>` from published `dev` and run `mise run release:prepare`
-to prepare the stable patch version, changelog and screenshots. The changelog
-is rendered by git-cliff from history; do not edit `CHANGELOG.md` by hand.
-Promote the stabilization branch into `main` without squashing, then
-incorporate its history into `dev`. Publication tasks live under
-`release:publish:*`.
+Run `Release / Prepare` manually from `dev` with the requested version bump.
+It opens a `release/v<version>` review into `dev`, which runs the required
+native graph and unsigned `Release / Rehearsal`. Squash-merging that review
+starts `Release / Tag`: it verifies the rehearsed tree, tags the merged `dev`
+commit, publishes Rust crates and fast-forwards protected `main`. The tag
+pipeline signs the declared Windows packages, publishes release assets and the
+Python client, and verifies installation on each platform. Release notes are
+rendered from Conventional Commits by git-cliff at tag time; no changelog file
+is tracked. Publication tasks live under `release:publish:*`.
 
 ## Pull Requests
 

@@ -8,27 +8,29 @@
  */
 
 /* === Modules === */
+
 mod assembly;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::{Cursor, Read as _, Write as _};
 // Third Party Imports
 use sha2::Digest as _;
 // Local Imports
 use super::*;
-use dokime_domain::model;
+use dokime::domain::model;
 use {
-    dokime_runtime::Identifier, dokime_runtime::InstalledPlugin, dokime_runtime::Value,
-    dokime_runtime::domains::installed_plugins::PluginCredentialSecretUpdate, dokime_runtime::settings::SecretSetting,
-    dokime_runtime::settings::SettingValues, dokime_runtime::settings::Settings, dokime_runtime::settings::SettingsEntry,
-    dokime_runtime::settings::TextArea,
+    dokime::Identifier, dokime::InstalledPlugin, dokime::Value, dokime::domains::installed_plugins::PluginSecretUpdate,
+    dokime::settings::SecretSetting, dokime::settings::SettingValues, dokime::settings::Settings, dokime::settings::SettingsEntry,
+    dokime::settings::TextArea,
 };
 
 /* === Constants === */
-const SECRET: &str = "diagnostics-fake-credential-material";
+
+const SECRET: &str = "diagnostics-fake-secret-material";
 
 const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 
@@ -47,14 +49,15 @@ const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn fixture() -> (support::TestEnvironment, Server, WireClient) {
     let environment = support::TestEnvironment::with_installed_plugins(vec![secret_module()]).await;
     let artifact_id = Identifier::new("fixture.diagnostics").unwrap();
     environment
         .runtime
-        .save_plugin_credential_secret(&artifact_id, "fixture.token", PluginCredentialSecretUpdate { secret: SECRET.to_owned() })
+        .save_plugin_secret(&artifact_id, "fixture.token", PluginSecretUpdate { secret: SECRET.to_owned() })
         .await
-        .expect("the fixture credential is declared and storable");
+        .expect("the fixture secret is declared and storable");
     environment
         .runtime
         .record_discovered_settings(
@@ -84,7 +87,7 @@ fn secret_module() -> InstalledPlugin {
                     required: true,
                 }),
                 // Declared as free text, so nothing reduces it to a reference:
-                // its name is the only thing that says it holds a credential.
+                // its name is the only thing that says it holds a secret.
                 SettingsEntry::TextArea(TextArea {
                     id: "api_token".to_owned(),
                     title: "API token".to_owned(),
@@ -107,7 +110,7 @@ fn secret_module() -> InstalledPlugin {
 
 fn record(level: &str, message: &str) -> String {
     format!(
-        r#"{{"timestamp":"2026-09-30T14:22:33.000001Z","level":"{level}","target":"dokime_runtime::fixture","fields":{{"message":"{message}"}}}}"#
+        r#"{{"timestamp":"2026-09-30T14:22:33.000001Z","level":"{level}","target":"dokime::fixture","fields":{{"message":"{message}"}}}}"#
     )
 }
 
@@ -197,12 +200,12 @@ async fn collected_archive_material() {
         }
     }
     // The binding is still there to read: redaction removed the material, not
-    // the evidence that a credential is configured.
+    // the evidence that a secret is configured.
     let settings: serde_json::Value = {
         let mut entry = zip.by_name("settings/artifacts/fixture.diagnostics.json").unwrap();
         serde_json::from_reader(&mut entry).unwrap()
     };
-    assert_eq!(settings["credential_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));
+    assert_eq!(settings["secret_bindings"]["bindings"]["fixture.token"]["configured"], serde_json::Value::Bool(true));
     // The discovered field is still reported as discovered; only its value went.
     assert_eq!(settings["discovered"]["api_token"], "<redacted>");
 
@@ -228,7 +231,7 @@ async fn log_stream_file() {
 
     let replayed = stream.message().await.unwrap().expect("the WARN record replays");
     assert_eq!(replayed.level, model::backend::wire::LogLevel::Warn);
-    assert_eq!(replayed.target, "dokime_runtime::fixture");
+    assert_eq!(replayed.target, "dokime::fixture");
     assert_eq!(replayed.message, "slow");
     assert_eq!(replayed.dropped, 0);
 
@@ -252,7 +255,7 @@ async fn level_filter_stream() {
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     std::fs::write(&log, concat!(
         r#"{"timestamp":"2026-09-30T14:22:33.000001Z","level":"INFO","target":"dokime","fields":{"message":"started"}}"#, "\n",
-        r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime_runtime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
+        r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
     )).unwrap();
     let mut stream = client
         .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogs {
@@ -264,7 +267,7 @@ async fn level_filter_stream() {
         .into_inner();
     let frame = stream.message().await.unwrap().unwrap();
     assert_eq!(frame.level, model::backend::wire::LogLevel::Warn);
-    assert_eq!(frame.target, "dokime_runtime::hub");
+    assert_eq!(frame.target, "dokime::hub");
     assert_eq!(frame.message, "slow");
     assert_eq!(frame.fields.iter().find(|entry| entry.key == "api_token").expect("token field is present").value, "<redacted>",);
     assert_eq!(frame.dropped, 0);

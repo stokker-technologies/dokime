@@ -10,20 +10,23 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(in crate::grpc) use super::super::enums::canonical::{execution_file_kind as kind, execution_file_state as state};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use dokime::harmos::operations::{Context, Operation, Response};
 use tonic::Status;
+
 // Local Imports
 use super::super::value;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::content as wire;
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::TestExecutionId;
+use dokime::domain::operations::content as wire;
 
 /* === Constants === */
 
@@ -32,10 +35,12 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Read {
     resources: Arc<Resources>,
 }
@@ -45,6 +50,7 @@ struct Read {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Read {
     type Declaration = wire::ReadExecutionFile;
     type Resources = Resources;
@@ -56,7 +62,7 @@ impl Operation for Read {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut wire::ReadExecutionFile, _: &mut (),
-    ) -> Result<Response<dokime_domain::model::content::wire::ExecutionFileWindow>, Status> {
+    ) -> Result<Response<dokime::domain::model::content::wire::ExecutionFileWindow>, Status> {
         let runtime = &self.resources.runtime;
         let message_limit = self.resources.maximum;
         let (id, _) = execution(runtime, &request.execution_id)?;
@@ -83,14 +89,16 @@ impl Operation for Read {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Read>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
 }
+
 pub(super) fn execution(runtime: &RuntimeHandle, id: &str) -> Result<(TestExecutionId, String), Status> {
     let id = TestExecutionId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
     let snapshot = runtime.watch_state().latest();
@@ -100,22 +108,22 @@ pub(super) fn execution(runtime: &RuntimeHandle, id: &str) -> Result<(TestExecut
     Ok((id, snapshot.state().process_epoch().to_string()))
 }
 
-/* === Private Functions === */
-pub(super) fn read_failure(error: dokime_runtime::runtime::Error) -> Status {
+pub(super) fn read_failure(error: dokime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::InvalidInput { field: "execution files cursor", .. }) => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::InvalidInput { field: "execution files cursor", .. }) => {
             Status::aborted("file listing changed; restart pagination")
         }
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::InvalidInput { field: "execution files after path", .. }) => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::InvalidInput { field: "execution files after path", .. }) => {
             Status::invalid_argument("after path not found")
         }
-        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })
-        | dokime_runtime::runtime::Error::ExecutionFileTooLarge => {
+        dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }) | dokime::runtime::Error::ExecutionFileTooLarge => {
             Status::resource_exhausted("execution output exceeds its original budget")
         }
         _ => Status::internal("cannot read execution output"),
     };
     super::super::error::detailed(status, &error)
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

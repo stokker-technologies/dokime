@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,12 +22,13 @@ use syn::ext::IdentExt;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Meta, Token, Type, Variant};
+
 // Local Imports
 use crate::arguments::Shape;
 
 /* === Constants === */
-const FIELD_ARGUMENTS: &[&str] = &["label", "description", "unit", "default", "expansion", "min", "max", "min_items", "max_items"];
 
+const FIELD_ARGUMENTS: &[&str] = &["label", "description", "unit", "default", "expansion", "min", "max", "min_items", "max_items"];
 const VARIANT_ARGUMENTS: &[&str] = &["id", "label"];
 
 /* === Macros === */
@@ -34,6 +36,7 @@ const VARIANT_ARGUMENTS: &[&str] = &["id", "label"];
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct ParameterDeclaration {
     name: Ident,
     identifier: LitStr,
@@ -71,6 +74,7 @@ struct ChoiceVariant {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn parameters(attribute: TokenStream, item: TokenStream) -> TokenStream {
     match declare(attribute, &item) {
         Ok(declared) => crate::facade::contracted(declared),
@@ -93,7 +97,24 @@ pub(crate) fn choice(attribute: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
+pub(crate) fn underscored(name: &str) -> String {
+    let mut written = String::with_capacity(name.len() + 4);
+    for (index, character) in name.chars().enumerate() {
+        if character.is_ascii_uppercase() {
+            if index > 0 {
+                written.push('_');
+            }
+            written.extend(character.to_lowercase());
+        } else {
+            written.push(character);
+        }
+    }
+
+    written
+}
+
 /* === Private Functions === */
+
 fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     crate::arguments::Arguments::read(attribute, "a parameters struct", &[])?;
@@ -465,22 +486,6 @@ fn literal(value: &Expr) -> Result<LitStr, Error> {
         },
         other => Err(Error::new(other.span(), "a choice's id is a string literal: it is what the resolved case carries")),
     }
-}
-
-pub(crate) fn underscored(name: &str) -> String {
-    let mut written = String::with_capacity(name.len() + 4);
-    for (index, character) in name.chars().enumerate() {
-        if character.is_ascii_uppercase() {
-            if index > 0 {
-                written.push('_');
-            }
-            written.extend(character.to_lowercase());
-        } else {
-            written.push(character);
-        }
-    }
-
-    written
 }
 
 fn spaced(name: &str) -> String {

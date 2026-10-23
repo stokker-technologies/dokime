@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::ops::Deref;
+
 // Third Party Imports
 use harmos::signal::Series;
 
@@ -29,6 +31,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct ExecutionEvidence {
     pub(crate) samples: BTreeMap<String, Vec<TelemetrySample>>,
@@ -52,6 +55,7 @@ pub struct Samples<Row> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionEvidence {
     pub fn new() -> Self {
         Self::default()

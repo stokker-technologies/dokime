@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
+
 // Local Imports
 use super::*;
 
@@ -25,6 +27,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Uploads one immutable artifact into the runtime's active execution. The first frame is a header and the remaining frames are contiguous chunks; end of stream commits the runtime upload.
 #[harmos_domain::message]
 #[harmos_domain::operation(response = ArtifactMetadata, input = UploadArtifactFrame, id = "dokime.content.upload_artifact", version = 1,

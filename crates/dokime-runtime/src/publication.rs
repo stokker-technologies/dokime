@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -30,6 +32,7 @@ use dokime_domain::model::values::Value;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Publication {
     Row { stream: Identifier, values: BTreeMap<String, Value>, payload: Vec<u8> },
@@ -37,6 +40,7 @@ pub enum Publication {
 }
 
 /* === Traits === */
+
 pub trait Publishable {
     type Payload: Into<Publication>;
 
@@ -44,6 +48,7 @@ pub trait Publishable {
 }
 
 /* === Implementations === */
+
 impl Publishable for RecordPublishRequest {
     type Payload = Self;
 

@@ -31,9 +31,11 @@ use crate::model::identity::TestExecutionId;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = std::result::Result<T, SavedEvidenceError>;
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionCheckpoint {
@@ -44,12 +46,15 @@ pub struct ExecutionCheckpoint {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum SavedEvidenceError {
     #[error("invalid saved execution evidence: {0}")]
     Invalid(&'static str),
+
     #[error(transparent)]
     Domain(#[from] harmos_domain::Error),
+
     #[error(transparent)]
     Timestamp(#[from] time::error::Parse),
 }
@@ -57,6 +62,7 @@ pub enum SavedEvidenceError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for ExecutionCheckpoint {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -70,6 +76,7 @@ impl harmos_domain::MemorySize for ExecutionCheckpoint {
         })
     }
 }
+
 impl ExecutionCheckpoint {
     pub fn validate(&self) -> Result<()> {
         self.version.check_position(&self.position)?;

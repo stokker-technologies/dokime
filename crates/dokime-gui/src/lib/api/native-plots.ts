@@ -15,6 +15,8 @@ import { create } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
+import * as plotWire from "@generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
+import type { Row3 as WatchFrame } from "@generated/dokime/v1/PlotsMessages/Watch/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -44,8 +46,6 @@ import type {
   TelemetrySampleRecord,
 } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
-import * as plotWire from "../../../.generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
-import type { Row3 as WatchFrame } from "../../../.generated/dokime/v1/PlotsMessages/Watch/messages_pb";
 import { aggregateMessage } from "./native-aggregate";
 import { mapParameter } from "./native-catalog";
 import {
@@ -142,10 +142,18 @@ export type NativePlotPayloadEnvelope = PlotPayloadEnvelope & {
   nativeCursor: PlotCursor;
 };
 
-/** Renderer stream message plus its exact native cursor. */
-export type NativePlotStreamMessage = PlotPayloadStreamMessage & {
-  nativeCursor: PlotCursor;
+/**
+ * The watch's word that a plot is subscribed and still reading its first
+ * frame: sent at once when the watch opens and as a keepalive until the frame
+ * arrives. It carries no data and no revision.
+ */
+export type NativePlotPendingMessage = {
+  kind: "pending";
+  plot_id: string;
 };
+
+/** Renderer stream message plus its exact native cursor, or a plot's pending notice. */
+export type NativePlotStreamMessage = (PlotPayloadStreamMessage & { nativeCursor: PlotCursor }) | NativePlotPendingMessage;
 
 export interface NativePlotStream extends AsyncIterable<NativePlotStreamMessage> {
   cancel(): Promise<void>;
@@ -452,6 +460,10 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayload
  */
 export function mapNativePlotStreamFrame(frame: PlotStreamFrame): NativePlotStreamMessage {
   if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
+  // An unspecified frame that names a plot and carries nothing is the watch's pending notice.
+  if (frame.kind?.HarmosVariant.case === "Unspecified" && !frame.envelope.payload) {
+    return { kind: "pending", plot_id: frame.envelope.plotId };
+  }
   const kind = plotStreamKind(frame.kind);
   if (kind === "error") {
     return {

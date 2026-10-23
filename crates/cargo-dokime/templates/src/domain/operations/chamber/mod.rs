@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use crate::domain::model::chamber::ChamberReading;
-use dokime_runtime::prelude::Discovered;
+use dokime::prelude::Discovered;
 
 /* === Constants === */
 
@@ -27,8 +28,9 @@ use dokime_runtime::prelude::Discovered;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
+
+#[dokime::message]
+#[dokime::operation(
     id = "{{owner}}.get_chamber",
     response = ChamberReading,
     version = 1,
@@ -38,8 +40,8 @@ use dokime_runtime::prelude::Discovered;
 #[derive(Clone, PartialEq)]
 pub struct ReadChamber {}
 
-#[dokime_runtime::message]
-#[dokime_runtime::operation(
+#[dokime::message]
+#[dokime::operation(
     id = "{{owner}}.detect_port",
     response = Discovered,
     version = 1,

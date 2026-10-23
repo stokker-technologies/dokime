@@ -7,14 +7,14 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("metadata", "continue_on_failure", "context")
+    __slots__ = ("metadata", "continue_automatically", "context")
     METADATA_FIELD_NUMBER: _ClassVar[int]
-    CONTINUE_ON_FAILURE_FIELD_NUMBER: _ClassVar[int]
+    CONTINUE_AUTOMATICALLY_FIELD_NUMBER: _ClassVar[int]
     CONTEXT_FIELD_NUMBER: _ClassVar[int]
     metadata: Row3
-    continue_on_failure: bool
+    continue_automatically: bool
     context: Row4
-    def __init__(self, metadata: _Optional[_Union[Row3, _Mapping]] = ..., continue_on_failure: _Optional[bool] = ..., context: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
+    def __init__(self, metadata: _Optional[_Union[Row3, _Mapping]] = ..., continue_automatically: _Optional[bool] = ..., context: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("cycle_id", "observed_cursor")

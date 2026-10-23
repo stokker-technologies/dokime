@@ -13,18 +13,17 @@
 
 # Standard Library Imports
 import argparse
-import json
 import subprocess
 import sys
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import bench, cargo, dependencies, frontend, outputs, paths, run, wheel
-from dokime_tools.package import fixtures
+from dokime_tools.build import cargo, frontend, outputs, paths, run, wheel
+from dokime_tools.package import examples, plugins
 from dokime_tools.package.staging import clear_output, stage_file, sync_output
-from dokime_tools.prepare import bindings, generated
-from dokime_tools.test import archive, policy
+from dokime_tools.prepare import generated
+from dokime_tools.test import policy
 
 # Type Checking Imports
 
@@ -35,6 +34,7 @@ from dokime_tools.test import archive, policy
 
 ROOT = frontend.ROOT
 EXECUTABLES = ("dokime", "dokime-server", "cargo-dokime")
+PROFILES = policy.PROFILES
 STEPS = ("rust", "typescript", "desktop", "python", "tests", "bench")
 
 # === Types === #
@@ -54,13 +54,11 @@ def rust(profile: str) -> list[str]:
         "--workspace",
         "--exclude",
         "dokime-gui",
-        "--exclude",
-        "dokime-fixtures",
         "--profile",
         profile,
-        "--features",
-        "dokime-server-cli/media-native",
     ]
+    if profile == "release":
+        arguments += ["--features", "dokime-server-cli/media-native"]
     cargo.clippy(ROOT, arguments)
     command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
     with messages.open("w", encoding="utf-8") as written:
@@ -79,8 +77,27 @@ def rust(profile: str) -> list[str]:
     for path in outputs.executables(messages, EXECUTABLES).values():
         stage_file(path, binaries / path.name)
         staged.append(binaries / path.name)
+    libraries = output / "lib"
+    clear_output(libraries)
+    for source in outputs.libraries(
+        messages,
+        (
+            "dokime",
+            "dokime-domain",
+            "dokime-runtime",
+            "dokime-client",
+            "dokime-host",
+            "dokime-macros",
+            "dokime-packaging",
+            "obc-plugin",
+            "obc-runtime",
+        ),
+    ):
+        destination = libraries / source.name
+        stage_file(source, destination)
+        staged.append(destination)
     tool = binaries / f"cargo-dokime{_exe()}"
-    staged += fixtures.prepare(ROOT, messages, profile, tool=tool, output=output / "plugins")
+    staged += plugins.prepare(ROOT, messages, profile, tool=tool, output=output / "plugins")
     run.record_target(ROOT, messages, profile)
     return _relative(staged)
 
@@ -103,9 +120,14 @@ def typescript(profile: str) -> list[str]:
 
 
 def python(profile: str) -> list[str]:
-    """Require Current Tracked Client Code And Build The Wheel Offline."""
-    bindings.generate(_messages(profile), check=True)
-    return _relative([wheel.build(ROOT, profile)])
+    """Build Tracked Client Distributions And Their Exact Portable Tutorial."""
+    distributions = wheel.build(ROOT, profile)
+    wheels = [path for path in distributions if path.suffix == ".whl"]
+    if len(wheels) != 1:
+        raise ValueError("the tutorial requires exactly one matching built wheel")
+    destination = paths.output(ROOT, "build", profile, "any") / "python/examples/remote"
+    staged = examples.stage(ROOT, destination, wheel=wheels[0])
+    return _relative([*distributions, *staged])
 
 
 def desktop(profile: str) -> list[str]:
@@ -144,44 +166,45 @@ def desktop(profile: str) -> list[str]:
 
 
 def tests(profile: str) -> list[str]:
-    """Compile One Archive And Capture Inputs Needed By Transported Test Lanes."""
-    output = paths.output(ROOT, "build", profile)
-    if not (output / "product/target.txt").is_file():
-        raise ValueError("build the matching Product before its Tests producer")
-    _compatibility(profile)
-    messages = archive.build(ROOT, profile, ["--features", "dokime-runtime/fault-injection"]).with_name(archive.MESSAGES)
-    metadata = messages.with_name("metadata.json")
-    with metadata.open("w", encoding="utf-8") as written:
-        subprocess.run(
-            ["cargo", "metadata", "--locked", "--format-version", "1"],
-            cwd=ROOT,
-            stdout=written,
-            check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            stdin=sys.stdin,
-            stderr=sys.stderr,
-        )
-    directory = output / "fixtures"
-    staged = dependencies.cargo(ROOT, directory / "dependencies")
-    staged += dependencies.wheelhouse(ROOT, directory / "dependencies")
-    sync_output(output / "generated/typescript", directory / "typescript")
-    staged += [path for path in (directory / "typescript").rglob("*") if path.is_file()]
-    staged += [archive.location(ROOT, profile), messages, metadata]
-    files = _relative(staged)
-    archive.stamp(ROOT, profile, files)
-    return files
+    """Compile Tests And Starter Inputs Through Their Optional Build Owner."""
+    from dokime_tools.build import tests as producer
+
+    return producer.build(profile)
 
 
 def benchmarks() -> list[str]:
-    """Build Benchmarks And Package Their Matching Plugin Without Recompiling It."""
-    messages = bench.build(ROOT, ["--features", "dokime-runtime/fault-injection"])
-    output = paths.output(ROOT, "build", "bench")
-    tool = output / "bin" / f"cargo-dokime{_exe()}"
-    staged = fixtures.prepare(ROOT, messages, "bench", tool=tool, output=output / "plugins")
-    record = json.loads((output / "fixtures/stamp.json").read_text(encoding="utf-8"))
-    files = sorted(set(record["files"]) | set(_relative(staged)))
-    archive.stamp(ROOT, "bench", files)
-    return files
+    """Produce The Optional Benchmark Hosts And Their Matching OBC Suite."""
+    from dokime_tools.build import benchmarks as producer
+
+    producer.build()
+    return []
+
+
+def files(profile: str) -> list[Path]:
+    """Require Matching Product Hosts And Enumerate The Outputs Tests Consume."""
+    if profile not in PROFILES:
+        raise ValueError("product outputs require dev or release")
+    native = paths.output(ROOT, "build", profile)
+    independent = paths.output(ROOT, "build", profile, "any")
+    suffix = ".exe" if sys.platform == "win32" else ""
+    required = [native / "bin" / f"{name}{suffix}" for name in (*EXECUTABLES, "dokime-gui")]
+    required += [
+        native / "plugins/obc-plugin.dokime",
+        native / "product/compiler.json",
+        native / "product/target.txt",
+        native / "web/index.html",
+    ]
+    wheel_directory = independent / "python"
+    wheels = list(wheel_directory.glob("dokime_client-*.whl"))
+    complete = all(path.is_file() for path in required)
+    if len(wheels) != 1 or not complete:
+        raise ValueError(f"tests require matching {profile} Product outputs; run `mise run build --profile {profile}` first")
+
+    kinds = ("bin", "lib", "plugins", "web", "generated/typescript")
+    roots = [native / kind for kind in kinds]
+    roots += [independent / "python"]
+    staged = {path for root in roots for path in root.rglob("*") if path.is_file()}
+    return sorted(staged)
 
 
 def main(arguments: list[str] | None = None) -> int:

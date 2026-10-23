@@ -19,112 +19,6 @@
 
 import type { CaseActions, ExecutionQueueItem, TestCase, TestCycle, TestCyclePlan, TestExecution } from "@/lib/types";
 
-/* === Types === */
-
-export type CycleLifecycle = TestCycle["status"];
-
-export type CaseState = ExecutionQueueItem["status"];
-
-/** A case of the cycle, as the plan's case projection states it. */
-export type CycleCase = {
-  caseId: string;
-  templateId: string;
-  label: string;
-  testCase: TestCase;
-  /** The case's own state, as `CaseSummary` projects it. */
-  status: CaseState;
-  /** Every live execution this case holds, superseded ones included. */
-  attemptCount: number;
-  /** A recorded outcome with a fresh undispatched execution on top of it. */
-  rerunScheduled: boolean;
-  /** Null where the projection reports none: no menu item is offered then. */
-  actions: CaseActions | null;
-  finished: boolean;
-};
-
-/**
- * One row of the cycle list: one execution, in cycle order.
- *
- * A re-run is a new execution appended to the cycle, so it is a new row at the
- * end rather than a choice inside an existing one. A case the runtime has not
- * materialized an execution for still needs a row to show its parameters and
- * offer Run Case; that row has no execution and is keyed by its case.
- */
-export type CycleExecutionRow = {
-  /** Unique within the cycle: the execution id, or `case:<caseId>` without one. */
-  key: string;
-  case: CycleCase;
-  execution: TestExecution | null;
-  /** One-based position in the cycle list. */
-  ordinal: number;
-  /** The ordinal of the earlier execution of the same case this one re-runs. */
-  rerunOf: number | null;
-  /** The newest row of its case, which is the one carrying the case's actions. */
-  newest: boolean;
-};
-
-/**
- * What the URL selects: the cycle itself, an execution, or a case that has
- * none yet. No field at all is the landing state, which follows the active
- * execution; `view: "cycle"` is the operator's explicit choice of the cycle.
- */
-export type CycleSelection = { caseId?: string; executionId?: string; view?: "cycle" };
-
-/** The input `followSelection` decides from. */
-export type FollowState = {
-  selection: CycleSelection;
-  /** The execution the runtime names as running now. */
-  active: string | null;
-  /** The execution it named on the previous render. */
-  previousActive: string | null;
-  /** The selected execution's currently loaded status, absent before its data arrives. */
-  selectedStatus: TestExecution["status"] | undefined;
-  /** What was actually observed for the selected execution on the previous render. */
-  previousSelected: { executionId?: string; status: TestExecution["status"] | undefined } | null;
-};
-
-export type RunControlAvailability = {
-  run: boolean;
-  pause: boolean;
-  resume: boolean;
-  stop: boolean;
-};
-
-/**
- * Which run controls the header shows at all.
- *
- * A wall of unavailable buttons says nothing about a cycle; the controls the
- * lifecycle cannot reach are not dimmed, they are absent, and the overflow
- * menu keeps everything that is not a run control. Pause and Resume are one
- * control that swaps, never two.
- */
-export type RunControlVisibility = {
-  run: boolean;
-  pauseResume: "pause" | "resume" | null;
-  stop: boolean;
-};
-
-/** One entry of a node's "…" menu. */
-export type NodeMenuItem =
-  | "Copy Cycle"
-  | "Add Cases"
-  | "Runtime Policy"
-  | "Follow Active"
-  | "Open Report"
-  | "Archive"
-  | "Unarchive"
-  | "Re-Run";
-
-/** One control of the execution page's page-bar group, in its order. */
-export type ExecutionControl = "Start" | "Re-Run" | "Pause Execution" | "Resume Execution" | "Stop Execution";
-
-/** The page bar's Download Report button as it stands. */
-export type ReportDownloadState = {
-  disabled: boolean;
-  label: "Download Report";
-  title: string;
-};
-
 /* === Constants === */
 
 /**
@@ -181,6 +75,76 @@ const TERMINAL_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Se
 
 /** The cycle states a whole run ends in, and so the ones Run Again follows. */
 const TERMINAL_CYCLE_STATUSES: ReadonlySet<CycleLifecycle> = new Set(["completed", "failed", "stopped", "interrupted"]);
+
+/* === Types === */
+
+export type CycleLifecycle = TestCycle["status"];
+
+export type CaseState = ExecutionQueueItem["status"];
+
+/** A case of the cycle, as the plan's case projection states it. */
+export type CycleCase = {
+  caseId: string;
+  templateId: string;
+  label: string;
+  testCase: TestCase;
+  /** The case's own state, as `CaseSummary` projects it. */
+  status: CaseState;
+  /** Every live execution this case holds, superseded ones included. */
+  attemptCount: number;
+  /** Null where the projection reports none: no menu item is offered then. */
+  actions: CaseActions | null;
+  finished: boolean;
+};
+
+/**
+ * One row of the cycle list: one execution, in cycle order.
+ *
+ * A re-run is a new execution appended to the cycle, so it is a new row at the
+ * end rather than a choice inside an existing one. A case the runtime has not
+ * materialized an execution for still needs a row to show its parameters and
+ * offer Run Case; that row has no execution and is keyed by its case.
+ */
+export type CycleExecutionRow = {
+  /** Unique within the cycle: the execution id, or `case:<caseId>` without one. */
+  key: string;
+  case: CycleCase;
+  execution: TestExecution | null;
+  /** One-based position in the cycle list. */
+  ordinal: number;
+  /** The ordinal of the earlier execution of the same case this one re-runs. */
+  rerunOf: number | null;
+  /** The newest row of its case, which is the one carrying the case's actions. */
+  newest: boolean;
+};
+
+/**
+ * What the URL selects: the cycle itself, an execution, or a case that has
+ * none yet. No field at all is the landing state, which follows the active
+ * execution; `view: "cycle"` is the operator's explicit choice of the cycle.
+ */
+export type CycleSelection = { caseId?: string; executionId?: string; view?: "cycle" };
+
+/** The input `followSelection` decides from. */
+export type FollowState = {
+  selection: CycleSelection;
+  /** The execution the runtime names as running now. */
+  active: string | null;
+  /** The execution it named on the previous render. */
+  previousActive: string | null;
+  /** Whether the selected execution ended since the previous render. */
+  selectedEnded: boolean;
+};
+
+/** One entry of a node's "…" menu. */
+export type NodeMenuItem = "Copy Cycle" | "Add Cases" | "Settings" | "Follow Active" | "Open Report" | "Archive" | "Unarchive" | "Re-Run";
+
+/** The page bar's Download Report button as it stands. */
+export type ReportDownloadState = {
+  disabled: boolean;
+  label: "Download Report";
+  title: string;
+};
 
 /* === Public Functions === */
 
@@ -246,15 +210,6 @@ export function isCycleTerminal(status: CycleLifecycle): boolean {
 }
 
 /**
- * The cases Run Again re-runs: every case the runtime would let schedule a
- * re-run. A projection that states no eligibility offers every case, and the
- * mutation itself refuses.
- */
-export function rerunnableCaseIds(cases: readonly CycleCase[]): string[] {
-  return cases.filter((item) => item.actions === null || item.actions.schedule_rerun).map((item) => item.caseId);
-}
-
-/**
  * Whether `row` offers Run Again: the newest attempt of its case, ended. An
  * earlier attempt is history, and the case's actions live on its newest row.
  */
@@ -282,7 +237,6 @@ export function buildCycleCases(plan: TestCyclePlan | null): CycleCase[] {
       testCase,
       status,
       attemptCount: item?.attempt_count ?? 0,
-      rerunScheduled: item?.rerun_scheduled ?? false,
       actions: item?.actions ?? null,
       finished: isFinishedCase(status),
     };
@@ -352,14 +306,6 @@ export function cycleRowSelection(row: CycleExecutionRow): CycleSelection {
   return row.execution ? { executionId: row.execution.test_execution_id } : { caseId: row.case.caseId };
 }
 
-/**
- * The execution a re-run of `caseId` created: the first of that case that was
- * not known before the re-run was requested.
- */
-export function createdExecutionId(executions: readonly TestExecution[], caseId: string, known: ReadonlySet<string>): string | null {
-  return executions.find((execution) => execution.case_id === caseId && !known.has(execution.test_execution_id))?.test_execution_id ?? null;
-}
-
 /** The pill a row shows: its execution's own status, or its case's without one. */
 export function cycleRowStatus(row: CycleExecutionRow): {
   label: string;
@@ -386,33 +332,19 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
 export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
   const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
-    ? [["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"], ["Open Report"], [archive]]
-    : [["Re-Run"], ["Open Report"], [archive]];
-}
-
-/** Why a node cannot be archived yet, or `undefined` once it can. */
-export function archiveRefusal(terminal: boolean): string | undefined {
-  return terminal ? undefined : "Archiving becomes available once the run has ended.";
+    ? [["Copy Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
+    : [["Re-Run"], ["Open Report", "Settings"], [archive]];
 }
 
 /**
- * The execution page's run controls, in order: Start | Re-Run | Pause or
- * Resume | Stop Execution.
- *
- * Start belongs to an attempt that has not started — planned, or queued and
- * not yet dispatched — and leaves once it runs or ends. Re-Run belongs to an
- * ended attempt; Pause or Resume and Stop to one an execution-addressed run
- * controls, as the runtime's own `controls` admit.
+ * Why a node cannot be archived yet, or `undefined` once it can: a cycle
+ * once it is sealed, an execution once its attempt has ended.
  */
-export function executionControlSet(status: TestExecution["status"], controls: TestExecution["controls"]): ExecutionControl[] {
-  if (isUnstartedExecution(status)) return ["Start"];
-  const set: ExecutionControl[] = [];
-  if (isTerminalExecutionStatus(status) && !controls) set.push("Re-Run");
-  if (controls && (controls.canPause || controls.canResume)) {
-    set.push(controls.paused ? "Resume Execution" : "Pause Execution");
-  }
-  if (controls && (controls.canStop || controls.stopRequested)) set.push("Stop Execution");
-  return set;
+export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution"): string | undefined {
+  if (allowed) return undefined;
+  return subject === "cycle"
+    ? "Archiving becomes available once the cycle is sealed."
+    : "Archiving becomes available once the run has ended.";
 }
 
 /** Download Report waits only for a save already in progress. */
@@ -436,6 +368,34 @@ export function reportFilename(label: string): string {
 /** Whether the cycle is still producing evidence: running, paused or stopping. */
 export function isCycleInFlight(status: CycleLifecycle): boolean {
   return status === "running" || status === "paused" || status === "stopping";
+}
+
+/** Every label `cycleState` gives, longest first; the Status column fits the first. */
+export const CYCLE_STATE_LABELS = ["Active · Waiting", "Active · Running", "Active · Idle", "Sealing", "Sealed"] as const;
+
+export type CycleState = {
+  label: (typeof CYCLE_STATE_LABELS)[number];
+  variant: "default" | "secondary" | "warning" | "outline";
+};
+
+/**
+ * The cycle's own state, as its pill and label say it.
+ *
+ * An Active cycle is Idle, Running or Waiting for an operator; Sealing and
+ * Sealed close it. An execution's outcome never reaches this label: a stopped
+ * or finished run leaves its Active cycle Idle.
+ */
+export function cycleState(phase: TestCycle["phase"], lifecycle: CycleLifecycle, waiting: boolean): CycleState {
+  if (phase === "sealing") return { label: "Sealing", variant: "warning" };
+  if (phase === "sealed") return { label: "Sealed", variant: "secondary" };
+  if (waiting) return { label: "Active · Waiting", variant: "warning" };
+  if (isCycleInFlight(lifecycle)) return { label: "Active · Running", variant: "default" };
+  return { label: "Active · Idle", variant: "outline" };
+}
+
+/** Whether the cycle has closed: prompts end with it, and only a sealed cycle archives. */
+export function isCycleSealed(phase: TestCycle["phase"]): boolean {
+  return phase === "sealed";
 }
 
 export function cycleStatusLabel(status: CycleLifecycle): string {
@@ -535,45 +495,6 @@ export function executionStatusVariant(
 }
 
 /**
- * Which run control the cycle's lifecycle allows.
- *
- * Start needs a case the runtime would admit, so a finished cycle whose
- * cases all ended — or one whose cases the runtime refuses — offers nothing to
- * start. Pause, Resume and Stop stay the lifecycle's own: they act on the
- * cycle, not on a case, and no case projection speaks for them.
- */
-export function runControlAvailability(status: CycleLifecycle, startableCases: number): RunControlAvailability {
-  switch (status) {
-    case "running":
-      return { run: false, pause: true, resume: false, stop: true };
-    case "paused":
-      return { run: false, pause: false, resume: true, stop: true };
-    case "stopping":
-      return { run: false, pause: false, resume: false, stop: false };
-    default:
-      return { run: startableCases > 0, pause: false, resume: false, stop: false };
-  }
-}
-
-/**
- * Which run controls the cycle's lifecycle shows.
- *
- * Start appears exactly when it would work, or when the runtime has a
- * reason it would not. A cycle with no queued case needs cases, not a dead
- * Run, so the control is absent rather than dimmed; a cycle with queued cases
- * the runtime refuses keeps it, disabled, carrying that refusal — which is the
- * explanation a hidden button cannot give.
- */
-export function runControlVisibility(status: CycleLifecycle, startableCases: number, refused = false): RunControlVisibility {
-  const lifecycleOffersRun = !isCycleInFlight(status);
-  return {
-    pauseResume: status === "running" ? "pause" : status === "paused" ? "resume" : null,
-    run: runControlAvailability(status, startableCases).run || (lifecycleOffersRun && refused),
-    stop: status === "running" || status === "paused",
-  };
-}
-
-/**
  * The cases the cycle still owes, as the runtime states them.
  *
  * PLANNED is a case with no attempt at all and QUEUED one whose attempt is
@@ -591,20 +512,6 @@ export function isQueuedCase(item: CycleCase): boolean {
 }
 
 /**
- * The cases Start would actually start.
- *
- * Eligibility is the runtime's own: `CaseActions.run` is computed from the
- * same checks RunCase enforces, so a case whose provider has gone away does
- * not keep the button alive. A projection that reports no eligibility at all —
- * a captured cycle grouping — has only its case states to go on, and there the
- * queued projection is the whole statement.
- */
-export function startableCaseCount(cases: readonly CycleCase[]): number {
-  if (!cases.some((item) => item.actions !== null)) return queuedCaseCount(cases);
-  return cases.reduce((total, item) => total + (item.actions?.run ? 1 : 0), 0);
-}
-
-/**
  * Why the runtime would refuse this case's mutations, as one tooltip.
  *
  * `unavailable_reasons` is diagnostic copy the runtime deduplicated for the
@@ -614,20 +521,6 @@ export function startableCaseCount(cases: readonly CycleCase[]): number {
 export function caseActionTooltip(item: CycleCase): string | undefined {
   const reasons = item.actions?.unavailable_reasons ?? [];
   return reasons.length ? reasons.join(" ") : undefined;
-}
-
-/**
- * Why Start would do nothing, when the cycle still owes cases.
- *
- * A cycle with queued work whose every case the runtime refuses is the one
- * place the header has something to explain: hiding the control there would
- * drop the explanation with it, so the button stays and says why. A cycle with
- * nothing queued owes nothing and needs no reason.
- */
-export function cycleRunRefusal(cases: readonly CycleCase[]): string | null {
-  if (startableCaseCount(cases) > 0) return null;
-  const reasons = [...new Set(cases.filter((item) => isQueuedCase(item)).flatMap((item) => item.actions?.unavailable_reasons ?? []))];
-  return reasons.length ? reasons.join(" ") : null;
 }
 
 /** What a case's state is called. A captured grouping states nothing. */

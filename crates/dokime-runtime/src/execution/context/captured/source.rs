@@ -36,6 +36,7 @@ use dokime_domain::model::identity::NodeId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CapturedSource {
@@ -57,6 +58,7 @@ pub(crate) struct CapturedSource {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl MemorySize for CapturedSource {
     fn memory_size(&self) -> usize {
         let fields = [

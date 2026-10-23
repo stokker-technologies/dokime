@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -23,6 +24,7 @@
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T> = crate::Result<T>;
 
 /* === Structs === */
@@ -40,6 +42,7 @@ pub enum DocumentFailure {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl From<dokime_domain::Error> for DocumentFailure {
     fn from(source: dokime_domain::Error) -> Self {
         Self::InvalidIdentifier { source }

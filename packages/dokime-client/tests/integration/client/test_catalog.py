@@ -17,7 +17,7 @@ import asyncio
 import pytest
 
 # Local Imports
-from dokime_client.client import ProtocolError
+from dokime_client.client import ProtocolError, RpcError
 
 from .backend import SUITE_ID, TEMPLATE, TEMPLATE_ID, serve
 from .canonical import _message
@@ -45,8 +45,8 @@ def test_readable_catalog() -> None:
             assert (await client.suite(SUITE_ID)).templates[0].id == TEMPLATE
 
             # The Registered UUID Is Wire Identity, Never A Template Reference
-            with pytest.raises(ValueError):
-                await client.new_cycle(suite=SUITE_ID, template=TEMPLATE_ID)
+            with pytest.raises(RpcError, match="template not found"):
+                await client.template(TEMPLATE_ID)
             assert server.append_calls == 0
             assert server.created == server.run_calls == 0
 

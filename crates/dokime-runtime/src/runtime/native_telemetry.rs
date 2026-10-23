@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+
 // Third Party Imports
+use harmos::schema::Validator;
 
 // Local Imports
 use super::RuntimeHandle;
@@ -25,17 +28,18 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use harmos::schema::Validator;
 
 /* === Constants === */
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(super) type Subscriptions =
     Vec<Pin<Box<dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>> + Send>>>;
 
 /* === Structs === */
+
 #[derive(Default)]
 pub(super) struct Decoder {
     descriptors: BTreeMap<(String, u32), Validator>,
@@ -60,6 +64,7 @@ pub(crate) struct Admission {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Executions {
     pub(crate) fn admit(
         &self, owner: &str, token: &str, scope: RecordScope, streams: impl IntoIterator<Item = Identifier>,
@@ -236,6 +241,7 @@ impl Decoder {
 }
 
 /* === Public Functions === */
+
 pub(super) fn validate(artifact: &crate::InstalledPlugin, streams: &[harmos::sidecar::StreamDeclaration]) -> Result<(), String> {
     let contracts = artifact.telemetry_contracts.iter().chain(artifact.suites.suites.iter().flat_map(|suite| &suite.telemetry_contracts));
     for contract in contracts.filter(|contract| !contract.foreign) {
@@ -329,6 +335,7 @@ pub(super) async fn incomplete(handle: &RuntimeHandle, owner: &str, stream: &Ide
 }
 
 /* === Private Functions === */
+
 async fn refuse(handle: &RuntimeHandle, owner: &str, stream: &Identifier, scope: Option<&RecordScope>, reason: &str) {
     if let Some(scope) = scope {
         handle.refuse_execution_stream(stream, scope, owner, reason).await;

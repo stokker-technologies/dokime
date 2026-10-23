@@ -8,12 +8,14 @@
  */
 
 /* === Modules === */
+
 mod fields;
 mod groups;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -48,6 +50,7 @@ use groups::Groups;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) async fn evaluate(storage: &super::executions::ExecutionStorage, query: &AggregateQuery) -> Result<AggregateOutcome> {
     native_aggregate(&storage.storage, query).await
 }
@@ -105,6 +108,7 @@ pub(crate) async fn native_aggregate(storage: &Manager, query: &AggregateQuery) 
 }
 
 /* === Private Functions === */
+
 async fn latest<T>(storage: &Manager) -> Result<Vec<T>>
 where
     T: harmos::storage::StoredObject,

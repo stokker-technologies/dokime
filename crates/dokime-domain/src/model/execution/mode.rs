@@ -32,11 +32,13 @@ use crate::model::identity::StepId;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionMode {
     #[default]
     Automatic,
+
     Interactive,
 }
 
@@ -51,6 +53,7 @@ pub enum StepCommand {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionMode {
     pub const fn as_str(self) -> &'static str {
         match self {

@@ -12,59 +12,79 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc, time::Duration};
+
 // Third Party Imports
+use harmos::storage::StorageSettings;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::Dokime;
 use crate::InstalledPlugin;
 use crate::domains::ActionDispatcher;
-use dokime_domain::model::credentials::CredentialBackendKind;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
-use harmos::storage::StorageSettings;
+use dokime_domain::model::secrets::SecretBackendKind;
 
 /* === Constants === */
+
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
 
+pub type InstalledSidecar = harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
 pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::services::Service<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
 
 /* === Structs === */
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     pub session_id: SessionId,
     pub storage_root: PathBuf,
     pub application_root: PathBuf,
+
     #[serde(default = "crate::config::storage_defaults")]
     pub storage: StorageSettings,
+
     #[serde(default = "default_compaction_interval")]
     pub compaction_interval: Duration,
+
     #[serde(default)]
     pub local_retention: Option<Duration>,
+
     pub hub_metadata: Metadata,
-    pub credential_backend: RuntimeCredentialConfig,
+    pub secret_backend: RuntimeSecretConfig,
+
+    #[cfg(feature = "fault-injection")]
+    #[serde(skip)]
+    pub(crate) secret_test_store: Option<crate::secrets::TestStore>,
+
     // A trusted bench is an isolated network where plain FTP sources are accepted.
     #[serde(default)]
     pub trusted_bench: bool,
+
     #[serde(skip)]
     pub installed_plugins: Vec<InstalledPlugin>,
+
     #[serde(default)]
     pub plugins: Vec<crate::plugins::PluginBundle>,
+
     #[serde(default)]
     pub plugin_lookup: Option<PathBuf>,
+
     #[serde(skip)]
     pub(crate) action_dispatchers: BTreeMap<dokime_domain::model::identity::Identifier, Arc<dyn ActionDispatcher>>,
+
     #[serde(skip)]
     pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RuntimeCredentialConfig {
-    pub backend: CredentialBackendKind,
+pub struct RuntimeSecretConfig {
+    pub backend: SecretBackendKind,
+
     #[serde(default)]
     pub local_file: Option<PathBuf>,
 }
@@ -74,6 +94,7 @@ pub struct RuntimeCredentialConfig {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeConfig {
     pub fn new(storage_root: impl Into<PathBuf>, hub_metadata: Metadata) -> Self {
         let storage_root = storage_root.into();
@@ -86,7 +107,10 @@ impl RuntimeConfig {
             // shells always name a separate application root.
             application_root: storage_root.join("application"),
             hub_metadata,
-            credential_backend: RuntimeCredentialConfig::default(),
+            secret_backend: RuntimeSecretConfig::default(),
+
+            #[cfg(feature = "fault-injection")]
+            secret_test_store: None,
             trusted_bench: false,
             installed_plugins: Vec::new(),
             plugins: Vec::new(),
@@ -107,8 +131,14 @@ impl RuntimeConfig {
         self
     }
 
-    pub fn with_credential_backend(mut self, backend: RuntimeCredentialConfig) -> Self {
-        self.credential_backend = backend;
+    pub fn with_secret_backend(mut self, backend: RuntimeSecretConfig) -> Self {
+        self.secret_backend = backend;
+        self
+    }
+
+    #[cfg(feature = "fault-injection")]
+    pub fn with_test_secret_store(mut self, store: crate::SecretTestStore) -> Self {
+        self.secret_test_store = Some(store);
         self
     }
 
@@ -163,7 +193,7 @@ impl fmt::Debug for RuntimeConfig {
             .field("storage", &self.storage)
             .field("application_root", &self.application_root)
             .field("hub_metadata", &self.hub_metadata)
-            .field("credential_backend", &self.credential_backend)
+            .field("secret_backend", &self.secret_backend)
             .field("installed_plugins", &self.installed_plugins)
             .field("plugins", &self.plugins)
             .field("action_dispatchers", &self.action_dispatchers.keys().collect::<Vec<_>>())
@@ -171,15 +201,16 @@ impl fmt::Debug for RuntimeConfig {
     }
 }
 
-impl Default for RuntimeCredentialConfig {
+impl Default for RuntimeSecretConfig {
     fn default() -> Self {
-        Self { backend: CredentialBackendKind::OsKeyring, local_file: None }
+        Self { backend: SecretBackendKind::OsKeyring, local_file: None }
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn default_compaction_interval() -> Duration {
     Duration::from_secs(24 * 60 * 60)
 }

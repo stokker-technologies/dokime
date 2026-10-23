@@ -12,10 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 // Local Imports
@@ -38,6 +38,7 @@ use dokime_domain::state::records::set::TestRecordSet;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Set {
@@ -231,6 +232,7 @@ impl serde::Serialize for Set {
         records.serialize(serializer)
     }
 }
+
 impl<'de> serde::Deserialize<'de> for Set {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let records = <TestRecordSet as serde::Deserialize>::deserialize(deserializer)?;
@@ -273,6 +275,7 @@ impl Health {
         .fold(std::mem::size_of::<HealthItem>(), usize::saturating_add)
     }
 }
+
 impl TryFrom<&HealthItem> for Health {
     type Error = Error;
     fn try_from(value: &HealthItem) -> Result<Self> {
@@ -289,6 +292,7 @@ impl TryFrom<&HealthItem> for Health {
         })
     }
 }
+
 impl TryFrom<Health> for HealthItem {
     type Error = Error;
     fn try_from(value: Health) -> Result<Self> {
@@ -311,6 +315,7 @@ impl TryFrom<Health> for HealthItem {
         })
     }
 }
+
 impl Note {
     pub fn encoding_memory(value: &OperatorNote) -> Result<usize> {
         value.created_at.to_datetime()?;
@@ -345,6 +350,7 @@ impl Note {
         .fold(std::mem::size_of::<OperatorNote>(), usize::saturating_add)
     }
 }
+
 impl TryFrom<&OperatorNote> for Note {
     type Error = Error;
     fn try_from(value: &OperatorNote) -> Result<Self> {
@@ -360,6 +366,7 @@ impl TryFrom<&OperatorNote> for Note {
         })
     }
 }
+
 impl TryFrom<Note> for OperatorNote {
     type Error = Error;
     fn try_from(value: Note) -> Result<Self> {
@@ -380,6 +387,7 @@ impl TryFrom<Note> for OperatorNote {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn severity(value: &HealthSeverity) -> &'static str {
     match value {
         HealthSeverity::Info => "info",

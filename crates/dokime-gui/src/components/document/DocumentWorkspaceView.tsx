@@ -17,10 +17,10 @@ import { useReportDefaults } from "@/lib/application-settings";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import { useLivePlotPayloads } from "@/plots/live-data";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
-import { PlotSettingsEditorContext, type PlotDisplaySettings } from "@/plots/plot-settings";
+import { type PlotDisplaySettings, PlotSettingsEditorContext } from "@/plots/plot-settings";
 import { DocumentCardContent } from "./DocumentSurface";
-import { isDocumentSurfaceCard } from "./document-surface-policy";
 import { DocumentWorkspacePresentation, type DocumentWorkspaceViewProps, visibleDocumentPlots } from "./DocumentWorkspacePresentation";
+import { isDocumentSurfaceCard } from "./document-surface-policy";
 
 /* === Components === */
 export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {

@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, path::PathBuf};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
 // Local Imports
 
 /* === Constants === */
@@ -26,21 +29,26 @@ use uuid::Uuid;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginBundle {
     pub path: PathBuf,
+
     #[serde(default)]
     pub programs: BTreeMap<String, serde_json::Value>,
+
     #[serde(default)]
     pub provenance: PluginProvenance,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PluginProvenance {
     #[default]
     Configured,
+
     Installed {
         install_id: Uuid,
         sha256: String,
@@ -50,6 +58,7 @@ pub enum PluginProvenance {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PluginBundle {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into(), programs: BTreeMap::new(), provenance: PluginProvenance::Configured }
@@ -66,6 +75,7 @@ impl PluginBundle {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn empty_object() -> serde_json::Value {
     serde_json::Value::Object(Default::default())
 }

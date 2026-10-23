@@ -49,11 +49,23 @@ def test_external_operation(mode: str) -> None:
         server = grpc.aio.server()
         register(server, backend)
         transmitted = []
+        native_available = False
 
         async def discovery(request, context):
+            native = copy.deepcopy(contract)
+            native.pop("grpc")
+            native["operation"]["id"] = "external.fixture.native_only"
             return dokime_client.HOST_CATALOG.response(
                 entries=json.dumps(
                     [
+                        {
+                            "owner": "external.fixture",
+                            "generation": 7,
+                            "contract": native,
+                            "grants": [],
+                            "conditional_access": False,
+                            "grpc_available": native_available,
+                        },
                         {
                             "owner": "external.fixture",
                             "generation": 7,
@@ -61,7 +73,7 @@ def test_external_operation(mode: str) -> None:
                             "grants": [],
                             "conditional_access": True,
                             "grpc_available": True,
-                        }
+                        },
                     ]
                 ).encode()
             )
@@ -129,6 +141,12 @@ def test_external_operation(mode: str) -> None:
         await server.start()
         client = DokimeClient(f"http://127.0.0.1:{port}")
         try:
+            providers = await client.operations()
+            assert [item.operation.id for item in providers] == ["external.fixture.invoke"]
+            native_available = True
+            with pytest.raises(ProtocolError):
+                await client.operations()
+            native_available = False
             provider = await client.show("external.fixture.invoke")
             assert provider.owner == "external.fixture" and provider.generation == 7
             assert provider.conditional_access

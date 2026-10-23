@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Serialize;
+
 // Local Imports
-use crate::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
+use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
 
 /* === Constants === */
 
@@ -26,6 +28,7 @@ use crate::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget}
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopLaunch {
@@ -42,6 +45,7 @@ pub struct DesktopLaunch {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // A command line names an attach target or nothing; the owned local backend
 // is the default and shared profiles are selected from the desktop session.
 pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<ConnectRequest>, String> {
@@ -83,7 +87,7 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<Conne
                 .map_err(|_| "Invalid native backend endpoint".to_owned())?;
             Ok(Some(ConnectRequest {
                 target,
-                credentials: if remote { ConnectionCredentials::Saved } else { ConnectionCredentials::None },
+                secrets: if remote { ConnectionSecrets::Saved } else { ConnectionSecrets::None },
                 expected_backend_id: backend_id,
             }))
         }

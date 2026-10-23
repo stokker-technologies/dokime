@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -23,18 +24,20 @@
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("bench")]
     Bench(#[from] crate::bench::BenchError),
 
     #[error("dokime sdk: {0}")]
-    Sdk(#[from] dokime_runtime::Error),
+    Sdk(#[from] dokime::Error),
 
     #[error("evidence file")]
     Artifact(#[from] std::io::Error),
@@ -49,7 +52,8 @@ pub enum Error {
 /* === Traits === */
 
 /* === Implementations === */
-impl From<Error> for dokime_runtime::domains::ActionDispatcherError {
+
+impl From<Error> for dokime::domains::ActionDispatcherError {
     fn from(error: Error) -> Self {
         Self::Refused { code: -32_000, message: error.to_string() }
     }

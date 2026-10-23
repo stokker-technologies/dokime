@@ -12,15 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, io::Write};
+
 // Third Party Imports
 use serde::{Deserialize, Serialize, ser::SerializeMap};
+
 // Local Imports
 use crate::records::RecordContract;
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
+
 const MAX_CONTRACTS: usize = 4096;
 const MAX_BYTES: usize = 4 * 1024 * 1024;
 
@@ -29,6 +33,7 @@ const MAX_BYTES: usize = 4 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub(super) struct RecordHistory(BTreeMap<Identifier, BTreeMap<u32, RecordContract>>);
 
@@ -49,6 +54,7 @@ struct SerializedBytes {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Redefinition {
     Refuse,
@@ -58,6 +64,7 @@ pub(crate) enum Redefinition {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordHistory {
     pub(super) fn from_contracts(contracts: BTreeMap<Identifier, BTreeMap<u32, RecordContract>>) -> Self {
         Self(contracts)

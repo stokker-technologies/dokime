@@ -14,6 +14,7 @@
 
 /* === Modules === */
 
+mod cycle_restart;
 mod engine;
 mod services;
 

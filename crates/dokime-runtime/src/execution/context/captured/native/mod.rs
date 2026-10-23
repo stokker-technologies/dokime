@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod appearance;
 pub(crate) mod context;
 pub(crate) mod records;
@@ -35,6 +36,7 @@ pub(crate) mod telemetry;
 /* === Enums === */
 
 /* === Traits === */
+
 /* === Implementations === */
 
 /* === Public Functions === */

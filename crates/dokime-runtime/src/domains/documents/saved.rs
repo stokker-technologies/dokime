@@ -41,6 +41,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct SavedOutputs {
     storage: Manager,
     revision: ObjectRevision<TestExecution>,
@@ -56,6 +57,7 @@ pub(crate) struct SavedOutputFile {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SavedOutputs {
     pub(crate) async fn open(storage: &Manager, id: &TestExecutionId, checkpoint: Option<&ExecutionCheckpoint>) -> Result<Option<Self>> {
         let version = match checkpoint {
@@ -153,6 +155,7 @@ impl SavedOutputFile {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn entry(id: &TestExecutionId, output: &ExecutionOutput) -> harmos::Result<ExecutionFileEntry> {
     let artifact_id = match &output.content {
         ExecutionOutputContent::Artifact { record, .. } => record.artifact_id.as_str().to_owned(),
@@ -170,6 +173,7 @@ pub(crate) fn entry(id: &TestExecutionId, output: &ExecutionOutput) -> harmos::R
 }
 
 /* === Private Functions === */
+
 fn state(output: &ExecutionOutput) -> ExecutionFileStreamState {
     match output.stream_state {
         Some(SavedStreamState::Interrupted) => ExecutionFileStreamState::Interrupted,

@@ -31,6 +31,7 @@ conventional_commits = true
 filter_unconventional = true
 split_commits = false
 commit_parsers = [
+  { message = '^chore\(release\): prepare v[0-9]+\.[0-9]+\.[0-9]+$', skip = true },
   { message = "^feat", group = "added" },
   { message = "^fix", group = "fixed" },
   { message = "^docs", group = "changed" },

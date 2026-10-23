@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { recordMessage, recordTitle } from "@/lib/dashboard";
 import { recordClockLabel, recordLevelLabel, recordLevelVariant, recordToneRowClass } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
+import { useRowWindow } from "@/lib/use-row-window";
 import { cn } from "@/lib/utils";
 
 /* === Constants === */
@@ -95,6 +96,7 @@ export function RecordTimeline({
         );
       });
   }, [recordType, records, query]);
+  const rowWindow = useRowWindow(visibleRecords.length);
 
   return (
     <>
@@ -150,12 +152,22 @@ export function RecordTimeline({
              one line; opening it shows the whole record in the dialog. */
           /* The Records card already owns the only border around this list;
              a second one here would be a card inside a card. */
-          <ol className="grid border-t" data-testid="record-rows">
-            {visibleRecords.map((record) => {
+          <ol
+            className="grid border-t"
+            data-testid="record-rows"
+            ref={(node) => {
+              rowWindow.anchor.current = node;
+            }}
+          >
+            {rowWindow.window.before > 0 ? <li aria-hidden style={{ height: rowWindow.window.before }} /> : null}
+            {visibleRecords.slice(rowWindow.window.first, rowWindow.window.last).map((record, index) => {
               return (
                 <li
                   className={cn("border-b border-l-2 border-b-border/60 last:border-b-0", recordToneRowClass(record.display.tone))}
                   key={record.record_id}
+                  data-window-row={rowWindow.window.first + index}
+                  aria-posinset={rowWindow.window.first + index + 1}
+                  aria-setsize={visibleRecords.length}
                 >
                   <button
                     aria-haspopup="dialog"
@@ -179,6 +191,7 @@ export function RecordTimeline({
                 </li>
               );
             })}
+            {rowWindow.window.after > 0 ? <li aria-hidden style={{ height: rowWindow.window.after }} /> : null}
           </ol>
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">

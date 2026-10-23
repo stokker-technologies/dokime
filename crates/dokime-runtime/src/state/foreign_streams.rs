@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@ use crate::telemetry::TelemetryContract;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn declares_foreign_view(contract: &TelemetryContract) -> bool {
     contract.foreign
 }

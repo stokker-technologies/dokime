@@ -12,8 +12,6 @@
 
 # Standard Library Imports
 import asyncio
-import base64
-import json
 from pathlib import Path
 from typing import Any
 
@@ -21,9 +19,9 @@ from typing import Any
 import pytest
 
 # Local Imports
-from dokime_client.client import Capture, ExecutionEvidence, ProtocolError, RpcError
+from dokime_client.client import ExecutionEvidence, ProtocolError, RpcError
 
-from .backend import EXECUTION_ID, SUITE_ID, TEMPLATE
+from .backend import SUITE_ID, TEMPLATE, collect, prepare
 from .capture_backend import serve
 
 # Type Checking Imports
@@ -39,62 +37,63 @@ from .capture_backend import serve
 # === Public Functions === #
 
 
-def test_capture_execution(tmp_path: Path) -> None:
-    parameters = tmp_path / "parameters.json"
-    parameters.write_text('{"array":[1,2],"voltage":230}', encoding="utf-8")
-    root = tmp_path / "capture"
-
+def test_saved_execution_evidence(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
-            capture = await Capture.prepare(
-                client,
-                output=root,
-                suite=SUITE_ID,
-                template=TEMPLATE,
-                parameters=json.loads(parameters.read_text(encoding="utf-8")),
-            )
-            request = await capture.start()
-            backend.bad_report = "hash"
-            with pytest.raises(ProtocolError):
-                await capture.collect(request)
-            assert not (root / "report.html").exists()
-            assert not json.loads((root / "capture.json").read_text())["complete"]
-            assert backend.created == 1
+            cycle = await prepare(client, parameters={"array": [1, 2], "voltage": 230})
+            execution = cycle.executions[0]
+            records = []
+            samples = []
+
+            async def record_received(record) -> None:
+                records.append(record)
+
+            async def sample_received(sample) -> None:
+                samples.append(sample)
+
+            outcome = await execution.run(on_record=record_received, on_sample=sample_received)
+            assert outcome.status == "passed"
+            assert [record.type for record in records] == ["fixture.finished"]
+            assert len(samples) == 2
+            cycle_records = await collect(cycle.records())
+            assert len(cycle_records) == 2
+            assert any(not record.scope.get("execution_id") for record in cycle_records)
             assert len(backend.overrides["array"].values) == 1
-            backend.bad_report = ""
-            recovered = await Capture.open(client, output=root)
-            result = await recovered.collect(await recovered.start())
-            assert result.result.status == "passed"
-            assert backend.created == backend.run_calls == 1
-            state = json.loads((root / "capture.json").read_text())
-            assert state["complete"]
-            assert base64.b64decode(state["checkpoints"][0]["version"], validate=True) == backend.point.version
-            assert (root / "report.html").read_bytes() == backend.html
-            execution_root = root / "executions" / EXECUTION_ID
-            captured = json.loads((execution_root / "execution.json").read_text())
-            definition = captured["snapshot"]["case_definition"]
+            evidence = ExecutionEvidence(execution._transport, outcome.checkpoint, execution._backend)
+            document = await evidence.document()
+            definition = document["snapshot"]["case_definition"]
             assert definition["case_id"] == "captured-case"
             assert definition["template_id"] == "captured-template"
             assert definition["generation_index"] == "9007199254740993"
             assert definition["parameters"][0]["value"]["nodes"][0]["kind"]["Number"]["field_0"] == 230
-            assert captured["snapshot"]["host_version"] == "captured-version"
-            records = [json.loads(row) for row in (execution_root / "records.jsonl").read_text().splitlines()]
-            samples = [json.loads(row) for row in (execution_root / "streams.jsonl").read_text().splitlines()]
-            assert len(records) == 1
-            assert records[0]["epoch"]
-            assert records[0]["record"]["scope"]["execution_id"]
-            assert len(samples) == 2
-            live_records = [json.loads(row) for row in (root / "records.jsonl").read_text().splitlines()]
-            assert len(live_records) == 2
-            assert any(not item["scope"].get("execution_id") for item in live_records)
-            assert len((root / "streams.jsonl").read_text().splitlines()) == 2
-            assert samples[-1]["sample"]["values"]["voltage"] == 232
-            trace = json.loads((execution_root / "traceability.json").read_text())
-            assert trace[0]["entries"][0]["value"] == "frozen-serial"
-            assert trace[0]["entries"][0]["source"] == "device"
-            assert (execution_root / "artifacts/artifact-1").read_bytes() == backend.attachment
-            assert not (root / "escape.txt").exists()
-            assert not list(root.rglob("*.part"))
+            assert document["snapshot"]["host_version"] == "captured-version"
+            saved_records = await collect(evidence.records())
+            saved_samples = await collect(evidence.samples())
+            assert len(saved_records) == 1
+            assert saved_records[0].epoch
+            assert saved_records[0].record.scope["execution_id"] == execution.id
+            assert len(saved_samples) == 2
+            assert saved_samples[-1].sample.values["voltage"] == 232
+            trace = await evidence.traceability()
+            assert trace[0].entries[0].value == "frozen-serial"
+            assert trace[0].entries[0].source == "device"
+            (artifact,) = await evidence.artifacts()
+            attachment = await evidence.download_artifact(artifact, tmp_path / "attachment")
+            assert attachment.path.read_bytes() == backend.attachment
+            assert not (tmp_path / "escape.txt").exists()
+
+            # Failed Transfer Preserves Output; Retrying Only Downloads Saved Bytes
+            path = tmp_path / "report.html"
+            path.write_bytes(b"previous report")
+            backend.bad_report = "hash"
+            with pytest.raises(ProtocolError):
+                await cycle.download_report(path)
+            assert path.read_bytes() == b"previous report"
+            backend.bad_report = ""
+            saved = await cycle.download_report(path)
+            assert saved.path.read_bytes() == backend.html
+            assert backend.created == backend.run_calls == 1
+            assert not list(tmp_path.rglob("*.part"))
 
     asyncio.run(scenario())
 
@@ -102,8 +101,8 @@ def test_capture_execution(tmp_path: Path) -> None:
 def test_download_partial(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (_, client):
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            await run_cycle.run(request_key="key")
+            run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            await run_cycle.executions[0].run()
             path = tmp_path / "report.html"
             partial = tmp_path / "report.html.part"
             path.write_text("previous report")
@@ -119,8 +118,8 @@ def test_download_partial(tmp_path: Path) -> None:
 def test_cancelled_download(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            await run_cycle.run(request_key="key")
+            run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            await run_cycle.executions[0].run()
             backend.bad_report = "stall"
             path = tmp_path / "report.html"
             path.write_text("previous successful report")
@@ -144,8 +143,8 @@ def test_cancelled_download(tmp_path: Path) -> None:
 def test_download_transfer(tmp_path: Path, failure: str) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            await run_cycle.run(request_key="key")
+            run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            await run_cycle.executions[0].run()
             backend.bad_report = failure
             path = tmp_path / "report.html"
             path.write_text("previous successful report")
@@ -157,21 +156,15 @@ def test_download_transfer(tmp_path: Path, failure: str) -> None:
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("payload", [[], {"bad": float("nan")}, {"bad": float("inf")}])
+@pytest.mark.parametrize("payload", [[], {1: "bad"}, {"bad": float("nan")}, {"bad": float("inf")}, {"nested": [float("-inf")]}])
 def test_params_mutation(tmp_path: Path, payload: Any) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
-            output = tmp_path / "capture"
+            template = await client.template(TEMPLATE)
             with pytest.raises(ValueError):
-                await Capture.prepare(
-                    client,
-                    output=output,
-                    suite=SUITE_ID,
-                    template=TEMPLATE,
-                    parameters=payload,
-                )
+                await template.materialize(parameters=payload)
             assert backend.created == backend.run_calls == 0
-            assert not output.exists()
+            assert backend.materialize_calls == 0
 
     asyncio.run(scenario())
 
@@ -179,9 +172,8 @@ def test_params_mutation(tmp_path: Path, payload: Any) -> None:
 def test_history_refused() -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
-            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
-            run = await run_cycle.run(request_key="key")
-            await run.wait()
+            run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
+            await run_cycle.executions[0].run()
             (handle,) = run_cycle.executions
             point = await handle.checkpoint()
             assert point is not None

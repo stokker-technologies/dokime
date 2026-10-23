@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -34,6 +35,7 @@ use crate::InstalledPlugin;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn builtin_plugins() -> Vec<InstalledPlugin> {
     vec![dokime_host::installed_plugin()]
 }

@@ -8,14 +8,16 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
+pkg-fmt = "bin"
+
 [dependencies]
 # Local
-dokime-domain = { version = "0.1.0", path = "../dokime-domain" }
+dokime = { workspace = true, features = ["terminal"] }
 dokime-packaging = { version = "0.1.0", path = "../dokime-packaging" }
-dokime = { version = "0.1.0", path = "../dokime" }
 
 # Git
-harmos = { workspace = true, features = ["plugin"] }
 harmos-packaging = { workspace = true }
 
 # Error Handling

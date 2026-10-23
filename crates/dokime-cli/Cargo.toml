@@ -6,121 +6,80 @@
 #
 # ***
 
-# === Package === #
-
 [package]
 name = "dokime-cli"
-version.workspace = true
+publish = false
 edition.workspace = true
 rust-version.workspace = true
-description = "Dokime command-line executable."
+description.workspace = true
 license.workspace = true
 repository.workspace = true
-publish = false
+version = { workspace = true }
 
-# === Package Targets === #
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
+pkg-fmt = "bin"
+
+[dependencies]
+# Local
+dokime = { workspace = true, features = ["client", "terminal", "diagnostics"] }
+
+# Git
+harmos-packaging = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utilities
+sha2 = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+clap = { workspace = true }
+dotenv = { workspace = true }
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# UI
+anstream = { workspace = true }
+anstyle = { workspace = true }
+indicatif = { workspace = true }
 
 [[bin]]
 name = "dokime"
 path = "src/main.rs"
 doc = false
 
-# === Features === #
-
-# === Dependencies === #
-
-[dependencies]
-# Local
-dokime = { version = "0.1.0", path = "../dokime" }
-dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
-
-# Git
-
-# Error Handling
-
-# Logging
-
-# Utilities
-
-# Serialization
-
-# Configuration
-clap = { workspace = true }
-
-# Filesystem
-
-# Parsing
-
-# Concurrency
-
-# Async
-tokio = { workspace = true }
-
-# Networking
-
-# Storage
-
-# UI
-
-# Testing
-
-# === Build Dependencies === #
-
-# === Dev Dependencies === #
-
 [dev-dependencies]
 # Local
-dokime-client = { path = "../dokime-client" }
+dokime = { workspace = true, features = ["plugin-sidecar"] }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
-# Error Handling
-
-# Logging
-
 # Utilities
-sha2 = { workspace = true }
-
-# Serialization
-serde_json = { workspace = true }
-
-# Configuration
+time = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
 
-# Parsing
-
-# Concurrency
-
-# Async
-
 # Networking
 tonic = { workspace = true }
-
-# Storage
 
 # UI
 portable-pty = { workspace = true }
 
 # Testing
-
-# === Target Dependencies === #
-
-# === Test Targets === #
-
-# === Bench Targets === #
-
-# === Example Targets === #
-
-# === Workspace Lints === #
-
-# === Lints === #
-
-# === Profiles === #
-
-# === Patches === #
-
-# === Other === #
+criterion = { workspace = true }

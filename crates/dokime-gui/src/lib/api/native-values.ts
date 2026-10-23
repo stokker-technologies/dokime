@@ -11,22 +11,22 @@
 
 /* === External Imports === */
 
-import type { Value as SerializedValue } from "@/lib/document-contracts";
-import { isDatetimeValue } from "@/lib/record-display";
-import type { Wire } from "@/lib/rpc/canonical";
-import type { ElapsedUnit, JsonObject, RecordScope, Severity, ValueFormat } from "@/lib/types";
 import type {
   Row107 as NativeElapsed,
   Row19 as NativeFormat,
   Row4 as NativeSeverity,
   Row16 as NativeValueType,
-} from "../../../.generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb";
+} from "@generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb";
 import type {
   Row6 as NativeMetadata,
   Row11 as NativeTimestamp,
   Row19 as NativeValue,
-} from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row4 as NativeScope } from "../../../.generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
+} from "@generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row4 as NativeScope } from "@generated/dokime/v1/ExecutionMessages/GetExecution/messages_pb";
+import type { Value as SerializedValue } from "@/lib/document-contracts";
+import { isDatetimeValue } from "@/lib/record-display";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { ElapsedUnit, JsonObject, RecordScope, Severity, ValueFormat } from "@/lib/types";
 
 type Value = Wire<NativeValue>;
 type Metadata = Wire<NativeMetadata>;
@@ -40,7 +40,10 @@ type NativeElapsedUnit = Wire<NativeElapsed>;
 
 /** The native planning contract rejects selections above this bound. */
 export const NATIVE_CASE_LIMIT = 1_000;
-export const NATIVE_PAGE_SIZE = 100;
+/** The cursor-paged lists' cap (`wire_cursor::MAX_PAGE_ITEMS`): cycles, cases, executions, steps, prompts, catalog. */
+export const NATIVE_PAGE_SIZE = 500;
+/** The annotation and plugin lists keep their own cap of 100 items per page. */
+export const NATIVE_SMALL_PAGE_SIZE = 100;
 export const NATIVE_MAX_PAGES = 100;
 /** Keep aggregate reads below the bridge's in-flight call limit. */
 export const NATIVE_MAX_CONCURRENT_READS = 4;

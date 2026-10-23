@@ -38,6 +38,7 @@ use crate::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct Reader {
     source: Arc<Source>,
     offset: u64,
@@ -60,6 +61,7 @@ struct Pending {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Reader {
     pub(super) fn new(file: std::fs::File, path: &str, observed_size: u64, stream_state: ExecutionFileStreamState) -> Self {
         let content_type = super::media_type_for_path(path).map(str::to_owned);
