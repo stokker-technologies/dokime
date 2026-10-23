@@ -70,3 +70,7 @@ Update the existing PR only after local proof passes. Verify the pushed SHA, ret
 ## Remote Operator Authorization
 
 The specification-completion README (13c0fd6, Native Remote Access, lines250–262) explicitly grants a valid access key full remote product and installed-plugin control, including request-dependent scopes, with no per-user roles or server permission files. Preserve that operator model while retaining native-only/internal-provider refusal, runtime-owned plugin identity, and declared plugin-to-host/plugin requirements. Authentication, compiled trust, origin scoping and shared-secret boundaries remain required; operator authority cannot expand a plugin's declared capabilities.
+
+## Executable Test Ownership
+
+CLI install consent, cancellation and hidden-secret refusal stories belong to Acceptance because they execute the shipping binary. The integrated test registry retains that module at tests/acceptance/install.rs; incoming facade imports and advertised chunk-limit assertions remain, with one fixture definition and no unregistered duplicate.

@@ -62,8 +62,6 @@ macro_rules! operation {
     };
 }
 
-<<<<<<<< HEAD:crates/dokime-cli/tests/acceptance/install.rs
-========
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -118,7 +116,6 @@ impl dokime::harmos::Application for Fixture {
     type Resources = ();
 }
 
->>>>>>>> origin/feat/spec-completion:crates/dokime-cli/tests/integration/install.rs
 operation!(Stage, v1::Stage, StreamInput<model::plugins::wire::StagePluginFrame>, host, _request, input, {
     host.calls.lock().unwrap().push("stage");
     let header = input.recv().await.unwrap();
@@ -226,60 +223,6 @@ operation!(RuntimeHealth, runtime::GetHealth, (), _host, _request, _input, {
     }
     .into())
 });
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-#[derive(Clone)]
-struct Host {
-    entry: model::plugins::wire::PluginInstallation,
-    bytes: Vec<u8>,
-    calls: Arc<Mutex<Vec<&'static str>>>,
-    consent_code: tonic::Code,
-    descriptor_sha256: Vec<u8>,
-}
-
-struct Fixture;
-
-struct ChildGuard {
-    child: Box<dyn portable_pty::Child + Send + Sync>,
-    reaped: bool,
-}
-
-struct Outcome {
-    success: bool,
-    output: String,
-}
-
-/* === Enums === */
-
-#[harmos::lanes]
-enum Lanes {
-    #[default]
-    Open,
-}
-
-/* === Traits === */
-
-/* === Implementations === */
-
-impl Drop for ChildGuard {
-    fn drop(&mut self) {
-        if !self.reaped {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
-        }
-    }
-}
-
-impl harmos::Application for Fixture {
-    type State = ();
-    type Transaction = harmos::state::Never;
-    type Record = ();
-    type Streams = ();
-    type Resources = ();
-}
 
 /* === Public Functions === */
 
