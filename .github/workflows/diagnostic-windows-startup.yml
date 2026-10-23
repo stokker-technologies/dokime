@@ -179,7 +179,33 @@ jobs:
         if (!$source.Contains($before)) { throw 'The identified candidate launch boundary changed' }
         [IO.File]::WriteAllText($path, $source.Replace($before, $after))
     - name: Exercise Existing Native Startup Without Rebuilding
-      run: mise run test:typescript:system --profile dev
+      shell: pwsh
+      run: |
+        $directory = Join-Path $PWD 'target/diagnostics/windows-startup'
+        $env:CHROME_LOG_FILE = Join-Path $directory 'webview-browser.log'
+        $observer = Start-Job -ArgumentList $directory -ScriptBlock {
+          param($directory)
+          for ($sample = 0; $sample -lt 90; $sample++) {
+            $processes = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('dokime-gui.exe', 'msedgedriver.exe', 'msedgewebview2.exe') } | ForEach-Object {
+              $process = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
+              @{ Name = $_.Name; Id = $_.ProcessId; ParentId = $_.ParentProcessId; SessionId = $_.SessionId; CommandLine = $_.CommandLine; WindowTitle = $process.MainWindowTitle; Responding = $process.Responding }
+            })
+            @{ Time = (Get-Date).ToString('o'); Processes = $processes } | ConvertTo-Json -Depth 5 -Compress | Add-Content (Join-Path $directory 'live-processes.jsonl')
+            Start-Sleep -Seconds 1
+          }
+        }
+        try {
+          mise run test:typescript:system --profile dev
+          $verdict = $LASTEXITCODE
+        } finally {
+          Stop-Job $observer
+          Remove-Job $observer
+          foreach ($root in @("${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application", "$env:LOCALAPPDATA/Microsoft/EdgeWebView/Application")) {
+            Get-ChildItem -LiteralPath $root -Filter msedgewebview2.exe -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, VersionInfo | ConvertTo-Json -Depth 4 | Add-Content (Join-Path $directory 'runtime-files.json')
+          }
+          Get-ChildItem target -Directory -Filter 'native-desktop-work-*' -ErrorAction SilentlyContinue | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length } | ConvertTo-Json -Depth 3 | Set-Content (Join-Path $directory 'work-files.json')
+        }
+        exit $verdict
     - name: Preserve Native Launch Evidence
       if: always()
       shell: pwsh
