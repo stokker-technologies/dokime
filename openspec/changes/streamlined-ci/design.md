@@ -28,6 +28,8 @@ Product owns shipping binaries, plugin bundles, generated clients and frontend e
 
 Build / Bench is standalone in the locked Hub graph. Its build:rust:bench recipe owns the report resource preparation required by the runtime's embedded asset, benchmark compilation and matching native hosts/plugins. The bench leaves only execute those existing benchmark-profile bytes. Declare frontend bootstrap/cache inputs on that producer where necessary.
 
+The current producer's --bins --benches selection also compiles the runtime's implicit library harness, which the artifact exporter does not consume. During the native Windows build, the still-running normal library and implicit harness compiler processes had accumulated approximately 903 and 649 CPU seconds respectively; these are partial observations, not completed build durations or benchmark measurements. The parent explicitly deferred a benchmark-selector redesign. Preserve the current producer and all five explicit benchmark executables; reducing redundant harness compilation is a future optimization opportunity.
+
 ## Published Dependency Candidate
 The existing Harmos pin is 6eeabf4d4905c9ee984cbfc640502f914bbe6041, whose manifests identify as 0.2.0. Released v0.1.2 at b5b6aa5ba337828fcd18b5b41581ef21b065b995 descends from that revision and matches the published registry versions. Static API review found no removed Dokime dependency surface: signal and SDK error exports move owners while retaining their facade. Prefer this newer released pin with matching version requirements if targeted consumer compilation and final behavior proof pass; no upstream release is authorized or necessary on that path.
 
