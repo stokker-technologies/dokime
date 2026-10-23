@@ -196,17 +196,14 @@ fn compile_configured(source: &str, configuration: Option<&str>) -> (std::proces
     assert!(dependencies.is_dir(), "Cargo dependency directory missing");
     let directory = dependencies.join(format!("inventory-artifacts-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
-    let output = directory.join(std::path::Path::new(source).file_stem().unwrap());
+    let stem = std::path::Path::new(source).file_stem().unwrap().to_str().unwrap();
+    let output = directory.join(format!("{stem}{}", std::env::consts::EXE_SUFFIX));
     let mut rustc = std::process::Command::new("rustc");
     #[cfg(windows)]
     rustc.creation_flags(0x0800_0000);
     if let Some(configuration) = configuration {
         rustc.args(["--cfg", configuration]);
     }
-    // These inspection fixtures have empty mains; retain their uncalled
-    // sidecar declarations instead of letting MSVC discard the metadata.
-    #[cfg(target_env = "msvc")]
-    rustc.args(["-C", "link-arg=/OPT:NOREF"]);
     let built = rustc
         .arg("--edition=2024")
         .arg("--crate-type=bin")

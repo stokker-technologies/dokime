@@ -566,6 +566,23 @@ async function startSession(work, endpoint, evidence) {
    */
   session.click = async (element) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
+    const settled = await session.executeAsync(
+      `const element = arguments[0];
+       const done = arguments[arguments.length - 1];
+       element.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'});
+       let previous = '';
+       function frame() {
+         if (!element.isConnected) return done(false);
+         const rect = element.getBoundingClientRect();
+         const position = [rect.x, rect.y, rect.width, rect.height].join(',');
+         if (position === previous && rect.width > 0 && rect.height > 0) return done(true);
+         previous = position;
+         requestAnimationFrame(frame);
+       }
+       requestAnimationFrame(frame);`,
+      [element],
+    );
+    assert.ok(settled, "The pointer target must remain mounted while scrolling settles");
     try {
       return await session.request("POST", `/element/${key}/click`, {});
     } catch (failure) {

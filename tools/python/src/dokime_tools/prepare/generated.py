@@ -11,10 +11,10 @@
 
     python -m dokime_tools.prepare.generated
 
-The build regenerates `target/generated/typescript` modules from the server's contract
-export and stages a copy under `target/build/<profile>/<target>/generated/typescript`, a path the build
-artifact carries. A lane runner has only the artifact, so the TypeScript lanes restore the staged
-modules before they compile or import the GUI.
+The build regenerates `target/generated/typescript` from the server's contract export
+and stages a copy under `target/build/<profile>/<target>/generated/typescript`, a path the build
+artifact carries. Tests Build copies these modules into `fixtures/generated/typescript` for
+the Tests archive. Lanes select their producer explicitly before compiling or importing the GUI.
 """
 
 # === Imports === #
@@ -52,21 +52,22 @@ def stage(profile: str) -> Path:
     return staged
 
 
-def restore(profile: str, *, fixtures: bool = False) -> None:
+def restore(profile: str, producer: str = "product") -> None:
     """Replace The GUI's Generated Modules With The Staged Build Output."""
     output = paths.output(ROOT, "build", profile)
-    staged = output / ("fixtures/typescript" if fixtures else "generated/typescript")
+    staged = output / ("fixtures/generated/typescript" if producer == "tests" else "generated/typescript")
     if not staged.is_dir():
-        raise SystemExit(f"missing staged generated modules {staged}; run the matching build producer")
+        task = "build:tests" if producer == "tests" else "build"
+        raise SystemExit(f"missing staged generated modules {staged}; run `mise run {task}`")
     sync_output(staged, MODULES)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=("dev", "release"), default="dev")
-    parser.add_argument("--fixtures", action="store_true")
+    parser.add_argument("--profile", choices=paths.PROFILES, default="dev")
+    parser.add_argument("--producer", choices=("product", "tests"), default="product")
     options = parser.parse_args()
-    restore(options.profile, fixtures=options.fixtures)
+    restore(options.profile, options.producer)
     return 0
 
 

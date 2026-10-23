@@ -105,12 +105,10 @@ def package(root: Path, profile: str) -> None:
     if len(wheels) != 1:
         raise ValueError("packaging requires exactly one matching built client wheel")
     _environment(source / "python", wheels[0])
-    distributions = [wheels[0]]
-    if profile == "release":
-        version = parse_wheel_filename(wheels[0].name)[1]
-        distribution = built / f"dokime_client-{version}.tar.gz"
-        _regular(distribution)
-        distributions.append(distribution)
+    version = parse_wheel_filename(wheels[0].name)[1]
+    distribution = built / f"dokime_client-{version}.tar.gz"
+    _regular(distribution)
+    distributions = [wheels[0], distribution]
 
     destination = paths.output(root, "package", profile, "any") / "python"
     names = [path.name for path in distributions]

@@ -18,14 +18,12 @@ if defined KEY_FILE set CONNECTION=%CONNECTION% --key-file "%KEY_FILE%"
 if defined ENV_FILE set CONNECTION=%CONNECTION% --env-file "%ENV_FILE%"
 
 rem Reserve Reply Files Before Connecting; Manual Control Is Not Execution Evidence
-if defined RESPONSE_DIRECTORY (
-    if exist "%RESPONSE_DIRECTORY%" (
-        echo Response Directory Exists; Existing Data Is Preserved 1>&2
-        exit /b 2
-    )
-    mkdir "%RESPONSE_DIRECTORY%"
-    if errorlevel 1 goto Failed
+if defined RESPONSE_DIRECTORY if exist "%RESPONSE_DIRECTORY%" (
+    echo Response Directory Exists; Existing Data Is Preserved 1>&2
+    exit /b 2
 )
+if defined RESPONSE_DIRECTORY mkdir "%RESPONSE_DIRECTORY%"
+if errorlevel 1 goto Failed
 
 rem Discover The Operation IDs Offered By The Installed Plugin
 dokime operation list %CONNECTION%

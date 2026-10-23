@@ -8,13 +8,14 @@
 
 [package]
 name = "dokime-cli"
-publish = false
 edition.workspace = true
 rust-version.workspace = true
 description.workspace = true
 license.workspace = true
 repository.workspace = true
 version = { workspace = true }
+# Ships As Installers And Raw Release Executables, Not Through crates.io.
+publish = false
 
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"

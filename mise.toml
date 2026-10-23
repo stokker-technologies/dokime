@@ -281,7 +281,7 @@ env = { CARGO_INCREMENTAL = "0" }
 description = "Test Integration Python"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language python --project packages/dokime-client"
+run = "{{vars.tools}} dokime_tools.test.client --profile {{usage.profile}} --category integration"
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:acceptance"]
@@ -327,7 +327,7 @@ description = "Test Acceptance Rust"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}} --fixtures",
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}} --producer tests",
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
   "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust",
 ]
@@ -351,7 +351,7 @@ description = "Test Integration TypeScript"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}} --fixtures",
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}} --producer tests",
   "{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}",
 ]
 env = { CARGO_INCREMENTAL = "0" }
@@ -365,7 +365,10 @@ run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
 description = "Test System TypeScript"
 depends = ["prepare:desktop"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --profile {{usage.profile}} --junit {junit}"
+run = [
+  "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}} --producer tests",
+  "{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/native-desktop.mjs --profile {{usage.profile}} --junit {junit}",
+]
 env = { CARGO_INCREMENTAL = "0" }
 
 # === Bench === #

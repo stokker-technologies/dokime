@@ -39,6 +39,31 @@ if not exist "%OUTPUT_DIRECTORY%\recovery" mkdir "%OUTPUT_DIRECTORY%\recovery"
 if errorlevel 1 goto Failed
 if not "%EXECUTION_COUNT%"=="1" if not "%EXECUTION_COUNT%"=="2" exit /b 2
 
+rem Repeat Each Observation Filter; Globs Reach Dokime Unexpanded
+set "Observation="
+set "FilterRemainder=%RECORD_TYPES%"
+:RecordFilters
+if not defined FilterRemainder goto StreamFilters
+set "NextFilters="
+for /f "tokens=2,*" %%F in ("x %FilterRemainder%") do (
+    call :RecordFilter %%F
+    set "NextFilters=%%G"
+)
+set "FilterRemainder=%NextFilters%"
+goto RecordFilters
+:StreamFilters
+set "FilterRemainder=%STREAMS%"
+:NextStreamFilter
+if not defined FilterRemainder goto FiltersReady
+set "NextFilters="
+for /f "tokens=2,*" %%F in ("x %FilterRemainder%") do (
+    call :StreamFilter %%F
+    set "NextFilters=%%G"
+)
+set "FilterRemainder=%NextFilters%"
+goto NextStreamFilter
+:FiltersReady
+
 rem Preserve Each Evidence Destination Before Device Work
 if not "%OVERWRITE%"=="true" if exist "%OUTPUT_DIRECTORY%\execution-1.zip" (
     echo Evidence File Exists: %OUTPUT_DIRECTORY%\execution-1.zip 1>&2
@@ -93,7 +118,7 @@ echo Execution: %SecondId%
 :RunFirst
 rem Run Attempt 1; Wait For The Saved Outcome And Listener Drain
 set "ExecutionId=%FirstId%"
-dokime execution run "%FirstId%" --records --samples --record-type %RECORD_TYPES% --stream %STREAMS% ^
+dokime execution run "%FirstId%" --records --samples %Observation% ^
     --wait-seconds %WAIT_SECONDS% --cancel-on-interrupt --owned-cycle "%CycleId%" ^
     --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
 if errorlevel 2 goto Failed
@@ -105,7 +130,7 @@ if errorlevel 1 goto Failed
 if "%EXECUTION_COUNT%"=="1" goto SealCycle
 rem Run Attempt 2; Wait For The Saved Outcome And Listener Drain
 set "ExecutionId=%SecondId%"
-dokime execution run "%SecondId%" --records --samples --record-type %RECORD_TYPES% --stream %STREAMS% ^
+dokime execution run "%SecondId%" --records --samples %Observation% ^
     --wait-seconds %WAIT_SECONDS% --cancel-on-interrupt --owned-cycle "%CycleId%" ^
     --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
 if errorlevel 2 goto Failed
@@ -122,6 +147,14 @@ if errorlevel 1 goto Failed
 dokime cycle export "%CycleId%" --output "%OUTPUT_DIRECTORY%\cycle.zip" %Export% %CONNECTION%
 if errorlevel 1 goto Failed
 exit /b %Result%
+
+:RecordFilter
+set Observation=%Observation% --record-type %1
+exit /b 0
+
+:StreamFilter
+set Observation=%Observation% --stream %1
+exit /b 0
 
 :Failed
 set "Status=%ERRORLEVEL%"
