@@ -22,6 +22,16 @@ env:
   MISE_ENABLE_TOOLS: node,python,pnpm,uv
   DOKIME_E2E_JOURNEYS: owned-startup
 jobs:
+  token:
+    name: Hosted Windows Token Diagnostic
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+    - name: Record Process Token
+      shell: pwsh
+      run: |
+        $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+        @{ Elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator); UserInteractive = [Environment]::UserInteractive; SessionId = (Get-Process -Id $PID).SessionId } | ConvertTo-Json -Compress
   startup:
     name: Hosted Windows Startup Diagnostic
     runs-on: windows-latest
