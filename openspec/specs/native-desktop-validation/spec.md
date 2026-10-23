@@ -1,4 +1,9 @@
-## ADDED Requirements
+# native-desktop-validation Specification
+
+## Purpose
+TBD - created by archiving change native-desktop-test-parity. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: Native Desktop Scenario Parity
 
