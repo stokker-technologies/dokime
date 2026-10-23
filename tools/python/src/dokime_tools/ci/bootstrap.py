@@ -367,6 +367,9 @@ def prepare_windows_desktop(root: Path) -> Path:
 
 
 def _webview_version() -> str | None:
+    if sys.platform != "win32":
+        return None
+
     import winreg
 
     key = r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
