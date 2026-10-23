@@ -33,7 +33,7 @@
 
 ## Validation
 
-- [ ] 2.1 Run final applicable full local validation and repair/revalidate failures without waivers. The complete resource repair sequence passes, including13 compile contracts,11 resource stories, Package and all seven Rust plus Python dry publication checks. Rebuild/restage the GNU-update embedded cargo-dokime consumer, validate its generated workflow and refresh affected archive/package/assets proof; preserve unaffected application compilation and publication results.
+- [x] 2.1 Run final applicable full local validation and repair/revalidate failures without waivers. Available Windows proof is green, preserving unaffected full-run results. Resource repair passed13 compile contracts,11 resource stories, Package and all seven Rust plus Python dry-publication checks. GNU-update proof rebuilt/restaged the embedded cargo-dokime consumer, refreshed its archive, passed generated-workflow Actionlint and4 scaffold-creation stories, and refreshed Package/assets verification. Native Linux provider proof remains required before merge; the broad convention audit is not claimed green, and unrelated cleanup is explicitly deferred.
 - [ ] 2.2 Run requested benchmark in coordinated quiet window and report results.
 
 ## Workflow Follow-Up
