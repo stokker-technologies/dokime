@@ -48,13 +48,12 @@ fn base64(bytes: &[u8]) -> String {
 /* === Tests === */
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn typescript_facade_bridge() {
+    let manifest = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"));
     let fixture = Fixture::new().await;
-    fixture.runtime.handle().set_brand(Some(
-        dokime_runtime::domains::installed_plugins::load_brand(
-            &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../branding"),
-        )
-        .unwrap(),
-    ));
+    fixture
+        .runtime
+        .handle()
+        .set_brand(Some(dokime_runtime::domains::installed_plugins::load_brand(&manifest.join("../../../branding")).unwrap()));
     let artifact_id = artifact::seed(&fixture.runtime.handle(), &fixture.artifacts).await;
     let harness = Harness::new(fixture.session.clone());
     let snapshot = fixture.session.status();
@@ -62,7 +61,7 @@ async fn typescript_facade_bridge() {
         .env("DOKIME_TEST_GENERATION", &snapshot.generation)
         .env("DOKIME_TEST_BACKEND_ID", &snapshot.backend.as_ref().unwrap().backend_id)
         .env("DOKIME_TEST_ARTIFACT_ID", artifact_id)
-        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-rpc-interop.mjs"))
+        .arg(manifest.join("tests/fixtures/test-rpc-interop.mjs"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())

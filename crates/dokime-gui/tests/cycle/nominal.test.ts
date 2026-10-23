@@ -241,13 +241,41 @@ test("Execution Rows", () => {
   );
 });
 
+test("Reloaded Execution Selection", () => {
+  const selected: FollowInput = {
+    active: "running",
+    previousActive: null,
+    selection: { executionId: "finished" },
+    selectedStatus: undefined,
+    previousSelected: null,
+  };
+  assert.equal(followSelection(selected), null);
+  assert.equal(
+    followSelection({ ...selected, selectedStatus: "passed", previousSelected: { executionId: "finished", status: undefined } }),
+    null,
+  );
+  assert.equal(
+    followSelection({ ...selected, selectedStatus: "passed", previousSelected: { executionId: "finished", status: "passed" } }),
+    null,
+  );
+  assert.equal(
+    followSelection({ ...selected, selectedStatus: "passed", previousSelected: { executionId: "another", status: "running" } }),
+    null,
+  );
+  assert.equal(
+    followSelection({ ...selected, selectedStatus: "passed", previousSelected: { executionId: "finished", status: "running" } }),
+    "running",
+  );
+});
+
 test("Follow Active", () => {
   // An Explicit Selection Beats Follow Active Until The Operator Returns To It
   const follow = (selection: CycleSelection, extra: Partial<FollowInput> = {}) =>
     followSelection({
       active: "ten",
       previousActive: "ten",
-      selectedEnded: false,
+      selectedStatus: undefined,
+      previousSelected: null,
       selection,
       ...extra,
     });
@@ -259,11 +287,17 @@ test("Follow Active", () => {
   assert.equal(follow({ executionId: "ten" }), null, "already on the active one");
   assert.equal(follow({ executionId: "ten" }, { active: "eleven" }), "eleven", "a following selection moves on with the runtime");
   assert.equal(
-    follow({ executionId: "three" }, { active: "eleven", selectedEnded: true }),
+    follow(
+      { executionId: "three" },
+      { active: "eleven", selectedStatus: "passed", previousSelected: { executionId: "three", status: "running" } },
+    ),
     "eleven",
     "the selected execution ending resumes following",
   );
-  assert.equal(followSelection({ active: null, previousActive: null, selectedEnded: false, selection: {} }), null);
+  assert.equal(
+    followSelection({ active: null, previousActive: null, selectedStatus: undefined, previousSelected: null, selection: {} }),
+    null,
+  );
 
   // Following Reads The Selection Against The Active Execution
   assert.equal(isFollowing({}, "ten"), true);

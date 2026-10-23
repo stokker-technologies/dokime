@@ -63,3 +63,11 @@ Jobs that compile crates, including nested scaffold builds, instrumented coverag
 - WHEN native CI renders the actual task graph
 - THEN Rust Check, Product, Tests and Bench producers, Rust acceptance with generated-project builds, Rust coverage and Release Dry, Rehearsal and Tag use local runners
 - AND artifact-only tests, benchmark execution, packaging and other noncompiling jobs use matching hosted platforms
+
+### Requirement: Validate In The Assigned Worktree
+All local implementation and validation SHALL use the assigned worktree. Local proof SHALL NOT create an isolated checkout, exported source tree or provider simulator. Before the next candidate push, the full applicable local graph SHALL pass on available native platforms after the combined source closes. Actual native CI runners SHALL supply distinct-path archive proof and required proof for unavailable local platforms.
+
+#### Scenario: Deliver An Archive Portability Repair
+- WHEN the candidate completes its source and applicable local validation in the assigned worktree
+- THEN the next PR update starts required native runner checks with archive workspace remapping
+- AND integration remains blocked until distinct-path consumers and every required native platform pass

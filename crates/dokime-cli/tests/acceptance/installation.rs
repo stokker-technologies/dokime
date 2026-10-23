@@ -53,7 +53,8 @@ fn installation(programs: &[&Path]) -> tempfile::TempDir {
 }
 
 fn server() -> PathBuf {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().find(|path| path.join("Cargo.lock").is_file()).unwrap();
+    let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"));
+    let root = manifest.ancestors().find(|path| path.join("Cargo.lock").is_file()).unwrap();
     let server = root
         .join("target/build")
         .join(if cfg!(debug_assertions) { "dev" } else { "release" })

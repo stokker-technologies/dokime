@@ -112,22 +112,22 @@ bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packag
 [[ci.jobs]]
 id = "test:rust:integration"
 platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:system"
 platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:rust:unit"
 platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
 
 [[ci.jobs]]
 id = "test:typescript:system"
 platform = "linux"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages --desktop"]
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]
 
 # --- Stage / Package --- #
 

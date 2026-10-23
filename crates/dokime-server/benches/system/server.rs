@@ -118,7 +118,8 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    std::env::current_dir()
+        .expect("benchmark runner starts in the package")
         .ancestors()
         .find(|directory| directory.join("Cargo.lock").is_file())
         .expect("the workspace root holds Cargo.lock")

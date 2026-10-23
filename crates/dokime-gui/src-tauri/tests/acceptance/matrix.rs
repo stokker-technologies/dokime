@@ -247,7 +247,10 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
 }
 
 async fn run_matrix(interface: &str) {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
+        .join("../../..")
+        .canonicalize()
+        .unwrap();
     let contract: Value = serde_json::from_slice(&std::fs::read(root.join(CONTRACT)).unwrap()).unwrap();
     for scenario in contract["scenarios"].as_array().unwrap() {
         // Backend With The Matrix Provider

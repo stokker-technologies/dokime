@@ -13,7 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
@@ -50,7 +50,7 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
         .ancestors()
         .find(|directory| directory.join("Cargo.lock").is_file())
         .expect("the workspace root holds Cargo.lock")

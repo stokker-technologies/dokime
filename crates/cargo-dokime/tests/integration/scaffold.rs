@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::path::Path;
+use std::path::PathBuf;
 
 // Third Party Imports
 
@@ -45,7 +45,7 @@ use std::path::Path;
 fn templates_avoid_manifests() {
     // Cargo treats a nested `Cargo.toml` as a separate package and drops the
     // template from the published crate.
-    let templates = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
+    let templates = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("templates");
     let mut pending = vec![templates];
     while let Some(directory) = pending.pop() {
         for entry in std::fs::read_dir(&directory).unwrap() {

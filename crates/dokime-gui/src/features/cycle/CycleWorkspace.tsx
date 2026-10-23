@@ -62,6 +62,7 @@ import {
   caseActionTooltip,
   cycleStatusLabel,
   cycleStatusVariant,
+  type FollowState,
   finishedCaseCount,
   followSelection,
   isActiveExecutionStatus,
@@ -195,19 +196,18 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   /* Follow Active selects the execution the runtime names, until the
      operator chooses something else; `followSelection` owns the rule. */
   const previousActive = useRef<string | null>(null);
-  const previousSelectedStatus = useRef<{ id?: string; ended: boolean }>({ ended: false });
+  const previousSelectedStatus = useRef<FollowState["previousSelected"]>(null);
   const selectedStatus = selectedRow?.execution?.status;
   useEffect(() => {
-    const ended = selectedStatus !== undefined && isTerminalExecutionStatus(selectedStatus);
     const earlier = previousSelectedStatus.current;
-    const selectedEnded = earlier.id === executionId && !earlier.ended && ended;
-    previousSelectedStatus.current = { id: executionId, ended };
+    previousSelectedStatus.current = { executionId, status: selectedStatus };
     const target =
       live && followActive
         ? followSelection({
             active: activeExecutionId,
             previousActive: previousActive.current,
-            selectedEnded,
+            selectedStatus,
+            previousSelected: earlier,
             selection,
           })
         : null;

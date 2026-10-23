@@ -687,7 +687,9 @@ Raw release downloads use their Cargo package identities, for example
 `dokime-cli-<version>-<Rust-triple>[.exe]`; installation keeps the `dokime`
 command name. Desktop installer product names stay unchanged.
 `build:rust:tests` separately builds the test archive and fixtures and verifies
-compile contracts in their build tree. Generated-client static checks run as
+compile contracts in their build tree. Archived Rust tests resolve resources from
+nextest’s runtime package directory after workspace remapping; consumers use
+their checkout and transported Build outputs. Generated-client static checks run as
 `check:python:generated` and `check:typescript:generated` after Product Build.
 `test` runs existing artifacts through language layers:
 
@@ -702,6 +704,8 @@ The desktop walkthrough drives the built shell through WebKitWebDriver on Linux
 and needs a display. `mise run ci` runs the applicable local checks, producers,
 tests, packaging and dry publication; native provider CI proves every configured
 platform. `mise run ci:nightly` adds coverage and a separate benchmark producer.
+CI installs runtime libraries for prebuilt test jobs; compilation and packaging
+jobs retain their declared development dependencies.
 
 The runtime Cargo package carries its embedded report and brand payload.
 Contributors refresh that tracked payload with `mise run prepare:report` when

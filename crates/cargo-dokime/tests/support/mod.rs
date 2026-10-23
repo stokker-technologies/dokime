@@ -42,7 +42,7 @@ pub fn host() -> std::path::PathBuf {
 }
 
 pub fn workspace_root() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
         .ancestors()
         .find(|ancestor| ancestor.join("Cargo.lock").is_file())
         .expect("the crate lives in a Cargo workspace")

@@ -62,6 +62,15 @@ GUI_PACKAGES = (
     "libclang-dev",
 )
 HARMOS_REPOSITORY = "https://github.com/stokker-technologies/harmos.git"
+GUI_RUNTIME_PACKAGES = (
+    "libwebkit2gtk-4.1-0",
+    "libgtk-3-0t64",
+    "libsoup-3.0-0",
+    "libjavascriptcoregtk-4.1-0",
+    "librsvg2-2",
+    "libasound2t64",
+    "libssl3t64",
+)
 DESKTOP_PACKAGES = ("webkit2gtk-driver", "xvfb", "desktop-file-utils", "xdg-utils")
 
 # === Types === #
@@ -83,8 +92,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             cargo_config=arguments.cargo_config,
         )
         return 0
-    if arguments.gui_packages:
-        install_gui_packages(desktop=arguments.desktop)
+    if arguments.gui_packages or arguments.gui_runtime:
+        install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop)
     if arguments.desktop:
         if sys.platform != "linux":
             raise ValueError("the declared WebKit desktop bootstrap requires Linux")
@@ -110,10 +119,16 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         prog="bootstrap.py",
         description="Prepare explicitly selected native prerequisites or the pinned Harmos tool.",
     )
-    parser.add_argument(
+    gui = parser.add_mutually_exclusive_group()
+    gui.add_argument(
         "--gui-packages",
         action="store_true",
         help="install the Debian GUI development packages (Linux jobs only).",
+    )
+    gui.add_argument(
+        "--gui-runtime",
+        action="store_true",
+        help="install only Ubuntu GUI runtime libraries for prebuilt artifacts.",
     )
     parser.add_argument("--harmos-key", action="store_true")
     parser.add_argument("--harmos-tools", action="store_true")
@@ -283,8 +298,8 @@ def prepare_harmos(
     return binary
 
 
-def install_gui_packages(*, desktop: bool = False) -> None:
-    """Install the Debian GUI development packages when they are missing.
+def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> None:
+    """Install the declared GUI runtime or development packages when missing.
 
     A CI host that is missing them and cannot install them is broken, and the
     linker error it would eventually produce says nothing useful, so only a
@@ -294,7 +309,8 @@ def install_gui_packages(*, desktop: bool = False) -> None:
     if sys.platform != "linux" or shutil.which("dpkg") is None:
         _step("skipping GUI packages: no dpkg here, so this is not a Debian host")
         return
-    packages = (*GUI_PACKAGES, *(DESKTOP_PACKAGES if desktop else ()))
+    selected = GUI_RUNTIME_PACKAGES if runtime else GUI_PACKAGES
+    packages = (*selected, *(DESKTOP_PACKAGES if desktop else ()))
     if all(_package_installed(package) for package in packages):
         _step("skipping GUI packages: all prerequisites are installed")
         return
@@ -302,9 +318,7 @@ def install_gui_packages(*, desktop: bool = False) -> None:
     if os.geteuid() != 0 and os.environ.get("GITHUB_ACTIONS") == "true" and shutil.which("sudo"):
         prefix = ["sudo", "-n"]
     elif os.geteuid() != 0:
-        raise SystemExit(
-            f"{GUI_MARKER_PACKAGE} is missing and apt-get needs root; install the GUI development packages by hand or run this as root."
-        )
+        raise SystemExit("GUI prerequisites are missing and apt-get needs root; install the selected packages or run this as root.")
     _run([*prefix, "apt-get", "update"])
     _run([*prefix, "apt-get", "install", "-y", "--no-install-recommends", *packages])
 

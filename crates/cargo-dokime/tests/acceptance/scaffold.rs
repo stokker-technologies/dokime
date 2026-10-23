@@ -55,7 +55,7 @@ fn pins(lock: &str) -> Vec<(String, String)> {
 }
 
 fn workspace() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
+    super::support::workspace_root()
 }
 
 // The offline closure the build stages beside its other outputs, so a lane runner's artifact carries it.

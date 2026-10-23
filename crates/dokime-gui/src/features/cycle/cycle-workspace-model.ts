@@ -77,8 +77,10 @@ export type FollowState = {
   active: string | null;
   /** The execution it named on the previous render. */
   previousActive: string | null;
-  /** Whether the selected execution ended since the previous render. */
-  selectedEnded: boolean;
+  /** The selected execution's currently loaded status, absent before its data arrives. */
+  selectedStatus: TestExecution["status"] | undefined;
+  /** What was actually observed for the selected execution on the previous render. */
+  previousSelected: { executionId?: string; status: TestExecution["status"] | undefined } | null;
 };
 
 export type RunControlAvailability = {
@@ -210,10 +212,17 @@ export function isCycleSelection(selection: CycleSelection): boolean {
  * ends. Landing with nothing selected follows the active execution, and so
  * does a selection that was following when the runtime moved on.
  */
-export function followSelection({ selection, active, previousActive, selectedEnded }: FollowState): string | null {
+export function followSelection({ selection, active, previousActive, selectedStatus, previousSelected }: FollowState): string | null {
   if (!active || selection.executionId === active) return null;
   if (isCycleSelection(selection) || selection.caseId) return null;
   if (!selection.executionId) return active;
+  const selectedEnded =
+    previousSelected !== null &&
+    previousSelected.executionId === selection.executionId &&
+    previousSelected.status !== undefined &&
+    selectedStatus !== undefined &&
+    !isTerminalExecutionStatus(previousSelected.status) &&
+    isTerminalExecutionStatus(selectedStatus);
   if (selection.executionId === previousActive || selectedEnded) return active;
   return null;
 }
