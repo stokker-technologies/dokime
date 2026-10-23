@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:9ce6f680555e14999c9ccedf6f3dd11875c950325ef057f559bca8a1d9196c62
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:24449f2dd85fbd8899cf2caf13ab23b633201db40909f0d2d3b883a7b253abfa
 name: Test
 "on":
   workflow_call:
@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -49,7 +49,10 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |-
-        $directory = Join-Path $env:RUNNER_TEMP 'stkr-mise'
+        $identity = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+        $bytes = [Text.Encoding]::UTF8.GetBytes($identity)
+        $slot = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+        $directory = Join-Path ([IO.Path]::GetTempPath()) ('stkr-mise/' + $slot)
         "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "STKR_RUNNER_IMAGE=$($env:ImageOS ?? 'windows')-$($env:ImageVersion ?? 'self')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Resolve Mise Directory
@@ -142,13 +145,9 @@ jobs:
         set -eu
         # === Setup === #
         native_tools='tar zstd unzip zip'
-        apt_packages='tar zstd unzip zip'
-        apk_packages='tar zstd unzip zip'
         case ",${MISE_ENABLE_TOOLS:-rust}," in
             *,rust,*|*,cargo:*)
                 native_tools="$native_tools cc c++ make pkg-config"
-                apt_packages="$apt_packages build-essential pkg-config libssl-dev"
-                apk_packages="$apk_packages build-base pkgconf openssl-dev"
                 compiler=1
                 ;;
             *) compiler=0 ;;
@@ -164,23 +163,27 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
-        if [ -n "$missing" ]; then
+        install_prerequisites() {
+            set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
-                    apt-get install -y --no-install-recommends $apt_packages
+                    apt-get install -y --no-install-recommends "$@"
                 else
                     sudo -n apt-get update
-                    sudo -n apt-get install -y --no-install-recommends $apt_packages
+                    sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
-                if [ "$(id -u)" -eq 0 ]; then apk add --no-cache $apk_packages
-                else sudo -n apk add --no-cache $apk_packages; fi
+                if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
+                if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
+                else sudo -n apk add --no-cache "$@"; fi
             else
                 printf 'Missing shared CI prerequisites:%s; provide them through the declared job bootstrap or pinned image.\n' "$missing" >&2
                 exit 1
             fi
-        fi
+        }
+        if [ -n "$missing" ]; then install_prerequisites; fi
         # === Verification === #
         case "$(tar --version)" in
             'tar (GNU tar)'*) ;;
@@ -311,7 +314,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -334,7 +337,10 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |-
-        $directory = Join-Path $env:RUNNER_TEMP 'stkr-mise'
+        $identity = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+        $bytes = [Text.Encoding]::UTF8.GetBytes($identity)
+        $slot = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+        $directory = Join-Path ([IO.Path]::GetTempPath()) ('stkr-mise/' + $slot)
         "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "STKR_RUNNER_IMAGE=$($env:ImageOS ?? 'windows')-$($env:ImageVersion ?? 'self')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Resolve Mise Directory
@@ -427,13 +433,9 @@ jobs:
         set -eu
         # === Setup === #
         native_tools='tar zstd unzip zip'
-        apt_packages='tar zstd unzip zip'
-        apk_packages='tar zstd unzip zip'
         case ",${MISE_ENABLE_TOOLS:-rust}," in
             *,rust,*|*,cargo:*)
                 native_tools="$native_tools cc c++ make pkg-config"
-                apt_packages="$apt_packages build-essential pkg-config libssl-dev"
-                apk_packages="$apk_packages build-base pkgconf openssl-dev"
                 compiler=1
                 ;;
             *) compiler=0 ;;
@@ -449,23 +451,27 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
-        if [ -n "$missing" ]; then
+        install_prerequisites() {
+            set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
-                    apt-get install -y --no-install-recommends $apt_packages
+                    apt-get install -y --no-install-recommends "$@"
                 else
                     sudo -n apt-get update
-                    sudo -n apt-get install -y --no-install-recommends $apt_packages
+                    sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
-                if [ "$(id -u)" -eq 0 ]; then apk add --no-cache $apk_packages
-                else sudo -n apk add --no-cache $apk_packages; fi
+                if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
+                if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
+                else sudo -n apk add --no-cache "$@"; fi
             else
                 printf 'Missing shared CI prerequisites:%s; provide them through the declared job bootstrap or pinned image.\n' "$missing" >&2
                 exit 1
             fi
-        fi
+        }
+        if [ -n "$missing" ]; then install_prerequisites; fi
         # === Verification === #
         case "$(tar --version)" in
             'tar (GNU tar)'*) ;;
@@ -596,7 +602,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_acceptance_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -619,7 +625,10 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |-
-        $directory = Join-Path $env:RUNNER_TEMP 'stkr-mise'
+        $identity = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+        $bytes = [Text.Encoding]::UTF8.GetBytes($identity)
+        $slot = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+        $directory = Join-Path ([IO.Path]::GetTempPath()) ('stkr-mise/' + $slot)
         "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "STKR_RUNNER_IMAGE=$($env:ImageOS ?? 'windows')-$($env:ImageVersion ?? 'self')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Resolve Mise Directory
@@ -712,13 +721,9 @@ jobs:
         set -eu
         # === Setup === #
         native_tools='tar zstd unzip zip'
-        apt_packages='tar zstd unzip zip'
-        apk_packages='tar zstd unzip zip'
         case ",${MISE_ENABLE_TOOLS:-rust}," in
             *,rust,*|*,cargo:*)
                 native_tools="$native_tools cc c++ make pkg-config"
-                apt_packages="$apt_packages build-essential pkg-config libssl-dev"
-                apk_packages="$apk_packages build-base pkgconf openssl-dev"
                 compiler=1
                 ;;
             *) compiler=0 ;;
@@ -734,23 +739,27 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
-        if [ -n "$missing" ]; then
+        install_prerequisites() {
+            set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
-                    apt-get install -y --no-install-recommends $apt_packages
+                    apt-get install -y --no-install-recommends "$@"
                 else
                     sudo -n apt-get update
-                    sudo -n apt-get install -y --no-install-recommends $apt_packages
+                    sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
-                if [ "$(id -u)" -eq 0 ]; then apk add --no-cache $apk_packages
-                else sudo -n apk add --no-cache $apk_packages; fi
+                if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
+                if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
+                else sudo -n apk add --no-cache "$@"; fi
             else
                 printf 'Missing shared CI prerequisites:%s; provide them through the declared job bootstrap or pinned image.\n' "$missing" >&2
                 exit 1
             fi
-        fi
+        }
+        if [ -n "$missing" ]; then install_prerequisites; fi
         # === Verification === #
         case "$(tar --version)" in
             'tar (GNU tar)'*) ;;
@@ -908,7 +917,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_system_windows }}
     env:
       MISE_ENABLE_TOOLS: >-
-        node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:rhysd/actionlint,git-cliff
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,go:github.com/rhysd/actionlint/cmd/actionlint,aqua:koalaman/shellcheck,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -931,7 +940,10 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |-
-        $directory = Join-Path $env:RUNNER_TEMP 'stkr-mise'
+        $identity = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+        $bytes = [Text.Encoding]::UTF8.GetBytes($identity)
+        $slot = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+        $directory = Join-Path ([IO.Path]::GetTempPath()) ('stkr-mise/' + $slot)
         "MISE_DATA_DIR=$directory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         "STKR_RUNNER_IMAGE=$($env:ImageOS ?? 'windows')-$($env:ImageVersion ?? 'self')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Resolve Mise Directory
@@ -1024,13 +1036,9 @@ jobs:
         set -eu
         # === Setup === #
         native_tools='tar zstd unzip zip'
-        apt_packages='tar zstd unzip zip'
-        apk_packages='tar zstd unzip zip'
         case ",${MISE_ENABLE_TOOLS:-rust}," in
             *,rust,*|*,cargo:*)
                 native_tools="$native_tools cc c++ make pkg-config"
-                apt_packages="$apt_packages build-essential pkg-config libssl-dev"
-                apk_packages="$apk_packages build-base pkgconf openssl-dev"
                 compiler=1
                 ;;
             *) compiler=0 ;;
@@ -1046,23 +1054,27 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
-        if [ -n "$missing" ]; then
+        install_prerequisites() {
+            set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
-                    apt-get install -y --no-install-recommends $apt_packages
+                    apt-get install -y --no-install-recommends "$@"
                 else
                     sudo -n apt-get update
-                    sudo -n apt-get install -y --no-install-recommends $apt_packages
+                    sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
-                if [ "$(id -u)" -eq 0 ]; then apk add --no-cache $apk_packages
-                else sudo -n apk add --no-cache $apk_packages; fi
+                if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
+                if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
+                else sudo -n apk add --no-cache "$@"; fi
             else
                 printf 'Missing shared CI prerequisites:%s; provide them through the declared job bootstrap or pinned image.\n' "$missing" >&2
                 exit 1
             fi
-        fi
+        }
+        if [ -n "$missing" ]; then install_prerequisites; fi
         # === Verification === #
         case "$(tar --version)" in
             'tar (GNU tar)'*) ;;

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:7d739924aa0271be8ce4f745258adcfac25350926a8a968675564ebfa5355482
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:c76e28c179c3301d548d5f49455a1849aa897a6c60ad40ba8f6b665fdc9d6053
 Release / Publish:
   stage: Release
   tags:
@@ -193,7 +193,7 @@ Release / Publish:
   rules:
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/
   variables:
-    MISE_ENABLE_TOOLS: python,rust,uv,gh,git-cliff,glab
+    MISE_ENABLE_TOOLS: go,python,rust,uv,gh,git-cliff,glab
     REVIEW_PACKAGES: "[\"Package / Rust (linux)\",\"Package / Rust (windows)\"]"
     REVIEW_RESTORE: "true"
   environment:

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/build.yml; sha256:dee8a270c2b7f5a579b83e7f056f52319e58adc351cd78ce6040dfe486897cd1
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/build.yml; sha256:8a46bc12dea15e79c5b31ef25dbf405be61ee8bcde82a7ebeaf2fe00a43abff8
 Build / Product (linux):
   stage: Build
   tags:
@@ -32,7 +32,7 @@ Build / Product (linux):
     - target/ci/build-product-$PROFILE-linux.tar.zst
   variables:
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
   before_script:
   - >-
     if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
@@ -42,13 +42,9 @@ Build / Product (linux):
     set -eu
     # === Setup === #
     native_tools='tar zstd unzip zip'
-    apt_packages='tar zstd unzip zip'
-    apk_packages='tar zstd unzip zip'
     case ",${MISE_ENABLE_TOOLS:-rust}," in
         *,rust,*|*,cargo:*)
             native_tools="$native_tools cc c++ make pkg-config"
-            apt_packages="$apt_packages build-essential pkg-config libssl-dev"
-            apk_packages="$apk_packages build-base pkgconf openssl-dev"
             compiler=1
             ;;
         *) compiler=0 ;;
@@ -64,23 +60,27 @@ Build / Product (linux):
     if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
         missing="$missing openssl-development"
     fi
-    if [ -n "$missing" ]; then
+    install_prerequisites() {
+        set -- tar zstd unzip zip
         if command -v apt-get >/dev/null 2>&1; then
+            if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
             if [ "$(id -u)" -eq 0 ]; then
                 apt-get update
-                apt-get install -y --no-install-recommends $apt_packages
+                apt-get install -y --no-install-recommends "$@"
             else
                 sudo -n apt-get update
-                sudo -n apt-get install -y --no-install-recommends $apt_packages
+                sudo -n apt-get install -y --no-install-recommends "$@"
             fi
         elif command -v apk >/dev/null 2>&1; then
-            if [ "$(id -u)" -eq 0 ]; then apk add --no-cache $apk_packages
-            else sudo -n apk add --no-cache $apk_packages; fi
+            if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
+            if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
+            else sudo -n apk add --no-cache "$@"; fi
         else
             printf 'Missing shared CI prerequisites:%s; provide them through the declared job bootstrap or pinned image.\n' "$missing" >&2
             exit 1
         fi
-    fi
+    }
+    if [ -n "$missing" ]; then install_prerequisites; fi
     # === Verification === #
     case "$(tar --version)" in
         'tar (GNU tar)'*) ;;
@@ -126,7 +126,7 @@ Build / Tests (linux):
     - target/ci/build-tests-$PROFILE-linux.tar.zst
   variables:
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
   before_script:
   - >-
     if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
@@ -136,13 +136,9 @@ Build / Tests (linux):
     set -eu
     # === Setup === #
     native_tools='tar zstd unzip zip'
-    apt_packages='tar zstd unzip zip'
-    apk_packages='tar zstd unzip zip'
     case ",${MISE_ENABLE_TOOLS:-rust}," in
         *,rust,*|*,cargo:*)
             native_tools="$native_tools cc c++ make pkg-config"
-            apt_packages="$apt_packages build-essential pkg-config libssl-dev"
-            apk_packages="$apk_packages build-base pkgconf openssl-dev"
             compiler=1
             ;;
         *) compiler=0 ;;
@@ -158,23 +154,27 @@ Build / Tests (linux):
     if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
         missing="$missing openssl-development"
     fi
-    if [ -n "$missing" ]; then
+    install_prerequisites() {
+        set -- tar zstd unzip zip
         if command -v apt-get >/dev/null 2>&1; then
+            if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
             if [ "$(id -u)" -eq 0 ]; then
                 apt-get update
-                apt-get install -y --no-install-recommends $apt_packages
+                apt-get install -y --no-install-recommends "$@"
             else
                 sudo -n apt-get update
-                sudo -n apt-get install -y --no-install-recommends $apt_packages
+                sudo -n apt-get install -y --no-install-recommends "$@"
             fi
         elif command -v apk >/dev/null 2>&1; then
-            if [ "$(id -u)" -eq 0 ]; then apk add --no-cache $apk_packages
-            else sudo -n apk add --no-cache $apk_packages; fi
+            if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
+            if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
+            else sudo -n apk add --no-cache "$@"; fi
         else
             printf 'Missing shared CI prerequisites:%s; provide them through the declared job bootstrap or pinned image.\n' "$missing" >&2
             exit 1
         fi
-    fi
+    }
+    if [ -n "$missing" ]; then install_prerequisites; fi
     # === Verification === #
     case "$(tar --version)" in
         'tar (GNU tar)'*) ;;
@@ -323,7 +323,7 @@ Build / Product (windows):
   - mise install --yes
   variables:
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
 Build / Tests (windows):
   stage: Build
   tags:
@@ -487,4 +487,4 @@ Build / Tests (windows):
   - mise install --yes
   variables:
     MISE_ENABLE_TOOLS: >-
-      python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:rhysd/actionlint,taplo
+      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
