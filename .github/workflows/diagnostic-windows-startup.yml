@@ -7,7 +7,7 @@
 # ***
 
 # Temporary Native Diagnostic; Remove Before Final Candidate Validation.
-name: Diagnostic / Windows Desktop Startup
+name: Diagnostic / Windows Storage
 "on":
   push:
     branches: [chore/migrate-hub-ci]
@@ -19,23 +19,12 @@ env:
   PROFILE: dev
   MISE_LOCKED: "1"
   MISE_EXPERIMENTAL: "1"
-  MISE_ENABLE_TOOLS: node,python,pnpm,uv
-  DOKIME_E2E_JOURNEYS: owned-startup
+  MISE_ENABLE_TOOLS: python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest
 jobs:
-  token:
-    name: Hosted Windows Token Diagnostic
+  storage:
+    name: Hosted Windows Storage Diagnostic
     runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-    - name: Record Process Token
-      shell: pwsh
-      run: |
-        $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
-        @{ Elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator); UserInteractive = [Environment]::UserInteractive; SessionId = (Get-Process -Id $PID).SessionId } | ConvertTo-Json -Compress
-  startup:
-    name: Hosted Windows Startup Diagnostic
-    runs-on: windows-latest
-    # Bounds A Failed Native Launch; Its Existing Driver Deadline Remains Unchanged.
+    # The Original Native Test Deadline Remains Unchanged.
     timeout-minutes: 30
     steps:
     - name: Configure Checkout Git
@@ -76,7 +65,7 @@ jobs:
           "$($entry.Key)=$digest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         }
     - name: Bootstrap
-      run: python tools/python/src/dokime_tools/ci/bootstrap.py --desktop
+      run: python tools/python/src/dokime_tools/ci/bootstrap.py
     - name: Prepare Windows Tools
       if: runner.os == 'Windows'
       shell: pwsh
@@ -145,7 +134,8 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-windows
+        artifact-ids: 12529665166,12530021778
+        merge-multiple: true
         run-id: 40014526197
         github-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Extract Build
@@ -170,70 +160,20 @@ jobs:
           } catch { continue }
         }
         if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    - name: Record Launch Context And Enable Driver Diagnostics
+        foreach ($kind in @('product', 'tests')) {
+          & $tar -xf "build-$kind-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
+    - name: Run Original Storage Test Without Rebuilding
       shell: pwsh
       run: |
-        $directory = Join-Path $PWD 'target/diagnostics/windows-startup'
-        New-Item -ItemType Directory -Path $directory -Force | Out-Null
-        $browser = @{}
-        foreach ($name in @('WEBVIEW2_USER_DATA_FOLDER', 'WEBVIEW2_BROWSER_EXECUTABLE_FOLDER', 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS', 'TAURI_WEBVIEW_AUTOMATION', 'SESSIONNAME')) {
-          $browser[$name] = [Environment]::GetEnvironmentVariable($name)
-        }
-        @{ UserInteractive = [Environment]::UserInteractive; SessionId = (Get-Process -Id $PID).SessionId; BrowserEnvironment = $browser; ProductRun = '40014526197'; ProductArtifact = '12529665166'; ProductRevision = '10b65651e83435925490550db6acaa8941c5f877' } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $directory 'context.json')
-        $path = Join-Path $PWD 'crates/dokime-gui/e2e/native-desktop.mjs'
-        $source = [IO.File]::ReadAllText($path)
-        $before = 'driverProcess = spawn(driver, ["--host=127.0.0.1", `--port=${port}`], {'
-        $after = 'driverProcess = spawn(driver, ["--host=127.0.0.1", `--port=${port}`, "--verbose", "--append-log", `--log-path=${join(evidence, "webdriver.log")}`], {'
-        if (!$source.Contains($before)) { throw 'The identified candidate launch boundary changed' }
-        [IO.File]::WriteAllText($path, $source.Replace($before, $after))
-    - name: Exercise Existing Native Startup Without Rebuilding
-      shell: pwsh
-      run: |
-        $directory = Join-Path $PWD 'target/diagnostics/windows-startup'
-        $env:CHROME_LOG_FILE = Join-Path $directory 'webview-browser.log'
-        $observer = Start-Job -ArgumentList $directory -ScriptBlock {
-          param($directory)
-          for ($sample = 0; $sample -lt 90; $sample++) {
-            $processes = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('dokime-gui.exe', 'msedgedriver.exe', 'msedgewebview2.exe') } | ForEach-Object {
-              $process = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
-              @{ Name = $_.Name; Id = $_.ProcessId; ParentId = $_.ParentProcessId; SessionId = $_.SessionId; CommandLine = $_.CommandLine; WindowTitle = $process.MainWindowTitle; Responding = $process.Responding }
-            })
-            @{ Time = (Get-Date).ToString('o'); Processes = $processes } | ConvertTo-Json -Depth 5 -Compress | Add-Content (Join-Path $directory 'live-processes.jsonl')
-            Start-Sleep -Seconds 1
-          }
-        }
-        try {
-          mise run test:typescript:system --profile dev
-          $verdict = $LASTEXITCODE
-        } finally {
-          Stop-Job $observer
-          Remove-Job $observer
-          foreach ($root in @("${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application", "$env:LOCALAPPDATA/Microsoft/EdgeWebView/Application")) {
-            Get-ChildItem -LiteralPath $root -Filter msedgewebview2.exe -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, VersionInfo | ConvertTo-Json -Depth 4 | Add-Content (Join-Path $directory 'runtime-files.json')
-          }
-          Get-ChildItem target -Directory -Filter 'native-desktop-work-*' -ErrorAction SilentlyContinue | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length } | ConvertTo-Json -Depth 3 | Set-Content (Join-Path $directory 'work-files.json')
-        }
-        exit $verdict
-    - name: Preserve Native Launch Evidence
-      if: always()
-      shell: pwsh
-      run: |
-        $directory = Join-Path $PWD 'target/diagnostics/windows-startup'
-        New-Item -ItemType Directory -Path $directory -Force | Out-Null
-        Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('dokime-gui.exe', 'msedgedriver.exe', 'msedgewebview2.exe') } | Select-Object Name, ProcessId, ParentProcessId, SessionId, ExecutablePath | ConvertTo-Json -Depth 3 | Set-Content (Join-Path $directory 'processes.json')
-        $logs = Join-Path $env:LOCALAPPDATA 'com.stokker.dokime/logs'
-        if (Test-Path -LiteralPath $logs) { Copy-Item -LiteralPath $logs -Destination (Join-Path $directory 'desktop-logs') -Recurse }
-        Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddMinutes(-30) } -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'dokime-gui\.exe' } | Select-Object TimeCreated, Id, ProviderName, Message | ConvertTo-Json -Depth 3 | Set-Content (Join-Path $directory 'application-events.json')
-        Get-ChildItem target -Directory -Filter 'native-desktop-work-*' -ErrorAction SilentlyContinue | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Recurse -Filter DevToolsActivePort -ErrorAction SilentlyContinue } | ForEach-Object { @{ Path = $_.FullName; Value = Get-Content -LiteralPath $_.FullName -Raw } } | ConvertTo-Json -Depth 3 | Set-Content (Join-Path $directory 'devtools-ports.json')
+        mise exec -- uv run --locked --project tools/python python -m dokime_tools.test.run test --category integration --language rust --profile dev -- -p dokime-runtime -E 'test(=services::execution::storage::execution_save_sealing)' --no-capture
+        exit $LASTEXITCODE
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: diagnostic-hosted-windows-startup
-        path: |
-          target/diagnostics/windows-startup/
-          target/tests/dev/*/system-typescript/
+        name: diagnostic-hosted-windows-storage
+        path: target/tests/dev/*/integration-rust/
         retention-days: 7
         if-no-files-found: error
         include-hidden-files: true
