@@ -219,13 +219,13 @@ pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
         tracing::error!(%error, "organization pack could not be activated; retaining the last valid appearance");
     }
     let pending = load(&root.join(PENDING)).ok().map(|pack| pack.summary());
-    if let Some(pack) = &boot.pack {
-        if let Some(bytes) = &pack.tray_icon {
-            let icon = tauri::image::Image::from_bytes(bytes)?;
-            let menu = tauri::menu::Menu::new(app)?;
-            let tray = tauri::tray::TrayIconBuilder::with_id("organization").icon(icon).tooltip(&pack.label).menu(&menu).build(app)?;
-            app.manage(tray);
-        }
+    if let Some(pack) = &boot.pack
+        && let Some(bytes) = &pack.tray_icon
+    {
+        let icon = tauri::image::Image::from_bytes(bytes)?;
+        let menu = tauri::menu::Menu::new(app)?;
+        let tray = tauri::tray::TrayIconBuilder::with_id("organization").icon(icon).tooltip(&pack.label).menu(&menu).build(app)?;
+        app.manage(tray);
     }
     app.manage(OrganizationState { root, boot, session: Mutex::new(Session { pending, removed: false }) });
     Ok(())
