@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-linux.yml; sha256:584ae4a40d1c53c7eb2f43de0c6e7e97bc280d193b039878ba3d9dfa2525ff7f
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-linux.yml; sha256:d75b97d15368792fec08a29264e93c7e977e497d8ac7baed9c6a2e9915b3d386
 name: Build
 "on":
   workflow_call:
@@ -23,7 +23,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   build_product_linux:
@@ -273,6 +273,19 @@ jobs:
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build --profile ${{ env.PROFILE }} --output product --task build
+    - name: Archive cli
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-cli-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d65225d
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-cli-${{ env.PROFILE }}-linux
+        path: target/ci/build-cli-${{ env.PROFILE }}-linux.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 0
     - name: Archive clients
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
@@ -283,6 +296,32 @@ jobs:
       with:
         name: build-clients-${{ env.PROFILE }}-linux
         path: target/ci/build-clients-${{ env.PROFILE }}-linux.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 0
+    - name: Archive generator
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-generator-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f636172676f2d646f6b696d65225d
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-generator-${{ env.PROFILE }}-linux
+        path: target/ci/build-generator-${{ env.PROFILE }}-linux.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 0
+    - name: Archive gui
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-gui-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652d677569225d
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-gui-${{ env.PROFILE }}-linux
+        path: target/ci/build-gui-${{ env.PROFILE }}-linux.tar.zst
         if-no-files-found: error
         retention-days: 7
         compression-level: 0
@@ -299,16 +338,16 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         compression-level: 0
-    - name: Archive runtime
+    - name: Archive plugins
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts pack --archive target/ci/build-runtime-${{ env.PROFILE }}-linux.tar.zst
+        dokime_tools.ci.artifacts pack --archive target/ci/build-plugins-${{ env.PROFILE }}-linux.tar.zst
         --profile ${{ env.PROFILE }} --paths
-        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-runtime-${{ env.PROFILE }}-linux
-        path: target/ci/build-runtime-${{ env.PROFILE }}-linux.tar.zst
+        name: build-plugins-${{ env.PROFILE }}-linux
+        path: target/ci/build-plugins-${{ env.PROFILE }}-linux.tar.zst
         if-no-files-found: error
         retention-days: 7
         compression-level: 0

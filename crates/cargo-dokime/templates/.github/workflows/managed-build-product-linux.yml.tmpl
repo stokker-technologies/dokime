@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-linux.yml; sha256:75dc018cebd9ef543cff297e7a21644d9197e6773a5b23a143fc3355a53a52a7
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-linux.yml; sha256:80f599e9c12a623c7b663f20323dda9aae209b481a7101a17486e6da8e0ba8ba
 name: Build
 "on":
   workflow_call:
@@ -20,7 +20,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   build_product_linux:

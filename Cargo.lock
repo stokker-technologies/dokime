@@ -2159,6 +2159,7 @@ dependencies = [
  "dokime",
  "dokime-server",
  "dotenvy",
+ "futures-util",
  "harmos-packaging",
  "portable-pty",
  "serde",

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:95685736819eee4f0e0d775cc2acc21d3ab765e29dbf7dc29ae77a2e56ccfe77
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:f6cc939846de84005d1e0cf92b9946874ba6dafbd68ac38b5d07d1d161881ba2
 name: Test
 "on":
   workflow_call:
@@ -23,7 +23,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   validate_test_rust_unit_linux:
@@ -802,6 +802,15 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
+        name: build-cli-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / cli
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-cli-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
         name: build-clients-${{ env.PROFILE }}-linux
         path: target/ci
     - name: Extract build / clients
@@ -811,12 +820,21 @@ jobs:
         }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-runtime-${{ env.PROFILE }}-linux
+        name: build-generator-${{ env.PROFILE }}-linux
         path: target/ci
-    - name: Extract build / runtime
+    - name: Extract build / generator
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        dokime_tools.ci.artifacts extract --archive target/ci/build-generator-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-plugins-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / plugins
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-plugins-${{ env.PROFILE
         }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -1110,12 +1128,21 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-runtime-${{ env.PROFILE }}-linux
+        name: build-cli-${{ env.PROFILE }}-linux
         path: target/ci
-    - name: Extract build / runtime
+    - name: Extract build / cli
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        dokime_tools.ci.artifacts extract --archive target/ci/build-cli-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-plugins-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / plugins
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-plugins-${{ env.PROFILE
         }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -1409,6 +1436,15 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
+        name: build-cli-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / cli
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-cli-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
         name: build-clients-${{ env.PROFILE }}-linux
         path: target/ci
     - name: Extract build / clients
@@ -1418,12 +1454,21 @@ jobs:
         }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-runtime-${{ env.PROFILE }}-linux
+        name: build-gui-${{ env.PROFILE }}-linux
         path: target/ci
-    - name: Extract build / runtime
+    - name: Extract build / gui
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        dokime_tools.ci.artifacts extract --archive target/ci/build-gui-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-plugins-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / plugins
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-plugins-${{ env.PROFILE
         }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run test:typescript:system --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -1697,12 +1742,12 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-runtime-${{ env.PROFILE }}-linux
+        name: build-generator-${{ env.PROFILE }}-linux
         path: target/ci
-    - name: Extract build / runtime
+    - name: Extract build / generator
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        dokime_tools.ci.artifacts extract --archive target/ci/build-generator-${{ env.PROFILE
         }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run test:rust:starter --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

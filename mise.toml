@@ -69,10 +69,7 @@ generated_python = "packages/dokime-client/src/dokime_client/_wire packages/doki
 
 [tasks.prepare]
 description = "Prepare Tools And Inputs"
-run = [
-  "uv sync --locked --all-groups --no-install-package dokime-client",
-  "pnpm --dir crates/dokime-gui install --frozen-lockfile",
-]
+run = ["uv sync --locked --all-groups --no-install-package dokime-client", "pnpm --dir crates/dokime-gui install --frozen-lockfile"]
 
 [tasks."prepare:desktop"]
 description = "Prepare Native Desktop Automation"
@@ -156,12 +153,7 @@ run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 [tasks.check]
 description = "Check Every Language And Conventions"
-run = [
-  { task = "check:repository" },
-  { task = "check:rust" },
-  { task = "check:python" },
-  { task = "check:typescript" },
-]
+run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:python" }, { task = "check:typescript" }]
 
 [tasks."check:python"]
 description = "Check Python"
@@ -186,11 +178,7 @@ run = [{ task = "format:toml --check" }, "shellcheck --version", "actionlint"]
 [tasks."check:rust"]
 description = "Check Rust"
 depends = ["prepare"]
-run = [
-  "{{vars.tools}} dokime_tools.prepare.resources --check",
-  { task = "format:rust --check" },
-  "cargo-machete --skip-target-dir",
-]
+run = ["{{vars.tools}} dokime_tools.prepare.resources --check", { task = "format:rust --check" }, "cargo-machete --skip-target-dir"]
 
 [tasks."check:typescript"]
 description = "Check TypeScript"
@@ -470,10 +458,7 @@ run = "{{vars.tools}} dokime_tools.test.run bench --category system --language r
 [tasks.package]
 description = "Package Every Language"
 usage = 'flag "--profile <profile>" default="dev"'
-depends = [
-  "package:rust --profile {{usage.profile}}",
-  "package:python --profile {{usage.profile}}",
-]
+depends = ["package:rust --profile {{usage.profile}}", "package:python --profile {{usage.profile}}"]
 
 [tasks."package:python"]
 description = "Package The Built Client Distributions And Tutorial"
@@ -481,7 +466,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.package.examples --profile {{usage.profile}}"
 
 [tasks."package:rust"]
-description = "Package The Desktop Installer With Its CLI And Server Companions And The Plugin Bundle"
+description = "Package The Desktop Installer, CLI, Authoring Tool And Plugin Bundle"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
@@ -536,11 +521,7 @@ run = "{{vars.tools}} dokime_tools.ci.simulate {% if usage.pipeline %}--pipeline
 
 [tasks.release]
 description = "Prepare And Validate A Release"
-run = [
-  { task = "release:prepare" },
-  { task = "ci" },
-  { task = "build --profile release" },
-]
+run = [{ task = "release:prepare" }, { task = "ci" }, { task = "build --profile release" }]
 
 [tasks."release:prepare"]
 description = "Prepare The Release Branch"
@@ -548,11 +529,7 @@ run = "{{vars.tools}} dokime_tools.release.run prepare"
 
 [tasks."release:publish"]
 description = "Publish A Tagged Release"
-run = [
-  { task = "release:publish:assets" },
-  { task = "release:publish:python" },
-  { task = "release:publish:finalize" },
-]
+run = [{ task = "release:publish:assets" }, { task = "release:publish:python" }, { task = "release:publish:finalize" }]
 
 [tasks."release:publish:assets"]
 description = "Draft The Release With Its Assets And SHA256SUMS"

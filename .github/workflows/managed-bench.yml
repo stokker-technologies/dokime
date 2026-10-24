@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-bench.yml; sha256:ba74408e55087d09a7ef9dd7125c181c1a09a3d9ec9d759e52182230048b3fb4
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-bench.yml; sha256:2b5eabd7cce3790aa66c46d75a05a2a55d5fcc372bcc156cc5b6333c6adcc6ef
 name: Bench
 "on":
   workflow_call:
@@ -23,7 +23,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   bench_rust_integration:

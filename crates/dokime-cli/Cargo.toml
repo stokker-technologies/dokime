@@ -77,6 +77,9 @@ time = { workspace = true }
 # Filesystem
 tempfile = { workspace = true }
 
+# Async
+futures-util = { workspace = true }
+
 # Networking
 tonic = { workspace = true }
 

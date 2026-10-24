@@ -9,6 +9,7 @@
 - [x] 1.7 Dokime owner restores full starter consumer proof as test:rust:starter with nightly-only declaration and explicit Product input after Hub support; preserves cheap ordinary scaffold coverage.
 - [x] 1.9 Dokime owner routes report-test opens to an owned browser instance/profile, closes every owned report tab in finally before report fixture cleanup, preserves real open/content assertions and leaves unrelated browsers untouched.
 - [x] 1.10 Dokime owner provisions the Linux report browser through desktop-only bootstrap, reusing the hosted browser or the pinned Chrome For Testing build on a fresh executor, and verifies real report open/cleanup there.
+- [x] 1.11 Dokime owner separates existing Product outputs into CLI, GUI, generator, plugins, generated clients and packaging data; declares only each consumer's actual inputs, preserving executable coverage and Package's complete inputs.
 - [x] 1.8 Review all combined source and generated surfaces, targeted proof and strict specification validation; close implementation inventory before final proof.
 - [ ] 2.1 Run the verified Hub ci:simulate gate once after combined source closure, retaining required native Windows/Linux UI coverage and declared resources; repair and rerun failing or affected lanes only.
 - [ ] 2.2 Push the locally green combined candidate, preserve auto-merge, verify hosted required jobs on both platforms and repair failures through protected dev integration.

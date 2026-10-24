@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:777dec00e2ba01c4f2d46298daf583e1df52e48fbe581559ec628aec2b802e91
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:10c014a90e205277b884e2daf58e2e33bcbd470f4dfa509655d1b8c9d32c50a4
 name: CI
 "on":
   push:
@@ -410,7 +410,7 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
         GH_TOKEN: ${{ github.token }}
         REVIEW_RELEASE: "true"
-        REVIEW_BUILDS: "[\"build-packaging-PROFILE-windows\",\"build-runtime-PROFILE-windows\"]"
+        REVIEW_BUILDS: "[\"build-cli-PROFILE-windows\",\"build-generator-PROFILE-windows\",\"build-gui-PROFILE-windows\",\"build-packaging-PROFILE-windows\",\"build-plugins-PROFILE-windows\"]"
         REVIEW_PACKAGES: "[\"package-PROFILE-python-any\",\"package-PROFILE-rust-linux\",\"package-PROFILE-rust-windows\"]"
       run: |-
         python3 - <<'STKR_REVIEW' || { mkdir -p target/ci; printf 'validated=false\nreview_run=\nreview_profile=\n' >> "${GITHUB_OUTPUT:-target/ci/validated.env}"; }

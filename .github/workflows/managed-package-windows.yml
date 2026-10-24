@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-windows.yml; sha256:ac50d4ff0f86e133c11ea3cd946e0e5336dd7a64400237ecd89424e4caf6a1ed
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-windows.yml; sha256:becf12e572852efa624fadd377c90f31995d00bb6661fc5078e7f5a23e7aa398
 name: Package
 "on":
   workflow_call:
@@ -33,7 +33,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   package_rust_windows:
@@ -252,6 +252,33 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
+        name: build-cli-${{ env.PROFILE }}-windows
+        path: target/ci
+    - name: Extract build / cli
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-generator-${{ env.PROFILE }}-windows
+        path: target/ci
+    - name: Extract build / generator
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-generator-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-gui-${{ env.PROFILE }}-windows
+        path: target/ci
+    - name: Extract build / gui
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
         name: build-packaging-${{ env.PROFILE }}-windows
         path: target/ci
     - name: Extract build / packaging
@@ -261,12 +288,12 @@ jobs:
         }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-runtime-${{ env.PROFILE }}-windows
+        name: build-plugins-${{ env.PROFILE }}-windows
         path: target/ci
-    - name: Extract build / runtime
+    - name: Extract build / plugins
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        dokime_tools.ci.artifacts extract --archive target/ci/build-plugins-${{ env.PROFILE
         }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run package:rust --profile ${{ env.PROFILE }}
     - name: Archive package
@@ -553,6 +580,39 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
+        name: build-cli-${{ env.PROFILE }}-windows
+        path: target/ci
+        run-id: ${{ inputs.review_run != '' && inputs.review_run || github.run_id }}
+        github-token: ${{ github.token }}
+    - name: Extract build / cli
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-generator-${{ env.PROFILE }}-windows
+        path: target/ci
+        run-id: ${{ inputs.review_run != '' && inputs.review_run || github.run_id }}
+        github-token: ${{ github.token }}
+    - name: Extract build / generator
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-generator-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-gui-${{ env.PROFILE }}-windows
+        path: target/ci
+        run-id: ${{ inputs.review_run != '' && inputs.review_run || github.run_id }}
+        github-token: ${{ github.token }}
+    - name: Extract build / gui
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
         name: build-packaging-${{ env.PROFILE }}-windows
         path: target/ci
         run-id: ${{ inputs.review_run != '' && inputs.review_run || github.run_id }}
@@ -564,14 +624,14 @@ jobs:
         }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-runtime-${{ env.PROFILE }}-windows
+        name: build-plugins-${{ env.PROFILE }}-windows
         path: target/ci
         run-id: ${{ inputs.review_run != '' && inputs.review_run || github.run_id }}
         github-token: ${{ github.token }}
-    - name: Extract build / runtime
+    - name: Extract build / plugins
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        dokime_tools.ci.artifacts extract --archive target/ci/build-plugins-${{ env.PROFILE
         }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:

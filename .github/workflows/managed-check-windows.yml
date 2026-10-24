@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-windows.yml; sha256:3e0c94cbbcd4b73b12217665cc5148a84ea51d6826777131cd90c123698c14de
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-windows.yml; sha256:615d54bd92df56910b0b31115bf838e61afad23edc37ab66caf90c173b73cdf7
 name: Check
 "on":
   workflow_call:
@@ -23,7 +23,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   check_rust_windows:

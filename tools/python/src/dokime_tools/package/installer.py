@@ -74,7 +74,7 @@ def check(root: Path = ROOT) -> None:
         if not (directory / icon).is_file():
             raise ValueError(f"missing installer icon: {icon}")
     if packaging["bundle"].get("externalBin") != ["binaries/dokime"]:
-        raise ValueError("Tauri bundle.externalBin must contain the Dokime CLI and server")
+        raise ValueError("Tauri bundle.externalBin must select the Dokime CLI executable")
     if bundle.get("resources") != []:
         raise ValueError("Tauri bundle.resources must be empty; organization is compiled")
     if bundle.get("windows", {}).get("nsis", {}).get("installerHooks") != "windows/installer-hooks.nsh":

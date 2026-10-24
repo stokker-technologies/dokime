@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-windows.yml; sha256:e65dc134cd104537e96ec905b9afa821f91e9b39d58c4efdf6f41c74517239cc
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-windows.yml; sha256:0a71556193fd796e32692f86438f340a073d8f162de4da5a2028afee9e5b3e36
 name: Build
 "on":
   workflow_call:
@@ -23,7 +23,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   build_product_windows:
@@ -271,6 +271,19 @@ jobs:
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build --profile ${{ env.PROFILE }} --output product --task build
+    - name: Archive cli
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst
+        --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652e657865225d
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-cli-${{ env.PROFILE }}-windows
+        path: target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 0
     - name: Archive clients
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
@@ -281,6 +294,32 @@ jobs:
       with:
         name: build-clients-${{ env.PROFILE }}-windows
         path: target/ci/build-clients-${{ env.PROFILE }}-windows.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 0
+    - name: Archive generator
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-generator-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f636172676f2d646f6b696d652e657865225d
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-generator-${{ env.PROFILE }}-windows
+        path: target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 0
+    - name: Archive gui
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst
+        --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652d6775692e657865225d
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: build-gui-${{ env.PROFILE }}-windows
+        path: target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst
         if-no-files-found: error
         retention-days: 7
         compression-level: 0
@@ -297,16 +336,16 @@ jobs:
         if-no-files-found: error
         retention-days: 7
         compression-level: 0
-    - name: Archive runtime
+    - name: Archive plugins
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts pack --archive target/ci/build-runtime-${{ env.PROFILE
+        dokime_tools.ci.artifacts pack --archive target/ci/build-plugins-${{ env.PROFILE
         }}-windows.tar.zst --profile ${{ env.PROFILE }} --paths
-        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-runtime-${{ env.PROFILE }}-windows
-        path: target/ci/build-runtime-${{ env.PROFILE }}-windows.tar.zst
+        name: build-plugins-${{ env.PROFILE }}-windows
+        path: target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst
         if-no-files-found: error
         retention-days: 7
         compression-level: 0

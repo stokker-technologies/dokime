@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test.yml; sha256:1698d805abbcd346e5aeebea759b6677246a31d25a797e9b326afc74d2d2f3be
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test.yml; sha256:d12370db14f2591d91abce818c5682a5431d761928832d9d8972631b6b5686bd
 name: Test
 "on":
   workflow_call:
@@ -23,7 +23,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   validate_test_python_unit:
@@ -1354,12 +1354,21 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-runtime-${{ env.PROFILE }}-linux
+        name: build-cli-${{ env.PROFILE }}-linux
         path: target/ci
-    - name: Extract build / runtime
+    - name: Extract build / cli
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        dokime_tools.ci.artifacts extract --archive target/ci/build-cli-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-plugins-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / plugins
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-plugins-${{ env.PROFILE
         }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:

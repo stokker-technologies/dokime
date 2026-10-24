@@ -29,3 +29,19 @@ The nightly starter module owns its generated Git/Cargo boundary, standard Cargo
 Root README, CONTRIBUTING and the preserved product guide are prose inputs checked by repository policy. Embedded starter templates, crate documentation, generated resources and executable examples remain outside that narrow impact rule.
 
 Linux desktop bootstrap owns its report browser dependency. It verifies an explicit browser override or installed Google Chrome, otherwise installs Chrome For Testing 156.0.8078.47 from Google's versioned public archive into target/tooling/desktop. Only desktop consumers install its runtime libraries; other jobs remain unaffected. This pinned Stable version comes from Google's [published release metadata](https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json). Browser selection is passed to both real report-rendering paths; no report assertions are removed.
+
+## Runtime Artifact Inputs
+
+Product keeps the same compiler outputs and default Cargo profiles. Named transfers separate CLI, GUI, generator, plugins, generated clients and packaging metadata rather than transferring every executable to each consumer. Linux filenames have no suffix; Windows filenames use .exe.
+
+| Consumer | Product Inputs |
+| --- | --- |
+| Rust Acceptance | CLI, generator, plugins, generated clients |
+| Rust System | CLI, plugins |
+| Rust Coverage | CLI, GUI, generator, plugins, generated clients |
+| Nightly Starter | Generator |
+| TypeScript System | GUI, CLI, plugins, generated clients |
+| Python Acceptance And Coverage | CLI, plugins |
+| Rust Package | CLI, GUI, generator, plugins, packaging metadata |
+
+Desktop journeys need the CLI as well as the GUI: remote attachment and interoperability still launch a separate headless server through dokime server. The owned desktop session itself remains embedded. Rust acceptance exercises the GUI session library and substitutes a controlled GUI launcher for installation discovery, so it does not require the shipping GUI executable. Archive stamp checks remain scoped to Tests/fixtures; artifact readers request individual files and do not demand omitted siblings. No symbol stripping, profile change, fixture removal or coverage reduction accompanies this split.

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check.yml; sha256:8935055feeb675d1d2214ebc1df92bcccfb3bf38b05642a7ba120420689cc254
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check.yml; sha256:c8f7df8a3c13526658119963eb31f95d75880c1aac82caefd868fdaa0e712a25
 name: Check
 "on":
   workflow_call:
@@ -26,7 +26,7 @@ env:
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
   CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
+  pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
   source:

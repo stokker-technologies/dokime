@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/run.py; sha256:a9b25a32c0adf852bc419cd65f281dd8955142d075a780115d1b2fa99d5b4b91
+# Rendered by stkr project update from templates/python/release/run.py; sha256:be20ace0466359601d8eabc27c87434dc9f415c845eaf57f04269f55479a4c75
 # ***
 #
 # Dokime
@@ -749,7 +749,7 @@ def _rehearse_clean(directory: Path, settings: dict) -> None:
             "MISE_CACHE_DIR": str(scratch / "mise-cache"),
             "MISE_LOCKED": "1",
             "MISE_TRUSTED_CONFIG_PATHS": str(checkout),
-            "npm_config_store_dir": str(scratch / "pnpm"),
+            "pnpm_config_store_dir": str(scratch / "pnpm"),
             "CARGO_INCREMENTAL": "0",
             "RELEASE_PROFILE": "release",
         }
