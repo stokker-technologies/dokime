@@ -8,17 +8,19 @@
  */
 
 /* === Modules === */
+
 pub mod ripple;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::analysis::{Operation, Served};
+use dokime::analysis::{Operation, Served};
 
 /* === Constants === */
 
@@ -29,12 +31,13 @@ use dokime_runtime::analysis::{Operation, Served};
 /* === Structs === */
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Analyses {
     Ripple(Operation<ripple::Ripple>),
 }
 
-#[dokime_runtime::catalog]
+#[dokime::catalog]
 pub enum Implemented {
     Ripple(Served<ripple::Ripple, crate::Resources>),
 }

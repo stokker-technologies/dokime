@@ -18,6 +18,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
@@ -40,6 +41,7 @@ use dokime_domain::operations::files::WatchFile;
 use dokime_domain::operations::process::RunProcess;
 
 /* === Constants === */
+
 // The JSON-RPC server error code of a refusal raised on the step side.
 const STEP_REFUSAL: i64 = -32_000;
 
@@ -52,11 +54,12 @@ const LOCAL_IDS: u64 = u64::MAX;
 /* === Macros === */
 
 /* === Type Aliases === */
-type HostInstance<O> = <Supervisor as Host>::Instance<O>;
 
+type HostInstance<O> = <Supervisor as Host>::Instance<O>;
 type Sweeping<'a> = Pin<Box<dyn Future<Output = Option<StepHandleCancelled>> + Send + 'a>>;
 
 /* === Structs === */
+
 // The running execution as a child process and a warning name it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExecutionIdentity {
@@ -89,6 +92,7 @@ pub struct StepInstance<O: OperationDeclaration> {
     id: Id,
     slot: Arc<Slot<O>>,
     released: bool,
+    readiness: Option<Readiness>,
 }
 
 struct Slot<O: OperationDeclaration> {
@@ -104,20 +108,29 @@ pub(crate) struct LocalRun {
     // A served built-in settles itself when cancelled; a harness answer that
     // never looks at the signal is aborted instead.
     cooperative: bool,
+    readiness: watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>,
 }
 
 /* === Enums === */
+
+enum Readiness {
+    Host(Supervisor),
+    Local(watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>),
+}
+
 enum Running<O: OperationDeclaration> {
     Host(HostInstance<O>),
     Local(LocalRun),
 }
 
 /* === Traits === */
+
 trait Sweep: Send + Sync {
     fn sweep(&self, step: String) -> Sweeping<'_>;
 }
 
 /* === Implementations === */
+
 impl Handles {
     pub(crate) fn begin(&self, step: StepIdentity) {
         self.locked().step = Some(step);
@@ -154,12 +167,16 @@ impl Handles {
 }
 
 impl LocalRun {
-    pub(crate) fn spawn<F>(serve: impl FnOnce(watch::Receiver<bool>) -> F, cooperative: bool) -> Self
+    pub(crate) fn spawn<F>(
+        serve: impl FnOnce(watch::Receiver<bool>, watch::Sender<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>) -> F,
+        cooperative: bool,
+    ) -> Self
     where
         F: Future<Output = Result<Vec<u8>, String>> + Send + 'static,
     {
         let (cancel, cancelled) = watch::channel(false);
-        Self { task: tokio::spawn(serve(cancelled)), cancel, cooperative }
+        let (ready, readiness) = watch::channel(None);
+        Self { task: tokio::spawn(serve(cancelled, ready)), cancel, cooperative, readiness }
     }
 
     fn request_cancel(&self) {
@@ -190,22 +207,27 @@ impl LocalRun {
 }
 
 impl<O: OperationDeclaration> StepInstance<O> {
-    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8]) -> Self {
+    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8], host: Supervisor) -> Self {
         let id = instance.id();
-        Self::tracked(handles, id, Running::Host(instance), request)
+        let mut handle = Self::tracked(handles, id, Running::Host(instance), request);
+        handle.readiness = Some(Readiness::Host(host));
+        handle
     }
 
     pub(crate) fn local(handles: &Handles, run: LocalRun, request: &[u8]) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(LOCAL_IDS);
         let id = Id::new(NEXT.fetch_sub(1, Ordering::Relaxed));
-        Self::tracked(handles, id, Running::Local(run), request)
+        let readiness = run.readiness.clone();
+        let mut handle = Self::tracked(handles, id, Running::Local(run), request);
+        handle.readiness = Some(Readiness::Local(readiness));
+        handle
     }
 
     fn tracked(handles: &Handles, id: Id, running: Running<O>, request: &[u8]) -> Self {
         let (kind, name) = label::<O>(request);
         let slot = Arc::new(Slot { running: tokio::sync::Mutex::new(Some(running)), kind, name });
         handles.track(Arc::clone(&slot) as Arc<dyn Sweep>);
-        Self { id, slot, released: false }
+        Self { id, slot, released: false, readiness: None }
     }
 
     pub fn id(&self) -> Id {
@@ -256,6 +278,28 @@ impl<O: OperationDeclaration> StepInstance<O> {
     pub fn detach(mut self) -> Id {
         self.released = true;
         self.id
+    }
+}
+
+impl StepInstance<WatchFile> {
+    pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, CallError> {
+        match self.readiness.as_ref() {
+            Some(Readiness::Host(host)) => {
+                let response = host.call(dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: self.id.value() }).await?;
+                Ok(response.into_owned())
+            }
+            Some(Readiness::Local(signal)) => {
+                let mut signal = signal.clone();
+                loop {
+                    let value = signal.borrow_and_update().clone();
+                    if let Some(value) = value {
+                        return value.map_err(refused);
+                    }
+                    signal.changed().await.map_err(|_| refused("file watch stopped before capture was armed; inspect its outcome"))?;
+                }
+            }
+            None => Err(refused("file watch has no readiness binding")),
+        }
     }
 }
 
@@ -334,6 +378,7 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn refused(message: impl Into<String>) -> CallError {
     CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) }
 }
@@ -343,6 +388,7 @@ pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
 }
 
 /* === Private Functions === */
+
 fn swept() -> Status {
     Status { phase: Phase::Settled, outcome: Some(Outcome::Cancelled), cancellation_requested: true, attempt: 1 }
 }

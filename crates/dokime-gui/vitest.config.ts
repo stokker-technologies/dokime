@@ -24,7 +24,11 @@ export default defineConfig({
     __DOKIME_UI_MODE__: JSON.stringify("live"),
   },
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    dedupe: ["@bufbuild/protobuf"],
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@generated": fileURLToPath(new URL("../../target/generated/typescript", import.meta.url)),
+    },
   },
   test: {
     environment: "node",

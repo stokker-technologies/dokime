@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = (), output = RecordingFrame, id = "dokime.media.camera_recording", version = 1,
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
@@ -35,9 +38,11 @@ use super::*;
 pub struct CameraRecording {
     pub scope: Option<ArtifactScope>,
     pub camera: Option<u32>,
+
     // Absent records video only.
     #[row(description = "Absent records video only.")]
     pub audio: Option<RecordingAudio>,
+
     pub maximum_seconds: Option<u32>,
 }
 

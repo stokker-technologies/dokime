@@ -7,6 +7,13 @@
  * ***
  */
 
+import type { Row6 as GeneratedHistoryIssue } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type {
+  Row2 as GeneratedCheckpointContext,
+  Row23 as GeneratedSeverity,
+} from "@generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
+import type { Row2 as GeneratedNativeCheckpointEvidence } from "@generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
+import type { Row2 as GeneratedCheckpointTelemetryPage } from "@generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
@@ -25,13 +32,6 @@ import { saveNativeDocument } from "@/lib/api/native-delivery";
 import { nativeValueObjectToJson, timestampIso } from "@/lib/api/native-values";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { ExecutionCheckpoint } from "@/lib/types/view-contracts";
-import type { Row6 as GeneratedHistoryIssue } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type {
-  Row2 as GeneratedCheckpointContext,
-  Row23 as GeneratedSeverity,
-} from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
-import type { Row2 as GeneratedNativeCheckpointEvidence } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
 import {
   fetchCheckpointContext,
   fetchCheckpointEvidence,

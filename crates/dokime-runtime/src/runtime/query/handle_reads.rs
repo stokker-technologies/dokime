@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeSet, sync::Arc};
+
 // Third Party Imports
 
 // Local Imports
@@ -45,6 +47,7 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub(crate) async fn projected_evidence_snapshot(
         &self, snapshot: &crate::queries::RuntimeStateSnapshot,
@@ -139,7 +142,7 @@ impl RuntimeHandle {
     }
 }
 
-/* === Read Dispatch === */
+// Read Dispatch
 
 impl RuntimeHandle {
     pub async fn evidence_snapshot(&self) -> crate::runtime::Result<crate::evidence_runtime::EvidenceSnapshot> {

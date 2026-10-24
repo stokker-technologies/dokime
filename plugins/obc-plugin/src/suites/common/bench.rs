@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,15 +20,14 @@
 // Local Imports
 
 /* === Constants === */
+
 pub const SHORTEST_S: f64 = 0.0001;
-
 pub const FINEST_STEP_S: f64 = 0.0001;
-
 pub const COARSEST_STEP_S: f64 = 1.0;
-
 pub const MOST_ROWS: f64 = 100_000.0;
 
 /* === Macros === */
+
 macro_rules! bench {
     ($parameters:ty) => {
         impl $parameters {

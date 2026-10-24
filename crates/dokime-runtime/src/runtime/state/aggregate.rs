@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -41,6 +42,7 @@ use dokime_domain::model::execution::result::CycleView;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn overview_entity_counts(state: &RuntimeState, artifact_records: usize) -> RuntimeOverviewFrame {
     RuntimeOverviewFrame {
         shell: None,
@@ -102,6 +104,7 @@ pub(crate) fn runtime_overview_snapshot(
 }
 
 /* === Private Functions === */
+
 fn retention_diagnostics(state: &RuntimeState, telemetry_cursor_entries: usize) -> RuntimeRetentionDiagnostics {
     RuntimeRetentionDiagnostics {
         state_cycles: state.cycles.len(),

@@ -10,11 +10,14 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::runtime::storage::record_capture::CapturedRecord;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -51,6 +54,7 @@ pub struct CapturedRecords {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordSubscription {
     pub(crate) fn new(source: &Arc<Source>, state_manager: &crate::app::StateManager, after: harmos::state::Position) -> Self {
         Self { source: source.clone(), state_manager: state_manager.clone(), delivered: after.0, reader: Process::default() }

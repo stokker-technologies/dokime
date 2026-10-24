@@ -42,6 +42,8 @@ import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTra
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ActiveCycleInline } from "@/features/library/ActiveCycle";
+import type { OpenCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, caseDeltas, NO_ACTIVE_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
 import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -58,10 +60,12 @@ const STEP_LABELS: { key: DialogStep; label: string }[] = [
 
 type TemplateDialogProps = {
   /** The active cycle the cases join; absent, the dialog adds nothing. */
-  cycleId?: string;
-  /** The active cycle's label, shown on the summary step. */
-  cycleLabel?: string;
-  /** Opens New Cycle, for when there is no active cycle to add to. */
+  activeCycle: OpenCycle | null;
+  /** Whether any cycle is open, so a missing choice asks for one rather than blocking. */
+  hasOpenCycles: boolean;
+  /** Opens the active cycle picker. */
+  onChangeCycle: () => void;
+  /** Opens New Cycle, for when no cycle is open. */
   onNewCycle: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -73,7 +77,18 @@ type DialogStep = "parameters" | "summary";
 
 /* === Components === */
 
-export function TemplateDialog({ cycleId, cycleLabel, onNewCycle, onOpenChange, open, suite, template }: TemplateDialogProps) {
+export function TemplateDialog({
+  activeCycle,
+  hasOpenCycles,
+  onChangeCycle,
+  onNewCycle,
+  onOpenChange,
+  open,
+  suite,
+  template,
+}: TemplateDialogProps) {
+  const cycleId = activeCycle?.cycleId;
+  const cycleLabel = activeCycle?.label;
   const navigate = useNavigate();
   const touch = useTouchDensity();
   const templateId = template.template_id;
@@ -284,14 +299,9 @@ export function TemplateDialog({ cycleId, cycleLabel, onNewCycle, onOpenChange, 
       ) : (
         <SummaryStep preview={preview} rows={rows} target={cycleLabel ?? cycleId ?? ""} title={title} />
       )}
-      {append ? null : (
-        <div className="mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border bg-muted/50 px-3 py-2" role="status">
-          <p className="text-sm text-muted-foreground">{NO_ACTIVE_CYCLE}</p>
-          <Button onClick={onNewCycle} size="sm" type="button" variant="outline">
-            New Cycle
-          </Button>
-        </div>
-      )}
+      <div className="mx-4">
+        <ActiveCycleInline cycle={activeCycle} hasOpenCycles={hasOpenCycles} onChange={onChangeCycle} onNewCycle={onNewCycle} />
+      </div>
       {error ? (
         <p className="px-4 text-sm text-destructive" role="alert">
           {error}

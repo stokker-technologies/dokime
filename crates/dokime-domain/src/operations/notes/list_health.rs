@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = ListHealthResponse, id = "dokime.health.list_health", version = 1,
         policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
@@ -34,10 +37,13 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListHealth {
     pub selection: Option<AnnotationSelection>,
+
     // default 50, maximum 100
     #[row(description = "default 50, maximum 100")]
     pub limit: u32,
+
     pub after_id: String,
+
     // Exact runtime revision and selection, required with after_id. Restart on change.
     #[row(description = "Exact runtime revision and selection, required with after_id. Restart on change.")]
     pub cursor: Option<Cursor>,

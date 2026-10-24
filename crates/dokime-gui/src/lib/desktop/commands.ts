@@ -14,17 +14,19 @@
 
 /* === External Imports === */
 
-import { invoke as invokeCommand } from "@tauri-apps/api/core";
+import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
 
 /* === Local Imports === */
 
+import type { StagePluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
-
 import type { BackendProfiles } from "./connection";
-import type { ArtifactDeliveryRequest, ArtifactSource, DesktopSaveDocument } from "./delivery";
-import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
+import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
+import type { OrganizationStatus } from "./organization";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
 import type { ParameterOverrides } from "./settings";
+import { settleUnlessStopping } from "./stopping";
+import type { PluginRelease, UpdateCheck, UpdateSelection, UpdateStatus } from "./updates";
 
 /* === Private Functions === */
 
@@ -40,7 +42,8 @@ function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> 
   if (isReportBuild()) {
     return Promise.reject(new Error(`A frozen report cannot call the desktop command "${command}".`));
   }
-  return invokeCommand<T>(command, args);
+  // Once the desktop stops, a refused or interrupted command belongs to the stop.
+  return invokeCommand<T>(command, args).catch(settleUnlessStopping<T>);
 }
 
 /* === Public Constants === */
@@ -67,9 +70,7 @@ export const commands = {
   /** Save a verified document through the native file picker: the saved path, `null` when the operator cancels. */
   desktopSaveDocument: (generation: string, document: DesktopSaveDocument) =>
     invoke<string | null>("desktop_save_document", { generation, document }),
-  /** Open a verified document from the private native cache. */
-  desktopOpenDocument: (generation: string, document: DesktopSaveDocument) =>
-    invoke<null>("desktop_open_document", { generation, document }),
+  desktopPickSecretArchive: (generation: string) => invoke<string | null>("desktop_pick_secret_archive", { generation }),
   /**
    * Write a verified diagnostics bundle into the operator's Downloads folder;
    * resolves with the saved path. The `document` kind must be
@@ -77,9 +78,9 @@ export const commands = {
    */
   desktopSaveDiagnosticsBundle: (generation: string, document: DesktopSaveDocument) =>
     invoke<string>("desktop_save_diagnostics_bundle", { generation, document }),
-  /** Stream one verified artifact, execution output or cycle bundle to a native destination. */
+  /** Stream one verified artifact, execution output or sealed evidence bundle to a native destination. */
   desktopArtifactDeliver: (generation: string, request: ArtifactDeliveryRequest) =>
-    invoke<boolean>("desktop_artifact_deliver", { generation, request }),
+    invoke<Delivered | null>("desktop_artifact_deliver", { generation, request }),
   /** Materialize one verified artifact in the private media cache; returns its preview URL path. */
   desktopMediaPrepare: (generation: string, source: ArtifactSource) => invoke<string>("desktop_media_prepare", { generation, source }),
   /** Release one generation's media cache. */
@@ -87,15 +88,28 @@ export const commands = {
   /** Patch an MP4 recording's duration in place and upload it; returns the artifact id. */
   desktopRecordingFinish: (generation: string, durationMs: number, mediaType: string) =>
     invoke<string>("desktop_recording_finish", { generation, durationMs, mediaType }),
+  /** Stage the bundle just dropped on the window, or pick one natively; `null` when the operator cancels. */
+  desktopPluginStageFile: (generation: string, drop: boolean, progress: Channel<StagePluginProgress>) =>
+    invoke<string | null>("desktop_plugin_stage_file", { generation, drop, progress }),
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
+  /** The organization pack applied at boot and the one that applies on the next start. */
+  desktopOrganizationStatus: () => invoke<OrganizationStatus>("desktop_organization_status"),
+  /** Pick, validate and stage an organization pack zip; null when the picker is dismissed. */
+  desktopOrganizationChoose: () => invoke<OrganizationStatus | null>("desktop_organization_choose"),
+  /** Delete the pending and active packs; the compiled brand applies on the next start. */
+  desktopOrganizationRemove: () => invoke<OrganizationStatus>("desktop_organization_remove"),
   /** Drain all runtime resources before requesting Tauri's non-cancellable restart. */
   desktopRestart: () => invoke<null>("desktop_restart"),
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),
   desktopParametersWrite: (values: ParameterOverrides) => invoke<null>("desktop_parameters_write", { values }),
   desktopPickExecutionDirectory: () => invoke<string | null>("desktop_pick_execution_directory"),
-  gitlabAuthStatus: () => invoke<GitlabAuthStatus>("gitlab_auth_status"),
-  gitlabSignIn: () => invoke<GitlabAuthStatus>("gitlab_sign_in"),
-  gitlabSignOut: () => invoke<GitlabAuthStatus>("gitlab_sign_out"),
-  gitlabCheckForUpdates: () => invoke<GitlabUpdateCheck>("gitlab_check_for_updates"),
-  gitlabInstallUpdate: () => invoke<GitlabInstallResult>("gitlab_install_update"),
+  desktopUpdatesStatus: () => invoke<UpdateStatus>("desktop_updates_status"),
+  desktopUpdatesConfigure: (selection: UpdateSelection) => invoke<UpdateStatus>("desktop_updates_configure", { selection }),
+  desktopUpdatesSignIn: () => invoke<UpdateStatus>("desktop_updates_sign_in"),
+  desktopUpdatesSignOut: () => invoke<UpdateStatus>("desktop_updates_sign_out"),
+  desktopUpdatesCheck: () => invoke<UpdateCheck>("desktop_updates_check"),
+  desktopUpdatesInstall: (candidate: string) => invoke<{ version: string }>("desktop_updates_install", { candidate }),
+  desktopPluginReleaseCheck: (generation: string) => invoke<PluginRelease>("desktop_plugin_release_check", { generation }),
+  desktopPluginReleaseStage: (generation: string, candidate: string, progress: Channel<StagePluginProgress>) =>
+    invoke<string>("desktop_plugin_release_stage", { generation, candidate, progress }),
 };

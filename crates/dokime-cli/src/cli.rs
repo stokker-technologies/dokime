@@ -1,0 +1,59 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+use clap::Parser;
+
+// Local Imports
+use crate::commands::Command;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+#[derive(Debug, Parser)]
+#[command(name = "dokime", about = "Connect To Dokime Backends", version)]
+pub struct Cli {
+    #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(crate::terminal::ColorMode), help = "Color output: auto, always, or never.")]
+    pub color: crate::terminal::ColorMode,
+
+    #[command(subcommand)]
+    pub(crate) command: Command,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl Cli {
+    pub async fn run(self) -> crate::Result<()> {
+        crate::terminal::set_color_mode(self.color);
+        crate::commands::run(self.command).await
+    }
+}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

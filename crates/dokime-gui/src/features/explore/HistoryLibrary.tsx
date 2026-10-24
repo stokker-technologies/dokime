@@ -21,24 +21,6 @@ import { Button } from "@/components/ui/button";
 import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
 import { cn } from "@/lib/utils";
 
-/* === Types === */
-
-type HistoryLibraryProps = {
-  /** The Archived view: archived rows only, each with Unarchive. */
-  archived: boolean;
-  cycles: ExploreEntry[];
-  loading: boolean;
-  onCompare: () => void;
-  onToggleArchived: () => void;
-  onUnarchive: (entry: ExploreEntry) => void;
-  onOpenEntry: (target: ExploreTarget) => void;
-  onQueryChange: (query: string) => void;
-  onToggleSelected: (entryKey: string) => void;
-  /** The box's own value. The rows it selects are the server's answer. */
-  query: string;
-  selectedIds: Set<string>;
-};
-
 /* === Constants === */
 
 const column = dataTableColumns<ExploreEntry>();
@@ -55,7 +37,11 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
     meta: { label: "Result", width: "w-36" },
   }),
   column.accessor("lifecycle", {
-    cell: ({ row }) => <span className="text-sm capitalize">{row.original.lifecycle}</span>,
+    cell: ({ row }) => (
+      <span className="text-sm capitalize">
+        {row.original.phase ?? "Unknown"} · {row.original.lifecycle}
+      </span>
+    ),
     header: "Lifecycle",
     meta: { filter: "facet", label: "Lifecycle", width: "w-32" },
   }),
@@ -79,16 +65,23 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
   }),
 ]);
 
-/* === Private Functions === */
+/* === Types === */
 
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
-}
-
-function entryKey(entry: ExploreEntry): string {
-  return exploreEntryKey(entry.target);
-}
+type HistoryLibraryProps = {
+  /** The Archived view: archived rows only, each with Unarchive. */
+  archived: boolean;
+  cycles: ExploreEntry[];
+  loading: boolean;
+  onCompare: () => void;
+  onToggleArchived: () => void;
+  onUnarchive: (entry: ExploreEntry) => void;
+  onOpenEntry: (target: ExploreTarget) => void;
+  onQueryChange: (query: string) => void;
+  onToggleSelected: (entryKey: string) => void;
+  /** The box's own value. The rows it selects are the server's answer. */
+  query: string;
+  selectedIds: Set<string>;
+};
 
 /* === Components === */
 
@@ -195,7 +188,7 @@ export function HistoryLibrary({
   );
 }
 
-/* === Private Components === */
+/* Private Components */
 
 /** One line: the title, then its qualifier. */
 function EntryTitle({ entry }: { entry: ExploreEntry }) {
@@ -230,4 +223,15 @@ function SourceBadge({ source }: { source: ExploreSource }) {
       {source.label}
     </Badge>
   );
+}
+
+/* === Private Functions === */
+
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
+}
+
+function entryKey(entry: ExploreEntry): string {
+  return exploreEntryKey(entry.target);
 }

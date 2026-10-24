@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::ValidationMode;
 use crate::records::validate_record;
@@ -37,6 +39,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.evidence.health.record", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RecordHealth {
@@ -65,6 +68,7 @@ pub struct PublishRecord {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum PublicationSource {
@@ -76,6 +80,7 @@ enum PublicationSource {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for RecordHealth {
     type Error = String;
 
@@ -155,6 +160,7 @@ impl Transaction<RuntimeState> for PublishRecord {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn prepare_record(state: &RuntimeState, publish: &PublishRecord) -> Result<crate::transactions::records::draft::Drafts, Error> {
     match &publish.source {
         PublicationSource::Host => {

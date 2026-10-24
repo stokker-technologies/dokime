@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::execution::scope_visible_in;
@@ -33,6 +36,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ResourceRegistry {
     resources: BTreeMap<String, ResourceRecord>,
@@ -49,9 +53,11 @@ struct ResourceInstance {
 }
 
 /* === Enums === */
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ResourceRegistry {
     pub fn clear(&mut self) {
         self.resources.clear();
@@ -248,6 +254,7 @@ impl ResourceRegistry {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn resource_lifecycle(record_type: &Identifier) -> Option<ResourceLifecycle> {
     match record_type.as_str() {
         "resource.registered" | "resource.attached" | "resource.opening" => Some(ResourceLifecycle::Registered),

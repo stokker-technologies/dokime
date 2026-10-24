@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
@@ -33,20 +34,24 @@ use crate::transport::{
 };
 
 /* === Constants === */
+
 const IDLE: Duration = Duration::from_millis(250);
-
 const PUSH_RETRIES: usize = 5;
-
 const RUN_POLICY: OperationPolicy =
     OperationPolicy { timeout: RUN_BOUND, attempt_timeout: RUN_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
-
 pub const SIGNAL_POLICY: OperationPolicy =
     OperationPolicy { timeout: SIGNAL_BOUND, attempt_timeout: SIGNAL_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
 
 /* === Macros === */
+
+templated!(Run, RunExecution);
+
+templated!(Signal, ExecutionSignal);
+
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // One template's run operation: the request is the portable `RunExecution`;
 // the type parameter only selects the template's operation identity.
 pub struct Run<T>(pub RunExecution, PhantomData<fn() -> T>);
@@ -59,12 +64,14 @@ pub struct Running<T: SidecarTemplate>(Arc<Workflow<T>>);
 pub struct Signalling<T: SidecarTemplate>(Arc<Workflow<T>>);
 
 /* === Enums === */
+
 enum Answered {
     Prompt { prompt_id: String, answer: Result<OperatorAnswer, String> },
     Lease { lease_token: String, resolution: Result<LeaseResolution, String> },
 }
 
 /* === Traits === */
+
 pub trait ExecutionHost: Send + Sync + 'static {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>>;
 
@@ -100,9 +107,6 @@ pub trait Runnable: Send + Sync + 'static {
 }
 
 /* === Implementations === */
-templated!(Run, RunExecution);
-
-templated!(Signal, ExecutionSignal);
 
 // The host's embedded runner serves the generic template identities.
 impl Served for () {
@@ -345,6 +349,8 @@ impl<T: SidecarTemplate> Runnable for Workflow<T> {
     }
 }
 
+/* === Public Functions === */
+
 pub fn contracts(template: &str) -> Result<[harmos::operations::Contract; 2], harmos::operations::ContractError> {
     let named = |wire: harmos::operations::WireDeclaration, suffix: &str| {
         let contract = wire.contract()?;
@@ -359,7 +365,6 @@ pub fn contracts(template: &str) -> Result<[harmos::operations::Contract; 2], ha
     ])
 }
 
-/* === Public Functions === */
 pub fn serve<P, S>(table: &mut WireTable<Supervisor>) -> Result<(), ServingError>
 where
     P: harmos::plugin::Declared,
@@ -397,6 +402,7 @@ where
 }
 
 /* === Private Functions === */
+
 fn registry() -> &'static Mutex<Vec<Arc<dyn Runnable>>> {
     static SERVED: OnceLock<Mutex<Vec<Arc<dyn Runnable>>>> = OnceLock::new();
     SERVED.get_or_init(Mutex::default)

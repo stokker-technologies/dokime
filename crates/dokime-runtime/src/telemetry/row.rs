@@ -10,11 +10,14 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::values::{FieldError, FieldValue};
 pub use dokime_domain::model::telemetry::TelemetryRow;
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 
 // Local Imports
@@ -32,10 +35,10 @@ use dokime_domain::model::values::ValueType;
 /* === Enums === */
 
 /* === Traits === */
+
 /* === Implementations === */
 
 /* === Public Functions === */
-/* === Functions === */
 
 pub fn declared_column(field: harmos::StreamField, value_type: ValueType) -> TelemetryColumn {
     let role = match field.role.as_deref().unwrap_or("value") {

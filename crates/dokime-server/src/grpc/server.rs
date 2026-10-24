@@ -12,15 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
 // Third Party Imports
-use harmos::grpc::Attached;
+use dokime::harmos::grpc::Attached;
 
 // Local Imports
+use super::access::Listeners;
 use super::{Config, Error, appearance, authorization, catalog, content, execution, history, observation, planning, reports};
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
 
 /* === Constants === */
 
@@ -29,16 +31,21 @@ use dokime_runtime::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+#[derive(Clone)]
 pub struct Service {
     runtime: RuntimeHandle,
-    settings: harmos::grpc::Settings,
-    tls: bool,
+    config: Config,
+    listeners: Arc<Listeners>,
+    remote: Option<Arc<super::remote::Controller>>,
 }
 
 pub struct Server {
     address: SocketAddr,
     tls: bool,
     attachment: Option<Attached>,
+    listeners: Arc<Listeners>,
+    remote: Option<Arc<super::remote::Controller>>,
 }
 
 /* === Enums === */
@@ -46,10 +53,10 @@ pub struct Server {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Service {
     pub async fn new(runtime: RuntimeHandle, config: Config) -> Result<Self, Error> {
         config.validate()?;
-        let tls = config.tls.is_some();
         appearance::register(&runtime, config.max_message_bytes())?;
         catalog::register(&runtime, config.max_message_bytes())?;
         planning::register(&runtime)?;
@@ -64,21 +71,49 @@ impl Service {
         super::prompts::register(&runtime, config.max_message_bytes())?;
         super::telemetry::register(&runtime, config.max_message_bytes())?;
         super::query::register(&runtime, config.max_message_bytes())?;
-        super::plugins::register(&runtime, config.max_message_bytes(), config.local_only())?;
+        super::plugins::register(&runtime, config.max_message_bytes())?;
         super::evidence::register(&runtime, config.max_message_bytes())?;
         super::plots::register(&runtime, config.max_message_bytes())?;
         super::documents::register(&runtime, config.max_message_bytes())?;
         super::settings::register(&runtime, config.max_message_bytes())?;
         super::backend::register(&runtime, config.max_message_bytes()).await?;
         super::trace::register(&runtime, config.max_message_bytes())?;
-        authorization::register(&runtime, &config)?;
-        let settings = config.into_listener_settings()?;
-        Ok(Self { runtime, settings, tls })
+        let listeners = authorization::register(&runtime)?;
+        let mut service = Self { runtime: runtime.clone(), config, listeners, remote: None };
+        service.remote = Some(super::remote::register(&runtime, service.clone()).await?);
+        Ok(service)
+    }
+
+    pub(super) fn sessions(&self) -> Arc<super::remote::sessions::SessionLog> {
+        self.listeners.sessions()
+    }
+
+    pub(super) fn message_limit(&self) -> usize {
+        self.config.max_message_bytes()
     }
 
     pub async fn listen(&self) -> Result<Server, Error> {
-        let attachment = self.runtime.grpc().attach(self.settings.clone()).await?;
-        Ok(Server { address: attachment.local_addr(), tls: self.tls, attachment: Some(attachment) })
+        let mut server = self.listen_with(self.config.clone()).await?;
+        if let Some(remote) = &self.remote {
+            remote.start().await;
+            server.remote = Some(remote.clone());
+        }
+        Ok(server)
+    }
+
+    pub async fn listen_with(&self, config: Config) -> Result<Server, Error> {
+        config.validate()?;
+        if config.max_message_bytes() != self.config.max_message_bytes() {
+            return Err(Error::Configuration("all listeners must use the registered service message limit"));
+        }
+        let tls = config.tls.is_some();
+        let policy = config.policy.clone();
+        let local = config.local_only();
+        let settings = config.into_listener_settings()?;
+        let attachment = self.runtime.grpc().attach(settings).await?;
+        let address = attachment.local_addr();
+        self.listeners.insert(address, policy, local);
+        Ok(Server { address, tls, attachment: Some(attachment), listeners: self.listeners.clone(), remote: None })
     }
 }
 
@@ -100,10 +135,24 @@ impl Server {
     }
 
     pub async fn shutdown(mut self) -> Result<(), Error> {
+        if let Some(remote) = self.remote.take() {
+            remote.stop().await?;
+        }
+        self.detach().await
+    }
+
+    pub(super) async fn detach(mut self) -> Result<(), Error> {
+        self.listeners.remove(self.address);
         if let Some(attachment) = self.attachment.take() {
             attachment.detach().await?;
         }
         Ok(())
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        self.listeners.remove(self.address);
     }
 }
 

@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{borrow::Cow, cmp::Ordering, collections::BTreeMap};
+
 // Third Party Imports
 
 // Local Imports
@@ -43,6 +45,7 @@ use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const VALUE_PLACEHOLDER: &str = "{value}";
 
 /* === Macros === */
@@ -50,6 +53,7 @@ const VALUE_PLACEHOLDER: &str = "{value}";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct DocumentMaterializer<'a> {
     capture: Option<&'a mut CaptureBindings>,
     artifact_lists: &'a mut Vec<ArtifactListDescriptor>,
@@ -86,6 +90,7 @@ struct CaptureBindings {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DocumentMaterializer<'_> {
     fn capture_nodes(&mut self, nodes: Vec<DocumentNode>) -> Result<bool> {
         let mut present = false;
@@ -379,6 +384,7 @@ impl DocumentMaterializer<'_> {
 }
 
 /* === Public Functions === */
+
 pub fn resolve_document(input: DocumentResolveInput) -> Result<DocumentPayload> {
     resolve(input, true)
 }
@@ -455,7 +461,73 @@ pub(super) fn repeat_label_bound(repeat: &DocumentSectionRepeat, evidence: Evide
     evidence.rows(&repeat.value).filter_map(|row| expression_label_size(row, &repeat.value, evidence)).max().unwrap_or(0)
 }
 
+pub(super) fn repeat_filter_memory(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) -> usize {
+    use harmos::MemorySize;
+    let bytes = repeat.value.memory_size();
+    if bytes == usize::MAX {
+        return usize::MAX;
+    }
+    let expression = bytes.saturating_sub(std::mem::size_of::<DataExpression>());
+    let value = evidence
+        .rows(&repeat.value)
+        .filter_map(|row| {
+            binding::row_text(row, &repeat.value)
+                .map(|text| std::mem::size_of::<Value>().saturating_add(text.len()))
+                .or_else(|| expression_value(row, &repeat.value, evidence).map(|value| value.memory_size()))
+        })
+        .max()
+        .unwrap_or(std::mem::size_of::<Value>());
+    if value == usize::MAX {
+        return usize::MAX;
+    }
+    std::mem::size_of::<DocumentFilter>().saturating_add(expression).saturating_add(value.saturating_sub(std::mem::size_of::<Value>()))
+}
+
+pub(super) fn repeat_selection_memory(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) -> usize {
+    let labels = repeat
+        .order_by
+        .as_ref()
+        .map_or(0, |order| evidence.rows(&repeat.value).filter_map(|row| expression_label_size(row, order, evidence)).max().unwrap_or(0));
+    let (owned, temporary) = evidence.rows(&repeat.value).fold((0usize, 0usize), |(total, largest), row| {
+        let value = binding::row_text(row, &repeat.value).map_or(0, str::len);
+        let order = repeat.order_by.as_ref().and_then(|order| binding::row_text(row, order)).map_or(0, str::len);
+        let heap = value.saturating_add(order);
+        (total.saturating_add(heap), largest.max(heap))
+    });
+    std::mem::size_of::<Vec<RepeatValue<'_>>>()
+        .saturating_add(evidence.upper_rows().saturating_mul(std::mem::size_of::<RepeatValue<'_>>()))
+        .saturating_add(std::mem::size_of::<RepeatValue<'_>>())
+        .saturating_add(owned)
+        .saturating_add(temporary)
+        .saturating_add(labels)
+        .saturating_add(labels)
+}
+
+pub(super) fn repeat_template_memory(repeat: &DocumentSectionRepeat, node_id_bytes: usize, evidence: Evidence<'_>) -> usize {
+    evidence
+        .rows(&repeat.value)
+        .filter_map(|row| expression_label_size(row, &repeat.value, evidence))
+        .map(|label| {
+            let labels = template_memory(&repeat.label_template, &repeat.value, label)?;
+            let identifiers = if let Some(template) = &repeat.id_template {
+                template_memory(template, &repeat.value, label)?
+            } else {
+                // Default Identifier Template Is "<Node Id>.{value}".
+                let template = node_id_bytes.checked_add(1)?.checked_add(VALUE_PLACEHOLDER.len())?;
+                let first = node_id_bytes.checked_add(1)?.checked_add(label)?;
+                let field = expression_field_name(&repeat.value)?.len().checked_add(2)?;
+                let second = first.checked_add((first / field).checked_mul(label.saturating_sub(field))?)?;
+                template.checked_add(first)?.checked_add(second)?.checked_add(field)?.checked_add(label)?
+            };
+            labels.checked_add(identifiers)
+        })
+        .map(|memory| memory.unwrap_or(usize::MAX))
+        .max()
+        .unwrap_or(0)
+}
+
 /* === Private Functions === */
+
 fn expression_label_size(row: Row<'_>, expression: &DataExpression, evidence: Evidence<'_>) -> Option<usize> {
     binding::row_text(row, expression)
         .map(str::len)
@@ -793,71 +865,6 @@ fn template_memory(template: &str, expression: &DataExpression, label: usize) ->
         0
     };
     first.checked_add(second)?.checked_add(label)
-}
-
-pub(super) fn repeat_filter_memory(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) -> usize {
-    use harmos::MemorySize;
-    let bytes = repeat.value.memory_size();
-    if bytes == usize::MAX {
-        return usize::MAX;
-    }
-    let expression = bytes.saturating_sub(std::mem::size_of::<DataExpression>());
-    let value = evidence
-        .rows(&repeat.value)
-        .filter_map(|row| {
-            binding::row_text(row, &repeat.value)
-                .map(|text| std::mem::size_of::<Value>().saturating_add(text.len()))
-                .or_else(|| expression_value(row, &repeat.value, evidence).map(|value| value.memory_size()))
-        })
-        .max()
-        .unwrap_or(std::mem::size_of::<Value>());
-    if value == usize::MAX {
-        return usize::MAX;
-    }
-    std::mem::size_of::<DocumentFilter>().saturating_add(expression).saturating_add(value.saturating_sub(std::mem::size_of::<Value>()))
-}
-
-pub(super) fn repeat_selection_memory(repeat: &DocumentSectionRepeat, evidence: Evidence<'_>) -> usize {
-    let labels = repeat
-        .order_by
-        .as_ref()
-        .map_or(0, |order| evidence.rows(&repeat.value).filter_map(|row| expression_label_size(row, order, evidence)).max().unwrap_or(0));
-    let (owned, temporary) = evidence.rows(&repeat.value).fold((0usize, 0usize), |(total, largest), row| {
-        let value = binding::row_text(row, &repeat.value).map_or(0, str::len);
-        let order = repeat.order_by.as_ref().and_then(|order| binding::row_text(row, order)).map_or(0, str::len);
-        let heap = value.saturating_add(order);
-        (total.saturating_add(heap), largest.max(heap))
-    });
-    std::mem::size_of::<Vec<RepeatValue<'_>>>()
-        .saturating_add(evidence.upper_rows().saturating_mul(std::mem::size_of::<RepeatValue<'_>>()))
-        .saturating_add(std::mem::size_of::<RepeatValue<'_>>())
-        .saturating_add(owned)
-        .saturating_add(temporary)
-        .saturating_add(labels)
-        .saturating_add(labels)
-}
-
-pub(super) fn repeat_template_memory(repeat: &DocumentSectionRepeat, node_id_bytes: usize, evidence: Evidence<'_>) -> usize {
-    evidence
-        .rows(&repeat.value)
-        .filter_map(|row| expression_label_size(row, &repeat.value, evidence))
-        .map(|label| {
-            let labels = template_memory(&repeat.label_template, &repeat.value, label)?;
-            let identifiers = if let Some(template) = &repeat.id_template {
-                template_memory(template, &repeat.value, label)?
-            } else {
-                // Default Identifier Template Is "<Node Id>.{value}".
-                let template = node_id_bytes.checked_add(1)?.checked_add(VALUE_PLACEHOLDER.len())?;
-                let first = node_id_bytes.checked_add(1)?.checked_add(label)?;
-                let field = expression_field_name(&repeat.value)?.len().checked_add(2)?;
-                let second = first.checked_add((first / field).checked_mul(label.saturating_sub(field))?)?;
-                template.checked_add(first)?.checked_add(second)?.checked_add(field)?.checked_add(label)?
-            };
-            labels.checked_add(identifiers)
-        })
-        .map(|memory| memory.unwrap_or(usize::MAX))
-        .max()
-        .unwrap_or(0)
 }
 
 fn expression_field_name(expression: &DataExpression) -> Option<&str> {

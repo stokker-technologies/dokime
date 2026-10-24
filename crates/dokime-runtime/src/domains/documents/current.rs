@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +36,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct PreparedCurrentDocument {
     runtime: RuntimeHandle,
     snapshot: RuntimeStateSnapshot,
@@ -51,6 +53,7 @@ pub struct CurrentDocumentCapture {
 }
 
 /* === Enums === */
+
 pub enum CurrentDocumentTelemetryCut {
     Window { delivered: u64 },
     Series { epoch: u64, delivered: u64, ordinal: u64 },
@@ -59,6 +62,7 @@ pub enum CurrentDocumentTelemetryCut {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub fn prepare_current_cycle_document(
         &self, cycle_id: &TestCycleId, document_id: &DocumentId,
@@ -174,6 +178,7 @@ impl PreparedCurrentDocument {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn binding_context<'a>(
     snapshot: &'a RuntimeStateSnapshot, definition: &DocumentDefinition, selection: &'a DocumentSelection,
 ) -> crate::runtime::Result<crate::document::input::Context<'a>> {

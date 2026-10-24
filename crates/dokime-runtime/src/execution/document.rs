@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Mutex, PoisonError};
+
 // Third Party Imports
 
 // Local Imports
@@ -29,6 +31,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct DocumentIndex {
     document: DocumentDefinition,
 }
@@ -43,6 +46,7 @@ pub struct DocumentHandle<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl DocumentIndex {
     pub(crate) fn new(declared: Option<DocumentDefinition>) -> Self {
         Self { document: declared.unwrap_or_else(|| DocumentDefinition::new("default", "Document")) }

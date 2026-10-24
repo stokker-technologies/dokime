@@ -12,12 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+
 // Third Party Imports
 // Third-Party Imports
 use serde::de::DeserializeOwned;
+
 // Local Imports
 use crate::artifacts::Artifacts;
 use crate::execution::environment::Environment;
@@ -39,6 +42,7 @@ use dokime_domain::model::values::Value;
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! own_resources {
     ($($stage:ty),+ $(,)?) => {
         $(impl<'a, C, O, I> Context<'a, C, O, I, $stage> {
@@ -70,18 +74,17 @@ own_document!(Initialize, Traceability, Step, Cleanup);
 own_document!(Observing);
 
 /* === Type Aliases === */
+
 pub type InitializationContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Initialize>;
-
 pub type TraceabilityContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Traceability>;
-
 pub type StepContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Step>;
 
 #[cfg(feature = "native")]
 pub type ObserverContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Observing>;
-
 pub type CleanupContext<'a, C = (), O = (), I = ()> = Context<'a, C, O, I, Cleanup>;
 
 /* === Structs === */
+
 pub struct Context<'a, C, O, I, Stage> {
     environment: &'a Environment<'a, C, O, I>,
     transport: &'a mut dyn ExecutionTransport,
@@ -107,15 +110,19 @@ pub struct Cleanup {
 
 pub struct CriterionContext<'a, C = (), I = ()> {
     calls: std::marker::PhantomData<fn() -> C>,
+
     #[cfg(feature = "native")]
     caller: crate::execution::Caller,
+
     #[cfg(feature = "native")]
     binding: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
+
     parameters: &'a I,
     raw: &'a BTreeMap<String, Value>,
     evidence: &'a ExecutionEvidence,
     selected_attempts: Arc<BTreeSet<StepAttemptId>>,
     log: Option<(&'a dyn ExecutionTransport, &'a str)>,
+
     #[cfg(feature = "native")]
     callbacks: crate::execution::Callbacks,
 }
@@ -136,9 +143,10 @@ pub trait Required {
 )]
 pub trait Called<T> {}
 
+/* === Implementations === */
+
 impl<T: Required, O> Called<T> for O where T::Operations: crate::catalog::Contains<O> {}
 
-/* === Implementations === */
 impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
     pub(in crate::execution) fn new(
         environment: &'a Environment<'a, C, O, I>, transport: &'a mut dyn ExecutionTransport, stage: S,
@@ -456,6 +464,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         }
     }
 
+    #[cfg(feature = "native")]
     pub(crate) fn selecting(mut self, attempts: Arc<BTreeSet<StepAttemptId>>) -> Self {
         self.selected_attempts = attempts;
         self

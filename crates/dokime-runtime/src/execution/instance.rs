@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -27,6 +28,7 @@ use dokime_domain::model::execution::result::TestExecution;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct TestExecutionInstance {
     pub execution: TestExecution,
@@ -38,6 +40,7 @@ pub struct TestExecutionInstance {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestExecutionInstance {
     pub fn new(execution: TestExecution) -> Self {
         let mut documents = DocumentRegistry::default();

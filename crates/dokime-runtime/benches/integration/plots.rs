@@ -68,7 +68,7 @@ pub fn benchmark(criterion: &mut Criterion) {
                         let started = Instant::now();
                         let receipt = runtime.publish_telemetry_batch(batch).await.unwrap();
                         let last = receipt.stream_cursors.values().copied().max().unwrap();
-                        while watch.next().await.expect("the watch closes only with the runtime") < last {}
+                        while watch.next().await.expect("the watch closes only with the runtime").0 < last {}
                         elapsed += started.elapsed();
                     }
                     elapsed

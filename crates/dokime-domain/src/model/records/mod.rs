@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod contract;
 pub mod error;
 pub mod evidence;
@@ -16,6 +17,7 @@ pub mod publication;
 pub mod resources;
 
 /* === Re-Exports === */
+
 pub use crate::model::validation::CompatibilityStatus;
 pub use crate::model::validation::ValidationMode;
 pub use contract::BuiltinRecordType;
@@ -42,6 +44,7 @@ pub use publication::{PublishReceipt, PublishStatus, RecordPublishRequest};
 pub use resources::{ResourceLifecycle, ResourceRecord};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

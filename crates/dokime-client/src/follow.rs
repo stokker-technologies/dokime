@@ -12,19 +12,23 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     future::Future,
     path::{Path, PathBuf},
 };
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+
 // Local Imports
 use super::{Client, DownloadError as Error, contracts::content};
 
 /* === Constants === */
+
 const COMMIT_BYTES: u64 = 1024 * 1024;
 const BUFFER_BYTES: usize = 64 * 1024;
 
@@ -33,6 +37,7 @@ const BUFFER_BYTES: usize = 64 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // A Caller-Owned Receipt For One Local Recording's Committed Prefix.
 //
 // Persist this receipt with the recording. Cancelled or failed readers retain
@@ -52,6 +57,7 @@ pub struct FileResume {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl FileResume {
     pub fn new(path: PathBuf) -> Self {
         Self { path, identity: None, offset: 0, sha256: hash(&Sha256::new()) }
@@ -96,7 +102,7 @@ impl Client {
 
     // Awaits Caller Receipt Persistence After Each Durable Local Commit.
     //
-    // The snapshot contains no credentials. Persistence failure stops the reader
+    // The snapshot contains no secrets. Persistence failure stops the reader
     // before the next frame; the caller's previous external receipt remains the
     // resume authority. The initial content identity is committed before data.
     pub async fn follow_execution_file_with_commit<F, Fut, E>(
@@ -176,6 +182,7 @@ impl Client {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn validate_identity(
     identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, request: &content::FollowExecutionFile,
 ) -> Result<(), Error> {

@@ -36,9 +36,11 @@ use dokime_domain::state::records::set::TestRecordSet;
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
 
 /* === Structs === */
+
 pub struct RecordReader {
     rows: harmos::storage::RecordReader<RecordRow>,
     view: ExecutionView,
@@ -50,6 +52,7 @@ pub struct RecordReader {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordReader {
     pub(super) async fn open_page(view: &ExecutionView, after: u64) -> Result<Self> {
         Self::query(view, false, after).await
@@ -118,6 +121,7 @@ impl RecordReader {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // The Execution's Own Records; With Context, Also Its Cycle's Unowned
 // Records And Records Without Any Test Owner.
 fn owned(row: &StoredRecord<RecordRow>, execution: &TestExecution, context: bool) -> bool {

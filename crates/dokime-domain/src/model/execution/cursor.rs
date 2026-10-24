@@ -27,6 +27,7 @@ use sha2::Sha256;
 use super::ExecutionCheckpoint;
 
 /* === Constants === */
+
 const VERSION: u8 = 1;
 const BYTES: usize = 1 + 32 + size_of::<u64>();
 const TEXT: usize = BYTES.div_ceil(3) * 4 - 1;
@@ -36,6 +37,7 @@ const TEXT: usize = BYTES.div_ceil(3) * 4 - 1;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct PageCursor {
     identity: [u8; 32],
     after: u64,
@@ -46,11 +48,13 @@ pub struct PageCursor {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for PageCursor {
     fn memory_size(&self) -> usize {
         size_of::<Self>()
     }
 }
+
 impl PageCursor {
     pub fn requested(after: Option<&str>) -> Result<u64> {
         after.map(decode).transpose().map(|cursor| cursor.map_or(0, |(_, position)| position))
@@ -104,6 +108,7 @@ impl PageCursor {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn decode(after: &str) -> Result<([u8; 32], u64)> {
     if after.len() != TEXT {
         return Err(invalid("native page cursor length differs"));
@@ -122,6 +127,7 @@ fn decode(after: &str) -> Result<([u8; 32], u64)> {
     }
     Ok((identity, position))
 }
+
 fn identity(checkpoint: &ExecutionCheckpoint, kind: &str, source: &str) -> [u8; 32] {
     let mut digest = Sha256::new();
     for text in [

@@ -8,30 +8,36 @@
  */
 
 /* === Modules === */
+
 mod error;
 mod source;
 
 /* === Re-Exports === */
+
 pub use error::{Error, Result};
 pub use source::{Bundled, Directory, Source};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
     fmt::Write as _,
     path::{Component, Path, PathBuf},
 };
+
 // Third Party Imports
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use cssparser::{
     AtRuleParser, CowRcStr, DeclarationParser, Parser, ParserState, QualifiedRuleParser, RuleBodyItemParser, RuleBodyParser,
     StyleSheetParser,
 };
+
 // Local Imports
 use crate::domains::{ThemeCornerRadii, ThemeVariant};
 
 /* === Constants === */
+
 pub const TYPOGRAPHY_CSS_FILE: &str = "theme/typography.css";
 pub const BASE_CSS_FILE: &str = "theme/base.css";
 pub const LIGHT_CSS_FILE: &str = "theme/light.css";
@@ -82,6 +88,7 @@ const REQUIRED_CHART_COLORS: usize = 8;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Authored {
     pub typography_css: String,
@@ -98,6 +105,7 @@ struct StylesheetRuleParser;
 struct CustomPropertyParser;
 
 /* === Enums === */
+
 #[derive(Debug)]
 enum ParsedRule {
     Import,
@@ -108,12 +116,13 @@ enum ParsedRule {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Authored {
     pub fn combined_css(&self, corner_radii: &ThemeCornerRadii) -> String {
-        let mut output = String::from("/* GENERATED from the authored `branding/theme/` CSS.\n * Do not edit by hand. */\n");
+        let mut output = String::from("/* GENERATED from the authored `organization/theme/` CSS.\n * Do not edit by hand. */\n");
         append_section(&mut output, TYPOGRAPHY_CSS_FILE, &self.typography_css);
         append_section(&mut output, BASE_CSS_FILE, &self.base_css);
-        output.push_str("\n/* BEGIN generated corner radii from branding/brand.toml */\n:root {\n");
+        output.push_str("\n/* BEGIN generated corner radii from organization/organization.toml */\n:root {\n");
         render_corner_radii(&mut output, corner_radii);
         output.push_str("}\n/* END generated corner radii */\n");
         append_section(&mut output, LIGHT_CSS_FILE, &self.light_css);
@@ -219,6 +228,7 @@ impl<'i> RuleBodyItemParser<'i, Option<(String, String)>, String> for CustomProp
 }
 
 /* === Public Functions === */
+
 #[tracing::instrument(level = "debug", skip_all)]
 pub fn load(dir: &Path) -> Result<Authored, Error> {
     let source = Directory::new(dir).map_err(|source| Error::Read { path: dir.to_path_buf(), source })?;
@@ -265,6 +275,7 @@ pub fn parse(typography_css: String, base_css: String, light_css: String, dark_c
 }
 
 /* === Private Functions === */
+
 fn reject_imports(file: &'static str, rules: &[ParsedRule]) -> Result<(), Error> {
     if rules.iter().any(|rule| matches!(rule, ParsedRule::Import)) {
         return Err(Error::Import { file });

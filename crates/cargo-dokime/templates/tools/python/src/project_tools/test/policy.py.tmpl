@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/policy.py; sha256:1cd11f591067cbcbff4600a44b4f2e28993845eb8ea51e7cf7f62024b15cdef7
+# Rendered by stkr project update from templates/python/test/policy.py; sha256:d84e157e1481adcac4a1eac165ac6b26cb0c9ab668b744a1ab64f2f80a9b1354
 # ***
 #
 # {{package}}
@@ -6,7 +6,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-
 """Testing Policy From `stkr.toml [conventions.testing]` And The Expected Lane Set.
 
 Keys, all optional:
@@ -14,7 +13,6 @@ Keys, all optional:
     [conventions.testing]
     limits = { unit = 512, integration = 256, acceptance = 128, system = 64 }
     deadlines = { unit = 10, integration = 120, acceptance = 900, system = 900 }
-    hosts = ["dist/build/{profile}/app"]
     bench_regression_percent = 20
 
     [[conventions.testing.overrides]]
@@ -29,12 +27,10 @@ JavaScript workspace packages each have their own scope; other tests share the p
 Exceeding one is a curation finding in the
 index, never a failure. Deadlines are the per-story maximum of a lane in seconds. An override
 replaces the deadline of the stories it selects: for Rust `select` is a nextest filterset, for
-the other languages a glob over `<file>::<story>`. Hosts are artifacts acceptance and system
-lanes need; `{profile}`, `{platform}`, `{architecture}`, `{target}` and `{exe}` expand to the lane profile,
-native operating system, CPU architecture, producer target and executable suffix. Declared hosts require a
-fixture stamp whose immutable file map covers every host before a lane can run.
+the other languages a glob over `<file>::<story>`. Acceptance and system lanes receive the whole
+Product and Tests builds of their profile and target, so lanes declare no inputs.
 
-The expected lanes are the `test:<category>:<language>` leaf tasks of `mise.toml`.
+The expected lanes are the `test:<language>:<category>` leaf tasks of `mise.toml`.
 """
 
 # === Imports === #
@@ -93,7 +89,6 @@ class Policy:
     limits: dict[str, int]
     deadlines: dict[str, int]
     overrides: tuple[Override, ...]
-    hosts: tuple[str, ...]
     bench_regression_percent: float = 20
 
     def deadline(self, category: str, coverage: bool = False) -> int:
@@ -139,9 +134,11 @@ def load(directory: Path) -> Policy:
 
     limits = _numbers(testing.get("limits", {}), "limits", LIMITS, 0)
     deadlines = _numbers(testing.get("deadlines", {}), "deadlines", DEADLINES, 1)
-    hosts = testing.get("hosts", [])
-    if not isinstance(hosts, list) or not all(isinstance(host, str) for host in hosts):
-        raise TestError("conventions.testing.hosts must be a list of paths")
+    retired = [key for key in ("hosts", "lanes") if key in testing]
+    if retired:
+        raise TestError(
+            f"conventions.testing.{retired[0]} is retired; acceptance and system lanes receive the whole Product and Tests builds"
+        )
 
     overrides = []
     for entry in testing.get("overrides", []):
@@ -155,7 +152,12 @@ def load(directory: Path) -> Policy:
     threshold = testing.get("bench_regression_percent", 20)
     if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not math.isfinite(threshold) or threshold <= 0:
         raise TestError("bench_regression_percent must be finite and positive")
-    return Policy(limits, deadlines, tuple(overrides), tuple(hosts), float(threshold))
+    return Policy(
+        limits,
+        deadlines,
+        tuple(overrides),
+        float(threshold),
+    )
 
 
 def lanes(directory: Path) -> list[tuple[str, str]]:
@@ -165,9 +167,8 @@ def lanes(directory: Path) -> list[tuple[str, str]]:
     expected = []
     for name in tasks:
         parts = name.split(":")
-        if len(parts) == 3 and parts[0] == "test":
-            if parts[1] in CATEGORIES and parts[2] in LANGUAGES:
-                expected.append((parts[1], parts[2]))
+        if len(parts) == 3 and parts[0] == "test" and parts[2] in CATEGORIES and parts[1] in LANGUAGES:
+            expected.append((parts[2], parts[1]))
     return sorted(expected, key=lambda lane: (CATEGORIES.index(lane[0]), lane[1]))
 
 

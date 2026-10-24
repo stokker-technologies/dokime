@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::{HOST_SOURCE_ID, HostTelemetryStream};
 use dokime_domain::model::time::Timestamp;
@@ -28,6 +31,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HostStreamSample {
     pub stream: HostTelemetryStream,
@@ -40,6 +44,7 @@ pub struct HostStreamSample {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl HostStreamSample {
     pub fn new(stream: HostTelemetryStream, values: BTreeMap<String, Value>) -> Self {
         Self::with_timestamp(stream, dokime_domain::model::time::Timestamp::from_system_time(std::time::SystemTime::now()), values)
@@ -51,6 +56,7 @@ impl HostStreamSample {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn default_source() -> &'static str {
     HOST_SOURCE_ID
 }

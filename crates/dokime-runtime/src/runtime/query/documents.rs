@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::definition::TestCycleInstance;
 use crate::document::{DocumentInstance, DocumentPayload, DocumentSelection};
@@ -33,6 +35,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeDocumentFrame {
     pub documents: Vec<RuntimeDocumentRecord>,
@@ -63,6 +66,7 @@ pub struct RuntimeResolvedDocumentFrame {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeDocumentRecord {
     fn from_instance(instance: &DocumentInstance, scope: RecordScope, has_payload: bool) -> Self {
         let sections = instance.definition.section_count();
@@ -81,6 +85,7 @@ impl RuntimeDocumentRecord {
 }
 
 /* === Public Functions === */
+
 pub(crate) fn document_frame<'a>(cycles: impl Iterator<Item = &'a TestCycleInstance>, scope: Option<&RecordScope>) -> RuntimeDocumentFrame {
     let documents = cycles.flat_map(|cycle| cycle_document_records(cycle, scope)).collect::<Vec<_>>();
 
@@ -106,6 +111,7 @@ pub(crate) fn resolved_document_frame<'a>(
 }
 
 /* === Private Functions === */
+
 fn cycle_document_records(cycle: &TestCycleInstance, selected_scope: Option<&RecordScope>) -> Vec<RuntimeDocumentRecord> {
     let mut records = Vec::new();
     for execution in cycle.executions() {

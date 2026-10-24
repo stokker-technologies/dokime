@@ -12,24 +12,25 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::operations::{Context, Operation, Response, StreamOutput};
+use dokime::harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use crate::grpc::{
     chunked::{self, ArtifactFrames},
     error::detailed,
     value,
 };
-use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::operations::content as content_wire;
-use dokime_runtime::RuntimeHandle;
-use dokime_runtime::runtime::ArtifactReader;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::ArtifactId;
+use dokime::domain::operations::content as content_wire;
+use dokime::runtime::ArtifactReader;
 
 /* === Constants === */
 
@@ -38,10 +39,12 @@ use dokime_runtime::runtime::ArtifactReader;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
 }
+
 struct Download {
     resources: Arc<Resources>,
 }
@@ -51,12 +54,13 @@ struct Download {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for Download {
     type Declaration = content_wire::DownloadArtifact;
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::content::wire::ArtifactFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
@@ -71,7 +75,7 @@ impl Operation for Download {
             .open_artifact_stream(&id)
             .await
             .map_err(|source| {
-                let status = if matches!(&source, dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+                let status = if matches!(&source, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
                     Status::resource_exhausted("cannot open stored artifact")
                 } else {
                     Status::internal("cannot open stored artifact")
@@ -79,12 +83,13 @@ impl Operation for Download {
                 detailed(status, &source)
             })?
             .ok_or_else(|| Status::not_found("artifact not found"))?;
-        deliver(reader, self.resources.maximum, super::transfer_chunk_bytes(self.resources.maximum), output).await?;
+        deliver(reader, self.resources.maximum, super::download_chunk_bytes(self.resources.maximum), output).await?;
         Ok(().into())
     }
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     super::list::register(runtime, maximum)?;
     super::inventory::register(runtime, maximum)?;
@@ -94,7 +99,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     super::upload::register(runtime, maximum)?;
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum }),
     )?;
     Ok(())
@@ -102,10 +107,10 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 pub(in crate::grpc) async fn deliver(
     reader: ArtifactReader, maximum: usize, chunk_bytes: usize,
-    output: &mut StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>,
+    output: &mut StreamOutput<dokime::domain::model::content::wire::ArtifactFrame>,
 ) -> Result<(), Status> {
-    let frame = dokime_domain::model::content::wire::ArtifactFrame {
-        payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Metadata(super::metadata(reader.record())?)),
+    let frame = dokime::domain::model::content::wire::ArtifactFrame {
+        payload: Some(dokime::domain::model::content::wire::ArtifactFramePayload::Metadata(super::metadata(reader.record())?)),
     };
     if frame.wire_len()? > maximum {
         return Err(Status::resource_exhausted("artifact metadata exceeds the message limit"));

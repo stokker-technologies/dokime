@@ -41,6 +41,12 @@ sudo dnf install alsa-lib-devel kernel-headers clang
 The installed server then needs only `libasound.so.2` at runtime, plus a
 running `xdg-desktop-portal` for screenshots.
 
+Native desktop system validation runs the same scenarios on Windows and Linux.
+`mise run prepare:desktop` installs a Microsoft EdgeDriver matching the installed
+WebView2 runtime on Windows; `test:typescript:system` runs this setup automatically.
+Run Windows UI validation in an interactive desktop session. Linux uses
+WebKitWebDriver and a display; CI bootstrap supplies its runtime libraries and Xvfb.
+
 Start the desktop application with `mise run dev`. The repository layout and other
 entry points are described in [`README.md`](README.md).
 
@@ -56,44 +62,44 @@ entry points are described in [`README.md`](README.md).
 - Use Conventional Commit subjects, such as `fix(runtime): preserve stopped
   execution evidence` or `docs: clarify sidecar setup`.
 
-Run the matching checks while iterating, then the local CI flow before opening a
-pull request:
+Run the matching checks while iterating. `mise run check` covers the complete
+Check stage. After source closure, run the applicable full flow in the assigned worktree:
 
 ```sh
-mise run format --check
-mise run lint
 mise run check
-mise run build
-mise run test
+mise run ci
 ```
 
-`mise run ci` runs that sequence on the current tree; a failing lane fails the
-run, and that is the whole verdict. `build` compiles the workspace once into
-binaries, the OBC bundle, the frontend, the generated GUI client and the
-Nextest test archive under `dist/build/<platform>/`, and the Python wheel under
-`target/wheels/`; the test layers (`test:unit`, `test:integration`,
-`test:generated`, `test:acceptance`, `test:system`) run from those outputs and
-never rebuild. Each lane takes `--profile dev|release` and keeps its JUnit
-report under `target/tests/`. `test:generated` checks the generated Python and
-TypeScript clients (types, lint and an import smoke). `mise run package
---profile dev` bundles an unsigned development installer through the Tauri
-bundler in debug mode, with the CLI and server as companions, beside the
-client wheel and the plugin bundle under `target/package/<platform>/`.
+The local flow runs the same declared tasks in this worktree; a failing lane fails the run. Native provider runners supply unavailable-platform and transported-artifact proof. `build --profile dev` produces binaries, the OBC bundle,
+the frontend and generated clients under `target/build/<profile>/<target>/`.
+The canonical Python wheel uses target `any`. `build:rust:tests --profile dev`
+separately compiles the shared Nextest archive and fixtures, runs the macro
+compile contracts and verifies the generated starter. Test lanes consume that
+archive; acceptance and system lanes also require the matching Product
+exports. Reports use `target/tests/<profile>/<target>/<layer>-<language>/`.
+`check:python:generated` and `check:typescript:generated` check the Python and TypeScript clients' types, lint and import
+smoke. `package --profile dev` assembles unsigned installers, companion CLIs,
+the plugin bundle and Python wheel from Build bytes without compiling,
+under `target/package/<profile>/<target>/`.
 
-`.github/workflows/ci.yml` is rendered from the shared pipeline shape: the
-Check, Build, Validate, Package and Publish stages, with Rust, Build, test lane
-and package jobs on both the Linux and Windows legs. A pull request runs Check,
-`Build / Dev` and Validate; pushes to `dev` add `Package / Dev` and
-`Publish / Dry`; tags build, package and publish the release profile.
-`nightly.yml` runs coverage and benches. `mise.toml` owns every recipe the
-workflows call.
+`.github/workflows/ci.yml` and `nightly.yml` are thin callers of the rendered
+`managed-*.yml` workflows. Pull requests and `dev` pushes run Check, Build,
+Test, development Package and `Release / Dry`; configured native jobs run
+on both Linux and Windows. Nightly adds the declared coverage and benchmark leaves.
+`mise.toml` owns every recipe the workflows call.
 
-Cut `release/<version>` from published `dev` and run `mise run release:prepare`
-to prepare the stable patch version, changelog and screenshots. The changelog
-is rendered by git-cliff from history; do not edit `CHANGELOG.md` by hand.
-Promote the stabilization branch into `main` without squashing, then
-incorporate its history into `dev`. Publication tasks live under
-`release:publish:*`.
+Run `Release / Prepare` manually from `dev` with the requested version bump.
+Version preparation updates the tutorial project, exact client wheel source and CLI version,
+then builds the versioned Python wheel and refreshes the tutorial lock with uv.
+Ordinary Build checks that lock without repairing it; release Build adds the source distribution.
+It opens a `release/v<version>` review into `dev`, which runs the required
+native graph and unsigned `Release / Rehearsal`. Squash-merging that review
+starts `Release / Tag`: it verifies the rehearsed tree, tags the merged `dev`
+commit, publishes Rust crates and fast-forwards protected `main`. The tag
+pipeline signs the declared Windows packages, publishes release assets and the
+Python client, and verifies installation on each platform. Release notes are
+rendered from Conventional Commits by git-cliff at tag time; no changelog file
+is tracked. Publication tasks live under `release:publish:*`.
 
 ## Pull Requests
 

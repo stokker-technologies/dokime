@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::marker::PhantomData;
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -28,6 +30,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct LeaseHold {
     pub lease_token: String,
     pub release: Arc<dyn LeaseRelease>,
@@ -37,7 +40,10 @@ pub struct Lease<'a, R> {
     stream: Identifier,
     lease_token: String,
     release: Arc<dyn LeaseRelease>,
+
+    #[cfg(feature = "native")]
     streams: Streams,
+
     row: PhantomData<fn() -> R>,
     borrowed: PhantomData<&'a ()>,
 }
@@ -45,14 +51,27 @@ pub struct Lease<'a, R> {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait LeaseRelease: Send + Sync {
     fn release(&self, lease_token: &str);
 }
 
 /* === Implementations === */
+
 impl<'a, R> Lease<'a, R> {
     pub fn new(stream: Identifier, hold: LeaseHold, streams: Streams) -> Self {
-        Self { stream, lease_token: hold.lease_token, release: hold.release, streams, row: PhantomData, borrowed: PhantomData }
+        #[cfg(not(feature = "native"))]
+        let _ = streams;
+
+        Self {
+            stream,
+            lease_token: hold.lease_token,
+            release: hold.release,
+            #[cfg(feature = "native")]
+            streams,
+            row: PhantomData,
+            borrowed: PhantomData,
+        }
     }
 
     pub fn stream(&self) -> &Identifier {

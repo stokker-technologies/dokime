@@ -10,11 +10,14 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::domains::SettingDiscovery as Discovery;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::PathBuf;
+
 // Third Party Imports
 
 // Local Imports
@@ -26,10 +29,13 @@ use crate::values::FieldValue;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 /* === Macros === */
 
 /* === Type Aliases === */
+
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoSettings;
 
@@ -43,6 +49,7 @@ pub struct Discovered {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait SettingsSection: Sized {
     const LABEL: &'static str;
 
@@ -87,6 +94,7 @@ pub trait PluginSettings: Sized + Send + Sync + 'static {
 pub trait Answers<Answered> {}
 
 /* === Implementations === */
+
 impl PluginSettings for NoSettings {
     fn catalog() -> Settings {
         Settings { contributions: Vec::new() }
@@ -197,6 +205,7 @@ pub fn bound_secret(configuration: &Configuration, id: &str) -> Option<Secret> {
 }
 
 /* === Private Functions === */
+
 fn titled(id: &str) -> String {
     id.split(['.', '-', '_'])
         .filter(|word| !word.is_empty())

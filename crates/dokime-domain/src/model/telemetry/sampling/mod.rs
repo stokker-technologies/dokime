@@ -8,10 +8,12 @@
  */
 
 /* === Modules === */
+
 mod request;
 mod source;
 
 /* === Re-Exports === */
+
 pub use request::SamplingScope;
 pub use request::TelemetryCaptureLease;
 pub use request::TelemetrySampleKey;
@@ -20,6 +22,7 @@ pub use request::TelemetrySourceKind;
 pub use source::TelemetrySourceDescriptor;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

@@ -24,8 +24,8 @@
 /* === Local Imports === */
 import type { HubRecord } from "@/lib/types";
 import { useUiStore } from "@/stores/ui-store";
-import { useConsoleRecords } from "./console-records";
 import { FrozenConsole, LiveConsoleView, resolvedConsoleScope } from "./ConsoleDrawerView";
+import { useConsoleRecords } from "./console-records";
 
 /* === Types === */
 export type ConsoleDrawerProps =

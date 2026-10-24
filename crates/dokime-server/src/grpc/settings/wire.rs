@@ -12,42 +12,46 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
-use harmos::domain::Portable;
+use dokime::harmos::domain::Portable;
 use tonic::Status as TonicStatus;
+
 // Local Imports
 use super::super::{
     execution,
     value::{self, Budget, canonical},
 };
-use dokime_domain::model::appearance::HostCardBlock;
-use dokime_domain::model::appearance::HostCardBody;
-use dokime_domain::model::appearance::HostCardKeyValue;
-use dokime_domain::model::appearance::HostCardMetric;
-use dokime_domain::model::appearance::HostCardTone;
-use dokime_domain::model::identity::Identifier;
-use dokime_runtime::domains::installed_plugins::RuntimePluginManagementError;
-use dokime_runtime::domains::installed_plugins::RuntimePluginSettings;
-use dokime_runtime::domains::settings::RuntimeSettingsCard;
-use dokime_runtime::domains::settings::RuntimeSettingsCardState;
-use dokime_runtime::domains::settings::RuntimeSettingsFrame;
-use dokime_runtime::domains::settings::RuntimeSettingsSection;
-use dokime_runtime::domains::settings::RuntimeSettingsSectionOwner;
-use dokime_runtime::domains::settings::SettingsCardRefreshPolicy;
-use dokime_runtime::runtime::Error;
-use dokime_runtime::settings::Boolean;
-use dokime_runtime::settings::Choice;
-use dokime_runtime::settings::MultipleChoice;
-use dokime_runtime::settings::Number;
-use dokime_runtime::settings::Path;
-use dokime_runtime::settings::SecretReference;
-use dokime_runtime::settings::SecretSetting;
-use dokime_runtime::settings::Settings;
-use dokime_runtime::settings::SettingsEntry;
-use dokime_runtime::settings::TextArea;
+use dokime::domain::model::appearance::HostCardBlock;
+use dokime::domain::model::appearance::HostCardBody;
+use dokime::domain::model::appearance::HostCardKeyValue;
+use dokime::domain::model::appearance::HostCardMetric;
+use dokime::domain::model::appearance::HostCardTone;
+use dokime::domain::model::identity::Identifier;
+use dokime::domains::installed_plugins::RuntimePluginManagementError;
+use dokime::domains::installed_plugins::RuntimePluginSettings;
+use dokime::domains::settings::RuntimeSettingsCard;
+use dokime::domains::settings::RuntimeSettingsCardState;
+use dokime::domains::settings::RuntimeSettingsFrame;
+use dokime::domains::settings::RuntimeSettingsSection;
+use dokime::domains::settings::RuntimeSettingsSectionOwner;
+use dokime::domains::settings::SettingsCardRefreshPolicy;
+use dokime::runtime::Error;
+use dokime::settings::Boolean;
+use dokime::settings::Choice;
+use dokime::settings::MultipleChoice;
+use dokime::settings::Number;
+use dokime::settings::Path;
+use dokime::settings::SecretReference;
+use dokime::settings::SecretSetting;
+use dokime::settings::Settings;
+use dokime::settings::SettingsEntry;
+use dokime::settings::TextArea;
 
 /* === Constants === */
+
 pub(super) const MAX_TEXT_BYTES: usize = 4096;
 
 /* === Macros === */
@@ -63,6 +67,7 @@ pub(super) const MAX_TEXT_BYTES: usize = 4096;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn identifier(value: String, field: &str) -> Result<Identifier, TonicStatus> {
     if value.len() > MAX_TEXT_BYTES {
         return Err(TonicStatus::resource_exhausted(format!("{field} exceeds {MAX_TEXT_BYTES} bytes")));
@@ -79,32 +84,32 @@ pub(super) fn bounded_text(value: String, field: &str) -> Result<String, TonicSt
 
 pub(super) fn encode_frame(
     frame: RuntimeSettingsFrame, max_message_bytes: usize,
-) -> Result<dokime_domain::model::settings::wire::SettingsFrame, TonicStatus> {
+) -> Result<dokime::domain::model::settings::wire::SettingsFrame, TonicStatus> {
     let mut budget = Budget::new();
     value::collection(frame.sections.len())?;
     value::collection(frame.cards.len())?;
     let sections = frame.sections.into_iter().map(encode_section).collect::<Result<_, _>>()?;
     let cards = frame.cards.into_iter().map(|card| encode_card(card, &mut budget)).collect::<Result<_, _>>()?;
-    let frame = dokime_domain::model::settings::wire::SettingsFrame { sections, cards };
+    let frame = dokime::domain::model::settings::wire::SettingsFrame { sections, cards };
     ensure_size(&frame, max_message_bytes, "settings frame")?;
     Ok(frame)
 }
 
 pub(super) fn encode_plugin_settings(
     settings: RuntimePluginSettings, max_message_bytes: usize,
-) -> Result<dokime_domain::model::settings::wire::PluginRuntimeSettings, TonicStatus> {
+) -> Result<dokime::domain::model::settings::wire::PluginRuntimeSettings, TonicStatus> {
     let mut budget = Budget::new();
     value::collection(settings.settings.contributions.len())?;
     value::collection(settings.values.len())?;
-    value::collection(settings.credential_bindings.bindings.len())?;
-    value::collection(settings.credential_bindings.missing_required.len())?;
-    let values = canonical::encode(&dokime_domain::model::values::Value::Object(settings.values), &mut budget, 0)?;
-    let discovered = canonical::encode(&dokime_domain::model::values::Value::Object(settings.discovered), &mut budget, 0)?;
-    let response = dokime_domain::model::settings::wire::PluginRuntimeSettings {
+    value::collection(settings.secret_bindings.bindings.len())?;
+    value::collection(settings.secret_bindings.missing_required.len())?;
+    let values = canonical::encode(&dokime::domain::model::values::Value::Object(settings.values), &mut budget, 0)?;
+    let discovered = canonical::encode(&dokime::domain::model::values::Value::Object(settings.discovered), &mut budget, 0)?;
+    let response = dokime::domain::model::settings::wire::PluginRuntimeSettings {
         settings: Some(encode_settings(settings.settings)?),
         values: Some(values),
         discovered: Some(discovered),
-        credential_bindings: Some(encode_credentials(settings.credential_bindings, &mut budget)?),
+        secret_bindings: Some(encode_secrets(settings.secret_bindings, &mut budget)?),
     };
     ensure_size(&response, max_message_bytes, "plugin settings response")?;
     Ok(response)
@@ -121,23 +126,30 @@ pub(super) fn plugin_error(error: RuntimePluginManagementError) -> TonicStatus {
 }
 
 /* === Private Functions === */
-fn encode_section(section: RuntimeSettingsSection) -> Result<dokime_domain::model::settings::wire::SettingsSection, TonicStatus> {
+
+fn encode_section(section: RuntimeSettingsSection) -> Result<dokime::domain::model::settings::wire::SettingsSection, TonicStatus> {
     let section_id = checked_identifier(&section.section_id, "section_id")?;
     bounded_text(section.label.clone(), "section label")?;
     let description = section.description.map(|description| bounded_text(description, "section description")).transpose()?;
     let owner = match section.owner {
-        RuntimeSettingsSectionOwner::App => Some(dokime_domain::model::settings::wire::SettingsSectionOwner::App(true)),
+        RuntimeSettingsSectionOwner::App => Some(dokime::domain::model::settings::wire::SettingsSectionOwner::App(true)),
         RuntimeSettingsSectionOwner::InstalledPlugin { plugin_id } => {
-            Some(dokime_domain::model::settings::wire::SettingsSectionOwner::InstalledPluginId(checked_identifier(
+            Some(dokime::domain::model::settings::wire::SettingsSectionOwner::InstalledPluginId(checked_identifier(
                 &plugin_id,
                 "section owner plugin_id",
             )?))
         }
     };
-    Ok(dokime_domain::model::settings::wire::SettingsSection { section_id, label: section.label, description, owner, order: section.order })
+    Ok(dokime::domain::model::settings::wire::SettingsSection {
+        section_id,
+        label: section.label,
+        description,
+        owner,
+        order: section.order,
+    })
 }
 
-fn encode_card(card: RuntimeSettingsCard, budget: &mut Budget) -> Result<dokime_domain::model::settings::wire::SettingsCard, TonicStatus> {
+fn encode_card(card: RuntimeSettingsCard, budget: &mut Budget) -> Result<dokime::domain::model::settings::wire::SettingsCard, TonicStatus> {
     let plugin_id = checked_identifier(&card.plugin_id, "card plugin_id")?;
     let card_id = checked_identifier(&card.card_id, "card_id")?;
     let section_id = checked_identifier(&card.section_id, "card section_id")?;
@@ -145,7 +157,7 @@ fn encode_card(card: RuntimeSettingsCard, budget: &mut Budget) -> Result<dokime_
     let description = card.description.map(|description| bounded_text(description, "card description")).transpose()?;
     let body = encode_body(card.body, budget)?;
     let refresh = Some(encode_refresh(card.refresh));
-    Ok(dokime_domain::model::settings::wire::SettingsCard {
+    Ok(dokime::domain::model::settings::wire::SettingsCard {
         plugin_id,
         card_id,
         section_id,
@@ -158,30 +170,30 @@ fn encode_card(card: RuntimeSettingsCard, budget: &mut Budget) -> Result<dokime_
     })
 }
 
-fn encode_body(body: HostCardBody, _budget: &mut Budget) -> Result<dokime_domain::model::settings::wire::HostCardBody, TonicStatus> {
+fn encode_body(body: HostCardBody, _budget: &mut Budget) -> Result<dokime::domain::model::settings::wire::HostCardBody, TonicStatus> {
     value::collection(body.blocks.len())?;
-    Ok(dokime_domain::model::settings::wire::HostCardBody { blocks: body.blocks.into_iter().map(encode_block).collect::<Result<_, _>>()? })
+    Ok(dokime::domain::model::settings::wire::HostCardBody { blocks: body.blocks.into_iter().map(encode_block).collect::<Result<_, _>>()? })
 }
 
-fn encode_block(block: HostCardBlock) -> Result<dokime_domain::model::settings::wire::HostCardBlock, TonicStatus> {
-    use dokime_domain::model::settings::wire::HostCardBlockKind as Kind;
-    Ok(dokime_domain::model::settings::wire::HostCardBlock {
+fn encode_block(block: HostCardBlock) -> Result<dokime::domain::model::settings::wire::HostCardBlock, TonicStatus> {
+    use dokime::domain::model::settings::wire::HostCardBlockKind as Kind;
+    Ok(dokime::domain::model::settings::wire::HostCardBlock {
         kind: Some(match block {
             HostCardBlock::Text { text } => Kind::Text(bounded_text(text, "card text")?),
-            HostCardBlock::Status { label, tone, detail } => Kind::Status(dokime_domain::model::settings::wire::HostCardStatus {
+            HostCardBlock::Status { label, tone, detail } => Kind::Status(dokime::domain::model::settings::wire::HostCardStatus {
                 label: bounded_text(label, "status label")?,
                 tone: encode_tone(tone),
                 detail: detail.map(|detail| bounded_text(detail, "status detail")).transpose()?,
             }),
             HostCardBlock::KeyValueList { items } => {
                 value::collection(items.len())?;
-                Kind::KeyValueList(dokime_domain::model::settings::wire::HostCardKeyValueList {
+                Kind::KeyValueList(dokime::domain::model::settings::wire::HostCardKeyValueList {
                     items: items.into_iter().map(encode_key_value).collect::<Result<_, _>>()?,
                 })
             }
             HostCardBlock::Metrics { items } => {
                 value::collection(items.len())?;
-                Kind::Metrics(dokime_domain::model::settings::wire::HostCardMetrics {
+                Kind::Metrics(dokime::domain::model::settings::wire::HostCardMetrics {
                     items: items.into_iter().map(encode_metric).collect::<Result<_, _>>()?,
                 })
             }
@@ -189,16 +201,16 @@ fn encode_block(block: HostCardBlock) -> Result<dokime_domain::model::settings::
     })
 }
 
-fn encode_key_value(item: HostCardKeyValue) -> Result<dokime_domain::model::settings::wire::HostCardKeyValue, TonicStatus> {
-    Ok(dokime_domain::model::settings::wire::HostCardKeyValue {
+fn encode_key_value(item: HostCardKeyValue) -> Result<dokime::domain::model::settings::wire::HostCardKeyValue, TonicStatus> {
+    Ok(dokime::domain::model::settings::wire::HostCardKeyValue {
         label: bounded_text(item.label, "key-value label")?,
         value: bounded_text(item.value, "key-value value")?,
         detail: item.detail.map(|detail| bounded_text(detail, "key-value detail")).transpose()?,
     })
 }
 
-fn encode_metric(item: HostCardMetric) -> Result<dokime_domain::model::settings::wire::HostCardMetric, TonicStatus> {
-    Ok(dokime_domain::model::settings::wire::HostCardMetric {
+fn encode_metric(item: HostCardMetric) -> Result<dokime::domain::model::settings::wire::HostCardMetric, TonicStatus> {
+    Ok(dokime::domain::model::settings::wire::HostCardMetric {
         label: bounded_text(item.label, "metric label")?,
         value: bounded_text(item.value, "metric value")?,
         unit: item.unit.map(|unit| bounded_text(unit, "metric unit")).transpose()?,
@@ -206,47 +218,47 @@ fn encode_metric(item: HostCardMetric) -> Result<dokime_domain::model::settings:
     })
 }
 
-fn encode_refresh(refresh: SettingsCardRefreshPolicy) -> dokime_domain::model::settings::wire::SettingsCardRefreshPolicy {
-    use dokime_domain::model::settings::wire::SettingsCardRefreshPolicyPolicy as Policy;
+fn encode_refresh(refresh: SettingsCardRefreshPolicy) -> dokime::domain::model::settings::wire::SettingsCardRefreshPolicy {
+    use dokime::domain::model::settings::wire::SettingsCardRefreshPolicyPolicy as Policy;
     let policy = match refresh {
-        SettingsCardRefreshPolicy::Manual => Policy::Manual(dokime_domain::model::settings::wire::ManualRefresh {}),
+        SettingsCardRefreshPolicy::Manual => Policy::Manual(dokime::domain::model::settings::wire::ManualRefresh {}),
         SettingsCardRefreshPolicy::Cached { max_age_ms } => {
-            Policy::Cached(dokime_domain::model::settings::wire::CachedRefresh { max_age_ms })
+            Policy::Cached(dokime::domain::model::settings::wire::CachedRefresh { max_age_ms })
         }
-        SettingsCardRefreshPolicy::OnDemand => Policy::OnDemand(dokime_domain::model::settings::wire::OnDemandRefresh {}),
+        SettingsCardRefreshPolicy::OnDemand => Policy::OnDemand(dokime::domain::model::settings::wire::OnDemandRefresh {}),
     };
-    dokime_domain::model::settings::wire::SettingsCardRefreshPolicy { policy: Some(policy) }
+    dokime::domain::model::settings::wire::SettingsCardRefreshPolicy { policy: Some(policy) }
 }
 
-fn encode_tone(tone: HostCardTone) -> dokime_domain::model::settings::wire::HostCardTone {
+fn encode_tone(tone: HostCardTone) -> dokime::domain::model::settings::wire::HostCardTone {
     match tone {
-        HostCardTone::Neutral => dokime_domain::model::settings::wire::HostCardTone::Neutral,
-        HostCardTone::Info => dokime_domain::model::settings::wire::HostCardTone::Info,
-        HostCardTone::Success => dokime_domain::model::settings::wire::HostCardTone::Success,
-        HostCardTone::Warning => dokime_domain::model::settings::wire::HostCardTone::Warning,
-        HostCardTone::Danger => dokime_domain::model::settings::wire::HostCardTone::Danger,
+        HostCardTone::Neutral => dokime::domain::model::settings::wire::HostCardTone::Neutral,
+        HostCardTone::Info => dokime::domain::model::settings::wire::HostCardTone::Info,
+        HostCardTone::Success => dokime::domain::model::settings::wire::HostCardTone::Success,
+        HostCardTone::Warning => dokime::domain::model::settings::wire::HostCardTone::Warning,
+        HostCardTone::Danger => dokime::domain::model::settings::wire::HostCardTone::Danger,
     }
 }
 
-fn encode_card_state(state: RuntimeSettingsCardState) -> dokime_domain::model::settings::wire::SettingsCardState {
+fn encode_card_state(state: RuntimeSettingsCardState) -> dokime::domain::model::settings::wire::SettingsCardState {
     match state {
-        RuntimeSettingsCardState::Ready => dokime_domain::model::settings::wire::SettingsCardState::Ready,
-        RuntimeSettingsCardState::Disabled => dokime_domain::model::settings::wire::SettingsCardState::Disabled,
-        RuntimeSettingsCardState::Disconnected => dokime_domain::model::settings::wire::SettingsCardState::Disconnected,
-        RuntimeSettingsCardState::Stale => dokime_domain::model::settings::wire::SettingsCardState::Stale,
-        RuntimeSettingsCardState::Error => dokime_domain::model::settings::wire::SettingsCardState::Error,
-        RuntimeSettingsCardState::PermissionDenied => dokime_domain::model::settings::wire::SettingsCardState::PermissionDenied,
+        RuntimeSettingsCardState::Ready => dokime::domain::model::settings::wire::SettingsCardState::Ready,
+        RuntimeSettingsCardState::Disabled => dokime::domain::model::settings::wire::SettingsCardState::Disabled,
+        RuntimeSettingsCardState::Disconnected => dokime::domain::model::settings::wire::SettingsCardState::Disconnected,
+        RuntimeSettingsCardState::Stale => dokime::domain::model::settings::wire::SettingsCardState::Stale,
+        RuntimeSettingsCardState::Error => dokime::domain::model::settings::wire::SettingsCardState::Error,
+        RuntimeSettingsCardState::PermissionDenied => dokime::domain::model::settings::wire::SettingsCardState::PermissionDenied,
     }
 }
 
-fn encode_settings(settings: Settings) -> Result<dokime_domain::model::settings::wire::SettingsCatalog, TonicStatus> {
-    Ok(dokime_domain::model::settings::wire::SettingsCatalog {
+fn encode_settings(settings: Settings) -> Result<dokime::domain::model::settings::wire::SettingsCatalog, TonicStatus> {
+    Ok(dokime::domain::model::settings::wire::SettingsCatalog {
         contributions: settings.contributions.into_iter().map(encode_contribution).collect::<Result<_, _>>()?,
     })
 }
 
-fn encode_contribution(contribution: SettingsEntry) -> Result<dokime_domain::model::settings::wire::SettingContribution, TonicStatus> {
-    use dokime_domain::model::settings::wire::SettingContributionKind as Kind;
+fn encode_contribution(contribution: SettingsEntry) -> Result<dokime::domain::model::settings::wire::SettingContribution, TonicStatus> {
+    use dokime::domain::model::settings::wire::SettingContributionKind as Kind;
     let kind = match contribution {
         SettingsEntry::Boolean(value) => Kind::Boolean(encode_boolean(value)?),
         SettingsEntry::TextArea(value) => Kind::TextArea(encode_text_area(value)?),
@@ -255,7 +267,7 @@ fn encode_contribution(contribution: SettingsEntry) -> Result<dokime_domain::mod
         SettingsEntry::MultipleChoice(value) => Kind::MultipleChoice(encode_multiple_choice(value)?),
         SettingsEntry::SecretReference(value) => Kind::SecretReference(encode_secret(value)?),
     };
-    Ok(dokime_domain::model::settings::wire::SettingContribution { kind: Some(kind) })
+    Ok(dokime::domain::model::settings::wire::SettingContribution { kind: Some(kind) })
 }
 
 fn setting_texts(id: String, title: String, description: Option<String>) -> Result<(String, String, Option<String>), TonicStatus> {
@@ -266,14 +278,14 @@ fn setting_texts(id: String, title: String, description: Option<String>) -> Resu
     ))
 }
 
-fn encode_boolean(value: Boolean) -> Result<dokime_domain::model::settings::wire::BooleanSetting, TonicStatus> {
+fn encode_boolean(value: Boolean) -> Result<dokime::domain::model::settings::wire::BooleanSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
-    Ok(dokime_domain::model::settings::wire::BooleanSetting { id, title, description, default: value.default })
+    Ok(dokime::domain::model::settings::wire::BooleanSetting { id, title, description, default: value.default })
 }
 
-fn encode_text_area(value: TextArea) -> Result<dokime_domain::model::settings::wire::TextAreaSetting, TonicStatus> {
+fn encode_text_area(value: TextArea) -> Result<dokime::domain::model::settings::wire::TextAreaSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
-    Ok(dokime_domain::model::settings::wire::TextAreaSetting {
+    Ok(dokime::domain::model::settings::wire::TextAreaSetting {
         id,
         title,
         description,
@@ -282,9 +294,9 @@ fn encode_text_area(value: TextArea) -> Result<dokime_domain::model::settings::w
     })
 }
 
-fn encode_path(value: Path) -> Result<dokime_domain::model::settings::wire::PathSetting, TonicStatus> {
+fn encode_path(value: Path) -> Result<dokime::domain::model::settings::wire::PathSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
-    Ok(dokime_domain::model::settings::wire::PathSetting {
+    Ok(dokime::domain::model::settings::wire::PathSetting {
         id,
         title,
         description,
@@ -293,7 +305,7 @@ fn encode_path(value: Path) -> Result<dokime_domain::model::settings::wire::Path
     })
 }
 
-fn encode_number(value: Number) -> Result<dokime_domain::model::settings::wire::NumberSetting, TonicStatus> {
+fn encode_number(value: Number) -> Result<dokime::domain::model::settings::wire::NumberSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
     for (name, number) in [
         ("number default", value.default),
@@ -305,7 +317,7 @@ fn encode_number(value: Number) -> Result<dokime_domain::model::settings::wire::
             return Err(TonicStatus::internal(format!("{name} is not finite")));
         }
     }
-    Ok(dokime_domain::model::settings::wire::NumberSetting {
+    Ok(dokime::domain::model::settings::wire::NumberSetting {
         id,
         title,
         description,
@@ -316,11 +328,11 @@ fn encode_number(value: Number) -> Result<dokime_domain::model::settings::wire::
     })
 }
 
-fn encode_multiple_choice(value: MultipleChoice) -> Result<dokime_domain::model::settings::wire::MultipleChoiceSetting, TonicStatus> {
+fn encode_multiple_choice(value: MultipleChoice) -> Result<dokime::domain::model::settings::wire::MultipleChoiceSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
     value::collection(value.choices.len())?;
     let provider = value.provider.map(|provider| bounded_text(provider, "choice provider")).transpose()?;
-    Ok(dokime_domain::model::settings::wire::MultipleChoiceSetting {
+    Ok(dokime::domain::model::settings::wire::MultipleChoiceSetting {
         id,
         title,
         description,
@@ -330,16 +342,16 @@ fn encode_multiple_choice(value: MultipleChoice) -> Result<dokime_domain::model:
     })
 }
 
-fn encode_choice(value: Choice) -> Result<dokime_domain::model::settings::wire::SettingChoice, TonicStatus> {
-    Ok(dokime_domain::model::settings::wire::SettingChoice {
+fn encode_choice(value: Choice) -> Result<dokime::domain::model::settings::wire::SettingChoice, TonicStatus> {
+    Ok(dokime::domain::model::settings::wire::SettingChoice {
         value: bounded_text(value.value, "choice value")?,
         title: bounded_text(value.title, "choice title")?,
     })
 }
 
-fn encode_secret(value: SecretSetting) -> Result<dokime_domain::model::settings::wire::SecretSetting, TonicStatus> {
+fn encode_secret(value: SecretSetting) -> Result<dokime::domain::model::settings::wire::SecretSetting, TonicStatus> {
     let (id, title, description) = setting_texts(value.id, value.title, value.description)?;
-    Ok(dokime_domain::model::settings::wire::SecretSetting {
+    Ok(dokime::domain::model::settings::wire::SecretSetting {
         id,
         title,
         description,
@@ -348,58 +360,48 @@ fn encode_secret(value: SecretSetting) -> Result<dokime_domain::model::settings:
     })
 }
 
-fn encode_secret_reference(reference: SecretReference) -> Result<dokime_domain::model::settings::wire::SecretReference, TonicStatus> {
-    use dokime_domain::model::settings::wire::SecretReferenceKind as Kind;
+fn encode_secret_reference(reference: SecretReference) -> Result<dokime::domain::model::settings::wire::SecretReference, TonicStatus> {
+    use dokime::domain::model::settings::wire::SecretReferenceKind as Kind;
     let kind = match reference {
         SecretReference::Environment { variable } => Kind::Environment(bounded_text(variable, "environment variable")?),
-        SecretReference::StoredCredential { credential_id } => Kind::StoredCredential(bounded_text(credential_id, "credential id")?),
+        SecretReference::StoredSecret { secret_id } => Kind::StoredSecret(bounded_text(secret_id, "secret id")?),
     };
-    Ok(dokime_domain::model::settings::wire::SecretReference { kind: Some(kind) })
+    Ok(dokime::domain::model::settings::wire::SecretReference { kind: Some(kind) })
 }
 
-fn encode_credentials(
-    credentials: dokime_runtime::domains::installed_plugins::PluginRuntimeCredentialBindings, _budget: &mut Budget,
-) -> Result<dokime_domain::model::settings::wire::PluginRuntimeCredentialBindings, TonicStatus> {
-    value::collection(credentials.bindings.len())?;
-    value::collection(credentials.missing_required.len())?;
-    let bindings = credentials
+fn encode_secrets(
+    secrets: dokime::domains::installed_plugins::PluginRuntimeSecretBindings, _budget: &mut Budget,
+) -> Result<dokime::domain::model::settings::wire::PluginRuntimeSecretBindings, TonicStatus> {
+    value::collection(secrets.bindings.len())?;
+    value::collection(secrets.missing_required.len())?;
+    let bindings = secrets
         .bindings
         .into_iter()
         .map(|(key, binding)| {
-            let key = bounded_text(key, "credential binding key")?;
-            Ok(dokime_domain::model::settings::wire::PluginRuntimeCredentialBindingsBindingsEntry {
+            let key = bounded_text(key, "secret binding key")?;
+            Ok(dokime::domain::model::settings::wire::PluginRuntimeSecretBindingsBindingsEntry {
                 key,
-                value: Some(dokime_domain::model::settings::wire::RedactedCredentialBinding {
-                    credential_id: bounded_text(binding.credential_id, "credential id")?,
-                    backend: encode_credential_backend(binding.backend),
+                value: Some(dokime::domain::model::settings::wire::RedactedSecretBinding {
+                    secret_id: bounded_text(binding.secret_id, "secret id")?,
+                    backend: encode_secret_backend(binding.backend),
                     configured: binding.configured,
                 }),
             })
         })
         .collect::<Result<Vec<_>, TonicStatus>>()?;
-    Ok(dokime_domain::model::settings::wire::PluginRuntimeCredentialBindings {
+    Ok(dokime::domain::model::settings::wire::PluginRuntimeSecretBindings {
         bindings,
-        missing_required: credentials
-            .missing_required
-            .into_iter()
-            .map(|id| bounded_text(id, "missing credential id"))
-            .collect::<Result<_, _>>()?,
+        missing_required: secrets.missing_required.into_iter().map(|id| bounded_text(id, "missing secret id")).collect::<Result<_, _>>()?,
     })
 }
 
-fn encode_credential_backend(
-    backend: dokime_domain::model::credentials::CredentialBackendKind,
-) -> dokime_domain::model::settings::wire::CredentialBackendKind {
+fn encode_secret_backend(
+    backend: dokime::domain::model::secrets::SecretBackendKind,
+) -> dokime::domain::model::settings::wire::SecretBackendKind {
     match backend {
-        dokime_domain::model::credentials::CredentialBackendKind::OsKeyring => {
-            dokime_domain::model::settings::wire::CredentialBackendKind::OsKeyring
-        }
-        dokime_domain::model::credentials::CredentialBackendKind::Memory => {
-            dokime_domain::model::settings::wire::CredentialBackendKind::Memory
-        }
-        dokime_domain::model::credentials::CredentialBackendKind::LocalFile => {
-            dokime_domain::model::settings::wire::CredentialBackendKind::LocalFile
-        }
+        dokime::domain::model::secrets::SecretBackendKind::OsKeyring => dokime::domain::model::settings::wire::SecretBackendKind::OsKeyring,
+        dokime::domain::model::secrets::SecretBackendKind::Memory => dokime::domain::model::settings::wire::SecretBackendKind::Memory,
+        dokime::domain::model::secrets::SecretBackendKind::LocalFile => dokime::domain::model::settings::wire::SecretBackendKind::LocalFile,
     }
 }
 

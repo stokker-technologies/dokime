@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::diagnostics::Diagnostic;
 use crate::records::RecordSeverity;
@@ -30,6 +33,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProviderCycleOutcome {
     pub status: String,
@@ -84,8 +88,10 @@ pub struct ProviderRecordOutcome {
     pub timestamp: Timestamp,
     pub severity: RecordSeverity,
     pub message: Option<String>,
+
     #[serde(default)]
     pub error: Option<RecordErrorDetail>,
+
     #[serde(default)]
     pub details: BTreeMap<String, Value>,
 }
@@ -101,13 +107,6 @@ pub struct ProviderTelemetryOutcome {
 pub struct ProviderTelemetryRow {
     pub values: BTreeMap<String, Value>,
     pub payload: Vec<u8>,
-}
-
-impl ProviderTelemetryRow {
-    pub fn typed<T: harmos::Message + crate::telemetry::TelemetryRow>(row: T) -> Self {
-        let payload = row.encode_to_vec();
-        Self { values: row.into_row(), payload }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -126,6 +125,7 @@ pub struct ProviderExecutionFailure {
     pub template_identifier: Option<String>,
     pub module: Option<String>,
     pub message: String,
+
     #[serde(default)]
     pub detail: Option<Box<Diagnostic>>,
 }
@@ -134,6 +134,7 @@ pub struct ProviderExecutionFailure {
 pub struct ProviderExecutionErrorDetail {
     #[serde(rename = "type")]
     pub kind: Option<String>,
+
     pub message: String,
 }
 
@@ -142,6 +143,14 @@ pub struct ProviderExecutionErrorDetail {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl ProviderTelemetryRow {
+    pub fn typed<T: harmos::Message + crate::telemetry::TelemetryRow>(row: T) -> Self {
+        let payload = row.encode_to_vec();
+        Self { values: row.into_row(), payload }
+    }
+}
+
 impl ProviderCycleOutcome {
     pub fn ready() -> Self {
         Self {

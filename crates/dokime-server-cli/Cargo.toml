@@ -1,0 +1,91 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-server-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Dokime backend executable."
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# === Package Targets === #
+
+[[bin]]
+name = "dokime-server"
+path = "src/main.rs"
+doc = false
+
+# === Features === #
+
+[features]
+default = []
+media-native = ["dokime-server/media-native"]
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime = { version = "0.1.0", path = "../dokime" }
+dokime-server = { version = "0.1.0", path = "../dokime-server" }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+clap = { workspace = true }
+dotenv = { workspace = true }
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

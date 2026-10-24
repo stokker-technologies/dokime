@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::runtime::storage::requests::{AttemptClaim, RunReceipt};
 pub use crate::transactions::provider::request::{RunPhase, RunSummary};
 pub use dokime_domain::model::execution::request::StepCommand;
@@ -17,6 +18,7 @@ pub use dokime_domain::model::execution::request::StepCommandPhase;
 pub use dokime_domain::model::execution::request::StepCommandReceipt;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -37,6 +39,7 @@ use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl crate::RuntimeHandle {
     pub async fn admit_execution_command(
         &self, request_id: &dokime_domain::model::identity::CommandId, command_id: dokime_domain::model::identity::CommandId,
@@ -82,6 +85,7 @@ impl crate::RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn command_refused(message: impl Into<String>) -> crate::runtime::Error {
     crate::runtime::Error::Admission(AdmissionFailure::Conflict { code: "execution_command_refused".into(), message: message.into() })
 }

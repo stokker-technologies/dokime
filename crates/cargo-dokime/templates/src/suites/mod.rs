@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 pub mod soak;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,7 +30,8 @@ pub mod soak;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime_runtime::catalog]
+
+#[dokime::catalog]
 pub enum Suites {
     SoakSuite(soak::SoakSuite),
 }

@@ -10,9 +10,11 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub(super) use dokime_domain::model::execution::saved::PageCursor as Cursor;
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -27,6 +29,7 @@ use crate::{runtime::Error, runtime::Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Positioned<T> {
     pub(super) position: u64,
     pub(super) captured: T,
@@ -45,6 +48,7 @@ pub(super) struct State<T> {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn page_limit(limit: Option<usize>, noun: &str) -> Result<usize> {
     let limit = limit.unwrap_or(100);
     if !(1..=1000).contains(&limit) {

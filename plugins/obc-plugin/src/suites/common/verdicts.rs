@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,8 +34,9 @@
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn decided<R: dokime_runtime::records::DeclaredRecord>(
-    records: dokime_runtime::Result<Vec<R>>, accepted: impl Fn(&R) -> bool,
+
+pub(crate) fn decided<R: dokime::records::DeclaredRecord>(
+    records: dokime::Result<Vec<R>>, accepted: impl Fn(&R) -> bool,
 ) -> Result<bool, crate::error::Error> {
     records?.last().map(accepted).ok_or_else(|| crate::error::Error::MissingEvidence(R::RECORD_TYPE.to_owned()))
 }

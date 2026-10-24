@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -22,6 +23,7 @@ use super::error;
 use crate::{installed_plugins::RuntimeInstalledPluginAsset, runtime::Error, runtime::Result};
 
 /* === Constants === */
+
 const MAX_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
@@ -37,6 +39,7 @@ const MAX_BYTES: usize = 1024 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(in crate::runtime::storage) async fn capture_logo(asset: &RuntimeInstalledPluginAsset) -> Result<String> {
     validate_mime(&asset.mime_type)?;
     let path = asset.path.clone();

@@ -7,6 +7,7 @@
 
 # Runtime outputs from dev stacks, exercises, and e2e runs
 /.run/
+.env
 
 # Python
 /.cache/
@@ -93,9 +94,6 @@ Thumbs.db
 /core
 /core.*
 
-# Generated report embedded by the runtime and included in source distributions.
-/crates/dokime-runtime/dist-report/
-
 # Retired Private Namespace Must Never Enter History
 /.stkr/agents/
 
@@ -106,3 +104,6 @@ Thumbs.db
 # BEGIN Stkr CI
 /.cache/
 # END Stkr CI
+
+# OpenSpec Changes And Specs Are Tracked; Uncomment To Keep Them Local.
+# /openspec/

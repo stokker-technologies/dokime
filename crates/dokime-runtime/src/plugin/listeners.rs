@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -21,6 +22,7 @@ use crate::records::DeclaredRecord;
 use dokime_domain::model::records::evidence::Record;
 
 /* === Constants === */
+
 pub const LISTENER_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(30),
     attempt_timeout: std::time::Duration::from_secs(30),
@@ -30,9 +32,12 @@ pub const LISTENER_POLICY: harmos::operations::OperationPolicy = harmos::operati
 
 /* === Macros === */
 
+crate::transport::templated!(Heard, Delivery);
+
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Delivery {
@@ -47,6 +52,7 @@ pub struct Heard<L>(pub Delivery, std::marker::PhantomData<fn() -> L>);
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait Listener: 'static {
     const ID: &'static str;
 
@@ -56,7 +62,6 @@ pub trait Listener: 'static {
 }
 
 /* === Implementations === */
-crate::transport::templated!(Heard, Delivery);
 
 impl<L: Listener> harmos::operations::OperationDeclaration for Heard<L> {
     type Response = ();

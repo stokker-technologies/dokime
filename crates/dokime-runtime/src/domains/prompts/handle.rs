@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::time::Instant;
+
 // Third Party Imports
 
 // Local Imports
@@ -44,6 +46,7 @@ use dokime_domain::model::values::Value;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn prompt_definitions(&self) -> Vec<PromptDefinition> {
         self.state_read().prompt_definitions()
@@ -203,6 +206,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn ensure_accepted(receipt: &CommandReceipt) -> std::result::Result<(), Error> {
     match &receipt.rejection {
         Some(rejection) => Err(Error::internal(rejection.code.clone(), rejection.message.clone())),

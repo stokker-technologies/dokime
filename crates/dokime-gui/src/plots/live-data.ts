@@ -18,15 +18,13 @@ import { type NativePlotStream, openNativePlotStream, type PlotPayloadRequestInp
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import { summaryInFlight } from "@/lib/statistics";
 import type { DocumentDownsampleTechnique, DocumentViewPlot, PlotPayloadStreamMessage, RecordScope } from "@/lib/types";
-import { applyPlotMessages, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS, type ReduceTechnique } from "@/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Constants === */
 
 const HIDDEN_PLOT_STREAM_FLUSH_MS = 1_000;
-/** How long a plot may wait for its first frame before the wait is reported. */
-const FIRST_FRAME_TIMEOUT_MS = 15_000;
 const RECONNECT_INITIAL_MS = 1_000;
 const RECONNECT_MAX_MS = 10_000;
 
@@ -167,7 +165,6 @@ export function useLivePlotPayloads({
     let releaseStream: (() => void) | undefined;
     let reopenTimer: number | null = null;
     let reopenDelayMs = RECONNECT_INITIAL_MS;
-    let firstFrameTimer: number | null = null;
 
     // A new watch numbers its frames from its own origin.
     commit((current) =>
@@ -300,6 +297,13 @@ export function useLivePlotPayloads({
           if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) {
             break;
           }
+          // The watch is subscribed and still reading: a quiet wait, never an error.
+          if (message.kind === "pending") {
+            reopenDelayMs = RECONNECT_INITIAL_MS;
+            const now = Date.now();
+            commit((current) => applyPendingNotice(current, message.plot_id, now));
+            continue;
+          }
           enqueue(message);
         }
         markStreamEnded();
@@ -314,38 +318,11 @@ export function useLivePlotPayloads({
       }
     };
 
-    /**
-     * A plot still without a frame after the deadline reports why: the stream
-     * error when there is one, the silence otherwise. A later frame recovers it.
-     */
-    firstFrameTimer = window.setTimeout(() => {
-      firstFrameTimer = null;
-      if (!active) return;
-      commit((current) =>
-        Object.fromEntries(
-          Object.entries(current).map(([plotId, plot]) => [
-            plotId,
-            plot.payload || (plot.status !== "loading" && plot.status !== "reconnecting")
-              ? plot
-              : {
-                  ...plot,
-                  status: "error" as const,
-                  error: plot.error ?? `No plot frame arrived within ${FIRST_FRAME_TIMEOUT_MS / 1_000} s.`,
-                },
-          ]),
-        ),
-      );
-    }, FIRST_FRAME_TIMEOUT_MS);
-
     void consumeStream();
 
     return () => {
       active = false;
       controller.abort();
-      if (firstFrameTimer !== null) {
-        window.clearTimeout(firstFrameTimer);
-        firstFrameTimer = null;
-      }
       if (reopenTimer !== null) {
         window.clearTimeout(reopenTimer);
         reopenTimer = null;

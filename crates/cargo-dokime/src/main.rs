@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod cli;
 mod commands;
 mod error;
@@ -15,10 +16,13 @@ mod error;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::process::ExitCode;
+
 // Third Party Imports
 use clap::Parser;
+
 // Local Imports
 
 /* === Constants === */
@@ -38,6 +42,7 @@ use clap::Parser;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let mut args = std::env::args_os().collect::<Vec<_>>();

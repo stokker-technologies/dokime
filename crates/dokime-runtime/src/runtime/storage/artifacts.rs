@@ -10,18 +10,22 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use super::artifact_reads::ArtifactReader;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{
     Arc, Weak,
     atomic::{AtomicU64, Ordering},
 };
+
 // Third Party Imports
 use harmos::storage::FileMetadata;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+
 // Local Imports
 use super::{
     execution::ExecutionView,
@@ -44,6 +48,7 @@ use dokime_domain::model::identity::UploadId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const CHUNK_BYTES: usize = 1024 * 1024;
 const UPLOAD_PREFIX: &str = "artifacts/uploads/";
 
@@ -52,6 +57,7 @@ const UPLOAD_PREFIX: &str = "artifacts/uploads/";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 pub struct ArtifactUpload {
     storage: Weak<ExecutionStorage>,
@@ -90,6 +96,7 @@ pub(super) struct Upload {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Upload {
     pub(super) fn descriptor(&self) -> Option<&ExecutionOutput> {
         self.descriptor.as_ref()
@@ -169,7 +176,8 @@ impl ArtifactUpload {
                 save(&mut acquisition, &upload.id).await?;
                 let record = acquisition.artifacts[&upload.id].record.clone();
                 drop(acquisition);
-                storage.storage.flush().await?;
+                // Native Finish Already Confirms Immutable File Durability.
+                // Save The Logical Descriptors Together At The Execution Boundary.
                 return outcome(record, complete);
             }
             // A successful publication can retire its process-local owner.
@@ -357,6 +365,7 @@ impl ExecutionStorage {
 }
 
 /* === Public Functions === */
+
 pub(super) async fn abandon_dropped(acquisition: &mut Acquisition) -> Result<()> {
     for upload in acquisition.artifacts.values_mut() {
         if upload.record.status == ArtifactStatus::Staged && upload.owner.upgrade().is_none() {
@@ -385,6 +394,7 @@ pub(super) fn has_live_upload(acquisition: &Acquisition) -> bool {
 }
 
 /* === Private Functions === */
+
 async fn append(upload: &mut Upload, bytes: &[u8]) -> Result<()> {
     if upload.closing.is_some() || upload.record.status != ArtifactStatus::Staged {
         return Err(error("artifact upload is closed"));

@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
+
 // Local Imports
 use super::{ExecutionFixtureContext, Target, TestExecution, failure};
 use crate::transport::{CommandExecutionRequest, ProviderExecutionFailure};
@@ -40,6 +42,7 @@ use dokime_domain::model::identity::StepAttemptId;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) async fn reconcile(
     context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, terminal: bool, cancelling: bool,
 ) -> Result<(), ProviderExecutionFailure> {
@@ -148,6 +151,7 @@ pub(super) async fn reconcile(
 }
 
 /* === Private Functions === */
+
 async fn save(
     context: &ExecutionFixtureContext, request_id: &CommandId, command: &StepCommandReceipt, phase: StepCommandPhase,
     attempt_id: Option<StepAttemptId>, detail: Option<String>,

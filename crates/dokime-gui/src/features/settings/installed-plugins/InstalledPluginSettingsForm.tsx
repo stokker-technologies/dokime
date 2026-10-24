@@ -9,20 +9,13 @@
 
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useAutosave } from "@/features/settings/settings-autosave";
-import type {
-  PluginRuntimeCredentialBindings,
-  SecretReference,
-  Settings,
-  SettingsEntry,
-  SettingValues,
-} from "./installed-plugin-contracts";
+import type { PluginRuntimeSecretBindings, SecretReference, Settings, SettingsEntry, SettingValues } from "./installed-plugin-contracts";
 
 type Props = {
   schema: Settings;
@@ -39,14 +32,14 @@ type Props = {
   onSubmit: (values: SettingValues) => Promise<void>;
   onSaveSecret: (id: string, secret: string) => void;
   savingSecret: boolean;
-  bindings: PluginRuntimeCredentialBindings;
+  bindings: PluginRuntimeSecretBindings;
 };
 
 /**
  * The host owns controls for the semantic plugin catalog.
  *
  * A plugin's settings are settings, so they sit on the same two-column grid as
- * every other settings section — `label (260px) | value`, the description in
+ * every other settings section — `label | value`, the description in
  * the label cell, one row height — rather than a stack of labels over
  * full-width fields. The schema carries no groups today, so there are no group
  * eyebrows to draw; when `SettingsEntry` gains one, the eyebrow goes here.
@@ -75,7 +68,7 @@ export function InstalledPluginSettingsForm({ schema, values, discovered, onSubm
   }
 
   return (
-    <div className="grid">
+    <>
       {fields.map((field) => (
         <SettingField
           configured={Boolean(bindings.bindings?.[field.id]?.configured)}
@@ -89,9 +82,11 @@ export function InstalledPluginSettingsForm({ schema, values, discovered, onSubm
         />
       ))}
       {(bindings.missing_required ?? []).length > 0 && (
-        <p className="px-4 pt-3 text-xs text-destructive">Missing required secrets: {(bindings.missing_required ?? []).join(", ")}</p>
+        <p className="px-4 py-3 text-xs text-destructive" role="alert">
+          Missing required secrets: {(bindings.missing_required ?? []).join(", ")}
+        </p>
       )}
-    </div>
+    </>
   );
 }
 
@@ -186,7 +181,6 @@ function SettingField({
   }
   return (
     <SettingsRow
-      className="border-b border-border/60 last:border-b-0"
       description={field.description}
       htmlFor={id}
       label={field.title}
@@ -222,7 +216,7 @@ function SecretField({
   configured: boolean;
 }) {
   const [secret, setSecret] = useState("");
-  const kind = reference?.kind ?? "stored_credential";
+  const kind = reference?.kind ?? "stored_secret";
   return (
     <div className="grid gap-2">
       <select
@@ -230,50 +224,45 @@ function SecretField({
         aria-label="Secret reference source"
         value={kind}
         onChange={(event) =>
-          onChange(
-            event.target.value === "environment" ? { kind: "environment", variable: "" } : { kind: "stored_credential", credential_id: "" },
-          )
+          onChange(event.target.value === "environment" ? { kind: "environment", variable: "" } : { kind: "stored_secret", secret_id: "" })
         }
       >
-        <option value="stored_credential">Stored credential</option>
+        <option value="stored_secret">Stored secret</option>
         <option value="environment">Environment variable</option>
       </select>
       <Input
         id={id}
         autoComplete="off"
-        placeholder={kind === "environment" ? "ENVIRONMENT_VARIABLE" : "Stored credential ID"}
-        value={reference?.kind === "environment" ? reference.variable : (reference?.credential_id ?? "")}
+        placeholder={kind === "environment" ? "ENVIRONMENT_VARIABLE" : "Stored secret ID"}
+        value={reference?.kind === "environment" ? reference.variable : (reference?.secret_id ?? "")}
         onChange={(event) =>
           onChange(
             event.target.value === ""
               ? undefined
               : kind === "environment"
                 ? { kind, variable: event.target.value }
-                : { kind, credential_id: event.target.value },
+                : { kind, secret_id: event.target.value },
           )
         }
       />
-      {kind === "stored_credential" && (
-        <div className="flex gap-2">
-          <Input
-            aria-label="Secret value"
-            type="password"
-            autoComplete="new-password"
-            placeholder={configured ? "Replace stored secret" : "Enter secret"}
-            value={secret}
-            onChange={(event) => setSecret(event.target.value)}
-          />
-          <Button
-            type="button"
-            disabled={saving || !secret}
-            onClick={() => {
-              onSave(secret);
-              setSecret("");
-            }}
-          >
-            {configured ? "Replace" : "Save"}
-          </Button>
-        </div>
+      {kind === "stored_secret" && (
+        <Input
+          aria-label="Secret value"
+          type="password"
+          autoComplete="new-password"
+          disabled={saving}
+          placeholder={configured ? "Type a replacement and press Enter" : "Type the secret and press Enter"}
+          value={secret}
+          onChange={(event) => setSecret(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+          onBlur={() => {
+            if (!secret) return;
+            onSave(secret);
+            setSecret("");
+          }}
+        />
       )}
     </div>
   );
@@ -284,8 +273,8 @@ function secretReference(value: SettingValues[string] | undefined): SecretRefere
   if (value.kind === "environment" && typeof value.variable === "string") {
     return { kind: "environment", variable: value.variable };
   }
-  if (value.kind === "stored_credential" && typeof value.credential_id === "string") {
-    return { kind: "stored_credential", credential_id: value.credential_id };
+  if (value.kind === "stored_secret" && typeof value.secret_id === "string") {
+    return { kind: "stored_secret", secret_id: value.secret_id };
   }
   return undefined;
 }

@@ -556,7 +556,7 @@ export function ArtifactUploader({
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Take Picture</DialogTitle>
             <DialogDescription>Capture a webcam image and attach it to the selected scope.</DialogDescription>

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,8 +26,9 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // What `AskReadiness` answers.
-#[dokime_runtime::message]
+#[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct Readiness {
     #[row(description = "Whether the embedded runtime has stopped taking new work.")]

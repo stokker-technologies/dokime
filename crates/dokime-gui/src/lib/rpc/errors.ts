@@ -5,7 +5,7 @@ import type { ArtifactDeliveryError, DeliveryStage } from "../desktop/delivery";
 import type { RpcError } from "../desktop/rpc";
 
 const connectionErrorMessages: Record<Exclude<ConnectionError["kind"], "invalid_target" | "execution_rejected">, string> = {
-  credentials_unavailable: "No saved access token is available. Enter a token to connect.",
+  secrets_unavailable: "No saved access token is available. Enter a token to connect.",
   authentication_required: "The backend requires a valid access token.",
   unauthenticated: "The backend requires a valid access token.",
   permission_denied: "This account does not have permission to use the backend.",

@@ -8,25 +8,31 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use crate::grpc::transcode::Transcode;
-use harmos::{
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
 use tonic::Status;
 use tracing::Instrument;
+
 // Local Imports
+use crate::grpc::transcode::Transcode;
 use crate::trace::{Event, Journal, Scope, WATCH_SPAN};
-use dokime_domain::model::identity::wire::Timestamp;
-use dokime_domain::operations::backend as wire;
-use dokime_runtime::RuntimeHandle;
+use dokime::RuntimeHandle;
+use dokime::domain::model::identity::wire::Timestamp;
+use dokime::domain::operations::backend as wire;
 
 /* === Constants === */
+
 const DEFAULT_EVENTS: usize = 256;
 const MAX_EVENTS: usize = 1024;
 const DEFAULT_BYTES: usize = 256 * 1024;
@@ -34,26 +40,33 @@ const MIN_BYTES: usize = 32 * 1024;
 const BATCH_OVERHEAD: usize = 256;
 
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
     journal: Arc<Journal>,
 }
+
 struct Watch {
     resources: Arc<Resources>,
 }
 
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl Operation for Watch {
     type Declaration = wire::WatchTrace;
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::backend::wire::TraceBatch>;
+    type Endpoints = StreamOutput<dokime::domain::model::backend::wire::TraceBatch>;
 
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
@@ -69,7 +82,7 @@ impl Operation for Watch {
 
 impl Watch {
     async fn follow(
-        &self, request: &wire::WatchTrace, output: &mut StreamOutput<dokime_domain::model::backend::wire::TraceBatch>,
+        &self, request: &wire::WatchTrace, output: &mut StreamOutput<dokime::domain::model::backend::wire::TraceBatch>,
     ) -> Result<(), Status> {
         let epoch = self.resources.runtime.process_epoch().to_string();
         if request.epoch.as_deref().is_some_and(|expected| expected != epoch) || (request.after_sequence != 0 && request.epoch.is_none()) {
@@ -110,7 +123,7 @@ impl Watch {
             let advanced = page.next > after;
             after = page.next;
             if initial || advanced || page.missed > 0 {
-                let batch = dokime_domain::model::backend::wire::TraceBatch {
+                let batch = dokime::domain::model::backend::wire::TraceBatch {
                     epoch: epoch.clone(),
                     events: page.events.into_iter().map(|(sequence, event)| event_wire(sequence, &event)).collect(),
                     dropped,
@@ -136,21 +149,23 @@ impl Watch {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<Watch>(
         "dokime",
-        dokime_runtime::app::Lanes::Open,
+        dokime::app::Lanes::Open,
         Arc::new(Resources { runtime: runtime.clone(), maximum, journal: Journal::global().clone() }),
     )?;
     Ok(())
 }
 
 /* === Private Functions === */
-fn scope(scope: Option<&dokime_domain::model::backend::wire::TraceScope>) -> Result<Scope, Status> {
+
+fn scope(scope: Option<&dokime::domain::model::backend::wire::TraceScope>) -> Result<Scope, Status> {
     match scope {
-        None | Some(dokime_domain::model::backend::wire::TraceScope::Instance) => Ok(Scope::Instance),
-        Some(dokime_domain::model::backend::wire::TraceScope::Cycle(id)) => Ok(Scope::Cycle(scope_id(id)?)),
-        Some(dokime_domain::model::backend::wire::TraceScope::Execution(id)) => Ok(Scope::Execution(scope_id(id)?)),
+        None | Some(dokime::domain::model::backend::wire::TraceScope::Instance) => Ok(Scope::Instance),
+        Some(dokime::domain::model::backend::wire::TraceScope::Cycle(id)) => Ok(Scope::Cycle(scope_id(id)?)),
+        Some(dokime::domain::model::backend::wire::TraceScope::Execution(id)) => Ok(Scope::Execution(scope_id(id)?)),
     }
 }
 
@@ -163,18 +178,18 @@ fn scope_id(id: &str) -> Result<String, Status> {
     Ok(canonical)
 }
 
-fn level(level: tracing::Level) -> dokime_domain::model::backend::wire::LogLevel {
+fn level(level: tracing::Level) -> dokime::domain::model::backend::wire::LogLevel {
     match level {
-        tracing::Level::TRACE => dokime_domain::model::backend::wire::LogLevel::Trace,
-        tracing::Level::DEBUG => dokime_domain::model::backend::wire::LogLevel::Debug,
-        tracing::Level::INFO => dokime_domain::model::backend::wire::LogLevel::Info,
-        tracing::Level::WARN => dokime_domain::model::backend::wire::LogLevel::Warn,
-        tracing::Level::ERROR => dokime_domain::model::backend::wire::LogLevel::Error,
+        tracing::Level::TRACE => dokime::domain::model::backend::wire::LogLevel::Trace,
+        tracing::Level::DEBUG => dokime::domain::model::backend::wire::LogLevel::Debug,
+        tracing::Level::INFO => dokime::domain::model::backend::wire::LogLevel::Info,
+        tracing::Level::WARN => dokime::domain::model::backend::wire::LogLevel::Warn,
+        tracing::Level::ERROR => dokime::domain::model::backend::wire::LogLevel::Error,
     }
 }
 
-fn event_wire(sequence: u64, event: &Event) -> dokime_domain::model::backend::wire::TraceEvent {
-    dokime_domain::model::backend::wire::TraceEvent {
+fn event_wire(sequence: u64, event: &Event) -> dokime::domain::model::backend::wire::TraceEvent {
+    dokime::domain::model::backend::wire::TraceEvent {
         sequence,
         time: Some(Timestamp { seconds: event.time.unix_timestamp(), nanos: event.time.nanosecond() as i32 }),
         level: level(event.level),
@@ -186,13 +201,13 @@ fn event_wire(sequence: u64, event: &Event) -> dokime_domain::model::backend::wi
         fields: event
             .fields
             .iter()
-            .map(|(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry { key: key.clone(), value: value.clone() })
+            .map(|(key, value)| dokime::domain::model::backend::wire::LogFrameFieldsEntry { key: key.clone(), value: value.clone() })
             .collect(),
     }
 }
 
-fn failure(source: harmos::Error) -> Status {
-    let status = if matches!(source, harmos::Error::ResourceExhausted { .. }) {
+fn failure(source: dokime::harmos::Error) -> Status {
+    let status = if matches!(source, dokime::harmos::Error::ResourceExhausted { .. }) {
         Status::resource_exhausted("trace delivery admission failed")
     } else {
         Status::internal("trace delivery failed")

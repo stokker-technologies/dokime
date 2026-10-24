@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
@@ -28,17 +31,23 @@ use crate::model::identity::Metadata;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppCustomizationContribution {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub organization: Option<OrganizationIdentity>,
+
     #[serde(default)]
     pub display_name: Option<String>,
+
     #[serde(default)]
     pub title_template: Option<String>,
+
     #[serde(default)]
     pub logo_assets: Vec<AppLogoAsset>,
+
     #[serde(default)]
     pub theme_policy: ThemeActivationPolicy,
 }
@@ -46,17 +55,21 @@ pub struct AppCustomizationContribution {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrganizationIdentity {
     pub name: String,
+
     #[serde(default)]
     pub unit: Option<String>,
+
     #[serde(default)]
     pub website: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppLogoAsset {
+    pub variant: LogoVariant,
     pub asset_id: Identifier,
     pub path: String,
     pub mime_type: String,
+
     #[serde(default)]
     pub alt: Option<String>,
 }
@@ -64,12 +77,16 @@ pub struct AppLogoAsset {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppThemeContribution {
     pub metadata: Metadata,
+
     #[serde(default)]
     pub stylesheet: Option<String>,
+
     #[serde(default)]
     pub variables: BTreeMap<String, String>,
+
     #[serde(default)]
     pub corner_radii: ThemeCornerRadii,
+
     pub light: ThemeVariant,
     pub dark: ThemeVariant,
 }
@@ -78,18 +95,25 @@ pub struct AppThemeContribution {
 pub struct ThemeCornerRadii {
     #[serde(default)]
     pub base: Option<String>,
+
     #[serde(default)]
     pub sm: Option<String>,
+
     #[serde(default)]
     pub md: Option<String>,
+
     #[serde(default)]
     pub lg: Option<String>,
+
     #[serde(default)]
     pub xl: Option<String>,
+
     #[serde(default, rename = "2xl")]
     pub two_xl: Option<String>,
+
     #[serde(default, rename = "3xl")]
     pub three_xl: Option<String>,
+
     #[serde(default, rename = "4xl")]
     pub four_xl: Option<String>,
 }
@@ -98,16 +122,29 @@ pub struct ThemeCornerRadii {
 pub struct ThemeVariant {
     #[serde(default)]
     pub variables: BTreeMap<String, String>,
+
     #[serde(default)]
     pub plot_palette: Vec<String>,
 }
 
 /* === Enums === */
+
+#[harmos_domain::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LogoVariant {
+    TransparentOnLight,
+    TransparentOnDark,
+    ContainedOnLight,
+    ContainedOnDark,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ThemeActivationPolicy {
     #[default]
     RegisterOnly,
+
     Default {
         theme: Identifier,
     },
@@ -122,6 +159,7 @@ pub enum ThemeActivationPolicy {
 pub enum ThemeModePolicy {
     #[default]
     UserOrSystem,
+
     ForceSystem,
     ForceLight,
     ForceDark,
@@ -130,6 +168,7 @@ pub enum ThemeModePolicy {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for OrganizationIdentity {
     fn memory_size(&self) -> usize {
         let fields = [

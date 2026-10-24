@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -23,11 +24,13 @@
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("host probe failed: {0}")]

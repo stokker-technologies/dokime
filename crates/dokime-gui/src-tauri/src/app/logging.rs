@@ -12,21 +12,27 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+
 // Local Imports
 
 /* === Constants === */
+
 const KEEP_LOG_FILES: usize = 14;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type BoxedLayer = Box<dyn Layer<Registry> + Send + Sync>;
 
 /* === Structs === */
+
 pub(crate) struct LoggingGuards {
     _stderr: tracing_appender::non_blocking::WorkerGuard,
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
@@ -39,6 +45,7 @@ pub(crate) struct LoggingGuards {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn init(identifier: &str) -> LoggingGuards {
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
     let stderr_layer: BoxedLayer = fmt::layer().with_writer(stderr_writer).with_filter(env_filter()).boxed();
@@ -70,6 +77,7 @@ pub(crate) fn init(identifier: &str) -> LoggingGuards {
 }
 
 /* === Private Functions === */
+
 fn env_filter() -> EnvFilter {
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
 }

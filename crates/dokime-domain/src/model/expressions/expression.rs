@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::values::Value;
 use crate::model::values::numeric_cmp;
@@ -24,6 +27,7 @@ use crate::model::values::numeric_cmp;
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(ExpressionError, formatter {
     Self::UnknownSelector(selector) => write!(formatter, "unknown selector {selector}"),
     Self::ExpectedBoolean => formatter.write_str("expression did not evaluate to boolean"),
@@ -35,6 +39,7 @@ product_error!(ExpressionError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ExpressionContext {
     #[serde(default)]
@@ -59,6 +64,7 @@ pub struct BooleanExpressionBuilder {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ExpressionKind {
@@ -79,6 +85,7 @@ pub enum ExpressionKind {
     },
     Call {
         function: String,
+
         #[serde(default)]
         args: Vec<Expression>,
     },
@@ -118,6 +125,7 @@ pub enum ExpressionError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for Expression {
     fn memory_size(&self) -> usize {
         expression_memory(self, 0)
@@ -236,6 +244,7 @@ impl BooleanExpressionBuilder {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn expression_memory(expression: &Expression, depth: usize) -> usize {
     if depth > 64 {
         return usize::MAX;

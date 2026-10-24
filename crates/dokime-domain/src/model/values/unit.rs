@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,6 +20,7 @@ use harmos_domain::Identifier;
 use harmos_domain::Metadata;
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
 /* === Constants === */
@@ -28,6 +30,7 @@ use serde::Serialize;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeasurementUnit {
     pub metadata: Metadata,
@@ -36,6 +39,7 @@ pub struct MeasurementUnit {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UnitFamily {
@@ -53,6 +57,7 @@ pub enum UnitFamily {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for MeasurementUnit {
     fn memory_size(&self) -> usize {
         let fields = [

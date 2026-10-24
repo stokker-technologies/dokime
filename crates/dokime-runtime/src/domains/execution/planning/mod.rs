@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod append;
 pub(crate) mod copy;
 pub(crate) mod create;
@@ -16,6 +17,7 @@ pub(crate) mod policy;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,9 +37,25 @@ pub(crate) mod policy;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl crate::RuntimeHandle {
     pub async fn register_cases(
         &self, registration_id: dokime_domain::model::identity::CommandId, cases: Vec<crate::definition::TestCase>,
+    ) -> crate::runtime::Result<()> {
+        let definition_revisions = {
+            let state = self.state_read();
+            cases
+                .iter()
+                .map(|case| state.case_definition_revision(case).map(|revision| (case.test_case_id.clone(), revision)))
+                .collect::<Result<_, String>>()
+                .map_err(crate::runtime::Error::Operation)?
+        };
+        self.register_cases_at(registration_id, cases, definition_revisions).await
+    }
+
+    pub async fn register_cases_at(
+        &self, registration_id: dokime_domain::model::identity::CommandId, cases: Vec<crate::definition::TestCase>,
+        definition_revisions: std::collections::BTreeMap<dokime_domain::model::identity::CaseId, String>,
     ) -> crate::runtime::Result<()> {
         if cases.is_empty() || cases.len() > 1000 {
             return Err(crate::runtime::Error::Operation("registration requires 1 to 1000 cases".into()));
@@ -51,7 +69,7 @@ impl crate::RuntimeHandle {
             }
             let ids = cases.iter().map(|case| case.test_case_id.clone()).collect::<Vec<_>>();
             runtime
-                .commit(crate::transactions::RegisterCases { registration_id, cases })
+                .commit(crate::transactions::RegisterCases { registration_id, cases, definition_revisions })
                 .await
                 .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
 
@@ -78,6 +96,7 @@ impl crate::RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn settings(
     runtime: &crate::RuntimeHandle, sources: impl IntoIterator<Item = String>,
 ) -> crate::runtime::Result<std::collections::BTreeMap<String, crate::settings::SettingValues>> {

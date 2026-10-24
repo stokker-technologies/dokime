@@ -31,6 +31,7 @@ use dokime_domain::model::execution::saved::ExecutionOutput;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Renderer;
 
@@ -39,6 +40,7 @@ pub struct Renderer;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Renderer {
     pub fn execution(
         &self, captured: Arc<CapturedExecutionReportInput>, outputs: Vec<ExecutionOutput>, saved: &harmos::storage::StorageCursor,

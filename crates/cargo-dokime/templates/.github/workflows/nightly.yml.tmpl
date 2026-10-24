@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:7258d8deaa1494ab0f06ce5d0b73f5c76d17a3bbeb13ee29742a0ec118bdcef8
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:5b506c0a31e297ad410f00b878fd6db8d710e6a0bc2e8cd5ac815fa193c6a6f3
 name: Nightly
 "on":
   schedule:
@@ -6,34 +6,97 @@ name: Nightly
   workflow_dispatch: {}
 permissions:
   contents: read
-env:
-  MISE_LOCKED: "1"
-  CARGO_INCREMENTAL: "0"
-  MISE_DATA_DIR: ${{ github.workspace }}/.cache/mise
-  CARGO_HOME: ${{ github.workspace }}/.cache/cargo
-  npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
-  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+concurrency:
+  group: nightly-${{ github.run_id }}
+  cancel-in-progress: false
 jobs:
-  nightly:
-    name: Validate / Coverage
-    runs-on:
-    - self-hosted
-    - linux
-    timeout-minutes: 180
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-        ref: dev
-    - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      id: tools
-      with:
-        path: .cache/mise/
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-${{ hashFiles('mise.lock') }}
-    - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8
-      with:
-        install: true
-        cache: false
-        install_dir: ${{ github.workspace }}/.cache/mise-bin
-        mise_dir: ${{ github.workspace }}/.cache/mise
-    - run: mise run ci:nightly
+  build_product_linux:
+    name: Build
+    uses: ./.github/workflows/managed-build-product-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_product_linux\":120}"
+    secrets: inherit
+  build_tests_linux:
+    name: Build
+    uses: ./.github/workflows/managed-build-tests-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_tests_linux\":120}"
+    secrets: inherit
+  build_product_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-product-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_product_windows\":120}"
+    secrets: inherit
+  build_tests_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-tests-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_tests_windows\":120}"
+    secrets: inherit
+  check:
+    name: Check
+    uses: ./.github/workflows/managed-check.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"check_python\":120,\"source\":120}"
+    secrets: inherit
+  check_linux:
+    name: Check
+    uses: ./.github/workflows/managed-check-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"check_rust_linux\":120}"
+    secrets: inherit
+  check_windows:
+    name: Check
+    uses: ./.github/workflows/managed-check-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"check_rust_windows\":120}"
+    secrets: inherit
+  package_linux:
+    name: Package
+    uses: ./.github/workflows/managed-package-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"package_rust_linux\":120}"
+    secrets: inherit
+    needs:
+    - check
+    - check_linux
+  package_windows:
+    name: Package
+    uses: ./.github/workflows/managed-package-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"package_rust_windows\":120}"
+    secrets: inherit
+    needs:
+    - check
+    - check_windows
+  test_linux:
+    name: Test
+    uses: ./.github/workflows/managed-test-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"validate_test_rust_integration_linux\":120,\"validate_test_rust_unit_linux\":120}"
+    secrets: inherit
+  test_windows:
+    name: Test
+    uses: ./.github/workflows/managed-test-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"validate_test_rust_integration_windows\":120,\"validate_test_rust_unit_windows\":120}"
+    secrets: inherit
+  test_nightly:
+    name: Test
+    uses: ./.github/workflows/managed-test-nightly.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"validate_coverage_rust\":120}"
+    secrets: inherit

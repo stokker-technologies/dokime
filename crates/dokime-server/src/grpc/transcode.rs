@@ -12,12 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::MessageError;
-use harmos::domain::Portable;
-use harmos::grpc::{Transcoded, Wire};
+use dokime::harmos::MessageError;
+use dokime::harmos::domain::Portable;
+use dokime::harmos::grpc::{Transcoded, Wire};
 use tonic::Status;
 
 // Local Imports
@@ -29,6 +30,7 @@ use tonic::Status;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug, thiserror::Error)]
 #[error("message encoding failed: {0}")]
 pub(super) struct Untranscodable(#[from] MessageError);
@@ -36,6 +38,7 @@ pub(super) struct Untranscodable(#[from] MessageError);
 /* === Enums === */
 
 /* === Traits === */
+
 pub(super) trait Transcode {
     fn wire_bytes(&self) -> Result<Vec<u8>, Untranscodable>;
 
@@ -45,6 +48,7 @@ pub(super) trait Transcode {
 }
 
 /* === Implementations === */
+
 impl<T: Portable> Transcode for T {
     fn wire_bytes(&self) -> Result<Vec<u8>, Untranscodable> {
         let mut bytes = Vec::new();
@@ -59,9 +63,13 @@ impl From<Untranscodable> for Status {
     }
 }
 
-impl From<Untranscodable> for harmos::Error {
+impl From<Untranscodable> for dokime::harmos::Error {
     fn from(error: Untranscodable) -> Self {
-        harmos::Error::Backend { operation: "encode gRPC message", kind: harmos::BackendFailure::Permanent, source: Box::new(error) }
+        dokime::harmos::Error::Backend {
+            operation: "encode gRPC message",
+            kind: dokime::harmos::BackendFailure::Permanent,
+            source: Box::new(error),
+        }
     }
 }
 

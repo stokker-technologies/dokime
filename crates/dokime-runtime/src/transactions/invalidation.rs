@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
@@ -35,6 +37,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.invalidate", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InvalidateExecutions {
@@ -48,6 +51,7 @@ pub struct InvalidateExecutions {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl InvalidateExecutions {
     fn invalidates(&self, execution: &TestExecution) -> bool {
         execution.snapshot.plugin() == Some(&self.previous)

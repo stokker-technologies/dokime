@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod command;
 mod embedded;
 pub mod error;
@@ -23,6 +24,7 @@ pub mod state;
 pub(crate) mod storage;
 
 /* === Re-Exports === */
+
 pub use crate::execution::context::ExecutionCycleContext;
 pub use embedded::EmbeddedProvider;
 pub use error::{Error, Result};
@@ -33,17 +35,17 @@ pub use storage::artifacts::{ArtifactReader, ArtifactUpload};
 pub use storage::report_open::{OpenedReport, ReportOrigin};
 
 // Reachable only from this crate's test targets. Kept at the root so those
+
 // targets name one path, not a private module tree.
-
 pub use handle::RecordSubscription;
-
 pub use storage::{context_records::ContextRecord, execution::ExecutionView, records::RecordReader, telemetry::TelemetryReader};
 
-// Named by this crate's own domain modules, by nobody outside it.
-
 /* === Imports === */
+
 // Standard Library Imports
+// Named by this crate's own domain modules, by nobody outside it.
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 
 // Local Imports
@@ -53,11 +55,15 @@ use query::RuntimeOverviewSnapshot;
 
 /* === Constants === */
 
+// How long a stopping plugin may take before its sidecar is ended.
+const PLUGIN_STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Runtime {
     handle: RuntimeHandle,
     harmos: HarmosRuntime,
@@ -75,6 +81,8 @@ pub(crate) struct BackgroundTask(pub(crate) tokio::task::JoinHandle<()>);
 
 #[derive(Default)]
 struct Shutdown {
+    // What the stop is doing now, for a host that bounds it.
+    stage: &'static str,
     providers: Vec<crate::runtime::operations::provider::ProviderTask>,
     prepared: bool,
     participant: Option<harmos::runtime::StopParticipant>,
@@ -89,6 +97,7 @@ struct Shutdown {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for BackgroundTask {
     fn drop(&mut self) {
         self.0.abort();
@@ -108,13 +117,7 @@ impl Runtime {
 
         let mut runtime = Self::from_parts(RuntimeHandle::boot(config, BTreeMap::new(), true).await?);
         runtime.embedded = providers;
-        let plugins_started = std::time::Instant::now();
-        let outcome = runtime.install_plugins().await;
-        tracing::info!(phase = "plugins", elapsed_ms = plugins_started.elapsed().as_millis() as u64, "plugin installation complete");
-        if let Err(error) = outcome {
-            return Err(runtime.rollback(error).await);
-        }
-        Ok(runtime)
+        runtime.finish_start().await
     }
 
     pub async fn with_execution_fixture(
@@ -135,18 +138,33 @@ impl Runtime {
         Self::with_execution_fixtures_inner(config, fixtures, false).await
     }
 
+    #[cfg(feature = "fault-injection")]
+    pub async fn with_fixture_backends(
+        config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>,
+        decorate: impl FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send + 'static,
+    ) -> Result<Self> {
+        let fixtures = fixtures.into_iter().collect();
+        let parts = RuntimeHandle::boot_with_backends(config, fixtures, true, Box::new(decorate)).await?;
+        let runtime = Self::from_parts(parts);
+        runtime.finish_start().await
+    }
+
     async fn with_execution_fixtures_inner(
         config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>, install_builtins: bool,
     ) -> Result<Self> {
         let fixtures = fixtures.into_iter().collect();
-        let mut runtime = Self::from_parts(RuntimeHandle::boot(config, fixtures, install_builtins).await?);
+        let runtime = Self::from_parts(RuntimeHandle::boot(config, fixtures, install_builtins).await?);
+        runtime.finish_start().await
+    }
+
+    async fn finish_start(mut self) -> Result<Self> {
         let plugins_started = std::time::Instant::now();
-        let outcome = runtime.install_plugins().await;
+        let outcome = self.install_plugins().await;
         tracing::info!(phase = "plugins", elapsed_ms = plugins_started.elapsed().as_millis() as u64, "plugin installation complete");
         if let Err(error) = outcome {
-            return Err(runtime.rollback(error).await);
+            return Err(self.rollback(error).await);
         }
-        Ok(runtime)
+        Ok(self)
     }
 
     async fn rollback(mut self, source: crate::runtime::Error) -> crate::runtime::Error {
@@ -195,6 +213,11 @@ impl Runtime {
         self.handle.clone()
     }
 
+    // What an unfinished stop was doing when its host stopped waiting.
+    pub fn shutdown_stage(&self) -> &'static str {
+        self.shutdown.stage
+    }
+
     pub async fn shutdown(&mut self) -> Result<RuntimeOverviewSnapshot> {
         if self.shutdown.complete {
             self.handle.provider_completion_result()?;
@@ -208,6 +231,7 @@ impl Runtime {
         }
 
         let shutdown_started = std::time::Instant::now();
+        self.shutdown.stage = "settling running executions";
         self.handle.shutdown_requested.send_replace(true);
         let report_ids = self
             .handle
@@ -254,6 +278,10 @@ impl Runtime {
             // Cancellation Must Settle Even If Native Shutdown Admission Failed.
             shutdown_admission?;
 
+            // Active Cycles Stay Active: The Next Start Seals Them Without Replaying Device Work,
+            // So A Stop Never Renders A Cycle Report Its Members Already Wrote.
+
+            self.shutdown.stage = "stopping plugins";
             if let Some(manager) = &mut self.plugin_manager {
                 let mut lifecycle = plugins::lifecycle::Adapter {
                     handle: &self.handle,
@@ -261,7 +289,11 @@ impl Runtime {
                     packages: &mut self.plugins,
                     embedded: &mut self.embedded,
                 };
-                manager.shutdown(&mut lifecycle).await?;
+                // A plugin that outstays its grace loses its sidecar: dropping the manager ends it.
+                match tokio::time::timeout(PLUGIN_STOP_GRACE, manager.shutdown(&mut lifecycle)).await {
+                    Ok(stopped) => stopped?,
+                    Err(_) => tracing::warn!(grace_s = PLUGIN_STOP_GRACE.as_secs(), "plugins did not stop in time; ending their sidecars"),
+                }
             }
             self.embedded.clear();
             self.plugin_manager = None;
@@ -289,6 +321,7 @@ impl Runtime {
             report_inputs?;
         }
 
+        self.shutdown.stage = "writing the final checkpoint";
         if !self.shutdown.stopped {
             if self.shutdown.overview.is_none() {
                 let participant = self.shutdown.participant.get_or_insert_with(|| self.harmos.stop_participant());

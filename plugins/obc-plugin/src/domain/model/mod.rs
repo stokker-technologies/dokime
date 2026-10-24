@@ -8,12 +8,15 @@
  */
 
 /* === Modules === */
+
 pub mod connections;
+pub mod device;
 pub mod readiness;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

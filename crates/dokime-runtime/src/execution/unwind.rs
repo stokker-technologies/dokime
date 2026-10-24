@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
 // Third Party Imports
 
 // Local Imports
@@ -29,6 +31,7 @@ use crate::plugin::{Diagnostic, panicked};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(crate) struct Caught<F> {
     work: F,
 }
@@ -38,6 +41,7 @@ pub(crate) struct Caught<F> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<F, T> Future for Caught<F>
 where
     F: Future<Output = Result<T, Diagnostic>> + Unpin,
@@ -55,6 +59,7 @@ where
 }
 
 /* === Public Functions === */
+
 pub(crate) fn caught<F, T>(work: F) -> Caught<F>
 where
     F: Future<Output = Result<T, Diagnostic>> + Unpin,

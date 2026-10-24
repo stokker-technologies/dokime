@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::TelemetrySample;
 use crate::model::identity::Identifier;
@@ -29,6 +31,7 @@ use crate::model::identity::TelemetryBatchId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryBatch {
     pub batch_id: TelemetryBatchId,
@@ -42,6 +45,7 @@ pub struct TelemetryBatch {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for TelemetryBatch {
     fn memory_size(&self) -> usize {
         let fields = [

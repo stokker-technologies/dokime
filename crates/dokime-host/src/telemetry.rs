@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -28,6 +30,7 @@ use dokime_domain::model::telemetry::TelemetryContract;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct HostTelemetryCollectorImpl {
     host: Host,
     options: HostOptions,
@@ -37,6 +40,7 @@ struct HostTelemetryCollectorImpl {
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait HostTelemetryCollector: Send + Sync + 'static {
     fn interval(&self, stream: &str) -> std::time::Duration;
 
@@ -44,6 +48,7 @@ pub trait HostTelemetryCollector: Send + Sync + 'static {
 }
 
 /* === Implementations === */
+
 impl HostTelemetryCollectorImpl {
     fn new(config: HostTelemetryConfig) -> Self {
         Self { host: Host::new(config.clone()), options: config.options.clone(), config }
@@ -64,6 +69,7 @@ impl HostTelemetryCollector for HostTelemetryCollectorImpl {
 }
 
 /* === Public Functions === */
+
 pub fn contracts() -> Vec<TelemetryContract> {
     host_telemetry_contracts()
 }

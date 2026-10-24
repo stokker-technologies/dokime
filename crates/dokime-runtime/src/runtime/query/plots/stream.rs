@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -30,6 +31,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuntimePlotStreamBatch {
     pub mode: RuntimePlotQueryMode,
@@ -37,6 +39,7 @@ pub struct RuntimePlotStreamBatch {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RuntimePlotQueryMode {
     Snapshot,
@@ -49,6 +52,7 @@ pub enum RuntimePlotQueryMode {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn plot_payload_stream_kind(mode: RuntimePlotQueryMode) -> PlotPayloadStreamKind {
     match mode {
         RuntimePlotQueryMode::Snapshot => PlotPayloadStreamKind::Snapshot,
@@ -111,6 +115,7 @@ pub(super) fn cursor_revision(cursor: &PlotPayloadCursor) -> u64 {
 }
 
 /* === Private Functions === */
+
 fn requires_stream_snapshot(request: &PlotPayloadRequest) -> bool {
     request.cursor.is_none()
         || request.analysis.is_some()

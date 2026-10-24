@@ -17,7 +17,7 @@ import type { Wire } from "@/lib/rpc/canonical";
 import type * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CycleHistorySummary } from "@/lib/types";
-import { listNativeCycles } from "./native-planning";
+import { listNativeCycles, mapCyclePhase } from "./native-planning";
 import { durationSeconds, safeNumber, timestampIso } from "./native-values";
 
 /* === Types === */
@@ -53,6 +53,7 @@ function mapCycleHistorySummary(cycle: CycleSummary): CycleHistorySummary {
     test_cycle_id: cycle.cycleId,
     session_id: null,
     title: cycle.metadata?.label || cycle.cycleId,
+    phase: mapCyclePhase(cycle.phase),
     lifecycle: cycleLifecycle(cycle.status),
     result_status: resultStatus(result?.status),
     case_count: caseCount,

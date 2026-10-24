@@ -24,6 +24,7 @@ use dokime_domain::model::execution::ExecutionCheckpoint;
 use dokime_domain::model::execution::PageCursor;
 
 /* === Constants === */
+
 const PAGE_SIZE: u32 = 100;
 
 /* === Macros === */
@@ -31,6 +32,7 @@ const PAGE_SIZE: u32 = 100;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Pages {
     checkpoint: ExecutionCheckpoint,
     position: u64,
@@ -42,6 +44,7 @@ struct Pages {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl TestExecutionHandle {
     pub async fn context_at(
         &self, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
@@ -190,6 +193,7 @@ impl Pages {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn same_checkpoint(
     expected: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
     actual: Option<&dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint>,

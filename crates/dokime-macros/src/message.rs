@@ -33,6 +33,7 @@ use syn::{DeriveInput, Error};
 /* === Structs === */
 
 /* === Enums === */
+
 pub(crate) enum Kind {
     Plain,
     Row,
@@ -44,6 +45,7 @@ pub(crate) enum Kind {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn message(kind: Kind, attribute: TokenStream, item: TokenStream) -> TokenStream {
     declare(kind, attribute, item).unwrap_or_else(Error::into_compile_error)
 }
@@ -64,6 +66,7 @@ pub(crate) fn check(input: &DeriveInput) -> Result<(), Error> {
 }
 
 /* === Private Functions === */
+
 fn declare(kind: Kind, attribute: TokenStream, item: TokenStream) -> Result<TokenStream, Error> {
     let mut input: DeriveInput = syn::parse2(item)?;
     check(&input)?;

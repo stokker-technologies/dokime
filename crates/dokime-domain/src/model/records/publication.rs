@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::model::execution::RecordScope;
 use crate::model::identity::ArtifactId;
@@ -37,18 +40,24 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RecordPublishRequest {
     pub record_type: Identifier,
+
     #[serde(default)]
     pub timestamp: Option<Timestamp>,
+
     pub severity: RecordSeverity,
     pub message: Option<String>,
+
     #[serde(default)]
     pub error: Option<RecordErrorDetail>,
+
     #[serde(default)]
     pub details: BTreeMap<String, Value>,
+
     pub scope: Option<RecordScope>,
     pub related_sample_id: Option<TelemetrySampleId>,
     pub related_stream_id: Option<TelemetryStreamId>,
@@ -66,6 +75,7 @@ pub struct PublishReceipt {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PublishStatus {
@@ -76,6 +86,7 @@ pub enum PublishStatus {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordPublishRequest {
     pub fn new(record_type: Identifier, severity: RecordSeverity) -> Self {
         Self {

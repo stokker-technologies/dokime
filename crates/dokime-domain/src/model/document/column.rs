@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::marker::PhantomData;
+
 // Third Party Imports
 
 // Local Imports
@@ -30,6 +32,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Column<R: ?Sized> {
     field: &'static str,
     row: PhantomData<fn() -> R>,
@@ -40,6 +43,7 @@ pub struct Column<R: ?Sized> {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl<R: ?Sized> Column<R> {
     pub const fn new(field: &'static str) -> Self {
         Self { field, row: PhantomData }

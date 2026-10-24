@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::RecordPattern;
 use crate::records::RecordSeverity;
@@ -33,10 +35,12 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordFilter {
     #[serde(default)]
     pub patterns: Vec<RecordPattern>,
+
     pub record_types: Vec<Identifier>,
     pub severities: Vec<RecordSeverity>,
     pub min_severity: Option<RecordSeverity>,
@@ -53,6 +57,7 @@ pub struct RecordFilter {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RecordFilter {
     pub fn matches(&self, record: &RecordEntry) -> bool {
         if !self.patterns.is_empty() && !self.patterns.iter().any(|pattern| pattern.matches(record.record_type.as_str())) {

@@ -13,6 +13,7 @@
 mod grpc;
 mod server;
 mod shutdown;
+mod workflows;
 
 /* === Re-Exports === */
 
@@ -27,7 +28,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, grpc::benchmark, shutdown::benchmark);
+criterion_group!(benches, grpc::benchmark, shutdown::benchmark, workflows::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */

@@ -8,18 +8,22 @@
  */
 
 /* === Modules === */
+
 mod records;
 mod settings;
 
 /* === Re-Exports === */
+
 pub use records::{CapturedRecord, CapturedRecords, RecordSubscription};
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex, RwLock},
 };
+
 // Third Party Imports
 
 // Local Imports
@@ -30,10 +34,10 @@ use crate::runtime::state::RuntimeState;
 use crate::transactions::Transactions;
 use crate::{
     config::RuntimeConfig,
-    credentials::CredentialStore,
     execution_runtime::provider::{ExecutionFixture, ProviderExecutorRegistry},
     installed_plugins::module_preferences::PluginPreferences,
     runtime::error::{Error, Result},
+    secrets::SecretStore,
     telemetry_runtime::Sampling,
 };
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
@@ -45,12 +49,13 @@ use dokime_domain::model::identity::SessionId;
 /* === Macros === */
 
 /* === Type Aliases === */
-#[cfg(test)]
-type BackendDecorator = Box<dyn FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send>;
 
+#[cfg(feature = "fault-injection")]
+type BackendDecorator = Box<dyn FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send>;
 pub(crate) type InstalledPlugins = BTreeMap<String, InstalledPlugin>;
 
 /* === Structs === */
+
 // The Opened Owners A Boot Hands To Handle Assembly.
 struct BootParts {
     config: RuntimeConfig,
@@ -63,11 +68,12 @@ struct BootParts {
     node_identity: dokime_domain::model::identity::DokimeNodeIdentity,
     application_settings: crate::config::Settings,
     plugin_preferences: PluginPreferences,
-    credentials: CredentialStore,
+    secrets: SecretStore,
     sampling: Sampling,
     providers: ProviderExecutorRegistry,
     boot_started: std::time::Instant,
 }
+
 struct BootRuntime(Option<HarmosRuntime>);
 
 pub(crate) struct HostTraceabilityIndex {
@@ -95,6 +101,7 @@ pub struct RuntimeHandle {
     pub(crate) sampling: Arc<Sampling>,
     pub(crate) stream_leases: Arc<crate::telemetry_runtime::StreamLeases>,
     pub(crate) evidence_admission: Arc<tokio::sync::Mutex<()>>,
+    pub(crate) evidence_exports: crate::domains::exports::evidence::Manager,
     pub(crate) telemetry_admission: Arc<tokio::sync::Mutex<()>>,
     pub(crate) telemetry_cursors: Arc<Mutex<BTreeMap<String, u64>>>,
     pub(crate) host_traceability: Arc<Mutex<HostTraceabilityIndex>>,
@@ -119,7 +126,7 @@ pub struct RuntimeHandle {
     config: Arc<RuntimeConfig>,
     settings: crate::config::Settings,
     plugin_preferences: Arc<PluginPreferences>,
-    credentials: Arc<CredentialStore>,
+    secrets: Arc<SecretStore>,
     pub(crate) brand: Arc<RwLock<Option<crate::installed_plugins::brand::ResolvedBrand>>>,
 }
 
@@ -128,6 +135,7 @@ pub struct RuntimeHandle {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Drop for BootRuntime {
     fn drop(&mut self) {
         if let Some(runtime) = self.0.take() {
@@ -194,17 +202,17 @@ impl RuntimeHandle {
     pub(crate) async fn boot(
         config: RuntimeConfig, providers: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool,
     ) -> Result<(HarmosRuntime, Self)> {
-        #[cfg(test)]
+        #[cfg(feature = "fault-injection")]
         {
             Self::boot_inner(config, providers, install_builtins, None).await
         }
-        #[cfg(not(test))]
+        #[cfg(not(feature = "fault-injection"))]
         {
             Self::boot_inner(config, providers, install_builtins).await
         }
     }
 
-    #[cfg(test)]
+    #[cfg(feature = "fault-injection")]
     pub(crate) async fn boot_with_backends(
         config: RuntimeConfig, providers: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool, decorate: BackendDecorator,
     ) -> Result<(HarmosRuntime, Self)> {
@@ -213,7 +221,7 @@ impl RuntimeHandle {
 
     async fn boot_inner(
         config: RuntimeConfig, providers: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool,
-        #[cfg(test)] decorate: Option<BackendDecorator>,
+        #[cfg(feature = "fault-injection")] decorate: Option<BackendDecorator>,
     ) -> Result<(HarmosRuntime, Self)> {
         let boot_started = std::time::Instant::now();
         let installed_plugins = check_boot_config(&config, boot_started)?;
@@ -230,7 +238,8 @@ impl RuntimeHandle {
         .await??;
         let node_identity = application_settings.read(|document| document.identity.clone());
         let plugin_preferences = PluginPreferences::new(application_settings.clone());
-        let credentials = CredentialStore::from_config(&config.credential_backend).map_err(|error| Error::Operation(error.to_string()))?;
+        let secrets =
+            SecretStore::from_config(&config, application_settings.clone()).map_err(|error| Error::Operation(error.to_string()))?;
         let mut state = RuntimeState::new(config.session_id.clone());
         state.record_namespace = crate::model::identity::new_id::<dokime_domain::model::identity::SessionId>();
         if install_builtins {
@@ -247,7 +256,7 @@ impl RuntimeHandle {
         ));
         tracing::info!(read_pool_bytes = settings.budget.read_memory_bytes.get(), "storage read pool sized");
         let backends = harmos::storage::StorageBackends { primary: backend.clone(), state: recovery };
-        #[cfg(test)]
+        #[cfg(feature = "fault-injection")]
         let backends = match decorate {
             Some(decorate) => decorate(backends),
             None => backends,
@@ -285,7 +294,7 @@ impl RuntimeHandle {
             node_identity,
             application_settings,
             plugin_preferences,
-            credentials,
+            secrets,
             sampling,
             providers,
             boot_started,
@@ -332,7 +341,7 @@ impl RuntimeHandle {
             node_identity,
             application_settings,
             plugin_preferences,
-            credentials,
+            secrets,
             sampling,
             providers,
             boot_started,
@@ -407,6 +416,7 @@ impl RuntimeHandle {
             execution_sessions,
             sampling: Arc::new(sampling),
             evidence_admission: Default::default(),
+            evidence_exports: crate::domains::exports::evidence::Manager::new(config.application_root.join("cache/exports")),
             telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),
             telemetry_cursors: Arc::new(Mutex::new(BTreeMap::new())),
             host_traceability: Arc::new(Mutex::new(HostTraceabilityIndex { generation: 0, samples: BTreeMap::new() })),
@@ -431,7 +441,7 @@ impl RuntimeHandle {
             config: Arc::new(config.clone()),
             settings: application_settings,
             plugin_preferences: Arc::new(plugin_preferences),
-            credentials: Arc::new(credentials),
+            secrets: Arc::new(secrets),
             brand,
         };
 
@@ -462,8 +472,9 @@ impl RuntimeHandle {
                 .map_err(|error| Error::Operation(error.to_string()))?;
         }
         let contracts = self.state_read().telemetry_contracts();
-        crate::runtime::storage::telemetry::register_schemas(self.storage(), &contracts).await?;
+        self.execution_storage.register_schemas(&contracts).await?;
         crate::runtime::operations::runtime::register(self)?;
+        crate::runtime::operations::secrets::register(self)?;
         crate::runtime::operations::reports::register(self)?;
         Ok(())
     }
@@ -530,8 +541,8 @@ impl RuntimeHandle {
         Arc::clone(&self.plugin_preferences)
     }
 
-    pub(crate) fn credential_store(&self) -> Arc<CredentialStore> {
-        Arc::clone(&self.credentials)
+    pub(crate) fn secret_store(&self) -> Arc<SecretStore> {
+        Arc::clone(&self.secrets)
     }
 
     pub fn subscribe_records(&self) -> RecordSubscription {
@@ -542,6 +553,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn check_boot_config(config: &RuntimeConfig, boot_started: std::time::Instant) -> Result<InstalledPlugins> {
     if config.compaction_interval.is_zero() || boot_started.checked_add(config.compaction_interval).is_none() {
         return Err(Error::Operation("compaction interval must be positive and representable".into()));

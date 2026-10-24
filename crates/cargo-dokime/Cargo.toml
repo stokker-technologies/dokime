@@ -1,5 +1,6 @@
 [package]
 name = "cargo-dokime"
+publish = false
 edition.workspace = true
 rust-version.workspace = true
 description = "Build, develop and inspect Dokime plugins"
@@ -7,14 +8,16 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
+pkg-fmt = "bin"
+
 [dependencies]
 # Local
-dokime-domain = { path = "../dokime-domain" }
-dokime-packaging = { path = "../dokime-packaging" }
-dokime = { path = "../dokime" }
+dokime = { workspace = true, features = ["terminal"] }
+dokime-packaging = { version = "0.1.0", path = "../dokime-packaging" }
 
 # Git
-harmos = { workspace = true, features = ["plugin"] }
 harmos-packaging = { workspace = true }
 
 # Error Handling

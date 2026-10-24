@@ -12,16 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
-// The brand bundle folders the runtime embeds beside `brand.toml`.
+// The brand bundle folders the runtime embeds beside `organization.toml`.
 const BRAND_FOLDERS: &[&str] = &["theme", "fonts", "logos"];
 
 /* === Macros === */
@@ -39,6 +41,7 @@ const BRAND_FOLDERS: &[&str] = &["theme", "fonts", "logos"];
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() {
     println!("cargo:rustc-env=DOKIME_NATIVE_TARGET={}", env::var("TARGET").expect("Cargo supplies TARGET"));
 
@@ -57,7 +60,7 @@ fn embed_report_template() {
     println!("cargo:rerun-if-changed={}", source.display());
 
     if !source.is_file() {
-        eprintln!("the report template is not built; run `mise run build` (or `pnpm --dir crates/dokime-gui run build:report`)");
+        eprintln!("the report template is missing; run `mise run prepare:report` and commit the generated resources");
         std::process::exit(1);
     }
 
@@ -71,17 +74,17 @@ fn embed_report_template() {
 
 fn embed_brand_bundle() {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies it"));
-    let bundle = manifest.join("../../branding");
-    let bundle = bundle.canonicalize().unwrap_or_else(|error| panic!("branding bundle {}: {error}", bundle.display()));
+    let bundle = manifest.join("dist-brand");
+    let bundle = bundle.canonicalize().unwrap_or_else(|error| panic!("organization bundle {}: {error}", bundle.display()));
 
     // Collect The Bundle Files
-    let mut files = vec![("brand.toml".to_owned(), bundle.join("brand.toml"))];
+    let mut files = vec![("organization.toml".to_owned(), bundle.join("organization.toml"))];
     for folder in BRAND_FOLDERS {
         let directory = bundle.join(folder);
         println!("cargo:rerun-if-changed={}", directory.display());
         let mut entries: Vec<_> = fs::read_dir(&directory)
-            .unwrap_or_else(|error| panic!("branding folder {}: {error}", directory.display()))
-            .map(|entry| entry.expect("branding entry").path())
+            .unwrap_or_else(|error| panic!("organization folder {}: {error}", directory.display()))
+            .map(|entry| entry.expect("organization entry").path())
             .filter(|path| path.is_file())
             .collect();
         entries.sort();
@@ -90,7 +93,7 @@ fn embed_brand_bundle() {
             files.push((format!("{folder}/{name}"), path));
         }
     }
-    println!("cargo:rerun-if-changed={}", bundle.join("brand.toml").display());
+    println!("cargo:rerun-if-changed={}", bundle.join("organization.toml").display());
 
     // Emit The Embedded Table
     let mut table = String::from("static FILES: &[(&str, &[u8])] = &[\n");

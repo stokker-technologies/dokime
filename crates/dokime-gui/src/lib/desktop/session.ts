@@ -34,7 +34,7 @@ export type DesktopSessionSnapshot = {
 
 /** What an owned local backend left behind when it failed to start, carried
  * as `diagnostics` on the `{ kind: "startup", message }` session error. Paths
- * are absolute; the tail and the log are redacted of credentials natively. */
+ * are absolute; the tail and the log are redacted of secrets natively. */
 export type BackendDiagnostics = {
   /** The resolved backend executable, so a wrong discovery is visible. */
   executable: string;

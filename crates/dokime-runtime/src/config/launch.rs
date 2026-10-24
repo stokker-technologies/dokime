@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{fmt, path::PathBuf, sync::Arc};
+
 // Third Party Imports
 
 // Local Imports
-use crate::RuntimeCredentialConfig;
+use crate::RuntimeSecretConfig;
 use crate::config::RuntimeConfig;
 use crate::domains::installed_plugins::{ResolvedBrand, builtin_plugins};
 use crate::plugins::PluginBundle;
@@ -25,6 +27,7 @@ use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 
 /* === Constants === */
+
 const HUB_IDENTIFIER: &str = "dokime.test_hub";
 
 /* === Macros === */
@@ -32,6 +35,7 @@ const HUB_IDENTIFIER: &str = "dokime.test_hub";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub title: String,
@@ -44,7 +48,7 @@ pub struct Config {
     pub plugin_lookup: Option<PathBuf>,
     pub explicit_plugins: Vec<PathBuf>,
     pub brand: Option<ResolvedBrand>,
-    pub credential_backend: RuntimeCredentialConfig,
+    pub secret_backend: RuntimeSecretConfig,
     registrations: Registrations,
 }
 
@@ -61,6 +65,7 @@ struct Registrations(Vec<Arc<dyn crate::runtime::EmbeddedProvider>>);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl fmt::Debug for Registrations {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_tuple("Registrations").field(&self.0.len()).finish()
@@ -80,7 +85,7 @@ impl Config {
             plugin_lookup: None,
             explicit_plugins: Vec::new(),
             brand: None,
-            credential_backend: RuntimeCredentialConfig::default(),
+            secret_backend: RuntimeSecretConfig::default(),
             registrations: Registrations::default(),
         }
     }
@@ -93,7 +98,7 @@ impl Config {
     pub(crate) fn into_runtime_config(self) -> (RuntimeConfig, ShellStartup) {
         let startup = ShellStartup { brand: self.brand, native_host_telemetry: self.seed_plugins };
         let metadata = Metadata::new(Identifier::new(HUB_IDENTIFIER).expect("valid application identifier"), self.title, self.label);
-        let mut config = RuntimeConfig::new(&self.output_root, metadata).with_credential_backend(self.credential_backend);
+        let mut config = RuntimeConfig::new(&self.output_root, metadata).with_secret_backend(self.secret_backend);
         config.compaction_interval = self.compaction_interval;
         config.local_retention = self.local_retention;
         if let Some(root) = self.application_root {

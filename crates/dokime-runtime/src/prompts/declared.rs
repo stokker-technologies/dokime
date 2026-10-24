@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -36,6 +38,7 @@ use dokime_domain::model::values::ValueType;
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait DeclaredPrompt: Sized + Send + 'static {
     type Answer: Send;
 
@@ -55,6 +58,7 @@ pub trait PromptFieldValue: FieldValue {
 }
 
 /* === Implementations === */
+
 impl PromptFieldValue for String {
     const KIND: PromptFieldKind = PromptFieldKind::Text;
 }
@@ -149,6 +153,7 @@ pub fn declared_metadata(id: &str, label: impl Into<String>, description: Option
 }
 
 /* === Private Functions === */
+
 fn describe(declared: ValueType) -> &'static str {
     match declared {
         ValueType::Text => "text",

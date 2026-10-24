@@ -9,7 +9,9 @@
 
 /* === Local Imports === */
 
+import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
 import { isDatetimeValue } from "@/lib/record-display";
+import type { ValueFormat } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
 
 // The default numeric axis/legend rule now lives beside the declared-format
@@ -69,6 +71,23 @@ const UNIT_SECONDS: Readonly<Record<string, number>> = {
 /** Beyond this the tick label is noise rather than precision. */
 const MAX_TICK_FRACTION_DIGITS = 6;
 
+/** A wall clock resolves no finer than a millisecond. */
+const MAX_CLOCK_FRACTION_DIGITS = 3;
+
+/* === Types === */
+
+/** How a plot's x axis prints, and what one pixel of it spans. */
+export type CursorXAxis = {
+  timeAxis: boolean;
+  xFormat: ValueFormat | null;
+  xElapsedUnit: string | null;
+  origin: TimeFormatOrigin;
+  /** The visible x span, in the axis's own units. */
+  span: number;
+  /** The plot area's width in CSS pixels. */
+  widthPx: number;
+};
+
 /* === Public Functions === */
 
 /**
@@ -124,6 +143,25 @@ export function elapsedWindowLabel(seconds: number, unit: string): string {
   return `${text} ${unit}`;
 }
 
+/**
+ * The x cursor readout, printed the way the axis under it prints: an elapsed
+ * axis as its duration, a declared format through `formatTime`, a plain time
+ * axis as the local date and clock (the axis's own time zone), anything else
+ * as a number. The precision is what one pixel of the visible window resolves,
+ * so a fifteen-second zoom shows milliseconds and an hour does not.
+ */
+export function formatCursorX(x: number, axis: CursorXAxis): string {
+  if (!Number.isFinite(x)) return "";
+  const perPixel = axis.widthPx > 0 && axis.span > 0 ? axis.span / axis.widthPx : undefined;
+
+  if (axis.xElapsedUnit) return formatElapsedTick(x, axis.xElapsedUnit, perPixel);
+  if (!axis.timeAxis) return formatNumber(x, axis.xFormat, { increment: perPixel });
+  if (axis.xFormat) return formatTime(x, axis.xFormat, axis.origin);
+
+  const digits = perPixel === undefined || perPixel >= 1 ? 0 : Math.min(MAX_CLOCK_FRACTION_DIGITS, Math.ceil(-Math.log10(perPixel)));
+  return clockLabel(x, digits);
+}
+
 export function xValue(value: unknown, index: number): number {
   value = isDatetimeValue(value) ? value.$datetime : (numericValue(value) ?? value);
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -140,4 +178,23 @@ export function xValue(value: unknown, index: number): number {
     }
   }
   return index;
+}
+
+/* === Private Functions === */
+
+/** Local `M/D/YY h:mm:ss[.fff] AM`, the date-and-clock form the time axis reads in. */
+function clockLabel(epochSeconds: number, fractionDigits: number): string {
+  const scale = 10 ** fractionDigits;
+  const rounded = Math.round(epochSeconds * scale) / scale;
+  const date = new Date(Math.floor(rounded) * 1000);
+
+  const hours = date.getHours();
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const two = (value: number) => String(value).padStart(2, "0");
+  const fraction =
+    fractionDigits > 0 ? `.${String(Math.round((rounded - Math.floor(rounded)) * scale)).padStart(fractionDigits, "0")}` : "";
+
+  const day = `${date.getMonth() + 1}/${date.getDate()}/${two(date.getFullYear() % 100)}`;
+  const clock = `${hour12}:${two(date.getMinutes())}:${two(date.getSeconds())}${fraction} ${hours < 12 ? "AM" : "PM"}`;
+  return `${day} ${clock}`;
 }

@@ -17,10 +17,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{
+use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamOutput},
 };
@@ -28,9 +28,9 @@ use tonic::Status;
 
 // Local Imports
 use super::content::{content_failure, metadata};
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
-use dokime_domain::operations::files as contract;
-use dokime_runtime::{
+use dokime::domain::model::diagnostics::admission::AdmissionFailure;
+use dokime::domain::operations::files as contract;
+use dokime::{
     RuntimeHandle,
     domains::files::{CAPPED, FileWatch as Watch, INVALID, UNREACHABLE, UNSUPPORTED, UNTRUSTED, WatchEvent},
     runtime::Error,
@@ -43,6 +43,7 @@ use dokime_runtime::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Resources {
     runtime: RuntimeHandle,
 }
@@ -53,7 +54,8 @@ struct FileWatch {
 }
 
 /* === Enums === */
-#[harmos::catalog]
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum Operations {
     FileWatch(FileWatch),
 }
@@ -61,12 +63,13 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Operation for FileWatch {
     type Declaration = contract::FileWatch;
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<dokime_domain::model::files::wire::FileWatchFrame>;
+    type Endpoints = StreamOutput<dokime::domain::model::files::wire::FileWatchFrame>;
 
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources, watch: None })
@@ -76,10 +79,9 @@ impl Operation for FileWatch {
         &mut self, context: Self::Context<'a>, request: &mut contract::FileWatch, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         // A Step's Call Carries Its Execution; A Listener Call Names It
-        let scoped = context.context().value::<dokime_runtime::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
+        let scoped = context.context().value::<dokime::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
         let watch = self.resources.runtime.open_file_watch(request, scoped.as_deref()).await.map_err(failure)?;
         let watch = self.watch.insert(watch);
-        let started = Instant::now();
 
         // Poll Until Complete, Bounded, Or Sealed By The Execution;
         // Cancellation Seals Through `stop`
@@ -99,7 +101,7 @@ impl Operation for FileWatch {
             if watch.is_complete() {
                 break;
             }
-            let remaining = watch.deadline().map(|deadline| deadline.saturating_sub(started.elapsed()));
+            let remaining = watch.remaining();
             if remaining.is_some_and(|remaining| remaining.is_zero()) {
                 break;
             }
@@ -114,9 +116,9 @@ impl Operation for FileWatch {
         let sealed = watch.seal(&mut events).await;
         send_events(output, &mut events).await?;
         sealed.map_err(failure)?;
-        let completed = dokime_domain::model::files::wire::FileWatchFrame {
-            payload: Some(dokime_domain::model::files::wire::FileWatchFramePayload::Completed(
-                dokime_domain::model::files::wire::FileWatchCompleted {
+        let completed = dokime::domain::model::files::wire::FileWatchFrame {
+            payload: Some(dokime::domain::model::files::wire::FileWatchFramePayload::Completed(
+                dokime::domain::model::files::wire::FileWatchCompleted {
                     artifacts: watch.sealed().iter().map(metadata).collect::<Result<Vec<_>, _>>()?,
                 },
             )),
@@ -139,15 +141,17 @@ impl Operation for FileWatch {
 }
 
 /* === Public Functions === */
+
 pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources { runtime: runtime.clone() });
-    runtime.operations().register_wire_operation::<FileWatch>("dokime", dokime_runtime::app::Lanes::Open, resources)?;
+    runtime.operations().register_wire_operation::<FileWatch>("dokime", dokime::app::Lanes::Open, resources)?;
     Ok(())
 }
 
 /* === Private Functions === */
+
 async fn send_events(
-    output: &mut StreamOutput<dokime_domain::model::files::wire::FileWatchFrame>, events: &mut Vec<WatchEvent>,
+    output: &mut StreamOutput<dokime::domain::model::files::wire::FileWatchFrame>, events: &mut Vec<WatchEvent>,
 ) -> Result<(), Status> {
     for event in events.drain(..) {
         let frame = frame(event)?;
@@ -156,28 +160,32 @@ async fn send_events(
     Ok(())
 }
 
-fn frame(event: WatchEvent) -> Result<dokime_domain::model::files::wire::FileWatchFrame, Status> {
-    let payload =
-        match event {
-            WatchEvent::Progress { path, offset, phase } => {
-                dokime_domain::model::files::wire::FileWatchFramePayload::Progress(dokime_domain::model::files::wire::FileWatchProgress {
-                    path,
-                    offset,
-                    phase,
-                })
-            }
-            WatchEvent::Gap { path, offset, reason } => {
-                dokime_domain::model::files::wire::FileWatchFramePayload::Gap(dokime_domain::model::files::wire::FileWatchGap {
-                    path,
-                    offset,
-                    reason,
-                })
-            }
-            WatchEvent::Sealed { path, record } => dokime_domain::model::files::wire::FileWatchFramePayload::Sealed(Box::new(
-                dokime_domain::model::files::wire::FileWatchSealed { path, artifact: Some(metadata(&record)?) },
-            )),
-        };
-    Ok(dokime_domain::model::files::wire::FileWatchFrame { payload: Some(payload) })
+fn frame(event: WatchEvent) -> Result<dokime::domain::model::files::wire::FileWatchFrame, Status> {
+    let payload = match event {
+        WatchEvent::Armed { baseline } => {
+            dokime::domain::model::files::wire::FileWatchFramePayload::Armed(dokime::domain::model::files::wire::FileWatchArmed {
+                baseline,
+            })
+        }
+        WatchEvent::Progress { path, offset, phase } => {
+            dokime::domain::model::files::wire::FileWatchFramePayload::Progress(dokime::domain::model::files::wire::FileWatchProgress {
+                path,
+                offset,
+                phase,
+            })
+        }
+        WatchEvent::Gap { path, offset, reason } => {
+            dokime::domain::model::files::wire::FileWatchFramePayload::Gap(dokime::domain::model::files::wire::FileWatchGap {
+                path,
+                offset,
+                reason,
+            })
+        }
+        WatchEvent::Sealed { path, record } => dokime::domain::model::files::wire::FileWatchFramePayload::Sealed(Box::new(
+            dokime::domain::model::files::wire::FileWatchSealed { path, artifact: Some(metadata(&record)?) },
+        )),
+    };
+    Ok(dokime::domain::model::files::wire::FileWatchFrame { payload: Some(payload) })
 }
 
 fn failure(error: Error) -> Status {
@@ -195,10 +203,10 @@ fn failure(error: Error) -> Status {
     }
 }
 
-fn stream_failure(error: harmos::Error) -> Status {
+fn stream_failure(error: dokime::harmos::Error) -> Status {
     match error {
-        harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
-        harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
+        dokime::harmos::Error::ResourceExhausted { .. } => Status::resource_exhausted(error.to_string()),
+        dokime::harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
         error => Status::internal(error.to_string()),
     }
 }

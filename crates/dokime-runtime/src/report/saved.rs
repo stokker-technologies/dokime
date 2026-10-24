@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
 use harmos::{
     Message,
@@ -22,6 +24,7 @@ use harmos::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use super::{CycleReportInput, html::HtmlReport};
 use crate::records::RecordContract;
@@ -55,6 +58,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapturedExecutionReportInput {
@@ -92,9 +96,11 @@ struct ReportFileData {
 }
 
 /* === Enums === */
+
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     // Benchmarks And Callers Read The Immutable Published Bytes Of Sealed Subjects.
     pub async fn render_saved_execution_report(&self, execution: &dokime_domain::model::identity::TestExecutionId) -> Result<Vec<u8>> {
@@ -302,8 +308,7 @@ impl ReportFile {
     }
 
     pub(super) fn render(html: &HtmlReport, mut metadata: FileMetadata) -> Result<Self> {
-        let length = html.length(NonZeroUsize::MAX)?;
-        let bytes = html.bytes(length)?;
+        let bytes = html.render()?;
         metadata.expected_length = Some(bytes.len() as u64);
         metadata.expected_sha256 = Some(Sha256::digest(&bytes).into());
         Ok(Self::new(ReportFileData { metadata, bytes }))
@@ -324,8 +329,7 @@ impl ReportFile {
         let captured = html.captured_input()?;
         let stem = format!("{}.{}", captured.execution_id, uuid::Uuid::now_v7());
         let context = Self::context(html.captured_source()?, &stem)?;
-        let length = html.length(NonZeroUsize::MAX)?;
-        let bytes = html.bytes(length)?;
+        let bytes = html.render()?;
         let metadata = file_metadata(
             report_file_id(&stem, ".report")?,
             Identifier::new(captured.execution_id.as_str()).map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
@@ -402,6 +406,7 @@ impl ReportFile {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn report_file_id(execution: &str, suffix: &str) -> Result<Identifier> {
     Identifier::new(format!("{execution}{suffix}")).map_err(|error| Error::InvalidReportInputs(error.to_string()))
 }
@@ -413,3 +418,27 @@ fn file_metadata(id: Identifier, scope: Identifier, media_type: &str, bytes: &[u
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The Published Payload Of A Fixed Input; Changing It Changes Every Sealed Report Digest.
+    const PAYLOAD_SHA256: &str = "883c5bfc20def0e49b9e8ae8a3319d745fa65bf82fba9a7f387818888d14ef20";
+
+    #[test]
+    fn report_digest_is_stable() {
+        let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("fixtures/execution-report-input.json")).unwrap();
+        let evidence = Arc::new(captured.source(&[]));
+        let html = HtmlReport::from_capture(Arc::new(captured), evidence).unwrap();
+        let (_, report) = ReportFile::capture(&html).unwrap();
+        let bytes = &report.data.bytes;
+        assert_eq!(report.data.metadata.expected_length, Some(bytes.len() as u64));
+        assert_eq!(report.data.metadata.expected_sha256, Some(Sha256::digest(bytes).into()));
+        let html = std::str::from_utf8(bytes).unwrap();
+        let payload = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1;
+        let payload = payload.split_once("</script>").unwrap().0;
+        let digest = Sha256::digest(payload.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(digest, PAYLOAD_SHA256);
+    }
+}

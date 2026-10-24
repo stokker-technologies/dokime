@@ -15,37 +15,44 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
-include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/dist-report/report.html"]
+include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/dist-report/report.html", "/dist-brand/**"]
 
 [features]
 default = ["native", "derive"]
-native = ["harmos/plugin-sidecar", "dep:globset", "dep:tokio", "dep:tokio-stream", "dep:tracing-subscriber", "dep:tracing-error"]
+native = [
+  "harmos/plugin-sidecar",
+  "dep:file-id",
+  "dep:globset",
+  "dep:tempfile",
+  "dep:tokio",
+  "dep:tokio-stream",
+  "dep:tracing-subscriber",
+  "dep:tracing-error",
+]
 derive = ["dep:dokime-macros"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [
+  "dep:age",
   "native",
   "derive",
   "storage",
-  "dep:arrow-select",
   "dep:async-trait",
   "dep:base64",
-  "dep:blake2",
   "dep:cssparser",
   "dep:dokime-host",
-  "dep:file-id",
   "dep:futures-util",
   "dep:keyring",
   "dep:rustls-platform-verifier",
-  "dep:serde_arrow",
   "dep:sha2",
   "dep:suppaftp",
   "dep:sysinfo",
-  "dep:tempfile",
   "dep:tokio",
   "dep:tokio-util",
+  "dep:tonic",
   "dep:toml",
   "dep:walkdir",
   "dep:zip",
+  "dep:zeroize",
   "harmos/grpc",
   "harmos/plugin-sidecar",
 ]
@@ -55,16 +62,19 @@ media-native = ["host", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:
 simulation = ["host", "harmos/simulation"]
 
 [dependencies]
+age = { workspace = true, optional = true }
+zeroize = { workspace = true, optional = true }
 # Local
-dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-host = { path = "../dokime-host", optional = true }
-dokime-macros = { path = "../dokime-macros", optional = true }
+dokime-domain = { version = "0.1.0", path = "../dokime-domain", features = ["diagnostics"] }
+dokime-host = { version = "0.1.0", path = "../dokime-host", optional = true }
+dokime-macros = { version = "0.1.0", path = "../dokime-macros", optional = true }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "signal"] }
 harmos-packaging = { workspace = true }
 
 # Error Handling
+tonic = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 # Logging
@@ -73,7 +83,6 @@ tracing-error = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
-blake2 = { workspace = true, optional = true }
 keyring = { workspace = true, optional = true }
 regex = { workspace = true }
 sha2 = { workspace = true, optional = true }
@@ -83,13 +92,11 @@ uuid = { workspace = true, features = ["js"] }
 # Serialization
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
-arrow-select = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true, features = ["jpeg", "png"] }
 prost = { workspace = true }
 serde = { workspace = true }
-serde_arrow = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 sysinfo = { workspace = true, optional = true }
 toml = { workspace = true, optional = true }
@@ -172,12 +179,12 @@ criterion = { workspace = true }
 [[test]]
 name = "integration"
 path = "tests/integration/main.rs"
-required-features = ["host", "fault-injection"]
+required-features = ["host"]
 
 [[test]]
 name = "acceptance"
 path = "tests/acceptance/main.rs"
-required-features = ["host", "fault-injection"]
+required-features = ["host"]
 
 [[bench]]
 name = "unit-runtime"

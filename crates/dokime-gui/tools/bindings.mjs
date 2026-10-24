@@ -48,7 +48,7 @@ if (generated.status !== 0) throw new Error(generated.stderr.toString());
 const response = fromBinary(CodeGeneratorResponseSchema, generated.stdout);
 if (response.error) throw new Error(response.error);
 // The Ignored Message Modules Are Always Regenerated; --check Compares Only The Tracked Client.
-const output = resolve(gui, ".generated");
+const output = resolve(gui, "../../target/generated/typescript");
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
 for (const file of response.file) {
@@ -76,9 +76,7 @@ for (const file of set.file) {
 function schema(type, alias, lines) {
   const owner = messages.get(type);
   if (!owner) throw new Error(`Missing generated descriptor ${type}`);
-  lines.push(
-    `import { ${owner.message.name}Schema as ${alias} } from "../../../../.generated/${owner.file.name.replace(/\.proto$/, "_pb.js")}";`,
-  );
+  lines.push(`import { ${owner.message.name}Schema as ${alias} } from "@generated/${owner.file.name.replace(/\.proto$/, "_pb.js")}";`);
   return alias;
 }
 function fieldType(type, name) {
@@ -131,7 +129,7 @@ function exported(path) {
   for (const line of readFileSync(path, "utf8").split("\n")) {
     if (!line.trim()) continue;
     const event = JSON.parse(line);
-    if (event.reason === "compiler-artifact" && event.target.name === "dokime-server" && event.target.kind.includes("bin"))
+    if (event.reason === "compiler-artifact" && event.target.name === "dokime_server" && event.target.kind.includes("lib"))
       servers.add(event.package_id);
     else if (event.reason === "build-script-executed")
       scripts.set(event.package_id, [...(scripts.get(event.package_id) ?? []), event.out_dir]);

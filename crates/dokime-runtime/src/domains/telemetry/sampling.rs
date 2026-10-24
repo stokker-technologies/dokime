@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,6 +37,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Structs === */
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SamplingPhaseState {
     Running,
@@ -48,7 +50,6 @@ pub(crate) enum SamplingPhaseState {
 /* === Implementations === */
 
 /* === Public Functions === */
-/* === Functions === */
 
 pub(crate) fn record_scope_from_sampling_scope(scope: &SamplingScope) -> RecordScope {
     let mut record_scope = RecordScope::default();

@@ -593,3 +593,27 @@ fn emphasis(value: &str) -> Result<PromptActionEmphasis> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::Prompt as PromptRow;
+    use crate::prompts::{ConfirmationPrompt, Prompt, PromptDefinition};
+    use crate::records::RecordSeverity;
+
+    #[test]
+    fn prompt_level_rows() {
+        let expected = ConfirmationPrompt::new("fixture.level", "Raised").level(RecordSeverity::Warning);
+        let expected = Prompt::definition(&expected);
+        let row = PromptRow::try_from(&expected).unwrap();
+        let restored = PromptDefinition::try_from(row.clone()).unwrap();
+
+        let mut baseline = serde_json::to_value(&row).unwrap();
+        baseline.as_object_mut().unwrap().remove("level");
+        let baseline: PromptRow = serde_json::from_value(baseline).unwrap();
+        let defaulted = PromptDefinition::try_from(baseline).unwrap();
+
+        assert_eq!(restored, expected);
+        assert_eq!(restored.level, RecordSeverity::Warning);
+        assert_eq!(defaulted.level, RecordSeverity::Info);
+    }
+}

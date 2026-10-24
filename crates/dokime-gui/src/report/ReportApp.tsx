@@ -20,10 +20,10 @@ import { useMemo, useState } from "react";
 /* === Local Imports === */
 
 import { DokimeToaster } from "@/components/DokimeToaster";
-import { ReportCycleWorkspace } from "./ReportCycleWorkspace";
 import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
 import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import type { ReportPayload } from "@/lib/report-types";
+import { ReportCycleWorkspace } from "./ReportCycleWorkspace";
 import { ReportShell } from "./ReportShell";
 import { cycleSnapshotSource } from "./report-snapshot";
 
@@ -73,11 +73,11 @@ function ReportSurface() {
         cycleId,
         generatedAt: source.generatedAt,
         onSelect: setSelection,
-        status: plan?.test_cycle.status ?? "planned",
+        status: { lifecycle: plan?.test_cycle.status ?? "planned", phase: plan?.test_cycle.phase ?? "sealed" },
         title,
       }}
     >
-      <ReportCycleWorkspace source={source} selection={selection} />
+      <ReportCycleWorkspace onSelect={setSelection} selection={selection} source={source} />
     </ReportShell>
   );
 }

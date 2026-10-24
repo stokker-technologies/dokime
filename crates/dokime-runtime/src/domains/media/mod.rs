@@ -11,11 +11,13 @@
 // execution artifact under its media folder, sealed through the upload path.
 
 /* === Modules === */
+
 mod audio;
 mod camera;
 mod screen;
 
 /* === Re-Exports === */
+
 pub use audio::AudioRecording;
 
 /* === Imports === */
@@ -31,6 +33,7 @@ use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
+
 // Error code of a capture refused because the host has no usable device.
 pub const UNAVAILABLE: &str = "media_unavailable";
 
@@ -42,7 +45,6 @@ pub const DEFAULT_RECORDING_SECONDS: u32 = 600;
 
 // The longest recording one request may ask for.
 pub const MAXIMUM_RECORDING_SECONDS: u32 = 3600;
-
 const CHUNK_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
@@ -56,6 +58,7 @@ const CHUNK_BYTES: usize = 1024 * 1024;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     // Captures one display as `screenshots/<UTC timestamp>.png`.
     pub async fn capture_screenshot(&self, scope: RecordScope, display: Option<u32>) -> Result<ArtifactRecord> {
@@ -104,6 +107,7 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn require_execution(scope: &RecordScope) -> Result<()> {
     if scope.test_cycle_id.is_none() || scope.test_execution_id.is_none() {
         return Err(Error::Admission(AdmissionFailure::Validation {

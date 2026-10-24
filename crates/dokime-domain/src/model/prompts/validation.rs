@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use crate::model::values::Value;
 
@@ -26,6 +29,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct FieldValidation {
     pub min_length: Option<usize>,
@@ -42,6 +46,7 @@ pub struct FieldValidation {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for FieldValidation {
     fn memory_size(&self) -> usize {
         let fields = [

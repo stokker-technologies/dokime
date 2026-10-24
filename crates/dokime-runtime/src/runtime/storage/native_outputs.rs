@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod follow;
 mod logs;
 pub(crate) mod reader;
@@ -15,17 +16,20 @@ pub(crate) mod reader;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     io::{Read, Seek},
     sync::Arc,
     time::Instant,
 };
+
 // Third Party Imports
 use futures_util::future::BoxFuture;
 use harmos::storage::{FileMetadata, FileReference, StorageFile};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+
 // Local Imports
 use super::executions::{Acquisition, ExecutionStorage};
 use crate::execution_runtime::{
@@ -45,6 +49,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
+
 const COPY_BYTES: usize = 64 * 1024;
 const MAX_PREFIX_BYTES: usize = 2 * 1024 * 1024;
 
@@ -53,6 +58,7 @@ const MAX_PREFIX_BYTES: usize = 2 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct NativeOutput {
     file: tempfile::NamedTempFile,
     created_at: Timestamp,
@@ -78,6 +84,7 @@ pub(super) struct FrozenFile {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy)]
 enum FileSelection {
     Window { offset: u64, limit: usize },
@@ -87,6 +94,7 @@ enum FileSelection {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl FileSelection {
     fn extent(self, size_bytes: u64) -> Result<(u64, usize)> {
         match self {
@@ -371,6 +379,7 @@ impl FrozenFile {
 }
 
 /* === Public Functions === */
+
 pub(super) async fn capture(acquisition: &mut Acquisition) -> Result<()> {
     if !acquisition.outputs_sealed || !acquisition.outputs_quiescent {
         return Err(error("native output capture requires producer quiescence"));
@@ -433,6 +442,7 @@ pub(super) async fn abandon(acquisition: &mut Acquisition) -> Result<()> {
 }
 
 /* === Private Functions === */
+
 fn output_state(closed: Option<SavedStreamState>) -> ExecutionFileStreamState {
     match closed {
         Some(SavedStreamState::Finalized) => ExecutionFileStreamState::Finalized,

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -32,6 +33,7 @@ use crate::storage::{Error, Manager, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Suite {
@@ -44,11 +46,13 @@ pub struct Suite {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Identified for Suite {
     fn definition() -> (DefinitionId, u32) {
         (DefinitionId::new("dokime.object.suite"), 1)
     }
 }
+
 impl StoredObject for Suite {
     type Key = str;
     const RETENTION: ObjectRetention = ObjectRetention::Latest;
@@ -56,6 +60,7 @@ impl StoredObject for Suite {
         &self.suite_id
     }
 }
+
 impl Suite {
     pub fn new(suite_id: &str, source: &TestSuite) -> Result<Self> {
         if suite_id.trim().is_empty() {
@@ -82,12 +87,14 @@ impl Suite {
 }
 
 /* === Public Functions === */
+
 pub async fn read(storage: &Manager, suite_id: &str) -> Result<Option<TestSuite>> {
     let saved = storage.read_object::<Suite>(suite_id, ObjectVersion::Latest).await?;
     saved.map(|saved| saved.value.restore()).transpose()
 }
 
 /* === Private Functions === */
+
 fn persisted_definition(source: &TestSuite) -> TestSuite {
     let mut definition = source.clone();
     for template in &mut definition.test_case_templates {

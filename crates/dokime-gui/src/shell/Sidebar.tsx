@@ -43,10 +43,10 @@ import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
 import { recordLevelVariant } from "@/lib/record-display";
 import { cn } from "@/lib/utils";
-import { SidebarFrame } from "./SidebarFrame";
 import { cycleIdOfPathname } from "@/shell/route-scope";
 import { SidebarRow } from "@/shell/sidebar-row";
 import { useSidebarState } from "@/shell/use-sidebar-state";
+import { SidebarFrame } from "./SidebarFrame";
 
 /* === Types === */
 

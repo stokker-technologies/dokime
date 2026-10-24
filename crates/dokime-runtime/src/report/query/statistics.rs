@@ -12,7 +12,9 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use harmos::storage::{
     StorageCursor,
@@ -23,6 +25,7 @@ use harmos::storage::{
         histogram::Histogram,
     },
 };
+
 // Local Imports
 use super::{invalid, telemetry};
 use crate::telemetry::TelemetryContract;
@@ -38,6 +41,7 @@ use crate::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Statistics {
     pub count: usize,
     pub rows: usize,
@@ -55,6 +59,7 @@ pub(super) struct Statistics {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Statistics {
     pub fn summary(&self, key: String) -> PlotSeriesSummary {
         PlotSeriesSummary {
@@ -72,6 +77,7 @@ impl Statistics {
 }
 
 /* === Public Functions === */
+
 pub(super) fn field(name: &str) -> FieldPath {
     FieldPath { fields: vec!["payload".into(), "values".into(), name.into()] }
 }
@@ -190,6 +196,7 @@ pub(super) fn number(value: ScalarValue) -> Option<f64> {
 }
 
 /* === Private Functions === */
+
 fn count_value(value: ScalarValue) -> Result<usize> {
     if let ScalarValue::Unsigned(value) = value {
         usize::try_from(value).map_err(|_| invalid("aggregate count exceeds address space"))

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
@@ -33,6 +34,7 @@ use crate::model::values::Value;
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait TelemetryRow: Sized {
     fn columns() -> Vec<TelemetryColumn>;
 

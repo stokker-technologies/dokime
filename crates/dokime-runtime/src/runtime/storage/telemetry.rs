@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{
@@ -34,15 +35,18 @@ use crate::storage::{
 use crate::{runtime::Error, runtime::Result};
 
 /* === Constants === */
+
 // Rows Each Typed Head Reads Per Query Before The Merge Consumes Them.
 const PAGE_ROWS: usize = 65_536;
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub(super) type PositionedTelemetry = super::paging::Positioned<TelemetryEntry>;
 
 /* === Structs === */
+
 pub(crate) struct PreparedTelemetry {
     schema: SchemaKey,
     stream: Identifier,
@@ -57,6 +61,7 @@ pub(crate) struct PreparedTelemetry {
 pub struct TelemetryReader {
     storage: Manager,
     readers: Vec<TypedRead>,
+    page_rows: usize,
 }
 
 struct TypedRead {
@@ -83,6 +88,7 @@ pub(crate) struct CommittedTelemetry {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl PreparedTelemetry {
     pub(crate) fn write(&self) -> StreamWrite<'_> {
         StreamWrite {
@@ -102,14 +108,22 @@ impl PreparedTelemetry {
 
 impl TelemetryReader {
     pub(crate) fn open(view: &ExecutionView, _context: bool) -> Result<Self> {
-        Self::selected(view, None, 0)
+        Self::selected(view, None, None, 0, PAGE_ROWS)
     }
 
     pub(super) fn open_page(view: &ExecutionView, stream: &Identifier, after: u64) -> Result<Self> {
-        Self::selected(view, Some(stream), after)
+        Self::selected(view, Some(stream), None, after, PAGE_ROWS)
     }
 
-    fn selected(view: &ExecutionView, stream: Option<&Identifier>, after: u64) -> Result<Self> {
+    pub(crate) fn for_contract(view: &ExecutionView, stream: &Identifier, version: u32, page_rows: NonZeroUsize) -> Result<Self> {
+        let reader = Self::selected(view, Some(stream), Some(version), 0, page_rows.get())?;
+        if reader.readers.len() != 1 {
+            return Err(invalid("selected telemetry schema is not captured"));
+        }
+        Ok(reader)
+    }
+
+    fn selected(view: &ExecutionView, stream: Option<&Identifier>, version: Option<u32>, after: u64, page_rows: usize) -> Result<Self> {
         let captured = view.captured_source().ok_or_else(|| invalid("typed telemetry read requires captured producer schemas"))?;
         let scope = Identifier::new(view.execution().test_execution_id.as_str()).map_err(crate::storage::Error::from)?;
         let mut readers = Vec::new();
@@ -118,6 +132,9 @@ impl TelemetryReader {
                 continue;
             }
             for contract in versions.values() {
+                if version.is_some_and(|selected| selected != contract.schema_version) {
+                    continue;
+                }
                 let codec = telemetry::codec(contract)?;
                 let query = Query {
                     at: view.evidence_through()?.clone(),
@@ -136,7 +153,7 @@ impl TelemetryReader {
                 readers.push(TypedRead { query, codec, head: None, offset: 0, finished: false });
             }
         }
-        Ok(Self { storage: view.storage().clone(), readers })
+        Ok(Self { storage: view.storage().clone(), readers, page_rows })
     }
 
     pub async fn next(&mut self) -> Result<Option<Vec<TelemetryEntry>>> {
@@ -146,10 +163,10 @@ impl TelemetryReader {
     pub(super) async fn next_positioned(&mut self) -> Result<Option<Vec<PositionedTelemetry>>> {
         // Each Head Retains One Bounded Batch; Merge By Durable Storage Position.
         let mut selected = Vec::new();
-        while selected.len() < PAGE_ROWS {
+        while selected.len() < self.page_rows {
             for source in &mut self.readers {
                 while !source.finished && source.head.is_none() {
-                    source.head = read_head(&self.storage, source).await?;
+                    source.head = read_head(&self.storage, source, self.page_rows).await?;
                     source.offset = 0;
                 }
             }
@@ -230,18 +247,33 @@ impl super::executions::ExecutionStorage {
         &self,
     ) -> Result<std::collections::BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::RecordScope>>
     {
-        let ids = self.active_ids()?;
-        let mut scopes = std::collections::BTreeMap::new();
-        // Sorted Owner Locks Never Hold The Registry Across An Await.
-        for id in &ids {
-            if let Some(owner) = self.acquisition(id).await {
-                let owner = owner.lock_owned().await;
-                if !owner.finish_requested {
-                    scopes.insert(owner.execution.test_execution_id.clone(), owner.execution.scope.clone());
-                }
-            }
+        // A Routing Snapshot Only; `prepare_telemetry` Rechecks Each Owner Under Its Lock.
+        Ok(self.open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone())
+    }
+
+    // Saves Each Owned Typed Schema Once Per Process; Every Start Repeats The Request.
+    pub(crate) async fn register_schemas(&self, contracts: &[crate::telemetry::TelemetryContract]) -> Result<()> {
+        let storage = &self.storage;
+        let mut last = None;
+        let mut written = Vec::new();
+        for contract in contracts.iter().filter(|contract| !contract.foreign) {
+            let Some(codec) = self.codecs.unregistered(contract)? else {
+                continue;
+            };
+            let mutation = harmos::storage::MutationId {
+                window: storage.mutation_window()?.id,
+                key: Identifier::new(format!("{}.v{}", codec.schema().id, codec.schema().version)).map_err(crate::storage::Error::from)?,
+            };
+            last = Some(storage.write_schema_once(&mutation, codec.schema(), codec.graph()).await?);
+            written.push((contract, codec));
         }
-        Ok(scopes)
+        if let Some(cursor) = last {
+            storage.flush_until(&cursor).await?;
+        }
+        for (contract, codec) in written {
+            self.codecs.mark_registered(contract, &codec);
+        }
+        Ok(())
     }
 
     pub(crate) async fn prepare_telemetry(
@@ -284,36 +316,22 @@ impl super::executions::ExecutionStorage {
             let entry = TelemetryEntry { epoch: self.context_epoch.clone(), ordinal: *ordinal, sample: sample.clone() };
             let key = (contract.stream.clone(), contract.schema_version);
             if !codecs.contains_key(&key) {
-                let graph = contract
-                    .storage_schema
-                    .as_ref()
-                    .ok_or_else(|| invalid("telemetry producer requires an explicit storage row schema"))?;
-                let codec = telemetry::TypedCodec::new(
-                    &contract.stream,
-                    contract.schema_version,
-                    graph,
-                    &harmos::config::SchemaSettings::default(),
-                )?;
-                codecs.insert(key.clone(), codec);
+                if contract.storage_schema.is_none() {
+                    return Err(invalid("telemetry producer requires an explicit storage row schema"));
+                }
+                codecs.insert(key.clone(), (contract.storage_schema.as_ref(), self.codecs.codec(contract)?));
             }
-            rows.push(prepare(&entry, &codecs[&key])?);
+            let (graph, codec) = &codecs[&key];
+            if *graph != contract.storage_schema.as_ref() {
+                return Err(invalid("telemetry batch reuses a stream version with a different storage schema"));
+            }
+            rows.push(prepare(&entry, codec)?);
         }
         Ok(TelemetryAdmission { storage: self.storage.clone(), rows, _owners: owners })
     }
 }
 
 /* === Public Functions === */
-pub(crate) async fn register_schemas(storage: &Manager, contracts: &[crate::telemetry::TelemetryContract]) -> Result<()> {
-    let mut last = None;
-    for contract in contracts.iter().filter(|contract| !contract.foreign) {
-        let codec = telemetry::codec(contract)?;
-        last = Some(storage.write_schema(codec.schema(), codec.graph()).await?);
-    }
-    if let Some(cursor) = last {
-        storage.flush_until(&cursor).await?;
-    }
-    Ok(())
-}
 
 pub(crate) fn prepare(entry: &TelemetryEntry, codec: &telemetry::TypedCodec) -> Result<PreparedTelemetry> {
     let sample = &entry.sample;
@@ -336,16 +354,18 @@ pub(crate) fn prepare(entry: &TelemetryEntry, codec: &telemetry::TypedCodec) -> 
 }
 
 /* === Private Functions === */
+
 async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: &str) {
     match closure {
         Some(sampling) => sampling.wait_measurement_closed(scope).await,
         None => std::future::pending().await,
     }
 }
+
 // One Bounded Query Per Head, Resuming After The Last Row The Head Read;
 // Holding Readers For Every Schema Can Exhaust Admission.
-async fn read_head(storage: &Manager, source: &mut TypedRead) -> Result<Option<Vec<PositionedTelemetry>>> {
-    source.query.slice.limit = Some(PAGE_ROWS as u64);
+async fn read_head(storage: &Manager, source: &mut TypedRead, page_rows: usize) -> Result<Option<Vec<PositionedTelemetry>>> {
+    source.query.slice.limit = Some(page_rows as u64);
     let mut reader = storage.query(source.query.clone()).await?;
     let mut rows = Vec::new();
     while let Some(output) = reader.next().await? {
@@ -365,7 +385,7 @@ async fn read_head(storage: &Manager, source: &mut TypedRead) -> Result<Option<V
         }
     }
     reader.completion()?;
-    source.finished = rows.len() < PAGE_ROWS;
+    source.finished = rows.len() < page_rows;
     if let (Some(last), Source::Stream(selection)) = (rows.last(), &mut source.query.source) {
         selection.after = last.position;
     }

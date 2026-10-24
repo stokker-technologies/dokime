@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 
@@ -38,23 +40,31 @@ use dokime_domain::model::traceability::TraceabilitySnapshot;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CycleReportInput {
     pub session_id: SessionId,
     pub cycle: CycleView,
+
     #[serde(default)]
     pub documents: BTreeMap<DocumentId, Capture>,
+
     #[serde(default)]
     pub plots: BTreeMap<String, Value>,
+
     #[serde(default)]
     pub case_documents: Vec<ReportCaseDocument>,
+
     pub records: Vec<RecordEntry>,
     pub telemetry: Vec<TelemetrySample>,
     pub traceability: Vec<TraceabilitySnapshot>,
+
     #[serde(default)]
     pub artifact_links: Vec<ReportArtifactLink>,
+
     #[serde(default)]
     pub appearance: Option<Value>,
+
     pub generated_at: Timestamp,
 }
 
@@ -62,8 +72,10 @@ pub struct CycleReportInput {
 pub struct ReportCaseDocument {
     pub test_case_id: CaseId,
     pub test_execution_id: Option<TestExecutionId>,
+
     #[serde(default)]
     pub documents: BTreeMap<DocumentId, Capture>,
+
     #[serde(default)]
     pub plots: BTreeMap<String, Value>,
 }
@@ -74,16 +86,22 @@ pub struct ReportArtifactLink {
     pub label: String,
     pub href: String,
     pub path: String,
+
     #[serde(default)]
     pub media_type: Option<String>,
+
     #[serde(default)]
     pub description: Option<String>,
+
     #[serde(default)]
     pub size_bytes: Option<u64>,
+
     #[serde(default)]
     pub group_id: Option<String>,
+
     #[serde(default)]
     pub group_label: Option<String>,
+
     #[serde(default)]
     pub scope: Option<RecordScope>,
 }
@@ -93,6 +111,7 @@ pub struct ReportArtifactLink {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::MemorySize for CycleReportInput {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -149,10 +168,11 @@ impl harmos::MemorySize for ReportArtifactLink {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 pub(super) fn json_memory(value: &Value, depth: usize) -> usize {
     value.memory_at(depth)
 }
+
+/* === Private Functions === */
 
 fn json_optional_memory(value: &Option<Value>) -> usize {
     let Some(value) = value else {

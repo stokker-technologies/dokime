@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // Replays a bounded tail of the hub log, then follows it. Read access.
 #[harmos_domain::message]
 #[harmos_domain::operation(response = (), output = LogFrame, id = "dokime.backend.watch_logs", version = 1,
@@ -37,6 +40,7 @@ pub struct WatchLogs {
     // Frames below this level are never delivered. Unspecified means TRACE.
     #[row(description = "Frames below this level are never delivered. Unspecified means TRACE.")]
     pub min_level: LogLevel,
+
     // Matching lines replayed from the end of the hub log before following it.
     // Zero uses 500; larger values are clamped to 5000.
     #[row(

@@ -14,6 +14,8 @@
 
 /* === Modules === */
 
+#[cfg(feature = "fault-injection")]
+mod cycle_restart;
 mod engine;
 mod services;
 

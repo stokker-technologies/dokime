@@ -8,17 +8,21 @@
  */
 
 /* === Modules === */
+
 mod assets;
 mod css;
 mod source;
 
 /* === Re-Exports === */
+
 pub(super) use assets::capture_logo;
 pub(super) use source::CycleSource;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -30,6 +34,7 @@ use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::DocumentId;
 
 /* === Constants === */
+
 const MAX_BYTES: usize = 4 * 1024 * 1024;
 
 /* === Macros === */
@@ -37,9 +42,10 @@ const MAX_BYTES: usize = 4 * 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct Captured {
     pub(super) context: ExecutionContext,
-    pub(super) logo: Option<crate::installed_plugins::RuntimeInstalledPluginAsset>,
+    pub(super) logos: Vec<crate::installed_plugins::RuntimeInstalledPluginAsset>,
 }
 
 /* === Enums === */
@@ -82,14 +88,14 @@ pub(super) fn capture_prepared(
     let grouping = source::grouping(cycle);
     let appearance = crate::installed_plugins::appearance::captured_appearance(state, brand);
     css::validate(&appearance)?;
-    let logo = appearance
-        .logo
-        .as_ref()
+    let logos = appearance
+        .logos
+        .iter()
         .map(|logo| {
             crate::installed_plugins::appearance::captured_logo_asset(state, brand, logo)
                 .ok_or_else(|| error("selected appearance logo is unavailable"))
         })
-        .transpose()?;
+        .collect::<Result<Vec<_>>>()?;
     let context = ExecutionContext {
         scope: execution.scope.clone(),
         session_id: cycle.session_id.clone().unwrap_or_else(|| state.session_id.clone()),
@@ -130,7 +136,7 @@ pub(super) fn capture_prepared(
         health: source::clone_rows(|| source::health_rows(state, &execution_scope))?,
         appearance,
     };
-    Ok(Captured { context, logo })
+    Ok(Captured { context, logos })
 }
 
 // Annotation context also retains session/global observations. Export selection
@@ -144,6 +150,7 @@ pub(super) fn owns_annotation(scope: &RecordScope, execution: &RecordScope) -> b
 }
 
 /* === Private Functions === */
+
 // Each execution owns its own projections and copies only its cycle/case ancestors.
 // Global items are deliberately outside the cycle export selection.
 fn owns_projection(scope: &RecordScope, execution: &RecordScope) -> bool {

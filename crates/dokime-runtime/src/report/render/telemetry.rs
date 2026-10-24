@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Serialize, Serializer, ser::SerializeMap};
+
 // Local Imports
 use super::ReportValue;
 use crate::telemetry::TelemetrySample;
@@ -27,6 +29,7 @@ use crate::telemetry::TelemetrySample;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct SampleValues<'a>(pub(super) &'a TelemetrySample);
 
 /* === Enums === */
@@ -34,6 +37,7 @@ pub(super) struct SampleValues<'a>(pub(super) &'a TelemetrySample);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Serialize for SampleValues<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let has_timestamp = self.0.values.contains_key("timestamp");

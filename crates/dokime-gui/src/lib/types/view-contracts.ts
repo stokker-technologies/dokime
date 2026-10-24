@@ -6,24 +6,20 @@
  * server API types.
  */
 
+import type { Row13 as GeneratedNativeExecutionCheckpoint } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
-import type {
-  Row13 as GeneratedNativeExecutionCheckpoint,
-  Row35 as GeneratedNativeStorageCursor,
-  Row53 as GeneratedNativeStoreHistory,
-} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { ValueFormat } from "./format";
 
-type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;
-type NativeStoreHistory = Wire<GeneratedNativeStoreHistory>;
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
+type NativeStorageCursor = NonNullable<NativeExecutionCheckpoint["position"]>;
+type NativeStoreHistory = NonNullable<NativeStorageCursor["history"]>;
 
 export type ActorId = string;
 
 export type ArtifactId = string;
 
-export type PluginRuntimeCredentialBindings = {
-  bindings?: { [key in string]: RedactedCredentialBinding };
+export type PluginRuntimeSecretBindings = {
+  bindings?: { [key in string]: RedactedSecretBinding };
   missing_required?: string[];
 };
 
@@ -41,7 +37,7 @@ export type Choice = {
   title: string;
 };
 
-export type CredentialBackendKind = "os_keyring" | "memory" | "local_file";
+export type SecretBackendKind = "os_keyring" | "memory" | "local_file";
 
 export type CriterionId = string;
 
@@ -49,6 +45,7 @@ export type CycleHistorySummary = {
   test_cycle_id: TestCycleId;
   session_id: string | null;
   title: string;
+  phase: "active" | "sealing" | "sealed" | null;
   lifecycle: string;
   result_status: string | null;
   case_count: number;
@@ -160,6 +157,7 @@ export type ExecutionBrowseCycle = {
   cycle_id: TestCycleId;
   /** The cycle's own label; null once its header is no longer readable. */
   label: string | null;
+  phase: "active" | "sealing" | "sealed" | null;
   lifecycle: "running" | "interrupted" | "pending" | "uncheckpointed" | "completed";
   result_status: "pending" | "passed" | "failed" | "blocked" | "cancelled" | null;
   case_count: number;
@@ -191,6 +189,16 @@ export type ExecutionBrowsePage = {
   omitted_issues: number;
   /** Totals of every cycle the entries belong to, over the whole selection. */
   cycles: ExecutionBrowseCycle[];
+};
+
+export type SavedCycleSummary = {
+  cycle_id: string;
+  label: string;
+  phase: "sealed";
+  created_at: string;
+  updated_at: string;
+  execution_count: number;
+  archived: boolean;
 };
 
 export type ExecutionCheckpoint = Pick<NativeExecutionCheckpoint, "executionIdentifier" | "version"> & {
@@ -461,9 +469,9 @@ export type RecordScope = {
   suite_id?: SuiteId | null;
 };
 
-export type RedactedCredentialBinding = {
-  credential_id: string;
-  backend: CredentialBackendKind;
+export type RedactedSecretBinding = {
+  secret_id: string;
+  backend: SecretBackendKind;
   configured: boolean;
 };
 
@@ -478,6 +486,7 @@ export type ResultSummary = {
 };
 
 export type RuntimeAppLogo = {
+  variant: "transparent_on_light" | "transparent_on_dark" | "contained_on_light" | "contained_on_dark";
   plugin_id: Identifier;
   asset_id: Identifier;
   url: string;
@@ -488,7 +497,7 @@ export type RuntimeAppearanceFrame = {
   app_name: string;
   organization?: OrganizationIdentity | null;
   title_template?: string | null;
-  logo?: RuntimeAppLogo | null;
+  logos: RuntimeAppLogo[];
   themes?: RuntimeThemeFamily[];
   active_theme?: Identifier | null;
   theme_family_locked: boolean;
@@ -507,7 +516,7 @@ export type RuntimePluginSettings = {
    * a `Discovered` marker and no run uses it until it is saved.
    */
   discovered?: { [key in string]: Value };
-  credential_bindings: PluginRuntimeCredentialBindings;
+  secret_bindings: PluginRuntimeSecretBindings;
 };
 
 export type RuntimeSettingsCard = {
@@ -551,7 +560,7 @@ export type RuntimeThemeFamily = {
   dark: ThemeVariant;
 };
 
-export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_credential"; credential_id: string };
+export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_secret"; secret_id: string };
 
 export type SecretSetting = {
   id: string;

@@ -2,7 +2,7 @@
 import type { BackendDiagnostics } from "@/lib/desktop/session";
 import { backupFailure } from "./storage-backup-model";
 
-/** Never stringify arbitrary request objects: they may contain credentials. */
+/** Never stringify arbitrary request objects: they may contain secrets. */
 export function connectionError(error: unknown): string {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
@@ -15,7 +15,7 @@ export function connectionError(error: unknown): string {
     case "authentication_required":
     case "unauthenticated":
       return "The backend requires a valid access token.";
-    case "credentials_unavailable":
+    case "secrets_unavailable":
       return "No saved access token is available. Enter a token to connect.";
     case "permission_denied":
       return "This account does not have permission to use the backend.";
@@ -32,7 +32,7 @@ export function connectionError(error: unknown): string {
     case "superseded":
       return "The connection request was replaced.";
     default:
-      return "The backend could not be reached. Check the endpoint and credentials.";
+      return "The backend could not be reached. Check the endpoint and secrets.";
   }
 }
 
@@ -60,6 +60,8 @@ export function backendExitMeaning(code: number | null): string | null {
       return "Runtime failure: I/O, runtime, transport or cleanup";
     case 4:
       return "Incompatible storage: the data root holds data this build cannot open";
+    case 5:
+      return "Stop incomplete: the next start seals what the stop left unfinished";
     default:
       return null;
   }

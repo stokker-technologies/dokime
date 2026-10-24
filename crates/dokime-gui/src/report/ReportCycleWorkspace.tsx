@@ -8,7 +8,10 @@
  */
 
 /**
- * TODO: Describe this module's responsibility.
+ * The frozen report's workspace: the captured cycle drives the same cycle and
+ * execution viewers the application shows live, composed from the same
+ * blocks — header, prompt history, evidence, Records — with `live={false}`,
+ * so the report keeps the live structure without its commands.
  */
 
 /* === Imports === */
@@ -19,20 +22,19 @@
 
 // Local Imports
 import { CycleEvidenceView } from "@/features/cycle/CycleEvidenceView";
-import { CycleWorkspaceHeader } from "@/features/cycle/CycleWorkspaceHeader";
 import {
   buildCycleCases,
   buildCycleExecutionRows,
-  cycleStatusLabel,
-  cycleStatusVariant,
+  type CycleSelection,
+  cycleState,
   finishedCaseCount,
   isUnstartedExecution,
   selectedCycleRow,
-  type CycleSelection,
 } from "@/features/cycle/cycle-workspace-model";
-import { documentSurface, documentView, type DocumentSurfaceOptions } from "@/features/cycle/document-view-model";
 import { evidencePaneState } from "@/features/cycle/document-query-model";
+import { type DocumentSurfaceOptions, documentSurface, documentView } from "@/features/cycle/document-view-model";
 import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
+import { NodeHeader } from "@/features/cycle/NodeHeader";
 import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
 
@@ -45,6 +47,8 @@ import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
 export type ReportCycleWorkspaceProps = {
   source: CycleSnapshotSource;
   selection: CycleSelection;
+  /** Moves the report's selection, as its sidebar does. */
+  onSelect: (selection: CycleSelection) => void;
 };
 
 /* === Classes === */
@@ -52,7 +56,7 @@ export type ReportCycleWorkspaceProps = {
 /* === Components === */
 
 /** Captured data drives the same cycle and execution presentation used live. */
-export function ReportCycleWorkspace({ source, selection }: ReportCycleWorkspaceProps) {
+export function ReportCycleWorkspace({ onSelect, selection, source }: ReportCycleWorkspaceProps) {
   const plotWindow = usePlotWindow();
   const plan = source.plan;
   const cases = buildCycleCases(plan);
@@ -117,7 +121,8 @@ export function ReportCycleWorkspace({ source, selection }: ReportCycleWorkspace
         titlePrefix={`Execution ${row.ordinal} · `}
         label={row.case.label}
         onRename={null}
-        menu={null}
+        onSelectCycle={() => onSelect({ view: "cycle" })}
+        trail={["Cycle", `Execution ${row.ordinal}`]}
         started={started}
         surface={surface}
         pane={pane}
@@ -126,22 +131,24 @@ export function ReportCycleWorkspace({ source, selection }: ReportCycleWorkspace
     );
   }
   return (
-    <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-      <CycleWorkspaceHeader
-        live={false}
-        menu={null}
-        identity={{
-          title: plan.test_cycle.title,
-          status: {
-            label: cycleStatusLabel(plan.test_cycle.status),
-            variant: cycleStatusVariant(plan.test_cycle.status),
-            progress: `${finishedCaseCount(cases)} of ${cases.length} cases finished`,
-            activity: null,
-          },
-        }}
-      />
-      <CycleEvidenceView live={false} surface={surface} pane={pane} plotWindow={plotWindow} />
-    </div>
+    <CycleEvidenceView
+      lead={
+        <NodeHeader
+          breadcrumb={[{ label: "Cycle" }]}
+          live={false}
+          onRename={null}
+          progress={`${finishedCaseCount(cases)} of ${cases.length} cases finished`}
+          status={cycleState(plan.test_cycle.phase, plan.test_cycle.status, false)}
+          subject="Cycle"
+          title={plan.test_cycle.title}
+        />
+      }
+      live={false}
+      pane={pane}
+      plotWindow={plotWindow}
+      surface={surface}
+      trail={["Cycle"]}
+    />
   );
 }
 

@@ -7,9 +7,7 @@
  * ***
  */
 
-/* Backend identity and readiness for the status bar. Backend.GetIdentity and
-   Backend.GetHealth have no `lib/api/native-*.ts` adapter yet, so the shell
-   calls the generated client directly and keeps the mapping here. */
+/* Backend identity and connection state from the existing runtime subscription. */
 
 /* === External Imports === */
 
@@ -18,10 +16,8 @@ import { useQuery } from "@tanstack/react-query";
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
-import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
-
-type Readiness = Wire<Awaited<ReturnType<typeof rpc.backendGetHealth>>>["readiness"];
+import { useHubStore } from "@/stores/hub-store";
 
 /* === Types === */
 
@@ -31,13 +27,9 @@ export type BackendStatus = {
   /** Operator-facing backend name, or null while the identity read is pending. */
   label: string | null;
   connection: ConnectionState;
-  /** Readiness detail worth showing beside the state, when the backend sends one. */
+  /** Connection failure reported by the runtime subscription. */
   detail: string | null;
 };
-
-/* === Constants === */
-
-const HEALTH_POLL_MS = 15_000;
 
 /* === Hooks === */
 
@@ -48,34 +40,12 @@ export function useBackendStatus(): BackendStatus {
     queryKey: ["shell", "backend-identity", session.identity.generation],
     staleTime: Number.POSITIVE_INFINITY,
   });
-  const health = useQuery({
-    queryFn: () => rpc.backendGetHealth(session.identity, {}),
-    queryKey: ["shell", "backend-health", session.identity.generation],
-    refetchInterval: HEALTH_POLL_MS,
-  });
+  const connection = useHubStore((state) => state.connection);
+  const error = useHubStore((state) => state.error);
 
   return {
-    connection: connectionState(health.data?.readiness, health.isError),
-    detail: health.data?.message?.trim() || null,
+    connection: connection === "connecting" ? "unknown" : connection,
+    detail: error,
     label: identity.data?.displayName || identity.data?.backendId || null,
   };
-}
-
-/* === Private Functions === */
-
-function connectionState(readiness: Readiness | undefined, failed: boolean): ConnectionState {
-  if (failed) {
-    return "disconnected";
-  }
-  switch (readiness?.HarmosVariant.case) {
-    case "Ready":
-      return "connected";
-    case "Starting":
-    case "Degraded":
-      return "reconnecting";
-    case "Stopping":
-      return "disconnected";
-    default:
-      return "unknown";
-  }
 }

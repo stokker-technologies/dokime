@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/publish.py; sha256:5588df36481d9c21a3f7257c3d429f11859b6d955deef930a77289c078e8ee80
+# Rendered by stkr project update from templates/python/test/publish.py; sha256:a3ec0f94263f7481e00eab13ff2a569f0ccf5aa8b55aa4fba191b19cf926ad40
 # ***
 #
 # Dokime
@@ -16,11 +16,12 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
+from .. import temporary
 from . import policy
 
 # Type Checking Imports
@@ -36,15 +37,35 @@ from . import policy
 # === Public Functions === #
 
 
-def commands(directory: Path, rust: bool, wheels: list[str]) -> list[list[str]]:
+def commands(directory: Path, rust: bool, wheels: list[str], scratch: Path) -> list[list[str]]:
     commands = []
     if rust:
-        metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--no-deps", "--format-version", "1"], cwd=directory))
+        metadata = json.loads(
+            subprocess.check_output(
+                ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                cwd=directory,
+            )
+        )
         members = set(metadata["workspace_members"])
+        command = ["cargo", "publish", "--dry-run", "--locked"]
         for package in metadata["packages"]:
             if package["id"] in members and package.get("publish") != []:
-                commands.append(["cargo", "publish", "--dry-run", "--locked", "--package", package["name"]])
-    commands.extend(["uv", "build", "--wheel", "--project", project, "--out-dir", "target/publish-dry"] for project in wheels)
+                command.extend(["--package", package["name"]])
+        if "--package" in command:
+            commands.append(command)
+    commands.extend(
+        [
+            "uv",
+            "build",
+            "--wheel",
+            "--project",
+            project,
+            "--out-dir",
+            str(scratch / "wheels"),
+        ]
+        for project in wheels
+    )
     return commands
 
 
@@ -54,13 +75,26 @@ def main() -> None:
     parser.add_argument("--python", action="append", default=[])
     options = parser.parse_args()
     directory = policy.root()
-    for command in commands(directory, options.rust, options.python):
-        environment = dict(os.environ)
-        if command[0] == "uv":
-            target = str(directory / "target/publish-dry/cargo")
-            for name in ("CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
+    with temporary.directory() as scratch:
+        for command in commands(directory, options.rust, options.python, scratch):
+            environment = dict(os.environ)
+            target = str(scratch / "cargo")
+            for name in (
+                "CARGO_TARGET_DIR",
+                "CARGO_BUILD_TARGET_DIR",
+                "CARGO_BUILD_BUILD_DIR",
+            ):
                 environment[name] = target
-        subprocess.run(command, cwd=directory, check=True, env=environment)
+            subprocess.run(
+                command,
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                cwd=directory,
+                check=True,
+                env=environment,
+            )
 
 
 # === Private Functions === #

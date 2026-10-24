@@ -83,6 +83,8 @@ impl sdk::Plugin for routeless {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn main() {}
+fn main() {
+    std::hint::black_box(<routeless as sdk::harmos::plugin::Declared>::markers()).unwrap();
+}
 
 /* === Tests === */

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/nextest.py; sha256:d5a9b3d4b629ddfcb1cef7c7ff52c652128f5931e88691341eb0137d246f320f
+# Rendered by stkr project update from templates/python/test/nextest.py; sha256:74d5fff19cee716092e84162ea031f7ef03b5ae03fb54f26b427b205466e71a5
 # ***
 #
 # {{package}}
@@ -25,7 +25,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from . import policy
 
@@ -90,6 +89,7 @@ def config(
         "",
         f"[profile.{PROFILE}.junit]",
         'path = "junit.xml"',
+        'report-skipped = "ignored"',
     ]
     for expression, seconds in overrides:
         lines += [

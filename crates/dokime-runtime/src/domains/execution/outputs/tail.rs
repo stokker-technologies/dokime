@@ -12,18 +12,22 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{future::poll_fn, path::PathBuf, pin::Pin, sync::Arc};
+
 // Third Party Imports
 use harmos::{services::Fault, services::Resident, services::Service};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeek, AsyncSeekExt};
+
 // Local Imports
 use crate::runtime::storage::executions::ExecutionStorage;
 use crate::{RuntimeHandle, runtime::Error, runtime::Result};
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 const LOG_BUFFER_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
@@ -31,6 +35,7 @@ const LOG_BUFFER_BYTES: usize = 64 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct LogTail {
     storage: Arc<ExecutionStorage>,
     source: PathBuf,
@@ -46,14 +51,18 @@ struct LogTail {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum TailError {
     #[error("log source failed: {0}")]
     Source(#[source] std::io::Error),
+
     #[error("log source acquisition failed: {0}")]
     Opening(#[source] tokio::task::JoinError),
+
     #[error("log storage failed: {0}")]
     Storage(#[source] Error),
+
     #[error("log state is invalid: {0}")]
     State(&'static str),
 }
@@ -61,6 +70,7 @@ enum TailError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RuntimeHandle {
     pub async fn start_execution_log_tail(
         &self, execution: TestExecutionId, relative_path: impl Into<String>, source: impl Into<PathBuf>,
@@ -283,6 +293,7 @@ impl LogTail {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn storage_error(error: Error) -> Fault<TailError> {
     Fault::Application(TailError::Storage(error))
 }

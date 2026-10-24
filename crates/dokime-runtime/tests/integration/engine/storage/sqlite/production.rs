@@ -215,6 +215,50 @@ async fn mutation_receipts_outcomes() {
 }
 
 #[tokio::test]
+async fn mutation_receipts_bounds_atomicity() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    let saved = MutationReceipt {
+        mutation: MutationId { window: id("window"), key: id("saved") },
+        fingerprint: [3; 32],
+        expires_at: SystemTime::now() + Duration::from_secs(60),
+        value: MutationValue::Cursor(backend.cursor_saved().await.unwrap()),
+    };
+    backend.save_mutations(std::slice::from_ref(&saved)).await.unwrap();
+
+    // Refuse Oversized New, Conflicting And Expired Receipts Without Partial Writes.
+    let mut metadata = metadata("oversized");
+    metadata.media_type = "x".repeat(32 * 1024);
+    let reference = FileReference { metadata, position: backend.cursor_saved().await.unwrap(), length: 0, sha256: [0; 32] };
+    for (key, expires_at) in
+        [("new", saved.expires_at), ("saved", saved.expires_at), ("expired", SystemTime::UNIX_EPOCH + Duration::from_secs(1))]
+    {
+        let pending = MutationReceipt { mutation: MutationId { window: id("window"), key: id("pending") }, ..saved.clone() };
+        let oversized = MutationReceipt {
+            mutation: MutationId { window: id("window"), key: id(key) },
+            expires_at,
+            value: MutationValue::Reference(Box::new(reference.clone())),
+            ..saved.clone()
+        };
+        let result = backend.save_mutations(&[pending, oversized]).await;
+        assert!(matches!(result, Err(Error::Backend { kind: harmos::BackendFailure::Corrupt, .. })));
+        assert_eq!(backend.recover_mutations(limits()).await.unwrap(), std::slice::from_ref(&saved));
+    }
+
+    // Bounded Expired Receipts Are Ignored; Identical Saved Receipts Remain Idempotent.
+    let expired = MutationReceipt {
+        mutation: MutationId { window: id("window"), key: id("expired") },
+        expires_at: SystemTime::UNIX_EPOCH + Duration::from_secs(1),
+        ..saved.clone()
+    };
+    backend.save_mutations(&[saved.clone(), expired]).await.unwrap();
+    backend.close().await.unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
+    assert_eq!(backend.recover_mutations(limits()).await.unwrap(), [saved]);
+    backend.close().await.unwrap();
+}
+
+#[tokio::test]
 async fn checkpoints_advance_boundaries() {
     let root = tempfile::tempdir().unwrap();
     let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();

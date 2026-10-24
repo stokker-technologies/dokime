@@ -12,16 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 
 /* === Constants === */
 
 /* === Macros === */
+
 product_error!(ActionDispatcherError, formatter {
     Self::Refused { code, message } => write!(formatter, "action was refused: {message} ({code})"),
     Self::Unavailable => formatter.write_str("action dispatcher is unavailable"),
@@ -34,6 +37,7 @@ product_error!(ActionDispatcherError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,6 +53,7 @@ pub enum ActionDispatcherError {
 /* === Traits === */
 
 /* === Implementations === */
+
 /* === Public Functions === */
 
 /* === Private Functions === */

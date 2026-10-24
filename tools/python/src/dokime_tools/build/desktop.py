@@ -6,13 +6,11 @@
 #
 # ***
 
-
 """Supervise Owned Desktop Development Processes"""
 
 # === Imports === #
 
 # Standard Library Imports
-
 import json
 import os
 import signal
@@ -23,20 +21,18 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build.frontend import ROOT, WEB_ROOT, ensure_report
+from dokime_tools.build.frontend import ROOT, WEB_ROOT
+from dokime_tools.prepare.resources import refresh
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
 # === Constants === #
 
-
 # === Types === #
 
 # === Classes === #
-
 
 # === Public Functions === #
 
@@ -54,7 +50,7 @@ def dev_plan(environment: dict[str, str], args: list[str]) -> tuple[list[str], d
     host = environment.get("DOKIME_DEV_HOST", "127.0.0.1")
     port = environment.get("DOKIME_DEV_PORT", "5173")
     url = f"http://{host}:{port}"
-    brand_path = ROOT / "branding/generated/tauri.brand.json"
+    brand_path = ROOT / "organization/generated/tauri.organization.json"
     brand = json.loads(brand_path.read_text(encoding="utf-8")) if brand_path.exists() else {}
     overlay = {"build": {"devUrl": url}, "bundle": {"externalBin": []}}
     config = merge_config(
@@ -106,7 +102,18 @@ def supervise(commands: list[list[str]], *, cwd: Path, environment: dict[str, st
     previous = {signum: signal.signal(signum, stop) for signum in signals}
     try:
         for command in commands:
-            children.append(subprocess.Popen(command, cwd=cwd, env=environment, start_new_session=os.name != "nt"))
+            children.append(
+                subprocess.Popen(
+                    command,
+                    cwd=cwd,
+                    env=environment,
+                    start_new_session=os.name != "nt",
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
+                )
+            )
         while not stopped:
             for index, child in enumerate(children):
                 code = child.poll()
@@ -123,6 +130,8 @@ def supervise(commands: list[list[str]], *, cwd: Path, environment: dict[str, st
                     check=False,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    stdin=sys.stdin,
                 )
             else:
                 try:
@@ -178,7 +187,7 @@ def main() -> int:
     if print_config:
         print(json.dumps(description, indent=2))
         return 0
-    ensure_report()
+    refresh()
     commands = []
     if environment.get("DOKIME_DEV_REPORT_WATCH") != "0":
         commands.append(
@@ -196,7 +205,6 @@ def main() -> int:
 
 
 # === Private Functions === #
-
 
 # === Entry Point === #
 

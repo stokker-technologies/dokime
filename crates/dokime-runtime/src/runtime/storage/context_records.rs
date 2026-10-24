@@ -29,6 +29,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContextRecord {
@@ -41,6 +42,7 @@ pub struct ContextRecord {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl MemorySize for ContextRecord {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -50,6 +52,7 @@ impl MemorySize for ContextRecord {
 }
 
 /* === Public Functions === */
+
 /* === Private Functions === */
 
 /* === Tests === */

@@ -14,24 +14,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    io::Write,
-    num::NonZeroUsize,
-    ops::Deref,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
-};
+use std::{cell::RefCell, collections::BTreeMap, io::Write, ops::Deref, sync::Arc};
 
 // Third Party Imports
 
 // Local Imports
 use super::{
     CapturedExecutionReportInput, CycleReportInput,
-    cycle::Index,
+    cycle::{CycleMember, Index},
     render::{cycle::Report, header::Header},
 };
 use crate::document::capture::Capture;
@@ -49,13 +39,14 @@ use dokime_domain::model::identity::DocumentId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(super) struct HtmlReport {
     index: Index,
     source: Source,
-    counted: AtomicUsize,
 }
 
 /* === Enums === */
+
 enum Source {
     Saved { snapshot: CycleSnapshot, documents: BTreeMap<DocumentId, Capture>, members: Vec<Arc<CapturedExecutionReportInput>> },
     Captured { input: Arc<CapturedExecutionReportInput>, evidence: Arc<CapturedSource> },
@@ -68,6 +59,7 @@ pub(super) enum Member {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Deref for Member {
     type Target = CycleReportInput;
     fn deref(&self) -> &Self::Target {
@@ -78,19 +70,27 @@ impl Deref for Member {
 }
 
 impl HtmlReport {
-    pub(super) fn from_cycle(
-        snapshot: CycleSnapshot, captured_members: Vec<CapturedExecutionReportInput>, operation: &Operation,
-    ) -> Result<Self> {
-        let count = captured_members.len();
+    pub(super) fn from_cycle(snapshot: CycleSnapshot, cycle_members: Vec<CycleMember>, operation: &Operation) -> Result<Self> {
+        let count = cycle_members.len();
         let documents = cycle_document(&snapshot)?;
         let mut members = Vec::with_capacity(count);
         let mut index = Index::new();
         // Compose Frozen Member Results Without Reading Pruned Raw Evidence.
-        for (materialized, mut captured) in captured_members.into_iter().enumerate() {
+        for (materialized, member) in cycle_members.into_iter().enumerate() {
+            operation.progress(materialized as u64, count as u64);
+            let mut captured = match member {
+                CycleMember::Captured(captured) => captured,
+                CycleMember::Planned(execution) => {
+                    if execution.test_cycle_id != snapshot.source().test_cycle_id {
+                        return Err(invalid("planned member belongs to another cycle"));
+                    }
+                    index.push_planned(&execution, snapshot.captured_at())?;
+                    continue;
+                }
+            };
             if captured.input.cycle.test_cycle_id != snapshot.source().test_cycle_id {
                 return Err(invalid("materialized member belongs to another cycle"));
             }
-            operation.progress(materialized as u64, count as u64);
             let own = captured.input.cycle.test_executions[0].test_case_id.clone();
             let id = captured.execution_id.clone();
             captured.record_contracts.clear();
@@ -101,18 +101,18 @@ impl HtmlReport {
             cycle.execution_order.retain(|candidate| *candidate == id);
             cycle.execution_order.shrink_to_fit();
             index.push_capture(&captured)?;
-            members.push(Arc::new(captured));
+            members.push(Arc::new(*captured));
         }
         operation.progress(count as u64, count as u64);
         index.sort();
-        Ok(Self { index, source: Source::Saved { snapshot, documents, members }, counted: AtomicUsize::new(0) })
+        Ok(Self { index, source: Source::Saved { snapshot, documents, members } })
     }
 
     pub(super) fn from_capture(captured: Arc<CapturedExecutionReportInput>, evidence: Arc<CapturedSource>) -> Result<Self> {
         let mut index = Index::new();
         index.push_capture(&captured)?;
         index.sort();
-        Ok(Self { index, source: Source::Captured { input: captured, evidence }, counted: AtomicUsize::new(0) })
+        Ok(Self { index, source: Source::Captured { input: captured, evidence } })
     }
 
     fn read(&self, member: usize) -> Result<Member> {
@@ -153,29 +153,10 @@ impl HtmlReport {
         }
     }
 
-    pub(super) fn length(&self, maximum: NonZeroUsize) -> Result<usize> {
-        let counted = self.counted.load(Ordering::Relaxed);
-        if counted != 0 && counted <= maximum.get() {
-            return Ok(counted);
-        }
-        let mut count = super::output::Count::new(maximum);
-        match self.write(&mut count) {
-            Ok(()) => {
-                self.counted.store(count.len(), Ordering::Relaxed);
-                Ok(count.len())
-            }
-            Err(_) if count.exceeded() => Err(Error::Harmos(harmos::Error::ResourceExhausted { resource: "report output size" })),
-            Err(error) => Err(error),
-        }
-    }
-
-    pub(super) fn bytes(&self, length: usize) -> Result<Vec<u8>> {
-        let mut buffer = super::output::Buffer::new(length).map_err(|source| invalid(&source.to_string()))?;
-        self.write(&mut buffer)?;
-        let bytes = buffer.into_bytes();
-        if bytes.len() != length {
-            return Err(invalid("report output changed its counted size"));
-        }
+    // One Serialization Pass Yields The Published Bytes; Their Length And Digest Are Taken From Them.
+    pub(super) fn render(&self) -> Result<Vec<u8>> {
+        let mut bytes = Vec::with_capacity(super::asset::REPORT_APP_TEMPLATE.len());
+        self.write(&mut bytes)?;
         Ok(bytes)
     }
 
@@ -201,6 +182,7 @@ impl HtmlReport {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn cycle_document(snapshot: &CycleSnapshot) -> Result<BTreeMap<DocumentId, Capture>> {
     let source = snapshot.source();
     let mut scope = dokime_domain::model::execution::RecordScope::default().with_cycle(source.test_cycle_id.clone());

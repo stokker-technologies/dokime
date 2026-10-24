@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
@@ -25,13 +28,9 @@ use crate::transactions::records::draft::BuiltinDraft;
 use crate::transactions::records::draft::Drafts;
 use crate::{runtime::Error, state::RuntimeState};
 use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::result::ExecutionStatus;
-use dokime_domain::model::execution::result::ResultStatus;
-use dokime_domain::model::execution::result::ResultSummary;
-use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
@@ -45,11 +44,12 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::transaction(id = "dokime.execution.cycle.policy", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateCyclePolicy {
     pub test_cycle_id: TestCycleId,
-    pub continue_on_failure: bool,
+    pub continue_automatically: bool,
     pub occurred_at: Timestamp,
 }
 
@@ -76,6 +76,7 @@ struct CycleControlPlan {
 }
 
 /* === Enums === */
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleControlAction {
@@ -88,12 +89,12 @@ pub enum CycleControlAction {
 #[serde(rename_all = "snake_case", tag = "action")]
 pub enum CycleResetAction {
     Delete { test_case_id: CaseId },
-    Rerun { test_case_id: CaseId, execution_id: TestExecutionId },
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Transaction<RuntimeState> for UpdateCyclePolicy {
     type Error = String;
 
@@ -101,12 +102,12 @@ impl Transaction<RuntimeState> for UpdateCyclePolicy {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        state.cycles.get(&self.test_cycle_id).map(|_| ()).ok_or_else(|| "cycle not found".to_owned())
+        state.cycles.get(&self.test_cycle_id).ok_or("cycle not found")?.ensure_active().map_err(str::to_owned)
     }
 
     fn apply(&self, state: &mut RuntimeState) {
         let cycle = state.cycles.get_mut(&self.test_cycle_id).expect("Harmos checked the cycle before applying its policy");
-        cycle.continue_on_failure = self.continue_on_failure;
+        cycle.continue_automatically = self.continue_automatically;
         cycle.touch_at(self.occurred_at.clone());
     }
 }
@@ -147,7 +148,7 @@ impl Transaction<RuntimeState> for ResetCycle {
 
     fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
         ensure_runtime_active(state)?;
-        apply_cycle_reset(&mut state.clone(), self).map(|_| ()).map_err(|error| error.to_string())
+        plan_cycle_reset(state, self).map(|_| ()).map_err(|error| error.to_string())
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -156,28 +157,47 @@ impl Transaction<RuntimeState> for ResetCycle {
 }
 
 /* === Public Functions === */
+
 pub fn apply_cycle_reset(state: &mut RuntimeState, reset: &ResetCycle) -> Result<Vec<TestExecutionId>, Error> {
-    let mut cycle = state.cycle_view(&reset.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
-    let removed = match &reset.action {
-        CycleResetAction::Delete { test_case_id } => {
-            delete_cycle_case(&mut cycle, test_case_id, reset.occurred_at.clone()).map_err(conflict)?
-        }
-        CycleResetAction::Rerun { test_case_id, execution_id } => {
-            rerun_case(&mut cycle, test_case_id, execution_id, reset.occurred_at.clone()).map_err(conflict)?;
-            Vec::new()
-        }
-    };
+    let (cycle, removed) = plan_cycle_reset(state, reset)?;
     state.replace_cycle(cycle).map_err(conflict)?;
     Ok(removed)
 }
 
+// The Reset Cycle And The Executions It Removes, Validated Against The Unchanged State.
+pub fn plan_cycle_reset(state: &RuntimeState, reset: &ResetCycle) -> Result<(CycleView, Vec<TestExecutionId>), Error> {
+    let mut cycle = state.cycle_view(&reset.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
+    let CycleResetAction::Delete { test_case_id } = &reset.action;
+    let removed = delete_cycle_case(&mut cycle, test_case_id, reset.occurred_at.clone()).map_err(conflict)?;
+    state.validate_cycle_view(&cycle).map_err(conflict)?;
+    Ok((cycle, removed))
+}
+
+pub(crate) fn ensure_case_deletable(cycle: &CycleView, test_case_id: &CaseId) -> Result<(), String> {
+    ensure_cycle_mutable(cycle)?;
+    if cycle
+        .test_executions
+        .iter()
+        .filter(|execution| &execution.test_case_id == test_case_id)
+        .any(|execution| execution.status != ExecutionStatus::Skipped || execution.started_at.is_some() || execution.finished_at.is_some())
+    {
+        return Err("test cases with started or finished executions cannot be deleted".to_owned());
+    }
+    Ok(())
+}
+
+pub(crate) fn ensure_cycle_mutable(cycle: &CycleView) -> Result<(), String> {
+    cycle.ensure_active().map_err(str::to_owned)
+}
+
 /* === Private Functions === */
+
 fn apply_cycle_control(state: &mut RuntimeState, control: &ControlCycle) -> Result<(), Error> {
     let CycleControlPlan { cycle, records, settled } = prepare_cycle_control(state, control)?;
-    if let Some(request) = state
+    for request in state
         .run_requests
         .values_mut()
-        .find(|request| request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal())
+        .filter(|request| request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal())
     {
         match control.action {
             CycleControlAction::Pause => request.summary.paused = true,
@@ -201,10 +221,17 @@ fn prepare_cycle_control(state: &RuntimeState, control: &ControlCycle) -> Result
         return Err(conflict("provider work has settled; execution checkpoints are finishing".into()));
     }
     let mut cycle = state.cycle_view(&control.test_cycle_id).ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
+    cycle.ensure_active().map_err(|reason| conflict(reason.into()))?;
     match control.action {
         CycleControlAction::Pause => pause_cycle(&mut cycle, control.occurred_at.clone()),
         CycleControlAction::Resume => resume_cycle(&mut cycle, control.occurred_at.clone()),
-        CycleControlAction::Stop => stop_cycle(&mut cycle, control.occurred_at.clone()),
+        CycleControlAction::Stop => {
+            let live = state
+                .run_requests
+                .values()
+                .any(|request| request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal());
+            stop_cycle(&mut cycle, live, control.occurred_at.clone())
+        }
     }
     .map_err(conflict)?;
 
@@ -284,44 +311,13 @@ fn resume_cycle(cycle: &mut CycleView, at: Timestamp) -> Result<(), String> {
     Ok(())
 }
 
-fn stop_cycle(cycle: &mut CycleView, at: Timestamp) -> Result<(), String> {
-    if matches!(
-        cycle.lifecycle,
-        CycleStatus::Completed | CycleStatus::Failed | CycleStatus::Blocked | CycleStatus::Stopping | CycleStatus::Stopped
-    ) {
-        return Err("cycle cannot be stopped from its current state".to_owned());
+// Stopping An Active Cycle Stops Its Requests; The Cycle Itself Returns To Idle Once They Settle.
+fn stop_cycle(cycle: &mut CycleView, live: bool, at: Timestamp) -> Result<(), String> {
+    if !live {
+        return Err("cycle has no run to stop".to_owned());
     }
-    if matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused) {
-        cycle.lifecycle = cycle.lifecycle.try_transition(CycleStatus::Stopping).map_err(|error| error.to_string())?;
-        cycle.touch_at(at);
-        return Ok(());
-    }
-    for execution in &mut cycle.test_executions {
-        if matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running) {
-            execution.status = ExecutionStatus::Cancelled;
-            execution.finished_at.get_or_insert_with(|| at.clone());
-            execution.result = Some(cancelled_summary());
-        }
-        for step in &mut execution.steps {
-            if matches!(step.status, StepStatus::Pending | StepStatus::Running) {
-                step.status = StepStatus::Cancelled;
-                step.finished_at.get_or_insert_with(|| at.clone());
-            }
-            for criterion in &mut step.criteria {
-                if criterion.status == CriterionStatus::Pending {
-                    criterion.status = CriterionStatus::Skipped;
-                }
-            }
-        }
-    }
-    cycle.lifecycle = cycle.lifecycle.try_transition(CycleStatus::Stopped).unwrap_or(CycleStatus::Stopped);
-    cycle.result = Some(cancelled_summary());
     cycle.touch_at(at);
     Ok(())
-}
-
-fn cancelled_summary() -> ResultSummary {
-    ResultSummary { status: ResultStatus::Cancelled, passed: 0, failed: 0, blocked: 0, skipped: 0 }
 }
 
 fn delete_cycle_case(cycle: &mut CycleView, test_case_id: &CaseId, at: Timestamp) -> Result<Vec<TestExecutionId>, String> {
@@ -336,73 +332,6 @@ fn delete_cycle_case(cycle: &mut CycleView, test_case_id: &CaseId, at: Timestamp
     cycle.test_executions.retain(|execution| &execution.test_case_id != test_case_id);
     cycle.touch_at(at);
     Ok(removed)
-}
-
-fn rerun_case(cycle: &mut CycleView, test_case_id: &CaseId, execution_id: &TestExecutionId, at: Timestamp) -> Result<(), String> {
-    ensure_cycle_mutable(cycle)?;
-    ensure_case_restartable(cycle, test_case_id, "schedule a case rerun")?;
-    let original = cycle
-        .test_executions
-        .iter()
-        .rev()
-        .find(|execution| &execution.test_case_id == test_case_id)
-        .ok_or("case has no materialized execution")?;
-    // An already-planned attempt is still the next run, including a retried
-    // rerun command. Never accumulate unused attempts for repeated clicks.
-    if original.status == ExecutionStatus::Skipped && original.finished_at.is_none() {
-        cycle.lifecycle = cycle.lifecycle.try_transition(CycleStatus::Ready).map_err(|error| error.to_string())?;
-        cycle.saved = None;
-        cycle.result = None;
-        cycle.touch_at(at);
-        return Ok(());
-    }
-    if cycle.test_executions.iter().any(|execution| &execution.test_execution_id == execution_id) {
-        return Err("rerun execution identifier is already in use".into());
-    }
-    let mut execution = super::provider::scheduled_execution_record(
-        &cycle.test_cycle_id,
-        execution_id.clone(),
-        original.snapshot.clone().with_host_version(Some(env!("CARGO_PKG_VERSION").to_owned())),
-    );
-    execution.status = ExecutionStatus::Skipped;
-    execution.documents = execution.snapshot.documents().clone();
-    cycle.test_executions.push(execution);
-    cycle.lifecycle = cycle.lifecycle.try_transition(CycleStatus::Ready).map_err(|error| error.to_string())?;
-    cycle.saved = None;
-    cycle.result = None;
-    cycle.touch_at(at);
-    Ok(())
-}
-
-pub(crate) fn ensure_case_deletable(cycle: &CycleView, test_case_id: &CaseId) -> Result<(), String> {
-    ensure_cycle_mutable(cycle)?;
-    if cycle
-        .test_executions
-        .iter()
-        .filter(|execution| &execution.test_case_id == test_case_id)
-        .any(|execution| execution.status != ExecutionStatus::Skipped || execution.started_at.is_some() || execution.finished_at.is_some())
-    {
-        return Err("test cases with started or finished executions cannot be deleted".to_owned());
-    }
-    Ok(())
-}
-
-pub(crate) fn ensure_cycle_mutable(cycle: &CycleView) -> Result<(), String> {
-    if matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping) {
-        Err("cycle cannot be edited in its current state".to_owned())
-    } else {
-        Ok(())
-    }
-}
-
-pub(crate) fn ensure_case_restartable(cycle: &CycleView, test_case_id: &CaseId, operation: &str) -> Result<(), String> {
-    if cycle.lifecycle == CycleStatus::Running {
-        return Err(format!("running cycles cannot {operation}"));
-    }
-    if !cycle.cases().any(|test_case| &test_case.test_case_id == test_case_id) {
-        return Err("cycle test case not found".to_owned());
-    }
-    Ok(())
 }
 
 fn record_execution_lifecycle(records: &mut Drafts, cycle: &CycleView, record_type: BuiltinRecordType, message: &str, at: Timestamp) {

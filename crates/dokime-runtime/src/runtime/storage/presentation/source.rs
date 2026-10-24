@@ -12,12 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     io::{self, Write},
     sync::Arc,
 };
+
 // Third Party Imports
 use harmos::MemorySize;
 
@@ -39,6 +41,7 @@ use dokime_domain::model::identity::DocumentId;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub(in crate::runtime::storage) struct CycleSource {
     cycle: Arc<CycleView>,
     budget: Budget,
@@ -64,6 +67,7 @@ struct Budget {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl CycleSource {}
 
 impl CaseSelection<'_> {
@@ -124,6 +128,7 @@ impl Write for Budget {
 }
 
 /* === Public Functions === */
+
 pub(super) fn preflight(
     state: &RuntimeState, cycle: &CycleView, execution: &TestExecution, brand: Option<&crate::installed_plugins::ResolvedBrand>,
     selection: (&RecordScope, &DocumentId), cases: &CaseSelection<'_>, prepared: Option<&CycleSource>,
@@ -341,13 +346,14 @@ pub(super) fn grouping(cycle: &CycleView) -> CycleView {
         test_cycle_id: cycle.test_cycle_id.clone(),
         session_id: cycle.session_id.clone(),
         metadata: cycle.metadata.clone(),
+        phase: cycle.phase,
         lifecycle: cycle.lifecycle,
         created_at: cycle.created_at.clone(),
         started_at: cycle.started_at.clone(),
         updated_at: cycle.updated_at.clone(),
         test_executions: Vec::new(),
         records: cycle.records.clone(),
-        continue_on_failure: cycle.continue_on_failure,
+        continue_automatically: cycle.continue_automatically,
         result: cycle.result.clone(),
     }
 }
@@ -358,13 +364,14 @@ pub(super) fn grouping_memory(cycle: &CycleView) -> usize {
         test_cycle_id,
         session_id,
         metadata,
+        phase: _,
         lifecycle: _,
         created_at,
         started_at,
         updated_at,
         test_executions: _,
         records,
-        continue_on_failure: _,
+        continue_automatically: _,
         result: _,
     } = cycle;
     let fields = [
@@ -383,6 +390,7 @@ pub(super) fn grouping_memory(cycle: &CycleView) -> usize {
 }
 
 /* === Private Functions === */
+
 fn rows_memory<'a, T: MemorySize + 'a>(mut rows: impl Iterator<Item = &'a T>) -> Result<(usize, usize)> {
     rows.try_fold((0usize, std::mem::size_of::<Vec<T>>()), |(count, bytes), row| {
         let count = count.checked_add(1).ok_or_else(|| error("captured row count overflows"))?;
@@ -405,7 +413,6 @@ fn cycle_budget(cycle: &CycleView) -> Result<Budget> {
         &cycle.started_at,
         &cycle.updated_at,
         &cycle.records,
-        &cycle.continue_on_failure,
         &cycle.result,
     ))?;
     if cycle.test_executions.len() > dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT {

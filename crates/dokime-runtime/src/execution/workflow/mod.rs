@@ -12,15 +12,18 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, PoisonError};
+
 // Third Party Imports
 // Third-Party Imports
 use harmos::sidecar::Refusal;
 use tokio::sync::watch;
+
 // Local Imports
 use super::template::SidecarTemplate;
 use crate::definition::TestCaseTemplate;
@@ -30,7 +33,11 @@ use crate::transport::{CommandExecutionReply, CommandExecutionRequest, EvidenceB
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const MAX_RETAINED_EXECUTIONS: usize = 32;
+
+// Shutdown alone re-admits local inputs on a short cadence while each run winds down.
+const SHUTDOWN_SETTLE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(10);
 
 /* === Macros === */
 
@@ -53,15 +60,16 @@ pub struct Workflow<T: SidecarTemplate> {
     binding: Option<Arc<dyn std::any::Any + Send + Sync>>,
 }
 
+/* === Enums === */
+
 #[derive(Clone)]
 pub enum SampleOutput {
     Host(harmos::sidecar::Supervisor),
     Embedded(Arc<dyn EmbeddedPublisher>),
 }
 
-/* === Enums === */
-
 /* === Traits === */
+
 pub trait EmbeddedPublisher: Send + Sync {
     fn publish(
         &self, execution: &str, stream: &dokime_domain::model::identity::Identifier, values: BTreeMap<String, Value>,
@@ -70,6 +78,7 @@ pub trait EmbeddedPublisher: Send + Sync {
 }
 
 /* === Implementations === */
+
 impl<T: SidecarTemplate> Workflow<T> {
     pub fn new(workflow: impl Into<String>, source: impl Into<String>) -> Self {
         Self::declaring(workflow, source, T::definition(), T::declared_observers())
@@ -392,7 +401,7 @@ impl<T: SidecarTemplate> Workflow<T> {
                     }
                     tokio::select! {
                         _ = &mut run => break,
-                        _ = tokio::time::sleep(crate::transport::buffer::PROMPT_POLL_INTERVAL) => {}
+                        _ = tokio::time::sleep(SHUTDOWN_SETTLE_INTERVAL) => {}
                     }
                 }
             }
@@ -444,6 +453,7 @@ impl<T: SidecarTemplate> Clone for Workflow<T> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn resolved(parameters_json: &str) -> Result<BTreeMap<String, Value>, Refusal> {
     serde_json::from_str(parameters_json).map_err(|error| Refusal::of(format!("invalid resolved parameters JSON: {error}")))
 }

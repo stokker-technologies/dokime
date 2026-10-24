@@ -8,6 +8,8 @@
  */
 
 /* === Modules === */
+
+mod browse_cycles;
 mod browse_executions;
 mod delete_execution;
 mod download_checkpoint_artifact;
@@ -20,6 +22,8 @@ mod list_checkpoint_telemetry;
 mod read_checkpoint_output;
 
 /* === Re-Exports === */
+
+pub use browse_cycles::BrowseCycles;
 pub use browse_executions::BrowseExecutions;
 pub use delete_execution::DeleteExecution;
 pub use download_checkpoint_artifact::DownloadCheckpointArtifact;
@@ -38,38 +42,49 @@ pub use read_checkpoint_output::ReadCheckpointOutput;
 // Third Party Imports
 
 // Local Imports
-use super::Access;
 use super::Endpoint;
-use super::ORDINARY;
 use super::TRANSFER;
+use super::{MUTATION, ORDINARY};
+
 #[allow(unused_imports)]
 use crate::model::appearance::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::catalog::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::content::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::definition::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::documents::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::evidence::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::execution::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::execution::wire_checkpoint::*;
+
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::notes::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::plots::wire::*;
+
 #[allow(unused_imports)]
 use crate::model::prompts::wire::*;
-#[allow(unused_imports)]
-use crate::model::telemetry::wire::*;
 
 use crate::model::history::wire::*;
+#[allow(unused_imports)]
+use crate::model::telemetry::wire::*;
 
 /* === Constants === */
 
@@ -79,18 +94,23 @@ use crate::model::history::wire::*;
 
 /* === Structs === */
 
+/* === Enums === */
+
 // Permanently delete one sealed historical execution. The caller supplies a
+
 // stable request identifier so a retry can identify the accepted deletion.
 
 // `filter` and `order` must be repeated unchanged on every continuation, and
-// `after_execution_id` must still be a member of the filtered result. A
-// changed selection, a changed order, or a continuation ID the filter excludes
-// is rejected rather than silently restarted.
 
-/* === Enums === */
+// `after_execution_id` must still be a member of the filtered result. A
+
+// changed selection, a changed order, or a continuation ID the filter excludes
+
+// is rejected rather than silently restarted.
 
 #[harmos_domain::catalog]
 pub enum Operations {
+    BrowseCycles(BrowseCycles),
     BrowseExecutions(BrowseExecutions),
     GetExecutionCheckpoint(GetExecutionCheckpoint),
     DeleteExecution(DeleteExecution),
@@ -106,54 +126,49 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Endpoint for BrowseCycles {
+    const PATH: &'static str = "/dokime.v1.History/BrowseCycles";
+}
+
 impl Endpoint for BrowseExecutions {
     const PATH: &'static str = "/dokime.v1.History/BrowseExecutions";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetExecutionCheckpoint {
     const PATH: &'static str = "/dokime.v1.History/GetExecutionCheckpoint";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for DeleteExecution {
     const PATH: &'static str = "/dokime.v1.History/DeleteExecution";
-    const ACCESS: Access = Access::Admin;
 }
 
 impl Endpoint for GetCheckpointDocument {
     const PATH: &'static str = "/dokime.v1.History/GetCheckpointDocument";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetCheckpointEvidence {
     const PATH: &'static str = "/dokime.v1.History/GetCheckpointEvidence";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ReadCheckpointOutput {
     const PATH: &'static str = "/dokime.v1.History/ReadCheckpointOutput";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for DownloadCheckpointArtifact {
     const PATH: &'static str = "/dokime.v1.History/DownloadCheckpointArtifact";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListCheckpointRecords {
     const PATH: &'static str = "/dokime.v1.History/ListCheckpointRecords";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for ListCheckpointTelemetry {
     const PATH: &'static str = "/dokime.v1.History/ListCheckpointTelemetry";
-    const ACCESS: Access = Access::Read;
 }
 
 impl Endpoint for GetCheckpointContext {
     const PATH: &'static str = "/dokime.v1.History/GetCheckpointContext";
-    const ACCESS: Access = Access::Read;
 }
 
 /* === Public Functions === */

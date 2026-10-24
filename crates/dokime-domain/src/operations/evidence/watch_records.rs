@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
+
 // Local Imports
 use super::*;
 
@@ -27,6 +29,7 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos_domain::message]
 #[harmos_domain::operation(response = (), output = RecordPage, id = "dokime.evidence.watch_records", version = 1,
         policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
@@ -34,6 +37,7 @@ use super::*;
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchRecords {
     pub selection: Option<CapturedRecordSelection>,
+
     // Absent replays from zero, then follows; present resumes captured facts.
     #[row(description = "Absent replays from zero, then follows; present resumes captured facts.")]
     pub after: Option<Cursor>,

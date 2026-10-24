@@ -13,6 +13,9 @@
 
 /* === Local Imports === */
 
+import type { Row3 as ArtifactDownloadFrame } from "@generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb";
+import type { Row3 as FileDownloadFrame } from "@generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb";
+import type { Row3 as FileFollowFrame } from "@generated/dokime/v1/ContentMessages/FollowExecutionFile/messages_pb";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
 import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
@@ -26,9 +29,6 @@ import type {
   ExecutionFileLifecycle,
   ExecutionFileReadWindow,
 } from "@/lib/types";
-import type { Row3 as ArtifactDownloadFrame } from "../../../.generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb";
-import type { Row3 as FileDownloadFrame } from "../../../.generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb";
-import type { Row3 as FileFollowFrame } from "../../../.generated/dokime/v1/ContentMessages/FollowExecutionFile/messages_pb";
 import { deliverNativeArtifact } from "./native-delivery";
 import { NATIVE_MAX_PAGES, NativeApiLimitError, nowIso, safeNumber, sha256Hex, timestampIso } from "./native-values";
 

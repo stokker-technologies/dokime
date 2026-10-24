@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{env, io, path::PathBuf};
+
 // Third Party Imports
 
 // Local Imports
-use super::{ApplicationPaths, Config, DEFAULT_APPLICATION_ID, Settings, branding};
+use super::{ApplicationPaths, Config, DEFAULT_APPLICATION_ID, Settings, organization};
 
 /* === Constants === */
+
 const APPLICATION_ROOT_ENV: &str = "DOKIME_APPLICATION_ROOT";
 const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
 const PLUGIN_LOOKUP_ENV: &str = "DOKIME_PLUGINS_DIR";
@@ -29,6 +32,7 @@ const PLUGIN_LOOKUP_ENV: &str = "DOKIME_PLUGINS_DIR";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, Default)]
 pub struct ApplicationOptions {
     pub application_root: Option<PathBuf>,
@@ -41,11 +45,12 @@ pub struct ApplicationOptions {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ApplicationOptions {
     pub fn resolve(self) -> io::Result<Config> {
         let explicit = self.application_root.is_some();
         let ambient = |name| (!explicit).then(|| environment_path(name)).flatten();
-        let brand = branding::brand();
+        let brand = organization::brand();
 
         // Resolve The Application Root And Its Settings
         let root = match self.application_root.or_else(|| ambient(APPLICATION_ROOT_ENV)) {
@@ -74,6 +79,7 @@ impl ApplicationOptions {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn environment_path(name: &str) -> Option<PathBuf> {
     env::var_os(name).filter(|value| !value.is_empty()).map(PathBuf::from)
 }

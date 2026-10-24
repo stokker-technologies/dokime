@@ -8,25 +8,30 @@
  */
 
 /* === Modules === */
+
 pub mod checks;
 mod rules;
 mod validation;
 pub mod wire;
 
 /* === Re-Exports === */
+
 pub use checks::{validate_answer_rules, validate_answers, validate_definition, validate_fields};
 pub use rules::Rule;
 pub use rules::validate_rules;
 pub use validation::FieldValidation;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
+
 // Local Imports
 use crate::model::definition::RuntimeCondition;
 use crate::model::execution::RecordScope;
@@ -49,6 +54,7 @@ use crate::model::values::ValueType;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PromptDefinition {
     pub prompt_type: Identifier,
@@ -56,17 +62,23 @@ pub struct PromptDefinition {
     pub archetype: PromptArchetype,
     pub title: String,
     pub message: Option<String>,
+
     #[serde(default)]
     pub fields: Vec<PromptField>,
+
     #[serde(default)]
     pub actions: Vec<PromptAction>,
+
     #[serde(default)]
     pub rules: Vec<Rule>,
+
     pub condition: Option<RuntimeCondition>,
     pub owner: Option<SuiteId>,
     pub template_identifier: Option<Identifier>,
+
     #[serde(default)]
     pub examples: Vec<BTreeMap<String, Value>>,
+
     // How urgently an operator must look: the author declares it once per
     // prompt type, on the record severity scale, and it defaults to Info.
     #[serde(default)]
@@ -81,8 +93,10 @@ pub struct PromptField {
     pub multiple: bool,
     pub required: bool,
     pub default: Option<Value>,
+
     #[serde(default)]
     pub choices: Vec<String>,
+
     #[serde(default)]
     pub validation: FieldValidation,
 }
@@ -92,8 +106,10 @@ pub struct PromptField {
 pub struct PromptRequest {
     pub prompt_id: PromptId,
     pub prompt_type: Identifier,
+
     #[serde(default)]
     pub values: BTreeMap<String, Value>,
+
     pub scope: RecordScope,
 }
 
@@ -126,11 +142,13 @@ pub struct PromptAction {
     pub id: String,
     pub label: String,
     pub emphasis: PromptActionEmphasis,
+
     #[serde(default)]
     pub requires_condition: bool,
 }
 
 /* === Enums === */
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum PromptArchetype {
@@ -180,6 +198,7 @@ pub enum PromptFieldKind {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos_domain::MemorySize for PromptInstance {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -255,6 +274,7 @@ impl PromptDefinition {
 }
 
 /* === Public Functions === */
+
 pub fn pending_stream(cycle: Option<&TestCycleId>, execution: Option<&TestExecutionId>) -> String {
     let selection = serde_json::to_vec(&(cycle, execution)).expect("prompt selection encodes");
     format!("prompts.pending:{}", Sha256::digest(selection).iter().map(|byte| format!("{byte:02x}")).collect::<String>())

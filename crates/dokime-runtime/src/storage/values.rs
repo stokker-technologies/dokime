@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod map {
     use super::*;
     use serde::{Deserialize, Serialize};
@@ -38,6 +39,7 @@ use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 const MAX_DEPTH: usize = 64;
 const MAX_CELLS: usize = 131072;
 
@@ -46,6 +48,7 @@ const MAX_CELLS: usize = 131072;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Cell {
@@ -71,6 +74,7 @@ struct Encoding {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub(crate) fn encoding_memory(details: &BTreeMap<String, Value>) -> Result<usize> {
     let plan = encoding(details)?;
     Ok(std::mem::size_of::<Vec<Cell>>().saturating_add(plan.cells.saturating_mul(std::mem::size_of::<Cell>())).saturating_add(plan.strings))
@@ -171,6 +175,7 @@ pub(crate) fn decode_owned(cells: Vec<Cell>, allowance: NonZeroUsize) -> Result<
 }
 
 /* === Private Functions === */
+
 fn encoding(details: &BTreeMap<String, Value>) -> Result<Encoding> {
     let mut plan = Encoding { cells: 1, strings: "object".len() };
     u32::try_from(details.len()).map_err(|_| error("stored value child count exceeds limit"))?;

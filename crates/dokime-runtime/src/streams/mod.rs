@@ -8,16 +8,20 @@
  */
 
 /* === Modules === */
+
 mod telemetry;
 
 /* === Re-Exports === */
+
 pub use telemetry::{CycleTrack, ExecutionTrack, TelemetryRow};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+
 // Local Imports
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
@@ -29,6 +33,7 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct AggregateOutput {
     pub key: String,
@@ -37,6 +42,7 @@ pub struct AggregateOutput {
 }
 
 /* === Enums === */
+
 #[harmos::streams]
 pub enum Streams {
     Telemetry(TelemetryRow),

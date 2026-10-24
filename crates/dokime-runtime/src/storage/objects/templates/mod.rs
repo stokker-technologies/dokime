@@ -72,8 +72,6 @@ pub(super) struct Template {
     #[serde(default)]
     criteria: Vec<Criterion>,
     #[serde(default)]
-    continue_on_failure: bool,
-    #[serde(default)]
     prompt_definitions: Vec<prompts::Prompt>,
     #[serde(default)]
     subscriptions: Vec<Subscription>,
@@ -371,7 +369,6 @@ impl TryFrom<&crate::definition::TestCaseTemplate> for Template {
             document: value.document.as_ref().map(documents::Document::try_from).transpose()?,
             phases,
             criteria,
-            continue_on_failure: value.continue_on_failure,
             prompt_definitions,
             subscriptions,
             attributes: Map::try_from(&value.attributes)?,
@@ -435,7 +432,6 @@ impl TryFrom<Template> for crate::definition::TestCaseTemplate {
             document: row.document.map(TryInto::try_into).transpose()?,
             phases,
             criteria,
-            continue_on_failure: row.continue_on_failure,
             prompt_definitions,
             subscriptions,
             attributes: row.attributes.try_into()?,
