@@ -74,3 +74,7 @@ The specification-completion README (13c0fd6, Native Remote Access, lines250–2
 ## Executable Test Ownership
 
 CLI install consent, cancellation and hidden-secret refusal stories belong to Acceptance because they execute the shipping binary. The integrated test registry retains that module at tests/acceptance/install.rs; incoming facade imports and advertised chunk-limit assertions remain, with one fixture definition and no unregistered duplicate.
+
+## Native Test Executable Manifests
+
+Windows GUI library unit-test executables embed the Common Controls v6 dependency, like other GUI link targets. Archive consumers do not rely on adjacent executable manifest files. Compile-contract execution uses the same feature selectors and profile as the Tests archive producer, preserving its exact test filter and authoring assertions.

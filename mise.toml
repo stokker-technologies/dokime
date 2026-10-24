@@ -227,7 +227,7 @@ env.CARGO_INCREMENTAL = "0"
 [tasks."build:rust:contracts"]
 description = "Verify Rust Compile Contracts In Their Build Tree"
 usage = 'flag "--profile <profile>" default="dev"'
-run = 'cargo nextest run --locked --workspace --tests --cargo-profile {% if usage.profile == "release" %}release-tests{% else %}dev{% endif %} --features dokime/fault-injection -E "binary_id(dokime-macros::compile)"'
+run = 'cargo nextest run --locked --workspace --tests --cargo-profile {% if usage.profile == "release" %}release-tests{% else %}dev{% endif %} --features tauri/custom-protocol,dokime/fault-injection -E "binary_id(dokime-macros::compile)"'
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:desktop"]

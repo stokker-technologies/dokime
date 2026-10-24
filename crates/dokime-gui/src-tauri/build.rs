@@ -57,8 +57,8 @@ fn main() {
             "cargo:rustc-link-arg=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
         );
         // A side-by-side `.manifest` file stays behind when nextest archives the test executable,
-        // so the tests carry it inside the executable; binaries already embed Tauri's own.
-        println!("cargo:rustc-link-arg-tests=/MANIFEST:EMBED");
+        // so every target, including library unit tests, embeds its own manifest.
+        println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
     }
 }
 
