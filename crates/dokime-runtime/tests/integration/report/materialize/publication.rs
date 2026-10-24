@@ -19,10 +19,11 @@
 
 // Third Party Imports
 use harmos::storage::{StorageBackend, StorageBackends};
+use std::sync::{Mutex, atomic::AtomicBool};
 
 // Local Imports
 use crate::service_support::prelude::*;
-use crate::service_support::publication::{PublicationBackend, PublicationFault};
+use crate::service_support::publication::{MutationBoundary, MutationHost, PublicationBackend, PublicationFault};
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_runtime::report::saved::CapturedExecutionReportInput;
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
@@ -173,6 +174,65 @@ async fn dependency_publication_retry() {
         drop((seal, report));
         owner.stop().await.unwrap();
     }
+
+    // Acknowledged Appends Permit A New Finish Identity After Window Expiry.
+    let root = tempdir().unwrap();
+    let primary = Arc::new(Backend::primary(root.path().to_owned()).await.unwrap());
+    let state = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        primary.history().clone(),
+        dokime_runtime::storage::state_settings(),
+    ));
+    let manager = Manager::new(StorageBackends { primary, state }, crate::service_support::budgets::story_settings()).unwrap();
+    let owner = crate::service_support::reports::storage_runtime(&manager).await;
+    let mut input = template;
+    let execution = input.input.cycle.test_executions[0].clone();
+    let stored = manager.write_object(&Execution::try_from(&execution).unwrap()).await.unwrap();
+    let revision =
+        ExecutionRevision { execution_id: execution.test_execution_id.clone(), version: stored.version, position: stored.position.clone() };
+    input.execution = Some(revision.clone());
+    input.evidence_through = stored.position.clone();
+    manager.flush_until(&stored.position).await.unwrap();
+    let input = Arc::new(input);
+    let boundary = Arc::new(MutationBoundary {
+        advance_after_append: AtomicBool::new(true),
+        lose_append_reply: AtomicBool::new(false),
+        calls: Mutex::new(Vec::new()),
+        lengths: Mutex::new(Default::default()),
+    });
+    let host = MutationHost { inner: owner.operations.clone(), storage: manager.clone(), boundary: boundary.clone() };
+    let mut report = dokime_runtime::report::Renderer.execution(input.clone(), Vec::new(), &manager.cursor_saved()).unwrap();
+    let sealed_at = execution.finished_at.as_ref().unwrap();
+    // Age The Global Retry Window Before Creating Fresh Sixty-Second Producer Sessions.
+    tokio::time::pause();
+    tokio::time::advance(Duration::from_secs(250)).await;
+    tokio::time::resume();
+    let seal = report.save_dependencies(&manager, &host, sealed_at, &revision).await.unwrap();
+    for file in [&seal.source.context, &seal.report] {
+        assert!(seal.dependencies_saved.covers(&file.position).unwrap());
+        assert!(!crate::service_support::reports::bytes(&manager, file).await.is_empty());
+    }
+    let calls = boundary.calls.lock().unwrap().clone();
+    let first = &calls[0].window;
+    assert!(calls.iter().filter(|call| call.key.as_str().ends_with(".finish")).all(|call| &call.window != first));
+
+    // A Lost Append Reply Keeps Its Original Identity And Cannot Be Readmitted After Expiry.
+    boundary.calls.lock().unwrap().clear();
+    boundary.advance_after_append.store(true, std::sync::atomic::Ordering::SeqCst);
+    boundary.lose_append_reply.store(true, std::sync::atomic::Ordering::SeqCst);
+    let mut ambiguous = dokime_runtime::report::Renderer.execution(input, Vec::new(), &manager.cursor_saved()).unwrap();
+    tokio::time::pause();
+    tokio::time::advance(Duration::from_secs(250)).await;
+    tokio::time::resume();
+    let lost = ambiguous.save_dependencies(&manager, &host, sealed_at, &revision).await.unwrap_err();
+    assert!(lost.to_string().contains("controlled append reply loss"), "{lost}");
+    let prior = boundary.calls.lock().unwrap().clone();
+    let expired = ambiguous.save_dependencies(&manager, &host, sealed_at, &revision).await.unwrap_err();
+    assert!(expired.to_string().contains("retry window expired or unknown"), "{expired}");
+    let after = boundary.calls.lock().unwrap().clone();
+    assert!(after[prior.len()..].iter().any(|call| prior.contains(call)), "an ambiguous retry must reuse its mutation identity");
+    drop((seal, report, ambiguous, host));
+    owner.stop().await.unwrap();
 }
 
 /* === Private Functions === */

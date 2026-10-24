@@ -346,16 +346,20 @@ impl ReportFile {
         self.write(manager, operations).await?;
         let reference = operations
             .call(harmos::storage::operations::FinishFile {
-                mutation: self.mutation("finish")?,
+                mutation: self.mutation(manager, "finish")?,
                 session: self.producer.as_ref().expect("created report file").session.clone(),
             })
             .await?
             .into_owned();
         self.finished = Some(reference.clone());
+        self.window = None;
         Ok(reference)
     }
 
-    fn mutation(&self, action: &str) -> Result<MutationId> {
+    fn mutation(&mut self, manager: &Manager, action: &str) -> Result<MutationId> {
+        if self.window.is_none() {
+            self.window = Some(manager.mutation_window()?.id);
+        }
         Ok(MutationId {
             window: self.window.as_ref().expect("retained mutation window").clone(),
             key: Identifier::new(format!("{}.{}", self.data.metadata.id, action))
@@ -371,22 +375,20 @@ impl ReportFile {
         }
         let batch_bytes = usize::try_from(manager.info()?.file_batch_bytes)
             .map_err(|_| Error::InvalidReportInputs("file batch size overflows".into()))?;
-        if self.window.is_none() {
-            self.window = Some(manager.mutation_window()?.id);
-        }
         if self.producer.is_none() {
             self.producer = Some(
                 operations
-                    .call(CreateFile { mutation: self.mutation("create")?, metadata: self.data.metadata.clone() })
+                    .call(CreateFile { mutation: self.mutation(manager, "create")?, metadata: self.data.metadata.clone() })
                     .await?
                     .into_owned(),
             );
+            self.window = None;
         }
         while self.written < self.data.bytes.len() {
             let end = self.written.saturating_add(batch_bytes).min(self.data.bytes.len());
             let producer = operations
                 .call(AppendFile {
-                    mutation: self.mutation(&format!("append.{}", self.written))?,
+                    mutation: self.mutation(manager, &format!("append.{}", self.written))?,
                     session: self.producer.as_ref().expect("created report file").session.clone(),
                     offset: self.written as u64,
                     bytes: self.data.bytes[self.written..end].to_vec(),
@@ -398,6 +400,7 @@ impl ReportFile {
             }
             self.producer = Some(producer);
             self.written = end;
+            self.window = None;
         }
         Ok(())
     }

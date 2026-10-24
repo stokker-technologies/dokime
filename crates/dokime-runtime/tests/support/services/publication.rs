@@ -48,11 +48,90 @@ pub struct PublicationBackend {
     fault: Arc<PublicationFault>,
 }
 
+pub struct MutationBoundary {
+    pub advance_after_append: AtomicBool,
+    pub lose_append_reply: AtomicBool,
+    pub calls: Mutex<Vec<harmos::storage::MutationId>>,
+    pub lengths: Mutex<std::collections::BTreeMap<String, u64>>,
+}
+
+pub struct MutationHost<H> {
+    pub inner: H,
+    pub storage: dokime_runtime::storage::Manager,
+    pub boundary: Arc<MutationBoundary>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl<H: harmos::operations::Host<Error = harmos::Error>> harmos::operations::Host for MutationHost<H> {
+    type Error = harmos::Error;
+    type Instance<O: harmos::operations::OperationDeclaration> = H::Instance<O>;
+
+    fn context(&self) -> &harmos::operations::CallContext {
+        self.inner.context()
+    }
+
+    fn with_value<T: harmos::operations::ContextValue>(&self, value: T) -> Result<Self, harmos::operations::ContextError> {
+        Ok(Self { inner: self.inner.with_value(value)?, storage: self.storage.clone(), boundary: self.boundary.clone() })
+    }
+
+    async fn submit<O: harmos::operations::OperationDeclaration>(&self, request: O) -> Result<Self::Instance<O>, Self::Error> {
+        self.inner.submit(request).await
+    }
+
+    async fn submit_with_resources<O: harmos::operations::OperationDeclaration<Response = ()>, R: Send + Sync + 'static>(
+        &self, request: O, resources: Arc<R>,
+    ) -> Result<Self::Instance<O>, Self::Error> {
+        self.inner.submit_with_resources(request, resources).await
+    }
+
+    async fn call<O: harmos::operations::OperationDeclaration>(
+        &self, request: O,
+    ) -> Result<harmos::operations::Response<O::Response>, Self::Error> {
+        use harmos::storage::operations::{AppendFile, CreateFile, FinishFile};
+        let request_value = &request as &dyn std::any::Any;
+        let create = request_value.downcast_ref::<CreateFile>();
+        let append = request_value.downcast_ref::<AppendFile>();
+        let finish = request_value.downcast_ref::<FinishFile>();
+        let created = create.map(|value| &value.mutation);
+        let appended = append.map(|value| &value.mutation);
+        let finished = finish.map(|value| &value.mutation);
+        let mutation = created.or(appended).or(finished);
+        if let Some(mutation) = mutation {
+            self.boundary.calls.lock().unwrap().push(mutation.clone());
+        }
+        if let Some(created) = create {
+            let id = created.metadata.id.to_string();
+            let length = created.metadata.expected_length.unwrap();
+            self.boundary.lengths.lock().unwrap().insert(id, length);
+        }
+        let complete_report = append.is_some_and(|value| {
+            let length = self.boundary.lengths.lock().unwrap().get(value.session.id.as_str()).copied();
+            value.session.id.as_str().ends_with(".report") && length == Some(value.offset + value.bytes.len() as u64)
+        });
+
+        let response = self.inner.call(request).await?;
+        if !complete_report {
+            return Ok(response);
+        }
+        if self.boundary.advance_after_append.swap(false, Ordering::SeqCst) {
+            let accepted = self.storage.info().unwrap().accepted;
+            self.storage.flush_until(&accepted).await.unwrap();
+            tokio::time::pause();
+            tokio::time::advance(std::time::Duration::from_secs(51)).await;
+            tokio::time::resume();
+        }
+        if self.boundary.lose_append_reply.swap(false, Ordering::SeqCst) {
+            let lost = std::io::Error::other("controlled append reply loss");
+            return Err(harmos::Error::backend("fixture append reply", harmos::BackendFailure::Transient, lost));
+        }
+        Ok(response)
+    }
+}
+
 impl PublicationFault {
     pub fn new(suffix: &'static str) -> Self {
         Self {
