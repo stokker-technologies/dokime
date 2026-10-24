@@ -11,6 +11,7 @@
 
 pub mod build;
 pub mod bundle;
+pub mod installer;
 mod error;
 pub mod process;
 

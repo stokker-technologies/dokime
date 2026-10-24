@@ -77,7 +77,7 @@ def test(profile: str) -> None:
         environment.update(MISE_GLOBAL_CONFIG_FILE=str(neutral), MISE_SYSTEM_CONFIG_FILE=str(neutral), MISE_CEILING_PATHS=ceiling)
         plugin = scratch / "starter-plugin"
         for command, cwd in [
-            ([str(tool), "dokime", "new", str(plugin)], scratch),
+            ([str(tool), "dokime", "sidecar", "new", str(plugin)], scratch),
             (["git", "init", "--initial-branch=feat/starter"], plugin),
         ]:
             subprocess.run(

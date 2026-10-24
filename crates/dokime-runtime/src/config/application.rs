@@ -50,14 +50,23 @@ impl ApplicationOptions {
     pub fn resolve(self) -> io::Result<Config> {
         let explicit = self.application_root.is_some();
         let ambient = |name| (!explicit).then(|| environment_path(name)).flatten();
-        let brand = organization::brand();
 
         // Resolve The Application Root And Its Settings
         let root = match self.application_root.or_else(|| ambient(APPLICATION_ROOT_ENV)) {
             Some(root) => std::path::absolute(root)?,
-            None => ApplicationPaths::resolve(brand.as_ref().map_or(DEFAULT_APPLICATION_ID, |brand| &brand.identity.identifier))?.root,
+            None => ApplicationPaths::resolve(DEFAULT_APPLICATION_ID)?.root,
         };
         let settings = Settings::load(&root)?;
+        let active = root.join("organization/active");
+        let pack = match organization::resolve(active.is_dir().then_some(active.as_path())) {
+            Ok(pack) => pack,
+            Err(error) if active.is_dir() => {
+                tracing::error!(%error, "the active organization is invalid; using bundled defaults");
+                organization::resolve(None).map_err(io::Error::other)?
+            }
+            Err(error) => return Err(io::Error::other(error)),
+        };
+        let brand = Some(pack.brand().map_err(io::Error::other)?);
 
         // Compose The Launch
         let data = match self.storage_root.or_else(|| ambient(DATA_ROOT_ENV)) {

@@ -4,12 +4,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Cargo-driven native Dokime plugin packaging"
+description = "Dokime sidecar and native installer packaging"
 version = { workspace = true }
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["terminal", "plugin-sidecar"] }
+dokime = { workspace = true, features = ["terminal", "plugin-sidecar", "host"] }
 
 # Git
 harmos-packaging = { workspace = true }
@@ -22,16 +22,26 @@ tracing = { workspace = true }
 
 # Utilities
 process-wrap = { workspace = true, features = ["tokio1"] }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+time = { workspace = true }
+tauri-bundler = { workspace = true }
+image = { workspace = true, features = ["png", "ico"] }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
+zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
+
+# Networking
+reqwest = { workspace = true }
 
 # Parsing
 cargo_metadata = { workspace = true }

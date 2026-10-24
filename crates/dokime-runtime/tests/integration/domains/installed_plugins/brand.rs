@@ -27,20 +27,17 @@ use dokime_runtime::domains::installed_plugins::load_brand;
 const NEUTRAL_BRAND: &str = r##"
 [app]
 label = "Acme Test Hub"
-slug = "acme"
-identifier = "com.acme.hub"
-deep_link_scheme = "acme-hub"
 
 [app.organization]
 name = "Acme Corp"
 unit = "Quality"
 
 [app.logos.transparent]
-on_light = "transparent-on-light.svg"
-on_dark = "transparent-on-dark.svg"
+on_light = "logos/transparent-on-light.svg"
+on_dark = "logos/transparent-on-dark.svg"
 [app.logos.contained]
-on_light = "contained-on-light.svg"
-on_dark = "contained-on-dark.svg"
+on_light = "logos/contained-on-light.svg"
+on_dark = "logos/contained-on-dark.svg"
 
 [theme]
 policy = "required"
@@ -141,12 +138,79 @@ fn write_brand(dir: &Path, manifest: &str) {
 /* === Tests === */
 
 #[test]
+fn organization_overlay() {
+    use dokime_runtime::config::organization::resolve_with_base;
+
+    let root = tempdir().unwrap();
+    let baseline = resolve_with_base(None, None).unwrap();
+    let installed = root.path().join("installed");
+    baseline.write_to(&installed).unwrap();
+    let overrides = root.path().join("overrides");
+    fs::create_dir_all(overrides.join("logos")).unwrap();
+    fs::write(
+        overrides.join("organization.toml"),
+        "[app]\nlabel = 'Company'\n[app.organization]\nunit = 'Quality'\n[app.logos.transparent]\non_dark = 'icons/icon.png'\n",
+    )
+    .unwrap();
+    let replacement = b"<svg xmlns='http://www.w3.org/2000/svg' id='override'/>";
+    fs::write(overrides.join("logos/transparent-on-light.svg"), replacement).unwrap();
+
+    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
+    assert_eq!(pack.label(), "Company");
+    assert_eq!(pack.manifest["app"]["organization"]["unit"].as_str(), Some("Quality"));
+    assert_eq!(pack.manifest["app"]["organization"]["name"], baseline.manifest["app"]["organization"]["name"]);
+    assert_eq!(pack.files["logos/transparent-on-light.svg"], replacement);
+    assert_eq!(pack.files["theme/light.css"], baseline.files["theme/light.css"]);
+    assert!(pack.brand().unwrap().theme.unwrap().stylesheet.unwrap().contains("data:font/woff2;base64,"));
+    assert!(pack.brand().unwrap().logos.iter().any(|logo| logo.mime_type == "image/png"));
+
+    fs::remove_file(installed.join("theme/dark.css")).unwrap();
+    assert!(resolve_with_base(Some(&installed), Some(&overrides)).is_err());
+}
+
+#[test]
+fn organization_validation() {
+    use dokime_runtime::config::organization::resolve_with_base;
+
+    let overrides = tempdir().unwrap();
+    let manifest = overrides.path().join("organization.toml");
+    for value in [
+        "[app]\nidentifier = 'other.identity'",
+        "[app.logos.transparent]\non_light = '../outside.svg'",
+        "[app.artwork]\ntray = 'missing.png'",
+        "[app.artwork]\ntray = 'logos/transparent-on-light.svg'",
+        "[updates]\nmode = 'manual'\nsource = 'missing'",
+    ] {
+        fs::write(&manifest, value).unwrap();
+        assert!(resolve_with_base(None, Some(overrides.path())).is_err());
+    }
+    fs::write(&manifest, "[app]\nlabel = 'Valid'").unwrap();
+    fs::create_dir(overrides.path().join("generated")).unwrap();
+    assert!(resolve_with_base(None, Some(overrides.path())).is_err());
+
+    let mut pack = resolve_with_base(None, None).unwrap();
+    pack.files.insert("../outside".into(), vec![0]);
+    let destination = tempdir().unwrap();
+    assert!(pack.write_to(&destination.path().join("target")).is_err());
+    assert!(!destination.path().join("outside").exists());
+
+    let active = destination.path().join("organization/active");
+    fs::create_dir_all(&active).unwrap();
+    fs::write(active.join("organization.toml"), "invalid [").unwrap();
+    let config = dokime_runtime::config::ApplicationOptions { application_root: Some(destination.path().into()), ..Default::default() }
+        .resolve()
+        .unwrap();
+    assert_eq!(config.brand.unwrap().identity.label, "Dokime");
+    assert_eq!(fs::read_to_string(active.join("organization.toml")).unwrap(), "invalid [");
+}
+
+#[test]
 fn generated_organization_stylesheet_matches_runtime_resolution() {
     let directory = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
         .join("../../organization");
     let resolved = load_brand(&directory).unwrap();
     let stylesheet = resolved.theme.unwrap().stylesheet.unwrap();
-    let generated = fs::read_to_string(directory.join("generated/theme.css")).unwrap();
+    let generated = fs::read_to_string(directory.join("../crates/dokime-gui/src/generated/organization/theme.css")).unwrap();
 
     assert_eq!(generated, stylesheet);
 }
@@ -159,9 +223,6 @@ fn organization_toml_types() {
     let brand = load_brand(dir.path()).unwrap();
 
     assert_eq!(brand.identity.label, "Acme Test Hub");
-    assert_eq!(brand.identity.slug, "acme");
-    assert_eq!(brand.identity.identifier, "com.acme.hub");
-    assert_eq!(brand.identity.deep_link_scheme.as_deref(), Some("acme-hub"));
 
     let customization = &brand.customization;
     assert_eq!(customization.display_name.as_deref(), Some("Acme Test Hub"));
@@ -205,8 +266,6 @@ fn app_brand_label() {
         r#"
 [app]
 label = "Minimal"
-slug = "minimal"
-identifier = "com.minimal.hub"
 "#,
     )
     .unwrap();
@@ -227,8 +286,6 @@ fn missing_logo_failing() {
         r#"
 [app]
 label = "NoLogo"
-slug = "nologo"
-identifier = "com.nologo.hub"
 
 [app.logos.contained]
 on_light = "missing.svg"

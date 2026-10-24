@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:3cb39e4f467e24789e5dd6a28a90ff6a4a47b1e1202df4e1ca5fec93d539fb6c
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:d5c4ea3b55db71e5e555ac8ab7aff7ecf35776646e4882fc79d2bb6cc406a394
 name: Release
 "on":
   workflow_call:
@@ -22,10 +22,6 @@ name: Release
       review_version:
         type: string
         default: ""
-      bump:
-        type: string
-        default: auto
-        description: auto, minor or major; Release / Prepare only
     secrets:
       release_token:
         required: false

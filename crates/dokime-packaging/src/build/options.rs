@@ -29,7 +29,7 @@
 
 // `clap::Args` is derived here rather than mirrored by a second struct in the
 
-// Cargo extension: `cargo dokime build`'s flags *are* these fields, and a
+// Cargo extension: `cargo dokime sidecar build`'s flags *are* these fields, and a
 
 // hand-written mapper between two identical shapes has only drift to offer.
 

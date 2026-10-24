@@ -27,7 +27,7 @@ import type { OrganizationStatus } from "@/lib/desktop/organization";
 /* === Constants === */
 
 const NONE: OrganizationStatus = { active: null, pending: null, removed: false, error: null };
-const FORK = { label: "Fork", organization: "Fork Labs", ignored: ["slug", "bundle identifier"] };
+const FORK = { label: "Fork", organization: "Fork Labs" };
 
 /* === Types === */
 
@@ -37,13 +37,12 @@ const FORK = { label: "Fork", organization: "Fork Labs", ignored: ["slug", "bund
 
 test("the brand card names the pack, what happens next and the actions that apply", () => {
   const none = row(NONE);
-  assert.match(none, /data-state="none"[^>]*>Compiled Brand</);
+  assert.match(none, /data-state="none"[^>]*>Bundled Organization</);
   assert.deepEqual(buttons(none), ["Choose File…"]);
 
   const pending = row({ ...NONE, pending: FORK });
   assert.match(pending, />Fork · Fork Labs</);
   assert.ok(pending.includes("Applies on next start."));
-  assert.ok(pending.includes("Kept from this build: slug, bundle identifier."));
   assert.deepEqual(buttons(pending), ["Choose File…", "Restart", "Remove"]);
 
   const active = row({ ...NONE, active: FORK });
@@ -51,14 +50,14 @@ test("the brand card names the pack, what happens next and the actions that appl
   assert.deepEqual(buttons(active), ["Choose File…", "Remove"]);
 
   const removed = row({ ...NONE, active: null, removed: true });
-  assert.ok(removed.includes("Compiled brand applies on next start."));
+  assert.ok(removed.includes("Bundled organization applies on next start."));
   assert.deepEqual(buttons(removed), ["Choose File…", "Restart"]);
 });
 
 test("an invalid pack and a refused archive show as the field error", () => {
   const invalid = row({ ...NONE, error: "organization.toml does not parse" });
   assert.match(invalid, /data-state="invalid"/);
-  assert.match(invalid, /role="alert"[^>]*>Not applied: organization.toml does not parse. The compiled brand applies./);
+  assert.match(invalid, /role="alert"[^>]*>Not applied: organization.toml does not parse. The bundled organization applies./);
   assert.deepEqual(buttons(invalid), ["Choose File…", "Remove"]);
 
   const refused = row(NONE, "unsafe path in the organization pack: ../organization.toml");
@@ -72,7 +71,7 @@ test("a refused pending pack reports that the last valid pack remains active", (
   assert.match(retained, /data-state="active"/);
   assert.match(retained, />Fork · Fork Labs</);
   assert.match(retained, /The last valid pack remains active/);
-  assert.doesNotMatch(retained, /The compiled brand applies/);
+  assert.doesNotMatch(retained, /The bundled organization applies/);
 });
 
 /* === Private Functions === */

@@ -52,7 +52,7 @@ routed through the host. Adding an operation means a request variant in
 Install `cargo-dokime` and the `dokime` host, then run from this directory:
 
 ```sh
-cargo dokime dev{{selection}}
+cargo dokime sidecar dev{{selection}}
 ```
 
 Select **Thermal Soak → Hold at Temperature** in the development host and
@@ -77,8 +77,18 @@ No host and no hardware are involved.
 To create the distributable bundle:
 
 ```sh
-cargo dokime build{{selection}}
+cargo dokime sidecar build{{selection}}
 ```
+
+Ordinary `sidecar build` compiles and packages the plugin. Advanced build
+systems can collect existing compiler JSON, then package those exact bytes:
+
+```sh
+cargo dokime sidecar build{{selection}} --from-cargo-json compiler.json --metadata-json metadata.json --json > collected.json
+cargo dokime sidecar package --build-json collected.json --output dist
+```
+
+The collection path and `sidecar package` do not compile the plugin.
 
 The SDK tracks Dokime’s `dev` branch during development. Generation is offline;
 the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`

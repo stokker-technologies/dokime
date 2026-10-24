@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:b2b92e1e38921791a52df566c9d1bb7e4278646382c2b5845e8564d2a5b5ef5b
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:afb9a45ff888f055fab3a556df5b19701047cb7d363b40a9fe590a99528d3c92
 name: Release
 "on":
   workflow_call:
@@ -22,10 +22,6 @@ name: Release
       review_version:
         type: string
         default: ""
-      bump:
-        type: string
-        default: auto
-        description: auto, minor or major; Release / Prepare only
     secrets:
       release_token:
         required: false
@@ -363,7 +359,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,minisign,node,pnpm,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,gh,git-cliff,glab,go,minisign,node,pnpm,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
@@ -646,8 +642,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
-      RELEASE_BUMP: ${{ inputs.bump }}
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
       RELEASE_TOKEN: ${{ secrets.release_token }}
       GH_TOKEN: ${{ github.token }}
       CRATES_BOOTSTRAP_AVAILABLE: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
@@ -959,7 +954,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
       MISE_TASK_SKIP: package:python,package:rust
     if: >-
       ${{ inputs.ready && (github.event_name == 'pull_request' && github.base_ref ==
@@ -1244,7 +1239,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     if: "${{ inputs.ready && (github.event_name == 'push' && github.ref == 'refs/heads/dev' && startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
     environment: release
@@ -1570,7 +1565,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,minisign,node,pnpm,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,gh,git-cliff,glab,go,minisign,node,pnpm,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
@@ -1870,7 +1865,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
       MISE_TASK_SKIP: package:python,package:rust
     environment: release
     needs:
@@ -2160,7 +2155,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
+      MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign,aqua:ip7z/7zip
       MISE_TASK_SKIP: package:python,package:rust
     environment: release
     needs:

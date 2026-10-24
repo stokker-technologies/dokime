@@ -45,6 +45,7 @@ gh = "2.102.0"
 git-cliff = "2.14.2"
 glab = "1.123.0"
 minisign = "0.12"
+"aqua:ip7z/7zip" = "26.05"
 
 # Project Statistics
 "aqua:boyter/scc" = "4.1.0"
@@ -467,6 +468,7 @@ run = "{{vars.tools}} dokime_tools.package.examples --profile {{usage.profile}}"
 [tasks."package:rust"]
 description = "Package The Desktop Installer, CLI, Authoring Tool And Plugin Bundle"
 depends = ["prepare"]
+tools = { "aqua:ip7z/7zip" = "26.05" }
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}}",

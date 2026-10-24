@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:6d5c07c9675c634a4d9d0a3d4760885a50de3e36896cf34947f1d190bbef5abd
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:f9874e68d3004cdf47adb6149f3d7650b8ee920c7e6b36b1d4cd1462d8a17e23
 # === Settings === #
 
 [settings]
@@ -136,7 +136,7 @@ run = "uv run --locked --project tools/python python -m project_tools.build.carg
 
 [tasks.dev]
 description = "Rebuild And Reload The Plugin In A Development Host"
-run = "cargo dokime dev"
+run = "cargo dokime sidecar dev"
 
 # === Test === #
 

@@ -28,7 +28,7 @@ from dokime_tools.package.staging import stage_file, sync_output
 
 BRAND = ROOT / "organization"
 DISTRIBUTION = ROOT / "crates/dokime-runtime/dist-brand"
-BRAND_FOLDERS = ("theme", "fonts", "logos")
+BRAND_FOLDERS = ("theme", "fonts", "logos", "icons")
 
 # === Types === #
 
@@ -72,7 +72,7 @@ def main() -> None:
 def _brand_files() -> list[Path]:
     return [
         BRAND / "organization.toml",
-        *(file for folder in BRAND_FOLDERS for file in sorted((BRAND / folder).iterdir()) if file.is_file()),
+        *(file for folder in BRAND_FOLDERS for file in sorted((BRAND / folder).rglob("*")) if file.is_file()),
     ]
 
 

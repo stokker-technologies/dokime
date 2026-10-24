@@ -70,7 +70,7 @@ pub struct Args {
 
     #[arg(
         long,
-        help = "Working directory for the development host; defaults to the directory `cargo dokime dev` was invoked from. Only the host process moves — this crate's own manifest, build and watch paths are unaffected. Without `--env-file`, this is also where the host's `.env` walk-up starts."
+        help = "Working directory for the development host; defaults to the directory `cargo dokime sidecar dev` was invoked from. Only the host process moves — this crate's own manifest, build and watch paths are unaffected. Without `--env-file`, this is also where the host's `.env` walk-up starts."
     )]
     cwd: Option<PathBuf>,
 

@@ -34,12 +34,18 @@ rather than silently deleting or simplifying them.
 Use Conventional Commits, such as `fix(runtime): preserve stopped execution evidence`.
 Keep generated outputs with their source. Refresh embedded reports with
 `mise run prepare:report` and organization assets with `mise run prepare:organization`.
+Organization defaults generate JSON/theme under
+`crates/dokime-gui/src/generated/organization/`; keep authored pack inputs separate.
+Build exports the matching native installer payload. `mise run package:rust`
+uses the built authoring tool to assemble and inspect it without recompiling;
+see [Native Installers](docs/product-guide.md#native-installers) for downstream
+organization distributions and signing prerequisites.
 
 ## Tests And Checks
 
 During implementation, run targeted checks for changed behavior. Once all agreed
-source work and targeted proof are complete, push the authorized candidate and
-immediately run local validation in parallel with hosted CI:
+source work and targeted proof are complete, run the full local gate before
+pushing the authorized candidate or opening/updating its review:
 
 ```sh
 mise run ci:simulate
@@ -55,8 +61,9 @@ policy changes retain full selection.
 Product and Tests build independently. Tests use Cargo's unoptimized test
 profile; test lanes consume their artifacts. Nightly additionally runs coverage,
 benchmarks and the generated-starter test, with release-profile installers.
-Required hosted CI controls integration. Keep auto-merge enabled; it may merge
-independently of local completion. Report and investigate local failures.
+Missing local executors and failed required jobs block delivery. After the local
+gate passes, push the authorized candidate and let required hosted CI confirm
+the same revision. Keep auto-merge enabled and investigate every required failure.
 
 ## Pull Requests
 

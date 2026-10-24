@@ -17,7 +17,7 @@ Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
 inventory.
 
-`cargo dokime build` compiles the selected native executable, runs its bounded
+`cargo dokime sidecar build` compiles the selected native executable, runs its bounded
 catalog export, and creates a `.dokime` bundle containing the executable,
 frozen registrations and `assets/`. Ordinary `cargo build` only compiles.
 Catalog export must be deterministic: declaration identities use stable seeds,

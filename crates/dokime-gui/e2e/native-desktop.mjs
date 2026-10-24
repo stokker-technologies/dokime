@@ -3912,11 +3912,8 @@ async function organizationJourney() {
   const manifest = `[app]
 label = "Validation Lab"
 title_template = "{app}"
-slug = "ignored-lab"
-identifier = "invalid.replacement.identity"
-deep_link_scheme = "ignored-lab"
 [app.logos.transparent]
-on_light = "mark.svg"
+on_light = "logos/mark.svg"
 [updates]
 mode = "disabled"
 source = "public"
@@ -3961,8 +3958,8 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   };
   await choose();
   assert.equal(
-    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"),
-    null,
+    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"),
+    "Dokime",
     "Staging does not change this boot's appearance",
   );
   await restart();
@@ -4039,10 +4036,10 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await session.screenshot("organization-invalid-pending");
   await session.goto("/settings/appearance");
   await session.clickNamed("button", "Remove");
-  await until("organization removal queued", async () => hasText(await session.text(), "Compiled brand applies on next start."));
+  await until("organization removal queued", async () => hasText(await session.text(), "Bundled organization applies on next start."));
   await restart();
-  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"), null);
-  assert.ok(hasText(await session.text(), "Compiled Brand"), "Removal restores the compiled appearance on restart");
+  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"), "Dokime");
+  assert.ok(hasText(await session.text(), "Bundled Organization"), "Removal restores the bundled appearance on restart");
 }
 
 async function writeJunit() {
