@@ -1,4 +1,9 @@
-## ADDED Requirements
+# Feature Drop Specification
+
+## Purpose
+Define the native execution, persistence, reporting and operator workflows delivered together across Dokime interfaces.
+
+## Requirements
 
 ### Requirement: Single Plugin Dependency Surface
 

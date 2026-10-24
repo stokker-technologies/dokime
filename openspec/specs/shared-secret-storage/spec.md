@@ -1,4 +1,9 @@
-## ADDED Requirements
+# Shared Secret Storage Specification
+
+## Purpose
+Define host-owned shared secrets and authenticated, bounded transfer without exposing secret values.
+
+## Requirements
 
 ### Requirement: Host-Owned Shared Secret Storage
 

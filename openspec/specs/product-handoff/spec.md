@@ -1,4 +1,9 @@
-## ADDED Requirements
+# Product Handoff Specification
+
+## Purpose
+Preserve complete product behavior, branding and native delivery contracts when reconciling divergent handoff branches.
+
+## Requirements
 
 ### Requirement: Preserve The Complete Product Handoff
 The integration SHALL include the intended product work from both existing handoff branches and the native CI migration in one candidate, with explicit resolution of overlapping ownership.
@@ -39,3 +44,8 @@ Desktop organization packs SHALL use a supplied nonempty `DOKIME_APPLICATION_ROO
 - **WHEN** the desktop starts with an explicit application root and imports an organization pack
 - **THEN** pending and active packs persist beneath that root across restarts
 - **AND** the ordinary user organization store remains untouched
+
+## Workflow Follow-Up
+
+- Required native provider checks, protected integration into dev and authorized release verification remain delivery obligations; local proof and specification retirement do not establish their completion.
+- Benchmark timings and optimized-profile build-cost measurements are optional follow-up. No baseline speedup is claimed from unperformed measurements.

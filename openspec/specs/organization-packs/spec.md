@@ -1,4 +1,9 @@
-## ADDED Requirements
+# Organization Packs Specification
+
+## Purpose
+Define validated runtime organization packs, activation, retained appearance and compiled update trust.
+
+## Requirements
 
 ### Requirement: Organization Packs And Trusted Release Sources
 

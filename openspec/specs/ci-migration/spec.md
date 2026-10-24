@@ -56,14 +56,6 @@ Ordinary CI jobs SHALL inherit the canonical 120-minute default without unnecess
 - THEN ordinary jobs use the canonical 120-minute budget
 - AND test failures remain blocking within their existing story deadlines
 
-### Requirement: Reserve Local Runners For Crate Compilation
-Jobs that compile crates, including nested scaffold builds, instrumented coverage and Cargo publication verification, SHALL use local native runners. Jobs that consume existing artifacts without crate compilation SHALL use matching hosted runners. Release Rehearsal and release preparation SHALL retain their existing release profile and behavior.
-
-#### Scenario: Render Producer And Consumer Routing
-- WHEN native CI renders the actual task graph
-- THEN Rust Check, Product, Tests and Bench producers, Rust acceptance with generated-project builds, Rust coverage and Release Dry, Rehearsal and Tag use local runners
-- AND artifact-only tests, benchmark execution, packaging and other noncompiling jobs use matching hosted platforms
-
 ### Requirement: Validate In The Assigned Worktree
 All local implementation and validation SHALL use the assigned worktree. Local proof SHALL NOT create an isolated checkout, exported source tree or provider simulator. Before the next candidate push, the full applicable local graph SHALL pass on available native platforms after the combined source closes. Actual native CI runners SHALL supply distinct-path archive proof and required proof for unavailable local platforms.
 
@@ -93,3 +85,11 @@ One native Build job per platform and profile SHALL produce Product and required
 
 - WHEN the Tests producer runs for a release candidate
 - THEN its compatibility proofs retain their declared selectors and use the release-tests compiler profile
+
+### Requirement: Use GitHub-Hosted Runners
+Every GitHub Actions job SHALL use the matching GitHub-hosted platform default, including crate compilation, coverage, benchmark and release jobs. Root and generated starter configurations SHALL NOT select local runners. Required native platforms, declared bootstrap, job budgets, individual test deadlines, Release Rehearsal and release preparation profiles and behavior SHALL remain unchanged.
+
+#### Scenario: Render Producer And Consumer Routing
+- **WHEN** native CI renders the actual task graph
+- **THEN** all producer, consumer, coverage, benchmark and release jobs use matching GitHub-hosted platforms
+- **AND** no job or legacy repository routing variable redirects execution to local runners
