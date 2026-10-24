@@ -40,9 +40,7 @@ PACKAGE = "{{package}}"
 def package(root: Path, profile: str) -> None:
     source = paths.output(root, "build", profile) / "plugins" / f"{PACKAGE}.dokime"
     if source.is_symlink() or not source.is_file():
-        raise ValueError(
-            "packaging requires the matching built plugin; run mise run build first"
-        )
+        raise ValueError("packaging requires the matching built plugin; run mise run build first")
     destination = paths.output(root, "package", profile) / "rust/plugins"
 
     # Package Consumes The Built Bundle Without Cargo Compilation
