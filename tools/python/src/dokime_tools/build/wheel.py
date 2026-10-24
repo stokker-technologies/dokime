@@ -43,6 +43,8 @@ def build(root: Path, profile: str) -> list[Path]:
         raise ValueError("prepare the locked repository-root Python environment before building the wheel")
 
     output = paths.output(root, "build", profile, "any") / "python"
+    # The Pure Client Wheel Replaces The Former Native Product Output.
+    clear_output(paths.output(root, "build", profile) / "python")
     clear_output(output)
     output.mkdir(parents=True, exist_ok=True)
 
