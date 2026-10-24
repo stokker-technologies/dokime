@@ -21,6 +21,11 @@ debuginfo = false
 [features]
 benchmarks = []
 
+[[bin]]
+name = "obc-plugin"
+path = "src/main.rs"
+test = false
+
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["plugin-sidecar"] }

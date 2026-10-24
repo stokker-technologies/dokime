@@ -26,6 +26,11 @@ updater = ["dep:tauri-plugin-updater"]
 # profile leave it off so the desktop never opens a terminal window.
 console = []
 
+[[bin]]
+name = "dokime-gui"
+path = "src/main.rs"
+test = false
+
 [build-dependencies]
 # Local
 dokime = { workspace = true }

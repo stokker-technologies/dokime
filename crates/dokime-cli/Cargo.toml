@@ -55,6 +55,7 @@ tokio = { workspace = true }
 name = "dokime"
 path = "src/main.rs"
 doc = false
+test = false
 
 [dev-dependencies]
 # Local

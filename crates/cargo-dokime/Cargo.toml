@@ -12,6 +12,11 @@ version = { workspace = true }
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
 pkg-fmt = "bin"
 
+[[bin]]
+name = "cargo-dokime"
+path = "src/main.rs"
+test = false
+
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["terminal"] }
