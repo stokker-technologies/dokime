@@ -19,7 +19,6 @@ use std::sync::Arc;
 // Third Party Imports
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
-use zeroize::Zeroizing;
 
 // Local Imports
 use crate::secrets::{Change, SecretStore, SecretStoreError, SecretValue};
@@ -50,9 +49,6 @@ struct Put {
 struct Remove {
     store: Arc<SecretStore>,
 }
-struct Adopt {
-    store: Arc<SecretStore>,
-}
 struct Export {
     store: Arc<SecretStore>,
 }
@@ -71,7 +67,6 @@ enum Operations {
     List(List),
     Put(Put),
     Remove(Remove),
-    Adopt(Adopt),
     Export(Export),
     Preview(Preview),
     Import(Import),
@@ -169,32 +164,6 @@ impl Operation for Remove {
     }
 }
 
-impl Operation for Adopt {
-    type Declaration = wire::Adopt;
-    type Resources = SecretStore;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-
-    async fn initialize<'ctx>(store: Arc<SecretStore>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
-        Ok(Self { store })
-    }
-
-    async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::Adopt, _: &mut ()) -> Result<Response<Snapshot>, Self::Error> {
-        let store = Arc::clone(&self.store);
-        let metadata = request.metadata.clone();
-        let id = std::mem::take(&mut request.legacy_id);
-        let generation = request.generation;
-        let snapshot = tokio::task::spawn_blocking(move || {
-            let cleanup = store.adopt(metadata, &id, generation)?;
-            Ok::<_, SecretStoreError>(store.snapshot(cleanup))
-        })
-        .await
-        .map_err(|_| SecretStoreError::Unavailable)??;
-        Ok(snapshot.into())
-    }
-}
-
 impl Operation for Export {
     type Declaration = wire::Export;
     type Resources = SecretStore;
@@ -209,11 +178,9 @@ impl Operation for Export {
     async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::Export, _: &mut ()) -> Result<Response<Archive>, Self::Error> {
         let store = Arc::clone(&self.store);
         let names = std::mem::take(&mut request.names);
-        let password = Zeroizing::new(std::mem::take(&mut request.password));
         let generation = request.generation;
-        let archive = tokio::task::spawn_blocking(move || store.export(&names, password, generation))
-            .await
-            .map_err(|_| SecretStoreError::Unavailable)??;
+        let archive =
+            tokio::task::spawn_blocking(move || store.export(&names, generation)).await.map_err(|_| SecretStoreError::Unavailable)??;
         Ok(archive.into())
     }
 }
@@ -233,11 +200,8 @@ impl Operation for Preview {
         &mut self, _: Self::Context<'a>, request: &mut wire::Preview, _: &mut (),
     ) -> Result<Response<ImportPreview>, Self::Error> {
         let store = Arc::clone(&self.store);
-        let ciphertext = std::mem::take(&mut request.ciphertext);
-        let password = Zeroizing::new(std::mem::take(&mut request.password));
-        let preview = tokio::task::spawn_blocking(move || store.preview(&ciphertext, password))
-            .await
-            .map_err(|_| SecretStoreError::Unavailable)??;
+        let data = std::mem::take(&mut request.data);
+        let preview = tokio::task::spawn_blocking(move || store.preview(&data)).await.map_err(|_| SecretStoreError::Unavailable)??;
         Ok(preview.into())
     }
 }
@@ -255,12 +219,11 @@ impl Operation for Import {
 
     async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::Import, _: &mut ()) -> Result<Response<Snapshot>, Self::Error> {
         let store = Arc::clone(&self.store);
-        let ciphertext = std::mem::take(&mut request.ciphertext);
-        let password = Zeroizing::new(std::mem::take(&mut request.password));
+        let data = std::mem::take(&mut request.data);
         let choices = std::mem::take(&mut request.choices);
         let generation = request.generation;
         let snapshot = tokio::task::spawn_blocking(move || {
-            let cleanup = store.import(&ciphertext, password, &choices, generation)?;
+            let cleanup = store.import(&data, &choices, generation)?;
             Ok::<_, SecretStoreError>(store.snapshot(cleanup))
         })
         .await

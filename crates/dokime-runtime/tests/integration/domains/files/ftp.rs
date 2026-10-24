@@ -28,7 +28,6 @@ use unftp_sbe_fs::Filesystem;
 // Local Imports
 use super::*;
 use dokime_domain::model;
-use dokime_runtime::config::RuntimeSecretConfig;
 use dokime_runtime::domains::files::{GapReason, Phase, UNREACHABLE};
 use {model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload, model::files::wire::FtpWatchSource};
 
@@ -87,16 +86,13 @@ fn ftp(url: String, secret: Option<&str>) -> FileWatchSourcePayload {
     FileWatchSourcePayload::Ftp(FtpWatchSource { url, secret_id: secret.map(str::to_owned) })
 }
 
-async fn adopt_ftp_secret(bench: &Bench) {
-    let path = bench._root.path().join("secrets.json");
-    let original = std::fs::read(&path).unwrap();
-    let request = dokime_domain::operations::secrets::Adopt {
+async fn store_ftp_secret(bench: &Bench) {
+    let request = dokime_domain::operations::secrets::Put {
         metadata: dokime_domain::model::secrets::catalog::Metadata { name: SECRET.into(), label: "FTP Password".into(), description: None },
-        legacy_id: SECRET.into(),
+        value: Some(PASSWORD.into()),
         generation: 0,
     };
     bench.handle.operations().call(request).await.unwrap();
-    assert_eq!(std::fs::read(path).unwrap(), original);
 }
 
 // Preserve The Real Server's Data Plane While Refusing REST On Its Control Plane
@@ -139,15 +135,8 @@ async fn refusing_resume(port: u16) -> (u16, tokio::task::JoinHandle<()>) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() {
-    let bench = Bench::start(|config, root| {
-        let secrets = root.join("secrets.json");
-        std::fs::write(&secrets, serde_json::to_string(&BTreeMap::from([(SECRET, PASSWORD)])).unwrap()).unwrap();
-        config
-            .with_trusted_bench(true)
-            .with_secret_backend(RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::LocalFile, local_file: Some(secrets) })
-    })
-    .await;
-    adopt_ftp_secret(&bench).await;
+    let bench = Bench::start(|config, _| config.with_trusted_bench(true)).await;
+    store_ftp_secret(&bench).await;
     let served = tempdir().unwrap();
     let log = served.path().join("bench/device.log");
     write(&log, b"");
@@ -201,16 +190,8 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
 
 #[tokio::test(flavor = "multi_thread")]
 async fn stream_ftp_source() {
-    let bench = Bench::start(|config, root| {
-        let secrets = root.join("secrets.json");
-        let stored = BTreeMap::from([(SECRET, PASSWORD)]);
-        std::fs::write(&secrets, serde_json::to_string(&stored).unwrap()).unwrap();
-        config
-            .with_trusted_bench(true)
-            .with_secret_backend(RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::LocalFile, local_file: Some(secrets) })
-    })
-    .await;
-    adopt_ftp_secret(&bench).await;
+    let bench = Bench::start(|config, _| config.with_trusted_bench(true)).await;
+    store_ftp_secret(&bench).await;
     let served = tempdir().unwrap();
     let log = served.path().join("bench/logs/charger.log");
     write(&log, b"before the watch\n");

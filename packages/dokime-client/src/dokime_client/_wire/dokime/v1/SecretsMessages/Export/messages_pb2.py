@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nCdokime_client/_wire/dokime/v1/SecretsMessages/Export/messages.proto\x12 dokime.v1.SecretsMessages.Export\"c\n\x04Row1\x12\x17\n\x05names\x18\xd7\xa1\x96\x37 \x03(\tR\x05names\x12\x1e\n\x08password\x18\xea\xcd\xad\xb2\x01 \x01(\tR\x08password\x12\"\n\ngeneration\x18\xdb\x88\x86\x84\x01 \x01(\x04R\ngeneration\"*\n\x04Row2\x12\"\n\nciphertext\x18\xdc\xcc\x80\xac\x01 \x01(\x0cR\nciphertext\"\x8c\x01\n\x04Row0\x12@\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Export.Row1R\x07request\x12\x42\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Export.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nCdokime_client/_wire/dokime/v1/SecretsMessages/Export/messages.proto\x12 dokime.v1.SecretsMessages.Export\"C\n\x04Row1\x12\x17\n\x05names\x18\xd7\xa1\x96\x37 \x03(\tR\x05names\x12\"\n\ngeneration\x18\xdb\x88\x86\x84\x01 \x01(\x04R\ngeneration\"\x1e\n\x04Row2\x12\x16\n\x04\x64\x61ta\x18\x84\xfc\xcb\xc3\x01 \x01(\x0cR\x04\x64\x61ta\"\x8c\x01\n\x04Row0\x12@\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Export.Row1R\x07request\x12\x42\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Export.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -53,11 +53,11 @@ _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.SecretsMessages.Export.me
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ROW1']._serialized_start=105
-  _globals['_ROW1']._serialized_end=204
-  _globals['_ROW2']._serialized_start=206
-  _globals['_ROW2']._serialized_end=248
-  _globals['_ROW0']._serialized_start=251
-  _globals['_ROW0']._serialized_end=391
+  _globals['_ROW1']._serialized_end=172
+  _globals['_ROW2']._serialized_start=174
+  _globals['_ROW2']._serialized_end=204
+  _globals['_ROW0']._serialized_start=207
+  _globals['_ROW0']._serialized_end=347
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

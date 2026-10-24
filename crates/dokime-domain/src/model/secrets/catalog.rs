@@ -25,7 +25,6 @@ use serde::{Deserialize, Serialize};
 
 pub const MAX_SECRETS: usize = 1024;
 pub const MAX_SECRET_BYTES: usize = 64 * 1024;
-pub const MAX_EXPORT_BYTES: usize = 8 * 1024 * 1024;
 
 /* === Macros === */
 

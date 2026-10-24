@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { SecretTransfer } from "@/features/settings/sections/SecretTransfer";
-import { adoptSecret, putSecret, readSecrets, removeSecret, type SecretCatalog, type SecretEntry } from "@/lib/api/native-secrets";
+import { putSecret, readSecrets, removeSecret, type SecretCatalog, type SecretEntry } from "@/lib/api/native-secrets";
 
 /* === Re-Exports === */
 
@@ -36,7 +36,7 @@ import { adoptSecret, putSecret, readSecrets, removeSecret, type SecretCatalog, 
 
 /* === Types === */
 
-type Editor = ({ kind: "new" | "adopt" } | { kind: "edit"; entry: SecretEntry }) & { generation: bigint };
+type Editor = ({ kind: "new" } | { kind: "edit"; entry: SecretEntry }) & { generation: bigint };
 
 /* === Components === */
 
@@ -88,13 +88,6 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
         <div className="flex flex-wrap gap-2">
           <Button disabled={!snapshot || busy} onClick={() => snapshot && setEditor({ kind: "new", generation: snapshot.generation })}>
             Add Secret
-          </Button>
-          <Button
-            disabled={!snapshot || busy}
-            variant="outline"
-            onClick={() => snapshot && setEditor({ kind: "adopt", generation: snapshot.generation })}
-          >
-            Adopt Legacy Secret
           </Button>
           <Button disabled={busy || query.isFetching} variant="outline" onClick={() => void query.refetch()}>
             Refresh
@@ -160,13 +153,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
             editor={editor}
             busy={busy}
             cancel={() => setEditor(null)}
-            submit={(metadata, value, legacyId) =>
-              change(() =>
-                legacyId === undefined
-                  ? putSecret(session.identity, metadata, value, editor.generation)
-                  : adoptSecret(session.identity, metadata, legacyId, editor.generation),
-              )
-            }
+            submit={(metadata, value) => change(() => putSecret(session.identity, metadata, value, editor.generation))}
           />
         )}
         {snapshot && (
@@ -192,7 +179,7 @@ function SecretEditor({
   editor: Editor;
   busy: boolean;
   cancel: () => void;
-  submit: (metadata: SecretEntry["metadata"], value: string | undefined, legacyId: string | undefined) => Promise<void>;
+  submit: (metadata: SecretEntry["metadata"], value: string | undefined) => Promise<void>;
 }) {
   const id = useId();
   const original = editor.kind === "edit" ? editor.entry.metadata : undefined;
@@ -200,7 +187,6 @@ function SecretEditor({
   const [label, setLabel] = useState(original?.label ?? "");
   const [description, setDescription] = useState(original?.description ?? "");
   const [value, setValue] = useState("");
-  const [legacyId, setLegacyId] = useState("");
 
   return (
     <form
@@ -209,7 +195,7 @@ function SecretEditor({
         event.preventDefault();
         const entered = value || undefined;
         setValue("");
-        void submit({ name, label, description: description || undefined }, entered, editor.kind === "adopt" ? legacyId : undefined);
+        void submit({ name, label, description: description || undefined }, entered);
       }}
     >
       <Label htmlFor={`${id}-name`}>Name</Label>
@@ -231,32 +217,20 @@ function SecretEditor({
         disabled={busy}
         onChange={(event) => setDescription(event.target.value)}
       />
-      {editor.kind === "adopt" ? (
-        <>
-          <Label htmlFor={`${id}-legacy`}>Legacy Entry ID</Label>
-          <Input id={`${id}-legacy`} required value={legacyId} disabled={busy} onChange={(event) => setLegacyId(event.target.value)} />
-          <p className="text-sm text-muted-foreground">
-            Copy the selected entry from this host’s configured legacy source. Its original storage remains unchanged.
-          </p>
-        </>
-      ) : (
-        <>
-          <Label htmlFor={`${id}-value`}>{editor.kind === "edit" ? "Replacement Value (Leave Empty To Keep)" : "Value"}</Label>
-          <Input
-            id={`${id}-value`}
-            type="password"
-            autoComplete="new-password"
-            required={editor.kind === "new"}
-            maxLength={65536}
-            value={value}
-            disabled={busy}
-            onChange={(event) => setValue(event.target.value)}
-          />
-        </>
-      )}
+      <Label htmlFor={`${id}-value`}>{editor.kind === "edit" ? "Replacement Value (Leave Empty To Keep)" : "Value"}</Label>
+      <Input
+        id={`${id}-value`}
+        type="password"
+        autoComplete="new-password"
+        required={editor.kind === "new"}
+        maxLength={65536}
+        value={value}
+        disabled={busy}
+        onChange={(event) => setValue(event.target.value)}
+      />
       <div className="flex gap-2">
         <Button type="submit" disabled={busy}>
-          {editor.kind === "adopt" ? "Adopt Into Keyring" : "Save Secret"}
+          Save Secret
         </Button>
         <Button type="button" disabled={busy} variant="outline" onClick={cancel}>
           Cancel

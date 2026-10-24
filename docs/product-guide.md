@@ -331,32 +331,26 @@ descriptions and opaque keyring slot identifiers. Names contain 1–128 ASCII
 letters, digits, dots, underscores or hyphens; values contain 1–65536 bytes,
 with at most 1024 catalog entries per host.
 
-Existing `LocalFile` configuration selects a legacy source for explicit
-`dokime.secrets.adopt` requests, exposed as **Adopt Legacy Secret**. Adoption copies one selected entry into secure
-storage and retains the original file and unknown entries unchanged. Deleting
-an adopted name never makes the old plaintext value available again. Back up
-development settings before converting old `stored_credential` references to
-`stored_secret` and their `credential_id` field to `secret_id`; incompatible
-settings are rejected without being reset.
-
 The Linux native desktop acceptance story starts a private D-Bus session and
 unlocked GNOME Keyring in its disposable workspace; CI installs `dbus` and
 `gnome-keyring`. Windows uses its native Credential Manager.
 
-**Export Selected Secrets** saves a password-encrypted `.age` file through the
-native file picker. **Import Encrypted Secrets** authenticates the entire file
-before showing names and conflicts. Existing names start unchecked; select
-each replacement explicitly, leave entries unchecked to skip them, and
-re-enter the password to apply the reviewed selection. A changed destination
-catalog requires a fresh preview. No values are written on a wrong password,
-tampering, invalid input or a failed secure-store staging step.
+**Export Selected Secrets** saves a `.b64` file through the native file
+picker. It contains a Base64-encoded version 1 JSON document with the selected
+names, metadata and values. Base64 is not encryption: anyone with the file can
+read its secrets. Store and share it accordingly.
 
-Transfers use age password encryption with scrypt work factor 18 and permit
-one transfer at a time per host. The version 1 document is limited to 512 KiB,
-the encrypted file to 516 KiB, and passwords to 1024 UTF-8 bytes. Larger
-selections must be exported separately. Passwords are not saved. If catalog
-publication cannot be confirmed after a filesystem error, both generations'
-secure slots are retained; refresh the catalog before retrying.
+**Import Secrets** previews the file's names and conflicts before applying
+changes. Existing names start unchecked; select each replacement explicitly
+and leave entries unchecked to skip them. A changed destination catalog
+requires a fresh preview. Invalid input or failed secure-store staging writes
+no values.
+
+Each transfer holds at most 512 KiB of decoded JSON, with the corresponding
+Base64 file limited to 699052 bytes. Larger selections must be exported
+separately. If catalog publication cannot be confirmed after a filesystem
+error, both generations' secure slots are retained; refresh the catalog
+before retrying.
 
 ## Planning And Creating Cycles
 

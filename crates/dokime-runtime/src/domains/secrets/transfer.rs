@@ -7,7 +7,7 @@
  * ***
  */
 
-// Authenticate Complete Bounded Archives Before Preview Or Atomic Publication.
+// Decode Complete Bounded Files Before Preview Or Atomic Publication.
 
 /* === Modules === */
 
@@ -18,11 +18,11 @@
 // Standard Library Imports
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io::{Read, Write},
+    io::Write,
 };
 
 // Third Party Imports
-use age::secrecy::SecretString;
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
@@ -34,8 +34,6 @@ use dokime_domain::model::secrets::{
 };
 
 /* === Constants === */
-
-const WORK_FACTOR: u8 = 18;
 
 /* === Macros === */
 
@@ -57,7 +55,7 @@ struct Entry {
     value: String,
 }
 
-struct Plaintext(Zeroizing<Vec<u8>>);
+struct DocumentBuffer(Zeroizing<Vec<u8>>);
 
 /* === Enums === */
 
@@ -66,20 +64,19 @@ struct Plaintext(Zeroizing<Vec<u8>>);
 /* === Implementations === */
 
 impl SecretStore {
-    pub(crate) fn export(&self, names: &[String], password: Zeroizing<String>, generation: u64) -> Result<Archive, SecretStoreError> {
+    pub(crate) fn export(&self, names: &[String], generation: u64) -> Result<Archive, SecretStoreError> {
         let _transfer = self.transfer.try_lock().map_err(|_| SecretStoreError::Invalid("Another secret transfer is running"))?;
-        validate_password(&password)?;
         let document = self.selected(names, generation)?;
-        let mut plaintext = Plaintext(Zeroizing::new(Vec::new()));
-        serde_json::to_writer(&mut plaintext, &document)
+        let mut serialized = DocumentBuffer(Zeroizing::new(Vec::new()));
+        serde_json::to_writer(&mut serialized, &document)
             .map_err(|_| SecretStoreError::Invalid("The selected secrets exceed the transfer limit"))?;
-        let ciphertext = encrypt(&plaintext.0, &password)?;
-        Ok(Archive { ciphertext })
+        let data = base64::engine::general_purpose::STANDARD.encode(&*serialized.0).into_bytes();
+        Ok(Archive { data })
     }
 
-    pub(crate) fn preview(&self, ciphertext: &[u8], password: Zeroizing<String>) -> Result<Preview, SecretStoreError> {
+    pub(crate) fn preview(&self, data: &[u8]) -> Result<Preview, SecretStoreError> {
         let _transfer = self.transfer.try_lock().map_err(|_| SecretStoreError::Invalid("Another secret transfer is running"))?;
-        let document = decrypt(ciphertext, &password)?;
+        let document = decode(data)?;
         let current = self.catalog();
         let entries = document
             .entries
@@ -89,11 +86,9 @@ impl SecretStore {
         Ok(Preview { host_id: self.host.clone(), host_label: self.label.clone(), generation: current.generation, entries })
     }
 
-    pub(crate) fn import(
-        &self, ciphertext: &[u8], password: Zeroizing<String>, choices: &[Choice], generation: u64,
-    ) -> Result<bool, SecretStoreError> {
+    pub(crate) fn import(&self, data: &[u8], choices: &[Choice], generation: u64) -> Result<bool, SecretStoreError> {
         let _transfer = self.transfer.try_lock().map_err(|_| SecretStoreError::Invalid("Another secret transfer is running"))?;
-        let document = decrypt(ciphertext, &password)?;
+        let document = decode(data)?;
         if choices.len() != document.entries.len() {
             return Err(SecretStoreError::Invalid("Choose replace or skip for every imported name"));
         }
@@ -109,7 +104,7 @@ impl SecretStore {
                 Some(Action::Skip) => (),
                 Some(Action::Replace) => changes
                     .push(Change { metadata: entry.metadata.clone(), value: Some(SecretValue::new(std::mem::take(&mut entry.value))) }),
-                None => return Err(SecretStoreError::Invalid("Import choices do not match the authenticated archive")),
+                None => return Err(SecretStoreError::Invalid("Import choices do not match the archive")),
             }
         }
         self.apply(changes, &[], generation)
@@ -134,7 +129,7 @@ impl SecretStore {
             let slot = current.entries.get(name).ok_or(SecretStoreError::Invalid("A selected secret is missing or was deleted"))?;
             let value = self.backend.get(&self.account(&slot.slot))?.ok_or(SecretStoreError::Unavailable)?;
             bytes += value.expose().len();
-            if bytes > transfer::MAX_PLAINTEXT_BYTES {
+            if bytes > transfer::MAX_DOCUMENT_BYTES {
                 return Err(SecretStoreError::Invalid("The selected secrets exceed the transfer limit"));
             }
             entries.push(Entry { metadata: slot.metadata.clone(), value: value.expose().to_owned() });
@@ -149,9 +144,9 @@ impl Drop for Entry {
     }
 }
 
-impl Write for Plaintext {
+impl Write for DocumentBuffer {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if bytes.len() > transfer::MAX_PLAINTEXT_BYTES.saturating_sub(self.0.len()) {
+        if bytes.len() > transfer::MAX_DOCUMENT_BYTES.saturating_sub(self.0.len()) {
             return Err(std::io::Error::other("secret transfer limit exceeded"));
         }
         self.0.extend_from_slice(bytes);
@@ -166,51 +161,21 @@ impl Write for Plaintext {
 
 /* === Private Functions === */
 
-fn validate_password(password: &str) -> Result<(), SecretStoreError> {
-    if password.is_empty() || password.len() > transfer::MAX_PASSWORD_BYTES {
-        return Err(SecretStoreError::Invalid("A transfer password must contain 1–1024 bytes"));
+fn decode(data: &[u8]) -> Result<Document, SecretStoreError> {
+    if data.is_empty() || data.len() > transfer::MAX_ARCHIVE_BYTES {
+        return Err(SecretStoreError::Invalid("Secret archive exceeds its limit or is empty"));
     }
-    Ok(())
-}
-
-pub(super) fn encrypt(plaintext: &[u8], password: &str) -> Result<Vec<u8>, SecretStoreError> {
-    let mut recipient = age::scrypt::Recipient::new(SecretString::from(password.to_owned()));
-    recipient.set_work_factor(WORK_FACTOR);
-    let recipients = std::iter::once(&recipient as &dyn age::Recipient);
-    let encryptor = age::Encryptor::with_recipients(recipients).map_err(|_| SecretStoreError::Unavailable)?;
-    let mut output = Vec::new();
-    let mut writer = encryptor.wrap_output(&mut output).map_err(|_| SecretStoreError::Unavailable)?;
-    writer.write_all(plaintext).map_err(|_| SecretStoreError::Unavailable)?;
-    writer.finish().map_err(|_| SecretStoreError::Unavailable)?;
-    if output.len() > transfer::MAX_CIPHERTEXT_BYTES {
-        return Err(SecretStoreError::Invalid("Encrypted secret archive exceeds its limit"));
-    }
-    Ok(output)
-}
-
-fn decrypt(ciphertext: &[u8], password: &str) -> Result<Document, SecretStoreError> {
-    validate_password(password)?;
-    if ciphertext.is_empty() || ciphertext.len() > transfer::MAX_CIPHERTEXT_BYTES {
-        return Err(SecretStoreError::Invalid("Encrypted secret archive exceeds its limit or is empty"));
-    }
-    let invalid = || SecretStoreError::Invalid("The secret archive could not be authenticated; check its password and contents");
-    let decryptor = age::Decryptor::new(ciphertext).map_err(|_| invalid())?;
-    if !decryptor.is_scrypt() {
-        return Err(invalid());
-    }
-    let mut identity = age::scrypt::Identity::new(SecretString::from(password.to_owned()));
-    identity.set_max_work_factor(WORK_FACTOR);
-    let identities = std::iter::once(&identity as &dyn age::Identity);
-    let reader = decryptor.decrypt(identities).map_err(|_| invalid())?;
-    let mut plaintext = Zeroizing::new(Vec::new());
-    reader.take((transfer::MAX_PLAINTEXT_BYTES + 1) as u64).read_to_end(&mut plaintext).map_err(|_| invalid())?;
-    if plaintext.len() > transfer::MAX_PLAINTEXT_BYTES {
-        return Err(SecretStoreError::Invalid("Decrypted secret archive exceeds its limit"));
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|_| SecretStoreError::Invalid("Secret archive is not valid Base64"))?;
+    let document = Zeroizing::new(decoded);
+    if document.len() > transfer::MAX_DOCUMENT_BYTES {
+        return Err(SecretStoreError::Invalid("Decoded secret archive exceeds its limit"));
     }
 
-    // read_to_end Has Verified The Final AEAD Chunk And Rejected Trailing Ciphertext.
-    let document: Document = serde_json::from_slice(&plaintext)
-        .map_err(|_| SecretStoreError::Invalid("Authenticated secret archive has an invalid document"))?;
+    // Validate The Decoded Document Before Publishing Any Value.
+    let document: Document =
+        serde_json::from_slice(&document).map_err(|_| SecretStoreError::Invalid("Secret archive has an invalid document"))?;
     if document.format_version != 1 || document.entries.is_empty() || document.entries.len() > catalog::MAX_SECRETS {
         return Err(SecretStoreError::Invalid("Unsupported secret archive version or entry count"));
     }
@@ -219,7 +184,7 @@ fn decrypt(ciphertext: &[u8], password: &str) -> Result<Document, SecretStoreErr
         entry.metadata.validate().map_err(SecretStoreError::Invalid)?;
         catalog::validate_value(&entry.value).map_err(SecretStoreError::Invalid)?;
         if !names.insert(&entry.metadata.name) {
-            return Err(SecretStoreError::Invalid("Duplicate secret name in authenticated archive"));
+            return Err(SecretStoreError::Invalid("Duplicate secret name in archive"));
         }
     }
     Ok(document)

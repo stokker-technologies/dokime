@@ -177,13 +177,12 @@ pub async fn desktop_pick_secret_archive(
     let session = state.inner().clone();
     ensure_document_session(&session, &generation)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let picked = app.dialog().file().add_filter("Encrypted Secret Archive", &["age"]).blocking_pick_file();
+        let picked = app.dialog().file().add_filter("Secret Archive", &["b64"]).blocking_pick_file();
         let Some(picked) = picked else { return Ok(None) };
         ensure_document_session(&session, &generation)?;
         let path = picked.into_path().map_err(|error| error.to_string())?;
-        let maximum = dokime::domain::model::secrets::transfer::MAX_CIPHERTEXT_BYTES;
-        let bytes =
-            dokime::harmos::filesystem::input::read(&path, maximum).map_err(|_| "Encrypted secret archive is unreadable or oversized")?;
+        let maximum = dokime::domain::model::secrets::transfer::MAX_ARCHIVE_BYTES;
+        let bytes = dokime::harmos::filesystem::input::read(&path, maximum).map_err(|_| "Secret archive is unreadable or oversized")?;
         ensure_document_session(&session, &generation)?;
         Ok(Some(BASE64.encode(bytes)))
     })
@@ -374,8 +373,8 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
         DesktopSaveKind::RemoteKey => (4098usize.div_ceil(3) * 4, 4098, "Remote key"),
         DesktopSaveKind::PublicCertificate => ((64usize * 1024).div_ceil(3) * 4, 64 * 1024, "Public certificate"),
         DesktopSaveKind::SecretArchive => {
-            let maximum = dokime::domain::model::secrets::transfer::MAX_CIPHERTEXT_BYTES;
-            (maximum.div_ceil(3) * 4, maximum, "Encrypted secret archive")
+            let maximum = dokime::domain::model::secrets::transfer::MAX_ARCHIVE_BYTES;
+            (maximum.div_ceil(3) * 4, maximum, "Secret archive")
         }
         DesktopSaveKind::Artifact => {
             return Err("Artifact is delivered through desktop_artifact_deliver".into());
@@ -384,9 +383,6 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
 
     let filename = sanitize_filename(&document.filename, document.kind)?;
     let bytes = decode_bounded(&document.bytes_base64, max_encoded_chars, max_bytes, label)?;
-    if document.kind == DesktopSaveKind::SecretArchive && !bytes.starts_with(b"age-encryption.org/v1\n") {
-        return Err("Secret archive delivery requires an encrypted age file".into());
-    }
     if document.kind == DesktopSaveKind::RemoteKey {
         let key = std::str::from_utf8(&bytes).map_err(|_| "Remote key must be UTF-8 text")?.trim();
         if !(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()) {
@@ -421,7 +417,7 @@ fn apply_dialog_filter(
         DesktopSaveKind::JsonDocument => dialog.add_filter("JSON document", &["json"]),
         DesktopSaveKind::RemoteKey => dialog.add_filter("Remote key", &["key"]),
         DesktopSaveKind::PublicCertificate => dialog.add_filter("Public certificate", &["pem"]),
-        DesktopSaveKind::SecretArchive => dialog.add_filter("Encrypted Secret Archive", &["age"]),
+        DesktopSaveKind::SecretArchive => dialog.add_filter("Secret Archive", &["b64"]),
         DesktopSaveKind::Artifact => dialog,
     }
 }
@@ -433,7 +429,7 @@ fn extension_policy(kind: DesktopSaveKind) -> ExtensionPolicy {
         DesktopSaveKind::JsonDocument => ExtensionPolicy::Append(".json"),
         DesktopSaveKind::RemoteKey => ExtensionPolicy::Append(".key"),
         DesktopSaveKind::PublicCertificate => ExtensionPolicy::Append(".pem"),
-        DesktopSaveKind::SecretArchive => ExtensionPolicy::Append(".age"),
+        DesktopSaveKind::SecretArchive => ExtensionPolicy::Append(".b64"),
         DesktopSaveKind::Artifact => ExtensionPolicy::Free,
     }
 }

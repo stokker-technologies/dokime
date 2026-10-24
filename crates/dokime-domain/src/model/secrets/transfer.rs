@@ -7,7 +7,7 @@
  * ***
  */
 
-// Bounded Encrypted Secret Transfer And Explicit Import Choices.
+// Bounded Base64 Secret Files And Explicit Import Choices.
 
 /* === Modules === */
 
@@ -25,9 +25,8 @@ use super::catalog::Metadata;
 
 /* === Constants === */
 
-pub const MAX_PLAINTEXT_BYTES: usize = 512 * 1024;
-pub const MAX_CIPHERTEXT_BYTES: usize = MAX_PLAINTEXT_BYTES + 4096;
-pub const MAX_PASSWORD_BYTES: usize = 1024;
+pub const MAX_DOCUMENT_BYTES: usize = 512 * 1024;
+pub const MAX_ARCHIVE_BYTES: usize = 4 * MAX_DOCUMENT_BYTES.div_ceil(3);
 
 /* === Macros === */
 
@@ -38,7 +37,7 @@ pub const MAX_PASSWORD_BYTES: usize = 1024;
 #[harmos_domain::message(skip_debug)]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Archive {
-    pub ciphertext: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
 #[harmos_domain::message]
@@ -80,7 +79,7 @@ pub enum Action {
 
 impl std::fmt::Debug for Archive {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("EncryptedSecretArchive(<redacted>)")
+        formatter.write_str("SecretArchive(<redacted>)")
     }
 }
 

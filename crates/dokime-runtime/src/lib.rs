@@ -204,7 +204,7 @@ pub(crate) use runtime::{handle, state as runtime_state};
 pub use app::Dokime;
 
 #[cfg(feature = "host")]
-pub use config::{InstalledSidecar, RuntimeConfig, RuntimeSecretConfig, SidecarNoticeHandler};
+pub use config::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
 
 #[cfg(feature = "host")]
 pub use dokime_domain::model::plugins::InstalledPlugin;

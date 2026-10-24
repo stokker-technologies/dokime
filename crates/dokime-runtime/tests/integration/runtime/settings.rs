@@ -19,8 +19,8 @@ use std::{collections::BTreeMap, fs, sync::Arc};
 use dokime_runtime::domains::{ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse};
 use dokime_runtime::{HostCardBlock, HostCardTone, Identifier, Metadata, RedactedSecretBinding, SecretBackendKind, Value};
 // Local Imports
+use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::settings::RuntimeSettingsCardState;
-use dokime_runtime::{RuntimeHandle, RuntimeSecretConfig};
 
 use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
 use dokime_runtime::settings::{SecretReference, SecretSetting, SettingValues, Settings, SettingsEntry, TextArea};
@@ -64,9 +64,8 @@ async fn fixture_runtime_with_dispatcher(
 ) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
     let root = tempfile::tempdir().unwrap();
     let artifact_id = module.as_ref().map(|module| Identifier::new(&module.source).unwrap());
-    let mut config = crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.fixture", "Runtime"))
-        .with_secret_backend(RuntimeSecretConfig { backend: SecretBackendKind::Memory, local_file: None })
-        .with_installed_plugins(module);
+    let mut config =
+        crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.fixture", "Runtime")).with_installed_plugins(module);
     if let (Some(artifact_id), Some(dispatcher)) = (artifact_id, dispatcher) {
         config = config.with_action_dispatcher(artifact_id, dispatcher);
     }
@@ -301,12 +300,9 @@ async fn secret_references_file() {
 }
 
 #[tokio::test]
-async fn local_secrets_state() {
+async fn stored_secret_bindings() {
     use dokime_domain::{model::secrets::catalog, operations::secrets};
     let root = tempfile::tempdir().unwrap();
-    let path = root.path().join("secrets.json");
-    let legacy = br#"{"old_token":"secret-token","unknown":"retain-me"}"#;
-    fs::write(&path, legacy).unwrap();
     let id = Identifier::new("zephyr").unwrap();
     let mut artifact = installed_plugin(id.as_str());
     artifact.settings = Settings {
@@ -319,15 +315,14 @@ async fn local_secrets_state() {
         })],
     };
     let config = crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.secrets", "Secrets"))
-        .with_secret_backend(RuntimeSecretConfig { backend: SecretBackendKind::LocalFile, local_file: Some(path.clone()) })
         .with_installed_plugins([artifact]);
     let mut runtime = dokime_runtime::Runtime::start(config.clone()).await.unwrap();
     let handle = runtime.handle();
     let snapshot = handle
         .operations()
-        .call(secrets::Adopt {
+        .call(secrets::Put {
             metadata: catalog::Metadata { name: "zephyr.api_token".into(), label: "API Token".into(), description: None },
-            legacy_id: "old_token".into(),
+            value: Some("secret-token".into()),
             generation: 0,
         })
         .await
@@ -351,7 +346,6 @@ async fn local_secrets_state() {
     drop(handle);
     runtime.shutdown().await.unwrap();
 
-    assert_eq!(fs::read(&path).unwrap(), legacy);
     let mut reopened = dokime_runtime::Runtime::start(config).await.unwrap();
     assert!(!fs::read_to_string(root.path().join("application/settings.json")).unwrap().contains("secret-token"));
     let handle = reopened.handle();
@@ -362,7 +356,6 @@ async fn local_secrets_state() {
     handle.operations().call(secrets::Remove { names: vec!["zephyr.api_token".into()], generation: 2 }).await.unwrap();
     assert!(handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.is_err());
     assert_eq!(handle.plugin_settings(&id).await.unwrap().secret_bindings.missing_required, vec!["api_token"]);
-    assert_eq!(fs::read(&path).unwrap(), legacy);
     drop(handle);
     reopened.shutdown().await.unwrap();
 }

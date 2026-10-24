@@ -7,20 +7,18 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("names", "password", "generation")
+    __slots__ = ("names", "generation")
     NAMES_FIELD_NUMBER: _ClassVar[int]
-    PASSWORD_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
     names: _containers.RepeatedScalarFieldContainer[str]
-    password: str
     generation: int
-    def __init__(self, names: _Optional[_Iterable[str]] = ..., password: _Optional[str] = ..., generation: _Optional[int] = ...) -> None: ...
+    def __init__(self, names: _Optional[_Iterable[str]] = ..., generation: _Optional[int] = ...) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("ciphertext",)
-    CIPHERTEXT_FIELD_NUMBER: _ClassVar[int]
-    ciphertext: bytes
-    def __init__(self, ciphertext: _Optional[bytes] = ...) -> None: ...
+    __slots__ = ("data",)
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    data: bytes
+    def __init__(self, data: _Optional[bytes] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response")

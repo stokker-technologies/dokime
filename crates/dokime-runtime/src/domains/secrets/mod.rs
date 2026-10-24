@@ -9,8 +9,6 @@
 
 /* === Modules === */
 
-#[cfg(test)]
-mod tests;
 mod transfer;
 
 /* === Re-Exports === */
@@ -27,17 +25,16 @@ use std::{
 // Third Party Imports
 use keyring::{Entry, Error as KeyringError};
 use thiserror::Error;
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
 // Local Imports
-use crate::config::{RuntimeConfig, RuntimeSecretConfig, Settings};
+use crate::config::{RuntimeConfig, Settings};
 use dokime_domain::model::secrets::catalog::{self, Catalog, Metadata, Slot};
 use dokime_domain::model::secrets::{RedactedSecretBinding, SecretBackendKind};
 
 /* === Constants === */
 
 const SHARED_SERVICE: &str = "com.stokker.dokime.shared-secrets";
-const LEGACY_SERVICE: &str = "dokime";
 
 /* === Macros === */
 
@@ -49,7 +46,6 @@ const LEGACY_SERVICE: &str = "dokime";
 pub(crate) struct SecretStore {
     settings: Settings,
     backend: Arc<dyn Backend>,
-    legacy: RuntimeSecretConfig,
     writer: Arc<Mutex<()>>,
     transfer: Arc<Mutex<()>>,
     host: String,
@@ -106,7 +102,6 @@ impl SecretStore {
         Ok(Self {
             settings,
             backend,
-            legacy: config.secret_backend.clone(),
             writer: Arc::new(Mutex::new(())),
             transfer: Arc::new(Mutex::new(())),
             host,
@@ -253,29 +248,6 @@ impl SecretStore {
             }
         }
         Ok(cleanup_pending)
-    }
-
-    pub(crate) fn adopt(&self, metadata: Metadata, legacy_id: &str, expected: u64) -> Result<bool, SecretStoreError> {
-        metadata.validate().map_err(SecretStoreError::Invalid)?;
-        catalog::validate_name(legacy_id).map_err(SecretStoreError::Invalid)?;
-        let value = match self.legacy.backend {
-            SecretBackendKind::OsKeyring => read_entry(LEGACY_SERVICE, legacy_id)?,
-            SecretBackendKind::Memory => None,
-            SecretBackendKind::LocalFile => {
-                let path = self.legacy.local_file.as_ref().ok_or(SecretStoreError::Invalid("No legacy secret file is configured"))?;
-                let bytes = harmos::filesystem::input::read(path, catalog::MAX_EXPORT_BYTES).map_err(|_| SecretStoreError::Unavailable)?;
-                let bytes = Zeroizing::new(bytes);
-                let mut values: BTreeMap<String, String> = serde_json::from_slice(&bytes)
-                    .map_err(|_| SecretStoreError::Invalid("Legacy secret file is invalid and was retained"))?;
-                let value = values.get(legacy_id).cloned().map(SecretValue::new);
-                for value in values.values_mut() {
-                    value.zeroize();
-                }
-                value
-            }
-        }
-        .ok_or(SecretStoreError::Invalid("The selected legacy secret was not found"))?;
-        self.apply(vec![Change { metadata, value: Some(value) }], &[], expected)
     }
 
     fn account(&self, slot: &str) -> String {

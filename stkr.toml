@@ -54,7 +54,7 @@ default = "full"
 # These Guides Are Not Compiler, Generator Or Package Inputs.
 [[ci.impact.rules]]
 name = "prose"
-only = ["README.md", "CONTRIBUTING.md", "docs/**/*.md"]
+include = ["README.md", "CONTRIBUTING.md", "docs/**/*.md"]
 jobs = ["check:repository"]
 
 # --- Stage / Check --- #

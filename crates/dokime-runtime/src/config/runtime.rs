@@ -26,7 +26,6 @@ use crate::InstalledPlugin;
 use crate::domains::ActionDispatcher;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::SessionId;
-use dokime_domain::model::secrets::SecretBackendKind;
 
 /* === Constants === */
 
@@ -55,7 +54,6 @@ pub struct RuntimeConfig {
     pub local_retention: Option<Duration>,
 
     pub hub_metadata: Metadata,
-    pub secret_backend: RuntimeSecretConfig,
 
     #[cfg(feature = "host")]
     #[serde(skip)]
@@ -81,14 +79,6 @@ pub struct RuntimeConfig {
     pub(crate) embedded_providers: Vec<Arc<dyn crate::runtime::EmbeddedProvider>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RuntimeSecretConfig {
-    pub backend: SecretBackendKind,
-
-    #[serde(default)]
-    pub local_file: Option<PathBuf>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -107,7 +97,6 @@ impl RuntimeConfig {
             // shells always name a separate application root.
             application_root: storage_root.join("application"),
             hub_metadata,
-            secret_backend: RuntimeSecretConfig::default(),
 
             #[cfg(feature = "host")]
             credential_store: None,
@@ -128,11 +117,6 @@ impl RuntimeConfig {
 
     pub fn with_application_root(mut self, root: impl Into<PathBuf>) -> Self {
         self.application_root = root.into();
-        self
-    }
-
-    pub fn with_secret_backend(mut self, backend: RuntimeSecretConfig) -> Self {
-        self.secret_backend = backend;
         self
     }
 
@@ -194,17 +178,10 @@ impl fmt::Debug for RuntimeConfig {
             .field("storage", &self.storage)
             .field("application_root", &self.application_root)
             .field("hub_metadata", &self.hub_metadata)
-            .field("secret_backend", &self.secret_backend)
             .field("installed_plugins", &self.installed_plugins)
             .field("plugins", &self.plugins)
             .field("action_dispatchers", &self.action_dispatchers.keys().collect::<Vec<_>>())
             .finish()
-    }
-}
-
-impl Default for RuntimeSecretConfig {
-    fn default() -> Self {
-        Self { backend: SecretBackendKind::OsKeyring, local_file: None }
     }
 }
 

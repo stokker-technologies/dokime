@@ -94,8 +94,6 @@ async fn data_root_reopens() {
             config.output_root.display()
         );
         config.seed_plugins = false;
-        config.secret_backend =
-            dokime_runtime::RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::Memory, local_file: None };
 
         // Open, Prove Readiness, And Close The Root
         let mut runtime = dokime_runtime::app::launch(config).await.unwrap_or_else(|error| panic!("launch {launch} failed: {error}"));

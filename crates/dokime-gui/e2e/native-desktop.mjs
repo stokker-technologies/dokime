@@ -26,10 +26,9 @@
 //   c''. containers  independent Active cycles, explicit sealing and export availability
 //   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
-//   f. settings     every section, the density switch, storage, plugins, diagnostics
+//   f. settings     every section, the density switch, storage, plugins, shared secrets, diagnostics
 //   f'. plugin-install  native bundle picker, digest consent, restart activation and catalog
 //   f'. organization  native pack import, restart activation and invalid-pending retention
-//   f'. shared-secrets  masked keyring edits, encrypted export, conflict review and deletion
 //   f'. remote-access  TLS/key setup, saved secrets, restart, rotation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
@@ -2887,6 +2886,7 @@ async function settingsJourney(session, notes) {
     ["appearance", "Appearance"],
     ["identity", "Identity"],
     ["plugins", "Plugins"],
+    ["secrets", "Secret Storage"],
     ["account-updates", "Account"],
     ["diagnostics", "Diagnostics"],
     ["about", "About"],
@@ -2991,6 +2991,42 @@ async function settingsJourney(session, notes) {
     await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 30000);
   } else {
     notes.push("settings: no installed plugin declares settings, so the plugin page stayed shut");
+  }
+
+  /* Shared Secrets: Add And Remove Two Masked Keyring Entries. */
+  await session.goto("/settings/secrets");
+  await until("secret storage ready", () =>
+    session.execute(
+      "return [...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Add Secret' && !button.disabled);",
+    ),
+  );
+  for (const [name, value] of [
+    ["e2e.settings.first", "native-first-47f93d"],
+    ["e2e.settings.second", "native-second-94d2ac"],
+  ]) {
+    secrets.add(value);
+    await session.clickNamed("button", "Add Secret");
+    for (const [label, text] of [
+      ["Name", name],
+      ["Label", name],
+      ["Value", value],
+    ]) {
+      const input = await until(`secret field ${label}`, () =>
+        session.execute(
+          "return [...document.querySelectorAll('label')].find(label => label.textContent.trim() === arguments[0])?.control ?? null;",
+          [label],
+        ),
+      );
+      await session.type(input, text);
+    }
+    await session.clickNamed("button", "Save Secret");
+    await until("shared keyring entry saved", () => session.exists("button", `Edit ${name}`));
+    assert.ok(!(await session.text()).includes(value), "stored secret values stay masked");
+  }
+  for (const name of ["e2e.settings.first", "e2e.settings.second"]) {
+    await session.clickNamed("button", `Delete ${name}`);
+    await session.clickNamed("button", "Confirm Delete");
+    await until("shared keyring entry removed", async () => !(await session.exists("button", `Edit ${name}`)));
   }
 
   /* Diagnostics: read-only paths with Copy and Open, then the bundle itself. */
@@ -3706,119 +3742,6 @@ async function restartJourney() {
   await session.screenshot("native-restart");
 }
 
-async function sharedSecretsJourney() {
-  const name = "e2e.shared.bench";
-  const value = "native-secret-value-47f93d";
-  const replacement = "native-replacement-value-94d2ac";
-  const password = "native transfer password 2026";
-  for (const hidden of [value, replacement, password]) secrets.add(hidden);
-  const field = (label) =>
-    until(`secret field ${label}`, () =>
-      session.execute(
-        "return [...document.querySelectorAll('label')].find(label => label.textContent.trim() === arguments[0])?.control ?? null;",
-        [label],
-      ),
-    );
-  const type = async (label, text) => session.type(await field(label), text);
-  const choose = async (archive) => {
-    await session.clickNamed("button", "Choose Encrypted Archive");
-    const picker = { window: null };
-    await until("native encrypted archive picker", () => chooseNativeFile(picker, archive), 30000);
-    await until("encrypted archive selected", async () => hasText(await session.text(), "Encrypted archive selected"));
-  };
-  const select = async (legend, entry) => {
-    const input = await until("secret selection", () =>
-      session.execute(
-        `
-      const fieldset = [...document.querySelectorAll('fieldset')].find(node => node.querySelector('legend')?.textContent.trim() === arguments[0]);
-      return [...(fieldset?.querySelectorAll('label') ?? [])].find(label => label.textContent.includes(arguments[1]))?.querySelector('input') ?? null;
-    `,
-        [legend, entry],
-      ),
-    );
-    await session.click(input);
-  };
-
-  await session.goto("/settings/secrets");
-  const settingsPath = join(work, "application", "settings.json");
-  const identity = JSON.parse(await readFile(settingsPath, "utf8")).identity.node_id;
-  await until("secret target host", async () => hasText(await session.text(), identity));
-  await session.clickNamed("button", "Add Secret");
-  await type("Name", name);
-  await type("Label", "Exported Bench Secret");
-  await type("Description", "Native transfer fixture");
-  await type("Value", value);
-  assert.equal(await session.execute("return arguments[0].type;", [await field("Value")]), "password");
-  await session.clickNamed("button", "Save Secret");
-  await until("shared keyring value saved", () => session.exists("button", `Edit ${name}`));
-  assert.ok(!(await session.execute("return document.body.innerText;")).includes(value));
-  await session.screenshot("shared-secret-masked");
-
-  await session.clickNamed("button", "Export Selected Secrets");
-  await select("Names To Export", name);
-  await type("Export Password", password);
-  await type("Confirm Password", password);
-  await session.clickNamed("button", "Encrypt And Save");
-  await until(
-    "encrypted secret export",
-    () => session.execute("return (globalThis.__dokimeSavedDocuments ?? []).some(document => document.kind === 'secret_archive');"),
-    30000,
-  );
-  const files = await drainSavedDocuments(session);
-  const archive = files.find((file) => file.kind === "secret_archive")?.path;
-  assert.ok(archive, "the native flow produces an encrypted archive");
-  const encrypted = await readFile(archive);
-  assert.ok(encrypted.subarray(0, 22).toString("ascii").startsWith("age-encryption.org/v1"));
-  assert.ok(!encrypted.includes(Buffer.from(value)));
-  assert.ok(!encrypted.includes(Buffer.from(password)));
-
-  await session.clickNamed("button", `Edit ${name}`);
-  await type("Label", "Replacement Bench Secret");
-  await type("Replacement Value (Leave Empty To Keep)", replacement);
-  await session.clickNamed("button", "Save Secret");
-  await until("replacement secret saved", async () => hasText(await session.text(), "Replacement Bench Secret"));
-  await session.clickNamed("button", "Import Encrypted Secrets");
-  await choose(archive);
-  await type("Archive Password", "incorrect-password");
-  await session.clickNamed("button", "Authenticate And Preview");
-  await until("wrong archive password refused", async () => /could not be authenticated/.test(await session.text()));
-  assert.ok(hasText(await session.text(), "Replacement Bench Secret"));
-  await type("Archive Password", password);
-  await session.clickNamed("button", "Authenticate And Preview");
-  await until("secret conflict preview", async () => hasText(await session.text(), "Review Every Name"));
-  assert.equal(
-    await session.execute(`
-    const fieldset = [...document.querySelectorAll('fieldset')].find(node => node.querySelector('legend')?.textContent.trim() === 'Review Every Name');
-    return fieldset?.querySelector('input')?.checked;
-  `),
-    false,
-    "existing names require explicit replacement",
-  );
-  await type("Password (Enter Again To Import)", password);
-  await session.clickNamed("button", "Apply Reviewed Import");
-  await until("skipped secret import", async () => hasText(await session.text(), "Selected secrets imported"));
-  assert.ok(hasText(await session.text(), "Replacement Bench Secret"));
-
-  await choose(archive);
-  await type("Archive Password", password);
-  await session.clickNamed("button", "Authenticate And Preview");
-  await until("replacement conflict preview", async () => hasText(await session.text(), "Review Every Name"));
-  await select("Review Every Name", name);
-  await type("Password (Enter Again To Import)", password);
-  await session.clickNamed("button", "Apply Reviewed Import");
-  await until(
-    "reviewed replacement applied",
-    async () => hasText(await session.text(), "Selected secrets imported") && hasText(await session.text(), "Exported Bench Secret"),
-  );
-  await session.screenshot("shared-secret-imported");
-  const persisted = await readFile(settingsPath, "utf8");
-  for (const hidden of [value, replacement, password]) assert.ok(!persisted.includes(hidden));
-
-  await session.clickNamed("button", `Delete ${name}`);
-  await session.clickNamed("button", "Confirm Delete");
-  await until("shared secret deleted", async () => !(await session.exists("button", `Edit ${name}`)));
-}
-
 async function pluginInstallJourney() {
   const previous = backend;
   const root = join(work, "plugin-install");
@@ -4287,7 +4210,6 @@ async function main() {
 
   await journey("idle", idleJourney);
   await journey("settings", () => settingsJourney(session, notes));
-  await journey("shared-secrets", sharedSecretsJourney);
   await journey("plugin-install", pluginInstallJourney);
   await journey("organization", organizationJourney);
   await journey("remote-access", remoteAccessJourney);

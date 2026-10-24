@@ -52,3 +52,21 @@ Report testing SHALL open reports in a test-owned browser instance/profile and c
 - **WHEN** a journey opens a report and then fails or times out
 - **THEN** its owned browser tabs close before the report fixture is removed
 - **AND** the actual report-open and content assertions remain required
+
+### Requirement: Keyring Secrets And Base64 Files
+
+Host secrets SHALL use the OS keyring, existing catalog and explicit credential-provider composition. Saved files SHALL contain standard Base64 of v1 JSON metadata and values, without encryption or passwords. Legacy adoption SHALL be removed without reading or deleting old stores. Unrelated authentication and cryptography SHALL remain unchanged.
+
+#### Scenario: Saved File Roundtrip
+
+- **WHEN** selected keyring secrets are exported to a .b64 file, read back and imported through runtime operations
+- **THEN** one focused in-process story verifies the saved Base64 document and restored values using isolated credential stores
+- **AND** no age codec, password-dependent transfer API or legacy-source adapter remains
+- **AND** the runtime bounds decoded documents to 512 KiB and encoded files to four times the rounded-up third of that limit
+- **AND** imports retain generation checks and explicit replace/skip choices
+
+#### Scenario: Native Settings Secret Management
+
+- **WHEN** the native Settings story adds and removes two synthetic secrets
+- **THEN** the real keyring-backed UI reflects both changes with masked values
+- **AND** no separate encrypted-transfer UI journey or superseded crypto/provider test suite remains

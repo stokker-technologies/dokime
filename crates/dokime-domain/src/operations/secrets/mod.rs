@@ -68,17 +68,6 @@ pub struct Remove {
     pub generation: u64,
 }
 
-#[harmos_domain::message]
-#[harmos_domain::operation(response = Snapshot, id = "dokime.secrets.adopt", version = 1, policy = MUTATION,
-    visibility = harmos_domain::operations::Visibility::Host,
-    grpc(package = "dokime.v1", service = "Secrets", method = "Adopt"))]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Adopt {
-    pub metadata: Metadata,
-    pub legacy_id: String,
-    pub generation: u64,
-}
-
 #[harmos_domain::message(skip_debug)]
 #[harmos_domain::operation(response = Archive, id = "dokime.secrets.export", version = 1, policy = MUTATION,
     visibility = harmos_domain::operations::Visibility::Host,
@@ -86,7 +75,6 @@ pub struct Adopt {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Export {
     pub names: Vec<String>,
-    pub password: String,
     pub generation: u64,
 }
 
@@ -96,8 +84,7 @@ pub struct Export {
     grpc(package = "dokime.v1", service = "Secrets", method = "Preview"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Preview {
-    pub ciphertext: Vec<u8>,
-    pub password: String,
+    pub data: Vec<u8>,
 }
 
 #[harmos_domain::message(skip_debug)]
@@ -106,8 +93,7 @@ pub struct Preview {
     grpc(package = "dokime.v1", service = "Secrets", method = "Import"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Import {
-    pub ciphertext: Vec<u8>,
-    pub password: String,
+    pub data: Vec<u8>,
     pub choices: Vec<Choice>,
     pub generation: u64,
 }
@@ -120,7 +106,6 @@ pub enum Operations {
     List(List),
     Put(Put),
     Remove(Remove),
-    Adopt(Adopt),
     Export(Export),
     Preview(Preview),
     Import(Import),
@@ -142,9 +127,6 @@ impl Endpoint for Put {
 impl Endpoint for Remove {
     const PATH: &'static str = "/dokime.v1.Secrets/Remove";
 }
-impl Endpoint for Adopt {
-    const PATH: &'static str = "/dokime.v1.Secrets/Adopt";
-}
 impl Endpoint for Export {
     const PATH: &'static str = "/dokime.v1.Secrets/Export";
 }
@@ -163,17 +145,17 @@ impl std::fmt::Debug for Put {
 
 impl std::fmt::Debug for Export {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("ExportSecrets(<redacted>)")
+        formatter.write_str("ExportSecretFile(<redacted>)")
     }
 }
 impl std::fmt::Debug for Preview {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("PreviewSecrets(<redacted>)")
+        formatter.write_str("PreviewSecretFile(<redacted>)")
     }
 }
 impl std::fmt::Debug for Import {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("ImportSecrets(<redacted>)")
+        formatter.write_str("ImportSecretFile(<redacted>)")
     }
 }
 

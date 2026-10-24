@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nCdokime_client/_wire/dokime/v1/SecretsMessages/Import/messages.proto\x12 dokime.v1.SecretsMessages.Import\"\xb4\x01\n\x04Row1\x12\"\n\nciphertext\x18\xdc\xcc\x80\xac\x01 \x01(\x0cR\nciphertext\x12\x1e\n\x08password\x18\xea\xcd\xad\xb2\x01 \x01(\tR\x08password\x12\x44\n\x07\x63hoices\x18\x87\x8f\xdc\xbc\x01 \x03(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row3R\x07\x63hoices\x12\"\n\ngeneration\x18\xdb\x88\x86\x84\x01 \x01(\x04R\ngeneration\"\xda\x01\n\x04Row2\x12\x1a\n\x07host_id\x18\x95\xf1\xfa\t \x01(\tR\x06hostId\x12 \n\nhost_label\x18\xd2\xd4\x9c\x42 \x01(\tR\thostLabel\x12\"\n\ngeneration\x18\xdb\x88\x86\x84\x01 \x01(\x04R\ngeneration\x12\x43\n\x07\x65ntries\x18\x97\xa5\xe2z \x03(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row4R\x07\x65ntries\x12+\n\x0f\x63leanup_pending\x18\x93\xc8\xe7\xd4\x01 \x01(\x08R\x0e\x63leanupPending\"`\n\x04Row3\x12\x15\n\x04name\x18\xf3\xa2\xe7i \x01(\tR\x04name\x12\x41\n\x06\x61\x63tion\x18\xde\x94\x91# \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row5R\x06\x61\x63tion\"o\n\x04Row4\x12\x45\n\x08metadata\x18\xe4\xc5\x89\x31 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row6R\x08metadata\x12 \n\nknown_uses\x18\xf2\xb0\x97\x62 \x03(\tR\tknownUses\"\xa1\x01\n\x04Row5\x12\x45\n\x07Replace\x18\xab\xdd\xd5& \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row7H\x00R\x07Replace\x12?\n\x04Skip\x18\xc1\xc6\xdf\x0c \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row8H\x00R\x04SkipB\x11\n\x0f_harmos_variant\"\x80\x01\n\x04Row6\x12\x15\n\x04name\x18\xf3\xa2\xe7i \x01(\tR\x04name\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\x12)\n\x0b\x64\x65scription\x18\xbb\x86\xbd\xa3\x01 \x01(\tH\x00R\x0b\x64\x65scription\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_342836027\"\x06\n\x04Row7\"\x06\n\x04Row8\"\x8c\x01\n\x04Row0\x12@\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row1R\x07request\x12\x42\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nCdokime_client/_wire/dokime/v1/SecretsMessages/Import/messages.proto\x12 dokime.v1.SecretsMessages.Import\"\x88\x01\n\x04Row1\x12\x16\n\x04\x64\x61ta\x18\x84\xfc\xcb\xc3\x01 \x01(\x0cR\x04\x64\x61ta\x12\x44\n\x07\x63hoices\x18\x87\x8f\xdc\xbc\x01 \x03(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row3R\x07\x63hoices\x12\"\n\ngeneration\x18\xdb\x88\x86\x84\x01 \x01(\x04R\ngeneration\"\xda\x01\n\x04Row2\x12\x1a\n\x07host_id\x18\x95\xf1\xfa\t \x01(\tR\x06hostId\x12 \n\nhost_label\x18\xd2\xd4\x9c\x42 \x01(\tR\thostLabel\x12\"\n\ngeneration\x18\xdb\x88\x86\x84\x01 \x01(\x04R\ngeneration\x12\x43\n\x07\x65ntries\x18\x97\xa5\xe2z \x03(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row4R\x07\x65ntries\x12+\n\x0f\x63leanup_pending\x18\x93\xc8\xe7\xd4\x01 \x01(\x08R\x0e\x63leanupPending\"`\n\x04Row3\x12\x15\n\x04name\x18\xf3\xa2\xe7i \x01(\tR\x04name\x12\x41\n\x06\x61\x63tion\x18\xde\x94\x91# \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row5R\x06\x61\x63tion\"o\n\x04Row4\x12\x45\n\x08metadata\x18\xe4\xc5\x89\x31 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row6R\x08metadata\x12 \n\nknown_uses\x18\xf2\xb0\x97\x62 \x03(\tR\tknownUses\"\xa1\x01\n\x04Row5\x12\x45\n\x07Replace\x18\xab\xdd\xd5& \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row7H\x00R\x07Replace\x12?\n\x04Skip\x18\xc1\xc6\xdf\x0c \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row8H\x00R\x04SkipB\x11\n\x0f_harmos_variant\"\x80\x01\n\x04Row6\x12\x15\n\x04name\x18\xf3\xa2\xe7i \x01(\tR\x04name\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\x12)\n\x0b\x64\x65scription\x18\xbb\x86\xbd\xa3\x01 \x01(\tH\x00R\x0b\x64\x65scription\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_342836027\"\x06\n\x04Row7\"\x06\n\x04Row8\"\x8c\x01\n\x04Row0\x12@\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row1R\x07request\x12\x42\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Import.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -53,23 +53,23 @@ _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.SecretsMessages.Import.me
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ROW1']._serialized_start=106
-  _globals['_ROW1']._serialized_end=286
-  _globals['_ROW2']._serialized_start=289
-  _globals['_ROW2']._serialized_end=507
-  _globals['_ROW3']._serialized_start=509
-  _globals['_ROW3']._serialized_end=605
-  _globals['_ROW4']._serialized_start=607
-  _globals['_ROW4']._serialized_end=718
-  _globals['_ROW5']._serialized_start=721
-  _globals['_ROW5']._serialized_end=882
-  _globals['_ROW6']._serialized_start=885
-  _globals['_ROW6']._serialized_end=1013
-  _globals['_ROW7']._serialized_start=1015
-  _globals['_ROW7']._serialized_end=1021
-  _globals['_ROW8']._serialized_start=1023
-  _globals['_ROW8']._serialized_end=1029
-  _globals['_ROW0']._serialized_start=1032
-  _globals['_ROW0']._serialized_end=1172
+  _globals['_ROW1']._serialized_end=242
+  _globals['_ROW2']._serialized_start=245
+  _globals['_ROW2']._serialized_end=463
+  _globals['_ROW3']._serialized_start=465
+  _globals['_ROW3']._serialized_end=561
+  _globals['_ROW4']._serialized_start=563
+  _globals['_ROW4']._serialized_end=674
+  _globals['_ROW5']._serialized_start=677
+  _globals['_ROW5']._serialized_end=838
+  _globals['_ROW6']._serialized_start=841
+  _globals['_ROW6']._serialized_end=969
+  _globals['_ROW7']._serialized_start=971
+  _globals['_ROW7']._serialized_end=977
+  _globals['_ROW8']._serialized_start=979
+  _globals['_ROW8']._serialized_end=985
+  _globals['_ROW0']._serialized_start=988
+  _globals['_ROW0']._serialized_end=1128
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

@@ -21,10 +21,7 @@ use super::*;
 use dokime_domain::model;
 
 // Installed-plugin runtime contract tests.
-use dokime_runtime::{
-    RuntimeSecretConfig,
-    domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate},
-};
+use dokime_runtime::domains::installed_plugins::{PluginSecretUpdate, PluginSettingsUpdate};
 
 /* === Constants === */
 
@@ -205,10 +202,7 @@ async fn artifact_registration_visible() {
 #[tokio::test]
 async fn composed_plugin_process() {
     let root = tempdir().unwrap();
-    let secret_file = root.path().join("secrets.json");
-    let config = config(root.path())
-        .with_installed_plugins([settings_artifact()])
-        .with_secret_backend(RuntimeSecretConfig { backend: dokime_runtime::SecretBackendKind::LocalFile, local_file: Some(secret_file) });
+    let config = config(root.path()).with_installed_plugins([settings_artifact()]);
     let artifact_id = Identifier::new("settings-fixture").unwrap();
     let (mut first, runtime) = started(config.clone()).await;
     let mut values = runtime.plugin_settings(&artifact_id).await.unwrap().values;

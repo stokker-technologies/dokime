@@ -400,8 +400,6 @@ fn encode_secret_backend(
 ) -> dokime::domain::model::settings::wire::SecretBackendKind {
     match backend {
         dokime::domain::model::secrets::SecretBackendKind::OsKeyring => dokime::domain::model::settings::wire::SecretBackendKind::OsKeyring,
-        dokime::domain::model::secrets::SecretBackendKind::Memory => dokime::domain::model::settings::wire::SecretBackendKind::Memory,
-        dokime::domain::model::secrets::SecretBackendKind::LocalFile => dokime::domain::model::settings::wire::SecretBackendKind::LocalFile,
     }
 }
 

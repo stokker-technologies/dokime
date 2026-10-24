@@ -103,7 +103,6 @@ impl Published {
     pub async fn start(root: &Path) -> Self {
         let mut config = dokime::config::Config::local(root);
         config.seed_plugins = false;
-        config.secret_backend = serde_json::from_value(serde_json::json!({"backend":"memory"})).unwrap();
         let runtime = dokime::app::launch(config).await.unwrap();
         let server = Server::start(runtime.handle(), Config::local()).await.unwrap();
         Self { runtime, server }

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:781c4e46b35904c4b8b812836cd4bcbc5a36e93b99d440f890dc3220b17d0db7
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:6d5c07c9675c634a4d9d0a3d4760885a50de3e36896cf34947f1d190bbef5abd
 # === Settings === #
 
 [settings]
@@ -97,7 +97,7 @@ run = [{ task = "format:python --check" }, { task = "lint:python" }]
 
 [tasks."check:repository"]
 description = "Check Repository Configuration And Conventions"
-run = [{ task = "format:toml --check" }]
+run = [{ task = "format:toml --check" }, "uv run --locked --project tools/python python -m project_tools.ci.mise"]
 
 [tasks."check:rust"]
 description = "Check Rust"

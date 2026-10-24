@@ -19,7 +19,6 @@ use std::{fmt, path::PathBuf, sync::Arc};
 // Third Party Imports
 
 // Local Imports
-use crate::RuntimeSecretConfig;
 use crate::config::RuntimeConfig;
 use crate::domains::installed_plugins::{ResolvedBrand, builtin_plugins};
 use crate::plugins::PluginBundle;
@@ -48,7 +47,6 @@ pub struct Config {
     pub plugin_lookup: Option<PathBuf>,
     pub explicit_plugins: Vec<PathBuf>,
     pub brand: Option<ResolvedBrand>,
-    pub secret_backend: RuntimeSecretConfig,
     registrations: Registrations,
 }
 
@@ -85,7 +83,6 @@ impl Config {
             plugin_lookup: None,
             explicit_plugins: Vec::new(),
             brand: None,
-            secret_backend: RuntimeSecretConfig::default(),
             registrations: Registrations::default(),
         }
     }
@@ -98,7 +95,7 @@ impl Config {
     pub(crate) fn into_runtime_config(self) -> (RuntimeConfig, ShellStartup) {
         let startup = ShellStartup { brand: self.brand, native_host_telemetry: self.seed_plugins };
         let metadata = Metadata::new(Identifier::new(HUB_IDENTIFIER).expect("valid application identifier"), self.title, self.label);
-        let mut config = RuntimeConfig::new(&self.output_root, metadata).with_secret_backend(self.secret_backend);
+        let mut config = RuntimeConfig::new(&self.output_root, metadata);
         config.compaction_interval = self.compaction_interval;
         config.local_retention = self.local_retention;
         if let Some(root) = self.application_root {

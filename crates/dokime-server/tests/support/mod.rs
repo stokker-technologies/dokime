@@ -44,8 +44,8 @@ use dokime::transport::{
     ProviderCriterionOutcome, ProviderCycleOutcome, ProviderDependencyProbe, ProviderExecutionFailure, ProviderExecutionOutcome,
     ProviderPhaseOutcome, ProviderStatusOutcome, ProviderTelemetryOutcome,
 };
-use dokime::{CaseId, Identifier, Metadata, ParameterId, SecretBackendKind, TemplateId, TestCycleId, Value, ValueType};
-use dokime::{InstalledPlugin, Runtime, RuntimeHandle, RuntimeSecretConfig};
+use dokime::{CaseId, Identifier, Metadata, ParameterId, TemplateId, TestCycleId, Value, ValueType};
+use dokime::{InstalledPlugin, Runtime, RuntimeHandle};
 use {dokime::domain::model::execution::result::CycleStatus, dokime::domain::model::execution::result::CycleView};
 
 /* === Constants === */
@@ -94,9 +94,8 @@ impl TestEnvironment {
         action_dispatcher: Option<(Identifier, Arc<dyn ActionDispatcher>)>,
     ) -> Self {
         let root = tempdir().unwrap();
-        let mut runtime_config = budgets::runtime_config(root.path(), metadata("runtime.hub", "Runtime Hub"))
-            .with_secret_backend(RuntimeSecretConfig { backend: SecretBackendKind::Memory, local_file: None })
-            .with_installed_plugins(artifacts);
+        let mut runtime_config =
+            budgets::runtime_config(root.path(), metadata("runtime.hub", "Runtime Hub")).with_installed_plugins(artifacts);
         if let Some((suite_id, dispatcher)) = action_dispatcher {
             runtime_config = runtime_config.with_action_dispatcher(suite_id, dispatcher);
         }

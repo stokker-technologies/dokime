@@ -7,16 +7,14 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("ciphertext", "password", "choices", "generation")
-    CIPHERTEXT_FIELD_NUMBER: _ClassVar[int]
-    PASSWORD_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("data", "choices", "generation")
+    DATA_FIELD_NUMBER: _ClassVar[int]
     CHOICES_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
-    ciphertext: bytes
-    password: str
+    data: bytes
     choices: _containers.RepeatedCompositeFieldContainer[Row3]
     generation: int
-    def __init__(self, ciphertext: _Optional[bytes] = ..., password: _Optional[str] = ..., choices: _Optional[_Iterable[_Union[Row3, _Mapping]]] = ..., generation: _Optional[int] = ...) -> None: ...
+    def __init__(self, data: _Optional[bytes] = ..., choices: _Optional[_Iterable[_Union[Row3, _Mapping]]] = ..., generation: _Optional[int] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("host_id", "host_label", "generation", "entries", "cleanup_pending")

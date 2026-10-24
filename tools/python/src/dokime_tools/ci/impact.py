@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/impact.py; sha256:92d1aee45467529b39a19c635e530b0c40039a512260fa12cb742b208a9fb587
+# Rendered by stkr project update from templates/python/ci/impact.py; sha256:3c877dadc18ae959c7d70d69ef2be7d1222c1539a715fc0ad3726866cf00e604
 # ***
 #
 # Dokime
@@ -72,11 +72,11 @@ def select(plan: dict, paths: set[str] | None) -> set[str]:
     """Match Every Changed Path And Preserve The Complete Dependency Closure."""
     graph = plan["dependencies"]
     full = set(graph)
-    if not paths or any(_matches(plan["protected"], path) for path in paths):
+    if not paths:
         return full
     selected = set()
     for path in paths:
-        matching = [rule for rule in plan["rules"] if _matches(rule["only"], path) and not _matches(rule["exclude"], path)]
+        matching = [rule for rule in plan["rules"] if _matches(rule["include"], path) and not _matches(rule["exclude"], path)]
         if not matching:
             return full
         for rule in matching:

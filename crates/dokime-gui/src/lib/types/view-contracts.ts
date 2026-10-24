@@ -37,7 +37,7 @@ export type Choice = {
   title: string;
 };
 
-export type SecretBackendKind = "os_keyring" | "memory" | "local_file";
+export type SecretBackendKind = "os_keyring";
 
 export type CriterionId = string;
 

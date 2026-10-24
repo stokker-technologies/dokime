@@ -28,7 +28,7 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Constants === */
 
-const MAX_ARCHIVE_BYTES = 512 * 1024 + 4096;
+const MAX_ARCHIVE_BYTES = 4 * Math.ceil((512 * 1024) / 3);
 
 /* === Types === */
 
@@ -58,28 +58,24 @@ export async function removeSecret(session: SessionIdentity, name: string, gener
   return catalog(await rpc.secretsRemove(session, { names: [name], generation }));
 }
 
-export async function adoptSecret(session: SessionIdentity, metadata: SecretMetadata, legacyId: string, generation: bigint) {
-  return catalog(await rpc.secretsAdopt(session, { metadata, legacyId, generation }));
-}
-
-export async function exportSecrets(session: SessionIdentity, names: string[], password: string, generation: bigint) {
-  const archive = await rpc.secretsExport(session, { names, password, generation });
-  if (archive.ciphertext.byteLength > MAX_ARCHIVE_BYTES) throw new Error("Encrypted archive exceeds its size limit");
-  return saveNativeDocument(session, { kind: "secret_archive", filename: "dokime-secrets.age", bytes: archive.ciphertext });
+export async function exportSecrets(session: SessionIdentity, names: string[], generation: bigint) {
+  const archive = await rpc.secretsExport(session, { names, generation });
+  if (archive.data.byteLength > MAX_ARCHIVE_BYTES) throw new Error("Secret archive exceeds its size limit");
+  return saveNativeDocument(session, { kind: "secret_archive", filename: "dokime-secrets.b64", bytes: archive.data });
 }
 
 export async function pickSecretArchive(session: SessionIdentity): Promise<Uint8Array | null> {
   const encoded = await commands.desktopPickSecretArchive(session.generation);
   if (!session.isCurrent()) throw new Error("Secret archive lost its owning connection");
   if (encoded === null) return null;
-  if (encoded.length > Math.ceil(MAX_ARCHIVE_BYTES / 3) * 4) throw new Error("Encrypted archive exceeds its size limit");
+  if (encoded.length > Math.ceil(MAX_ARCHIVE_BYTES / 3) * 4) throw new Error("Secret archive exceeds its size limit");
   const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
-  if (bytes.byteLength > MAX_ARCHIVE_BYTES) throw new Error("Encrypted archive exceeds its size limit");
+  if (bytes.byteLength > MAX_ARCHIVE_BYTES) throw new Error("Secret archive exceeds its size limit");
   return bytes;
 }
 
-export async function previewSecrets(session: SessionIdentity, ciphertext: Uint8Array, password: string): Promise<SecretPreview> {
-  const preview = await rpc.secretsPreview(session, { ciphertext, password });
+export async function previewSecrets(session: SessionIdentity, data: Uint8Array): Promise<SecretPreview> {
+  const preview = await rpc.secretsPreview(session, { data });
   const entries = preview.entries.map((entry) => {
     if (!entry.metadata) throw new Error("Backend omitted imported secret metadata");
     return { ...entry, metadata: entry.metadata };
@@ -87,20 +83,14 @@ export async function previewSecrets(session: SessionIdentity, ciphertext: Uint8
   return { ...preview, entries };
 }
 
-export async function importSecrets(
-  session: SessionIdentity,
-  ciphertext: Uint8Array,
-  password: string,
-  preview: SecretPreview,
-  replace: ReadonlySet<string>,
-) {
+export async function importSecrets(session: SessionIdentity, data: Uint8Array, preview: SecretPreview, replace: ReadonlySet<string>) {
   const choices = preview.entries.map((entry) => ({
     name: entry.metadata.name,
     action: {
       HarmosVariant: replace.has(entry.metadata.name) ? { case: "Replace" as const, value: {} } : { case: "Skip" as const, value: {} },
     },
   }));
-  return catalog(await rpc.secretsImport(session, { ciphertext, password, choices, generation: preview.generation }));
+  return catalog(await rpc.secretsImport(session, { data, choices, generation: preview.generation }));
 }
 
 /* === Private Functions === */

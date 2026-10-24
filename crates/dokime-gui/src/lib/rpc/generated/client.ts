@@ -352,9 +352,6 @@ export const runtimeGetHealth = (session: SessionIdentity, request: Parameters<t
 import { Row1Schema as runtimeGetIdentityRequest } from "@generated/dokime/v1/RuntimeMessages/GetIdentity/messages_pb.js";
 import { Row2Schema as runtimeGetIdentityResponse } from "@generated/dokime/v1/RuntimeMessages/GetIdentity/messages_pb.js";
 export const runtimeGetIdentity = (session: SessionIdentity, request: Parameters<typeof unary<typeof runtimeGetIdentityRequest, typeof runtimeGetIdentityResponse>>[4]) => unary("/dokime.v1.Runtime/GetIdentity", runtimeGetIdentityRequest, runtimeGetIdentityResponse, session, request, 5000);
-import { Row1Schema as secretsAdoptRequest } from "@generated/dokime/v1/SecretsMessages/Adopt/messages_pb.js";
-import { Row2Schema as secretsAdoptResponse } from "@generated/dokime/v1/SecretsMessages/Adopt/messages_pb.js";
-export const secretsAdopt = (session: SessionIdentity, request: Parameters<typeof unary<typeof secretsAdoptRequest, typeof secretsAdoptResponse>>[4]) => unary("/dokime.v1.Secrets/Adopt", secretsAdoptRequest, secretsAdoptResponse, session, request, 120000);
 import { Row1Schema as secretsExportRequest } from "@generated/dokime/v1/SecretsMessages/Export/messages_pb.js";
 import { Row2Schema as secretsExportResponse } from "@generated/dokime/v1/SecretsMessages/Export/messages_pb.js";
 export const secretsExport = (session: SessionIdentity, request: Parameters<typeof unary<typeof secretsExportRequest, typeof secretsExportResponse>>[4]) => unary("/dokime.v1.Secrets/Export", secretsExportRequest, secretsExportResponse, session, request, 120000);

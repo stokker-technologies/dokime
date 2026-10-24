@@ -7,12 +7,10 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("ciphertext", "password")
-    CIPHERTEXT_FIELD_NUMBER: _ClassVar[int]
-    PASSWORD_FIELD_NUMBER: _ClassVar[int]
-    ciphertext: bytes
-    password: str
-    def __init__(self, ciphertext: _Optional[bytes] = ..., password: _Optional[str] = ...) -> None: ...
+    __slots__ = ("data",)
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    data: bytes
+    def __init__(self, data: _Optional[bytes] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("host_id", "host_label", "generation", "entries")

@@ -43,9 +43,6 @@ pub struct RedactedSecretBinding {
 pub enum SecretBackendKind {
     #[default]
     OsKeyring,
-
-    Memory,
-    LocalFile,
 }
 
 /* === Traits === */

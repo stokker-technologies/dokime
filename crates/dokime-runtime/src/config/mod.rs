@@ -25,7 +25,7 @@ pub use application::ApplicationOptions;
 pub use harmos::storage::StorageSettings;
 pub use launch::Config;
 pub use policy::{StoragePolicy, StoragePolicyView};
-pub use runtime::{InstalledSidecar, RuntimeConfig, RuntimeSecretConfig, SidecarNoticeHandler};
+pub use runtime::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
 pub use settings::{Appearance, Density, ReportDefaults, Settings, SettingsDocument, ThemeMode};
 pub use view::ApplicationSettingsView;
 

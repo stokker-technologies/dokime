@@ -333,14 +333,10 @@ function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["st
   }
 }
 
-function mapSecretBackend(backend: SecretBackendKind): "os_keyring" | "memory" | "local_file" {
+function mapSecretBackend(backend: SecretBackendKind): "os_keyring" {
   switch (backend?.HarmosVariant.case) {
     case "OsKeyring":
       return "os_keyring";
-    case "Memory":
-      return "memory";
-    case "LocalFile":
-      return "local_file";
     default:
       throw new Error("Native settings returned an unknown secret backend.");
   }

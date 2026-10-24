@@ -19,7 +19,8 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from .. import temporary
-from . import paths, run
+from . import paths
+from .rust.__main__ import build as build_rust
 
 # Type Checking Imports
 
@@ -38,7 +39,7 @@ PACKAGE = "{{package}}"
 
 def build(root: Path, profile: str) -> None:
     # Compile Through The Shared Product Owner
-    run.rust(root, profile)
+    build_rust(root, profile)
     output = paths.output(root, "build", profile)
     messages = output / "product/compiler.json"
     metadata = messages.with_name("metadata.json")

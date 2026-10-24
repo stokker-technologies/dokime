@@ -376,8 +376,6 @@ pub enum SettingsCardState {
 pub enum SecretBackendKind {
     Unspecified,
     OsKeyring,
-    Memory,
-    LocalFile,
 }
 
 #[harmos_domain::message]
