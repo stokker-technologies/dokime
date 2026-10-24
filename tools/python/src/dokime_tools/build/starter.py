@@ -143,6 +143,17 @@ def check(root: Path, profile: str, dependencies: Path) -> None:
             UV_FIND_LINKS=str(dependencies / "wheels"),
             UV_CACHE_DIR=str(plugin / "target/uv-cache"),
         )
+        # Reconcile The Disposable Workspace Identity After Its Local SDK Override.
+        subprocess.run(
+            ["mise", "exec", "--", "cargo", "update", "--offline", "--workspace"],
+            cwd=plugin,
+            env=environment,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         lock = plugin / "uv.lock"
         before = _pins(lock)
         subprocess.run(
