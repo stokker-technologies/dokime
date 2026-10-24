@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:1edcd27c26887cecc19c7070b85fa69aac7422e6c38e48f425bb8b0ce3d6f667
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:781c4e46b35904c4b8b812836cd4bcbc5a36e93b99d440f890dc3220b17d0db7
 # === Settings === #
 
 [settings]
@@ -194,10 +194,8 @@ description = "Simulate The Declared CI Graph Locally"
 usage = """
 flag "--pipeline <kind>" default=pr
 flag "--platform <platform>"
-flag "--executor <executor>"
-flag "--cpus <count>"
-flag "--memory-gib <size>""""
-run = "uv run --locked --project tools/python python -m project_tools.ci.simulate {% if usage.pipeline %}--pipeline {{usage.pipeline}}{% endif %} {% if usage.platform %}--platform {{usage.platform}}{% endif %} {% if usage.executor %}--executor {{usage.executor}}{% endif %} {% if usage.cpus %}--cpus {{usage.cpus}}{% endif %} {% if usage.memory_gib %}--memory-gib {{usage.memory_gib}}{% endif %}"
+flag "--executor <executor>""""
+run = "uv run --locked --project tools/python python -m project_tools.ci.simulate {% if usage.pipeline %}--pipeline {{usage.pipeline}}{% endif %} {% if usage.platform %}--platform {{usage.platform}}{% endif %} {% if usage.executor %}--executor {{usage.executor}}{% endif %}"
 
 # === Release === #
 

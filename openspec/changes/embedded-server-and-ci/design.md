@@ -22,6 +22,10 @@ Native report journeys supply a test-scoped opener resource targeting an owned b
 
 Nightly runs full ordinary validation with default release Product and Package outputs, unsigned downloadable installers, default unoptimized test-profile Tests and coverage, and default bench-profile benchmarks. It does not sign or publish.
 
+## Local Simulation
+
+Local simulation executes one ready job at a time across required native Windows and Docker/WSL Linux executors. It imposes no CPU, memory or thread limits, does not set compiler parallelism, and exposes no resource-budget flags. The shared resource scheduler, native resource-enforcement module and their generated starter copies are removed. Canonical job commands, artifact inputs, platform requirements and correctness deadlines remain unchanged; hosted CI retains its ordinary dependency graph.
+
 ## Source Ownership
 
 The server library exposes one Session for boot, plugin admission/reload, listener ownership and bounded drain. CLI server composition owns dotenv, tracing, terminal/JSON output and signals. GUI composition retains its existing connection revision owner and supplies the embedded session; startup diagnostics use the shared application log rather than subprocess exit codes or stderr capture. Cancellation guards retain cleanup ownership during plugin initialization and session startup.

@@ -13,13 +13,19 @@ The dokime and dokime-server libraries SHALL retain their published identities. 
 ### Requirement: Validate In The Assigned Worktree
 Local implementation SHALL use the assigned worktree without a separate source checkout. After combined source closure, the canonical verified ci:simulate gate SHALL execute the rendered job graph and artifact dependencies across every declared required platform. A platform filter SHALL represent partial proof. Native provider checks SHALL remain required before protected integration.
 
+#### Scenario: Run Serial Local Simulation
+- **WHEN** the local simulator executes the candidate
+- **THEN** it runs one ready job at a time across native Windows and Docker/WSL Linux
+- **AND** it imposes no CPU, memory or thread limits, sets no compiler parallelism and offers no resource-budget flags
+- **AND** every required job retains its canonical commands and artifact dependencies
+
 #### Scenario: Deliver An Archive Portability Repair
 - **WHEN** the candidate completes combined source and the full local simulator gate
 - **THEN** the next PR update starts required hosted native checks with archive workspace remapping
 - **AND** integration remains blocked until transported consumers and every required native platform pass
 
 ### Requirement: Share Native Compilation Ownership
-Product and Tests SHALL compile independently in parallel per platform/profile, under repository-owned canonical configurations and matching Clippy. Product SHALL use default Cargo dev or release; all Tests, matching Clippy and local extended configurations SHALL use default unoptimized test. Project compiler profile overrides SHALL be absent. Bench SHALL use default bench. The graph artifact namespace SHALL remain explicit and independent of the Cargo test output directory. Shipping behavior and canonical coverage SHALL remain intact. Check SHALL not compile; Test and Package SHALL consume existing exports. Noncanonical compatibility and fault injection SHALL remain explicit local-only extended validation.
+Hosted CI Product and Tests SHALL compile independently in parallel per platform/profile, under repository-owned canonical configurations and matching Clippy. Local simulation SHALL execute those producers serially. Product SHALL use default Cargo dev or release; all Tests, matching Clippy and local extended configurations SHALL use default unoptimized test. Project compiler profile overrides SHALL be absent. Bench SHALL use default bench. The graph artifact namespace SHALL remain explicit and independent of the Cargo test output directory. Shipping behavior and canonical coverage SHALL remain intact. Check SHALL not compile; Test and Package SHALL consume existing exports. Noncanonical compatibility and fault injection SHALL remain explicit local-only extended validation.
 
 #### Scenario: Build A Native Candidate
 - **WHEN** native CI builds the candidate

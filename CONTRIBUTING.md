@@ -45,7 +45,8 @@ mise run ci:simulate
 ```
 
 The default run covers every declared required platform; selecting one platform
-is only partial proof. The same impact policy keeps prose-only edits lightweight
+is only partial proof. Local simulation runs one job at a time without CPU, memory
+or thread limits. The same impact policy keeps prose-only edits lightweight
 and includes full affected proof for code or executable documentation changes.
 
 Product and Tests build independently. Tests use Cargo's unoptimized test
