@@ -340,7 +340,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     let telemetry = client.clone();
     // Bounded readiness poll: the plugin process exposes no signal for its
     // first observer sample.
-    let live_deadline = Instant::now() + Duration::from_secs(30);
+    let live_deadline = Instant::now() + Duration::from_secs(120);
     let live_samples = loop {
         let page = telemetry
             .telemetry_list_samples(contracts::telemetry::ListSamples {
@@ -374,7 +374,7 @@ async fn steady_sweep(client: &Client, changes: &mut Changes) {
     // time can advance faster than the host collector's wall-clock cadence.
     // Bounded readiness poll: host collectors tick on wall time and expose no
     // signal per row.
-    let host_deadline = Instant::now() + Duration::from_secs(30);
+    let host_deadline = Instant::now() + Duration::from_secs(120);
     loop {
         let page = telemetry
             .telemetry_list_samples(contracts::telemetry::ListSamples {
@@ -780,7 +780,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
 // while that question waits without answering it.
 #[tokio::test]
 async fn open_report_while_cycle_runs() {
-    const BOUND: Duration = Duration::from_secs(30);
+    const BOUND: Duration = Duration::from_secs(120);
     let root = tempfile::tempdir().unwrap();
     let bundle = support::artifacts::obc_plugin_bundle();
     let mut host = Host::launch_in(&root.path().join("host"), Some(&bundle)).await;

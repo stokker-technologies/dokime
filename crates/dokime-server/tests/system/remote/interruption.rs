@@ -175,7 +175,7 @@ impl Gate {
             return Ok(());
         }
         self.reached.cancel();
-        let deadline = std::time::Duration::from_secs(30);
+        let deadline = std::time::Duration::from_secs(120);
         let release = tokio::time::timeout(deadline, self.released.cancelled());
         release.await.map_err(|_| std::io::Error::other("native recovery did not release its held mutation response"))?;
         Ok(())
@@ -591,7 +591,7 @@ fn read_terminal(
                     let _ = disconnect.send(());
                 }
                 Action::InterruptAt(gate) => {
-                    let waiting = async { tokio::time::timeout(std::time::Duration::from_secs(30), gate.reached.cancelled()).await };
+                    let waiting = async { tokio::time::timeout(std::time::Duration::from_secs(120), gate.reached.cancelled()).await };
                     runtime.block_on(waiting).map_err(|_| std::io::Error::other("mutation reply gate was not reached"))?;
                     writer.write_all(b"\x03")?;
                     writer.flush()?;
@@ -627,7 +627,7 @@ async fn first_sample(client: &Client, id: TestExecutionId) {
         }
         panic!("the execution must publish a sample before finishing");
     };
-    tokio::time::timeout(std::time::Duration::from_secs(30), waiting).await.expect("the execution must begin its capture");
+    tokio::time::timeout(std::time::Duration::from_secs(120), waiting).await.expect("the execution must begin its capture");
     samples.close().await;
 }
 
@@ -648,7 +648,7 @@ async fn admitted(client: &Client, id: TestExecutionId) {
             changes.message().await.unwrap().expect("runtime observation remains open until admission");
         }
     };
-    tokio::time::timeout(std::time::Duration::from_secs(30), waiting).await.expect("script must admit its printed execution");
+    tokio::time::timeout(std::time::Duration::from_secs(120), waiting).await.expect("script must admit its printed execution");
     changes.close().await;
 }
 

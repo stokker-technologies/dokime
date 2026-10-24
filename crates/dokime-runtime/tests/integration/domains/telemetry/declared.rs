@@ -35,8 +35,8 @@ const SUITE: &str = "fixture.declaring.checks";
 const RECORD: &str = "fixture.declaring.measured";
 const PROMPT: &str = "fixture.declaring.confirm";
 const POLICY: OperationPolicy = OperationPolicy {
-    timeout: Duration::from_secs(30),
-    attempt_timeout: Duration::from_secs(30),
+    timeout: Duration::from_secs(120),
+    attempt_timeout: Duration::from_secs(120),
     retries: RetryPolicy::Never,
     restart: RestartPolicy::Never,
 };

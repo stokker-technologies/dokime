@@ -58,7 +58,7 @@ The desktop submits the installation identity and digest displayed in its review
 
 ## Test Hang Guards And Performance
 
-Tests use a minimum thirty-second hang guard and retain higher limits. This is a correctness watchdog, not a performance assertion: normal application operations are still expected to finish in less than ten seconds, and a pass after increasing a guard does not establish acceptable speed. Benchmarks own performance measurements. No compiler optimization exceptions accompany this policy.
+Tests use a minimum 120-second hang guard and retain higher limits, as explicitly authorized after runner-dependent thirty-second failures. This is a correctness watchdog, not a performance assertion: normal application operations are still expected to finish in less than ten seconds, and a pass after increasing a guard does not establish acceptable speed. Benchmarks own performance measurements. No compiler optimization exceptions accompany this policy. Product and starter configuration declare unit and integration deadlines of 120 seconds and preserve acceptance and system deadlines of 900 seconds; generated policy follows its owning configuration.
 
 | Authored Owner | Watchdogs To Migrate |
 | --- | --- |
@@ -72,10 +72,12 @@ Tests use a minimum thirty-second hang guard and retain higher limits. This is a
 | Server `tests/integration/{plugins,server/operations}.rs` | Ordinary RPC fixture operation policies |
 | CLI `tests/acceptance/install.rs`, GUI `src-tauri/tests/integration/rpc/mod.rs`, Macros `tests/integration/renamed_sdk.rs` | Install, native RPC and renamed-SDK runtime fixture operation policies |
 | Python `tests/acceptance/client/test_native.py` | Owned backend shutdown and cleanup waits |
+| Server `tests/system/remote/interruption.rs` And `tests/integration/records.rs` | Ordinary readiness and record fixture waits; preserve the existing 300-second script guard |
+| Runtime `src/plugin/testing.rs` | Public test-harness default only; production operation budgets remain unchanged |
 
 Deliberately short SDK elapsed/cancellation, packaging timeout, Python deadline-propagation and invalid-deadline scenarios retain their semantic inputs. Compile-only macro fixtures describe input data rather than a running test watchdog. Poll intervals, simulated time, timestamps and intentional waits are not hang guards. Production operation budgets, including plugin Consent's ten-second contract, remain unchanged.
 
-The former three/fifteen-second shutdown assertions encoded performance in correctness tests; their replacement still requires a clean exit, settled authorization/evidence and no owned sidecar leak. Shutdown speed and component compilation/startup remain performance assessment items even if a thirty-second guard passes. Consent must still satisfy the production deadline after removing repeated bundle verification; a longer test guard does not waive that requirement.
+The former three/fifteen-second shutdown assertions encoded performance in correctness tests; their replacement still requires a clean exit, settled authorization/evidence and no owned sidecar leak. Shutdown speed and component compilation/startup remain performance assessment items even if a 120-second guard passes. Consent must still satisfy the production deadline after removing repeated bundle verification; a longer test guard does not waive that requirement.
 
 The user retired the compiler-color test; remove it and its routing rather than retaining a nightly replacement. The standalone starter retains its existing nightly proof. Expected CLI failures present their message and distinct causes without capturing a backtrace at the terminal boundary; domain diagnostics retain their existing capture behavior.
 
@@ -92,3 +94,7 @@ One in-process saved-file roundtrip proves this codec with isolated keyring stor
 Compiler entry points adopt the shared preflight that reclaims idle disposable Cargo output above 64 GiB while preserving declared build/test/package artifacts; local simulation retains serial jobs without thread or memory limits. Shared Docker cleanup removes only owned disposable execution state. Root and managed starters use the same rendered helpers. Impact rules use include with their existing selectors; provider protections remain untouched by --no-provider renders.
 
 Report file production retains a mutation identity only until its operation is acknowledged. A subsequent create/append/finish is new work and obtains the manager's current retry window. An unresolved or ambiguous call keeps its original identity across retries; expiry remains a refusal requiring reconciliation. This changes neither the storage retry retention nor report durability and integrity requirements.
+
+## Delivery Verification
+
+The user authorizes pushing each source-complete repair candidate before local CI, then immediately running the required local simulation in parallel with hosted CI. Both streams provide failure evidence; source fixes follow the same inventory and targeted-proof discipline. Keep provider-native auto-merge enabled: required hosted checks may integrate the complete candidate into dev independently of local completion. Successful protected integration is the integration objective. Carry the active branch's changes into the retained drop-2026-10-25 worktree while preserving its independently authored feature work. This explicit delivery direction supersedes the earlier local-pass-before-push ordering for this work.

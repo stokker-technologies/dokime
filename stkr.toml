@@ -292,6 +292,12 @@ acceptance = 128
 system = 64
 
 
+[conventions.testing.deadlines]
+unit = 120
+integration = 120
+acceptance = 900
+system = 900
+
 [conventions.rust.source_roots]
 # Validate the authored source that this compile-only crate renders and includes.
 dokime-starter-check = "crates/cargo-dokime/templates"

@@ -433,7 +433,7 @@ async fn cancelled_wait_reports_failure_to_readiness_waiters() {
     let ready = dokime_domain::operations::files::AwaitFileWatchArmed { instance_id: watch.id().value() };
     watch.cancel();
     assert!(watch.join().await.is_err());
-    let result = tokio::time::timeout(std::time::Duration::from_secs(30), bench.handle.operations().call(ready)).await;
+    let result = tokio::time::timeout(std::time::Duration::from_secs(120), bench.handle.operations().call(ready)).await;
     assert!(result.expect("readiness settles after cancellation").is_err());
     bench.stop().await;
 }

@@ -31,8 +31,8 @@ use super::{Config, Server, runtime};
 /* === Constants === */
 
 const POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
-    timeout: std::time::Duration::from_secs(30),
-    attempt_timeout: std::time::Duration::from_secs(30),
+    timeout: std::time::Duration::from_secs(120),
+    attempt_timeout: std::time::Duration::from_secs(120),
     retries: dokime::harmos::operations::RetryPolicy::Never,
     restart: dokime::harmos::operations::RestartPolicy::Never,
 };

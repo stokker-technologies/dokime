@@ -47,7 +47,7 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 const HOST_SOURCE: &str = "dokime.harness";
 const RESPONDER: &str = "dokime.harness";
 const CANCEL: &str = "cancel";

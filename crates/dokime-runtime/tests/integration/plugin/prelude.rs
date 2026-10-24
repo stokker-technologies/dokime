@@ -60,8 +60,8 @@ mod bare_attributes {
     use dokime_runtime::prelude::*;
 
     const POLICY: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(30),
-        attempt_timeout: std::time::Duration::from_secs(30),
+        timeout: std::time::Duration::from_secs(120),
+        attempt_timeout: std::time::Duration::from_secs(120),
         retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
         restart: dokime_runtime::harmos::operations::RestartPolicy::Never,
     };

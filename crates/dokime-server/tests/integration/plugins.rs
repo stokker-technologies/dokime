@@ -31,8 +31,8 @@ use model::plugins::wire::StagePluginFrameFrame as Frame;
 
 const DYNAMIC_OWNER: &str = "grpc.dynamic-fixture";
 const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
-    timeout: Duration::from_secs(30),
-    attempt_timeout: Duration::from_secs(30),
+    timeout: Duration::from_secs(120),
+    attempt_timeout: Duration::from_secs(120),
     retries: dokime::harmos::operations::RetryPolicy::Never,
     restart: dokime::harmos::operations::RestartPolicy::Never,
 };
@@ -361,8 +361,8 @@ fn bundle_description(description: &str) -> Vec<u8> {
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
     let policy = dokime::harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(30),
-        attempt_timeout: std::time::Duration::from_secs(30),
+        timeout: std::time::Duration::from_secs(120),
+        attempt_timeout: std::time::Duration::from_secs(120),
         retries: dokime::harmos::operations::RetryPolicy::Never,
         restart: dokime::harmos::operations::RestartPolicy::Never,
     };

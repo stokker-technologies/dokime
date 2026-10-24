@@ -30,7 +30,7 @@ use dokime::client::contracts;
 
 /* === Constants === */
 
-const STOP_GUARD: Duration = Duration::from_secs(30);
+const STOP_GUARD: Duration = Duration::from_secs(120);
 
 /* === Macros === */
 
