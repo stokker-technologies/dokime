@@ -2070,24 +2070,27 @@ async function cycleJourney(session, cycleId) {
       ),
     30000,
   );
-  // Use Keyboard Activation While The Running Prompt Can Move The Plot.
-  const reopenedSettings = await session.find("css selector", settingsSelector);
-  const focusedSettings = await session.execute(
-    `
-    arguments[0].focus();
-    return document.activeElement === arguments[0] && !arguments[0].disabled;
-  `,
-    [reopenedSettings],
-  );
-  assert.ok(focusedSettings, "The same plot settings control accepts keyboard focus after remounting");
-  await session.key("Enter");
+  // Reacquire Native Focus If A Running Prompt Remounts The Plot Control.
   const persistedPoints = await until(
     "persisted display point budget",
-    () =>
-      session.execute(`
-        const input = document.querySelector('[role=dialog][data-state=open] input[type=number]');
-        return input ? {value: input.value} : null;
-      `),
+    async () => {
+      const dialog = await session.execute(`
+        const dialog = document.querySelector('[role=dialog][data-state=open]');
+        const input = dialog?.querySelector('input[type=number]');
+        return dialog ? {open: true, input: input ? {value: input.value} : null} : null;
+      `);
+      if (dialog) return dialog.input;
+      const reopenedSettings = await session.find("css selector", settingsSelector);
+      const focused = await session.execute(
+        `
+        arguments[0].focus();
+        return document.activeElement === arguments[0] && !arguments[0].disabled;
+      `,
+        [reopenedSettings],
+      );
+      if (focused) await session.key("Enter");
+      return null;
+    },
     30000,
   );
   assert.equal(persistedPoints.value, "2500", "The backend must retain the plot budget after remounting");

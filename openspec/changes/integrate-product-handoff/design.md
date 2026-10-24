@@ -86,3 +86,7 @@ The Windows desktop harness consumes the exact EdgeDriver artifact prepared by r
 ## Explicit Desktop Storage Root
 
 Organization packs honor a nonempty `DOKIME_APPLICATION_ROOT`, alongside desktop parameters and the owned backend. Without that override, their existing Tauri app-data directory remains unchanged. Native tests use this explicit root instead of assuming Windows Known Folder APIs honor `APPDATA`; activation and durability assertions inspect the same isolated root. The identified leaked Validation Lab fixture is preserved outside the live organization directory; unknown user state is not removed.
+
+## Native Plot Settings Activation
+
+After remounting a running execution, the native harness reacquires the current plot settings control and keyboard focus until its dialog opens within the existing deadline. It reads the persisted value only from the opened dialog and retains the exact configured budget assertion. This accommodates prompt-driven DOM replacement without injecting a click or treating a missed activation as a persistence verdict.
