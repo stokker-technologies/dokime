@@ -60,11 +60,13 @@ export async function getNativePlugin(session: SessionIdentity, installId: strin
   return mapPluginInstallation(await rpc.pluginsGetInstallation(session, { installId }));
 }
 
-export async function consentNativePlugin(session: SessionIdentity, installId: string): Promise<PluginEntry> {
-  const current = await rpc.pluginsGetInstallation(session, { installId });
+export async function consentNativePlugin(
+  session: SessionIdentity,
+  reviewed: Pick<PluginEntry, "install_id" | "sha256">,
+): Promise<PluginEntry> {
   const installation = await rpc.pluginsConsent(session, {
-    installId,
-    expectedSha256: current.sha256,
+    installId: reviewed.install_id,
+    expectedSha256: reviewed.sha256,
   });
   return mapPluginInstallation(installation);
 }

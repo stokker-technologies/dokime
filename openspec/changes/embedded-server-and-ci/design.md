@@ -10,6 +10,8 @@ Runtime composition accepts an explicit credential-store resource, separate from
 
 Product uses default dev/release; Tests and preceding Clippy use built-in test, including release graph contexts. Artifact paths preserve the graph profile. Packaging symbol policy remains separate from compiler flags. Contract tests consume the just-built archive and explicit graph namespace.
 
+The shared test runner assigns child-only `STKR_TEST_PROFILE` from its parsed profile for ordinary tests and coverage. Archive contract execution supplies the same value explicitly; Rust fixture readers validate dev/release and default to dev for direct Cargo execution. Mise task environment tables do not reference usage arguments.
+
 `test:rust:starter` maps to `dokime_tools.test.rust.starter`, declares `pipelines = ["nightly"]` and explicit Product input. It generates and compiles the real standalone consumer. Ordinary scaffold assertions remain; no unrelated suite consolidation is included.
 
 ## Report Browser Ownership
@@ -45,3 +47,7 @@ Product keeps the same compiler outputs and default Cargo profiles. Named transf
 | Rust Package | CLI, GUI, generator, plugins, packaging metadata |
 
 Desktop journeys need the CLI as well as the GUI: remote attachment and interoperability still launch a separate headless server through dokime server. The owned desktop session itself remains embedded. Rust acceptance exercises the GUI session library and substitutes a controlled GUI launcher for installation discovery, so it does not require the shipping GUI executable. Archive stamp checks remain scoped to Tests/fixtures; artifact readers request individual files and do not demand omitted siblings. No symbol stripping, profile change, fixture removal or coverage reduction accompanies this split.
+
+## Plugin Consent Admission
+
+The desktop submits the installation identity and digest displayed in its review dialog. Consent verifies the stored bundle once for the operation, then runs synchronous digest and complete-disclosure admission checks on that verified entry before publishing settings. The RPC maps refusals to the existing failed-precondition and resource-exhausted statuses. Configured and installed bundle collision checks still verify their bytes; no persistent metadata cache or deadline increase is introduced. Refusal leaves both the staged installation and any previously installed authorization unchanged.

@@ -159,16 +159,28 @@ impl PluginStore {
     }
 
     pub fn consent(&self, id: Uuid, configured: &[PluginMetadata], host_sources: &BTreeSet<String>) -> Result<PluginEntry, PluginError> {
+        self.consent_checked(id, configured, host_sources, |_| Ok(()))
+    }
+
+    /// Validates the freshly verified disclosure before publishing consent.
+    /// The validator must perform only synchronous, nonblocking admission checks.
+    pub fn consent_checked<E: From<PluginError> + From<std::io::Error>>(
+        &self, id: Uuid, configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
+        validate: impl FnOnce(&PluginEntry) -> Result<(), E>,
+    ) -> Result<PluginEntry, E> {
         self.settings.edit(|document| {
             let target = document.plugins.get(&id).ok_or(PluginError::Unknown(id))?;
             if target.state == PluginState::RemovalPending {
-                return Err(PluginError::NotStaged(id));
+                return Err(PluginError::NotStaged(id).into());
             }
             let (_, metadata) = self.verified(id, target)?;
+            let reviewed = entry(target.installation(id), Some(metadata), None);
+            validate(&reviewed)?;
+            let metadata = reviewed.metadata.expect("freshly verified above");
             let mut occupied = host_sources.clone();
             for configured in configured {
                 if configured.identity.name == metadata.identity.name {
-                    return Err(PluginError::Collision(metadata.identity.name.clone()));
+                    return Err(PluginError::Collision(metadata.identity.name.clone()).into());
                 }
                 occupied.extend(configured.owners.iter().cloned());
             }
@@ -187,7 +199,7 @@ impl PluginStore {
                 }
             }
             if let Some(owner) = metadata.owners.iter().find(|owner| occupied.contains(*owner)) {
-                return Err(PluginError::Collision(owner.clone()));
+                return Err(PluginError::Collision(owner.clone()).into());
             }
 
             let mut inherited = Default::default();

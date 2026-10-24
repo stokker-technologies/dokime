@@ -51,7 +51,9 @@ impl RuntimeHandle {
         PluginStore::new(self.settings().clone())
     }
 
-    pub async fn consent_plugin(&self, id: Uuid) -> Result<PluginEntry, PluginError> {
+    pub async fn consent_plugin<E: From<PluginError> + From<std::io::Error> + Send + 'static>(
+        &self, id: Uuid, validate: impl FnOnce(&PluginEntry) -> Result<(), E> + Send + 'static,
+    ) -> Result<PluginEntry, E> {
         let store = self.plugin_store();
         let configured = self.config().plugins.clone();
         let host_sources: BTreeSet<_> = self
@@ -69,10 +71,10 @@ impl RuntimeHandle {
                     inspect(&bytes).map(|(_, metadata)| metadata)
                 })
                 .collect::<Result<Vec<_>, PluginError>>()?;
-            store.consent(id, &configured, &host_sources)
+            store.consent_checked(id, &configured, &host_sources, validate)
         })
         .await
-        .map_err(|error| PluginError::Io(std::io::Error::other(error.to_string())))?
+        .map_err(|error| E::from(PluginError::Io(std::io::Error::other(error.to_string()))))?
     }
 }
 

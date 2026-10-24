@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:10c014a90e205277b884e2daf58e2e33bcbd470f4dfa509655d1b8c9d32c50a4
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:fdd9e3847786f098f77e88ec7497903f462579f8e983d5e4db08f6341da79828
 name: CI
 "on":
   push:
@@ -841,9 +841,10 @@ jobs:
       env:
         RUSTC_WRAPPER: ""
       with:
-        install: python
+        install: true
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
+        install_args: python
     - id: impact
       shell: bash
       run: |-
@@ -991,6 +992,8 @@ jobs:
           github.base_ref != '' && !startsWith(github.head_ref, 'release/') && format('origin/{0}',
           github.base_ref) || github.event_name == 'push' && github.ref == 'refs/heads/dev'
           && github.event.before || '' }}
+    env:
+      MISE_ENABLE_TOOLS: python
     outputs:
       jobs: ${{ steps.impact.outputs.jobs }}
     concurrency:
@@ -1187,9 +1190,10 @@ jobs:
       env:
         RUSTC_WRAPPER: ""
       with:
-        install: python
+        install: true
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
+        install_args: python
     - shell: bash
       env:
         RESULTS: ${{ toJSON(needs) }}
@@ -1201,6 +1205,8 @@ jobs:
         assert all(job['result'] in ('success', 'skipped') for job in results.values()), 'selected CI jobs failed'
         STKR_GATE
     if: always()
+    env:
+      MISE_ENABLE_TOOLS: python
     concurrency:
       group: "ci-${{ github.workflow }}-required-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
       cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"

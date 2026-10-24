@@ -73,6 +73,8 @@ struct Consent {
     resources: Arc<Resources>,
 }
 
+struct ConsentError(Status);
+
 struct SetEnabled {
     resources: Arc<Resources>,
 }
@@ -90,6 +92,18 @@ struct ListAdmittedPlugins {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl From<PluginError> for ConsentError {
+    fn from(error: PluginError) -> Self {
+        Self(failure(error))
+    }
+}
+
+impl From<std::io::Error> for ConsentError {
+    fn from(error: std::io::Error) -> Self {
+        Self(failure(PluginError::Io(error)))
+    }
+}
 
 impl Resources {
     fn permit(&self) -> Result<OwnedSemaphorePermit, Status> {
@@ -293,13 +307,15 @@ impl Operation for Consent {
         // already have published; callers reconcile by UUID, never blindly retry.
         let entry = tokio::spawn(async move {
             let _permit = permit;
-            let store = runtime.plugin_store();
-            let current = tokio::task::spawn_blocking(move || store.get(id)).await.map_err(join)?.map_err(failure)?;
-            if current.installation.sha256 != expected_sha256 {
-                return Err(Status::failed_precondition("consent digest does not match staged installation"));
-            }
-            wire::disclosure(&current, max_message_bytes)?;
-            runtime.consent_plugin(id).await.map_err(failure)
+            runtime
+                .consent_plugin(id, move |current| {
+                    if current.installation.sha256 != expected_sha256 {
+                        return Err(ConsentError(Status::failed_precondition("consent digest does not match staged installation")));
+                    }
+                    wire::disclosure(current, max_message_bytes).map_err(ConsentError)
+                })
+                .await
+                .map_err(|error| error.0)
         })
         .await
         .map_err(join)??;

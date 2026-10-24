@@ -335,7 +335,7 @@ depends = [
   "test:rust:acceptance --profile {{usage.profile}}",
   "test:rust:system --profile {{usage.profile}}",
 ]
-env = { CARGO_INCREMENTAL = "0", DOKIME_BUILD_PROFILE = "{{usage.profile}}" }
+env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:extended"]
 description = "Run Optional Local Compatibility And Fault-Injection Stories"
@@ -359,19 +359,18 @@ env.CARGO_INCREMENTAL = "0"
 description = "Measure Rust Coverage Over Instrumented Lanes"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.test.run coverage --language rust --profile {{usage.profile}}"
-env.DOKIME_BUILD_PROFILE = "{{usage.profile}}"
 
 [tasks."test:rust:unit"]
 description = "Test Unit Rust"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust"
-env = { CARGO_INCREMENTAL = "0", DOKIME_BUILD_PROFILE = "{{usage.profile}}" }
+env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:integration"]
 description = "Test Integration Rust"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\""
-env = { CARGO_INCREMENTAL = "0", DOKIME_BUILD_PROFILE = "{{usage.profile}}" }
+env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:acceptance"]
 description = "Test Acceptance Rust"
@@ -382,7 +381,7 @@ run = [
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
   "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust",
 ]
-env = { CARGO_INCREMENTAL = "0", DOKIME_BUILD_PROFILE = "{{usage.profile}}" }
+env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:system"]
 description = "Test System Rust"
@@ -392,7 +391,7 @@ run = [
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
   "{{vars.lane}} --profile {{usage.profile}} --category system --language rust",
 ]
-env = { CARGO_INCREMENTAL = "0", DOKIME_BUILD_PROFILE = "{{usage.profile}}" }
+env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:typescript"]
 description = "Test TypeScript Layers"

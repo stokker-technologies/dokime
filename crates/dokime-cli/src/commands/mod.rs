@@ -95,7 +95,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::Operation(command) => operation::run(command).await,
         Command::Plan(command) => plan::run(command).await,
         Command::Plugin(command) => plugin::run(command).await,
-        Command::Server(args) => server::run(args).await,
+        Command::Server(args) => Box::pin(server::run(args)).await,
         Command::Gui(args) => gui::run(args),
         Command::Version(args) => {
             version::run(args);

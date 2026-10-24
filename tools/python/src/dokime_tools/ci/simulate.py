@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:1a415aa09831bf5ce4de0d43b1e964f704893219de59d49c98fa0ae6b09ba5c1
+# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:16548a63cf2609d89737970555a88f5d271872c7371426afc26fef63f79bb7cc
 # ***
 #
 # Dokime
@@ -47,7 +47,7 @@ PLAN = json.loads(
 )
 GIB = 1024**3
 PRINT = threading.Lock()
-NATIVE_LIMIT = None
+NATIVE_LIMIT: NativeLimit | None = None
 BUDGET = None
 
 
@@ -57,6 +57,17 @@ BUDGET = None
 
 
 # === Public Functions === #
+
+
+def cache_root(root: Path) -> Path:
+    identity = hashlib.sha256(str(root).encode()).hexdigest()[:16]
+    if sys.platform == "win32":
+        return Path.home() / ".cache/stkr/ci" / identity
+    return (
+        Path(os.environ.get("LOCALAPPDATA", os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))))
+        / "stkr/ci-simulation"
+        / identity
+    )
 
 
 def main() -> int:
@@ -141,15 +152,11 @@ def main() -> int:
             )
         BUDGET.native = NATIVE_LIMIT
         BUDGET.update([], jobs)
-        identity = hashlib.sha256(str(root).encode()).hexdigest()[:16]
         token = uuid.uuid4().hex[:12]
         output = root / "target/ci/simulation" / token
         output.mkdir(parents=True)
-        cache = (
-            Path(os.environ.get("LOCALAPPDATA", os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))))
-            / "stkr/ci-simulation"
-            / identity
-        )
+        cache = cache_root(root)
+        identity = cache.name
         cache.mkdir(parents=True, exist_ok=True)
         profile = "release" if options.pipeline in ("release", "nightly") or release_review else "dev"
         with tempfile.TemporaryDirectory(prefix="stkr-ci-simulation-") as temporary:
@@ -369,6 +376,12 @@ def stage(root: Path, destination: Path) -> None:
     git = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False)
     if git.returncode == 0:
         subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", "--local", str(root), str(destination)], check=True)
+        for key, default in (("core.autocrlf", "false"), ("core.eol", "native")):
+            setting = subprocess.run(["git", "-C", str(root), "config", "--get", key], capture_output=True, text=True, check=False)
+            if setting.returncode not in (0, 1):
+                raise SimulationError(f"could not read candidate Git setting: {key}")
+            value = setting.stdout.strip() if setting.returncode == 0 else default
+            subprocess.run(["git", "-C", str(destination), "config", "--local", key, value], check=True)
         index = subprocess.run(["git", "-C", str(root), "ls-files", "--stage", "-z"], capture_output=True, check=True).stdout
         subprocess.run(["git", "-C", str(destination), "read-tree", "--empty"], check=True)
         subprocess.run(["git", "-C", str(destination), "update-index", "-z", "--index-info"], input=index, check=True)
@@ -608,6 +621,7 @@ def run_job(job: dict, candidate: Path, output: Path, cache: Path, identity: str
                 local.mkdir(parents=True, exist_ok=True)
                 environment.update(
                     MISE_DATA_DIR=str(local / "mise"),
+                    MISE_CACHE_DIR=str(local / "mise-cache"),
                     MISE_DOWNLOADS_DIR=str(local / "mise-downloads"),
                     CARGO_HOME=str(local / "cargo"),
                     UV_CACHE_DIR=str(local / "uv"),
@@ -638,13 +652,16 @@ def run_job(job: dict, candidate: Path, output: Path, cache: Path, identity: str
                     lines.extend(step_environment.commands(windows, sys.executable, str(Path(__file__).with_name("environment.py"))))
                 script.write_text("\n".join(lines) + "\n", encoding="utf-8")
                 shell = ["pwsh", "-NoProfile", "-NonInteractive", "-File", str(script)] if windows else ["bash", str(script)]
-                status = stream(shell, workspace, environment, label, log, job["minutes"] * 60 - (time.monotonic() - started), result)
-                if status == 0:
-                    transfer_started = time.monotonic()
-                    archive = workspace / "target/ci/simulation-output.tar"
-                    export(workspace, outputs, archive)
-                    transport(archive, output / "artifacts" / key)
-                    transfer_seconds += time.monotonic() - transfer_started
+                try:
+                    status = stream(shell, workspace, environment, label, log, job["minutes"] * 60 - (time.monotonic() - started), result)
+                    if status == 0:
+                        transfer_started = time.monotonic()
+                        archive = workspace / "target/ci/simulation-output.tar"
+                        export(workspace, outputs, archive)
+                        transport(archive, output / "artifacts" / key)
+                        transfer_seconds += time.monotonic() - transfer_started
+                finally:
+                    preserve_reports(workspace, output, key, log)
         result.setdefault("phases", {})["Transfer"] = transfer_seconds
         result.update(state="passed" if status == 0 else "failed", seconds=time.monotonic() - started)
     return result
@@ -706,6 +723,7 @@ def docker(
     }
     child.update(
         MISE_DATA_DIR="/cache/mise",
+        MISE_CACHE_DIR="/cache/mise-cache",
         MISE_DOWNLOADS_DIR="/cache/downloads",
         CARGO_HOME="/cache/cargo",
         UV_CACHE_DIR="/cache/uv",
@@ -759,10 +777,42 @@ def docker(
         return status
     finally:
         if created:
+            preserve_reports(workspace, output, job["key"], log, name)
             if BUDGET:
                 BUDGET.unregister(job["key"])
             subprocess.run(["docker", "rm", "--force", name], check=False, capture_output=True)
             subprocess.run(["docker", "volume", "rm", volume], check=False, capture_output=True)
+
+
+def preserve_reports(workspace: Path, output: Path, key: str, log, container: str | None = None) -> None:
+    archive = workspace.with_suffix(".reports.tar")
+    try:
+        if container:
+            with archive.open("wb") as target:
+                subprocess.run(
+                    ["docker", "cp", container + ":/workspace/target/tests", "-"],
+                    stdout=target,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                    timeout=30,
+                )
+        else:
+            reports = workspace / "target/tests"
+            if not reports.exists():
+                return
+            with tarfile.open(archive, "w") as target:
+                for path in [reports, *reports.rglob("*")]:
+                    if path.is_symlink() or not path.resolve().is_relative_to(reports.resolve()):
+                        raise SimulationError("diagnostic escapes test reports")
+                    if path.is_file() or path.is_dir():
+                        target.add(path, arcname=path.relative_to(reports.parent).as_posix(), recursive=False)
+        transport(archive, output / "diagnostics" / key)
+    except (OSError, tarfile.TarError, subprocess.SubprocessError, SimulationError) as error:
+        try:
+            log.write(f"Diagnostic collection unavailable: {error}\n")
+            log.flush()
+        except OSError:
+            pass
 
 
 def evidence(output: Path, job: dict, commands: list[str], environment: dict, cpu: int, memory: int) -> None:

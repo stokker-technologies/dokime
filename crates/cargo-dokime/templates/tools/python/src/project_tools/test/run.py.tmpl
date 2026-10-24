@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/run.py; sha256:582b624b72c9ab403e5cfc301946deb2ad9989a881e1884c894d09aa691d6980
+# Rendered by stkr project update from templates/python/test/run.py; sha256:92d2eb77afc2ec47fe0ecffced3ee136e3eda20b1d5144d7f3c86090b5171223
 # ***
 #
 # {{package}}
@@ -68,7 +68,7 @@ def test(
         deadline = rules.deadline(category)
 
         # Native Command
-        environment = None
+        environment = dict(os.environ)
         cwd = directory / project
         if language == "rust":
             path = archive.require(directory, profile)
@@ -90,6 +90,7 @@ def test(
             junit = scratch / "junit.xml"
             command = vitest.run(extra, junit, deadline)
 
+        environment["STKR_TEST_PROFILE"] = profile
         lane = _lane(
             directory,
             rules,
@@ -148,6 +149,7 @@ def coverage(
         else:
             raise policy.TestError("coverage is measured for rust and python")
 
+        environment["STKR_TEST_PROFILE"] = profile
         lane = _lane(
             directory,
             rules,

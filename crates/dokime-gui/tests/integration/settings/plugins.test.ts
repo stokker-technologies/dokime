@@ -19,7 +19,7 @@ import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
-import { type StagePluginProgress, stageNativePlugin } from "@/lib/api/native-plugins";
+import { consentNativePlugin, type StagePluginProgress, stageNativePlugin } from "@/lib/api/native-plugins";
 
 /* === Re-Exports === */
 
@@ -28,6 +28,7 @@ import { type StagePluginProgress, stageNativePlugin } from "@/lib/api/native-pl
 const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
   getInstallation: vi.fn(),
+  consent: vi.fn(),
   channels: [] as { onmessage: (message: unknown) => void }[],
 }));
 
@@ -78,6 +79,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 vi.mock("@/lib/rpc/generated/client", () => ({
   pluginsGetInstallation: fixture.getInstallation,
+  pluginsConsent: fixture.consent,
 }));
 
 beforeEach(() => {
@@ -86,6 +88,19 @@ beforeEach(() => {
   fixture.getInstallation.mockImplementation((_session, request: { installId: string }) =>
     Promise.resolve(installation(request.installId)),
   );
+  fixture.consent.mockImplementation((_session, request: { installId: string }) => Promise.resolve(installation(request.installId)));
+});
+
+test("Consent Binds The Digest The Operator Reviewed", async () => {
+  const reviewed = { install_id: "reviewed", sha256: "c".repeat(64) };
+  fixture.getInstallation.mockResolvedValue({ ...installation("reviewed"), sha256: "b".repeat(64) });
+  fixture.consent.mockResolvedValue({ ...installation("reviewed"), sha256: reviewed.sha256 });
+
+  const entry = await consentNativePlugin(session, reviewed);
+
+  assert.equal(entry.sha256, reviewed.sha256);
+  assert.equal(fixture.getInstallation.mock.calls.length, 0);
+  assert.deepEqual(fixture.consent.mock.calls, [[session, { installId: reviewed.install_id, expectedSha256: reviewed.sha256 }]]);
 });
 
 test("Picked Bundle Stages In One Native Invoke", async () => {

@@ -131,7 +131,7 @@ export function PluginsSection() {
     }
     consentMutation.reset();
     try {
-      await consentMutation.mutateAsync(staged.install_id);
+      await consentMutation.mutateAsync(staged);
       setStaged(null);
       setRestartPrompt(true);
     } catch {

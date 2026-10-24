@@ -98,12 +98,47 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
 fn inspect_stage_bundle() {
     // A Bundle Past The Default Resource Limit Still Inspects And Stages.
     let bytes = large_bundle("fixture", "fixture", "1.0.0", 70 * 1024 * 1024);
+    let inspected = std::time::Instant::now();
     inspect(&bytes).unwrap();
+    eprintln!("Large Plugin Inspection: {:?}", inspected.elapsed());
 
     let root = tempfile::tempdir().unwrap();
     let store = store(root.path());
-    store.stage(&bytes).unwrap();
+    let started = std::time::Instant::now();
+    let staged = store.stage(&bytes).unwrap();
+    eprintln!("Large Plugin Stage: {:?}", started.elapsed());
+    let started = std::time::Instant::now();
+    let queried = store.get(staged.installation.install_id).unwrap();
+    eprintln!("Large Plugin Query: {:?}", started.elapsed());
+    assert_eq!(queried.installation.sha256, staged.installation.sha256);
+    assert!(queried.metadata.is_some());
+    let started = std::time::Instant::now();
+    let installed = store.consent(staged.installation.install_id, &[], &BTreeSet::new()).unwrap();
+    eprintln!("Large Plugin Consent: {:?}", started.elapsed());
+    assert_eq!(installed.installation.state, PluginState::Installed);
+    assert_eq!(installed.installation.sha256, staged.installation.sha256);
+    assert!(installed.installation.consented_at.is_some());
     assert_eq!(store.list().unwrap().len(), 1);
+}
+
+#[test]
+fn consent_refusal_preserves_authorization() {
+    let root = tempfile::tempdir().unwrap();
+    let store = store(root.path());
+    let first = store.stage(&bundle("fixture", "fixture", "1.0.0")).unwrap();
+    store.consent(first.installation.install_id, &[], &BTreeSet::new()).unwrap();
+    let staged = store.stage(&bundle("fixture", "fixture", "2.0.0")).unwrap();
+    let before = settings_json(root.path());
+    let result = store.consent_checked(staged.installation.install_id, &[], &BTreeSet::new(), |reviewed| {
+        assert_eq!(reviewed.installation.sha256, staged.installation.sha256);
+        assert!(reviewed.metadata.is_some());
+        Err::<(), _>(PluginError::Invalid("disclosure refused".into()))
+    });
+    assert!(matches!(result, Err(PluginError::Invalid(message)) if message == "disclosure refused"));
+    assert_eq!(settings_json(root.path()), before);
+    let installed = store.consent(staged.installation.install_id, &[], &BTreeSet::new()).unwrap();
+    assert_eq!(installed.installation.state, PluginState::Installed);
+    assert_eq!(store.get(first.installation.install_id).unwrap().installation.state, PluginState::RemovalPending);
 }
 
 #[test]

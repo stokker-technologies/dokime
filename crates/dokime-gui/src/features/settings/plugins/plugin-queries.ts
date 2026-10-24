@@ -25,6 +25,7 @@ import {
   stageNativePlugin,
 } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
+import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Query Keys === */
 
@@ -77,7 +78,7 @@ export function useConsentPluginMutation() {
   const session = useNativeSession();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (installId: string) => consentNativePlugin(session.identity, installId),
+    mutationFn: (reviewed: PluginEntry) => consentNativePlugin(session.identity, reviewed),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() });
     },

@@ -59,7 +59,7 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    let profile = std::env::var("DOKIME_BUILD_PROFILE").unwrap_or_else(|_| "dev".to_owned());
+    let profile = std::env::var("STKR_TEST_PROFILE").unwrap_or_else(|_| "dev".to_owned());
     assert!(matches!(profile.as_str(), "dev" | "release"), "invalid graph profile");
     let target = format!("{PLATFORM}-{}", std::env::consts::ARCH);
     workspace_root().join("target/build").join(profile).join(target)
