@@ -90,3 +90,5 @@ Organization packs honor a nonempty `DOKIME_APPLICATION_ROOT`, alongside desktop
 ## Native Plot Settings Activation
 
 After remounting a running execution, the native harness reacquires the current plot settings control and keyboard focus until its dialog opens within the existing deadline. It reads the persisted value only from the opened dialog and retains the exact configured budget assertion. This accommodates prompt-driven DOM replacement without injecting a click or treating a missed activation as a persistence verdict.
+
+The native window readiness wait also requires its initial document to leave transient `about:blank` within the same existing deadline. Every actual loaded document must still pass the strict embedded-origin assertion.

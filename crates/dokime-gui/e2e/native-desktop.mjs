@@ -808,13 +808,13 @@ async function startSession(work, endpoint, evidence) {
     }
   };
 
-  await until("main native window", async () => {
+  const initial = await until("main native window", async () => {
     const handles = await session.request("GET", "/window/handles");
     if (!handles.length) return false;
     await session.request("POST", "/window", { handle: handles[0] });
-    return true;
+    const location = await session.location();
+    return location.href === "about:blank" ? null : location;
   });
-  const initial = await session.location();
   const embedded =
     (initial.protocol === "tauri:" && initial.hostname === "localhost") ||
     (["http:", "https:"].includes(initial.protocol) && initial.hostname === "tauri.localhost");
