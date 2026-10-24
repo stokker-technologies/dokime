@@ -1,16 +1,13 @@
 # CI Migration Specification
-
 ## Purpose
 Preserve Dokime's native validation, artifact ownership and protected delivery while adopting the shared Hub CI contract.
 
 ## Agreed Migration Scope
-
 The user approved fixing migration-related convention findings, required canonical task/pin configuration and Hub false positives while deferring unrelated pre-existing cleanup. The broad convention audit remains failing; this migration does not claim otherwise. Deferred categories are skeleton/header and attributed-member spacing, test-domain mirroring and placement, existing identifier naming, Error module placement and test environment access, Rustdoc examples, dependency grouping outside the new executable crates, and unchanged Apache license text. Representative unchanged sources include cargo-dokime/src/cli.rs, runtime test service state modules and LICENSE-APACHE. Required CI, packaging and publication dry-run failures remain blocking.
 
 Timed benchmarks are optional and explicitly deferred from migration and release gates. The benchmark producer passed; unit measurement was interrupted under native CI contention, and integration/system measurements were not started. Partial output is excluded from accepted baselines; no completed timing or regression result is claimed. Future measurements require a quiet window and all declared layers. The producer's unused implicit library harness is a deferred optimization opportunity; preserve the current producer and five explicit benchmark executables.
 
 ## Requirements
-
 ### Requirement: Adopt The Agreed Hub Contract
 The product SHALL migrate its authored tasks and configuration and canonically generated tooling/workflows to the locked Hub CI contracts while preserving required native platform coverage, artifact dependencies and release behavior.
 
@@ -26,11 +23,9 @@ The initial full baseline SHALL run before implementation as explicitly requeste
 - **THEN** record the actual result, repair the cause within the authorized migration and prove required behavior before delivery.
 
 ### Requirement: Separate Executable Publication
-
 The dokime and dokime-server libraries SHALL retain their published names and APIs. Their executable targets SHALL belong to non-publishable CLI crates while retaining existing executable names and behavior.
 
 #### Scenario: Library And Binary Delivery
-
 - WHEN the candidate builds, tests and packages Dokime
 - THEN library consumers resolve the existing library packages and executable process stories resolve the new binary owners
 - AND registry publication excludes the CLI packages while release assets retain dokime and dokime-server executables
@@ -65,26 +60,29 @@ All local implementation and validation SHALL use the assigned worktree. Local p
 - AND integration remains blocked until distinct-path consumers and every required native platform pass
 
 ### Requirement: Share Native Compilation Ownership
-
-One native Build job per platform and profile SHALL produce Product and required Tests in one checkout and Cargo directory. Repository tasks SHALL retain declared features, targets and profiles with matching Clippy and child-scoped warning denial. Check SHALL remain noncompiling; Test and Package SHALL consume separate existing exports without rebuilding them.
+Product and Tests SHALL compile independently in parallel per platform/profile, under repository-owned canonical configurations and matching Clippy. Shipping behavior and canonical test coverage SHALL remain intact. Check SHALL not compile; Test and Package SHALL consume existing exports. Noncanonical compatibility and fault injection SHALL remain explicit local-only extended validation.
 
 #### Scenario: Build A Native Candidate
-
-- WHEN native CI builds the candidate
-- THEN one Build / Native job per platform invokes Product followed by required Tests production
-- AND the existing full-feature, no-default-feature and WebAssembly compatibility proofs remain in Build
-- AND artifact consumers run after that producer without a separate compiler Check or Tests build job
+- **WHEN** native CI builds the candidate
+- **THEN** Product and canonical Tests producers run in parallel per platform
+- **AND** artifact dependencies and any subsequent fixture preparation are explicit rather than hidden in consumers
+- **AND** Product and Tests may select independent feature sets, with child-scoped warning denial and compatible compiler reuse without promising a single compilation of distinct targets
+- **AND** consumers do not rebuild their required exports
+- **AND** Tests Build takes no longer than Product Build, with warm-cache whole pipelines below 45 minutes and targeting 30; breaches require phase-level investigation without silently reducing coverage
 
 #### Scenario: Build Shipping Artifacts Without Tests
+- **WHEN** an ordinary Product or installer build runs
+- **THEN** only shipping configurations compile and no fault instrumentation enters exported binaries
 
-- WHEN an ordinary Product build runs without the optional Tests producer
-- THEN only shipping configurations compile
-- AND compatibility proofs remain owned by Tests
+#### Scenario: Explicit Local Extended Validation
+- **WHEN** an operator requests the local extended suite
+- **THEN** all-features, no-default-features and declared WebAssembly compatibility proof remain available alongside preserved instrumented stories
+- **AND** ordinary canonical-capable cases remain in provider CI
 
 #### Scenario: Compile Release Compatibility Proofs
-
-- WHEN the Tests producer runs for a release candidate
-- THEN its compatibility proofs retain their declared selectors and use the release-tests compiler profile
+- **WHEN** an operator explicitly requests local extended validation with the release profile
+- **THEN** compatibility selectors remain available with the release-tests compiler profile
+- **AND** release provider pipelines do not invoke that extended matrix implicitly
 
 ### Requirement: Use GitHub-Hosted Runners
 Every GitHub Actions job SHALL use the matching GitHub-hosted platform default, including crate compilation, coverage, benchmark and release jobs. Root and generated starter configurations SHALL NOT select local runners. Required native platforms, declared bootstrap, job budgets, individual test deadlines, Release Rehearsal and release preparation profiles and behavior SHALL remain unchanged.

@@ -1,6 +1,9 @@
-# Canonical Build
+# Canonical Build Specification
 
-## ADDED Requirements
+## Purpose
+Define canonical parallel native compilation, preserved local extended coverage and accountable pipeline build costs.
+
+## Requirements
 
 ### Requirement: Canonical Native Configuration
 
@@ -20,7 +23,6 @@ All provider CI pipelines SHALL use only canonical configurations. The explicit 
 - **WHEN** an operator explicitly requests local extended validation
 - **THEN** all declared compatibility configurations and instrumented cases remain available
 - **AND** ordinary CI and installer tasks do not select them implicitly
-
 
 ### Requirement: Pipeline Build Cost
 
