@@ -38,7 +38,7 @@ from dokime_tools.build import paths
 
 def test_pure_wheel(workspace: Path, request) -> None:
     # The build writes the wheel where every Python lane installs it from.
-    wheel_dir = paths.output(workspace, "build", request.config.getoption("--profile"), "any") / "python"
+    wheel_dir = paths.output(workspace, "build", request.config.getoption("--build-profile"), "any") / "python"
     wheels = list(wheel_dir.glob("dokime_client-*.whl"))
     assert len(wheels) == 1, "build exactly one wheel before acceptance"
     assert wheels[0].name.endswith("-py3-none-any.whl")
