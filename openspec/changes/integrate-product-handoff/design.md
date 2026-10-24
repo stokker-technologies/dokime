@@ -77,4 +77,4 @@ CLI install consent, cancellation and hidden-secret refusal stories belong to Ac
 
 ## Native Test Executable Manifests
 
-Windows GUI library unit-test executables embed the Common Controls v6 dependency, like other GUI link targets. Archive consumers do not rely on adjacent executable manifest files. Compile-contract execution uses the same feature selectors and profile as the Tests archive producer, preserving its exact test filter and authoring assertions.
+Windows GUI library unit-test executables embed the Common Controls v6 dependency, like other GUI link targets. Archive consumers do not rely on adjacent executable manifest files. The shipping binary retains Tauri's embedded manifest resource and disables duplicate linker manifest generation for that named binary. Compile-contract execution uses the same feature selectors and profile as the Tests archive producer, preserving its exact test filter and authoring assertions.

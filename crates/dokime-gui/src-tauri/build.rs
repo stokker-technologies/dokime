@@ -59,6 +59,8 @@ fn main() {
         // A side-by-side `.manifest` file stays behind when nextest archives the test executable,
         // so every target, including library unit tests, embeds its own manifest.
         println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+        // The Binary Already Links Tauri's Manifest Resource; Disable A Second Linker-Generated One.
+        println!("cargo:rustc-link-arg-bin=dokime-gui=/MANIFEST:NO");
     }
 }
 
