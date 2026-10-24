@@ -90,12 +90,17 @@ fn standalone_scaffold_offline() {
         ".github/workflows/ci.yml",
         ".gitlab-ci.yml",
         "tools/python/pyproject.toml",
-        "tools/python/uv.lock",
+        "pyproject.toml",
+        "uv.lock",
         "tools/python/src/project_tools/test/run.py",
         "tools/python/src/project_tools/test/archive.py",
     ] {
         assert!(plugin.join(file).is_file(), "{file} is generated");
     }
+    assert!(!plugin.join("tools/python/uv.lock").exists(), "the tooling uses the root workspace lock");
+    let python = fs::read_to_string(plugin.join("pyproject.toml")).unwrap().parse::<toml_edit::DocumentMut>().unwrap();
+    let members = python["tool"]["uv"]["workspace"]["members"].as_array().unwrap();
+    assert!(members.iter().any(|member| member.as_str() == Some("tools/python")));
     for file in ["mise.toml", "tools/python/src/project_tools/test/run.py"] {
         let contents = fs::read_to_string(plugin.join(file)).unwrap();
         let (marker, body) = contents.split_once('\n').unwrap();
