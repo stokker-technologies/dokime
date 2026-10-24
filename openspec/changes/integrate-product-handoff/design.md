@@ -78,3 +78,7 @@ CLI install consent, cancellation and hidden-secret refusal stories belong to Ac
 ## Native Test Executable Manifests
 
 Windows GUI library unit-test executables embed the Common Controls v6 dependency, like other GUI link targets. Archive consumers do not rely on adjacent executable manifest files. The shipping binary retains Tauri's embedded manifest resource and disables duplicate linker manifest generation for that named binary. Compile-contract execution uses the same feature selectors and profile as the Tests archive producer, preserving its exact test filter and authoring assertions.
+
+## Native Driver And Picker Ownership
+
+The Windows desktop harness consumes the exact EdgeDriver artifact prepared by repository bootstrap, without relying on child-process PATH exports. Its native picker helper initializes UI Automation before registering the framework's Win32 client-side providers, targets the filename edit and Open button, and reports completion only after the selected owned dialog closes. Provider setup stays inside the helper process; explicit driver overrides and Linux WebKit behavior remain supported. Picker diagnostics accompany native evidence without substituting a chosen-file result or changing story deadlines.

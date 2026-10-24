@@ -1135,7 +1135,8 @@ Generated TypeScript messages live under `target/generated/typescript/`.
 | `test:rust:system`, `test:typescript:system` | Server/plugin walkthrough and the native desktop journeys. |
 
 The same desktop walkthrough runs on Windows with WebView2 and an exact matching EdgeDriver, and through WebKitWebDriver on Linux
-and needs an X11 display (a private Xvfb display is suitable). Its native plugin
+and consumes the Windows driver prepared by the desktop bootstrap under `target/tooling/desktop/`.
+Linux needs an X11 display (a private Xvfb display is suitable). Its native plugin
 picker uses `xdotool`; Windows uses PowerShell UI Automation.
 The installation journey selects a real bundle,
 checks its digest in the consent dialog and verifies the saved restart requirement.

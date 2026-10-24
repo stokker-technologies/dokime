@@ -69,7 +69,7 @@ import { once } from "node:events";
 
 import { createReadStream, existsSync } from "node:fs";
 
-import { copyFile, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { appendFile, copyFile, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 
 import http from "node:http";
 
@@ -457,7 +457,11 @@ async function startSession(work, endpoint, evidence) {
   }
 
   const port = await unusedPort();
-  const driver = process.env.DOKIME_E2E_DRIVER ?? (windows ? "msedgedriver.exe" : "WebKitWebDriver");
+  const driver =
+    process.env.DOKIME_E2E_DRIVER ?? (windows ? join(workspace, "target/tooling/desktop/msedgedriver.exe") : "WebKitWebDriver");
+  if (windows && !process.env.DOKIME_E2E_DRIVER) {
+    assert.ok(existsSync(driver), `Missing prepared Microsoft WebDriver at ${driver}; run mise run prepare:desktop`);
+  }
   driverProcess = spawn(
     driver,
     ["--host=127.0.0.1", `--port=${port}`, ...(windows ? ["--verbose", `--log-path=${join(evidence, "webdriver.log")}`] : [])],
@@ -3897,30 +3901,72 @@ async function chooseNativeFile(picker, file) {
     return false;
   }
   const script = `
+      $ErrorActionPreference = 'Stop'
       Add-Type -AssemblyName UIAutomationClient
       Add-Type -AssemblyName UIAutomationTypes
       $root = [System.Windows.Automation.AutomationElement]::RootElement
+      $providers = Add-Type -AssemblyName UIAutomationClientsideProviders -PassThru
+      [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
       $scope = [System.Windows.Automation.TreeScope]::Descendants
       $condition = [System.Windows.Automation.Condition]::TrueCondition
+      [Console]::Error.WriteLine(('picker shell={0} file={1} window={2}' -f $env:DOKIME_PICKER_SHELL, $env:DOKIME_PICKER_FILE, $env:DOKIME_PICKER_WINDOW))
       foreach ($process in Get-Process | Where-Object { $_.Path -eq $env:DOKIME_PICKER_SHELL }) {
+        [Console]::Error.WriteLine(('picker process={0}' -f $process.Id))
         $pidCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
         foreach ($window in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)) {
-          $field = $window.FindFirst($scope, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1148')))
-          $button = $window.FindFirst($scope, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')))
+          [Console]::Error.WriteLine(('picker handle={0} title={1} offscreen={2}' -f $window.Current.NativeWindowHandle, $window.Current.Name, $window.Current.IsOffscreen))
+          if ($env:DOKIME_PICKER_WINDOW) {
+            if ($window.Current.NativeWindowHandle.ToString() -eq $env:DOKIME_PICKER_WINDOW) {
+              Write-Output 'open'
+              exit 0
+            }
+            continue
+          }
+          $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1148')
+          $fieldType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+          $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldId, $fieldType)
+          $field = $window.FindFirst($scope, $fieldCondition)
+          $buttonId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
+          $buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+          $buttonCondition = New-Object System.Windows.Automation.AndCondition($buttonId, $buttonType)
+          $button = $window.FindFirst($scope, $buttonCondition)
+          if (!$field -or !$button) {
+            foreach ($candidate in $window.FindAll($scope, [System.Windows.Automation.Condition]::TrueCondition)) {
+              if ($candidate.Current.AutomationId -in @('1148', '1')) {
+                [Console]::Error.WriteLine(('picker control id={0} type={1} class={2}' -f $candidate.Current.AutomationId, $candidate.Current.ControlType.ProgrammaticName, $candidate.Current.ClassName))
+              }
+            }
+          }
           if ($field -and $button) {
+            $selectedWindow = $window.Current.NativeWindowHandle
+            $field.SetFocus()
             $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($env:DOKIME_PICKER_FILE)
+            [Console]::Error.WriteLine(('picker entered={0}' -f $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value))
+            $button.SetFocus()
             $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-            Write-Output 'selected'
+            Write-Output ('selected:' + $selectedWindow)
             exit 0
           }
         }
-      }`;
+      }
+      if ($env:DOKIME_PICKER_WINDOW) { Write-Output 'closed' }`;
   const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
     windowsHide: true,
-    env: { ...process.env, DOKIME_PICKER_SHELL: resolve(shellBinary), DOKIME_PICKER_FILE: resolve(file) },
+    env: {
+      ...process.env,
+      DOKIME_PICKER_SHELL: resolve(shellBinary),
+      DOKIME_PICKER_FILE: resolve(file),
+      DOKIME_PICKER_WINDOW: picker.window === null ? "" : String(picker.window),
+    },
     timeout: 10000,
   });
-  return result.stdout.trim() === "selected";
+  await appendFile(join(evidence, "native-picker.log"), `${result.stderr}\n${result.stdout}\n`);
+  const outcome = result.stdout.trim();
+  if (outcome.startsWith("selected:")) {
+    picker.window = Number(outcome.slice("selected:".length));
+    assert.ok(Number.isSafeInteger(picker.window), "The selected native dialog has a window handle");
+  }
+  return outcome === "closed";
 }
 
 async function organizationJourney() {
