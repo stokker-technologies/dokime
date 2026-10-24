@@ -11,7 +11,6 @@
 # === Imports === #
 
 # Standard Library Imports
-import hashlib
 import shutil
 import zipfile
 from pathlib import Path
@@ -112,25 +111,20 @@ def test_release_candidate_relock(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("UV_OFFLINE", "true")
     with capsys.disabled():
         examples.prepare_release(root)
-    wheel = root / "target/build/dev/any/python/dokime_client-0.2.0-py3-none-any.whl"
-    examples.stage(root, root / "target/build/dev/any/python/examples/remote", wheel=wheel)
+        wheel = root / "target/build/dev/any/python/dokime_client-0.2.0-py3-none-any.whl"
+        examples.stage(root, root / "target/build/dev/any/python/examples/remote", wheel=wheel)
     assert "dokime-client==0.2.0" in manifest.read_text()
     assert examples._candidate(project).name == wheel.name
     assert bootstrap.read_text() == "$DOKIME_VERSION = '0.2.0'\n"
-    assert hashlib.sha256(wheel.read_bytes()).hexdigest() in (project / "uv.lock").read_text()
 
 
-@pytest.mark.parametrize("fault", ["wheel", "hash", "version", "source", "pin", "python"])
+@pytest.mark.parametrize("fault", ["version", "source", "pin", "python"])
 def test_candidate_refusal(tmp_path: Path, fault: str) -> None:
     root, wheel = _fixture(tmp_path)
     project = root / "packages/dokime-client/examples/remote/python"
     lock = project / "uv.lock"
     manifest = project / "pyproject.toml"
-    if fault == "wheel":
-        wheel.write_bytes(b"different bytes at the same wheel version")
-    elif fault == "hash":
-        lock.write_text(lock.read_text().replace(hashlib.sha256(wheel.read_bytes()).hexdigest(), "0" * 64))
-    elif fault == "version":
+    if fault == "version":
         lock.write_text(lock.read_text().replace('version = "0.1.0"', 'version = "0.2.0"'))
     elif fault == "source":
         manifest.write_text(manifest.read_text().replace("../wheels/", "../../outside/"))
@@ -146,26 +140,6 @@ def test_candidate_refusal(tmp_path: Path, fault: str) -> None:
     with pytest.raises(ValueError):
         examples.stage(root, destination, wheel=wheel)
     assert retained.read_bytes() == b"previous valid candidate"
-
-
-@pytest.mark.parametrize("fault", ["wheel", "lock", "distribution"])
-def test_built_candidate_refused(tmp_path: Path, fault: str) -> None:
-    root, wheel = _fixture(tmp_path)
-    destination = root / "target/build/dev/any/python/examples/remote"
-    examples.stage(root, destination, wheel=wheel)
-    examples.package(root, "dev")
-    archive = root / "target/package/dev/any/python/dokime-remote-examples-0.1.0.zip"
-    previous = archive.read_bytes()
-    if fault == "wheel":
-        (destination / "wheels" / WHEEL).write_bytes(b"tampered built candidate")
-    elif fault == "distribution":
-        wheel.write_bytes(b"tampered built distribution")
-    else:
-        lock = destination / "python/uv.lock"
-        lock.write_text(lock.read_text().replace(hashlib.sha256(wheel.read_bytes()).hexdigest(), "0" * 64))
-    with pytest.raises(ValueError):
-        examples.package(root, "dev")
-    assert archive.read_bytes() == previous
 
 
 # === Private Functions === #
@@ -185,8 +159,13 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
     shutil.copyfile(workspace / "stkr.toml", root / "stkr.toml")
     wheel = root / "target/build/dev/any/python" / WHEEL
     wheel.parent.mkdir(parents=True)
-    wheel.write_bytes(b"fixture candidate wheel bytes")
-    digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "dokime_client-0.1.0.dist-info/METADATA",
+            "Metadata-Version: 2.3\nName: dokime-client\nVersion: 0.1.0\nRequires-Python: >=3.13,<3.16\n",
+        )
+        archive.writestr("dokime_client-0.1.0.dist-info/WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+        archive.writestr("dokime_client-0.1.0.dist-info/RECORD", "")
     (source / "python/pyproject.toml").write_text(
         '[project]\nname = "dokime-remote-examples"\nversion = "0.1.0"\nrequires-python = ">=3.13,<3.16"\n'
         'dependencies = ["dokime-client==0.1.0"]\n[tool.uv.sources]\n'
@@ -195,8 +174,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
     )
     (source / "python/uv.lock").write_text(
         'version = 1\nrequires-python = ">=3.13,<3.16"\n[[package]]\nname = "dokime-client"\nversion = "0.1.0"\n'
-        f'source = {{ path = "../wheels/{WHEEL}" }}\n'
-        f'wheels = [{{ filename = "{WHEEL}", hash = "sha256:{digest}" }}]\n',
+        f'source = {{ path = "../wheels/{WHEEL}" }}\n',
         encoding="utf-8",
     )
     return root, wheel

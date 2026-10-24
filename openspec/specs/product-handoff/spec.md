@@ -45,6 +45,14 @@ Desktop organization packs SHALL use a supplied nonempty `DOKIME_APPLICATION_ROO
 - **THEN** pending and active packs persist beneath that root across restarts
 - **AND** the ordinary user organization store remains untouched
 
+### Requirement: Use Native Python Dependency Locking
+Python Build and Package SHALL NOT enforce a custom wheel-byte hash comparison. Ordinary uv dependency locking and package version/source checks SHALL remain; no ZIP normalization or replacement custom integrity gate is required.
+
+#### Scenario: Platform-Specific Wheel Metadata
+- **WHEN** a built wheel has platform-dependent archive metadata
+- **THEN** custom hash comparison does not reject it
+- **AND** the delivered tutorial remains usable through ordinary uv dependency installation
+
 ## Workflow Follow-Up
 
 - Required native provider checks, protected integration into dev and authorized release verification remain delivery obligations; local proof and specification retirement do not establish their completion.

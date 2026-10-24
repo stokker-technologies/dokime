@@ -43,10 +43,8 @@ in uv's cache. The bundled Dokime wheel is portable Python, but this ZIP is
 not a complete offline wheelhouse. Installing this client does not require a
 Rust compiler or a Dokime source checkout.
 
-Do not replace the wheel with an unrelated package from a registry or regenerate
-the lock to suppress a candidate hash mismatch. Obtain the complete matching
-examples artifact again. A future published-release tutorial must carry that
-release's own verified dependency selection.
+The tutorial uses the bundled client wheel and uv's ordinary dependency lock.
+Use the complete examples artifact for its matching package version and dependencies.
 
 ## Edit Connection Globals
 
@@ -198,7 +196,6 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | --- | --- |
 | uv cannot find a supported Python | Run `uv python install 3.13`, then sync with `--python 3.13`. Supported versions are 3.13, 3.14 and 3.15, not an unrestricted future version. |
 | The local wheel path is missing | Extract the complete examples ZIP. `python/` and `wheels/` must remain siblings. |
-| A locked wheel hash differs | Obtain the complete same-candidate artifact again; do not relock arbitrary replacement bytes. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
 | `server.pem` or `remote.key` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A secret/certificate is refused | Follow the shared [connection troubleshooting](../README.md#troubleshooting), including process-key precedence and certificate identity. |

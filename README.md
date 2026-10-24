@@ -1054,14 +1054,8 @@ Cargo profile: release optimization and debug settings, with LTO disabled,
 sixteen codegen units and incremental compilation disabled.
 Interactive `tauri dev` continues to use the Vite server.
 
-After an intentional Python client change, refresh the tutorial lock from the
-built candidate wheel, then rerun the Python Build and Package tasks:
-
-```sh
-uv run --locked --project tools/python python -m dokime_tools.package.examples --profile dev --relock
-mise run build:python --profile dev
-mise run package:python --profile dev
-```
+Python Build stages the client wheel and tutorial, then refreshes the staged tutorial through ordinary uv dependency locking.
+Package consumes those built inputs. No custom wheel-byte hash gate is applied.
 
 `build:rust:tests --profile dev` separately compiles the shared test archive and
 test fixtures and runs the macro compile contracts in the build tree,

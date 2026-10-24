@@ -12,7 +12,6 @@
 
 # Standard Library Imports
 import argparse
-import hashlib
 import re
 import shutil
 import stat
@@ -70,7 +69,7 @@ FILES = (
 
 
 def stage(root: Path, destination: Path, *, wheel: Path) -> list[Path]:
-    """Stage The Tutorial And Its Exact Locked Candidate Wheel."""
+    """Stage The Tutorial And Its Built Candidate Wheel."""
     package_root = root / "packages/dokime-client"
     source_root = package_root / "examples/remote"
     sources = [package_root / relative if relative == "LICENSE" else source_root / relative for relative in FILES]
@@ -88,6 +87,15 @@ def stage(root: Path, destination: Path, *, wheel: Path) -> list[Path]:
         staged.append(output)
     candidate = destination / "wheels" / wheel.name
     stage_file(wheel, candidate)
+    subprocess.run(
+        ["uv", "lock", "--project", str(destination / "python"), "--upgrade-package", "dokime-client"],
+        cwd=root,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=subprocess.DEVNULL,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     _environment(destination / "python", candidate)
     staged.append(candidate)
     return staged
@@ -132,40 +140,6 @@ def package(root: Path, profile: str) -> None:
     print(f"Packaged {destination.relative_to(root).as_posix()}")
 
 
-def relock(root: Path, profile: str) -> None:
-    """Refresh The Authored Tutorial Lock From A Built Candidate Wheel."""
-    built = paths.output(root, "build", profile, "any") / "python"
-    wheels = sorted(built.glob("dokime_client-*.whl"))
-    if len(wheels) != 1:
-        raise ValueError("relocking requires exactly one built candidate wheel")
-    wheel = wheels[0]
-    project = root / "packages/dokime-client/examples/remote/python"
-    candidate = _candidate(project)
-    if candidate.name != wheel.name:
-        raise ValueError("update the tutorial source and version before relocking a renamed candidate")
-
-    with temporary.directory() as scratch:
-        staged = scratch / "python"
-        staged.mkdir()
-        for name in ("pyproject.toml", "uv.lock"):
-            _regular(project / name)
-            shutil.copy2(project / name, staged / name)
-        bundled = scratch / "wheels" / wheel.name
-        stage_file(wheel, bundled)
-        subprocess.run(
-            ["uv", "lock", "--project", str(staged), "--upgrade-package", "dokime-client"],
-            cwd=root,
-            check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            stdin=subprocess.DEVNULL,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-        _environment(staged, bundled)
-        stage_file(staged / "uv.lock", project / "uv.lock")
-    print(f"Relocked {project.relative_to(root).as_posix()}/uv.lock")
-
-
 def prepare_release(root: Path) -> None:
     """Update Tutorial Inputs And Lock The Exact Wheel After Release Version Sync."""
     version = tomllib.loads((root / "stkr.toml").read_text(encoding="utf-8"))["version"]["value"]
@@ -191,21 +165,37 @@ def prepare_release(root: Path) -> None:
         raise ValueError("release preparation requires one explicit CLI tutorial version")
     manifest.write_text(updated, encoding="utf-8")
     bootstrap.write_text(script, encoding="utf-8")
-    wheel.build(root, "dev")
-    relock(root, "dev")
+    wheels = wheel.build(root, "dev")
+    wheel_path = next(path for path in wheels if path.suffix == ".whl")
+    with temporary.directory() as scratch:
+        staged = scratch / "python"
+        staged.mkdir()
+        for name in ("pyproject.toml", "uv.lock"):
+            _regular(project / name)
+            shutil.copy2(project / name, staged / name)
+        bundled = scratch / "wheels" / wheel_path.name
+        stage_file(wheel_path, bundled)
+        subprocess.run(
+            ["uv", "lock", "--project", str(staged), "--upgrade-package", "dokime-client"],
+            cwd=root,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=subprocess.DEVNULL,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        _environment(staged, bundled)
+        stage_file(staged / "uv.lock", project / "uv.lock")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
     parser.add_argument("--target", choices=("any",), default="any")
-    parser.add_argument("--relock", action="store_true", help="refresh the authored tutorial lock from the built candidate wheel")
     parser.add_argument("--prepare-release", action="store_true", help="prepare versioned tutorial inputs and their candidate lock")
     options = parser.parse_args()
     if options.prepare_release:
         prepare_release(Path.cwd())
-    elif options.relock:
-        relock(Path.cwd(), options.profile)
     else:
         package(Path.cwd(), options.profile)
 
@@ -252,10 +242,6 @@ def _environment(project: Path, wheel: Path) -> None:
     expected_source = {"path": f"../wheels/{wheel.name}"}
     if package.get("version") != str(version) or package.get("source") != expected_source:
         raise ValueError("the locked Dokime version or source differs from the candidate")
-    digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
-    expected_wheels = [{"filename": wheel.name, "hash": f"sha256:{digest}"}]
-    if package.get("wheels") != expected_wheels:
-        raise ValueError("the candidate wheel bytes differ from the tutorial lock; regenerate it from this candidate")
 
 
 # === Entry Point === #
