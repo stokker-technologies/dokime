@@ -13,8 +13,7 @@
 
 The build regenerates `target/generated/typescript` from the server's contract export
 and stages a copy under `target/build/<profile>/<target>/generated/typescript`, a path the build
-artifact carries. Tests Build copies these modules into `fixtures/generated/typescript` for
-the Tests archive. Lanes select their producer explicitly before compiling or importing the GUI.
+artifact carries. Lanes restore this Product export before importing the GUI.
 """
 
 # === Imports === #
@@ -52,22 +51,20 @@ def stage(profile: str) -> Path:
     return staged
 
 
-def restore(profile: str, producer: str = "product") -> None:
+def restore(profile: str) -> None:
     """Replace The GUI's Generated Modules With The Staged Build Output."""
     output = paths.output(ROOT, "build", profile)
-    staged = output / ("fixtures/generated/typescript" if producer == "tests" else "generated/typescript")
+    staged = output / "generated/typescript"
     if not staged.is_dir():
-        task = "build:tests" if producer == "tests" else "build"
-        raise SystemExit(f"missing staged generated modules {staged}; run `mise run {task}`")
+        raise SystemExit(f"missing Product generated modules {staged}; run `mise run build`")
     sync_output(staged, MODULES)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=paths.PROFILES, default="dev")
-    parser.add_argument("--producer", choices=("product", "tests"), default="product")
     options = parser.parse_args()
-    restore(options.profile, options.producer)
+    restore(options.profile)
     return 0
 
 

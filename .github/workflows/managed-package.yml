@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package.yml; sha256:2fce9b1c10af308737e10e772ff6e9afab6dff6071f48fdc35bf699369e230f4
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package.yml; sha256:b4adc85e3d92e18fc8aabbfa2b029557cec561205a238010e35201e92f1ec6c1
 name: Package
 "on":
   workflow_call:
@@ -33,6 +33,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:python
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -242,23 +243,26 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+        path: target/ci
+    - name: Extract build:python / python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - run: mise run package:python --profile ${{ env.PROFILE }}
-    - name: Archive Package
-      shell: bash
-      run: |-
-        native=any
-        mkdir -p target/ci
-        tar -cf "target/ci/package-${{ env.PROFILE }}-python-any.tar" -- "target/package/${{ env.PROFILE }}/${native}/python"
+    - name: Archive package
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/package-${{ env.PROFILE }}-python-any.tar.zst
+        --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f7061636b6167652f7b70726f66696c657d2f616e792f707974686f6e225d --target any
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: package-${{ env.PROFILE }}-python-any
-        path: target/ci/package-${{ env.PROFILE }}-python-any.tar
+        path: target/ci/package-${{ env.PROFILE }}-python-any.tar.zst
         if-no-files-found: error
         retention-days: 7
-        include-hidden-files: true
+        compression-level: 0
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'

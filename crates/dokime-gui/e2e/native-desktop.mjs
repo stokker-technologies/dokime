@@ -3893,11 +3893,16 @@ async function chooseNativeFile(picker, file) {
       assert.equal(ids.length, 1, "The owned desktop exposes exactly one native file picker");
       if (picker.window !== null) {
         assert.equal(ids[0], picker.window, "Selection remains with its original native dialog");
-        await run(["key", "--window", picker.window, "--clearmodifiers", "Return"]);
+        await run(["windowfocus", "--sync", picker.window]);
+        const focus = await run(["getwindowfocus"]);
+        await appendFile(join(evidence, "native-picker.log"), `picker window=${picker.window} focus=${focus.stdout.trim()} submit\n`);
+        await run(["key", "--clearmodifiers", "Return"]);
         return false;
       }
-      await run(["windowfocus", "--sync", ids[0], "key", "--clearmodifiers", "ctrl+l"]);
+      await run(["windowfocus", "--sync", ids[0]]);
+      await run(["key", "--clearmodifiers", "ctrl+l"]);
       await run(["type", "--clearmodifiers", "--delay", "0", "--", resolve(file)]);
+      await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} file=${resolve(file)} entered\n`);
       picker.window = ids[0];
       return false;
     }

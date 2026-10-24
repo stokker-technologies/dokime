@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-linux.yml; sha256:73f2b4c451f26a43ab2162eb3448a2f8bdf3aefb5c02ea5d6f41e59c86e6c849
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-linux.yml; sha256:4f98cdde150da7ab78c861a6de2868b1013590c2011a60fb7cdbbcaf2d87491b
 name: Package
 "on":
   workflow_call:
@@ -37,6 +37,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -247,25 +248,36 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+        name: build-packaging-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / packaging
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-packaging-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-runtime-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run package:rust --profile ${{ env.PROFILE }}
-    - name: Archive Package
-      shell: bash
-      run: |-
-        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths package --profile ${{ env.PROFILE }})"
-        native="${native##*/}"
-        mkdir -p target/ci
-        tar -cf "target/ci/package-${{ env.PROFILE }}-rust-linux.tar" -- "target/package/${{ env.PROFILE }}/${native}/rust"
+    - name: Archive package
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/package-${{ env.PROFILE }}-rust-linux.tar.zst
+        --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f72757374225d
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: package-${{ env.PROFILE }}-rust-linux
-        path: target/ci/package-${{ env.PROFILE }}-rust-linux.tar
+        path: target/ci/package-${{ env.PROFILE }}-rust-linux.tar.zst
         if-no-files-found: error
         retention-days: 7
-        include-hidden-files: true
+        compression-level: 0
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build.yml; sha256:a4ff23ba472c053b0490b2b138cbcf32098876d82845ef9c6c61a223cad759dc
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build.yml; sha256:179f49353718d5771d48d59bf5ed24a13f2ee27cc863eb2fa4411dc239988b47
 name: Build
 "on":
   workflow_call:
@@ -231,24 +231,18 @@ jobs:
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - run: mise run build:python --profile ${{ env.PROFILE }}
-    - name: Archive Python Product
-      shell: bash
-      run: |-
-        mkdir -p target/ci
-        candidates=("target/build/${{ env.PROFILE }}/any/python/" "target/generated/python/")
-        outputs=()
-        for path in "${candidates[@]}"; do
-          if [ -e "$path" ]; then outputs+=("$path"); fi
-        done
-        [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst"  -- "${outputs[@]}"
+    - name: Archive python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f616e792f707974686f6e225d --target any
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: build-product-python-${{ env.PROFILE }}-any
         path: target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst
         if-no-files-found: error
         retention-days: 7
-        include-hidden-files: true
         compression-level: 0
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-

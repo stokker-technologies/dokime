@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-native.yml; sha256:a7ad25a093fa8e1d5dad5819bd6c5b57c61b344f4788e0619e04b96da2a531f9
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-tests-windows.yml; sha256:bb4494156476de23578f23083b1da3b9f0956830a1dbc9ccb352542c8b9c5567
 name: Build
 "on":
   workflow_call:
@@ -7,9 +7,6 @@ name: Build
         type: string
         required: true
       timeouts:
-        type: string
-        required: true
-      platform:
         type: string
         required: true
 env:
@@ -21,10 +18,10 @@ env:
   npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
-  build_product:
-    name: Native (${{ inputs.platform }})
-    runs-on: ${{ fromJSON(inputs.runners)[inputs.platform].large }}
-    timeout-minutes: ${{ fromJSON(inputs.timeouts).build_product }}
+  build_tests_windows:
+    name: Tests (windows)
+    runs-on: ${{ fromJSON(inputs.runners).windows.large }}
+    timeout-minutes: ${{ fromJSON(inputs.timeouts).build_tests_windows }}
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -234,136 +231,21 @@ jobs:
           if (process.env.ACTIONS_CACHE_SERVICE_V2) {
             core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
           }
-    - run: >-
+    - name: Compiler Cache Storage
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+      with:
+        script: |-
+          for (const key of ['ACTIONS_RUNTIME_TOKEN', 'ACTIONS_RESULTS_URL', 'ACTIONS_CACHE_URL']) {
+            const value = process.env[key];
+            if (value) { core.setSecret(value); core.exportVariable(key, value); }
+          }
+          if (process.env.ACTIONS_CACHE_SERVICE_V2) {
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
+          }
+    - name: Tests Build
+      run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        project_tools.ci.sccache
-      env:
-        STKR_SCCACHE_SCRIPT: mise run build --profile ${{ env.PROFILE }}
-    - name: Archive Build
-      if: inputs.platform != 'windows'
-      shell: bash
-      run: |-
-        native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile ${{ env.PROFILE }})"
-        native="${native##*/}"
-        mkdir -p target/ci
-        candidates=("target/build/${{ env.PROFILE }}/${native}/" "target/build/${{ env.PROFILE }}/any/" "target/generated/")
-        outputs=()
-        for path in "${candidates[@]}"; do
-          if [ -e "$path" ]; then outputs+=("$path"); fi
-        done
-        [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/ci/build-product-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- "${outputs[@]}"
-    - name: Archive Build
-      if: inputs.platform == 'windows'
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile ${{ env.PROFILE }})
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        New-Item -ItemType Directory -Force target/ci | Out-Null
-        [string[]]$outputs = @("target/build/${{ env.PROFILE }}/${native}/", "target/build/${{ env.PROFILE }}/any/", "target/generated/") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
-        if (!$outputs) { throw 'No build outputs found' }
-        & $tar -cf "target/ci/build-product-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst" --force-local --use-compress-program "zstd -T0" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' -- @outputs
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-product-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/ci/build-product-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        include-hidden-files: true
-        compression-level: 0
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: build-product-diagnostics-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/build/${{ env.PROFILE }}/*/product/compiler.json
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - run: >-
-        mise exec -- uv run --locked --project tools/python python -m
-        project_tools.ci.sccache
-      env:
-        STKR_SCCACHE_SCRIPT: mise run build:rust:tests --profile ${{ env.PROFILE }}
-    - name: Archive Build
-      if: inputs.platform != 'windows'
-      shell: bash
-      run: |-
-        native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile ${{ env.PROFILE }})"
-        native="${native##*/}"
-        mkdir -p target/ci
-        candidates=("target/build/${{ env.PROFILE }}/${native}/tests" "target/build/${{ env.PROFILE }}/${native}/fixtures")
-        outputs=()
-        for path in "${candidates[@]}"; do
-          if [ -e "$path" ]; then outputs+=("$path"); fi
-        done
-        [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/ci/build-tests-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst"  -- "${outputs[@]}"
-    - name: Archive Build
-      if: inputs.platform == 'windows'
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths build --profile ${{ env.PROFILE }})
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        New-Item -ItemType Directory -Force target/ci | Out-Null
-        [string[]]$outputs = @("target/build/${{ env.PROFILE }}/${native}/tests", "target/build/${{ env.PROFILE }}/${native}/fixtures") | ForEach-Object { Get-Item -Path $_.TrimEnd('/','\') -ErrorAction SilentlyContinue } | ForEach-Object { (Resolve-Path -LiteralPath $_.FullName -Relative).Replace('\', '/') }
-        if (!$outputs) { throw 'No build outputs found' }
-        & $tar -cf "target/ci/build-tests-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst" --force-local --use-compress-program "zstd -T0"  -- @outputs
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-tests-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/ci/build-tests-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        include-hidden-files: true
-        compression-level: 0
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: build-tests-diagnostics-${{ env.PROFILE }}-${{ inputs.platform }}
-        path: target/build/${{ env.PROFILE }}/*/tests/compiler.json
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
+        project_tools.ci.build --profile ${{ env.PROFILE }} --output tests --task build:rust:tests
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'
@@ -396,7 +278,7 @@ jobs:
         path: .cache/uv/
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-
         ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||

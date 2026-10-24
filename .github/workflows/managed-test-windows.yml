@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:f4cf4543992cabe69913fdfc6476027f63c6911f9df0f437d3913cf035820e15
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:b3f7d58bb0168ae74140bbe7d88e09c42faf39d4411cf5707c7af09b04ade7b5
 name: Test
 "on":
   workflow_call:
@@ -24,9 +24,6 @@ jobs:
     name: Rust / Unit (windows)
     runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit_windows }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -236,30 +233,12 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-windows
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run test:rust:unit --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -308,13 +287,14 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:tests
   validate_test_rust_integration_windows:
     name: Rust / Integration (windows)
     runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration_windows }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -524,30 +504,12 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-windows
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run test:rust:integration --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -596,13 +558,14 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:tests
   validate_test_rust_acceptance_windows:
     name: Rust / Acceptance (windows)
     runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_acceptance_windows }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -811,64 +774,40 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-windows
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        name: build-clients-${{ env.PROFILE }}-windows
+        path: target/ci
+    - name: Extract build / clients
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-clients-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-runtime-${{ env.PROFILE }}-windows
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+        path: target/ci
+    - name: Extract build:python / python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-windows
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run test:rust:acceptance --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -917,13 +856,14 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build,build:python,build:rust:tests
   validate_test_rust_system_windows:
     name: Rust / System (windows)
     runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_system_windows }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -1132,64 +1072,31 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-windows
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        name: build-runtime-${{ env.PROFILE }}-windows
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+        path: target/ci
+    - name: Extract build:python / python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-windows
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run test:rust:system --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -1238,13 +1145,14 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build,build:python,build:rust:tests
   validate_test_typescript_system_windows:
     name: TypeScript / System (windows)
     runs-on: ${{ fromJSON(inputs.runners).windows.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_typescript_system_windows }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -1455,64 +1363,22 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-windows
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-product-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        name: build-clients-${{ env.PROFILE }}-windows
+        path: target/ci
+    - name: Extract build / clients
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-clients-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-tests-${{ env.PROFILE }}-windows
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-tests-${{ env.PROFILE }}-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        name: build-runtime-${{ env.PROFILE }}-windows
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run test:typescript:system --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -1561,3 +1427,7 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build

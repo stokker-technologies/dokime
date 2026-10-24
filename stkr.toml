@@ -51,7 +51,34 @@ max_workspaces = 5
 [ci.impact]
 default = "full"
 
+# --- Stage / Check --- #
+
+[[ci.jobs]]
+id = "check:python:generated"
+inputs = ["build:python#python"]
+
+[[ci.jobs]]
+id = "check:typescript:generated"
+inputs = ["build#clients"]
+
 # --- Stage / Build --- #
+
+[[ci.jobs]]
+id = "build"
+inputs = ["build:python#python"]
+outputs.runtime = ["target/build/{profile}/{target}/bin", "target/build/{profile}/{target}/plugins"]
+outputs.clients = ["target/build/{profile}/{target}/generated/typescript"]
+outputs.packaging = ["target/build/{profile}/{target}/product", "target/build/{profile}/{target}/web"]
+
+[[ci.jobs]]
+id = "build:rust:tests"
+inputs = []
+outputs.tests = ["target/build/{profile}/{target}/tests", "target/build/{profile}/{target}/fixtures"]
+
+[[ci.jobs]]
+id = "build:python"
+inputs = []
+outputs.python = ["target/build/{profile}/any/python"]
 
 [[ci.jobs]]
 id = "build"
@@ -63,12 +90,69 @@ id = "build"
 platform = "windows"
 
 [[ci.jobs]]
+id = "build:rust:tests"
+platform = "linux"
+bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
+
+[[ci.jobs]]
+id = "build:rust:bench"
+outputs.bench = ["target/build/bench/{target}"]
+
+[[ci.jobs]]
 id = "build:rust:bench"
 platform = "linux"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
 
 # --- Stage / Test --- #
+
+[[ci.jobs]]
+id = "test:rust:unit"
+inputs = ["build:rust:tests#tests"]
+
+[[ci.jobs]]
+id = "test:rust:integration"
+inputs = ["build:rust:tests#tests"]
+
+[[ci.jobs]]
+id = "test:rust:acceptance"
+inputs = ["build:rust:tests#tests", "build#runtime", "build#clients", "build:python#python"]
+
+[[ci.jobs]]
+id = "test:rust:system"
+inputs = ["build:rust:tests#tests", "build#runtime", "build:python#python"]
+
+[[ci.jobs]]
+id = "test:rust:coverage"
+inputs = ["build:rust:tests#tests", "build#runtime", "build#clients", "build:python#python"]
+
+[[ci.jobs]]
+id = "test:typescript:unit"
+inputs = ["build#clients"]
+
+[[ci.jobs]]
+id = "test:typescript:integration"
+inputs = ["build#clients"]
+
+[[ci.jobs]]
+id = "test:typescript:system"
+inputs = ["build#runtime", "build#clients"]
+
+[[ci.jobs]]
+id = "test:python:unit"
+inputs = ["build:python#python"]
+
+[[ci.jobs]]
+id = "test:python:integration"
+inputs = ["build:python#python"]
+
+[[ci.jobs]]
+id = "test:python:acceptance"
+inputs = ["build:python#python", "build#runtime"]
+
+[[ci.jobs]]
+id = "test:python:coverage"
+inputs = ["build:python#python", "build#runtime"]
 
 [[ci.jobs]]
 id = "test:rust:acceptance"
@@ -105,7 +189,31 @@ id = "test:typescript:system"
 platform = "windows"
 bootstrap = ["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]
 
+# --- Stage / Bench --- #
+
+[[ci.jobs]]
+id = "bench:rust:unit"
+inputs = ["build:rust:bench#bench"]
+
+[[ci.jobs]]
+id = "bench:rust:integration"
+inputs = ["build:rust:bench#bench"]
+
+[[ci.jobs]]
+id = "bench:rust:system"
+inputs = ["build:rust:bench#bench"]
+
 # --- Stage / Package --- #
+
+[[ci.jobs]]
+id = "package:rust"
+inputs = ["build#runtime", "build#packaging"]
+outputs.package = ["target/package/{profile}/{target}/rust"]
+
+[[ci.jobs]]
+id = "package:python"
+inputs = ["build:python#python"]
+outputs.package = ["target/package/{profile}/any/python"]
 
 [[ci.jobs]]
 id = "package:rust"
@@ -113,6 +221,26 @@ platform = "linux"
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 # --- Stage / Release --- #
+
+[[ci.jobs]]
+id = "release:tag"
+inputs = []
+
+[[ci.jobs]]
+id = "release:publish:dry"
+inputs = ["package:rust#package", "package:python#package"]
+
+[[ci.jobs]]
+id = "release:rehearse"
+inputs = ["package:rust#package", "package:python#package"]
+
+[[ci.jobs]]
+id = "release:publish"
+inputs = ["package:rust#package", "package:python#package"]
+
+[[ci.jobs]]
+id = "release:verify"
+inputs = ["package:rust#package", "package:python#package"]
 
 [[ci.jobs]]
 id = "release:publish:dry"

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:241e3f76b1924ec1cc96ed00e6a0b68dac230352b75a38f70aa42123ef67bf36
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:4682e9583a52438a4a02bced56978457d221bf82901265c7e14faa1e7ca08807
 # === Settings === #
 
 [settings]
@@ -111,10 +111,18 @@ usage = 'flag "--profile <profile>" default="dev"'
 tools = { "github:stokker-technologies/dokime" = { version = "0.1.0", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" } }
 run = "uv run --locked --project tools/python python -m project_tools.build.plugin --profile {{usage.profile}}"
 
+[tasks."build:rust:compatibility"]
+description = "Validate Rust Compatibility"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  "uv run --locked --project tools/python python -m project_tools.build.cargo -- --locked --workspace --profile {{usage.profile}} --all-features",
+  "uv run --locked --project tools/python python -m project_tools.build.cargo -- --locked --workspace --profile {{usage.profile}} --no-default-features",
+]
+
 [tasks."build:rust:tests"]
 description = "Build Test Binaries And Fixtures"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "uv run --locked --project tools/python python -m project_tools.test.archive --profile {{usage.profile}} -- --all-features"
+run = "uv run --locked --project tools/python python -m project_tools.build.cargo archive --profile {{usage.profile}}"
 
 # === Dev === #
 

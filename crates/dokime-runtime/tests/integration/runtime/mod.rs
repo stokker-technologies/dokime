@@ -15,6 +15,7 @@ pub(crate) mod identity;
 pub(crate) mod lifecycle;
 pub(crate) mod queries;
 pub(crate) mod query_records;
+#[cfg(feature = "fault-injection")]
 pub(crate) mod secrets;
 pub(crate) mod settings;
 pub(crate) mod storage;

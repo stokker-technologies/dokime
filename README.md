@@ -1139,7 +1139,23 @@ The organization journey imports a pack through the native picker, verifies next
 activation, and checks that an invalid pending pack preserves the active appearance.
 `mise run ci` runs the declared Check, Build, generated-client checks, correctness tests, Package and Dry tasks
 in order in the current worktree. Native provider runners supply unavailable-platform and transported-artifact proof.
+Ordinary CI uses the canonical Product and Tests configurations declared in `mise.toml`. Product and Tests compile in separate parallel jobs, with independent feature sets and reuse where Cargo fingerprints permit. This does not promise one compilation for distinct test harnesses or profiles.
 `mise run ci:nightly` adds the declared Rust/Python coverage and benchmark leaves.
+
+`mise run test:rust:extended` is an explicit local-only suite. It retains all-features,
+no-default-features and domain WebAssembly Clippy through `build:rust:compatibility`,
+then builds the instrumented Tests export and runs the Rust layers. Neither CI nor
+installers invoke it. Shipping Product exports remain free of fault injection.
+The extended Tests export replaces the current profile's ordinary Tests export;
+run `build:rust:tests` again before using canonical test artifacts.
+
+Extended-only runtime cases cover crash recovery (`cycle_crash_recovery` and its
+`cycle_restart_child` fixture), undeclared-record injection (`undeclared_records_settle`),
+the injected shared-secret store (`local_secrets_state`,
+`two_plugin_owners_resolve_shared_secret_lifecycle`, `stream_ftp_source`, and
+`refused_resume_reports_extraction_failure_and_artifact_only_fallback`), and backend
+decoration (`fixture_backends_decorated`). The ordinary `node_identity_restart`
+case retains its restart and identity assertions without instrumentation.
 
 The runtime Cargo package carries its embedded report and brand payload.
 Contributors refresh that tracked payload with `mise run prepare:report` when

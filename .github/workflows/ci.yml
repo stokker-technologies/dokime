@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:17c11d3a852841435b4741af4dc4d0454297346fa37be7acc0f91bc86af7a98e
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:ca8b0fb4776962c5c01181909c411800f7f2ffe385d0bf6e1455ff21429eb51d
 name: CI
 "on":
   push:
@@ -36,9 +36,9 @@ jobs:
     concurrency:
       group: "ci-${{ github.workflow }}-build-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
       cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
-  build_linux:
+  build_product_linux:
     name: Build
-    uses: ./.github/workflows/managed-build-linux.yml
+    uses: ./.github/workflows/managed-build-product-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_linux\":120}"
@@ -50,11 +50,26 @@ jobs:
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
     concurrency:
-      group: "ci-${{ github.workflow }}-build_linux-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      group: "ci-${{ github.workflow }}-build_product_linux-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
       cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
-  build_windows:
+  build_tests_linux:
     name: Build
-    uses: ./.github/workflows/managed-build-windows.yml
+    uses: ./.github/workflows/managed-build-tests-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_tests_linux\":120}"
+    secrets: inherit
+    needs:
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-build_tests_linux-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
+  build_product_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-product-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_windows\":120}"
@@ -66,7 +81,22 @@ jobs:
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
       'cancelled') && needs.validated.outputs.validated != 'true'
     concurrency:
-      group: "ci-${{ github.workflow }}-build_windows-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      group: "ci-${{ github.workflow }}-build_product_windows-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
+      cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
+  build_tests_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-tests-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_tests_windows\":120}"
+    secrets: inherit
+    needs:
+    - validated
+    if: >-
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && needs.validated.outputs.validated != 'true'
+    concurrency:
+      group: "ci-${{ github.workflow }}-build_tests_windows-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v'))) && github.ref || github.run_id }}"
       cancel-in-progress: "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev' && !startsWith(github.event.head_commit.message, 'chore(release): prepare v')) }}"
   check:
     name: Check
@@ -92,7 +122,7 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_linux
+    - build_product_linux
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
@@ -172,7 +202,7 @@ jobs:
       contents: read
       actions: read
     needs:
-    - build_linux
+    - build_product_linux
     - check
     - check_generated
     - check_linux
@@ -200,7 +230,7 @@ jobs:
       contents: read
       actions: read
     needs:
-    - build_windows
+    - build_product_windows
     - check
     - check_generated
     - check_windows
@@ -221,7 +251,7 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_linux
+    - build_product_linux
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
@@ -238,7 +268,8 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_linux
+    - build_product_linux
+    - build_tests_linux
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
@@ -255,7 +286,8 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_windows
+    - build_product_windows
+    - build_tests_windows
     - validated
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
@@ -291,7 +323,7 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
         GH_TOKEN: ${{ github.token }}
         REVIEW_RELEASE: "true"
-        REVIEW_BUILDS: "[\"build-product-PROFILE-windows\",\"build-product-python-PROFILE-any\"]"
+        REVIEW_BUILDS: "[\"build-packaging-PROFILE-windows\",\"build-runtime-PROFILE-windows\"]"
         REVIEW_PACKAGES: "[\"package-PROFILE-python-any\",\"package-PROFILE-rust-linux\",\"package-PROFILE-rust-windows\"]"
       run: |-
         python3 - <<'STKR_REVIEW' || { mkdir -p target/ci; printf 'validated=false\nreview_run=\nreview_profile=\n' >> "${GITHUB_OUTPUT:-target/ci/validated.env}"; }
@@ -501,8 +533,10 @@ jobs:
     name: Release
     needs:
     - build
-    - build_linux
-    - build_windows
+    - build_product_linux
+    - build_tests_linux
+    - build_product_windows
+    - build_tests_windows
     - check
     - check_generated
     - check_linux

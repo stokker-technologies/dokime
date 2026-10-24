@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-bench.yml; sha256:8de02355eb2d566a66ba54163a529fe5f67a0541e56b0eb58d0516538d480d42
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-bench.yml; sha256:8cf5cbe99dd571a9431b213eacd133a10d5d1f108453b7287c5fade371a6efe9
 name: Bench
 "on":
   workflow_call:
@@ -27,6 +27,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:bench
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -235,11 +236,13 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: build-bench
-        merge-multiple: true
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-bench-linux.tar.zst"
+        name: build-bench-bench-linux
+        path: target/ci
+    - name: Extract build:rust:bench / bench
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-bench-bench-linux.tar.zst --profile
+        bench
     - run: mise run bench:rust:integration --refresh-baseline
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -297,6 +300,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:bench
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -505,11 +509,13 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: build-bench
-        merge-multiple: true
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-bench-linux.tar.zst"
+        name: build-bench-bench-linux
+        path: target/ci
+    - name: Extract build:rust:bench / bench
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-bench-bench-linux.tar.zst --profile
+        bench
     - run: mise run bench:rust:system --refresh-baseline
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -567,6 +573,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:bench
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -775,11 +782,13 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: build-bench
-        merge-multiple: true
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-bench-linux.tar.zst"
+        name: build-bench-bench-linux
+        path: target/ci
+    - name: Extract build:rust:bench / bench
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-bench-bench-linux.tar.zst --profile
+        bench
     - run: mise run bench:rust:unit --refresh-baseline
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()

@@ -12,6 +12,7 @@
 
 /* === Modules === */
 pub(crate) mod follow;
+#[cfg(feature = "fault-injection")]
 pub(crate) mod ftp;
 pub(crate) mod watch;
 

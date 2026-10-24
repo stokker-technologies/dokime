@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:7477444ce083af1df6754504abe2b21b281ff01854d8af2dad5e4942a45c3f26
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:b6a2ea0ac549055ca2aff3a58ab8980385d924aa1daeeef28f657f41d6cb38d5
 name: Test
 "on":
   workflow_call:
@@ -24,9 +24,6 @@ jobs:
     name: Rust / Unit (linux)
     runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit_linux }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -238,9 +235,12 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-linux.tar.zst"
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
     - run: mise run test:rust:unit --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -289,13 +289,14 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:tests
   validate_test_rust_integration_linux:
     name: Rust / Integration (linux)
     runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration_linux }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -507,9 +508,12 @@ jobs:
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-linux.tar.zst"
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
     - run: mise run test:rust:integration --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -558,13 +562,14 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build:rust:tests
   validate_test_rust_acceptance_linux:
     name: Rust / Acceptance (linux)
     runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_acceptance_linux }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -775,22 +780,40 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+        name: build-clients-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / clients
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-clients-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-runtime-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+        path: target/ci
+    - name: Extract build:python / python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-linux.tar.zst"
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
     - run: mise run test:rust:acceptance --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -839,13 +862,14 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build,build:python,build:rust:tests
   validate_test_rust_system_linux:
     name: Rust / System (linux)
     runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_system_linux }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -1056,22 +1080,31 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+        name: build-runtime-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+        path: target/ci
+    - name: Extract build:python / python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-linux.tar.zst"
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
     - run: mise run test:rust:system --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -1120,13 +1153,14 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build,build:python,build:rust:tests
   validate_test_typescript_system_linux:
     name: TypeScript / System (linux)
     runs-on: ${{ fromJSON(inputs.runners).linux.small }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_typescript_system_linux }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -1337,22 +1371,22 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+        name: build-clients-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / clients
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-clients-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-tests-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-linux.tar.zst"
+        name: build-runtime-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - run: mise run test:typescript:system --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -1401,3 +1435,7 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_TASK_SKIP: build

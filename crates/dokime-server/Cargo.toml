@@ -17,6 +17,7 @@ version = { workspace = true }
 
 [features]
 default = []
+fault-injection = ["dokime/fault-injection"]
 # Host screenshot, camera and audio capture, enabled by the release server build;
 # see dokime-runtime for the system packages it links.
 media-native = ["dokime/media-native"]
@@ -79,7 +80,6 @@ harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 [dev-dependencies]
 # Local
-dokime = { path = "../dokime", features = ["fault-injection"] }
 dokime-cli = { path = "../dokime-cli" }
 
 # Git

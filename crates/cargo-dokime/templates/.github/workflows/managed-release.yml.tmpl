@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:57ea22adaa84b8048949f7f1a953cd03120af2afd8f99993137ded854578c988
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:8c3a45c21b6839fb1e637a032bd5a98b3265b720aaa53053e77addbbb2d2080a
 name: Release
 "on":
   workflow_call:
@@ -266,26 +266,16 @@ jobs:
           if (process.env.ACTIONS_CACHE_SERVICE_V2) {
             core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
           }
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: package-release-*
-        merge-multiple: true
-        path: target/ci
-        run-id: ${{ inputs.review_run != '' && inputs.review_run || github.run_id }}
-        github-token: ${{ github.token }}
-    - name: Extract Packages
-      shell: bash
-      run: for archive in target/ci/*.tar; do tar -xf "$archive"; done
     - name: Show Trusted Publishing Identity
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
         project_tools.release.run identity
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        project_tools.ci.sccache
+        project_tools.ci.build
       env:
         GH_TOKEN: ${{ github.token }}
-        STKR_SCCACHE_SCRIPT: mise run release:publish
+        _STKR_CI_BUILD_SCRIPT: mise run release:publish
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'

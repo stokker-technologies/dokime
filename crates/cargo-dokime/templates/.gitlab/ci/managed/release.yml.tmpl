@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:c9e9f4e7caca4fb82eb63b51078e0b8fedfef559e24a3e1130a72847105034f7
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:007d245c7a661b4ca0c5468725a2099ed583b09b3e360628367d769677952969
 Release / Publish:
   stage: Release
   tags:
@@ -212,7 +212,7 @@ Release / Publish:
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/
   variables:
     MISE_ENABLE_TOOLS: go,python,rust,uv,gh,git-cliff,glab
-    REVIEW_PACKAGES: "[\"Package / Rust (linux)\",\"Package / Rust (windows)\"]"
+    REVIEW_PACKAGES: "[]"
     REVIEW_RESTORE: "true"
   environment:
     name: release
@@ -229,7 +229,10 @@ Release / Publish:
   - job: Check / Rust (linux)
     artifacts: false
     optional: true
-  - job: Build / Native (linux)
+  - job: Build / Product (linux)
+    artifacts: false
+    optional: true
+  - job: Build / Tests (linux)
     artifacts: false
     optional: true
   - job: Test / Rust / Unit (linux)
@@ -239,12 +242,15 @@ Release / Publish:
     artifacts: false
     optional: true
   - job: Package / Rust (linux)
-    artifacts: true
+    artifacts: false
     optional: true
   - job: Check / Rust (windows)
     artifacts: false
     optional: true
-  - job: Build / Native (windows)
+  - job: Build / Product (windows)
+    artifacts: false
+    optional: true
+  - job: Build / Tests (windows)
     artifacts: false
     optional: true
   - job: Test / Rust / Unit (windows)
@@ -254,7 +260,7 @@ Release / Publish:
     artifacts: false
     optional: true
   - job: Package / Rust (windows)
-    artifacts: true
+    artifacts: false
     optional: true
   - job: Validated / Repository
     artifacts: true

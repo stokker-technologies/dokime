@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:0e4f8e2eba2e83af12f263d51992fd5661251e4c65660c3f01b0e5d7cd24f0fb
+# Rendered by stkr project update from templates/ci/.github/workflows/nightly.yml; sha256:13aa552694da799880cd25dda8ce55ef82833c007d822ca5291c6220a719bcd1
 name: Nightly
 "on":
   schedule:
@@ -34,24 +34,38 @@ jobs:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_python_any\":120}"
     secrets: inherit
-  build_linux:
+  build_product_linux:
     name: Build
-    uses: ./.github/workflows/managed-build-linux.yml
+    uses: ./.github/workflows/managed-build-product-linux.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_linux\":120}"
     secrets: inherit
     needs:
     - build
-  build_windows:
+  build_tests_linux:
     name: Build
-    uses: ./.github/workflows/managed-build-windows.yml
+    uses: ./.github/workflows/managed-build-tests-linux.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_tests_linux\":120}"
+    secrets: inherit
+  build_product_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-product-windows.yml
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_windows\":120}"
     secrets: inherit
     needs:
     - build
+  build_tests_windows:
+    name: Build
+    uses: ./.github/workflows/managed-build-tests-windows.yml
+    with:
+      runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
+      timeouts: "{\"build_tests_windows\":120}"
+    secrets: inherit
   build_nightly:
     name: Build
     uses: ./.github/workflows/managed-build-nightly.yml
@@ -75,7 +89,7 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_linux
+    - build_product_linux
   check_linux:
     name: Check
     uses: ./.github/workflows/managed-check-linux.yml
@@ -118,7 +132,7 @@ jobs:
       contents: read
       actions: read
     needs:
-    - build_linux
+    - build_product_linux
     - check
     - check_generated
     - check_linux
@@ -134,7 +148,7 @@ jobs:
       contents: read
       actions: read
     needs:
-    - build_windows
+    - build_product_windows
     - check
     - check_generated
     - check_windows
@@ -147,7 +161,7 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_linux
+    - build_product_linux
   test_linux:
     name: Test
     uses: ./.github/workflows/managed-test-linux.yml
@@ -157,7 +171,8 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_linux
+    - build_product_linux
+    - build_tests_linux
   test_windows:
     name: Test
     uses: ./.github/workflows/managed-test-windows.yml
@@ -167,7 +182,8 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_windows
+    - build_product_windows
+    - build_tests_windows
   test_nightly:
     name: Test
     uses: ./.github/workflows/managed-test-nightly.yml
@@ -177,4 +193,5 @@ jobs:
     secrets: inherit
     needs:
     - build
-    - build_linux
+    - build_product_linux
+    - build_tests_linux

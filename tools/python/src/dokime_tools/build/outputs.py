@@ -55,23 +55,6 @@ def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
     return result
 
 
-def libraries(messages: Path, packages: Sequence[str]) -> list[Path]:
-    """Select Shipping Workspace Libraries, Excluding Metadata And Dependency Crates."""
-    names = {name.replace("-", "_") for name in packages}
-    kinds = {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"}
-    suffixes = {".rlib", ".a", ".lib", ".so", ".dylib", ".dll"}
-    selected = set()
-    for line in messages.read_text(encoding="utf-8").splitlines():
-        item = json.loads(line) if line.startswith("{") else {}
-        target = item.get("target", {})
-        if item.get("reason") != "compiler-artifact" or item.get("profile", {}).get("test", False):
-            continue
-        if target.get("name") not in names or not kinds.intersection(target.get("kind", [])):
-            continue
-        selected.update(Path(name) for name in item.get("filenames", []) if Path(name).suffix in suffixes)
-    return sorted(selected)
-
-
 # === Private Functions === #
 
 # === Entry Point === #

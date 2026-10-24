@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/trusted-cache.yml; sha256:51e0430a6a8d542cfef7d20540ec8ab3a60900d820226a6745673439656cc65e
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/trusted-cache.yml; sha256:9df126cfbb4b9580db846cef99d7eb2a3576f734057bbd125f3cd7e3774ac242
 Check / Repository:
   cache:
   - key:
@@ -86,7 +86,7 @@ Check / Rust (linux):
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,github:bnjbvr/cargo-machete,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
     STKR_CACHE_POLICY: pull-push
-Build / Native (linux):
+Build / Product (linux):
   cache:
   - key:
       prefix: stkr-v4-cargo-downloads-linux-$CI_RUNNER_ID
@@ -112,9 +112,37 @@ Build / Native (linux):
     - .cache/uv/
     policy: $STKR_CACHE_POLICY
   variables:
-    STKR_BUILD_TESTS: "true"
     MISE_ENABLE_TOOLS: >-
       aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
+    STKR_CACHE_POLICY: pull-push
+Build / Tests (linux):
+  cache:
+  - key:
+      prefix: stkr-v4-cargo-downloads-linux-$CI_RUNNER_ID
+      files:
+      - Cargo.lock
+    paths:
+    - .cache/cargo/registry/
+    - .cache/cargo/git/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-mise-linux-$CI_RUNNER_ID
+      files:
+      - mise.lock
+    paths:
+    - .cache/mise/downloads/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-uv-linux-$CI_RUNNER_ID
+      files:
+      - uv.lock
+      - mise.lock
+    paths:
+    - .cache/uv/
+    policy: $STKR_CACHE_POLICY
+  variables:
+    MISE_ENABLE_TOOLS: >-
+      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
     STKR_CACHE_POLICY: pull-push
 Test / Rust / Unit (linux):
   cache:
@@ -232,7 +260,7 @@ Check / Rust (windows):
     MISE_ENABLE_TOOLS: >-
       go,python,rust,uv,github:bnjbvr/cargo-machete,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
     STKR_CACHE_POLICY: pull-push
-Build / Native (windows):
+Build / Product (windows):
   cache:
   - key:
       prefix: stkr-v4-cargo-downloads-linux-$CI_RUNNER_ID
@@ -258,9 +286,37 @@ Build / Native (windows):
     - .cache/uv/
     policy: $STKR_CACHE_POLICY
   variables:
-    STKR_BUILD_TESTS: "true"
     MISE_ENABLE_TOOLS: >-
       aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,sccache,taplo,uv
+    STKR_CACHE_POLICY: pull-push
+Build / Tests (windows):
+  cache:
+  - key:
+      prefix: stkr-v4-cargo-downloads-linux-$CI_RUNNER_ID
+      files:
+      - Cargo.lock
+    paths:
+    - .cache/cargo/registry/
+    - .cache/cargo/git/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-mise-linux-$CI_RUNNER_ID
+      files:
+      - mise.lock
+    paths:
+    - .cache/mise/downloads/
+    policy: $STKR_CACHE_POLICY
+  - key:
+      prefix: stkr-v4-uv-linux-$CI_RUNNER_ID
+      files:
+      - uv.lock
+      - mise.lock
+    paths:
+    - .cache/uv/
+    policy: $STKR_CACHE_POLICY
+  variables:
+    MISE_ENABLE_TOOLS: >-
+      go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo
     STKR_CACHE_POLICY: pull-push
 Test / Rust / Unit (windows):
   cache:
@@ -405,7 +461,7 @@ Release / Publish:
     policy: $STKR_CACHE_POLICY
   variables:
     MISE_ENABLE_TOOLS: go,python,rust,uv,gh,git-cliff,glab
-    REVIEW_PACKAGES: "[\"Package / Rust (linux)\",\"Package / Rust (windows)\"]"
+    REVIEW_PACKAGES: "[]"
     REVIEW_RESTORE: "true"
     STKR_CACHE_POLICY: pull-push
 Validated / Repository:
@@ -436,5 +492,5 @@ Validated / Repository:
   variables:
     REVIEW_BUILDS: "[]"
     REVIEW_RELEASE: "false"
-    REVIEW_PACKAGES: "[\"Package / Rust (linux)\",\"Package / Rust (windows)\"]"
+    REVIEW_PACKAGES: "[]"
     STKR_CACHE_POLICY: pull-push

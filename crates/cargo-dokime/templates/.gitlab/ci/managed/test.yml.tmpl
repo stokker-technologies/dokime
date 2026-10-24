@@ -1,17 +1,14 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/test.yml; sha256:fb82d0b2150dde4383939a32576cf9985a071855035f4d81382b06f98501412a
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/test.yml; sha256:5d612298a2958fdc139e152ecf99c0152a5402eb34a120692d03745355f4e9a2
 Test / Rust / Unit (linux):
   stage: Test
   tags:
   - saas-linux-medium-amd64
   timeout: 120 minutes
   needs:
-  - job: Build / Native (linux)
-    artifacts: true
   - job: Validated / Repository
     artifacts: true
     optional: true
   script:
-  - tar --zstd -xf "target/ci/build-tests-$PROFILE-linux.tar.zst"
   - mise run test:rust:unit --profile $PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -92,13 +89,10 @@ Test / Rust / Integration (linux):
   - saas-linux-medium-amd64
   timeout: 120 minutes
   needs:
-  - job: Build / Native (linux)
-    artifacts: true
   - job: Validated / Repository
     artifacts: true
     optional: true
   script:
-  - tar --zstd -xf "target/ci/build-tests-$PROFILE-linux.tar.zst"
   - mise run test:rust:integration --profile $PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -179,34 +173,10 @@ Test / Rust / Unit (windows):
   - saas-windows-medium-amd64
   timeout: 120 minutes
   needs:
-  - job: Build / Native (windows)
-    artifacts: true
   - job: Validated / Repository
     artifacts: true
     optional: true
   script:
-  - |-
-    $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-    $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-    foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-      $root = Split-Path -Parent (Split-Path -Parent $git)
-      $candidates += Join-Path $root 'usr/bin/tar.exe'
-    }
-    $tar = $null
-    foreach ($candidate in @($candidates | Select-Object -Unique)) {
-      if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-      try {
-        $version = & $candidate --version 2>$null
-        if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-        $capabilities = & $candidate --help 2>$null
-        if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-        $tar = $candidate
-        break
-      } catch { continue }
-    }
-    if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-    & $tar -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   - mise run test:rust:unit --profile $env:PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -339,34 +309,10 @@ Test / Rust / Integration (windows):
   - saas-windows-medium-amd64
   timeout: 120 minutes
   needs:
-  - job: Build / Native (windows)
-    artifacts: true
   - job: Validated / Repository
     artifacts: true
     optional: true
   script:
-  - |-
-    $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-    $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-    foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-      $root = Split-Path -Parent (Split-Path -Parent $git)
-      $candidates += Join-Path $root 'usr/bin/tar.exe'
-    }
-    $tar = $null
-    foreach ($candidate in @($candidates | Select-Object -Unique)) {
-      if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-      try {
-        $version = & $candidate --version 2>$null
-        if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-        $capabilities = & $candidate --help 2>$null
-        if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-        $tar = $candidate
-        break
-      } catch { continue }
-    }
-    if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-    & $tar -xf "target/ci/build-tests-$env:PROFILE-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   - mise run test:rust:integration --profile $env:PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -498,12 +444,8 @@ Test / Rust / Coverage:
   tags:
   - saas-linux-medium-amd64
   timeout: 120 minutes
-  needs:
-  - job: Build / Native (linux)
-    artifacts: true
+  needs: []
   script:
-  - tar --zstd -xf "target/ci/build-product-$PROFILE-linux.tar.zst"
-  - tar --zstd -xf "target/ci/build-tests-$PROFILE-linux.tar.zst"
   - mise run test:rust:coverage --profile $PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "schedule"

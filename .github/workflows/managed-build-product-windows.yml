@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-linux.yml; sha256:add46fc6606a2815bef445199eaecd8949be36d3b7a78e6112bdd6d586a64594
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-product-windows.yml; sha256:2a9f8dbb1843a191e1eb86f141798e4736768a4006f2218c2b5963c3ff457247
 name: Build
 "on":
   workflow_call:
@@ -20,20 +20,10 @@ env:
   npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
-  build_product_linux:
-    name: Native (linux)
-    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
-    timeout-minutes: ${{ fromJSON(inputs.timeouts).build_product_linux }}
-    env:
-      MISE_TASK_SKIP: build:python
-      MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
-      STKR_SCCACHE_BACKEND: gha
-      STKR_SCCACHE_MODE: >-
-        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
-        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
-        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
-        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
+  build_product_windows:
+    name: Product (windows)
+    runs-on: ${{ fromJSON(inputs.runners).windows.large }}
+    timeout-minutes: ${{ fromJSON(inputs.timeouts).build_product_windows }}
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -86,8 +76,6 @@ jobs:
           if command -v sha256sum >/dev/null; then digest=$(printf '%s' "$root" | sha256sum); else digest=$(printf '%s' "$root" | shasum -a 256); fi
           printf '%s=%s\n' "$name" "${digest%% *}" >> "$GITHUB_ENV"
         done
-    - name: Bootstrap
-      run: python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages
     - name: Prepare Windows Tools
       if: runner.os == 'Windows'
       shell: pwsh
@@ -253,6 +241,15 @@ jobs:
           if (process.env.ACTIONS_CACHE_SERVICE_V2) {
             core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
           }
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-product-python-${{ env.PROFILE }}-any
+        path: target/ci
+    - name: Extract build:python / python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - name: Compiler Cache Storage
       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
       with:
@@ -264,80 +261,49 @@ jobs:
           if (process.env.ACTIONS_CACHE_SERVICE_V2) {
             core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
           }
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
-    - run: >-
+    - name: Product Build
+      run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.sccache
-      env:
-        STKR_SCCACHE_SCRIPT: mise run build --profile ${{ env.PROFILE }}
-    - name: Archive Build
-      run: |-
-        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile ${{ env.PROFILE }})"
-        native="${native##*/}"
-        mkdir -p target/ci
-        candidates=("target/build/${{ env.PROFILE }}/${native}/" "target/build/${{ env.PROFILE }}/any/" "target/generated/")
-        outputs=()
-        for path in "${candidates[@]}"; do
-          if [ -e "$path" ]; then outputs+=("$path"); fi
-        done
-        [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/ci/build-product-${{ env.PROFILE }}-linux.tar.zst" --exclude='*/tests' --exclude='*/fixtures' --exclude='*/bench' --exclude='target/build/${{ env.PROFILE }}/any/python' --exclude='target/generated/python' -- "${outputs[@]}"
-      shell: bash
+        dokime_tools.ci.build --profile ${{ env.PROFILE }} --output product --task build
+    - name: Archive clients
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-clients-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f67656e6572617465642f74797065736372697074225d
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-product-${{ env.PROFILE }}-linux
-        path: target/ci/build-product-${{ env.PROFILE }}-linux.tar.zst
+        name: build-clients-${{ env.PROFILE }}-windows
+        path: target/ci/build-clients-${{ env.PROFILE }}-windows.tar.zst
         if-no-files-found: error
         retention-days: 7
-        include-hidden-files: true
         compression-level: 0
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: build-product-diagnostics-${{ env.PROFILE }}-linux
-        path: target/build/${{ env.PROFILE }}/*/product/compiler.json
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - run: >-
+    - name: Archive packaging
+      run: >-
         mise exec -- uv run --locked --project tools/python python -m
-        dokime_tools.ci.sccache
-      env:
-        STKR_SCCACHE_SCRIPT: mise run build:rust:tests --profile ${{ env.PROFILE }}
-    - name: Archive Build
-      run: |-
-        native="$(mise exec -- uv run --locked --project tools/python python -m dokime_tools.build.paths build --profile ${{ env.PROFILE }})"
-        native="${native##*/}"
-        mkdir -p target/ci
-        candidates=("target/build/${{ env.PROFILE }}/${native}/tests" "target/build/${{ env.PROFILE }}/${native}/fixtures")
-        outputs=()
-        for path in "${candidates[@]}"; do
-          if [ -e "$path" ]; then outputs+=("$path"); fi
-        done
-        [ ${#outputs[@]} -gt 0 ]
-        tar --zstd -cf "target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst"  -- "${outputs[@]}"
-      shell: bash
+        dokime_tools.ci.artifacts pack --archive target/ci/build-packaging-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f70726f64756374222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f776562225d
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-tests-${{ env.PROFILE }}-linux
-        path: target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst
+        name: build-packaging-${{ env.PROFILE }}-windows
+        path: target/ci/build-packaging-${{ env.PROFILE }}-windows.tar.zst
         if-no-files-found: error
         retention-days: 7
-        include-hidden-files: true
         compression-level: 0
+    - name: Archive runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-windows.tar.zst --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
       with:
-        name: build-tests-diagnostics-${{ env.PROFILE }}-linux
-        path: target/build/${{ env.PROFILE }}/*/tests/compiler.json
-        if-no-files-found: ignore
+        name: build-runtime-${{ env.PROFILE }}-windows
+        path: target/ci/build-runtime-${{ env.PROFILE }}-windows.tar.zst
+        if-no-files-found: error
         retention-days: 7
-        include-hidden-files: true
+        compression-level: 0
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'
@@ -377,3 +343,13 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
+      STKR_SCCACHE_BACKEND: gha
+      STKR_SCCACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}
+      MISE_TASK_SKIP: build:python

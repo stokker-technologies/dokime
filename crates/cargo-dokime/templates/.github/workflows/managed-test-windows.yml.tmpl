@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-native.yml; sha256:d2f79f494b995ab083ea4a447711c7700643ba41e4c09c1642d137d227887c29
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:ad47ef595584933434f76f2c3a73357dbe868694d6f65bbe90c819f9ae2916ca
 name: Test
 "on":
   workflow_call:
@@ -7,9 +7,6 @@ name: Test
         type: string
         required: true
       timeouts:
-        type: string
-        required: true
-      platform:
         type: string
         required: true
 env:
@@ -21,13 +18,10 @@ env:
   npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
-  validate_test_rust_unit:
-    name: Rust / Unit (${{ inputs.platform }})
-    runs-on: ${{ fromJSON(inputs.runners)[inputs.platform].small }}
-    timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+  validate_test_rust_unit_windows:
+    name: Rust / Unit (windows)
+    runs-on: ${{ fromJSON(inputs.runners).windows.small }}
+    timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_unit_windows }}
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -226,43 +220,11 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-tests-${{ env.PROFILE }}-${{ inputs.platform }}
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst"
-      if: inputs.platform != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-tests-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: inputs.platform == 'windows'
     - run: mise run test:rust:unit --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: junit-test_rust_unit-${{ env.PROFILE }}-${{ inputs.platform }}
+        name: junit-test_rust_unit-${{ env.PROFILE }}-windows
         path: target/tests/${{ env.PROFILE }}/*/unit-rust/
         if-no-files-found: ignore
         retention-days: 7
@@ -297,13 +259,13 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
-  validate_test_rust_integration:
-    name: Rust / Integration (${{ inputs.platform }})
-    runs-on: ${{ fromJSON(inputs.runners)[inputs.platform].small }}
-    timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration }}
     env:
       MISE_ENABLE_TOOLS: >-
         go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+  validate_test_rust_integration_windows:
+    name: Rust / Integration (windows)
+    runs-on: ${{ fromJSON(inputs.runners).windows.small }}
+    timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_test_rust_integration_windows }}
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -502,43 +464,11 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-tests-${{ env.PROFILE }}-${{ inputs.platform }}
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst"
-      if: inputs.platform != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-tests-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: inputs.platform == 'windows'
     - run: mise run test:rust:integration --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
-        name: junit-test_rust_integration-${{ env.PROFILE }}-${{ inputs.platform }}
+        name: junit-test_rust_integration-${{ env.PROFILE }}-windows
         path: target/tests/${{ env.PROFILE }}/*/integration-rust/
         if-no-files-found: ignore
         retention-days: 7
@@ -573,3 +503,6 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,python,rust,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff

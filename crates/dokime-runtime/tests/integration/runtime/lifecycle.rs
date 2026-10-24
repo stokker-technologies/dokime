@@ -13,6 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
+#[cfg(feature = "fault-injection")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
 // Third Party Imports
@@ -47,6 +48,20 @@ async fn node_identity_restart() {
     let stopped = runtime.shutdown().await.unwrap();
     assert_eq!(runtime.shutdown().await.unwrap(), stopped);
 
+    let mut rebooted = Runtime::with_execution_fixtures(config(root.path()), BTreeMap::new()).await.unwrap();
+    let handle = rebooted.handle();
+    let second = handle.runtime_overview().await.expect("runtime overview query succeeds").identity.node.node_id;
+    drop(handle);
+
+    assert_eq!(second, first);
+    assert!(!root.path().join("identity").exists());
+    rebooted.shutdown().await.unwrap();
+}
+
+#[cfg(feature = "fault-injection")]
+#[tokio::test]
+async fn fixture_backends_decorated() {
+    let root = tempdir().unwrap();
     let decorated = Arc::new(AtomicBool::new(false));
     let observed = decorated.clone();
     let mut rebooted = Runtime::with_fixture_backends(config(root.path()), BTreeMap::new(), move |backends| {
@@ -56,12 +71,6 @@ async fn node_identity_restart() {
     .await
     .unwrap();
     assert!(decorated.load(Ordering::Acquire));
-    let handle = rebooted.handle();
-    let second = handle.runtime_overview().await.expect("runtime overview query succeeds").identity.node.node_id;
-    drop(handle);
-
-    assert_eq!(second, first);
-    assert!(!root.path().join("identity").exists());
     rebooted.shutdown().await.unwrap();
 }
 

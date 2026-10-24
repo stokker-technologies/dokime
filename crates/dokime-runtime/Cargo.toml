@@ -179,12 +179,12 @@ criterion = { workspace = true }
 [[test]]
 name = "integration"
 path = "tests/integration/main.rs"
-required-features = ["host", "fault-injection"]
+required-features = ["host"]
 
 [[test]]
 name = "acceptance"
 path = "tests/acceptance/main.rs"
-required-features = ["host", "fault-injection"]
+required-features = ["host"]
 
 [[bench]]
 name = "unit-runtime"

@@ -1,5 +1,5 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-native.yml; sha256:bb5320d5517dd8648a992e78302bc3380ea3b2307e031f3bb247a9ff8adceb6c
-name: Package
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-tests-linux.yml; sha256:ee8313805e9b5fbf12e3826795095301e2b35662505a9266192041bc5c5980ba
+name: Build
 "on":
   workflow_call:
     inputs:
@@ -9,11 +9,10 @@ name: Package
       timeouts:
         type: string
         required: true
-      platform:
-        type: string
-        required: true
 env:
-  PROFILE: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'dev' }}
+  PROFILE: >-
+    ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref,
+    'release/v')) && 'release' || 'dev' }}
   MISE_LOCKED: "1"
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
@@ -21,13 +20,10 @@ env:
   npm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
-  package_rust:
-    name: Rust (${{ inputs.platform }})
-    runs-on: ${{ fromJSON(inputs.runners)[inputs.platform].large }}
-    timeout-minutes: ${{ fromJSON(inputs.timeouts).package_rust }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
+  build_tests_linux:
+    name: Tests (linux)
+    runs-on: ${{ fromJSON(inputs.runners).linux.large }}
+    timeout-minutes: ${{ fromJSON(inputs.timeouts).build_tests_linux }}
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -80,6 +76,8 @@ jobs:
           if command -v sha256sum >/dev/null; then digest=$(printf '%s' "$root" | sha256sum); else digest=$(printf '%s' "$root" | shasum -a 256); fi
           printf '%s=%s\n' "$name" "${digest%% *}" >> "$GITHUB_ENV"
         done
+    - name: Bootstrap
+      run: python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages
     - name: Prepare Windows Tools
       if: runner.os == 'Windows'
       shell: pwsh
@@ -211,6 +209,14 @@ jobs:
           }}-${{ env.STKR_RUNNER_IMAGE }}-${{ env.STKR_JOB_IMAGE }}-${{ env.STKR_MISE_ROOT
           }}-${{ env.STKR_WORKSPACE_ROOT }}-${{ hashFiles('mise.lock') }}
         path: ${{ env.MISE_DATA_DIR }}
+    - id: pnpm
+      name: Cache / pnpm
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        key: >-
+          stkr-v4-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock')
+          }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}
+        path: .cache/pnpm/
     - id: uv
       name: Cache / uv
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -226,82 +232,45 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+    - name: Compiler Cache Storage
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
       with:
-        name: build-product-${{ env.PROFILE }}-${{ inputs.platform }}
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-product-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst"
-      if: inputs.platform != 'windows'
-    - name: Extract Build
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        & $tar -xf "build-product-${{ env.PROFILE }}-${{ inputs.platform }}.tar.zst" --force-local --use-compress-program "zstd -d"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: inputs.platform == 'windows'
-    - run: mise run package:rust --profile ${{ env.PROFILE }}
-    - name: Archive Package
-      shell: bash
-      run: |-
-        native="$(mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths package --profile ${{ env.PROFILE }})"
-        native="${native##*/}"
-        mkdir -p target/ci
-        tar -cf "target/ci/package-${{ env.PROFILE }}-rust-${{ inputs.platform }}.tar" -- "target/package/${{ env.PROFILE }}/${native}/rust"
-      if: inputs.platform != 'windows'
-    - name: Archive Package
-      shell: pwsh
-      run: |-
-        $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-        $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-        foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-          $root = Split-Path -Parent (Split-Path -Parent $git)
-          $candidates += Join-Path $root 'usr/bin/tar.exe'
-        }
-        $tar = $null
-        foreach ($candidate in @($candidates | Select-Object -Unique)) {
-          if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-          try {
-            $version = & $candidate --version 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-            $capabilities = & $candidate --help 2>$null
-            if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-            $tar = $candidate
-            break
-          } catch { continue }
-        }
-        if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-        $native = Split-Path -Leaf (& mise exec -- uv run --locked --project tools/python python -m project_tools.build.paths package --profile ${{ env.PROFILE }})
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        New-Item -ItemType Directory -Force target/ci | Out-Null
-        & $tar -cf "target/ci/package-${{ env.PROFILE }}-rust-${{ inputs.platform }}.tar" --force-local -- "target/package/${{ env.PROFILE }}/${native}/rust"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      if: inputs.platform == 'windows'
+        script: |-
+          for (const key of ['ACTIONS_RUNTIME_TOKEN', 'ACTIONS_RESULTS_URL', 'ACTIONS_CACHE_URL']) {
+            const value = process.env[key];
+            if (value) { core.setSecret(value); core.exportVariable(key, value); }
+          }
+          if (process.env.ACTIONS_CACHE_SERVICE_V2) {
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
+          }
+    - name: Compiler Cache Storage
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+      with:
+        script: |-
+          for (const key of ['ACTIONS_RUNTIME_TOKEN', 'ACTIONS_RESULTS_URL', 'ACTIONS_CACHE_URL']) {
+            const value = process.env[key];
+            if (value) { core.setSecret(value); core.exportVariable(key, value); }
+          }
+          if (process.env.ACTIONS_CACHE_SERVICE_V2) {
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', process.env.ACTIONS_CACHE_SERVICE_V2);
+          }
+    - name: Tests Build
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.build --profile ${{ env.PROFILE }} --output tests --task build:rust:tests
+    - name: Archive tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts pack --archive target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }} --paths
+        5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f7465737473222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f6669787475726573225d
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: package-${{ env.PROFILE }}-rust-${{ inputs.platform }}
-        path: target/ci/package-${{ env.PROFILE }}-rust-${{ inputs.platform }}.tar
+        name: build-tests-${{ env.PROFILE }}-linux
+        path: target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst
         if-no-files-found: error
         retention-days: 7
-        include-hidden-files: true
+        compression-level: 0
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
         success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'
@@ -328,11 +297,25 @@ jobs:
         success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'
         || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
         (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && steps.pnpm.outputs.cache-hit != 'true'
+      with:
+        key: ${{ steps.pnpm.outputs.cache-primary-key }}
+        path: .cache/pnpm/
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: >-
+        success() && ((github.event_name == 'push' && (github.ref == 'refs/heads/dev'
+        || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
         endsWith(github.ref, '/merge'))) && steps.uv.outputs.cache-hit != 'true'
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
-    if: >-
-      (github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
-      || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/dev'))
+    env:
+      MISE_ENABLE_TOOLS: >-
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,npm:@fission-ai/openspec,pnpm,protoc,python,rust,sccache,taplo,uv
+      STKR_SCCACHE_BACKEND: gha
+      STKR_SCCACHE_MODE: >-
+        ${{ ((github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+        github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+        (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') &&
+        endsWith(github.ref, '/merge'))) && 'READ_WRITE' || 'READ_ONLY' }}

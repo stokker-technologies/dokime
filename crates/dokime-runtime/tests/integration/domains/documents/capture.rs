@@ -118,6 +118,7 @@ async fn notes_until_seal() {
 }
 
 // an undeclared record type that reaches finalization settles the run, naming it.
+#[cfg(feature = "fault-injection")]
 #[tokio::test]
 async fn undeclared_records_settle() {
     const UNDECLARED: &str = "operator.note_deleted";

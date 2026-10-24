@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:306ea9ef44913d1fe247f6f18c73d821878f6700852d3e5122440b7a367f20c4
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:6336984d1d9fb1c2c9aa5f885362cc0ca930bbe02218c0ab02f475c07f45f523
 Package / Rust (linux):
   stage: Package
   tags:
@@ -9,23 +9,15 @@ Package / Rust (linux):
     artifacts: false
   - job: Check / Rust (linux)
     artifacts: false
-  - job: Build / Native (linux)
-    artifacts: true
   - job: Validated / Repository
     artifacts: true
     optional: true
   script:
-  - tar --zstd -xf "target/ci/build-product-$PROFILE-linux.tar.zst"
   - mise run package:rust --profile $PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/
-  artifacts:
-    name: package-$PROFILE-rust-linux-*
-    expire_in: 7 days
-    paths:
-    - target/package/$PROFILE/linux-*/rust/
   variables:
     MISE_ENABLE_TOOLS: >-
       aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
@@ -96,44 +88,15 @@ Package / Rust (windows):
     artifacts: false
   - job: Check / Rust (windows)
     artifacts: false
-  - job: Build / Native (windows)
-    artifacts: true
   - job: Validated / Repository
     artifacts: true
     optional: true
   script:
-  - |-
-    $paths = @($env:PATH -split [IO.Path]::PathSeparator | ForEach-Object { $_.Trim('"') } | Where-Object { [IO.Path]::GetPathRoot($_).Length -ge 3 })
-    $candidates = @($paths | ForEach-Object { Join-Path $_ 'tar.exe' })
-    foreach ($git in @($paths | ForEach-Object { Join-Path $_ 'git.exe' } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })) {
-      $root = Split-Path -Parent (Split-Path -Parent $git)
-      $candidates += Join-Path $root 'usr/bin/tar.exe'
-    }
-    $tar = $null
-    foreach ($candidate in @($candidates | Select-Object -Unique)) {
-      if ([IO.Path]::GetPathRoot($candidate).Length -lt 3 -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-      try {
-        $version = & $candidate --version 2>$null
-        if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^tar \(GNU tar\)') { continue }
-        $capabilities = & $candidate --help 2>$null
-        if ($LASTEXITCODE -ne 0 -or "$capabilities" -notmatch '--force-local' -or "$capabilities" -notmatch '--use-compress-program') { continue }
-        $tar = $candidate
-        break
-      } catch { continue }
-    }
-    if (!$tar) { throw 'GNU tar with force-local and external-compressor support is required from the standard Git image baseline' }
-    & $tar -xf "target/ci/build-product-$env:PROFILE-windows.tar.zst" --force-local --use-compress-program "zstd -d"
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   - mise run package:rust --profile $env:PROFILE
   rules:
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "dev"
   - if: $CI_COMMIT_TAG =~ /^v[0-9]/
-  artifacts:
-    name: package-$PROFILE-rust-windows-*
-    expire_in: 7 days
-    paths:
-    - target/package/$PROFILE/windows-*/rust/
   hooks:
     pre_get_sources_script:
     - |

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-nightly.yml; sha256:080c09c8b94b76023c97f92a86bd2061beee9e774b23291e9ec0c9838c158d39
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-nightly.yml; sha256:395f5833d917969f5c6fb63bc068405e0e741aec2f00b68aec860b94527f16be
 name: Test
 "on":
   workflow_call:
@@ -24,9 +24,6 @@ jobs:
     name: Python / Coverage
     runs-on: ${{ fromJSON(inputs.runners).nightly.coverage }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_coverage_python }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -235,22 +232,22 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+        name: build-runtime-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-tests-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-linux.tar.zst"
+        path: target/ci
+    - name: Extract build:python / python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - run: mise run test:python:coverage --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -300,13 +297,14 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     if: github.event_name == 'schedule'
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
+      MISE_TASK_SKIP: build,build:python
   validate_coverage_rust:
     name: Rust / Coverage
     runs-on: ${{ fromJSON(inputs.runners).nightly.coverage }}
     timeout-minutes: ${{ fromJSON(inputs.timeouts).validate_coverage_rust }}
-    env:
-      MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
     steps:
     - name: Configure Checkout Git
       if: runner.os == 'Windows'
@@ -517,22 +515,40 @@ jobs:
         mise_dir: ${{ env.MISE_DATA_DIR }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-product-${{ env.PROFILE }}-linux.tar.zst"
+        name: build-clients-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / clients
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-clients-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-runtime-${{ env.PROFILE }}-linux
+        path: target/ci
+    - name: Extract build / runtime
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-runtime-${{ env.PROFILE
+        }}-linux.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-product-python-${{ env.PROFILE }}-any
-    - name: Extract Python Product
-      shell: bash
-      run: tar --zstd -xf "build-product-python-${{ env.PROFILE }}-any.tar.zst"
+        path: target/ci
+    - name: Extract build:python / python
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-product-python-${{ env.PROFILE
+        }}-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-linux
-    - name: Extract Build
-      shell: bash
-      run: tar --zstd -xf "build-tests-${{ env.PROFILE }}-linux.tar.zst"
+        path: target/ci
+    - name: Extract build:rust:tests / tests
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.artifacts extract --archive target/ci/build-tests-${{ env.PROFILE }}-linux.tar.zst
+        --profile ${{ env.PROFILE }}
     - run: mise run test:rust:coverage --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -582,3 +598,7 @@ jobs:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
     if: github.event_name == 'schedule'
+    env:
+      MISE_ENABLE_TOOLS: >-
+        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
+      MISE_TASK_SKIP: build,build:python,build:rust:tests
