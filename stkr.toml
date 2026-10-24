@@ -51,10 +51,39 @@ max_workspaces = 5
 [ci.impact]
 default = "full"
 
-# These Guides Are Not Compiler, Generator Or Package Inputs.
+[[ci.impact.rules]]
+name = "guidance"
+include = [
+  "**/skills/**",
+  "**/.agents/**",
+  "**/.codex/**",
+  "**/.claude/**",
+  "**/AGENTS.md",
+  "**/CLAUDE.md",
+  "**/.github/copilot-instructions.md",
+  "**/README.md",
+  "**/readme.md",
+  "**/CONTRIBUTING.md",
+  "**/contributing.md",
+]
+jobs = []
+
 [[ci.impact.rules]]
 name = "prose"
-include = ["README.md", "CONTRIBUTING.md", "docs/**/*.md"]
+include = ["docs/**/*.md"]
+exclude = [
+  "**/skills/**",
+  "**/.agents/**",
+  "**/.codex/**",
+  "**/.claude/**",
+  "**/AGENTS.md",
+  "**/CLAUDE.md",
+  "**/.github/copilot-instructions.md",
+  "**/README.md",
+  "**/readme.md",
+  "**/CONTRIBUTING.md",
+  "**/contributing.md",
+]
 jobs = ["check:repository"]
 
 # --- Stage / Check --- #

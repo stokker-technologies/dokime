@@ -3159,8 +3159,7 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af0b1c01bf9af6ad086ff4b55bc422f884ab696710b5d620b1af705f6feb0652"
+source = "git+https://github.com/stokker-technologies/harmos.git?rev=3c06471dfbcfe602b8cd0047eb19daff35255980#3c06471dfbcfe602b8cd0047eb19daff35255980"
 dependencies = [
  "harmos-domain",
  "harmos-runtime",
@@ -3169,8 +3168,7 @@ dependencies = [
 [[package]]
 name = "harmos-domain"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90885f54d4cb5110c4bdabb8d22cc34c96b7f6ec18a523d8b107ef687a385128"
+source = "git+https://github.com/stokker-technologies/harmos.git?rev=3c06471dfbcfe602b8cd0047eb19daff35255980#3c06471dfbcfe602b8cd0047eb19daff35255980"
 dependencies = [
  "harmos-macros",
  "memchr",
@@ -3185,14 +3183,12 @@ dependencies = [
 [[package]]
 name = "harmos-macros"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2fd244eda171b1f25d19fbba29ae0821afb99fed40568ece7396e82812edf6e"
+source = "git+https://github.com/stokker-technologies/harmos.git?rev=3c06471dfbcfe602b8cd0047eb19daff35255980#3c06471dfbcfe602b8cd0047eb19daff35255980"
 dependencies = [
  "heck 0.5.0",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
- "semver",
  "serde_json",
  "syn 3.0.9",
 ]
@@ -3200,8 +3196,7 @@ dependencies = [
 [[package]]
 name = "harmos-packaging"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7711c7cbf421ce62cb758281457fef2c5ca5726b07443018ef38026b8201fa2"
+source = "git+https://github.com/stokker-technologies/harmos.git?rev=3c06471dfbcfe602b8cd0047eb19daff35255980#3c06471dfbcfe602b8cd0047eb19daff35255980"
 dependencies = [
  "harmos-domain",
  "heck 0.5.0",
@@ -3221,8 +3216,7 @@ dependencies = [
 [[package]]
 name = "harmos-runtime"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "565a7e43a1a70c5ed69f452be991fa3943591aaa775668bec289b5c12baa4107"
+source = "git+https://github.com/stokker-technologies/harmos.git?rev=3c06471dfbcfe602b8cd0047eb19daff35255980#3c06471dfbcfe602b8cd0047eb19daff35255980"
 dependencies = [
  "bytes",
  "futures-core",
@@ -3237,7 +3231,6 @@ dependencies = [
  "heck 0.5.0",
  "http-body",
  "petgraph",
- "postcard",
  "prost-reflect",
  "semver",
  "serde",
@@ -3258,8 +3251,7 @@ dependencies = [
 [[package]]
 name = "harmos-sdk"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9aa3e1ff0780d45ece75729e9319fdda32f1603783930347e15dad4f76be440"
+source = "git+https://github.com/stokker-technologies/harmos.git?rev=3c06471dfbcfe602b8cd0047eb19daff35255980#3c06471dfbcfe602b8cd0047eb19daff35255980"
 dependencies = [
  "harmos-domain",
  "postcard",
@@ -3273,8 +3265,7 @@ dependencies = [
 [[package]]
 name = "harmos-sidecar"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b10fa6934608d3fbd17ef15e143b1c709eb11bc1033d47dc1e86237546ab940"
+source = "git+https://github.com/stokker-technologies/harmos.git?rev=3c06471dfbcfe602b8cd0047eb19daff35255980#3c06471dfbcfe602b8cd0047eb19daff35255980"
 dependencies = [
  "futures-util",
  "getrandom 0.4.3",
@@ -3282,7 +3273,6 @@ dependencies = [
  "harmos-sdk",
  "libc",
  "postcard",
- "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -3295,8 +3285,7 @@ dependencies = [
 [[package]]
 name = "harmos-storage"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "661aace99f7e59d484cc69727827a3049d3b00e859e86d617123dcadf91dbb90"
+source = "git+https://github.com/stokker-technologies/harmos.git?rev=3c06471dfbcfe602b8cd0047eb19daff35255980#3c06471dfbcfe602b8cd0047eb19daff35255980"
 dependencies = [
  "arrow-array",
  "arrow-buffer",

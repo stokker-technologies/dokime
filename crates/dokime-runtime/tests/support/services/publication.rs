@@ -42,6 +42,8 @@ pub struct PublicationFault {
     failures: AtomicUsize,
     finished: Mutex<Vec<FileReference>>,
     released: AtomicUsize,
+    pub advance_after_create: AtomicBool,
+    pub created: AtomicUsize,
 }
 pub struct PublicationBackend {
     inner: Arc<dyn StorageBackend>,
@@ -61,11 +63,46 @@ pub struct MutationHost<H> {
     pub boundary: Arc<MutationBoundary>,
 }
 
+pub struct AdmissionClock;
+
+pub struct AdmissionWorker(pub Mutex<Option<tokio::task::JoinHandle<harmos::storage::Result<()>>>>);
+
+thread_local! {
+    static STORAGE_NOW: std::cell::Cell<tokio::time::Instant> = std::cell::Cell::new(tokio::time::Instant::now());
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl harmos::storage::WorkerOwner for AdmissionWorker {
+    fn stop(&self) -> harmos::storage::StorageFuture<'_, ()> {
+        let task = self.0.lock().unwrap().take();
+        Box::pin(async move {
+            if let Some(task) = task {
+                task.await.unwrap()?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl AdmissionClock {
+    pub fn execution() -> harmos::storage::execution::Execution {
+        STORAGE_NOW.with(|now| now.set(tokio::time::Instant::now()));
+        harmos::storage::execution::Execution::new(Self::now, |duration| Box::pin(tokio::time::sleep(duration)))
+    }
+
+    pub fn advance(duration: std::time::Duration) {
+        STORAGE_NOW.with(|now| now.set(now.get() + duration));
+    }
+
+    fn now() -> tokio::time::Instant {
+        STORAGE_NOW.with(std::cell::Cell::get)
+    }
+}
+
 impl<H: harmos::operations::Host<Error = harmos::Error>> harmos::operations::Host for MutationHost<H> {
     type Error = harmos::Error;
     type Instance<O: harmos::operations::OperationDeclaration> = H::Instance<O>;
@@ -141,6 +178,8 @@ impl PublicationFault {
             failures: AtomicUsize::new(0),
             finished: Mutex::new(Vec::new()),
             released: AtomicUsize::new(0),
+            advance_after_create: AtomicBool::new(false),
+            created: AtomicUsize::new(0),
         }
     }
     pub fn crash(suffix: &'static str, status: i32) -> Self {
@@ -266,7 +305,14 @@ impl StorageBackend for PublicationBackend {
         self.inner.supports_file_sessions()
     }
     fn create_production<'a>(&'a self, metadata: &'a FileMetadata) -> StorageFuture<'a, StagedFile> {
-        self.inner.create_production(metadata)
+        Box::pin(async move {
+            let file = self.inner.create_production(metadata).await?;
+            self.fault.created.fetch_add(1, Ordering::SeqCst);
+            if self.fault.advance_after_create.swap(false, Ordering::SeqCst) {
+                AdmissionClock::advance(std::time::Duration::from_secs(2));
+            }
+            Ok(file)
+        })
     }
     fn fence_production<'a>(&'a self, file: &'a StagedFile, expected: u64, next: u64) -> StorageFuture<'a, ()> {
         self.inner.fence_production(file, expected, next)

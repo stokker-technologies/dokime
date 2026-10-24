@@ -38,7 +38,8 @@ Keep generated outputs with their source. Refresh embedded reports with
 ## Tests And Checks
 
 During implementation, run targeted checks for changed behavior. Once all agreed
-source work is complete, run the shared local review gate:
+source work and targeted proof are complete, push the authorized candidate and
+immediately run local validation in parallel with hosted CI:
 
 ```sh
 mise run ci:simulate
@@ -46,13 +47,16 @@ mise run ci:simulate
 
 The default run covers every declared required platform; selecting one platform
 is only partial proof. Local simulation runs one job at a time without CPU, memory
-or thread limits. The same impact policy keeps prose-only edits lightweight
-and includes full affected proof for code or executable documentation changes.
+or thread limits. Changes limited to skills, agent guidance, README or
+CONTRIBUTING files select no execution jobs; the required status gate still
+completes. Other documentation uses its declared checks, while mixed source or
+policy changes retain full selection.
 
 Product and Tests build independently. Tests use Cargo's unoptimized test
 profile; test lanes consume their artifacts. Nightly additionally runs coverage,
 benchmarks and the generated-starter test, with release-profile installers.
-Provider CI must pass before integration.
+Required hosted CI controls integration. Keep auto-merge enabled; it may merge
+independently of local completion. Report and investigate local failures.
 
 ## Pull Requests
 

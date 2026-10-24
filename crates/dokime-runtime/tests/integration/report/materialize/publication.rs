@@ -23,7 +23,9 @@ use std::sync::{Mutex, atomic::AtomicBool};
 
 // Local Imports
 use crate::service_support::prelude::*;
-use crate::service_support::publication::{MutationBoundary, MutationHost, PublicationBackend, PublicationFault};
+use crate::service_support::publication::{
+    AdmissionClock, AdmissionWorker, MutationBoundary, MutationHost, PublicationBackend, PublicationFault,
+};
 use dokime_domain::model::execution::saved::ExecutionRevision;
 use dokime_runtime::report::saved::CapturedExecutionReportInput;
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
@@ -238,3 +240,63 @@ async fn dependency_publication_retry() {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[tokio::test]
+async fn admitted_create_window() {
+    use harmos::storage::{FileMetadata, MutationId};
+    use std::sync::atomic::Ordering;
+
+    type Engine = <Manager as std::ops::Deref>::Target;
+
+    let root = tempdir().unwrap();
+    let primary = Arc::new(Backend::primary(root.path().to_owned()).await.unwrap());
+    let state = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        primary.history().clone(),
+        dokime_runtime::storage::state_settings(),
+    ));
+    let fault = Arc::new(PublicationFault::new(".report"));
+    fault.disarm();
+    fault.advance_after_create.store(true, Ordering::SeqCst);
+    let backend = Arc::new(PublicationBackend::new(primary.clone(), fault.clone()));
+    let settings = crate::service_support::budgets::story_settings();
+    let manager = Engine::with_execution(StorageBackends { primary: backend, state }, settings, AdmissionClock::execution()).unwrap();
+    manager
+        .start_with(Arc::new(()), |mut worker| {
+            let task = tokio::spawn(async move {
+                worker.run().await?;
+                worker.cleanup().await
+            });
+            Ok(Box::new(AdmissionWorker(Mutex::new(Some(task)))))
+        })
+        .await
+        .unwrap();
+
+    let initial = manager.mutation_window().unwrap();
+    AdmissionClock::advance(Duration::from_secs(299));
+    let issued = manager.mutation_window().unwrap();
+    assert_eq!(initial.id, issued.id, "issuance retains the original global epoch");
+    let metadata = FileMetadata {
+        id: Identifier::new("admitted-create.report").unwrap(),
+        scope: None,
+        media_type: "application/octet-stream".into(),
+        expected_length: Some(0),
+        expected_sha256: None,
+    };
+    let mutation = MutationId { window: issued.id, key: Identifier::new("admitted-create.create").unwrap() };
+    let result = manager.create_file_once(&mutation, &metadata).await;
+
+    assert_eq!(fault.created.load(Ordering::SeqCst), 1, "the real backend completed creation before the response");
+    let exists = primary
+        .local_state()
+        .call(|connection| {
+            connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_file_stages WHERE id='admitted-create.report')", [], |row| {
+                row.get::<_, bool>(0)
+            })
+        })
+        .await
+        .unwrap();
+    assert!(exists, "the admitted create durably staged its file");
+    manager.close().await.unwrap();
+    assert!(result.is_ok(), "an admitted create lost its outcome after only two seconds: {}", result.err().unwrap());
+}
