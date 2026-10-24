@@ -103,12 +103,13 @@ impl Manifest {
         if let Some(folder) = &mut manifest.installer.organization {
             *folder = base.join(&*folder);
         }
-        if let Some(signing) = &mut manifest.signing {
-            if let Some(updater) = &mut signing.updater {
-                if let Some(path) = &mut updater.private_key_file {
-                    *path = base.join(&*path);
-                }
-            }
+        let Some(signing) = &mut manifest.signing else {
+            return Ok(manifest);
+        };
+        if let Some(updater) = &mut signing.updater
+            && let Some(path) = &mut updater.private_key_file
+        {
+            *path = base.join(&*path);
         }
         Ok(manifest)
     }
