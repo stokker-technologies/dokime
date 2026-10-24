@@ -353,7 +353,10 @@ env = { CARGO_INCREMENTAL = "0" }
 description = "Test System Rust"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category system --language rust"
+run = [
+  "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
+  "{{vars.lane}} --profile {{usage.profile}} --category system --language rust",
+]
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:typescript"]
