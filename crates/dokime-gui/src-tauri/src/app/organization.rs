@@ -218,7 +218,12 @@ impl LoadedPack {
 
 /// Promotes a pending pack and loads the active one before any window exists.
 pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
-    let root = app.path().app_data_dir()?.join("organization");
+    let application = std::env::var_os("DOKIME_APPLICATION_ROOT").filter(|value| !value.is_empty());
+    let root = match application {
+        Some(root) => PathBuf::from(root),
+        None => app.path().app_data_dir()?,
+    }
+    .join("organization");
     let boot = boot(&root);
     if let Some(error) = &boot.error {
         tracing::error!(%error, "organization pack could not be activated; retaining the last valid appearance");

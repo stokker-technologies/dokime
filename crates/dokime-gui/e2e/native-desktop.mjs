@@ -3970,8 +3970,7 @@ async function chooseNativeFile(picker, file) {
 }
 
 async function organizationJourney() {
-  const compiled = JSON.parse(await readFile(join(workspace, "crates/dokime-gui/src-tauri/tauri.conf.json"), "utf8"));
-  const root = join(work, "shell", "data", compiled.identifier, "organization");
+  const root = join(work, "shell", "application", "organization");
   const archive = join(work, "organization.zip");
   const manifest = `[app]
 label = "Validation Lab"

@@ -31,3 +31,11 @@ Integration into dev SHALL require applicable full local proof and every require
 - **WHEN** earlier validation passed before missing product changes were integrated
 - **THEN** those results remain baseline evidence and do not substitute for proof of the combined source
 - **AND** the validated candidate is delivered through the existing protected PR
+
+### Requirement: Isolate Explicit Desktop Storage
+Desktop organization packs SHALL use a supplied nonempty `DOKIME_APPLICATION_ROOT` and otherwise retain their existing platform application-data location.
+
+#### Scenario: Isolated Native Organization Journey
+- **WHEN** the desktop starts with an explicit application root and imports an organization pack
+- **THEN** pending and active packs persist beneath that root across restarts
+- **AND** the ordinary user organization store remains untouched

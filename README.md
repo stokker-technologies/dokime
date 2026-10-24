@@ -1140,6 +1140,7 @@ Linux needs an X11 display (a private Xvfb display is suitable). Its native plug
 picker uses `xdotool`; Windows uses PowerShell UI Automation.
 The installation journey selects a real bundle,
 checks its digest in the consent dialog and verifies the saved restart requirement.
+The desktop organization store honors `DOKIME_APPLICATION_ROOT` when supplied; otherwise it retains the platform application-data directory.
 The organization journey imports a pack through the native picker, verifies next-start
 activation, and checks that an invalid pending pack preserves the active appearance.
 `mise run ci` runs the declared Check, Build, generated-client checks, correctness tests, Package and Dry tasks

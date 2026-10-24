@@ -82,3 +82,7 @@ Windows GUI library unit-test executables embed the Common Controls v6 dependenc
 ## Native Driver And Picker Ownership
 
 The Windows desktop harness consumes the exact EdgeDriver artifact prepared by repository bootstrap, without relying on child-process PATH exports. Its native picker helper initializes UI Automation before registering the framework's Win32 client-side providers, targets the filename edit and Open button, and reports completion only after the selected owned dialog closes. Provider setup stays inside the helper process; explicit driver overrides and Linux WebKit behavior remain supported. Picker diagnostics accompany native evidence without substituting a chosen-file result or changing story deadlines.
+
+## Explicit Desktop Storage Root
+
+Organization packs honor a nonempty `DOKIME_APPLICATION_ROOT`, alongside desktop parameters and the owned backend. Without that override, their existing Tauri app-data directory remains unchanged. Native tests use this explicit root instead of assuming Windows Known Folder APIs honor `APPDATA`; activation and durability assertions inspect the same isolated root. The identified leaked Validation Lab fixture is preserved outside the live organization directory; unknown user state is not removed.
