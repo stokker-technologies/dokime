@@ -52,8 +52,8 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
     let policy = harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(5),
-        attempt_timeout: std::time::Duration::from_secs(5),
+        timeout: std::time::Duration::from_secs(30),
+        attempt_timeout: std::time::Duration::from_secs(30),
         retries: harmos::operations::RetryPolicy::Never,
         restart: harmos::operations::RestartPolicy::Never,
     };

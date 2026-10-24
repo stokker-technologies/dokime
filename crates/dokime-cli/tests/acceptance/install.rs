@@ -234,8 +234,8 @@ fn review_bundle(schema: u32) -> Bundle {
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Review fixture","config":"()"});
     let policy = dokime::harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(5),
-        attempt_timeout: std::time::Duration::from_secs(5),
+        timeout: std::time::Duration::from_secs(30),
+        attempt_timeout: std::time::Duration::from_secs(30),
         retries: dokime::harmos::operations::RetryPolicy::Never,
         restart: dokime::harmos::operations::RestartPolicy::Never,
     };

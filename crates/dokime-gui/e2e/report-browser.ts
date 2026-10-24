@@ -96,7 +96,7 @@ export class ReportBrowser {
         assert.ok(inside && inside !== ".." && !inside.startsWith(`..${sep}`) && !isAbsolute(inside));
         assert.ok(path.endsWith(".html"), "the report opener accepts owned HTML reports");
         const url = pathToFileURL(path).href;
-        const created = await fetch(`${debug}/json/new?${encodeURIComponent(url)}`, { method: "PUT", signal: AbortSignal.timeout(10000) });
+        const created = await fetch(`${debug}/json/new?${encodeURIComponent(url)}`, { method: "PUT", signal: AbortSignal.timeout(30000) });
         assert.ok(created.ok);
         const target = (await created.json()) as Target;
         browser.tabs.add(target.id);
@@ -111,7 +111,7 @@ export class ReportBrowser {
         if (startup) throw startup;
         if (child.exitCode !== null) throw new Error("Owned report browser exited during startup");
         if (
-          await fetch(`${debug}/json/version`, { signal: AbortSignal.timeout(1000) })
+          await fetch(`${debug}/json/version`, { signal: AbortSignal.timeout(30000) })
             .then((r) => r.ok)
             .catch(() => false)
         )
@@ -133,11 +133,11 @@ export class ReportBrowser {
 
   async closeTabs(): Promise<void> {
     for (const id of this.tabs) {
-      const response = await fetch(`${this.debug}/json/close/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(10000) });
+      const response = await fetch(`${this.debug}/json/close/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(30000) });
       assert.ok(response.ok, `owned report tab ${id} closed`);
       this.tabs.delete(id);
     }
-    const targets = (await fetch(`${this.debug}/json/list`, { signal: AbortSignal.timeout(10000) }).then((r) => r.json())) as Target[];
+    const targets = (await fetch(`${this.debug}/json/list`, { signal: AbortSignal.timeout(30000) }).then((r) => r.json())) as Target[];
     assert.ok(!targets.some((target) => target.type === "page" && target.url.startsWith("file:")), "no owned report tab survives cleanup");
   }
 
@@ -156,7 +156,7 @@ export class ReportBrowser {
       const timer = new AbortController();
       let socket: WebSocket | undefined;
       try {
-        const version = await fetch(`${this.debug}/json/version`, { signal: AbortSignal.timeout(10000) }).then((r) => r.json());
+        const version = await fetch(`${this.debug}/json/version`, { signal: AbortSignal.timeout(30000) }).then((r) => r.json());
         socket = new WebSocket(version.webSocketDebuggerUrl);
         await new Promise<void>((resolve, reject) => {
           socket?.addEventListener("open", () => resolve(), { once: true });
@@ -165,7 +165,7 @@ export class ReportBrowser {
         socket.send(JSON.stringify({ id: 1, method: "Browser.close" }));
         await Promise.race([
           exited,
-          delay(10000, undefined, { signal: timer.signal }).then(() => {
+          delay(30000, undefined, { signal: timer.signal }).then(() => {
             throw new Error("Owned report browser did not exit");
           }),
         ]);

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/artifacts.py; sha256:ff98b79d17b013d203234ef8c0c2c8002561193446641342db43ad95a4229c81
+# Rendered by stkr project update from templates/python/ci/artifacts.py; sha256:e895d0be716e78a82524437bf31f3ba24c610462c10f0f43b4fd2e2c91735de1
 # ***
 #
 # Dokime
@@ -95,6 +95,8 @@ def extract(directory: Path, archive: Path) -> None:
         try:
             with tarfile.open(fileobj=decompressor.stdout, mode="r|") as source:
                 source.extractall(root, filter=_member)
+            while decompressor.stdout.read(1024 * 1024):
+                pass
         finally:
             decompressor.stdout.close()
         status = decompressor.wait()

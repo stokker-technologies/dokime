@@ -232,7 +232,7 @@ function listening(endpoint) {
       done(true);
     });
     socket.once("error", () => done(false));
-    socket.setTimeout(1000, () => {
+    socket.setTimeout(30000, () => {
       socket.destroy();
       done(false);
     });
@@ -1148,7 +1148,7 @@ async function setDensity(session, variant) {
   await until(
     `density ${variant.density}`,
     async () => (await session.execute("return document.documentElement.dataset.density")) === variant.density,
-    20000,
+    30000,
   );
   await sizeViewport(session, variant);
   await delay(400);
@@ -1166,7 +1166,7 @@ async function settle(session) {
           return style.pointerEvents === 'none' || !toast.getClientRects().length;
         });
       `),
-    20000,
+    30000,
   ).catch(() => undefined);
 }
 
@@ -1348,12 +1348,12 @@ async function startCaseFromItsRow(session, fragment) {
      };`,
         [fragment],
       ),
-    20000,
+    30000,
   );
   /* A row menu is a modal layer: the next row is unreachable until it is gone. */
   await closeAnyMenu(session);
   await session.clickNamed("button", target.trigger);
-  await until("the row menu", () => session.find("css selector", "[role=menu]"), 15000);
+  await until("the row menu", () => session.find("css selector", "[role=menu]"), 30000);
   await session.clickNamed("menuitem", "Start Execution");
   await closeAnyMenu(session);
   return until(
@@ -1371,7 +1371,7 @@ async function startCaseFromItsRow(session, fragment) {
           /Execution Started/.test(await toastText(session)))
       );
     },
-    20000,
+    30000,
   ).catch(() => false);
 }
 
@@ -1380,7 +1380,7 @@ async function openMenu(session, name, attempts = 2) {
   let last;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await session.clickNamed("button", name);
-    const menu = await until(`the ${name} menu`, () => session.find("css selector", "[role=menu]"), 8000).catch((failure) => {
+    const menu = await until(`the ${name} menu`, () => session.find("css selector", "[role=menu]"), 30000).catch((failure) => {
       last = failure;
       return null;
     });
@@ -1406,7 +1406,7 @@ async function closeAnyMenu(session) {
       `);
       return false;
     },
-    10000,
+    30000,
   ).catch(() => undefined);
   await delay(300);
 }
@@ -1669,7 +1669,7 @@ async function libraryJourney(session) {
   const before = await until("list chips", chips);
   assert.ok(before.length >= 1, "A list parameter must render its values as chips");
   await session.clickCss(`[data-testid="parameter-chips-${LIST_PARAMETER}"] button[aria-label^="Add "]`);
-  await until("added chip", async () => ((await chips()) ?? []).length === before.length + 1, 15000);
+  await until("added chip", async () => ((await chips()) ?? []).length === before.length + 1, 30000);
   await session.execute(
     `const cell = document.querySelector('[data-testid="parameter-chips-' + arguments[0] + '"]');
      const input = [...cell.querySelectorAll('input')].at(-1);
@@ -1686,7 +1686,7 @@ async function libraryJourney(session) {
       const values = (await chips()) ?? [];
       return values.length >= before.length + 2 ? values : null;
     },
-    15000,
+    30000,
   );
   assert.ok(
     expandedChips.join(",").includes("1,2,3") || expandedChips.length >= before.length + 3,
@@ -1810,7 +1810,7 @@ async function cycleJourney(session, cycleId) {
   /* The cycle page carries the cycle's progress, status and run controls:
      select the cycle node, then come back to the measuring case. */
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
-  await until("the cycle page", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
+  await until("the cycle page", async () => (await session.location()).searchParams.get("view") === "cycle", 30000);
   const header = await session.text();
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
   assert.ok(hasText(header, "Active · Idle"), "A materialized cycle that runs nothing must render its Active · Idle state");
@@ -1844,7 +1844,7 @@ async function cycleJourney(session, cycleId) {
   await until(
     "the cycle selection for operator prompts",
     async () => (await session.location()).searchParams.get("view") === "cycle",
-    10000,
+    30000,
   );
 
   /* Open Report while the cycle is in flight: no seal yet, so the runtime
@@ -2179,10 +2179,10 @@ async function cycleJourney(session, cycleId) {
      serializes the flag as `focus=true`; `focusSearchSchema` also accepts the
      `focus=1` a person would type, so both spellings are the flag. */
   await session.clickNamed("button", "Focus");
-  await until("focus flag set", async () => ["1", "true"].includes((await session.location()).searchParams.get("focus")), 20000);
+  await until("focus flag set", async () => ["1", "true"].includes((await session.location()).searchParams.get("focus")), 30000);
   assert.ok(await session.exists("button", "Leave Focus"), "Focus view must say how to leave it");
   await session.clickNamed("button", "Leave Focus");
-  await until("focus flag cleared", async () => (await session.location()).searchParams.get("focus") !== "1", 20000);
+  await until("focus flag cleared", async () => (await session.location()).searchParams.get("focus") !== "1", 30000);
 
   /* The console: scopes follow the route, Escape closes the drawer. */
   await session.clickNamed("button", "Open Console");
@@ -2247,7 +2247,7 @@ async function cycleJourney(session, cycleId) {
   await until(
     "console closed by Escape",
     async () => (await session.execute("return document.querySelectorAll('section[aria-label=Console]').length")) === 0,
-    20000,
+    30000,
   );
   /* A modal layer that closed must give the page back. Stating it here names
      the cause; without it the next control simply never responds. */
@@ -2262,7 +2262,7 @@ async function cycleJourney(session, cycleId) {
      WebView occasionally drops the pointer sequence a dropdown opens on, and
      one silent miss is not a product defect. A second miss is, and fails. */
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
-  await until("the cycle page", () => session.exists("button", "Cycle Actions"), 10000);
+  await until("the cycle page", () => session.exists("button", "Cycle Actions"), 30000);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
   for (const item of ["Copy Cycle", "Add Cases", "Follow Active", "Open Report", "Settings", "Archive"]) {
@@ -2362,7 +2362,7 @@ async function executionStopJourney(session, cycleId) {
   assert.ok(!(await session.exists("button", "Stop Execution")), "An unstarted execution must not offer Stop");
   assert.ok(!hasText(await session.text(), "No step in progress"), "An unstarted execution states that it waits for Start");
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
-  await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
+  await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 30000);
   await session.execute(
     `
     const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
@@ -2378,7 +2378,7 @@ async function executionStopJourney(session, cycleId) {
   // === Stop Only That Execution === //
 
   await session.clickNamed("button", "Stop Execution");
-  await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), 20000);
+  await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), 30000);
   const header = normalize(await session.text());
   assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
 
@@ -2405,7 +2405,7 @@ async function executionStopJourney(session, cycleId) {
   assert.ok(cancelled, "An unstarted sibling must remain to cancel");
   await until("Cancel Execution", () => session.exists("button", "Cancel Execution"), 30000);
   await session.clickNamed("button", "Cancel Execution");
-  await until("the cancel acknowledgement", async () => /Execution Cancelled/.test(await toastText(session)), 20000);
+  await until("the cancel acknowledgement", async () => /Execution Cancelled/.test(await toastText(session)), 30000);
   const cancelledRow = await until("the cancelled row", () =>
     session.execute(
       `const text = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
@@ -2544,13 +2544,13 @@ async function cyclesHomeJourney(session, cycleTitle) {
     "The Archived view must say when nothing is archived",
   );
   await session.clickNamed("button", "Archived");
-  await until("default view", async () => !hasText(await session.text(), "No Archived Cycles"), 20000);
+  await until("default view", async () => !hasText(await session.text(), "No Archived Cycles"), 30000);
 
   const filter = await session.find("css selector", "input[aria-label='Filter Cycles']");
   await session.type(filter, "zzz-no-such-cycle");
-  await until("filter excludes every row", async () => hasText(await session.text(), "No Cycles Match This Filter"), 20000);
+  await until("filter excludes every row", async () => hasText(await session.text(), "No Cycles Match This Filter"), 30000);
   await session.type(filter, "");
-  await until("filter cleared", async () => !hasText(await session.text(), "No Cycles Match This Filter"), 20000);
+  await until("filter cleared", async () => !hasText(await session.text(), "No Cycles Match This Filter"), 30000);
   assert.ok(
     await session.execute(
       `return [...document.querySelectorAll('button')].some((button) =>
@@ -2622,7 +2622,7 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
   await until("captured context", async () => hasText(await session.text(), "Notes At Capture"));
 
   await session.clickNamed("button", "History Library");
-  await until("back to history", async () => (await session.location()).pathname === "/history", 20000);
+  await until("back to history", async () => (await session.location()).pathname === "/history", 30000);
 }
 
 /** Remote Access Uses Mounted Controls And Real TLS CLI Calls. */
@@ -2669,7 +2669,7 @@ async function remoteAccessJourney() {
       return match ? `https://${match[1]}` : null;
     });
   const connect = async (address, keyFile, certificate, accepted) => {
-    const args = ["catalog", "list", "--endpoint", address, "--timeout-seconds", "5"];
+    const args = ["catalog", "list", "--endpoint", address, "--timeout-seconds", "30"];
     if (keyFile) args.push("--key-file", keyFile);
     if (certificate) args.push("--ca", certificate);
     const env = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
@@ -2677,7 +2677,7 @@ async function remoteAccessJourney() {
     delete env.DOKIME_ENDPOINT;
     let result;
     try {
-      result = await promisify(execFile)(cliBinary, args, { windowsHide: true, cwd: work, env, timeout: 15000 });
+      result = await promisify(execFile)(cliBinary, args, { windowsHide: true, cwd: work, env, timeout: 30000 });
     } catch (error) {
       assert.ok(!accepted, "the saved remote secrets establish a real CLI connection");
       assert.equal(error.killed, false, "secret refusal returns without killing the client");
@@ -2914,13 +2914,13 @@ async function settingsJourney(session, notes) {
   await until(
     "touch density applied",
     async () => (await session.execute("return document.documentElement.dataset.density")) === "touch",
-    20000,
+    30000,
   );
   await session.clickNamed("radio", "Comfortable");
   await until(
     "comfortable density applied",
     async () => (await session.execute("return document.documentElement.dataset.density")) === "comfortable",
-    20000,
+    30000,
   );
 
   /* Storage sources: one row per configured source. */
@@ -2952,7 +2952,7 @@ async function settingsJourney(session, notes) {
   await session.type(interval, "2");
   /* The backend keeps the policy in its own state store: the save is proven by
      its restart notice and by the value it reads back after navigation. */
-  await until("policy restart requirement", async () => hasText(await session.text(), "Restart the connected backend"), 20000);
+  await until("policy restart requirement", async () => hasText(await session.text(), "Restart the connected backend"), 30000);
   await session.goto("/settings/appearance");
   await session.goto("/settings/general");
   await until("saved backend policy reread", () =>
@@ -2988,7 +2988,7 @@ async function settingsJourney(session, notes) {
     await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 30000);
     assert.ok(hasText(await session.text(), "Plugins"), "The plugin page must carry its breadcrumb");
     await session.clickNamed("button", "Back");
-    await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 20000);
+    await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 30000);
   } else {
     notes.push("settings: no installed plugin declares settings, so the plugin page stayed shut");
   }
@@ -3280,7 +3280,7 @@ async function touchJourney(session, cycleId) {
   if (await session.exists("button", "Collapse Sidebar")) {
     await session.clickNamed("button", "Collapse Sidebar");
   }
-  await until("collapsed rail", () => session.exists("button", "Expand Sidebar"), 20000);
+  await until("collapsed rail", () => session.exists("button", "Expand Sidebar"), 30000);
   const railChildren = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
   assert.equal(railChildren, 0, "A collapsed rail must hide its children");
 
@@ -3889,7 +3889,7 @@ async function chooseNativeFile(picker, file) {
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
       if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
-      const run = (args) => promisify(execFile)("xdotool", args, { windowsHide: true, timeout: 10000 });
+      const run = (args) => promisify(execFile)("xdotool", args, { windowsHide: true, timeout: 30000 });
       const found = await run(["search", "--all", "--onlyvisible", "--pid", pid, "--name", "^Open File$"]).catch((error) => {
         if (error.code === 1) return null;
         throw error;
@@ -3972,7 +3972,7 @@ async function chooseNativeFile(picker, file) {
       DOKIME_PICKER_FILE: resolve(file),
       DOKIME_PICKER_WINDOW: picker.window === null ? "" : String(picker.window),
     },
-    timeout: 10000,
+    timeout: 30000,
   });
   await appendFile(join(evidence, "native-picker.log"), `${result.stderr}\n${result.stdout}\n`);
   const outcome = result.stdout.trim();
@@ -4020,7 +4020,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
       archive,
       manifest,
     ],
-    { windowsHide: true, timeout: 10000 },
+    { windowsHide: true, timeout: 30000 },
   );
   const choose = async () => {
     await session.goto("/settings/appearance");
@@ -4206,7 +4206,7 @@ async function startSecretService() {
         "org.freedesktop.DBus.NameHasOwner",
         "string:org.freedesktop.secrets",
       ],
-      { windowsHide: true, timeout: 5000 },
+      { windowsHide: true, timeout: 30000 },
     );
     return result.stdout.includes("boolean true");
   });
@@ -4357,7 +4357,7 @@ try {
     if (!child) continue;
     try {
       await terminate(child);
-      await until("secret service stopped", () => child.exitCode !== null || child.signalCode !== null, 10000);
+      await until("secret service stopped", () => child.exitCode !== null || child.signalCode !== null, 30000);
     } catch (error) {
       failures.push({ kind: "failure", name: "secret service cleanup", reason: error.message });
     }

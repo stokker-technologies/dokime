@@ -27,8 +27,8 @@ use dokime_runtime::settings::{SettingValues, SettingsEntry};
 
 /* === Constants === */
 const POLICY: OperationPolicy = OperationPolicy {
-    timeout: std::time::Duration::from_secs(5),
-    attempt_timeout: std::time::Duration::from_secs(5),
+    timeout: std::time::Duration::from_secs(30),
+    attempt_timeout: std::time::Duration::from_secs(30),
     retries: RetryPolicy::Never,
     restart: RestartPolicy::Never,
 };

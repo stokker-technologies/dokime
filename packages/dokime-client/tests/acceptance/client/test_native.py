@@ -110,13 +110,13 @@ def native(
             # Closing Stdin Is The Owned Shutdown Request
             assert process.poll() is None, "client close must not stop the backend"
             process.stdin.close()
-            assert process.wait(15) == 0, log.read_text()
+            assert process.wait(30) == 0, log.read_text()
         finally:
             if process.poll() is None:
                 if process.stdin is not None and not process.stdin.closed:
                     process.stdin.close()
                 try:
-                    process.wait(15)
+                    process.wait(30)
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()

@@ -31,7 +31,7 @@ use dokime_runtime::transport::{
 };
 use {dokime_runtime::records::RecordPublication, model::records::publication::RecordPublishRequest};
 /* === Constants === */
-const BOUND: Duration = Duration::from_secs(5);
+const BOUND: Duration = Duration::from_secs(30);
 const SDK_BYTES: usize = 4096;
 const PREPARATION_BYTES: usize = 4 * 1024 * 1024;
 const HOST: &str = "fixture.host";

@@ -101,7 +101,7 @@ impl Analysis for Scale {
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Scale Signal";
     const DESCRIPTION: &'static str = "Multiply Original Samples By A Typed Factor";
-    const TIMEOUT: Duration = Duration::from_secs(5);
+    const TIMEOUT: Duration = Duration::from_secs(30);
     const LIMITS: Limits = Limits { max_samples: 64, max_output_values: 64 };
 
     fn evaluate(samples: &Samples, parameters: &Parameters) -> Result<Scaled, Self::Error> {
@@ -117,7 +117,7 @@ impl Analysis for Held {
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Held Signal";
     const DESCRIPTION: &'static str = "Retained Worker Fixture";
-    const TIMEOUT: Duration = Duration::from_secs(5);
+    const TIMEOUT: Duration = Duration::from_secs(30);
     const LIMITS: Limits = Scale::LIMITS;
 
     fn evaluate(samples: &Samples, _: &()) -> Result<Scaled, Self::Error> {

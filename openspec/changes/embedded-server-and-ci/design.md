@@ -51,3 +51,24 @@ Desktop journeys need the CLI as well as the GUI: remote attachment and interope
 ## Plugin Consent Admission
 
 The desktop submits the installation identity and digest displayed in its review dialog. Consent verifies the stored bundle once for the operation, then runs synchronous digest and complete-disclosure admission checks on that verified entry before publishing settings. The RPC maps refusals to the existing failed-precondition and resource-exhausted statuses. Configured and installed bundle collision checks still verify their bytes; no persistent metadata cache or deadline increase is introduced. Refusal leaves both the staged installation and any previously installed authorization unchanged.
+
+## Test Hang Guards And Performance
+
+Tests use a minimum thirty-second hang guard and retain higher limits. This is a correctness watchdog, not a performance assertion: normal application operations are still expected to finish in less than ten seconds, and a pass after increasing a guard does not establish acceptable speed. Benchmarks own performance measurements. No compiler optimization exceptions accompany this policy.
+
+| Authored Owner | Watchdogs To Migrate |
+| --- | --- |
+| GUI `e2e/native-desktop.mjs` | Route, menu and readiness polls; CLI, picker and keyring subprocess guards; socket readiness |
+| GUI `e2e/report-browser.ts` | Owned-browser HTTP requests and process-exit guard |
+| Server `tests/system/plugin.rs` And `plugin/shutdown.rs` | Telemetry readiness, report completion and shutdown correctness guards; remove stop-speed assertions |
+| Runtime `tests/integration/plugin/demand.rs` And `domains/files/watch.rs` | Telemetry publication and cancelled-watch readiness |
+| Runtime `tests/support/services/bundles.rs` | Ordinary bundle operation policies |
+| Runtime `tests/integration/plugin/{native,analysis,plugin_settings,prelude}.rs` | Ordinary operation and analysis fixture policies |
+| Runtime `tests/integration/plugins/store.rs` And `domains/telemetry/declared.rs` | Store and declared telemetry fixture operation policies |
+| Server `tests/integration/{plugins,server/operations}.rs` | Ordinary RPC fixture operation policies |
+| CLI `tests/acceptance/install.rs`, GUI `src-tauri/tests/integration/rpc/mod.rs`, Macros `tests/integration/renamed_sdk.rs` | Install, native RPC and renamed-SDK runtime fixture operation policies |
+| Python `tests/acceptance/client/test_native.py` | Owned backend shutdown and cleanup waits |
+
+Deliberately short SDK elapsed/cancellation, packaging timeout, Python deadline-propagation and invalid-deadline scenarios retain their semantic inputs. Compile-only macro fixtures describe input data rather than a running test watchdog. Poll intervals, simulated time, timestamps and intentional waits are not hang guards. Production operation budgets, including plugin Consent's ten-second contract, remain unchanged.
+
+The former three/fifteen-second shutdown assertions encoded performance in correctness tests; their replacement still requires a clean exit, settled authorization/evidence and no owned sidecar leak. Shutdown speed and component compilation/startup remain performance assessment items even if a thirty-second guard passes. Consent must still satisfy the production deadline after removing repeated bundle verification; a longer test guard does not waive that requirement.
