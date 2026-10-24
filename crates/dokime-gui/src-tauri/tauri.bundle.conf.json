@@ -10,8 +10,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/dokime",
-      "binaries/dokime-server"
+      "binaries/dokime"
     ],
     "resources": []
   }

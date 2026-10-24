@@ -63,9 +63,9 @@ def artifact(workspace: Path, request: pytest.FixtureRequest) -> Callable[[str],
 
 @pytest.fixture(scope="session")
 def host(artifact: Callable[[str], Path]) -> Path:
-    """The Built dokime-server Executable"""
+    """The Built dokime Executable Hosting The Server"""
     suffix = ".exe" if os.name == "nt" else ""
-    return artifact(f"bin/dokime-server{suffix}")
+    return artifact(f"bin/dokime{suffix}")
 
 
 # === Private Functions === #

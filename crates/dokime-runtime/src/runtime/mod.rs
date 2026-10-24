@@ -79,6 +79,8 @@ pub struct Runtime {
 
 pub(crate) struct BackgroundTask(pub(crate) tokio::task::JoinHandle<()>);
 
+struct Starting(Option<Runtime>);
+
 #[derive(Default)]
 struct Shutdown {
     // What the stop is doing now, for a host that bounds it.
@@ -101,6 +103,18 @@ struct Shutdown {
 impl Drop for BackgroundTask {
     fn drop(&mut self) {
         self.0.abort();
+    }
+}
+
+impl Drop for Starting {
+    fn drop(&mut self) {
+        if let Some(mut runtime) = self.0.take() {
+            tokio::spawn(async move {
+                if let Err(error) = runtime.shutdown().await {
+                    tracing::error!(%error, "cancelled plugin initialization cleanup failed");
+                }
+            });
+        }
     }
 }
 
@@ -157,25 +171,25 @@ impl Runtime {
         runtime.finish_start().await
     }
 
-    async fn finish_start(mut self) -> Result<Self> {
+    async fn finish_start(self) -> Result<Self> {
+        let mut starting = Starting(Some(self));
+        let runtime = starting.0.as_mut().expect("startup owns its runtime");
         let plugins_started = std::time::Instant::now();
-        let outcome = self.install_plugins().await;
+        let outcome = runtime.install_plugins().await;
         tracing::info!(phase = "plugins", elapsed_ms = plugins_started.elapsed().as_millis() as u64, "plugin installation complete");
-        if let Err(error) = outcome {
-            return Err(self.rollback(error).await);
+        if let Err(source) = outcome {
+            if let Err(cleanup) = runtime.shutdown().await {
+                let runtime = starting.0.take().expect("startup owns its runtime");
+                return Err(crate::runtime::Error::StartupCleanup {
+                    source: Box::new(source),
+                    cleanup: Box::new(cleanup),
+                    rollback: rollback::Receipt::new(runtime),
+                });
+            }
+            starting.0 = None;
+            return Err(source);
         }
-        Ok(self)
-    }
-
-    async fn rollback(mut self, source: crate::runtime::Error) -> crate::runtime::Error {
-        match self.shutdown().await {
-            Ok(_) => source,
-            Err(cleanup) => crate::runtime::Error::StartupCleanup {
-                source: Box::new(source),
-                cleanup: Box::new(cleanup),
-                rollback: rollback::Receipt::new(self),
-            },
-        }
+        Ok(starting.0.take().expect("startup owns its runtime"))
     }
 
     fn from_parts((harmos, handle): (HarmosRuntime, RuntimeHandle)) -> Self {

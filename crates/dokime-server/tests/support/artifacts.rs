@@ -36,7 +36,7 @@ const EXECUTABLE_SUFFIX: &str = if cfg!(windows) { ".exe" } else { "" };
 
 /* === Public Functions === */
 pub fn host_binary() -> PathBuf {
-    artifact(&format!("bin/dokime-server{EXECUTABLE_SUFFIX}"))
+    artifact(&format!("bin/dokime{EXECUTABLE_SUFFIX}"))
 }
 
 pub fn obc_plugin_bundle() -> PathBuf {
@@ -59,7 +59,8 @@ fn artifact(relative: &str) -> PathBuf {
 }
 
 fn build_root() -> PathBuf {
-    let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
+    let profile = std::env::var("DOKIME_BUILD_PROFILE").unwrap_or_else(|_| "dev".to_owned());
+    assert!(matches!(profile.as_str(), "dev" | "release"), "invalid graph profile");
     let target = format!("{PLATFORM}-{}", std::env::consts::ARCH);
     workspace_root().join("target/build").join(profile).join(target)
 }

@@ -432,14 +432,8 @@ async fn read_readiness(events: &mut (impl tokio::io::AsyncBufRead + Unpin)) -> 
 }
 
 async fn launch(args: &Args, state: &Path, cwd: &Path, bundle: &Path) -> Result<(Host, String), Error> {
-    let mut command = dokime(&args.dokime, "serve");
-    command
-        .arg("--")
-        .args(arguments(args, state, bundle))
-        .current_dir(cwd)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit());
+    let mut command = dokime(&args.dokime, "server");
+    command.args(arguments(args, state, bundle)).current_dir(cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit());
     if !args.verbose && std::env::var_os("RUST_LOG").is_none() {
         // Dev focuses on the selected plugin: both its stderr and execution
         // log are mirrored under `sidecar`. Host and dependency diagnostics
@@ -733,7 +727,7 @@ fn dokime(cli: &Path, subcommand: &str) -> Command {
 
 async fn inspect(cli: &Path) -> Result<Identity, Error> {
     let mut command = std::process::Command::new(cli);
-    command.args(["serve", "--", "version", "--json"]);
+    command.args(["server", "version", "--json"]);
     let output = dokime_packaging::process::run(command, "Dokime version probe", Some(Duration::from_secs(10)), 16 * 1024, 64 * 1024)
         .await
         .map_err(|error| {

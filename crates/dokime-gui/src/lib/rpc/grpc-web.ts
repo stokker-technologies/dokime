@@ -1,7 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
 /* The browser-build transport: gRPC-Web straight from the page to a backend
-   that serves it (`dokime-server --grpc-web`). The desktop never selects it;
+   that serves it (`dokime server --grpc-web`). The desktop never selects it;
    its WebView reaches the backend only through the shell's IPC bridge. */
 
 /* === External Imports === */

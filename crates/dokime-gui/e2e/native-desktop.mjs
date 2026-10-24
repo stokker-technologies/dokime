@@ -37,7 +37,7 @@
 // Windows Requires An Interactive Account, WebView2 And A Version-
 // Matched Microsoft Edge Driver. --release Requires A Disposable Account And
 // DOKIME_E2E_INSTALLER Selects The Native NSIS
-// Artifact; DOKIME_E2E_{INSTALLER,SHELL,BACKEND,CLI}_SHA256 Bind Its Installed
+// Artifact; DOKIME_E2E_{INSTALLER,SHELL,CLI}_SHA256 Bind Its Installed
 // Executables To The Candidate. DOKIME_E2E_PLUGIN And DOKIME_E2E_PLUGIN_SHA256
 // Select And Verify Its Prepared OBC Fixture.
 // The Optional --junit Path Is Supplied By The Repository Evidence Runner.
@@ -45,8 +45,8 @@
 // Two deliberate substitutions, both of the operating system rather than of the
 // product:
 //
-//   * `xdg-open` is a no-op script on PATH, so Open Report and "Open Folder"
-//     cannot spawn a browser or a file manager over the session.
+//   * Report opens use an owned real browser/profile whose tabs close before
+//     fixture cleanup. `xdg-open` is a no-op for unrelated file-manager opens.
 //   * `desktop_save_document` opens a native GTK/portal save dialog no WebDriver
 //     session can reach, which would hang the gate on Download Report. The gate
 //     taps inline document saves at the Tauri IPC boundary. Report saves instead
@@ -87,6 +87,7 @@ import { parseArgs, promisify } from "node:util";
 // Third Party Imports
 
 // Local Imports
+import { ReportBrowser } from "./report-browser.ts";
 
 /* === Re-Exports === */
 
@@ -106,7 +107,7 @@ const reportsRoot = join(workspace, "target/tests", profile, nativeTarget, "syst
 /** The Single Build Stages The Development Candidates Together. */
 const built = join(workspace, "target/build", profile, nativeTarget);
 const executableSuffix = process.platform === "win32" ? ".exe" : "";
-let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(built, `bin/dokime-server${executableSuffix}`);
+let backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
 let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
 let cliBinary = process.env.DOKIME_E2E_CLI ?? join(built, `bin/dokime${executableSuffix}`);
 const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(built, "plugins/obc-plugin.dokime");
@@ -170,6 +171,8 @@ const DOCUMENT_SLICE_CHARS = 512 * 1024;
 
 const releaseValidation = options.release;
 const windows = process.platform === "win32";
+let reportBrowser;
+let reportBrowserClosed = false;
 const results = [];
 const failures = [];
 const passedJourneys = [];
@@ -395,6 +398,7 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
   const child = spawn(
     backendBinary,
     [
+      "server",
       "--shutdown-stdin",
       ...(launchPlugin ? ["--plugin", pluginBundle] : []),
       "--port",
@@ -471,6 +475,7 @@ async function startSession(work, endpoint, evidence) {
       env: {
         ...process.env,
         TAURI_WEBVIEW_AUTOMATION: "true",
+        DOKIME_AUTOMATION_REPORT_OPENER: reportBrowser.endpoint,
         DOKIME_APPLICATION_ROOT: join(home, "application"),
         ...(windows
           ? {
@@ -3366,6 +3371,8 @@ async function journey(name, run) {
       }
     }
     return { ok: false };
+  } finally {
+    await reportBrowser?.closeTabs();
   }
 }
 
@@ -3392,7 +3399,7 @@ async function installWindowsCandidate() {
   if (process.env.DOKIME_E2E_DISPOSABLE_WINDOWS !== "1") {
     throw new Error("Installer acceptance requires a disposable interactive Windows account: set DOKIME_E2E_DISPOSABLE_WINDOWS=1 there.");
   }
-  if (process.env.DOKIME_E2E_DEV_URL || process.env.DOKIME_E2E_SHELL || process.env.DOKIME_E2E_BACKEND) {
+  if (process.env.DOKIME_E2E_DEV_URL || process.env.DOKIME_E2E_SHELL) {
     throw new Error(
       "Windows acceptance drives the installed shell and backend with bundled frontend assets; development overrides are invalid.",
     );
@@ -3402,7 +3409,6 @@ async function installWindowsCandidate() {
   const checks = [
     ["installer", installer, process.env.DOKIME_E2E_INSTALLER_SHA256],
     ["shell", join(work, "installation", "dokime-gui.exe"), process.env.DOKIME_E2E_SHELL_SHA256],
-    ["backend", join(work, "installation", "dokime-server.exe"), process.env.DOKIME_E2E_BACKEND_SHA256],
     ["cli", join(work, "installation", "dokime.exe"), process.env.DOKIME_E2E_CLI_SHA256],
   ];
   for (const [label, , expected] of checks) {
@@ -3426,8 +3432,8 @@ async function installWindowsCandidate() {
     assert.equal(hashes[label], expected, `installed ${label} matches the selected candidate`);
   }
   shellBinary = checks[1][1];
-  backendBinary = checks[2][1];
-  cliBinary = checks[3][1];
+  cliBinary = checks[2][1];
+  backendBinary = cliBinary;
   await writeFile(
     join(evidence, "installation.json"),
     JSON.stringify(
@@ -3500,9 +3506,9 @@ async function ownedStartupJourney() {
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
   `);
-  assert.equal(status.ownership, "owned_local", "the native shell owns its companion backend");
-  assert.ok(status.connection?.endpoint, "the owned companion reports its negotiated endpoint");
-  assert.ok(await listening(status.connection.endpoint), "the native companion is listening");
+  assert.equal(status.ownership, "owned_local", "the native shell owns its embedded backend");
+  assert.ok(status.connection?.endpoint, "the embedded session reports its negotiated endpoint");
+  assert.ok(await listening(status.connection.endpoint), "the embedded server is listening");
   const cycleId = await createEmptyContainer(session, "Managed Shutdown Evidence");
   await cyclePhase(session, "Active");
   await session.screenshot("owned-startup");
@@ -3511,7 +3517,7 @@ async function ownedStartupJourney() {
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
   `);
   assert.equal(closing.ownership, "owned_local", "the cycle's current backend remains owned by this shell");
-  assert.ok(closing.connection?.endpoint, "the current owned companion has an endpoint before window close");
+  assert.ok(closing.connection?.endpoint, "the current embedded session has an endpoint before window close");
   assert.ok(await listening(closing.connection.endpoint), "the current owned listener is live immediately before window close");
   const idleStarted = performance.now();
   await closeSession();
@@ -4233,6 +4239,16 @@ async function main() {
     if (!existsSync(path)) throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
   }
 
+  const preparedChrome = join(workspace, "target/tooling/desktop/chrome-linux64/chrome");
+  const chrome =
+    process.env.DOKIME_E2E_CHROME ??
+    (windows
+      ? join(process.env["ProgramFiles(x86)"] ?? process.env.ProgramFiles, "Microsoft/Edge/Application/msedge.exe")
+      : existsSync(preparedChrome)
+        ? preparedChrome
+        : "google-chrome");
+  process.env.DOKIME_E2E_CHROME = chrome;
+  reportBrowser = await ReportBrowser.start(work, chrome);
   await startSecretService();
   const owned = await journey("owned-startup", ownedStartupJourney);
   if (!owned.ok) throw new Error("Native ownership acceptance failed");
@@ -4316,6 +4332,13 @@ try {
 } finally {
   for (const [name, cleanup] of [
     ["shell shutdown", closeSession],
+    [
+      "report browser cleanup",
+      async () => {
+        await reportBrowser?.close();
+        reportBrowserClosed = true;
+      },
+    ],
     ["backend shutdown", stopBackend],
   ]) {
     try {
@@ -4356,7 +4379,7 @@ try {
     await rm(join(work, "secrets"), { force: true, recursive: true }).catch(() =>
       failures.push({ kind: "failure", name: "secret cleanup", reason: "Private temporary secret removal failed" }),
     );
-  if (work && !failures.length)
+  if (work && reportBrowserClosed && !failures.length)
     await rm(work, { force: true, recursive: true }).catch((error) =>
       failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
     );

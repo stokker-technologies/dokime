@@ -140,8 +140,6 @@ pub use dokime_domain::model::validation::*;
 pub use dokime_domain::model::values;
 pub use dokime_domain::model::values::*;
 pub use dokime_domain::operations;
-#[cfg(feature = "fault-injection")]
-pub use domains::secrets::TestStore as SecretTestStore;
 
 // Several model globs carry a `wire` module; the value wire form is the one this crate names.
 pub use dokime_domain::model::values::wire;

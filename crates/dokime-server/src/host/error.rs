@@ -74,6 +74,13 @@ pub enum Error {
     #[error("the stop did not finish within {budget_s} seconds while {stage}; the next start seals what it left unfinished")]
     StopIncomplete { stage: &'static str, budget_s: u64 },
 
+    #[error("startup failed: {source}; cleanup failed: {cleanup}")]
+    StartupCleanup {
+        #[source]
+        source: Box<Error>,
+        cleanup: Box<Error>,
+    },
+
     #[error("server failed: {server}; runtime shutdown also failed: {runtime}")]
     Cleanup { server: Box<crate::grpc::Error>, runtime: Box<dokime::runtime::Error> },
 }
@@ -104,12 +111,6 @@ impl Error {
             None => return Self::Runtime(error),
         };
         Self::IncompatibleStorage { root, reason }
-    }
-    pub(crate) fn startup(server: crate::grpc::Error, cleanup: dokime::runtime::Result<()>) -> Self {
-        match cleanup {
-            Ok(()) => Self::Server(server),
-            Err(runtime) => Self::Cleanup { server: Box::new(server), runtime: Box::new(runtime) },
-        }
     }
     pub(crate) fn shutdown(server: std::result::Result<(), crate::grpc::Error>, runtime: dokime::runtime::Result<()>) -> Result<()> {
         match (server, runtime) {

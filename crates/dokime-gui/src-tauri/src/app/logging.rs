@@ -24,6 +24,7 @@ use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, layer::SubscriberExt, 
 /* === Constants === */
 
 const KEEP_LOG_FILES: usize = 14;
+static ACTIVE_LOG: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 /* === Macros === */
 
@@ -45,6 +46,10 @@ pub(crate) struct LoggingGuards {
 /* === Implementations === */
 
 /* === Public Functions === */
+
+pub(crate) fn active_log() -> Option<PathBuf> {
+    ACTIVE_LOG.get().cloned()
+}
 
 pub(crate) fn init(identifier: &str) -> LoggingGuards {
     let (stderr_writer, stderr_guard) = tracing_appender::non_blocking(std::io::stderr());
@@ -70,6 +75,7 @@ pub(crate) fn init(identifier: &str) -> LoggingGuards {
     let _ = Registry::default().with(layers).try_init();
 
     if let Some(path) = log_path {
+        let _ = ACTIVE_LOG.set(path.clone());
         tracing::info!(path = %path.display(), "dokime desktop shell log file");
     }
 

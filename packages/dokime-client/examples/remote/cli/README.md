@@ -53,7 +53,7 @@ project environment variables at the prompt; shims serve Command Prompt and
 editors. No `MISE_DATA_DIR` or other directory override is needed for defaults.
 The CLI installs under `%LOCALAPPDATA%\Programs\DokimeCLI\bin\`, which is added
 to user PATH after the installed `dokime.exe --version` succeeds. This installs
-the remote client; `dokime serve`, `dokime gui` and the host PC still require
+the remote client; `dokime server`, `dokime gui` and the host PC still require
 the matching desktop/server installation.
 
 Close and reopen your terminal and editor after setup, then verify:

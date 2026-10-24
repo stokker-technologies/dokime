@@ -11,7 +11,6 @@
 
 pub mod backend;
 mod contract;
-mod diagnostics;
 pub mod launch;
 mod owner;
 pub mod storage;

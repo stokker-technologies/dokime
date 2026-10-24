@@ -61,7 +61,8 @@ impl Server {
         let log = std::env::var("DOKIME_BENCH_LOG").ok();
         let stderr = if log.is_some() { Stdio::inherit() } else { Stdio::null() };
         let filter = log.as_deref().unwrap_or("off");
-        let mut command = Command::new(artifact(&format!("bin/dokime-server{EXE_SUFFIX}")));
+        let mut command = Command::new(artifact(&format!("bin/dokime{EXE_SUFFIX}")));
+        command.arg("server");
         #[cfg(windows)]
         command.creation_flags(0x0800_0000);
         command

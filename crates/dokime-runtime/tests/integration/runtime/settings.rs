@@ -300,7 +300,6 @@ async fn secret_references_file() {
     runtime.shutdown().await.unwrap();
 }
 
-#[cfg(feature = "fault-injection")]
 #[tokio::test]
 async fn local_secrets_state() {
     use dokime_domain::{model::secrets::catalog, operations::secrets};

@@ -44,7 +44,6 @@ pub struct Program {
 /* === Implementations === */
 
 impl Program {
-    pub const SERVER: Self = Self { name: "dokime-server" };
     pub const GUI: Self = Self { name: "dokime-gui" };
 
     pub fn resolve(&self, explicit: Option<&Path>) -> Result<PathBuf> {

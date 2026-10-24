@@ -1,112 +1,70 @@
-# Contributing To Dokime
+# Contributing
 
-Dokime is open to bug reports, documentation fixes, focused code changes, and
-small examples that make the test workflow easier to understand or extend.
-
-## Before You Start
-
-Use the [issue tracker](https://github.com/stokker-technologies/dokime/issues)
-for bugs and feature proposals. For a substantial change, open an issue before
-writing the implementation so the workflow, compatibility cost, and ownership
-boundaries are clear.
-
-Please include the operating system, Dokime revision, reproduction steps, and
-relevant logs in a bug report. Remove secrets and proprietary test data first.
+Help improve Dokime through focused fixes, useful equipment integrations and
+clearer examples. Discuss substantial behavior or architecture changes before
+implementing them.
 
 ## Development Setup
 
-Dokime supports Windows and Linux. Install
-[`mise`](https://mise.jdx.dev), then prepare the checkout:
+Install [mise](https://mise.jdx.dev) and prepare the checkout:
 
 ```sh
 mise trust
 mise install --locked
 mise run prepare
+mise run dev
 ```
 
-Development and test builds leave host media capture out, so its operations
-refuse with "capture not available in this build". The release build
-(`mise run build --profile release`) enables the `media-native` feature to capture
-screenshots, camera photos and audio. On Linux it links the system ALSA library
-and generates V4L2 camera bindings with Clang; screenshots go through the
-desktop portal and need no further libraries. Install the build packages first:
+Windows and Linux are supported. Native Windows GUI tests require an interactive
+desktop and matching WebView2/EdgeDriver; `prepare:desktop` installs the driver.
+Linux desktop tests use WebKitWebDriver and a display such as Xvfb. Their
+desktop bootstrap reuses installed Chrome or provisions the pinned Chrome For
+Testing build for real report rendering and owned-browser cleanup.
+
+Native media capture also needs platform libraries. On Debian/Ubuntu, install
+`libasound2-dev`, `linux-libc-dev` and `libclang-dev`; Fedora uses
+`alsa-lib-devel`, `kernel-headers` and `clang`.
+
+## Development Workflow
+
+Keep a change focused and respect SDK, runtime, server, GUI and generated-client
+boundaries. Update affected examples when changing their API; flag stale examples
+rather than silently deleting or simplifying them.
+
+Use Conventional Commits, such as `fix(runtime): preserve stopped execution evidence`.
+Keep generated outputs with their source. Refresh embedded reports with
+`mise run prepare:report` and organization assets with `mise run prepare:organization`.
+
+## Tests And Checks
+
+During implementation, run targeted checks for changed behavior. Once all agreed
+source work is complete, run the shared local review gate:
 
 ```sh
-# Debian and Ubuntu
-sudo apt install libasound2-dev linux-libc-dev libclang-dev
-# Fedora
-sudo dnf install alsa-lib-devel kernel-headers clang
+mise run ci:simulate
 ```
 
-The installed server then needs only `libasound.so.2` at runtime, plus a
-running `xdg-desktop-portal` for screenshots.
+The default run covers every declared required platform; selecting one platform
+is only partial proof. The same impact policy keeps prose-only edits lightweight
+and includes full affected proof for code or executable documentation changes.
 
-Native desktop system validation runs the same scenarios on Windows and Linux.
-`mise run prepare:desktop` installs a Microsoft EdgeDriver matching the installed
-WebView2 runtime on Windows; `test:typescript:system` runs this setup automatically.
-Run Windows UI validation in an interactive desktop session. Linux uses
-WebKitWebDriver and a display; CI bootstrap supplies its runtime libraries and Xvfb.
-
-Start the desktop application with `mise run dev`. The repository layout and other
-entry points are described in [`README.md`](README.md).
-
-## Make A Change
-
-- Keep a change focused. Do not mix a feature, dependency update, formatting
-  sweep, and unrelated cleanup in one merge request.
-- Follow the existing crate and module boundaries. The public SDK, runtime,
-  desktop shell, protocol, and generated bindings have different owners.
-- Update user documentation and examples when behavior changes.
-- Add a focused test for a fixed bug or new behavior. Prefer a workflow test
-  over many small tests of implementation details.
-- Use Conventional Commit subjects, such as `fix(runtime): preserve stopped
-  execution evidence` or `docs: clarify sidecar setup`.
-
-Run the matching checks while iterating. `mise run check` covers the complete
-Check stage. After source closure, run the applicable full flow in the assigned worktree:
-
-```sh
-mise run check
-mise run ci
-```
-
-The local flow runs the same declared tasks in this worktree; a failing lane fails the run. Native provider runners supply unavailable-platform and transported-artifact proof. `build --profile dev` produces binaries, the OBC bundle,
-the frontend and generated clients under `target/build/<profile>/<target>/`.
-The canonical Python wheel uses target `any`. `build:rust:tests --profile dev`
-separately compiles the shared Nextest archive and fixtures, runs the macro
-compile contracts and verifies the generated starter. Test lanes consume that
-archive; acceptance and system lanes also require the matching Product
-exports. Reports use `target/tests/<profile>/<target>/<layer>-<language>/`.
-`check:python:generated` and `check:typescript:generated` check the Python and TypeScript clients' types, lint and import
-smoke. `package --profile dev` assembles unsigned installers, companion CLIs,
-the plugin bundle and Python wheel from Build bytes without compiling,
-under `target/package/<profile>/<target>/`.
-
-`.github/workflows/ci.yml` and `nightly.yml` are thin callers of the rendered
-`managed-*.yml` workflows. Pull requests and `dev` pushes run Check, Build,
-Test, development Package and `Release / Dry`; configured native jobs run
-on both Linux and Windows. Nightly adds the declared coverage and benchmark leaves.
-`mise.toml` owns every recipe the workflows call.
-
-Run `Release / Prepare` manually from `dev` with the requested version bump.
-Version preparation updates the tutorial project, exact client wheel source and CLI version,
-then builds the versioned Python wheel and refreshes the tutorial lock with uv.
-Ordinary Build checks that lock without repairing it; release Build adds the source distribution.
-It opens a `release/v<version>` review into `dev`, which runs the required
-native graph and unsigned `Release / Rehearsal`. Squash-merging that review
-starts `Release / Tag`: it verifies the rehearsed tree, tags the merged `dev`
-commit, publishes Rust crates and fast-forwards protected `main`. The tag
-pipeline signs the declared Windows packages, publishes release assets and the
-Python client, and verifies installation on each platform. Release notes are
-rendered from Conventional Commits by git-cliff at tag time; no changelog file
-is tracked. Publication tasks live under `release:publish:*`.
+Product and Tests build independently. Tests use Cargo's unoptimized test
+profile; test lanes consume their artifacts. Nightly additionally runs coverage,
+benchmarks and the generated-starter test, with release-profile installers.
+Provider CI must pass before integration.
 
 ## Pull Requests
 
-Describe the user-visible problem, the chosen behavior, and how you verified
-it. Keep generated files in the same commit as the source that produced them.
-Do not include secrets, private device data, or credentials in fixtures, logs,
-screenshots, or commit history.
+Target `dev`. Describe the user-visible change and its verification, and keep
+required native checks enabled. Do not include secrets or proprietary device
+data in source, fixtures, logs or screenshots.
 
-By submitting a contribution, you agree that it is licensed under the
-repository's `Apache-2.0` terms.
+Contributions use the repository's [Apache-2.0 license](LICENSE). Release
+publication is a separate authorized workflow; ordinary candidate validation
+does not publish packages or create tags.
+
+## Reporting Issues
+
+Use the [issue tracker](https://github.com/stokker-technologies/dokime/issues).
+Include the operating system, revision, reproduction steps and relevant logs,
+with secrets and private test data removed.

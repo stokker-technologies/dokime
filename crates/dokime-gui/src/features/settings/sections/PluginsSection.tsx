@@ -211,7 +211,7 @@ export function PluginsSection() {
               </Button>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Restart <code className="font-mono text-foreground">dokime serve</code> to apply.
+                Restart <code className="font-mono text-foreground">dokime server</code> to apply.
               </p>
             )}
           </SettingsRow>
@@ -332,7 +332,7 @@ export function PluginsSection() {
                 Restart Now
               </Button>
             ) : (
-              <p>Restart dokime serve to apply these changes.</p>
+              <p>Restart dokime server to apply these changes.</p>
             )}
           </DialogFooter>
         </DialogContent>

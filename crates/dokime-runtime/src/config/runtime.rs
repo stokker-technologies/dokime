@@ -57,9 +57,9 @@ pub struct RuntimeConfig {
     pub hub_metadata: Metadata,
     pub secret_backend: RuntimeSecretConfig,
 
-    #[cfg(feature = "fault-injection")]
+    #[cfg(feature = "host")]
     #[serde(skip)]
-    pub(crate) secret_test_store: Option<crate::secrets::TestStore>,
+    pub(crate) credential_store: Option<Arc<keyring_core::CredentialStore>>,
 
     // A trusted bench is an isolated network where plain FTP sources are accepted.
     #[serde(default)]
@@ -109,8 +109,8 @@ impl RuntimeConfig {
             hub_metadata,
             secret_backend: RuntimeSecretConfig::default(),
 
-            #[cfg(feature = "fault-injection")]
-            secret_test_store: None,
+            #[cfg(feature = "host")]
+            credential_store: None,
             trusted_bench: false,
             installed_plugins: Vec::new(),
             plugins: Vec::new(),
@@ -136,9 +136,10 @@ impl RuntimeConfig {
         self
     }
 
-    #[cfg(feature = "fault-injection")]
-    pub fn with_test_secret_store(mut self, store: crate::SecretTestStore) -> Self {
-        self.secret_test_store = Some(store);
+    /// Supply Credential Storage As A Live Composition Resource, Separate From Settings.
+    #[cfg(feature = "host")]
+    pub fn with_credential_store(mut self, store: Arc<keyring_core::CredentialStore>) -> Self {
+        self.credential_store = Some(store);
         self
     }
 

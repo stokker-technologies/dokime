@@ -1,12 +1,18 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-linux.yml; sha256:4f98cdde150da7ab78c861a6de2868b1013590c2011a60fb7cdbbcaf2d87491b
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-linux.yml; sha256:b7194bd90db535583fdc9b950f502c2cf92e4e196fe2847af55c4292c0e2d5f2
 name: Package
 "on":
   workflow_call:
     inputs:
+      pipeline:
+        type: string
+        required: true
       runners:
         type: string
         required: true
       timeouts:
+        type: string
+        required: true
+      impact:
         type: string
         required: true
       stable_release:
@@ -21,8 +27,8 @@ name: Package
         default: ""
 env:
   PROFILE: >-
-    ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref,
-    'release/v')) && 'release' || 'dev' }}
+    ${{ inputs.pipeline == 'nightly' && 'release' || ((startsWith(github.ref,
+    'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev') }}
   MISE_LOCKED: "1"
   MISE_EXPERIMENTAL: "1"
   CARGO_INCREMENTAL: "0"
@@ -317,9 +323,19 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    - name: Cache Summary
+      if: always()
+      env:
+        STKR_CACHE_RESTORES: "{\"Mise\":\"${{ steps.mise.outputs.cache-hit == 'true' && 'Exact Hit' || steps.mise.outputs.cache-hit == 'false' && 'Partial Hit' || steps.mise.outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.cargo_downloads.outputs.cache-hit == 'true' && 'Exact Hit' || steps.cargo_downloads.outputs.cache-hit == 'false' && 'Partial Hit' || steps.cargo_downloads.outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.uv.outputs.cache-hit == 'true' && 'Exact Hit' || steps.uv.outputs.cache-hit == 'false' && 'Partial Hit' || steps.uv.outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.pnpm.outputs.cache-hit == 'true' && 'Exact Hit' || steps.pnpm.outputs.cache-hit == 'false' && 'Partial Hit' || steps.pnpm.outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        dokime_tools.ci.summary
     if: >-
-      ((github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
-      || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/dev')) && (!startsWith(github.ref, 'refs/tags/') ||
-      inputs.stable_release == 'true') && !(inputs.stable_release == 'true' &&
-      contains(fromJSON('["windows"]'), 'linux'))) && inputs.validated != 'true'
+      (contains(fromJSON(inputs.impact), 'package:rust') && ((inputs.pipeline ==
+      'nightly' || github.event_name == 'pull_request' || startsWith(github.ref,
+      'refs/tags/v') || ((github.event_name == 'push' || (github.event_name ==
+      'workflow_dispatch' && inputs.pipeline != 'nightly')) && github.ref == 'refs/heads/dev')) &&
+      (!startsWith(github.ref, 'refs/tags/') || inputs.stable_release == 'true' ||
+      github.workflow == 'CI / Nightly') && !(inputs.stable_release == 'true' &&
+      contains(fromJSON('["windows"]'), 'linux') && github.workflow != 'CI / Nightly'))) &&
+      inputs.validated != 'true'

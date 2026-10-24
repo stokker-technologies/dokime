@@ -57,21 +57,13 @@ fn sdk_artifact() -> &'static SdkArtifact {
             .unwrap();
         let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
         let target = std::env::var_os("CARGO_TARGET_DIR").map(|path| workspace.join(path)).unwrap_or_else(|| workspace.join("target"));
-        // Tests Build Records The Selected SDK And Dependency Graph Beside Its Archive.
-        let directory =
-            std::env::current_exe().unwrap().parent().and_then(std::path::Path::parent).unwrap().file_name().unwrap().to_owned();
-        let profile = if directory == "debug" {
-            "dev"
-        } else if directory == "release-tests" {
-            "release"
-        } else {
-            panic!("unexpected compile-contract profile {directory:?}");
-        };
-        let built_tests =
-            workspace.join("target/build").join(profile).join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)).join("tests");
+        // Both Graph Profiles Compile Tests In Cargo's Debug Directory.
+        let built_tests = std::path::PathBuf::from(
+            std::env::var_os("DOKIME_COMPILE_CONTRACTS_DIRECTORY").expect("the Build owner supplies its selected Tests export"),
+        );
         let messages = built_tests.join("compiler.json");
         let built = std::fs::read_to_string(&messages)
-            .unwrap_or_else(|error| panic!("run mise run build:tests to produce {}: {error}", messages.display()));
+            .unwrap_or_else(|error| panic!("run mise run build:rust:tests to produce {}: {error}", messages.display()));
         // Only the SDK's own dependency closure links into a plugin: another member's build script output (the
         // desktop shell's import stub libraries) would shadow the platform's runtime libraries on the search path.
         let closure = sdk_closure(&built_tests.join("metadata.json"), &manifest);

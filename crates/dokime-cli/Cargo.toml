@@ -21,9 +21,14 @@ publish = false
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
 pkg-fmt = "bin"
 
+[features]
+default = []
+media-native = ["dokime-server/media-native"]
+
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["client", "terminal", "diagnostics"] }
+dokime-server = { workspace = true }
 
 # Git
 harmos-packaging = { workspace = true }
@@ -31,6 +36,7 @@ harmos-packaging = { workspace = true }
 # Error Handling
 
 # Logging
+tracing = { workspace = true }
 
 # Utilities
 sha2 = { workspace = true }
@@ -41,6 +47,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Configuration
+dotenv = { workspace = true }
 clap = { workspace = true }
 
 # Filesystem

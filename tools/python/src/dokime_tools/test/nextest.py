@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/nextest.py; sha256:ef983fd82762ad14f2cdc2b01edfd5e22c1006ae253c32a70616a21ce189f587
+# Rendered by stkr project update from templates/python/test/nextest.py; sha256:f22e00875faf4a7fe916d9457d5b52664a0e2522e6d61453a0a85eef300440fe
 # ***
 #
 # Dokime
@@ -177,7 +177,7 @@ def coverage(
         "--locked",
         "--workspace",
         "--cargo-profile",
-        profile,
+        "test",
         "--config-file",
         str(configuration),
         "--profile",
@@ -196,7 +196,7 @@ def report(profile: str, output: Path) -> list[str]:
         "llvm-cov",
         "report",
         "--profile",
-        profile,
+        "test",
         "--cobertura",
         "--ignore-filename-regex",
         "(/tests/|/benches/|/fixtures/)",

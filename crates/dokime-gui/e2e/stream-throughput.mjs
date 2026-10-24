@@ -45,7 +45,7 @@ import { build } from "vite";
 const gui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workspace = resolve(gui, "../..");
 const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
-const backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(targetRoot, "debug/dokime-server");
+const backendBinary = process.env.DOKIME_E2E_CLI ?? join(targetRoot, "debug/dokime");
 const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
 const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
 const origin = process.platform === "win32" ? "http://tauri.localhost" : "tauri://localhost";
@@ -127,6 +127,7 @@ async function startBackend(work) {
   const child = spawn(
     backendBinary,
     [
+      "server",
       "--shutdown-stdin",
       "--grpc-web",
       "--allowed-origin",

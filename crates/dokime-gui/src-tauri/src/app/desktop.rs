@@ -272,15 +272,44 @@ pub async fn desktop_artifact_deliver(
             // thread other in-flight async commands need.
             let path = verified.path.to_string_lossy().into_owned();
             let launched = path.clone();
-            tauri::async_runtime::spawn_blocking(move || {
-                let opener = app.opener();
-                let opened = session.with_current(&generation, || opener.open_path(launched, None::<&str>));
-                let opened = opened.map_err(|error| format!("Native report delivery lost its owning connection: {error:?}"))?;
-                opened.map_err(|error| error.to_string())
-            })
-            .await
-            .map_err(|error| open(error.to_string()))?
-            .map_err(open)?;
+            let automation = (std::env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true"))
+                .then(|| std::env::var("DOKIME_AUTOMATION_REPORT_OPENER").ok())
+                .flatten();
+            if let Some(endpoint) = automation {
+                let endpoint = url::Url::parse(&endpoint).map_err(|error| open(error.to_string()))?;
+                if endpoint.scheme() != "http"
+                    || endpoint.host_str() != Some("127.0.0.1")
+                    || !endpoint.username().is_empty()
+                    || endpoint.password().is_some()
+                    || endpoint.path() != "/open"
+                {
+                    return Err(open("The automation report opener must be an owned loopback endpoint.".to_owned()));
+                }
+                ensure_document_session(&session, &generation).map_err(prepare)?;
+                let client = reqwest::Client::builder()
+                    .no_proxy()
+                    .redirect(reqwest::redirect::Policy::none())
+                    .build()
+                    .map_err(|error| open(error.to_string()))?;
+                let response = client
+                    .post(endpoint)
+                    .json(&serde_json::json!({ "path": launched }))
+                    .timeout(std::time::Duration::from_secs(30))
+                    .send()
+                    .await
+                    .map_err(|error| open(error.to_string()))?;
+                response.error_for_status().map_err(|error| open(error.to_string()))?;
+            } else {
+                tauri::async_runtime::spawn_blocking(move || {
+                    let opener = app.opener();
+                    let opened = session.with_current(&generation, || opener.open_path(launched, None::<&str>));
+                    let opened = opened.map_err(|error| format!("Native report delivery lost its owning connection: {error:?}"))?;
+                    opened.map_err(|error| error.to_string())
+                })
+                .await
+                .map_err(|error| open(error.to_string()))?
+                .map_err(open)?;
+            }
             cleanup.keep().map_err(|error| open(error.to_string()))?;
             Ok(Some(Delivered { path, origin: verified.report_origin() }))
         }

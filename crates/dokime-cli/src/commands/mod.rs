@@ -20,7 +20,7 @@ mod id_file;
 mod operation;
 mod plan;
 mod plugin;
-mod serve;
+mod server;
 mod status;
 
 /* === Re-Exports === */
@@ -73,7 +73,7 @@ pub(crate) enum Command {
     #[command(subcommand, about = "Install Plugin Bundles On A Backend.")]
     Plugin(plugin::Command),
 
-    Serve(serve::Args),
+    Server(server::Args),
     Gui(gui::Args),
     Version(version::Args),
 }
@@ -95,7 +95,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::Operation(command) => operation::run(command).await,
         Command::Plan(command) => plan::run(command).await,
         Command::Plugin(command) => plugin::run(command).await,
-        Command::Serve(args) => serve::run(args),
+        Command::Server(args) => server::run(args).await,
         Command::Gui(args) => gui::run(args),
         Command::Version(args) => {
             version::run(args);

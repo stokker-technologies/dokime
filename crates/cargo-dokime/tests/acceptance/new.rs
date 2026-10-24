@@ -70,8 +70,7 @@ fn standalone_scaffold_offline() {
     assert_eq!(sdk["git"].as_str(), Some("https://github.com/stokker-technologies/dokime"));
     assert_eq!(sdk["branch"].as_str(), Some("dev"));
     assert!(sdk.get("rev").is_none());
-    assert_eq!(document["profile"]["dev"]["debug"].as_str(), Some("line-tables-only"));
-    assert_eq!(document["profile"]["dev"]["split-debuginfo"].as_str(), Some("unpacked"));
+    assert!(document.get("profile").is_none(), "the starter uses Cargo profile defaults");
     assert!(!manifest.contains("workspace"));
     assert!(!manifest.contains("harmos"));
     assert!(root.path().join("my-plugin/src/suites/soak/hold.rs").is_file());

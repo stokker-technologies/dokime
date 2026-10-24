@@ -40,6 +40,13 @@ pub enum Error {
     #[error("{0}")]
     Setup(String),
 
+    #[error("{source}")]
+    Process {
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+        exit_code: ExitCode,
+    },
+
     #[error("Secret store deadline elapsed; an already-started store operation may still complete.")]
     SecretTimeout,
 
@@ -100,6 +107,7 @@ impl From<std::io::Error> for Error {
 impl Error {
     pub fn exit_code(&self) -> ExitCode {
         match self {
+            Self::Process { exit_code, .. } => *exit_code,
             Self::Check(_) => ExitCode::from(1),
             Self::Operation(dokime_client::operations::Error::CatalogTooLarge) => ExitCode::from(4),
             Self::Input(_) => ExitCode::from(2),

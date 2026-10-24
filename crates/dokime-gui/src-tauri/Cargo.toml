@@ -47,6 +47,7 @@ tauri-build = { workspace = true, features = [] }
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
+dokime-server = { workspace = true }
 
 # Git
 harmos-sdk = { workspace = true, features = ["grpc"] }
@@ -105,7 +106,6 @@ windows = { workspace = true, features = ["Win32_System_Com"] }
 [dev-dependencies]
 # Local
 dokime = { path = "../../dokime", features = ["host", "fft", "plugin-sidecar"] }
-dokime-server = { path = "../../dokime-server" }
 
 # Git
 harmos-packaging = { workspace = true, features = ["generate-proto"] }

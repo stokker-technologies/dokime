@@ -76,6 +76,7 @@ def native(
         process = subprocess.Popen(
             [
                 str(host),
+                "server",
                 "--port",
                 "0",
                 "--dev-control",

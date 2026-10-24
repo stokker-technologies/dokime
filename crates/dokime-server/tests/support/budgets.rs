@@ -42,10 +42,8 @@ use dokime::config::StorageSettings;
 /* === Public Functions === */
 
 pub fn runtime_config(root: impl Into<PathBuf>, hub_metadata: Metadata) -> RuntimeConfig {
-    let config = RuntimeConfig::new(root, hub_metadata);
-    #[cfg(feature = "fault-injection")]
-    let config = config.with_test_secret_store(dokime::SecretTestStore::default());
-    config
+    RuntimeConfig::new(root, hub_metadata)
+        .with_credential_store(keyring_core::mock::Store::new().expect("isolated fixture credential store"))
 }
 
 pub fn story_settings() -> StorageSettings {

@@ -24,16 +24,13 @@ mod profiles;
 pub use args::{Args, NetworkArgs};
 pub use error::{Error, Result};
 
-// The subscriber install is part of the shell's surface, not just `run`'s
-// internals: it is a process-global side effect, so anything hosting this
-// backend installs it exactly once and holds the guards for the process.
+// Applications install tracing once and retain its guards for their process.
 pub use logging::{LoggingGuards, init as install_logging};
 
 /* === Imports === */
 
 // Standard Library Imports
 use std::{
-    io::Write,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
@@ -41,9 +38,6 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use dokime::config::ApplicationOptions;
-use dokime::domain::DEV_PROTOCOL;
-use dokime::domain::READINESS_PROTOCOL;
 
 /* === Constants === */
 
@@ -55,6 +49,15 @@ const STOP_BUDGET: std::time::Duration = std::time::Duration::from_secs(dokime::
 /* === Type Aliases === */
 
 /* === Structs === */
+
+pub struct Session {
+    executor: tokio::runtime::Handle,
+    runtime: Option<dokime::Runtime>,
+    server: Option<crate::grpc::Server>,
+    stage: &'static str,
+    plugins: Vec<PathBuf>,
+    expected: Vec<ExpectedPlugin>,
+}
 
 struct ExpectedPlugin {
     package: String,
@@ -68,150 +71,134 @@ struct ExpectedPlugin {
 
 /* === Implementations === */
 
-/* === Public Functions === */
-
-pub async fn run(args: Args, server_config: crate::grpc::Config, terminal: dokime::terminal::Terminal) -> Result<()> {
-    let mut config = ApplicationOptions {
-        application_root: args.application_root.clone(),
-        storage_root: args.output_root.clone(),
-        plugins_root: args.plugins_root.clone(),
-    }
-    .resolve()?;
-    let application_root = config.application_root.clone().expect("resolved options name an application root");
-    let storage_root = config.output_root.clone();
-    let _log_guards = logging::init(&application_root, terminal.color_enabled())?;
-    if let Some(title) = &args.title {
-        config.title = title.clone();
-    }
-    config.label = args.label.clone();
-    config.seed_plugins = !args.no_seed_validation_artifact;
-    config.explicit_plugins = if args.dev_control { Vec::new() } else { args.plugins.clone() };
-    let expected = expected_plugins(&args.plugins)?;
-    emit_phase(args.dev_control, "storage");
-    let mut runtime = dokime::app::launch(config).await.map_err(|error| Error::launch(error, storage_root.clone()))?;
-    emit_phase(args.dev_control, "plugins");
-    if let Err(error) = verify_plugins(&runtime.handle(), if args.dev_control { &[] } else { &expected }).await {
-        if let Err(cleanup) = runtime.shutdown().await {
-            return Err(crate::host::Error::Input(format!("{error}; runtime shutdown also failed: {cleanup}")));
+impl Session {
+    pub async fn start(
+        args: &Args, mut config: dokime::config::Config, server_config: crate::grpc::Config, mut on_phase: impl FnMut(&str) + Send,
+    ) -> Result<Self> {
+        let config_root = config.output_root.clone();
+        if let Some(title) = &args.title {
+            config.title = title.clone();
         }
-        return Err(error);
-    }
-    emit_phase(args.dev_control, "requests");
-    let server = match crate::grpc::Server::start(runtime.handle(), server_config).await {
-        Ok(server) => server,
-        Err(error) => {
-            let cleanup = runtime.shutdown().await.map(|_| ());
-            return Err(crate::host::Error::startup(error, cleanup));
+        config.label = args.label.clone();
+        config.seed_plugins = !args.no_seed_validation_artifact;
+        config.explicit_plugins = if args.dev_control { Vec::new() } else { args.plugins.clone() };
+        let expected = expected_plugins(&args.plugins)?;
+        on_phase("storage");
+        let runtime = dokime::app::launch(config).await.map_err(|error| Error::launch(error, config_root.clone()))?;
+        let mut session = Self {
+            executor: tokio::runtime::Handle::current(),
+            runtime: Some(runtime),
+            server: None,
+            stage: "starting",
+            plugins: args.plugins.clone(),
+            expected,
+        };
+        on_phase("plugins");
+        let runtime = session.runtime.as_ref().expect("session owns runtime");
+        if let Err(error) = verify_plugins(&runtime.handle(), if args.dev_control { &[] } else { &session.expected }).await {
+            return match session.shutdown().await {
+                Ok(()) => Err(error),
+                Err(cleanup) => Err(Error::StartupCleanup { source: Box::new(error), cleanup: Box::new(cleanup) }),
+            };
         }
-    };
-    let local_addr = server.address();
-    let local_url = server.local_endpoint();
-    if args.dev_control {
-        use std::io::Write;
-        let ready = serde_json::json!({
-            "event": "ready",
-            "protocol": READINESS_PROTOCOL,
-            "endpoint": local_url,
-            "transport": "grpc",
-            "version": env!("CARGO_PKG_VERSION"),
-            "dev_protocol": DEV_PROTOCOL,
-        });
-        let result = writeln!(std::io::stdout().lock(), "{ready}");
-        if let Err(error) = result {
-            let server_result = server.shutdown().await;
-            let runtime_result = runtime.shutdown().await.map(|_| ());
-            crate::host::Error::shutdown(server_result, runtime_result)?;
-            return Err(error.into());
-        }
-    } else {
-        print_startup(&terminal, &application_root, &storage_root, local_addr, &local_url);
-    }
-
-    if args.dev_control {
-        development_control(&mut runtime, &args.plugins, &expected).await;
-    } else {
-        shutdown_signal(args.shutdown_stdin).await;
-    }
-    arm_force_quit();
-    let server_result = server.shutdown().await;
-    let runtime_result = match tokio::time::timeout(STOP_BUDGET, runtime.shutdown()).await {
-        Ok(stopped) => stopped.map(|_| ()),
-        Err(_) => {
-            let stage = runtime.shutdown_stage();
-            // Dropping the runtime ends every plugin sidecar it still owns.
-            drop(runtime);
-            return Err(crate::host::Error::StopIncomplete { stage, budget_s: STOP_BUDGET.as_secs() });
-        }
-    };
-    crate::host::Error::shutdown(server_result, runtime_result)
-}
-
-/* === Private Functions === */
-
-async fn development_control(runtime: &mut dokime::Runtime, paths: &[PathBuf], expected: &[ExpectedPlugin]) {
-    use std::io::{BufRead, Write};
-    let allowed: Vec<_> = paths.iter().map(|path| path.canonicalize().ok()).collect();
-    let (send, mut commands) = tokio::sync::mpsc::channel(8);
-    std::thread::spawn(move || {
-        let mut input = std::io::stdin().lock();
-        loop {
-            let mut line = String::new();
-            // Bound each request independently; EOF still owns host shutdown.
-            match std::io::Read::take(&mut input, 16 * 1024 + 1).read_line(&mut line) {
-                Ok(0) | Err(_) => break,
-                Ok(_) if line.len() > 16 * 1024 || !line.ends_with('\n') => break,
-                Ok(_) => {
-                    if send.blocking_send(line).is_err() {
-                        break;
-                    }
+        on_phase("requests");
+        let runtime = session.runtime.as_ref().expect("session owns runtime");
+        match crate::grpc::Server::start(runtime.handle(), server_config).await {
+            Ok(server) => {
+                session.server = Some(server);
+                Ok(session)
+            }
+            Err(error) => {
+                let cleanup = session.shutdown().await;
+                match cleanup {
+                    Ok(()) => Err(error.into()),
+                    Err(cleanup) => Err(Error::StartupCleanup { source: Box::new(error.into()), cleanup: Box::new(cleanup) }),
                 }
             }
         }
-    });
-    loop {
-        let line = tokio::select! {
-            _ = stop_signal() => break,
-            line = commands.recv() => match line { Some(line) => line, None => break },
-        };
-        let result = async {
-            let request: serde_json::Value = serde_json::from_str(&line)?;
-            if request["command"] == "storage_counters" {
-                let mut reply = serde_json::to_value(dokime::storage::sqlite::counters())?;
-                reply["event"] = "storage_counters".into();
-                return Ok(reply);
-            }
-            if request["command"] != "reload" {
-                return Err(crate::host::Error::Input("unsupported development command".into()));
-            }
-            let path = request["path"].as_str().ok_or_else(|| crate::host::Error::Input("reload path is required".into()))?;
-            let path = PathBuf::from(path).canonicalize()?;
-            let index = allowed
-                .iter()
-                .position(|allowed| allowed.as_ref() == Some(&path))
-                .ok_or_else(|| crate::host::Error::Input("bundle path was not selected for this development session".into()))?;
-            let candidate = expected_plugins(std::slice::from_ref(&path))?;
-            if candidate[0].package != expected[index].package {
-                return Err(crate::host::Error::Input("package name changed; restart the development command".into()));
-            }
-            runtime.reload_plugin(dokime::plugins::PluginBundle::new(path)).await?;
-            verify_plugins(&runtime.handle(), &candidate).await?;
-            let rerun = if request["rerun"].as_bool() == Some(true) {
-                Some(rerun_latest_case(&runtime.handle(), &candidate[0].owners).await)
-            } else {
-                None
-            };
-            Ok::<_, crate::host::Error>(serde_json::json!({"event":"reloaded", "rerun_message":rerun}))
+    }
+
+    pub fn endpoint(&self) -> String {
+        self.server.as_ref().expect("ready session owns listener").local_endpoint()
+    }
+
+    pub fn address(&self) -> SocketAddr {
+        self.server.as_ref().expect("ready session owns listener").address()
+    }
+
+    pub async fn reload(&mut self, path: &Path, rerun: bool) -> Result<Option<String>> {
+        let path = path.canonicalize()?;
+        let index = self
+            .plugins
+            .iter()
+            .position(|allowed| allowed.canonicalize().ok().as_ref() == Some(&path))
+            .ok_or_else(|| Error::Input("bundle path was not selected for this development session".into()))?;
+        let candidate = expected_plugins(std::slice::from_ref(&path))?;
+        if candidate[0].package != self.expected[index].package {
+            return Err(Error::Input("package name changed; restart the development command".into()));
         }
-        .await;
-        let reply = match result {
-            Ok(reply) => reply,
-            Err(error) => serde_json::json!({"event":"reload_failed", "message":error.to_string()}),
-        };
-        if writeln!(std::io::stdout().lock(), "{reply}").is_err() {
-            break;
+        let runtime = self.runtime.as_mut().expect("session owns runtime");
+        runtime.reload_plugin(dokime::plugins::PluginBundle::new(path)).await?;
+        verify_plugins(&runtime.handle(), &candidate).await?;
+        if rerun { Ok(Some(rerun_latest_case(&runtime.handle(), &candidate[0].owners).await)) } else { Ok(None) }
+    }
+
+    pub async fn shutdown(mut self) -> Result<()> {
+        match tokio::time::timeout(STOP_BUDGET, self.drain()).await {
+            Ok(result) => result,
+            Err(_) => {
+                let stage = if self.stage == "stopping runtime" {
+                    self.runtime.as_ref().map_or(self.stage, dokime::Runtime::shutdown_stage)
+                } else {
+                    self.stage
+                };
+                Err(Error::StopIncomplete { stage, budget_s: STOP_BUDGET.as_secs() })
+            }
         }
     }
+
+    async fn drain(&mut self) -> Result<()> {
+        self.stage = "stopping listeners";
+        let server_result = match self.server.take() {
+            Some(server) => server.shutdown().await,
+            None => Ok(()),
+        };
+        self.stage = "stopping runtime";
+        let runtime_result = match self.runtime.as_mut() {
+            Some(runtime) => runtime.shutdown().await.map(|_| ()),
+            None => Ok(()),
+        };
+        let outcome = Error::shutdown(server_result, runtime_result);
+        if outcome.is_ok() {
+            self.runtime = None;
+        }
+        outcome
+    }
 }
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        let runtime = self.runtime.take();
+        let server = self.server.take();
+        if runtime.is_none() && server.is_none() {
+            return;
+        }
+        let executor = self.executor.clone();
+        self.executor.spawn(async move {
+            let mut session = Session { executor, runtime, server, stage: "cancelled startup", plugins: Vec::new(), expected: Vec::new() };
+            if let Err(error) = session.drain().await {
+                tracing::error!(%error, "cancelled server session cleanup failed");
+                // Do not recursively spawn cleanup on an unrecoverable drain failure.
+                session.runtime = None;
+                session.server = None;
+            }
+        });
+    }
+}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
 
 async fn rerun_latest_case(handle: &dokime::RuntimeHandle, owners: &[String]) -> String {
     let cycles = handle.cycles().await;
@@ -241,26 +228,6 @@ async fn rerun_latest_case(handle: &dokime::RuntimeHandle, owners: &[String]) ->
         Some(error) => format!("Automatic re-run refused: {}", error.message),
         None => "Re-running the latest case with its retained inputs.".into(),
     }
-}
-
-fn emit_phase(dev_control: bool, name: &str) {
-    if !dev_control {
-        return;
-    }
-    let phase = serde_json::json!({ "event": "phase", "name": name });
-    let _ = writeln!(std::io::stdout().lock(), "{phase}");
-}
-
-fn print_startup(
-    terminal: &dokime::terminal::Terminal, application_root: &Path, storage_root: &Path, bind_addr: SocketAddr, local_url: &str,
-) {
-    terminal.header("dokime-server", env!("CARGO_PKG_VERSION"), "Server");
-    terminal.field("Bind", bind_addr);
-    terminal.field("Application", application_root.display());
-    terminal.field("Data", storage_root.display());
-    terminal.field("Transport", "gRPC");
-    terminal.success(local_url);
-    terminal.hint("Press Ctrl-C to stop");
 }
 
 fn expected_plugins(paths: &[PathBuf]) -> crate::host::Result<Vec<ExpectedPlugin>> {
@@ -326,97 +293,70 @@ async fn verify_plugins(handle: &dokime::RuntimeHandle, expected: &[ExpectedPlug
     Ok(())
 }
 
-async fn shutdown_signal(stdin: bool) {
-    if !stdin {
-        stop_signal().await;
-        return;
-    }
-    let (closed, eof) = tokio::sync::oneshot::channel();
-    // A dedicated thread cannot hold Tokio's blocking pool open on Ctrl-C.
-    std::thread::spawn(move || {
-        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
-        let _ = closed.send(());
-    });
-    tokio::select! {
-        _ = stop_signal() => {}
-        _ = eof => {}
-    }
-}
-
-async fn stop_signal() {
-    #[cfg(unix)]
-    {
-        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-            Ok(mut terminate) => {
-                tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {},
-                    _ = terminate.recv() => {},
-                }
-            }
-            Err(error) => {
-                tracing::error!(%error, "could not install SIGTERM handler");
-                let _ = tokio::signal::ctrl_c().await;
-            }
-        }
-    }
-    #[cfg(not(unix))]
-    let _ = tokio::signal::ctrl_c().await;
-}
-
-fn arm_force_quit() {
-    eprintln!("Stopping Dokime. Press Ctrl-C again to exit without finishing.");
-
-    let interrupt = tokio::signal::ctrl_c();
-    let exit = |code| std::process::exit(code);
-    let quit = force_quit(interrupt, exit);
-    tokio::spawn(quit);
-}
-
-async fn force_quit(signal: impl std::future::Future<Output = std::io::Result<()>>, exit: impl FnOnce(i32)) {
-    if let Err(error) = signal.await {
-        tracing::debug!(%error, "force-quit listener unavailable");
-        return;
-    }
-    eprintln!("Interrupted again: exiting without finishing the orderly stop.");
-    exit(130);
-}
-
-#[cfg(test)]
-#[tokio::test]
-async fn force_quit_error() {
-    let exit = std::cell::Cell::new(None);
-    let record_exit = |code| {
-        let status = Some(code);
-        exit.set(status);
-    };
-    let error = std::io::Error::other("signal listener unavailable");
-    let unavailable = std::future::ready(Err(error));
-    force_quit(unavailable, record_exit).await;
-    assert_eq!(exit.get(), None, "a listener error must preserve orderly shutdown");
-
-    let interrupt = std::future::ready(Ok(()));
-    force_quit(interrupt, record_exit).await;
-    assert_eq!(exit.get(), Some(130), "a second interrupt must still force exit");
-}
-
 /* === Tests === */
 
-#[cfg(all(test, unix))]
-#[test]
-fn force_quit_shutdown() {
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-    let handle = runtime.handle().clone();
-    drop(runtime);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::FutureExt;
 
-    let _entered = handle.enter();
-    let exit = std::cell::Cell::new(None);
-    let record_exit = |code| {
-        let status = Some(code);
-        exit.set(status);
-    };
-    let interrupt = tokio::signal::ctrl_c();
-    let quit = force_quit(interrupt, record_exit);
-    let outcome = futures_util::FutureExt::now_or_never(quit);
-    assert_eq!(outcome, Some(()));
-    assert_eq!(exit.get(), None, "runtime teardown is not another Ctrl-C");
+    fn arguments(root: &Path) -> Args {
+        Args {
+            shutdown_stdin: false,
+            dev_control: false,
+            network: NetworkArgs {
+                host: std::net::Ipv4Addr::LOCALHOST.into(),
+                port: 0,
+                message_limit_mib: 2,
+                grpc_web: false,
+                allowed_origins: Vec::new(),
+            },
+            title: None,
+            label: None,
+            output_root: Some(root.join("store")),
+            application_root: Some(root.join("application")),
+            env_file: None,
+            plugins: Vec::new(),
+            plugins_root: None,
+            no_seed_validation_artifact: true,
+        }
+    }
+
+    async fn reacquire(args: &Args) -> Session {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                match Session::start(args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await {
+                    Ok(session) => break session,
+                    Err(_) => tokio::time::sleep(std::time::Duration::from_millis(10)).await,
+                }
+            }
+        })
+        .await
+        .expect("cancelled startup releases its execution store")
+    }
+
+    #[tokio::test]
+    async fn startup_unwind_drains() {
+        let root = tempfile::tempdir().unwrap();
+        let args = arguments(root.path());
+        let startup = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |phase| {
+            if phase == "plugins" {
+                panic!("deliberate startup cancellation");
+            }
+        });
+        assert!(std::panic::AssertUnwindSafe(startup).catch_unwind().await.is_err());
+        reacquire(&args).await.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn session_drop_drains() {
+        let root = tempfile::tempdir().unwrap();
+        let args = arguments(root.path());
+        let session = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await.unwrap();
+        let address = session.address();
+        drop(session);
+        let replacement = reacquire(&args).await;
+        assert!(tokio::net::TcpStream::connect(address).await.is_err(), "the dropped session releases its listener");
+        replacement.shutdown().await.unwrap();
+    }
 }

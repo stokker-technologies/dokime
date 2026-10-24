@@ -42,6 +42,7 @@ host = [
   "dep:dokime-host",
   "dep:futures-util",
   "dep:keyring",
+  "dep:keyring-core",
   "dep:rustls-platform-verifier",
   "dep:sha2",
   "dep:suppaftp",
@@ -84,6 +85,7 @@ tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
 keyring = { workspace = true, optional = true }
+keyring-core = { workspace = true, optional = true }
 regex = { workspace = true }
 sha2 = { workspace = true, optional = true }
 time = { workspace = true }

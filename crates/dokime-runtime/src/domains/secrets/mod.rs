@@ -66,10 +66,11 @@ pub(crate) struct Change {
 
 struct OsKeyring;
 
-/// An Explicit In-Memory Keyring For Fault-Injection Builds Only.
-#[cfg(any(test, feature = "fault-injection"))]
+struct CredentialStore(Arc<keyring_core::CredentialStore>);
+
+#[cfg(test)]
 #[derive(Clone, Default)]
-pub struct TestStore {
+struct TestStore {
     values: Arc<Mutex<BTreeMap<String, String>>>,
 }
 
@@ -104,9 +105,10 @@ impl SecretStore {
     pub(crate) fn from_config(config: &RuntimeConfig, settings: Settings) -> Result<Self, SecretStoreError> {
         settings.read(|document| document.secrets.validate()).map_err(SecretStoreError::Invalid)?;
         let host = settings.read(|document| document.identity.node_id.to_string());
-        let backend: Arc<dyn Backend> = Arc::new(OsKeyring);
-        #[cfg(feature = "fault-injection")]
-        let backend: Arc<dyn Backend> = config.secret_test_store.clone().map_or(backend, |store| Arc::new(store));
+        let backend: Arc<dyn Backend> = match &config.credential_store {
+            Some(store) => Arc::new(CredentialStore(Arc::clone(store))),
+            None => Arc::new(OsKeyring),
+        };
         Ok(Self {
             settings,
             backend,
@@ -325,7 +327,32 @@ impl Backend for OsKeyring {
     }
 }
 
-#[cfg(any(test, feature = "fault-injection"))]
+impl CredentialStore {
+    fn entry(&self, slot: &str) -> Result<keyring_core::Entry, SecretStoreError> {
+        self.0.build(SHARED_SERVICE, slot, None).map_err(|_| SecretStoreError::Unavailable)
+    }
+}
+
+impl Backend for CredentialStore {
+    fn set(&self, slot: &str, value: &str) -> Result<(), SecretStoreError> {
+        self.entry(slot)?.set_password(value).map_err(|_| SecretStoreError::Unavailable)
+    }
+    fn get(&self, slot: &str) -> Result<Option<SecretValue>, SecretStoreError> {
+        match self.entry(slot)?.get_password() {
+            Ok(value) => Ok(Some(SecretValue::new(value))),
+            Err(KeyringError::NoEntry) => Ok(None),
+            Err(_) => Err(SecretStoreError::Unavailable),
+        }
+    }
+    fn remove(&self, slot: &str) -> Result<(), SecretStoreError> {
+        match self.entry(slot)?.delete_credential() {
+            Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
+            Err(_) => Err(SecretStoreError::Unavailable),
+        }
+    }
+}
+
+#[cfg(test)]
 impl Backend for TestStore {
     fn set(&self, slot: &str, value: &str) -> Result<(), SecretStoreError> {
         self.values.lock().unwrap().insert(slot.into(), value.into());

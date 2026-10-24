@@ -28,7 +28,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 /* === Structs === */
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 #[command(about = "Listener flags shared by the standalone runtime and the Cargo wrapper.")]
 #[group(id = "listener")]
 pub struct NetworkArgs {
@@ -52,7 +52,7 @@ pub struct NetworkArgs {
     pub allowed_origins: Vec<String>,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Clone, Debug, clap::Args)]
 #[command(about = "Server process flags shared by the standalone runtime and Cargo wrapper.")]
 #[group(id = "server-runtime-arguments")]
 pub struct Args {
@@ -79,13 +79,13 @@ pub struct Args {
 
     #[arg(
         long,
-        help = "Keep settings, logs, installed plugins, and default data beneath this root. Defaults to `DOKIME_APPLICATION_ROOT` or the per-user directory. `dokime-server` writes its rolling boot/diagnostic log under `<root>/logs`."
+        help = "Keep settings, logs, installed plugins, and default data beneath this root. Defaults to `DOKIME_APPLICATION_ROOT` or the per-user directory. `dokime server` writes its rolling boot/diagnostic log under `<root>/logs`."
     )]
     pub application_root: Option<PathBuf>,
 
     #[arg(
         long,
-        help = "Load environment variables from exactly this file with dotenv, instead of searching upward from the working directory for `.env`. Refused outright when the file does not exist — never a silent skip. Either way, a variable already exported in this process always wins over one loaded from a file, and the environment is read once at startup: changing the file requires restarting `dokime-server`."
+        help = "Load environment variables from exactly this file with dotenv, instead of searching upward from the working directory for `.env`. Refused outright when the file does not exist — never a silent skip. Either way, a variable already exported in this process always wins over one loaded from a file, and the environment is read once at startup: changing the file requires restarting `dokime server`."
     )]
     pub env_file: Option<PathBuf>,
 
@@ -107,6 +107,17 @@ pub struct Args {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Args {
+    pub fn configuration(&self) -> super::Result<dokime::config::Config> {
+        let options = dokime::config::ApplicationOptions {
+            application_root: self.application_root.clone(),
+            storage_root: self.output_root.clone(),
+            plugins_root: self.plugins_root.clone(),
+        };
+        Ok(options.resolve()?)
+    }
+}
 
 /* === Public Functions === */
 

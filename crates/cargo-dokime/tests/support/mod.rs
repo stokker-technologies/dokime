@@ -63,7 +63,7 @@ pub fn tool() -> std::path::PathBuf {
 }
 
 pub fn host() -> std::path::PathBuf {
-    artifact("dokime-server")
+    artifact("dokime")
 }
 
 pub fn workspace_root() -> std::path::PathBuf {
@@ -97,7 +97,8 @@ pub fn standalone_directory() -> StandaloneDirectory {
 
 fn artifact(name: &str) -> std::path::PathBuf {
     let platform = if cfg!(windows) { "windows" } else { "linux" };
-    let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
+    let profile = std::env::var("DOKIME_BUILD_PROFILE").unwrap_or_else(|_| "dev".to_owned());
+    assert!(matches!(profile.as_str(), "dev" | "release"), "invalid graph profile");
     let target = format!("{platform}-{}", std::env::consts::ARCH);
     let path = workspace_root()
         .join("target/build")

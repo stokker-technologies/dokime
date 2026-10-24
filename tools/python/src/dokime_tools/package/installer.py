@@ -73,7 +73,7 @@ def check(root: Path = ROOT) -> None:
     for icon in icons:
         if not (directory / icon).is_file():
             raise ValueError(f"missing installer icon: {icon}")
-    if packaging["bundle"].get("externalBin") != ["binaries/dokime", "binaries/dokime-server"]:
+    if packaging["bundle"].get("externalBin") != ["binaries/dokime"]:
         raise ValueError("Tauri bundle.externalBin must contain the Dokime CLI and server")
     if bundle.get("resources") != []:
         raise ValueError("Tauri bundle.resources must be empty; organization is compiled")
@@ -156,7 +156,7 @@ def stage_resources(root: Path = ROOT, *, directory: Path, profile: str) -> None
     built = paths.output(root, "build", profile) / "bin"
     suffix = ".exe" if sys.platform == "win32" else ""
     triple = _host_triple(root)
-    for name in ("dokime", "dokime-server"):
+    for name in ("dokime",):
         destination = root / TAURI / "binaries" / f"{name}-{triple}{suffix}"
         stage_file(_built(built, f"{name}{suffix}"), destination)
         print(f"Staged Tauri companion {name}: {destination}")

@@ -16,7 +16,7 @@
 // Standard Library Imports
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 // Third Party Imports
@@ -56,21 +56,6 @@ fn installation(programs: &[&Path]) -> tempfile::TempDir {
     directory
 }
 
-fn server() -> PathBuf {
-    let platform = if cfg!(windows) { "windows" } else { "linux" };
-    let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
-        .ancestors()
-        .find(|path| path.join("Cargo.lock").is_file())
-        .unwrap()
-        .to_owned();
-    let profile = if cfg!(debug_assertions) { "dev" } else { "release" };
-    let target = format!("{platform}-{}", std::env::consts::ARCH);
-    let server =
-        root.join("target/build").join(profile).join(target).join("bin").join(format!("dokime-server{}", std::env::consts::EXE_SUFFIX));
-    assert!(server.is_file(), "run mise run build to produce {}", server.display());
-    server
-}
-
 fn dokime(directory: &Path) -> Command {
     let executable = directory.join(format!("dokime{}", std::env::consts::EXE_SUFFIX));
     let mut command = Command::new(executable);
@@ -101,30 +86,14 @@ fn refused(output: std::process::Output) -> String {
 
 /* === Tests === */
 
-// the server beside the CLI answers its identity through serve.
-
-fn server_beside_cli() {
+// The CLI hosts its server without a companion executable or installation lookup.
+fn embedded_server_identity() {
     let cli = cli_executable();
-    let cli = Path::new(&cli);
-    let installed = installation(&[cli, &server()]);
-
-    let output = dokime(installed.path()).args(["serve", "--", "version", "--json"]).output().unwrap();
+    let installed = installation(&[Path::new(&cli)]);
+    let output = dokime(installed.path()).args(["server", "version", "--json"]).output().unwrap();
     let identity: serde_json::Value = serde_json::from_str(&succeeded(output)).unwrap();
-
     assert_eq!(identity["version"].as_str(), Some(env!("CARGO_PKG_VERSION")));
     assert!(identity["dev_protocol"].is_u64());
-}
-
-// DOKIME_HOME supplies the server when none is installed beside the CLI.
-
-fn home_supplies_server() {
-    let cli = cli_executable();
-    let cli = Path::new(&cli);
-    let installed = installation(&[cli]);
-    let home = installation(&[&server()]);
-
-    let output = dokime(installed.path()).env("DOKIME_HOME", home.path()).args(["serve", "--", "version", "--json"]).output().unwrap();
-    succeeded(output);
 }
 
 // a missing program names the installer and the explicit overrides.
@@ -138,10 +107,6 @@ fn missing_programs_refused() {
     for expected in ["dokime-gui", "desktop installer", "DOKIME_HOME"] {
         assert!(refusal.contains(expected), "{refusal}");
     }
-
-    let missing = installed.path().join("missing");
-    let refusal = refused(dokime(installed.path()).arg("serve").arg("--server").arg(&missing).output().unwrap());
-    assert!(refusal.contains("is not a file"), "{refusal}");
 }
 
 // the GUI receives the endpoint and the arguments after --.
@@ -180,12 +145,8 @@ fn cli_executable() -> String {
 #[test]
 fn installation_contract() {
     {
-        eprintln!("Scenario: server_beside_cli");
-        server_beside_cli();
-    }
-    {
-        eprintln!("Scenario: home_supplies_server");
-        home_supplies_server();
+        eprintln!("Scenario: embedded_server_identity");
+        embedded_server_identity();
     }
     {
         eprintln!("Scenario: missing_programs_refused");

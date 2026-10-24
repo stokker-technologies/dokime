@@ -9,11 +9,9 @@
 
 /* === Modules === */
 
-mod discovery;
 mod facade;
 mod matrix;
 
-#[cfg(unix)]
 mod native_session;
 
 #[allow(dead_code)]

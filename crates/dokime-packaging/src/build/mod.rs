@@ -56,8 +56,7 @@ pub struct Collected {
     pub strip: bool,
 }
 
-// Whether a build keeps line-table debug info and ships its symbols, as the
-// package's `[package.metadata.dokime] debuginfo` selects.
+// Packaging Selects Symbols Already Emitted By Cargo, Without Changing Its Profiles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct DebugInfo {
     enabled: bool,
@@ -76,29 +75,11 @@ impl DebugInfo {
         Self { enabled: !disabled }
     }
 
-    fn split(target: &str) -> &'static str {
-        if target.contains("windows-msvc") { "packed" } else { "off" }
-    }
-
-    fn arguments(self, profile: &str, target: &str) -> Vec<String> {
+    fn summary(self) -> &'static str {
         if !self.enabled {
-            return vec!["--config".to_owned(), format!("profile.{profile}.debug=false")];
+            return "Cargo defaults; omit debug symbols via [package.metadata.dokime] debuginfo = false";
         }
-        vec![
-            "--config".to_owned(),
-            format!("profile.{profile}.debug=\"line-tables-only\""),
-            "--config".to_owned(),
-            format!("profile.{profile}.strip=\"none\""),
-            "--config".to_owned(),
-            format!("profile.{profile}.split-debuginfo=\"{}\"", Self::split(target)),
-        ]
-    }
-
-    fn summary(self, profile: &str, target: &str) -> String {
-        if !self.enabled {
-            return format!("disabled via [package.metadata.dokime] debuginfo = false (profile.{profile})");
-        }
-        format!("line tables only, unstripped, split-debuginfo={} (profile.{profile})", Self::split(target))
+        "Cargo defaults; include emitted debug symbols"
     }
 
     // Cargo reports every emitted output for the unit, debug info included: on
@@ -165,13 +146,11 @@ pub async fn collect(args: &Options) -> Result<Collected, Error> {
 // Bundle collected executables into `output/<package>.dokime`.
 pub async fn package(collected: Collected, output: &Path) -> Result<PathBuf, Error> {
     let destination = output.join(format!("{}.dokime", collected.package.name));
-    let stripped = tempfile::tempdir_in(output)?;
     let mut executables = Executables::new();
     for (name, (path, symbols)) in collected.executables {
-        let path = if collected.strip { strip(&path, stripped.path(), &collected.target).await? } else { path };
         executables.insert(name, vec![(path, symbols)]);
     }
-    bundle(&collected.package, &collected.target, executables, destination).await
+    bundle(&collected.package, &collected.target, executables, destination, collected.strip).await
 }
 
 /* === Private Functions === */
@@ -239,19 +218,13 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     if args.release {
         command.arg("--release");
     }
-    let profile_name = match &args.profile {
-        Some(profile) => {
-            command.args(["--profile", profile]);
-            profile.clone()
-        }
-        None if args.release => "release".to_owned(),
-        None => "dev".to_owned(),
-    };
+    if let Some(profile) = &args.profile {
+        command.args(["--profile", profile]);
+    }
     let debuginfo = DebugInfo::of(package);
-    command.args(debuginfo.arguments(&profile_name, target));
     let terminal = dokime::terminal::Terminal::default();
     terminal.status(format!("Building {} ({}) for {target}", package.name, selected.join(", ")));
-    terminal.field("Debug info", debuginfo.summary(&profile_name, target));
+    terminal.field("Debug info", debuginfo.summary());
     let output = process::cargo(command, "Cargo compilation", cargo_timeout, true).await?;
     let mut executables = std::collections::BTreeMap::<_, Vec<(PathBuf, Option<PathBuf>)>>::new();
     let mut finished = false;
@@ -277,7 +250,7 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     }
     let executables = single(executables, selected.len())?;
     let output = args.output.unwrap_or_else(|| target_dir.join("dokime").join(format!("{}-{}.dokime", package.name, package.version)));
-    bundle(package, target, executables, output).await
+    bundle(package, target, executables, output, !debuginfo.enabled && !target.contains("windows-msvc")).await
 }
 
 fn selected_binaries(package: &Package, binaries: &[String]) -> Result<Vec<String>, Error> {
@@ -353,7 +326,8 @@ fn single(mut executables: Executables, selected: usize) -> Result<Executables, 
     Ok(executables)
 }
 
-async fn bundle(package: &Package, target: &str, executables: Executables, output: PathBuf) -> Result<PathBuf, Error> {
+async fn bundle(package: &Package, target: &str, executables: Executables, output: PathBuf, strip_debug: bool) -> Result<PathBuf, Error> {
+    let stripped = tempfile::tempdir()?;
     let limits = Limits::default();
     let root = package.manifest_path.parent().expect("Cargo manifest has a parent");
     let terminal = dokime::terminal::Terminal::default();
@@ -364,8 +338,9 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
     let mut catalog_remaining = limits.manifest_bytes;
     for paths in executables.values() {
         let (path, pdb) = &paths[0];
+        let path = if strip_debug { strip(path, stripped.path(), target).await? } else { path.clone() };
         let (name, binary, executable) = collect_executable(
-            path,
+            &path,
             package,
             target,
             limits.file_bytes.min(limits.total_file_bytes.saturating_sub(total)),
@@ -523,7 +498,6 @@ mod tests {
         let disabled = DebugInfo { enabled: false };
         let outputs = vec![cargo_metadata::camino::Utf8PathBuf::from("deps/plugin.pdb")];
 
-        assert_eq!(disabled.arguments("dev", "x86_64-pc-windows-msvc"), ["--config", "profile.dev.debug=false"]);
         assert_eq!(disabled.symbols(&outputs), None);
         assert_eq!(DebugInfo { enabled: true }.symbols(&outputs), Some(PathBuf::from("deps/plugin.pdb")));
     }

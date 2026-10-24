@@ -89,6 +89,9 @@ harmos-sdk = { workspace = true, features = ["grpc"] }
 # Error Handling
 anyhow = { workspace = true }
 
+# Utilities
+keyring-core = { workspace = true }
+
 # Async
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["process", "test-util"] }

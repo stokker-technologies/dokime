@@ -41,10 +41,7 @@ pub struct DesktopSessionSnapshot {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackendDiagnostics {
-    pub executable: String,
-    pub exit_code: Option<i32>,
-    pub exit_status: Option<String>,
-    pub tail: String,
+    pub cause: String,
     pub log: Option<String>,
 }
 

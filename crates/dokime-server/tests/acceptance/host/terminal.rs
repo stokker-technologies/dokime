@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::process::Command;
 // Third Party Imports
 
 // Local Imports
@@ -69,7 +68,7 @@ fn browser_origins_validated() {
         (true, vec!["tauri://localhost".to_owned(), "tauri://localhost".to_owned()]),
         (true, (0..33).map(|index| format!("https://frontend{index}.example")).collect()),
     ] {
-        let mut command = Command::new(super::executable());
+        let mut command = super::command();
         command.args(["--color", "never", "--application-root"]);
         command.arg(&application);
         if web {
@@ -88,14 +87,14 @@ fn browser_origins_validated() {
 
 #[test]
 fn reports_version_identity() {
-    let output = Command::new(super::executable()).args(["--color", "always", "version", "--json"]).output().unwrap();
+    let output = super::command().args(["--color", "always", "version", "--json"]).output().unwrap();
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(value["dev_protocol"], 4);
     assert!(value["sdk_revision"].is_null() || value["sdk_revision"].as_str().is_some_and(|value| value.len() == 40));
-    let output = Command::new(super::executable()).args(["version"]).output().unwrap();
+    let output = super::command().args(["version"]).output().unwrap();
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stdout).unwrap(), format!("{}\n", env!("CARGO_PKG_VERSION")));
 }
@@ -103,7 +102,7 @@ fn reports_version_identity() {
 #[test]
 fn stderr_color_policy() {
     for (mode, no_color, colored) in [("auto", false, false), ("auto", true, false), ("always", false, true), ("never", false, false)] {
-        let mut command = Command::new(super::executable());
+        let mut command = super::command();
         command.args(["--color", mode, "--message-limit-mib", &usize::MAX.to_string()]);
         command.env_remove("NO_COLOR").env_remove("CLICOLOR_FORCE");
         if no_color {
@@ -120,7 +119,7 @@ fn stderr_color_policy() {
 
 #[test]
 fn control_requires_stdin() {
-    let output = Command::new(super::executable()).args(["--dev-control"]).output().unwrap();
+    let output = super::command().args(["--dev-control"]).output().unwrap();
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains("--shutdown-stdin"));
@@ -130,8 +129,7 @@ fn control_requires_stdin() {
 fn native_listener_requires_loopback() {
     let root = tempfile::tempdir().unwrap();
     let application = root.path().join("application");
-    let output =
-        Command::new(super::executable()).args(["--host", "0.0.0.0"]).env("DOKIME_APPLICATION_ROOT", &application).output().unwrap();
+    let output = super::command().args(["--host", "0.0.0.0"]).env("DOKIME_APPLICATION_ROOT", &application).output().unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("the native listener requires loopback"));
     assert!(!application.exists());
@@ -147,7 +145,7 @@ async fn environment_file_precedence() {
         let from_file = scenario.join("from-file");
         let existing = scenario.join("already-exported");
         std::fs::write(&env, format!("DOKIME_APPLICATION_ROOT='{}'\n", from_file.display())).unwrap();
-        let mut command = Command::new(super::executable());
+        let mut command = super::command();
         command
             .args(["--env-file"])
             .arg(&env)
@@ -164,20 +162,20 @@ async fn environment_file_precedence() {
         assert!(selected.join("settings.json").is_file());
         assert!(!unselected.exists());
     }
-    let output = Command::new(super::executable()).args(["--env-file"]).arg(root.path().join("missing.env")).output().unwrap();
+    let output = super::command().args(["--env-file"]).arg(root.path().join("missing.env")).output().unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot load environment file"));
     let malformed = root.path().join("malformed");
     std::fs::create_dir(&malformed).unwrap();
     std::fs::write(malformed.join(".env"), "DOKIME_APPLICATION_ROOT='unterminated\n").unwrap();
-    let output = Command::new(super::executable()).current_dir(&malformed).output().unwrap();
+    let output = super::command().current_dir(&malformed).output().unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot load project .env file"));
 }
 
 fn owned_launch(application: &std::path::Path) -> std::process::Command {
     // The Arguments The Desktop Shell Passes Its Owned Backend
-    let mut command = Command::new(super::executable());
+    let mut command = super::command();
     command
         .args(["--color", "never", "--dev-control", "--shutdown-stdin", "--port", "0", "--application-root"])
         .arg(application)

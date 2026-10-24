@@ -76,7 +76,7 @@ Dokime server.
 
 On Windows, run `dokime-<version>-windows-x86_64-setup.exe` and complete installation.
 The installer adds its directory to your user `PATH`. Close existing terminals
-and open a new one afterward. The installed CLI, server and GUI stay together;
+and open a new one afterward. The installed CLI and GUI stay together; each embeds the server library;
 do not move only `dokime.exe` out of that directory.
 
 On Debian/Ubuntu, open a terminal in the extracted `installers/` directory:

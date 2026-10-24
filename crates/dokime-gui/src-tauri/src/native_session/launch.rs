@@ -101,9 +101,8 @@ pub fn configuration(arguments: impl IntoIterator<Item = String>) -> DesktopLaun
     let mut launch = DesktopLaunch {
         target: None,
         expected_backend_id: None,
-        // The owned session runs the backend the installer shipped beside
-        // this application, so availability is what discovery finds.
-        local_backend_available: crate::native_session::backend::locate().is_ok(),
+        // The local server is linked into this desktop.
+        local_backend_available: true,
         error: None,
     };
     match parse(arguments) {

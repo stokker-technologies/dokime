@@ -59,6 +59,7 @@ impl Host {
         let stderr = root.join("host.stderr.log");
         let diagnostics = std::fs::File::create(&stderr).unwrap();
         let mut command = Command::new(super::artifacts::host_binary());
+        command.arg("server");
         #[cfg(windows)]
         command.creation_flags(0x0800_0000);
         command
@@ -93,7 +94,7 @@ impl Host {
             }
             phases.push(event["name"].as_str().unwrap_or_default().to_owned());
         };
-        // The dev-control startup phases `serve` reaches, in order, before it
+        // The dev-control startup phases `dokime server` reaches, in order, before it
         // starts the gRPC listener and reports ready.
         assert_eq!(phases, vec!["storage", "plugins", "requests"]);
         assert_eq!(ready["event"], "ready");

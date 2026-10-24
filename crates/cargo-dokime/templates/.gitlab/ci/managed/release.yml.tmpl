@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:007d245c7a661b4ca0c5468725a2099ed583b09b3e360628367d769677952969
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:2993bfa82cf13c489c1a67b4ffdf3a06abf052aa0fbf115a427d4a8948ad743f
 Release / Publish:
   stage: Release
   tags:
@@ -209,7 +209,7 @@ Release / Publish:
     if [ "$validated" = true ]; then export PROFILE="$review_profile" RELEASE_PROFILE="$review_profile" RELEASE_BUILD_RUN_ID="$review_run" RELEASE_BUILD_SHA="$review_sha" RELEASE_BUILD_VERSION="$review_version"; fi
   - mise run release:publish
   rules:
-  - if: $CI_COMMIT_TAG =~ /^v[0-9]/
+  - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^v[0-9]/
   variables:
     MISE_ENABLE_TOOLS: go,python,rust,uv,gh,git-cliff,glab
     REVIEW_PACKAGES: "[]"

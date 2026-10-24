@@ -45,24 +45,3 @@ export function startupDiagnostics(error: unknown): BackendDiagnostics | null {
   if (!("diagnostics" in error) || !error.diagnostics || typeof error.diagnostics !== "object") return null;
   return error.diagnostics as BackendDiagnostics;
 }
-
-/**
- * What a backend exit code means, from the server's process contract
- * (`dokime-server` `host/error.rs`), or `null` for a code it does not define.
- */
-export function backendExitMeaning(code: number | null): string | null {
-  switch (code) {
-    case 0:
-      return "Clean stop";
-    case 2:
-      return "Invalid input: arguments, environment file, plugin bundles";
-    case 3:
-      return "Runtime failure: I/O, runtime, transport or cleanup";
-    case 4:
-      return "Incompatible storage: the data root holds data this build cannot open";
-    case 5:
-      return "Stop incomplete: the next start seals what the stop left unfinished";
-    default:
-      return null;
-  }
-}

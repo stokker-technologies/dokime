@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:aa4db127190ca398f43a9930d6204b08ffd8bafdf31cd8c1f6b7396fa32dd35d
+# Rendered by stkr project update from templates/ci/.gitlab-ci.yml; sha256:eea456fcd8ff0bfa47e33605856c4dcb9a2af0891fcb5dbf9ca4a60095995168
 stages:
 - Check
 - Build
@@ -100,6 +100,11 @@ workflow:
   - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(dev|main)$/
     variables:
       PROFILE: dev
+    auto_cancel:
+      on_new_commit: none
+  - if: $CI_PIPELINE_SOURCE == "schedule"
+    variables:
+      PROFILE: release
     auto_cancel:
       on_new_commit: none
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:8c3a45c21b6839fb1e637a032bd5a98b3265b720aaa53053e77addbbb2d2080a
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:e214c4b79b8b0ebf4061a7a4002f16e10b7b29681434884a8c7de3f35770569f
 name: Release
 "on":
   workflow_call:
@@ -306,6 +306,13 @@ jobs:
       with:
         key: ${{ steps.uv.outputs.cache-primary-key }}
         path: .cache/uv/
+    - name: Cache Summary
+      if: always()
+      env:
+        STKR_CACHE_RESTORES: "{\"Mise\":\"${{ steps.mise.outputs.cache-hit == 'true' && 'Exact Hit' || steps.mise.outputs.cache-hit == 'false' && 'Partial Hit' || steps.mise.outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.cargo_downloads.outputs.cache-hit == 'true' && 'Exact Hit' || steps.cargo_downloads.outputs.cache-hit == 'false' && 'Partial Hit' || steps.cargo_downloads.outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.uv.outputs.cache-hit == 'true' && 'Exact Hit' || steps.uv.outputs.cache-hit == 'false' && 'Partial Hit' || steps.uv.outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
+      run: >-
+        mise exec -- uv run --locked --project tools/python python -m
+        project_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: gh,git-cliff,glab,go,python,rust,sccache,uv
       STKR_SCCACHE_BACKEND: gha

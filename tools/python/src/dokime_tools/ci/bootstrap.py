@@ -74,7 +74,24 @@ GUI_RUNTIME_PACKAGES = (
     "libasound2t64",
     "libssl3t64",
 )
-DESKTOP_PACKAGES = ("webkit2gtk-driver", "xvfb", "xdotool", "desktop-file-utils", "xdg-utils", "dbus", "gnome-keyring")
+DESKTOP_PACKAGES = (
+    "webkit2gtk-driver",
+    "xvfb",
+    "xdotool",
+    "desktop-file-utils",
+    "xdg-utils",
+    "dbus",
+    "gnome-keyring",
+    "libnss3",
+    "libnspr4",
+    "libgbm1",
+    "libxss1",
+    "libx11-xcb1",
+    "libxshmfence1",
+    "fonts-liberation",
+)
+# Google's Stable Chrome For Testing Release, Used Only When The Hosted Browser Is Absent.
+CHROME_VERSION = "156.0.8078.47"
 HARMOS_PACKAGES = ("harmos", "harmos-domain", "harmos-packaging", "harmos-sdk")
 CRATES_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
@@ -104,7 +121,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             prepare_windows_desktop(Path.cwd())
         elif sys.platform != "linux":
             raise ValueError("native desktop validation requires Windows or Linux")
-        elif not os.environ.get("DISPLAY"):
+        else:
+            prepare_linux_browser(Path.cwd())
+        if sys.platform == "linux" and not os.environ.get("DISPLAY"):
             github_environment = os.environ.get("GITHUB_ENV")
             if not github_environment:
                 raise ValueError("the desktop job needs DISPLAY or GitHub's environment file")
@@ -363,6 +382,43 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
         raise SystemExit("GUI prerequisites are missing and apt-get needs root; install the selected packages or run this as root.")
     _run([*prefix, "apt-get", "update"])
     _run([*prefix, "apt-get", "install", "-y", "--no-install-recommends", *packages])
+
+
+def prepare_linux_browser(root: Path) -> Path:
+    """Reuse An Installed Browser Or Install The Pinned Chrome For Testing Build."""
+    selected = os.environ.get("DOKIME_E2E_CHROME")
+    browser = shutil.which(selected or "google-chrome")
+    if selected and browser is None:
+        raise ValueError(f"the selected report browser is unavailable: {selected}")
+    if browser is None:
+        if platform.machine().lower() not in {"x86_64", "amd64"}:
+            raise ValueError("the declared Linux desktop browser requires x86_64")
+        destination = root / "target/tooling/desktop"
+        executable = destination / "chrome-linux64/chrome"
+        if not executable.is_file() or _driver_version(executable) != CHROME_VERSION:
+            url = f"https://storage.googleapis.com/chrome-for-testing-public/{CHROME_VERSION}/linux64/chrome-linux64.zip"
+            with tempfile.TemporaryDirectory(prefix="dokime-chrome-") as temporary:
+                archive = Path(temporary) / "chrome.zip"
+                urllib.request.urlretrieve(url, archive)
+                destination.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(archive) as downloaded:
+                    for member in downloaded.infolist():
+                        path = (destination / member.filename).resolve()
+                        if not path.is_relative_to(destination.resolve()):
+                            raise ValueError("the browser archive contains an escaping path")
+                        downloaded.extract(member, destination)
+                        if not member.is_dir():
+                            path.chmod((member.external_attr >> 16) & 0o777 or 0o644)
+        browser = str(executable.resolve())
+    version = _driver_version(Path(browser))
+    if not version:
+        raise ValueError(f"the report browser did not report its version: {browser}")
+    os.environ["DOKIME_E2E_CHROME"] = browser
+    if github_environment := os.environ.get("GITHUB_ENV"):
+        with Path(github_environment).open("a", encoding="utf-8") as written:
+            written.write(f"DOKIME_E2E_CHROME={browser}\n")
+    _step(f"Report browser uses {browser} ({version})")
+    return Path(browser)
 
 
 def prepare_windows_desktop(root: Path) -> Path:

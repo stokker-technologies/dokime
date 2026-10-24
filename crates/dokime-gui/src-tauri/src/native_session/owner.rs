@@ -22,7 +22,7 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use super::backend::{Backend, Process};
+use super::backend::Backend;
 use super::storage::StorageRoot;
 use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
 use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionSession, ConnectionTarget};
@@ -60,7 +60,7 @@ struct State {
 
 #[derive(Default)]
 struct Resources {
-    local: Option<Process>,
+    local: Option<dokime_server::host::Session>,
 }
 
 /* === Enums === */
@@ -395,17 +395,13 @@ impl DesktopSession {
 
 impl Resources {
     async fn shutdown(&mut self, abandon: &tokio_util::sync::CancellationToken) -> Result<(), Error> {
-        if let Some(local) = self.local.as_mut() {
-            let status = local.shutdown(abandon).await.map_err(|message| Error::Shutdown { message })?;
-            // The process has exited either way; a retry has nothing left to wait for.
-            self.local = None;
-            if !status.success() {
-                return Err(Error::Shutdown {
-                    message: format!(
-                        "The {} backend did not stop cleanly ({status}); its next start seals what it left unfinished.",
-                        crate::PRODUCT
-                    ),
-                });
+        if let Some(local) = self.local.take() {
+            tokio::select! {
+                result = local.shutdown() => result.map_err(|error| Error::Shutdown { message: error.to_string() })?,
+                () = abandon.cancelled() => {
+                    tracing::warn!("exiting without finishing the embedded server drain");
+                    return Err(Error::Shutdown { message: "The local server drain was interrupted.".to_owned() });
+                }
             }
         }
         Ok(())

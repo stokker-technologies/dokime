@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:269d61687338a671ddbb2f69fb2545f375e8a2a781729300b9813db87392af14
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:ea0f30d1e7b23e5621a4e08b8f8bd382ae66f8276fc8bf7dd1630b1003d33a57
 name: CI
 "on":
   push:
@@ -27,6 +27,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_linux\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated
@@ -42,6 +45,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_tests_linux\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated
@@ -57,6 +63,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_product_windows\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated
@@ -72,6 +81,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"build_tests_windows\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated
@@ -87,6 +99,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"check_python\":120,\"source\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated
@@ -102,6 +117,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"check_rust_linux\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated
@@ -117,6 +135,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"check_rust_windows\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated
@@ -132,6 +153,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"package_rust_linux\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - check
@@ -149,6 +173,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"package_rust_windows\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - check
@@ -166,6 +193,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"validate_test_rust_integration_linux\":120,\"validate_test_rust_unit_linux\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated
@@ -181,6 +211,9 @@ jobs:
     with:
       runners: "{\"linux\":{\"small\":\"ubuntu-latest\",\"large\":\"ubuntu-latest\"},\"windows\":{\"small\":\"windows-latest\",\"large\":\"windows-latest\"},\"nightly\":{\"small\":\"ubuntu-latest\",\"coverage\":\"ubuntu-latest\"}}"
       timeouts: "{\"validate_test_rust_integration_windows\":120,\"validate_test_rust_unit_windows\":120}"
+      pipeline: >-
+        ${{ github.event_name == 'pull_request' && 'pr' || startsWith(github.ref,
+        'refs/tags/v') && 'release' || 'dev' }}
     secrets: inherit
     needs:
     - validated

@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 // Local Imports
-import { backendExitMeaning } from "@/app/native-session/errors";
+import { startupDiagnostics } from "@/app/native-session/errors";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { statusPresentation } from "@/features/settings/plugins/PluginList";
 import { programSource } from "@/features/settings/plugins/PluginPrograms";
@@ -119,17 +119,10 @@ test("Operation Summary", () => {
   assert.equal(outranked.operation.id, "busy");
 });
 
-test("Backend Exit Meaning", () => {
-  // Each Code The Server Defines Names Its Cause
-  assert.match(backendExitMeaning(2) ?? "", /^Invalid input/);
-  assert.match(backendExitMeaning(3) ?? "", /^Runtime failure/);
-  assert.match(backendExitMeaning(4) ?? "", /^Incompatible storage/);
-  assert.match(backendExitMeaning(5) ?? "", /^Stop incomplete/);
-  assert.equal(backendExitMeaning(0), "Clean stop");
-
-  // An Undefined Code Or A Signal Claims No Meaning
-  assert.equal(backendExitMeaning(1), null);
-  assert.equal(backendExitMeaning(null), null);
+test("Embedded Startup Diagnostics", () => {
+  const diagnostics = { cause: "listener unavailable", log: "/application/log" };
+  assert.equal(startupDiagnostics({ kind: "startup", diagnostics }), diagnostics);
+  assert.equal(startupDiagnostics({ kind: "connection" }), null);
 });
 
 test("Brand Label", () => {

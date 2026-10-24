@@ -47,7 +47,7 @@ import { BACKUP_RESET_LABEL, backupFailure, backupResetAvailable, backupSteps } 
  * only way to see it move before then. */
 const PHASE_POLL_INTERVAL_MS = 300;
 
-/** The startup phases `serve --dev-control` reports, in the order it reports
+/** The startup phases `dokime server --dev-control` reports, in the order it reports
  * them. The wire carries only the phase it is in, so the order lives here. */
 const STARTUP_PHASES = ["storage", "plugins", "requests"] as const;
 
@@ -427,7 +427,7 @@ function Step({ active, detail = null, done, label }: { active: boolean; detail?
 
 /* === Private Functions === */
 
-/** Human label for a `serve --dev-control` startup phase name. The wire value
+/** Human label for a `dokime server --dev-control` startup phase name. The wire value
  * is free-form — an unrecognized name (a newer CLI, an older GUI) still shows
  * something instead of nothing. */
 function phaseLabel(phase: string): string {

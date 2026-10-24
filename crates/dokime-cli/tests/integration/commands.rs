@@ -115,7 +115,7 @@ async fn interrupt_recovery_boundaries() {
 
 #[tokio::test]
 async fn json_files_connection() {
-    assert!(Cli::try_parse_from(["dokime", "serve"]).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "server"]).is_ok());
     for arguments in [
         vec!["plan", "preview", "--template", "checks.probe", "--case-id", "case"],
         vec!["plan", "preview", "--input-file", "request.json", "--case-id", "case"],

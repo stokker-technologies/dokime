@@ -34,13 +34,12 @@ ROOT = configuration.ROOT
 
 def build(profile: str) -> list[str]:
     """Verify The Complete Feature Matrix For Explicit Local Extended Validation."""
-    compiler_profile = "release-tests" if profile == "release" else profile
     for selected in (
         ["--workspace", "--all-targets", "--all-features"],
         ["--workspace", "--lib", "--bins", "--no-default-features"],
         ["--package", "dokime-domain", "--target", "wasm32-unknown-unknown"],
     ):
-        cargo.clippy(ROOT, ["--locked", "--profile", compiler_profile, *selected])
+        cargo.clippy(ROOT, ["--locked", "--profile", "test", *selected])
     return []
 
 

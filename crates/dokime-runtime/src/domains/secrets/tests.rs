@@ -25,7 +25,7 @@ use std::sync::{
 use zeroize::Zeroizing;
 
 // Local Imports
-use super::{Backend, Change, SecretStore, SecretStoreError, SecretValue, TestStore, transfer};
+use super::{Backend, Change, CredentialStore, SecretStore, SecretStoreError, SecretValue, TestStore, transfer};
 use crate::config::{RuntimeConfig, Settings};
 use dokime_domain::model::secrets::{
     catalog::Metadata,
@@ -96,6 +96,20 @@ fn choices() -> Vec<Choice> {
 }
 
 /* === Tests === */
+
+#[test]
+fn stores_isolate_values() {
+    let first = CredentialStore(keyring_core::mock::Store::new().unwrap());
+    let second = CredentialStore(keyring_core::mock::Store::new().unwrap());
+    first.set("same-slot", "first-value").unwrap();
+    assert!(second.get("same-slot").unwrap().is_none());
+    second.set("same-slot", "second-value").unwrap();
+    assert_eq!(first.get("same-slot").unwrap().unwrap().expose(), "first-value");
+    assert_eq!(second.get("same-slot").unwrap().unwrap().expose(), "second-value");
+    first.remove("same-slot").unwrap();
+    assert!(first.get("same-slot").unwrap().is_none());
+    assert_eq!(second.get("same-slot").unwrap().unwrap().expose(), "second-value");
+}
 
 #[test]
 fn authenticated_secret_transfer_is_bounded_and_atomic() {
