@@ -20,6 +20,7 @@ use std::process::ExitCode;
 use clap::Parser;
 
 // Local Imports
+use dokime::domain::model::diagnostics::Diagnostic;
 
 /* === Constants === */
 
@@ -66,8 +67,17 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            // Preserve The Cause Chain In The Single Terminal Diagnostic.
-            terminal.failure(dokime::domain::model::diagnostics::Diagnostic::capture(&error));
+            // Present Distinct Causes Without Capturing Debug Traces.
+            let mut diagnostic = Diagnostic { message: error.to_string(), ..Default::default() };
+            let mut source = std::error::Error::source(&error);
+            while let Some(cause) = source {
+                let message = cause.to_string();
+                if message != diagnostic.message && !diagnostic.chain.contains(&message) {
+                    diagnostic.chain.push(message);
+                }
+                source = cause.source();
+            }
+            terminal.failure(diagnostic);
             error.exit_code()
         }
     }

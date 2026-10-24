@@ -88,7 +88,11 @@ fn start_tauri_app() -> tauri::Result<()> {
     // lines, so the subscriber cannot wait for `setup()`. `generate_context!`
     // already carries the bundle identifier the file layer resolves its
     // directory from; the same `context` value is later handed to `.build`.
-    let context = tauri::generate_context!();
+    let mut context = tauri::generate_context!();
+    if let Some(root) = std::env::var_os("DOKIME_APPLICATION_ROOT").filter(|root| !root.is_empty()) {
+        let root = std::path::absolute(root)?;
+        context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(root));
+    }
     let _log_guards = logging::init(&context.config().identifier);
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());

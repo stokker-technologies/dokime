@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-mod color;
 mod development_environment;
 mod isolation;
 mod new;

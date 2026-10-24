@@ -68,12 +68,6 @@ struct OsKeyring;
 
 struct CredentialStore(Arc<keyring_core::CredentialStore>);
 
-#[cfg(test)]
-#[derive(Clone, Default)]
-struct TestStore {
-    values: Arc<Mutex<BTreeMap<String, String>>>,
-}
-
 /* === Enums === */
 
 #[derive(Debug, Error)]
@@ -349,21 +343,6 @@ impl Backend for CredentialStore {
             Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
             Err(_) => Err(SecretStoreError::Unavailable),
         }
-    }
-}
-
-#[cfg(test)]
-impl Backend for TestStore {
-    fn set(&self, slot: &str, value: &str) -> Result<(), SecretStoreError> {
-        self.values.lock().unwrap().insert(slot.into(), value.into());
-        Ok(())
-    }
-    fn get(&self, slot: &str) -> Result<Option<SecretValue>, SecretStoreError> {
-        Ok(self.values.lock().unwrap().get(slot).cloned().map(SecretValue::new))
-    }
-    fn remove(&self, slot: &str) -> Result<(), SecretStoreError> {
-        self.values.lock().unwrap().remove(slot);
-        Ok(())
     }
 }
 
