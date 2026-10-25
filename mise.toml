@@ -221,6 +221,10 @@ depends = ["prepare:report"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.rust --profile {{usage.profile}}"
 
+[tasks."build:rust:focused"]
+description = "Compile An Explicit Local Rust Selection"
+run = "{{vars.tools}} dokime_tools.build.cargo focused"
+
 [tasks."build:rust:bench"]
 description = "Build Benchmarks And Their Matching Native Fixtures"
 depends = ["prepare:report"]

@@ -729,17 +729,20 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn settlement_live_sample_replay_extends_idle_deadline() {
         let (cancel, mut cancelled) = watch::channel(false);
-        let mut state = ExecutionState::new(Default::default(), cancel);
+        let state = ExecutionState::new(Default::default(), cancel);
         let stream = dokime_domain::model::identity::Identifier::new("reading").unwrap();
         let sample =
             crate::telemetry::TelemetrySample::new(crate::model::identity::new_id(), stream, 1, crate::model::time::now_utc(), "fixture");
-        state.receive(sample.clone()).unwrap();
         let states = std::collections::BTreeMap::from([("fixture".into(), state)]);
         let executions = Arc::new(std::sync::Mutex::new(states));
         let waiting = Arc::clone(&executions);
         let settlement = tokio::spawn(async move { settle_record_inputs(&waiting, "fixture", &mut cancelled).await });
         tokio::task::yield_now().await;
 
+        tokio::time::advance(Duration::from_secs(20)).await;
+        assert!(lock(&executions).get_mut("fixture").unwrap().receive(sample.clone()).unwrap());
+        tokio::time::advance(Duration::from_millis(10)).await;
+        tokio::task::yield_now().await;
         tokio::time::advance(Duration::from_secs(20)).await;
         assert!(!lock(&executions).get_mut("fixture").unwrap().receive(sample).unwrap());
         tokio::time::advance(Duration::from_millis(10)).await;
@@ -749,5 +752,35 @@ mod tests {
         assert!(!settlement.is_finished(), "first confirmation keeps a live-delivered sample's settlement active");
         lock(&executions).get_mut("fixture").unwrap().settle_record_subscriptions();
         assert!(settlement.await.unwrap().is_ok());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn repeated_replay_preserves_settlement_deadline() {
+        let (cancel, mut cancelled) = watch::channel(false);
+        let state = ExecutionState::new(Default::default(), cancel);
+        let stream = dokime_domain::model::identity::Identifier::new("reading").unwrap();
+        let sample =
+            crate::telemetry::TelemetrySample::new(crate::model::identity::new_id(), stream, 1, crate::model::time::now_utc(), "fixture");
+        let states = std::collections::BTreeMap::from([("fixture".into(), state)]);
+        let executions = Arc::new(std::sync::Mutex::new(states));
+        let waiting = Arc::clone(&executions);
+        let settlement = tokio::spawn(async move { settle_record_inputs(&waiting, "fixture", &mut cancelled).await });
+        tokio::task::yield_now().await;
+        assert!(lock(&executions).get_mut("fixture").unwrap().receive(sample.clone()).unwrap());
+        assert!(!lock(&executions).get_mut("fixture").unwrap().receive(sample.clone()).unwrap());
+        tokio::time::advance(Duration::from_millis(10)).await;
+        tokio::task::yield_now().await;
+
+        for _ in 0..3 {
+            tokio::time::advance(Duration::from_secs(10)).await;
+            assert!(!lock(&executions).get_mut("fixture").unwrap().receive(sample.clone()).unwrap());
+            tokio::time::advance(Duration::from_millis(10)).await;
+            tokio::task::yield_now().await;
+            assert!(!settlement.is_finished());
+        }
+        tokio::time::advance(Duration::from_secs(5)).await;
+        tokio::task::yield_now().await;
+        assert!(settlement.is_finished());
+        assert!(settlement.await.unwrap().is_err(), "duplicate replay cannot extend the 35-second idle bound");
     }
 }

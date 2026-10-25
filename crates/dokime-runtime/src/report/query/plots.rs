@@ -211,7 +211,7 @@ async fn optimized(
         let mut single = request.clone();
         single.y_keys = vec![key.clone()];
         single.max_points = Some(0);
-        let one = full(samples, records, &single, source.captured_at.as_str(), &context);
+        let one = crate::plot::project_plot_payload(samples, records, &single, source.captured_at.as_str(), &context);
         for mut series in one.series {
             series.raw_points = statistics.count;
             series.downsampled = series.points.len() < statistics.count;

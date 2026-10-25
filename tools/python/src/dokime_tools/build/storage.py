@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/build/storage.py; sha256:5fd668b69f07d7530a67415f3d32131111baafdc2f73ad6520905449ece43567
+# Rendered by stkr project update from templates/python/build/storage.py; sha256:4dee4be1ca90893737017ce4d2b8473395e30de3677c0f3a0318b5dc05f6326c
 # ***
 #
 # Dokime
@@ -41,8 +41,23 @@ PRESERVED = frozenset(
 # === Public Functions === #
 
 
-def preflight(directory: Path) -> None:
-    target = directory.resolve() / "target"
+def preflight(directory: Path, *, target: Path | None = None) -> None:
+    root = directory.resolve()
+    selected = Path(os.environ.get("CARGO_TARGET_DIR", "target")) if target is None else target
+    target = selected if selected.is_absolute() else root / selected
+    if not target.resolve().is_relative_to(root / "target"):
+        raise ValueError("Cargo compiler target must remain inside the repository target")
+    for ancestor in (target, *target.parents):
+        if ancestor == root:
+            break
+        if ancestor.exists() or ancestor.is_symlink() or ancestor.is_junction():
+            _metadata(ancestor)
+    for name in ("CARGO_BUILD_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"):
+        if name in os.environ:
+            selected = Path(os.environ[name])
+            actual = selected if selected.is_absolute() else root / selected
+            if actual.resolve() != target.resolve():
+                raise ValueError(f"{name} must match the preflighted Cargo target")
     if not target.exists():
         return
     profiles = _profiles(target)

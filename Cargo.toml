@@ -64,10 +64,10 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "re
 
 # Utilities
 blake2 = { version = "0.11.0" }
-harmos = "=0.1.3"
-harmos-domain = "=0.1.3"
-harmos-packaging = "=0.1.3"
-harmos-sdk = "=0.1.3"
+harmos = "=0.1.5"
+harmos-domain = "=0.1.5"
+harmos-packaging = "=0.1.5"
+harmos-sdk = "=0.1.5"
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }

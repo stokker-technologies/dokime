@@ -548,7 +548,7 @@ impl ExecutionState {
             return Ok(false);
         }
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
-        let position = SamplePosition { index: self.stream_rows.len(), confirmed: self.subscriptions_settling };
+        let position = SamplePosition { index: self.stream_rows.len(), confirmed: false };
         self.sample_positions.insert(sample.sample_id.clone(), position);
         self.stream_rows.push(sample);
         Ok(true)
@@ -977,8 +977,10 @@ mod tests {
         late.sample_id = crate::model::identity::new_id();
         assert!(state.receive(late.clone()).unwrap());
         assert_eq!(state.settlement_progress(), 3);
+        assert!(!state.receive(late.clone()).unwrap());
+        assert_eq!(state.settlement_progress(), 4);
         assert!(!state.receive(late).unwrap());
-        assert_eq!(state.settlement_progress(), 3);
+        assert_eq!(state.settlement_progress(), 4);
     }
 
     #[test]

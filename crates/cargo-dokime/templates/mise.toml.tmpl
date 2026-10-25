@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:6d5c07c9675c634a4d9d0a3d4760885a50de3e36896cf34947f1d190bbef5abd
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:e7cf810ce2cc7cba40620e6c0aa67d722dfe1b618cfdd72b3dfce8e0465ecb56
 # === Settings === #
 
 [settings]
@@ -118,6 +118,10 @@ run = [
   "uv run --locked --project tools/python python -m project_tools.build.cargo -- --locked --workspace --profile {{usage.profile}} --all-features",
   "uv run --locked --project tools/python python -m project_tools.build.cargo -- --locked --workspace --profile {{usage.profile}} --no-default-features",
 ]
+
+[tasks."build:rust:focused"]
+description = "Compile An Explicit Local Rust Selection"
+run = "uv run --locked --project tools/python python -m project_tools.build.cargo focused"
 
 [tasks."build:rust:tests"]
 description = "Build Test Binaries And Fixtures"

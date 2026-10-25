@@ -295,13 +295,23 @@ def test_artifact_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proce
 
 
 @pytest.mark.parametrize("namespace", [bootstrap.HARMOS_REPOSITORY, "crates-io"])
-def test_local_override(tmp_path: Path, namespace: str, monkeypatch: pytest.MonkeyPatch, processes) -> None:
+@pytest.mark.parametrize("checkout_config", [False, True])
+def test_local_override(tmp_path: Path, namespace: str, checkout_config: bool, monkeypatch: pytest.MonkeyPatch, processes) -> None:
     calls, source = processes
     config, checkout = _override(tmp_path, namespace)
+    if checkout_config:
+        destination = tmp_path / ".cargo/config.toml"
+        destination.parent.mkdir()
+        config = config.rename(destination)
+    else:
+        ignored = tmp_path / ".cargo/config.toml"
+        ignored.parent.mkdir()
+        ignored.write_text("invalid TOML: explicit configuration takes precedence")
+    selected = None if checkout_config else config
     assert not (tmp_path / "Cargo.lock").exists()
-    binary = bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=config)
+    binary = bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=selected)
     assert calls[-1][6:8] == ["--path", str(checkout / "crates/cargo-harmos")]
-    assert bootstrap.prepare_harmos(tmp_path, allow_install=False, cargo_config=config) == binary
+    assert bootstrap.prepare_harmos(tmp_path, allow_install=False, cargo_config=selected) == binary
     assert len(calls) == 1
     receipt = json.loads((binary.parent.parent / "receipt.json").read_text())
     assert receipt["identity"]["source"] == source[0]
@@ -310,11 +320,11 @@ def test_local_override(tmp_path: Path, namespace: str, monkeypatch: pytest.Monk
     original = config.read_bytes()
     config.write_bytes(original + b"\n# Changed Configuration\n")
     with pytest.raises(ValueError, match="consumers never rebuild"):
-        bootstrap.prepare_harmos(tmp_path, allow_install=False, cargo_config=config)
+        bootstrap.prepare_harmos(tmp_path, allow_install=False, cargo_config=selected)
     config.write_bytes(original)
     source[0] = "changed-source"
     with pytest.raises(ValueError, match="consumers never rebuild"):
-        bootstrap.prepare_harmos(tmp_path, allow_install=False, cargo_config=config)
+        bootstrap.prepare_harmos(tmp_path, allow_install=False, cargo_config=selected)
     install = bootstrap._run
 
     def mutate(command):
@@ -323,12 +333,17 @@ def test_local_override(tmp_path: Path, namespace: str, monkeypatch: pytest.Monk
 
     monkeypatch.setattr(bootstrap, "_run", mutate)
     with pytest.raises(ValueError, match="source changed"):
-        bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=config)
+        bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=selected)
 
 
 @pytest.mark.parametrize("fault", ["CI", "GITHUB_ACTIONS", "DOKIME_CI_ROLE", "relative", "package", "tool", "ambiguous"])
-def test_override_refusal(tmp_path: Path, fault: str, monkeypatch: pytest.MonkeyPatch, processes) -> None:
+@pytest.mark.parametrize("checkout_config", [False, True])
+def test_override_refusal(tmp_path: Path, fault: str, checkout_config: bool, monkeypatch: pytest.MonkeyPatch, processes) -> None:
     config, checkout = _override(tmp_path, "crates-io")
+    if checkout_config:
+        destination = tmp_path / ".cargo/config.toml"
+        destination.parent.mkdir()
+        config = config.rename(destination)
     if fault in {"CI", "GITHUB_ACTIONS", "DOKIME_CI_ROLE"}:
         monkeypatch.setenv(fault, "true")
     elif fault == "relative":
@@ -340,8 +355,41 @@ def test_override_refusal(tmp_path: Path, fault: str, monkeypatch: pytest.Monkey
     else:
         config.write_text(config.read_text() + f'\n[patch."{bootstrap.HARMOS_REPOSITORY}"]\nharmos = {{ path = "unused" }}\n')
     with pytest.raises(ValueError):
-        bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=config)
+        bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=None if checkout_config else config)
     assert processes[0] == []
+
+
+def test_unrelated_checkout_config(tmp_path: Path, processes) -> None:
+    _manifest(tmp_path, '"=0.1.0"')
+    _lock(tmp_path)
+    config = tmp_path / ".cargo/config.toml"
+    config.parent.mkdir()
+    config.write_text("[net]\noffline = true\n")
+
+    binary = bootstrap.prepare_harmos(tmp_path, allow_install=True)
+    receipt = json.loads((binary.parent.parent / "receipt.json").read_text())
+    assert receipt["identity"]["registry"] == "crates-io"
+    assert receipt["identity"]["version"] == "0.1.0"
+
+
+def test_source_tool_preflight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, processes) -> None:
+    config, _checkout = _override(tmp_path, "crates-io")
+    admitted = []
+    install = bootstrap._run
+
+    def preflight(root, *, target):
+        assert root == tmp_path
+        admitted.append(target)
+
+    def compile_tool(command):
+        target = Path(command[command.index("--target-dir") + 1])
+        assert admitted == [target]
+        install(command)
+
+    monkeypatch.setattr(bootstrap.storage, "preflight", preflight)
+    monkeypatch.setattr(bootstrap, "_run", compile_tool)
+    bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=config)
+    assert admitted == [tmp_path / "target/tooling/harmos"]
 
 
 @pytest.mark.parametrize("namespace", [bootstrap.HARMOS_REPOSITORY, "crates-io"])

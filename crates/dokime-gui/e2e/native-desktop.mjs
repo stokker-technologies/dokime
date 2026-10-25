@@ -429,15 +429,44 @@ async function startBackend(work, evidence, endpoint, label = "backend", launchP
     child.startupError = error;
   });
   backend = { child, endpoint: `http://127.0.0.1:${port}`, log };
-  await until(
-    "backend listening",
-    () => {
-      if (child.startupError) throw child.startupError;
-      if (child.exitCode !== null) throw new Error(`Native backend exited during startup: ${child.exitCode}`);
-      return listening(backend.endpoint);
-    },
-    180000,
-  );
+  const readyStarted = Date.now();
+  const readyDeadline = readyStarted + 180000;
+  const readyEnvironment = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
+  delete readyEnvironment.DOKIME_KEY;
+  delete readyEnvironment.DOKIME_ENDPOINT;
+  const readiness = { attempts: 0, ready: false, lastExitCode: null };
+  try {
+    await until(
+      "backend protocol ready",
+      async () => {
+        if (child.startupError) throw child.startupError;
+        if (child.exitCode !== null) throw new Error(`Native backend exited during startup: ${child.exitCode}`);
+        if (!(await listening(backend.endpoint))) return false;
+        readiness.attempts += 1;
+        try {
+          const result = await promisify(execFile)(
+            cliBinary,
+            ["status", "--endpoint", backend.endpoint, "--timeout-seconds", "120", "--json"],
+            {
+              windowsHide: true,
+              cwd: work,
+              env: readyEnvironment,
+              timeout: Math.max(1, Math.min(120000, readyDeadline - Date.now())),
+            },
+          );
+          readiness.lastExitCode = 0;
+          readiness.ready = JSON.parse(result.stdout).status === "ready";
+          return readiness.ready;
+        } catch (error) {
+          readiness.lastExitCode = Number.isInteger(error.code) ? error.code : null;
+          return false;
+        }
+      },
+      Math.max(1, readyDeadline - Date.now()),
+    );
+  } finally {
+    await writeFile(join(evidence, `${label}-readiness.json`), JSON.stringify({ ...readiness, elapsedMs: Date.now() - readyStarted }));
+  }
   return backend;
 }
 
@@ -499,10 +528,15 @@ async function startSession(work, endpoint, evidence) {
               XDG_STATE_HOME: join(home, "state"),
             }),
       },
-      stdio: ["ignore", "ignore", "inherit"],
+      stdio: ["ignore", "ignore", windows ? "inherit" : "pipe"],
     },
   );
   const webdriver = driverProcess;
+  let driverStderr = Buffer.alloc(0);
+  webdriver.stderr?.on("data", (chunk) => {
+    driverStderr = Buffer.concat([driverStderr, chunk]).subarray(-65536);
+    process.stderr.write(chunk);
+  });
   const base = `http://127.0.0.1:${port}`;
 
   async function request(method, path, body) {
@@ -540,6 +574,7 @@ async function startSession(work, endpoint, evidence) {
             "ms:edgeOptions": {
               binary: resolve(shellBinary),
               args: endpoint ? [`--endpoint=${endpoint}`] : [],
+              excludeSwitches: ["enable-logging"],
             },
           }
         : {
@@ -804,6 +839,22 @@ async function startSession(work, endpoint, evidence) {
   };
   session.close = async () => {
     if (session.closed) return;
+    const linuxProcesses = async (known = []) => {
+      if (windows) return null;
+      const pending = [...new Set([webdriver.pid, ...known])];
+      const processes = [];
+      for (let index = 0; index < pending.length && index < 64; index += 1) {
+        const pid = pending[index];
+        const status = await readFile(`/proc/${pid}/stat`, "utf8").catch(() => null);
+        processes.push({ pid, status: status?.trim() ?? null });
+        const children = await readFile(`/proc/${pid}/task/${pid}/children`, "utf8").catch(() => "");
+        for (const child of children.trim().split(/\s+/).filter(Boolean).map(Number)) {
+          if (!pending.includes(child)) pending.push(child);
+        }
+      }
+      return processes;
+    };
+    const processesBefore = await linuxProcesses().catch((error) => ({ error: String(error) }));
     try {
       await session.execute(`
         globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
@@ -822,6 +873,19 @@ async function startSession(work, endpoint, evidence) {
       );
     } catch (failure) {
       const label = `failure-native-close-${Date.now()}`;
+      const processesAfter = await linuxProcesses(Array.isArray(processesBefore) ? processesBefore.map(({ pid }) => pid) : []).catch(
+        (error) => ({ error: String(error) }),
+      );
+      const linuxDriver = windows
+        ? null
+        : {
+            pid: webdriver.pid,
+            exitCode: webdriver.exitCode,
+            signalCode: webdriver.signalCode,
+            stderr: driverStderr.toString("utf8"),
+            processesBefore,
+            processesAfter,
+          };
       const captures = await Promise.allSettled([
         session.screenshot(label),
         session.text().then((body) => writeFile(join(evidence, `${label}.txt`), redact(`${failure.stack ?? failure.message}\n\n${body}`))),
@@ -892,9 +956,10 @@ async function startSession(work, endpoint, evidence) {
           capture.status === "fulfilled" ? capture.value : { error: String(capture.reason) },
         ]),
       );
-      await writeFile(join(evidence, `${label}.json`), redact(JSON.stringify({ error: failure.message, ...diagnostics }, null, 2))).catch(
-        (error) => process.stderr.write(`Native close evidence failed: ${error.message}\n`),
-      );
+      await writeFile(
+        join(evidence, `${label}.json`),
+        redact(JSON.stringify({ error: failure.message, ...diagnostics, linuxDriver }, null, 2)),
+      ).catch((error) => process.stderr.write(`Native close evidence failed: ${error.message}\n`));
       throw failure;
     } finally {
       session.closed = true;
@@ -3743,9 +3808,11 @@ async function ownedStartupJourney() {
 async function idleJourney() {
   await session.goto("/library");
   await installSaveTap(session);
+  await until("loaded Library catalog", async () => hasText(await session.text(), STARTUP_SUITE));
   const library = await idleInvokes("Library");
   const cycleId = await createEmptyContainer(session, "Idle Refresh Evidence");
   await cyclePhase(session, "Active");
+  await until("idle cycle admission ready", () => session.named("button", "Seal Cycle"));
   const cycle = await idleInvokes("Active Cycle");
   await writeFile(join(evidence, "idle-invokes.json"), JSON.stringify({ library, cycleId, cycle }, null, 2));
   assert.deepEqual(library.queries, [], "An idle mounted Library does not poll backend queries");
@@ -4445,6 +4512,7 @@ async function main() {
     await session.connected();
     await session.goto(`/cycles/${activeCycleId}?view=cycle`);
     await cyclePhase(session, "Active");
+    await until("reconnected cycle admission ready", () => session.named("button", "Seal Cycle"));
     assert.ok(await session.exists("button", "Seal Cycle"), "reconnecting preserves Active admission");
   });
   await journey("restart", restartJourney);

@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/release/registry.py; sha256:4a2d193f641a020b44ffcf4c5c85ea3928d00f25c737c4fc6460a81fc1a7573a
+# Rendered by stkr project update from templates/python/release/registry.py; sha256:3b6205494d048f9f5538677f2f8eb75b5b15975b9c67672c765ed7518231886b
 # ***
 #
 # Dokime
@@ -29,6 +29,7 @@ from typing import Any
 # Third Party Imports
 # Local Imports
 # isort: split
+from ..build import storage
 from . import policy
 
 # Type Checking Imports
@@ -69,6 +70,7 @@ class ProviderRedirect(urllib.request.HTTPRedirectHandler):
 
 def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -> None:
     """Publish Workspace Crates One At A Time In Dependency Order, Resuming Past Published Versions."""
+    storage.preflight(directory)
     packages = publishable(directory)
     deadline = clock() + RATE_BUDGET
     for name in _publication_order(packages):
@@ -104,6 +106,7 @@ def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -
 
 def rehearse_crates(directory: Path, *, skip_published: bool = True) -> None:
     """Dry-Run Each Unpublished Crate Alone, In Publication Order, Seeing Only The Siblings Published Before It."""
+    storage.preflight(directory)
     packages = publishable(directory)
     target = Path(
         json.loads(policy.execute(directory, ["cargo", "metadata", "--format-version", "1", "--no-deps"], capture=True))["target_directory"]

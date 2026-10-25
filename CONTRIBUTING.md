@@ -35,6 +35,11 @@ Use Conventional Commits, such as `fix(runtime): preserve stopped execution evid
 Keep generated outputs with their source. Refresh embedded reports with
 `mise run prepare:report` and organization assets with `mise run prepare:organization`.
 
+For coupled Harmos development, keep registry dependencies declared and place the
+local Cargo patch in an untracked `.cargo/config.toml`. Preparation and frontend
+tasks use that same explicit patch for the Harmos authoring tool. CI refuses
+local overrides; remove the patch and pin the published dependency before delivery.
+
 ## Tests And Checks
 
 During implementation, run targeted checks for changed behavior. Once all agreed

@@ -33,6 +33,7 @@ from typing import Any
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.build import storage
 
 # Type Checking Imports
 
@@ -218,7 +219,10 @@ def prepare_harmos(
     allow_install: bool,
     cargo_config: Path | None = None,
 ) -> Path:
+    if cargo_config is None:
+        cargo_config = _checkout_harmos_config(root)
     local_source = None
+
     if cargo_config is not None:
         if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.environ.get("DOKIME_CI_ROLE"):
             raise ValueError("CI refuses local Harmos tool overrides")
@@ -327,6 +331,7 @@ def prepare_harmos(
                     if local_source is not None
                     else ["--git", identity["git"], "--rev", identity["rev"]]
                 )
+                storage.preflight(root, target=root / "target/tooling/harmos")
                 _run(
                     [
                         "mise",
@@ -400,8 +405,10 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
     if all(_package_installed(package) for package in packages):
         _step("skipping GUI packages: all prerequisites are installed")
         return
+
     prefix = []
-    if os.geteuid() != 0 and os.environ.get("GITHUB_ACTIONS") == "true" and shutil.which("sudo"):
+    managed_ci = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("STKR_CI_SIMULATE") == "1"
+    if os.geteuid() != 0 and managed_ci and shutil.which("sudo"):
         prefix = ["sudo", "-n"]
     elif os.geteuid() != 0:
         raise SystemExit("GUI prerequisites are missing and apt-get needs root; install the selected packages or run this as root.")
@@ -482,6 +489,17 @@ def prepare_windows_desktop(root: Path) -> Path:
 
 
 # === Private Functions === #
+
+
+def _checkout_harmos_config(root: Path) -> Path | None:
+    candidate = root / ".cargo/config.toml"
+    if not candidate.is_file():
+        return None
+    declaration = tomllib.loads(candidate.read_text(encoding="utf-8"))
+    patches = declaration.get("patch", {})
+    git = patches.get(HARMOS_REPOSITORY, {})
+    registry = patches.get("crates-io", {})
+    return candidate if "harmos" in git or "harmos" in registry else None
 
 
 def _install_harmos_release(staged: Path, identity: dict[str, Any], binary: str) -> str:

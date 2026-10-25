@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/artifacts.py; sha256:e895d0be716e78a82524437bf31f3ba24c610462c10f0f43b4fd2e2c91735de1
+# Rendered by stkr project update from templates/python/ci/artifacts.py; sha256:f192b9a9bf97fd0a4f085e23b7f72f822ff61e982fc5f01c1555da275a6a93a7
 # ***
 #
 # Dokime
@@ -102,6 +102,7 @@ def extract(directory: Path, archive: Path) -> None:
         status = decompressor.wait()
         if status:
             raise subprocess.CalledProcessError(status, "zstd")
+    archive.unlink()
 
 
 def main() -> None:

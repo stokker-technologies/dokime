@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/run.py; sha256:20f84a42596a359000e684de591d235840156ab9dfef01e3ebeb2ec7bb7a2107
+# Rendered by stkr project update from templates/python/test/run.py; sha256:45ec7745fa28bcaa3a2e97ee3a39e8baa0266e2b7dd8aa37e23cd32dc0163bca
 # ***
 #
 # {{package}}
@@ -28,7 +28,7 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from .. import temporary
-from ..build import paths
+from ..build import paths, storage
 from . import archive, nextest, policy, pytest, report, vitest
 
 # Type Checking Imports
@@ -128,6 +128,7 @@ def coverage(
 
         # Instrumented Run
         if language == "rust":
+            storage.preflight(directory)
             binaries = archive.binaries(directory, profile)
             names = sorted(set(binaries.values()))
             expression, rest = nextest.selection(category, extra, names)
