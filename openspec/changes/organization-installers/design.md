@@ -24,5 +24,7 @@ Integration owner: OpenSpec, root manifests/lock, existing sidecar command group
 Owners coordinate shared type interfaces before edits. Cargo manifest dependency requests go to integration owner; no competing lockfile writes.
 
 ## Delivery
+The concurrent baseline owner owns the remaining Stop acknowledgement repair in the Harmos query producer. At the user's direction, this feature waits for that work instead of duplicating instrumentation or implementation. Adopt its verified published dependency and baseline changes after reviewing the handoff, then rerun affected native proof; preserve production deadlines and durable acknowledgement. Existing frozen validation may finish independent installer and starter checks.
+
 All changes combine on feat/organization-installers. Refresh and merge the latest published product CI-fixes branch at integration checkpoints, before source closure and before delivery; validate affected behavior after each update. Only targeted proof until all implementation items close and writers hand off. Then default all-platform mise run ci:simulate once; fix and rerun failing lanes. Reconcile upstream PR 7 with dev before publishing an independent feature review. User authorizes push, PR and auto-merge after required gates; never bypass missing executors/checks. Finish the specification after actual tasks complete.
 

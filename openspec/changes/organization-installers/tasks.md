@@ -35,6 +35,10 @@
 
 - [x] 3.16 Installer owner repairs declared GUI package provisioning for the non-root local Linux runner in `tools/python/src/dokime_tools/ci/bootstrap.py`, with focused behavior tests in `packages/dokime-client/tests/integration/client/test_gui_bootstrap.py`. Use available noninteractive sudo independently of provider environment; preserve root execution, existing package selection and fail-closed behavior when installation is unavailable.
 
+- [ ] 3.17 Wait for the baseline owner's Harmos query-producer repair under the user's explicit direction; review its verified published handoff, lock the adoption inventory before edits, reconcile overlapping runtime changes and adopt the published dependency before final affected native proof. Do not duplicate the upstream repair.
+
+- [x] 3.18 Sidecar owner repairs the standalone starter's Windows mise hierarchy ceiling in `tools/python/src/dokime_tools/test/rust/starter.py`. Supply ordinary and equivalent verbatim spellings of the same temporary boundary, including UNC normalization, so per-task canonicalization cannot walk into machine ancestor configuration. Preserve Linux behavior, public caches and automatic installation; verify the actual generated formatter with offline automatic installation enabled before native starter proof.
+
 ## Final Validation
 - [ ] 4.1 Declare source complete only after all implementation items and writer handoffs; run default all-required-platform mise run ci:simulate and repair failing lanes without weakening checks.
 

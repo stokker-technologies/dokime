@@ -75,6 +75,9 @@ def test(profile: str) -> None:
             ceiling = ceiling[4:]
             if ceiling.startswith("UNC\\"):
                 ceiling = "\\\\" + ceiling[4:]
+        if os.name == "nt":
+            verbatim = "\\\\?\\UNC\\" + ceiling[2:] if ceiling.startswith("\\\\") else "\\\\?\\" + ceiling
+            ceiling = os.pathsep.join((ceiling, verbatim))
         environment.update(MISE_GLOBAL_CONFIG_FILE=str(neutral), MISE_SYSTEM_CONFIG_FILE=str(neutral), MISE_CEILING_PATHS=ceiling)
         plugin = scratch / "starter-plugin"
         for command, cwd in [
