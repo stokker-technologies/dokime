@@ -273,7 +273,7 @@ run = [
   'python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in (\"target/contracts\", \"target/debug/plugins\")]"',
   "cargo build --locked -p dokime-cli --bin dokime --message-format json-render-diagnostics > target/contracts/dev.jsonl",
   "node crates/dokime-gui/tools/bindings.mjs target/contracts/dev.jsonl",
-  "cargo run --locked -p cargo-dokime -- build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
+  "cargo run --locked -p cargo-dokime -- sidecar build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime",
   "pnpm --dir crates/dokime-gui run tauri:dev",
 ]
 

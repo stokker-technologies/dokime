@@ -26,6 +26,8 @@
 
 - [x] 3.12 Integration owner refreshes canonical simulator workspace ownership from the installed Hub override while regenerating the PowerShell declaration. Inventory: generated `ci/simulate.py`, `ci/containers.py`, `ci/workspaces.py` in product tooling and sidecar templates. Review owned-path, lease, process-tree and report-preservation guards; validate the existing targeted Hub workspace-lifecycle contract without changing Hub source or publication state.
 
+- [x] 3.13 Integration owner migrates the remaining authored development caller in `mise.toml` to `sidecar build`, audits maintained callers for removed top-level commands, and verifies the command shape with the built candidate tool.
+
 ## Final Validation
 - [ ] 4.1 Declare source complete only after all implementation items and writer handoffs; run default all-required-platform mise run ci:simulate and repair failing lanes without weakening checks.
 
