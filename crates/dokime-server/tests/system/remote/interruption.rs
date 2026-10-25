@@ -604,9 +604,10 @@ fn read_terminal(
         if cancellation_requested && let Some(gate) = &gate {
             gate.released.cancel();
         }
-        if !continued && text.contains("Terminate batch job") {
+        if !continued && text.contains("Terminate batch job (Y/N)? ") {
             writer.write_all(b"N\r")?;
             writer.flush()?;
+            eprintln!("Batch Termination Prompt Acknowledged");
             continued = true;
         }
     }
