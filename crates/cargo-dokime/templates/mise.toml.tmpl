@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/profiles/mise.toml; sha256:e7cf810ce2cc7cba40620e6c0aa67d722dfe1b618cfdd72b3dfce8e0465ecb56
+# Rendered by stkr project update from templates/profiles/mise.toml; sha256:326ef430aa32d9daae1665d532dff5cfd026c16fb356a9844062b28ab68176b5
 # === Settings === #
 
 [settings]
@@ -214,6 +214,8 @@ run = [
 [tasks."release:publish:rust"]
 description = "Publish Rust Crates"
 run = "uv run --locked --project tools/python python -m project_tools.release.run crates"
+
+# === Clean === #
 
 # === Housekeeping === #
 

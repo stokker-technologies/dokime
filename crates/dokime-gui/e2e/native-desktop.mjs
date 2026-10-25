@@ -855,19 +855,39 @@ async function startSession(work, endpoint, evidence) {
       return processes;
     };
     const processesBefore = await linuxProcesses().catch((error) => ({ error: String(error) }));
+    const ownedShells = Array.isArray(processesBefore)
+      ? processesBefore.filter(({ pid, status }) => status?.startsWith(`${pid} (${basename(shellBinary)}) `))
+      : [];
     try {
-      await session.execute(`
-        globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
-      `);
+      let closeReplyLost = false;
+      try {
+        await session.execute(`
+          globalThis.__TAURI_INTERNALS__.invoke('plugin:window|close', {label: 'main'});
+        `);
+      } catch (error) {
+        if (windows || !ownedShells.length || !/Session terminated without a reply/i.test(error.message)) throw error;
+        closeReplyLost = true;
+      }
       await until(
         "native window completes orderly close",
         async () => {
+          let closed;
           try {
-            return (await session.request("GET", "/window/handles")).length === 0;
+            closed = (await session.request("GET", "/window/handles")).length === 0;
           } catch (error) {
-            if (/invalid session id|disconnected|connection refused/i.test(error.message)) return true;
-            throw error;
+            if (!/invalid session id|disconnected|connection refused/i.test(error.message)) throw error;
+            closed = true;
           }
+          if (!closed || !closeReplyLost) return closed;
+          for (const { pid } of ownedShells) {
+            try {
+              await readFile(`/proc/${pid}/stat`, "utf8");
+              return false;
+            } catch (error) {
+              if (error.code !== "ENOENT") throw error;
+            }
+          }
+          return true;
         },
         40000,
       );
@@ -3118,20 +3138,19 @@ async function settingsJourney(session, notes) {
 
   /* Storage sources: one row per configured source. */
   await session.goto("/settings/general");
-  const general = await until(
+  const storage = await until(
     "storage sources",
     async () => {
-      const text = await session.text();
-      return hasText(text, "Storage Sources") ? text : null;
+      const state = await session.execute(`
+        const list = document.querySelector('[aria-label="Storage source priority"]');
+        return {rows: list ? list.children.length : 0, text: document.body.innerText};
+      `);
+      return state.rows >= 1 || hasText(state.text, "No storage sources are configured.") ? state : null;
     },
     120000,
   );
-  const storageRows = await session.execute(
-    `const list = document.querySelector('[aria-label="Storage source priority"]');
-     return list ? list.children.length : 0;`,
-  );
   assert.ok(
-    storageRows >= 1 || hasText(general, "No storage sources are configured."),
+    storage.rows >= 1 || hasText(storage.text, "No storage sources are configured."),
     "Storage Sources must render its rows or say there are none",
   );
 
@@ -4119,6 +4138,37 @@ for index in range(desktop.get_child_count()):
       [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
       $scope = [System.Windows.Automation.TreeScope]::Descendants
       $condition = [System.Windows.Automation.Condition]::TrueCondition
+      function Write-PickerState($phase, $window, $pidCondition) {
+        $state = [ordered]@{phase=$phase; field=$null; button=$null; windows=@()}
+        try {
+          $fieldId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1148')
+          $fieldType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+          $fieldCondition = New-Object System.Windows.Automation.AndCondition($fieldId, $fieldType)
+          $field = $window.FindFirst($scope, $fieldCondition)
+          if ($field) {
+            $value = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+            $state.field = @{value=$value.Current.Value; enabled=$field.Current.IsEnabled; offscreen=$field.Current.IsOffscreen; focused=$field.Current.HasKeyboardFocus}
+          }
+        } catch { $state.fieldError = $_.Exception.Message }
+        try {
+          $buttonId = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
+          $buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+          $buttonCondition = New-Object System.Windows.Automation.AndCondition($buttonId, $buttonType)
+          $button = $window.FindFirst($scope, $buttonCondition)
+          if ($button) {
+            $state.button = @{name=$button.Current.Name; enabled=$button.Current.IsEnabled; offscreen=$button.Current.IsOffscreen; focused=$button.Current.HasKeyboardFocus}
+          }
+        } catch { $state.buttonError = $_.Exception.Message }
+        try {
+          $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)
+          $state.windowCount = $windows.Count
+          for ($index = 0; $index -lt [Math]::Min(8, $windows.Count); $index++) {
+            $popup = $windows[$index]
+            $state.windows += @{handle=$popup.Current.NativeWindowHandle; title=$popup.Current.Name; class=$popup.Current.ClassName; enabled=$popup.Current.IsEnabled; offscreen=$popup.Current.IsOffscreen}
+          }
+        } catch { $state.windowError = $_.Exception.Message }
+        [Console]::Error.WriteLine(('picker state=' + ($state | ConvertTo-Json -Compress -Depth 4)))
+      }
       [Console]::Error.WriteLine(('picker shell={0} file={1} window={2}' -f $env:DOKIME_PICKER_SHELL, $env:DOKIME_PICKER_FILE, $env:DOKIME_PICKER_WINDOW))
       foreach ($process in Get-Process | Where-Object { $_.Path -eq $env:DOKIME_PICKER_SHELL }) {
         [Console]::Error.WriteLine(('picker process={0}' -f $process.Id))
@@ -4127,6 +4177,7 @@ for index in range(desktop.get_child_count()):
           [Console]::Error.WriteLine(('picker handle={0} title={1} offscreen={2}' -f $window.Current.NativeWindowHandle, $window.Current.Name, $window.Current.IsOffscreen))
           if ($env:DOKIME_PICKER_WINDOW) {
             if ($window.Current.NativeWindowHandle.ToString() -eq $env:DOKIME_PICKER_WINDOW) {
+              Write-PickerState 'waiting' $window $pidCondition
               Write-Output 'open'
               exit 0
             }
@@ -4149,11 +4200,15 @@ for index in range(desktop.get_child_count()):
           }
           if ($field -and $button) {
             $selectedWindow = $window.Current.NativeWindowHandle
-            $field.SetFocus()
             $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($env:DOKIME_PICKER_FILE)
             [Console]::Error.WriteLine(('picker entered={0}' -f $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value))
-            $button.SetFocus()
+            Write-PickerState 'before-invoke' $window $pidCondition
+            $entered = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+            if (![String]::Equals($entered, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
+              throw 'The native picker filename differs from the requested file before Open'
+            }
             $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            Write-PickerState 'after-invoke' $window $pidCondition
             Write-Output ('selected:' + $selectedWindow)
             exit 0
           }

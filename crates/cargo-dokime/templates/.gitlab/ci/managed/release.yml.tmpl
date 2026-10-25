@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:2993bfa82cf13c489c1a67b4ffdf3a06abf052aa0fbf115a427d4a8948ad743f
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/release.yml; sha256:9e2b3b2d800120b6a99322a98da2de247a53d3173d271f7be4847af396b2f4c6
 Release / Publish:
   stage: Release
   tags:
@@ -112,7 +112,12 @@ Release / Publish:
         if tag and profile != "release":
             raise ValueError("tag requires release-profile evidence")
         required = json.loads(os.environ.get("REVIEW_PACKAGES", "[]"))
-        if tag:
+        preparation = (
+            os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+            if github
+            else os.environ.get("CI_PIPELINE_SOURCE") in ("web", "api", "trigger")
+        )
+        if tag or preparation:
             required += json.loads(os.environ.get("REVIEW_BUILDS", "[]"))
         if github:
             runs = pages(f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={head}", "workflow_runs")

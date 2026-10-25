@@ -50,7 +50,7 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
-const COPY_BYTES: usize = 64 * 1024;
+const COPY_BYTES: usize = 1024 * 1024;
 const MAX_PREFIX_BYTES: usize = 2 * 1024 * 1024;
 
 /* === Macros === */

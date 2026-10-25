@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:67c91daf8fbadf1340324dcbf654526248f0d85ca541d62fc54b8e2fce0a05f2
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:e623460b554c5bb66119360ecc0f84b7c4ba1546226998bbd8a893bdede8a3a6
 name: Test / Linux
 "on":
   workflow_call:
@@ -168,9 +168,29 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
+        atomic=0
+        case ",${MISE_ENABLE_TOOLS:-rust,node}," in
+            *,node,*|*,npm:*)
+                atomic=1
+                if command -v ldconfig >/dev/null 2>&1; then
+                    case "$(ldconfig -p 2>/dev/null || true)" in
+                        *libatomic.so.1*) atomic=0 ;;
+                    esac
+                fi
+                if [ "$atomic" -eq 1 ]; then
+                    for library in \
+                        /lib/libatomic.so.1 /lib64/libatomic.so.1 /usr/lib/libatomic.so.1 /usr/lib64/libatomic.so.1 \
+                        /lib/*/libatomic.so.1 /usr/lib/*/libatomic.so.1; do
+                        if test -r "$library"; then atomic=0; break; fi
+                    done
+                fi
+                if [ "$atomic" -eq 1 ]; then missing="$missing libatomic.so.1"; fi
+                ;;
+        esac
         install_prerequisites() {
             set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic1; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
@@ -180,6 +200,7 @@ jobs:
                     sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
                 else sudo -n apk add --no-cache "$@"; fi
@@ -252,7 +273,9 @@ jobs:
       if: always()
       with:
         name: junit-test_rust_unit-${{ env.PROFILE }}-linux
-        path: target/tests/${{ env.PROFILE }}/*/unit-rust/
+        path: |-
+          target/tests/${{ env.PROFILE }}/*/unit-rust/
+          .stkr/traces/${{ env.PROFILE }}/*/unit-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -449,9 +472,29 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
+        atomic=0
+        case ",${MISE_ENABLE_TOOLS:-rust,node}," in
+            *,node,*|*,npm:*)
+                atomic=1
+                if command -v ldconfig >/dev/null 2>&1; then
+                    case "$(ldconfig -p 2>/dev/null || true)" in
+                        *libatomic.so.1*) atomic=0 ;;
+                    esac
+                fi
+                if [ "$atomic" -eq 1 ]; then
+                    for library in \
+                        /lib/libatomic.so.1 /lib64/libatomic.so.1 /usr/lib/libatomic.so.1 /usr/lib64/libatomic.so.1 \
+                        /lib/*/libatomic.so.1 /usr/lib/*/libatomic.so.1; do
+                        if test -r "$library"; then atomic=0; break; fi
+                    done
+                fi
+                if [ "$atomic" -eq 1 ]; then missing="$missing libatomic.so.1"; fi
+                ;;
+        esac
         install_prerequisites() {
             set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic1; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
@@ -461,6 +504,7 @@ jobs:
                     sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
                 else sudo -n apk add --no-cache "$@"; fi
@@ -533,7 +577,9 @@ jobs:
       if: always()
       with:
         name: junit-test_rust_integration-${{ env.PROFILE }}-linux
-        path: target/tests/${{ env.PROFILE }}/*/integration-rust/
+        path: |-
+          target/tests/${{ env.PROFILE }}/*/integration-rust/
+          .stkr/traces/${{ env.PROFILE }}/*/integration-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -730,9 +776,29 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
+        atomic=0
+        case ",${MISE_ENABLE_TOOLS:-rust,node}," in
+            *,node,*|*,npm:*)
+                atomic=1
+                if command -v ldconfig >/dev/null 2>&1; then
+                    case "$(ldconfig -p 2>/dev/null || true)" in
+                        *libatomic.so.1*) atomic=0 ;;
+                    esac
+                fi
+                if [ "$atomic" -eq 1 ]; then
+                    for library in \
+                        /lib/libatomic.so.1 /lib64/libatomic.so.1 /usr/lib/libatomic.so.1 /usr/lib64/libatomic.so.1 \
+                        /lib/*/libatomic.so.1 /usr/lib/*/libatomic.so.1; do
+                        if test -r "$library"; then atomic=0; break; fi
+                    done
+                fi
+                if [ "$atomic" -eq 1 ]; then missing="$missing libatomic.so.1"; fi
+                ;;
+        esac
         install_prerequisites() {
             set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic1; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
@@ -742,6 +808,7 @@ jobs:
                     sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
                 else sudo -n apk add --no-cache "$@"; fi
@@ -859,7 +926,9 @@ jobs:
       if: always()
       with:
         name: junit-test_rust_acceptance-${{ env.PROFILE }}-linux
-        path: target/tests/${{ env.PROFILE }}/*/acceptance-rust/
+        path: |-
+          target/tests/${{ env.PROFILE }}/*/acceptance-rust/
+          .stkr/traces/${{ env.PROFILE }}/*/acceptance-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -1056,9 +1125,29 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
+        atomic=0
+        case ",${MISE_ENABLE_TOOLS:-rust,node}," in
+            *,node,*|*,npm:*)
+                atomic=1
+                if command -v ldconfig >/dev/null 2>&1; then
+                    case "$(ldconfig -p 2>/dev/null || true)" in
+                        *libatomic.so.1*) atomic=0 ;;
+                    esac
+                fi
+                if [ "$atomic" -eq 1 ]; then
+                    for library in \
+                        /lib/libatomic.so.1 /lib64/libatomic.so.1 /usr/lib/libatomic.so.1 /usr/lib64/libatomic.so.1 \
+                        /lib/*/libatomic.so.1 /usr/lib/*/libatomic.so.1; do
+                        if test -r "$library"; then atomic=0; break; fi
+                    done
+                fi
+                if [ "$atomic" -eq 1 ]; then missing="$missing libatomic.so.1"; fi
+                ;;
+        esac
         install_prerequisites() {
             set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic1; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
@@ -1068,6 +1157,7 @@ jobs:
                     sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
                 else sudo -n apk add --no-cache "$@"; fi
@@ -1167,7 +1257,9 @@ jobs:
       if: always()
       with:
         name: junit-test_rust_system-${{ env.PROFILE }}-linux
-        path: target/tests/${{ env.PROFILE }}/*/system-rust/
+        path: |-
+          target/tests/${{ env.PROFILE }}/*/system-rust/
+          .stkr/traces/${{ env.PROFILE }}/*/system-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -1364,9 +1456,29 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
+        atomic=0
+        case ",${MISE_ENABLE_TOOLS:-rust,node}," in
+            *,node,*|*,npm:*)
+                atomic=1
+                if command -v ldconfig >/dev/null 2>&1; then
+                    case "$(ldconfig -p 2>/dev/null || true)" in
+                        *libatomic.so.1*) atomic=0 ;;
+                    esac
+                fi
+                if [ "$atomic" -eq 1 ]; then
+                    for library in \
+                        /lib/libatomic.so.1 /lib64/libatomic.so.1 /usr/lib/libatomic.so.1 /usr/lib64/libatomic.so.1 \
+                        /lib/*/libatomic.so.1 /usr/lib/*/libatomic.so.1; do
+                        if test -r "$library"; then atomic=0; break; fi
+                    done
+                fi
+                if [ "$atomic" -eq 1 ]; then missing="$missing libatomic.so.1"; fi
+                ;;
+        esac
         install_prerequisites() {
             set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic1; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
@@ -1376,6 +1488,7 @@ jobs:
                     sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
                 else sudo -n apk add --no-cache "$@"; fi
@@ -1475,7 +1588,9 @@ jobs:
       if: always()
       with:
         name: junit-test_typescript_system-${{ env.PROFILE }}-linux
-        path: target/tests/${{ env.PROFILE }}/*/system-typescript/
+        path: |-
+          target/tests/${{ env.PROFILE }}/*/system-typescript/
+          .stkr/traces/${{ env.PROFILE }}/*/system-typescript/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
@@ -1670,9 +1785,29 @@ jobs:
         if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
             missing="$missing openssl-development"
         fi
+        atomic=0
+        case ",${MISE_ENABLE_TOOLS:-rust,node}," in
+            *,node,*|*,npm:*)
+                atomic=1
+                if command -v ldconfig >/dev/null 2>&1; then
+                    case "$(ldconfig -p 2>/dev/null || true)" in
+                        *libatomic.so.1*) atomic=0 ;;
+                    esac
+                fi
+                if [ "$atomic" -eq 1 ]; then
+                    for library in \
+                        /lib/libatomic.so.1 /lib64/libatomic.so.1 /usr/lib/libatomic.so.1 /usr/lib64/libatomic.so.1 \
+                        /lib/*/libatomic.so.1 /usr/lib/*/libatomic.so.1; do
+                        if test -r "$library"; then atomic=0; break; fi
+                    done
+                fi
+                if [ "$atomic" -eq 1 ]; then missing="$missing libatomic.so.1"; fi
+                ;;
+        esac
         install_prerequisites() {
             set -- tar zstd unzip zip
             if command -v apt-get >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic1; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then
                     apt-get update
@@ -1682,6 +1817,7 @@ jobs:
                     sudo -n apt-get install -y --no-install-recommends "$@"
                 fi
             elif command -v apk >/dev/null 2>&1; then
+                if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic; fi
                 if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
                 if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
                 else sudo -n apk add --no-cache "$@"; fi
@@ -1754,7 +1890,9 @@ jobs:
       if: always()
       with:
         name: junit-test_rust_starter-${{ env.PROFILE }}-linux
-        path: target/tests/${{ env.PROFILE }}/*/starter-rust/
+        path: |-
+          target/tests/${{ env.PROFILE }}/*/starter-rust/
+          .stkr/traces/${{ env.PROFILE }}/*/starter-rust/
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true

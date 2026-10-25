@@ -447,6 +447,7 @@ async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
 
     let execution_file = directory.join("execution-1.zip");
+    recovery_saved(&execution_file, &outcome.text);
     let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled");
     assert!(samples[&executions[0]] > 0 && samples[&executions[0]] < 64, "the saved bundle must retain a partial capture");
     let cycle_file = directory.join("cycle.zip");

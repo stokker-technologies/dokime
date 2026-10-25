@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use dokime::harmos::operations::{Context, Operation, Response};
-use sysinfo::{Pid, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tonic::Status;
 
 // Local Imports
@@ -97,9 +97,16 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 pub(super) fn process_diagnostics() -> dokime::domain::model::backend::wire::ProcessDiagnostics {
     let pid = std::process::id();
-    let mut system = System::new_all();
-    system.refresh_all();
-    let process = system.process(Pid::from_u32(pid));
+    let process_id = Pid::from_u32(pid);
+    let mut system = System::new();
+    for _ in 0..2 {
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[process_id]),
+            true,
+            ProcessRefreshKind::nothing().with_cpu().with_memory().without_tasks(),
+        );
+    }
+    let process = system.process(process_id);
     dokime::domain::model::backend::wire::ProcessDiagnostics {
         pid,
         cpu_percent: process.map(|process| process.cpu_usage()),

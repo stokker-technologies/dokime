@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:28c335f4fba1c582f0303eb4225a5e092aded78055d73dc4dedec0e65d4c46ed
+# Rendered by stkr project update from templates/ci/.gitlab/ci/managed/package.yml; sha256:42314a86eeeb0a1c36e2b42847d5b7d2027ca5009214c75110048ab3859552d2
 Package / Rust (linux):
   stage: Package
   tags:
@@ -24,9 +24,11 @@ Package / Rust (linux):
       aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:stokker-technologies/dokime,go,go:github.com/rhysd/actionlint/cmd/actionlint,python,rust,uv
   before_script:
   - >-
-    if [ "$CI_PIPELINE_SOURCE" = push ] && { [ "$CI_COMMIT_BRANCH" = dev ] || [ -n
-    "$CI_COMMIT_TAG" ]; } && [ "$validated" = true ]; then printf 'Reusing green
-    review pipeline %s\n' "$review_run"; exit 0; fi
+    if { { [ "$CI_COMMIT_BRANCH" = dev ] && { [ "$CI_PIPELINE_SOURCE" = push ] || [
+    "$CI_PIPELINE_SOURCE" = web ] || [ "$CI_PIPELINE_SOURCE" = api ] || [
+    "$CI_PIPELINE_SOURCE" = trigger ]; }; } || { [ "$CI_PIPELINE_SOURCE" = push ] && [ -n
+    "$CI_COMMIT_TAG" ]; }; } && [ "$validated" = true ]; then printf 'Reusing green review
+    pipeline %s\n' "$review_run"; exit 0; fi
   - |-
     set -eu
     # === Setup === #
@@ -49,9 +51,29 @@ Package / Rust (linux):
     if [ "$compiler" -eq 1 ] && ! pkg-config --exists openssl 2>/dev/null; then
         missing="$missing openssl-development"
     fi
+    atomic=0
+    case ",${MISE_ENABLE_TOOLS:-rust,node}," in
+        *,node,*|*,npm:*)
+            atomic=1
+            if command -v ldconfig >/dev/null 2>&1; then
+                case "$(ldconfig -p 2>/dev/null || true)" in
+                    *libatomic.so.1*) atomic=0 ;;
+                esac
+            fi
+            if [ "$atomic" -eq 1 ]; then
+                for library in \
+                    /lib/libatomic.so.1 /lib64/libatomic.so.1 /usr/lib/libatomic.so.1 /usr/lib64/libatomic.so.1 \
+                    /lib/*/libatomic.so.1 /usr/lib/*/libatomic.so.1; do
+                    if test -r "$library"; then atomic=0; break; fi
+                done
+            fi
+            if [ "$atomic" -eq 1 ]; then missing="$missing libatomic.so.1"; fi
+            ;;
+    esac
     install_prerequisites() {
         set -- tar zstd unzip zip
         if command -v apt-get >/dev/null 2>&1; then
+            if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic1; fi
             if [ "$compiler" -eq 1 ]; then set -- "$@" build-essential pkg-config libssl-dev; fi
             if [ "$(id -u)" -eq 0 ]; then
                 apt-get update
@@ -61,6 +83,7 @@ Package / Rust (linux):
                 sudo -n apt-get install -y --no-install-recommends "$@"
             fi
         elif command -v apk >/dev/null 2>&1; then
+            if [ "$atomic" -eq 1 ]; then set -- "$@" libatomic; fi
             if [ "$compiler" -eq 1 ]; then set -- "$@" build-base pkgconf openssl-dev; fi
             if [ "$(id -u)" -eq 0 ]; then apk add --no-cache "$@"
             else sudo -n apk add --no-cache "$@"; fi
@@ -117,9 +140,10 @@ Package / Rust (windows):
     - interruptible
   before_script:
   - >-
-    if ($env:CI_PIPELINE_SOURCE -eq 'push' -and ($env:CI_COMMIT_BRANCH -eq 'dev'
-    -or $env:CI_COMMIT_TAG) -and $env:validated -eq 'true') { Write-Host "Reusing green
-    review pipeline $env:review_run"; exit 0 }
+    if ((($env:CI_COMMIT_BRANCH -eq 'dev' -and $env:CI_PIPELINE_SOURCE -in
+    @('push', 'web', 'api', 'trigger')) -or ($env:CI_PIPELINE_SOURCE -eq 'push' -and
+    $env:CI_COMMIT_TAG)) -and $env:validated -eq 'true') { Write-Host "Reusing green review
+    pipeline $env:review_run"; exit 0 }
   - |
     $count = if ($env:GIT_CONFIG_COUNT) { $env:GIT_CONFIG_COUNT } else { '0' }
     if ($count -notmatch '^\d+$' -or [int]$count -gt 1000) { throw 'Invalid inherited Git configuration count' }

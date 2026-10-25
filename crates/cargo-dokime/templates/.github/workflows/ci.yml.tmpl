@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:830adeb74e3d7749d77297493555fd19924ba88e95e3dc51f6cefc7312a326af
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:a84546884b96e10222df7d9e03fbef3aea3b4e2f3afff76a535b029fa4910856
 name: CI
 "on":
   push:
@@ -219,7 +219,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     if: >-
-      github.event_name == 'push' && (github.ref == 'refs/heads/dev' ||
+      ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/dev') || (github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v'))
     permissions:
       contents: read
@@ -351,7 +352,12 @@ jobs:
             if tag and profile != "release":
                 raise ValueError("tag requires release-profile evidence")
             required = json.loads(os.environ.get("REVIEW_PACKAGES", "[]"))
-            if tag:
+            preparation = (
+                os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+                if github
+                else os.environ.get("CI_PIPELINE_SOURCE") in ("web", "api", "trigger")
+            )
+            if tag or preparation:
                 required += json.loads(os.environ.get("REVIEW_BUILDS", "[]"))
             if github:
                 runs = pages(f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={head}", "workflow_runs")
