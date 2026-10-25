@@ -9,8 +9,13 @@
 - [x] 2.3 Installer owner implements finished-package inspection and installer CLI leaves with manifest/content integrity checks and targeted tests.
 - [x] 3.1 Integration owner verifies Harmos naming and groups new/build/package/dev/inspect under sidecar; migrates every template, caller and test without compatibility aliases.
 - [x] 3.2 Integration owner exports candidate authoring tool and redistributable payload, routes product packaging through installer package/inspect and removes superseded assembly paths.
-- [x] 3.3 Integration owner harmonizes current command/native package lifecycle validation, preserving mandatory CI jobs and signing protections; refreshes generated workflows without provider mutation if needed.
+- [x] 3.3 Integration owner harmonizes current command/native package lifecycle validation, preserving mandatory CI jobs and signing protections; refreshes generated workflows without provider mutation if needed; pins native Windows PowerShell for remote-script interruption recovery so Ctrl+C does not terminate a mise shim before evidence is saved.
 - [x] 3.4 Integration owner updates affected README, guides, examples, skills and build configuration; reviews all writer handoffs and closes source inventory.
+- [ ] 3.5 Organization owner adopts the maintained evidence-finalization repair from `453cf0a`, preserving durable Stop acknowledgement, the ten-second RPC deadline, full report data, and the committed organization desktop scenario. Remove superseded local query optimizations, diagnostic instrumentation and tests; review the upstream report/execution sources and regression coverage in the combined tree.
+
+- [x] 3.6 Integration owner diagnoses and repairs Linux simulation executor privilege parity for permission-denial integration tests, preserving their filesystem assertions and native platform requirements. Approved Hub source inventory: `src/templates/python/ci/simulate.py` managed runner image/workspace/cache/step-file provisioning and `crates/stkr/tests/ci/main.rs::portable_simulation`; product generated copies remain integration-owned.
+
+- [ ] 3.7 Integration owner reconciles published CI-baseline commits `453cf0a` and `7e44257`, preserving organization/installer contracts, adopting maintained evidence-finalization repairs and released Harmos inputs, and removing superseded local diagnostic repairs after review.
 
 ## Final Validation
 - [ ] 4.1 Declare source complete only after all implementation items and writer handoffs; run default all-required-platform mise run ci:simulate and repair failing lanes without weakening checks.
