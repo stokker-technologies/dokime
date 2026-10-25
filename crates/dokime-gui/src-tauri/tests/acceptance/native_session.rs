@@ -112,7 +112,11 @@ async fn shutdown_retry_retains() {
 
     tokio::time::pause();
     let mut shutdown = session.shutdown();
-    assert!(futures_util::poll!(&mut shutdown).is_pending());
+    std::future::poll_fn(|context| {
+        assert!(shutdown.as_mut().poll(context).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
     let budget = std::time::Duration::from_secs(dokime::domain::STOP_SETTLEMENT_SECONDS + 21);
     tokio::time::advance(budget).await;
     assert!(matches!(shutdown.await, Err(dokime_server::host::Error::StopIncomplete { .. })));
@@ -121,7 +125,11 @@ async fn shutdown_retry_retains() {
     assert!(matches!(lease.try_lock(), Err(std::fs::TryLockError::WouldBlock)));
 
     let mut retry = session.shutdown();
-    assert!(futures_util::poll!(&mut retry).is_pending());
+    std::future::poll_fn(|context| {
+        assert!(retry.as_mut().poll(context).is_pending());
+        std::task::Poll::Ready(())
+    })
+    .await;
     database.execute_batch("ROLLBACK").unwrap();
     retry.await.unwrap();
     lease.try_lock().unwrap();

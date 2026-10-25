@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import asyncio
+import json
 import runpy
 from pathlib import Path
 from types import SimpleNamespace
@@ -100,6 +101,7 @@ def test_replay_pages() -> None:
 
 def test_example_listeners_drain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     run = runpy.run_path(str(EXAMPLE))["run"]
+    monkeypatch.chdir(tmp_path)
 
     async def scenario() -> None:
         async with serve() as (server, client):
@@ -132,6 +134,17 @@ def test_example_listeners_drain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             assert output.count("Sample: voltage #") == 2
             assert output.count("Record: fixture.finished #") == 1
             assert f"Saved Outcome: passed Execution: {EXECUTION_ID}" in output
+            cycle_file = tmp_path / "cycle.json"
+            execution_file = tmp_path / "execution-1.json"
+            cycle_response = json.loads(cycle_file.read_text())
+            execution_response = json.loads(execution_file.read_text())
+            assert cycle_response["cycle_id"]
+            assert execution_response == {
+                "execution_id": EXECUTION_ID,
+                "status": "passed",
+                "records_by_type": {"fixture.finished": 1},
+                "samples_by_stream": {"voltage": 2},
+            }
             execution_export.assert_awaited_once_with(tmp_path / "execution-1.zip", overwrite=False)
             cycle_export.assert_awaited_once_with(tmp_path / "cycle.zip", overwrite=False)
             assert any(position.get("voltage") == 1 for position in server.sent_cursors)

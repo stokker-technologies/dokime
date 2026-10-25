@@ -413,8 +413,7 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
         return
 
     prefix = []
-    managed_ci = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("STKR_CI_SIMULATE") == "1"
-    if os.geteuid() != 0 and managed_ci and shutil.which("sudo"):
+    if os.geteuid() != 0 and shutil.which("sudo"):
         prefix = ["sudo", "-n"]
     elif os.geteuid() != 0:
         raise SystemExit("GUI prerequisites are missing and apt-get needs root; install the selected packages or run this as root.")
