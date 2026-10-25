@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:fe6008cf51f4884ab39e5a662db1684f8ba76f028586050b8c4c1cc3e8dcf3b9
+# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:5524c3e83133ceaf42973b29411d42e3e28c237340b4b8b83a24dcb13987ecc6
 # ***
 #
 # {{package}}
@@ -916,6 +916,9 @@ def stream(
     except BaseException:
         if owner:
             owner.close()
+        elif os.name == "nt":
+            process.kill()
+            process.wait()
         else:
             import signal
 
