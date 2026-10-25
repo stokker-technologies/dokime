@@ -14,7 +14,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Cursor, path::Path};
+#[cfg(any(windows, test))]
+use std::io::Cursor;
+
+use std::path::Path;
 
 // Third Party Imports
 use image::{
