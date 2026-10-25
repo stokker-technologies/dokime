@@ -14,25 +14,37 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
+use arrow_array::{Float64Array, RecordBatch};
+use arrow_schema::{DataType, Field, Schema};
 use harmos::storage::{
-    StorageCursor,
     query::scalar::ScalarValue,
     query::transform::{
-        FieldPath, FieldPathExecution, Transform,
-        aggregate::{Aggregate, Measure},
-        histogram::Histogram,
+        AggregateExecution,
+        aggregate::{Aggregate as Reduction, Measure},
     },
+    query::transform::{
+        FieldPath, FieldPathExecution,
+        histogram::{Histogram, HistogramExecution},
+    },
+    query::{Accumulator, Scratch},
+};
+use harmos::{
+    Aggregate,
+    schema::{Cardinality, Validator, graph::Kind},
+    storage::query::scalar::Agg,
 };
 
 // Local Imports
-use super::{invalid, telemetry};
-use crate::telemetry::TelemetryContract;
+use super::{ReadContext, invalid};
+use crate::telemetry::{TelemetryContract, TelemetrySample};
 use crate::{
     plot::{HistogramBin, HistogramSeries, HistogramStatistics, PlotSeriesSummary, PlotWindow},
     runtime::Result,
 };
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -82,90 +94,116 @@ pub(super) fn field(name: &str) -> FieldPath {
     FieldPath { fields: vec!["payload".into(), "values".into(), name.into()] }
 }
 
-pub(super) async fn collect(
-    read: super::ReadContext<'_, '_>, at: &StorageCursor, scope: &str, contract: &TelemetryContract, key: &str, x: FieldPath,
-) -> Result<Statistics> {
-    let super::ReadContext { ctx, settings } = read;
-    let codec = crate::storage::telemetry::codec(contract)?;
-    let mut measures = vec![];
-    for (name, statistic) in [
-        ("count", harmos::Aggregate::Count),
-        ("min", harmos::Aggregate::Min),
-        ("max", harmos::Aggregate::Max),
-        ("mean", harmos::Aggregate::Mean),
-        ("median", harmos::Aggregate::Median),
-        ("std", harmos::Aggregate::Std),
-        ("rms", harmos::Aggregate::Rms),
-    ] {
-        measures.push(Measure { field: field(key), statistic, name: name.into() });
+pub(super) fn collect(
+    read: ReadContext<'_, '_>, samples: &[TelemetrySample], contract: &TelemetryContract, keys: &[String], x: &FieldPath,
+) -> Result<Vec<Statistics>> {
+    let validator = validator(contract)?;
+    for key in keys {
+        validate_field(contract, key, true)?;
     }
-    measures.extend([
-        Measure {
-            field: FieldPath { fields: vec!["payload".into(), "metadata".into(), "ordinal".into()] },
-            statistic: harmos::Aggregate::Count,
-            name: "rows".into(),
-        },
-        Measure { field: x.clone(), statistic: harmos::Aggregate::Min, name: "x_min".into() },
-        Measure { field: x, statistic: harmos::Aggregate::Max, name: "x_max".into() },
-    ]);
-    let query = telemetry::plan(at, scope, &codec, vec![Transform::Aggregate(Aggregate { groups: vec![], measures })])?;
-    let batches = super::batches(ctx, settings, query).await?;
-    let batch = batches.first().ok_or_else(|| invalid("aggregate query returned no identity row"))?.as_record_batch();
-    if batch.num_rows() != 1 || batches.len() != 1 {
-        return Err(invalid("ungrouped statistics returned multiple rows"));
+    let source_time = x.fields == ["_storage", "source_time"];
+    let x_key = x.fields.last().ok_or_else(|| invalid("report x field is absent"))?;
+    if !source_time {
+        validate_field(contract, x_key, false)?;
     }
-    let value = |name: &str| FieldPath { fields: vec![name.into()] }.value(batch, 0);
-    let count = count_value(value("count")?)?;
-    let rows = count_value(value("rows")?)?;
-    let minimum = number(value("x_min")?);
-    let maximum = number(value("x_max")?);
-    Ok(Statistics {
-        count,
-        rows,
-        min: number(value("min")?),
-        max: number(value("max")?),
-        mean: number(value("mean")?),
-        median: number(value("median")?),
-        std: number(value("std")?),
-        rms: number(value("rms")?),
-        window: minimum.zip(maximum).map(|(from, to)| PlotWindow { from, to }),
-    })
+
+    // Application-Local Reduction: One Series Owns Its Temporary Memory.
+    let bytes = samples
+        .len()
+        .checked_mul(std::mem::size_of::<ScalarValue>() * 2 + std::mem::size_of::<usize>() * 2)
+        .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Accumulator>() * 9 + 65536))
+        .ok_or_else(|| invalid("report reduction memory overflow"))?;
+    let mut output = Vec::with_capacity(keys.len());
+    for key in keys {
+        let _memory = reserve(read, bytes)?;
+        let mut accumulators =
+            [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Median, Aggregate::Std, Aggregate::Rms]
+                .map(|statistic| Accumulator::new(Agg::Of(statistic)));
+        let mut minimum = Accumulator::new(Agg::Of(Aggregate::Min));
+        let mut maximum = Accumulator::new(Agg::Of(Aggregate::Max));
+        let mut scratch = Scratch::new(samples.len());
+        for (capture, sample) in samples.iter().enumerate() {
+            let payload = sample.storage_payload.as_deref().ok_or_else(|| invalid("report sample has no original typed payload"))?;
+            let row = crate::storage::telemetry::decode_values(&validator, payload)?;
+            let x_value = if source_time {
+                ScalarValue::Datetime(
+                    sample.timestamp.to_datetime().map_err(|_| invalid("captured report timestamp is invalid"))?.unix_timestamp_nanos(),
+                )
+            } else {
+                scalar(row.get(x_key))?
+            };
+            minimum.push(capture as u64, &x_value, &mut scratch)?;
+            maximum.push(capture as u64, &x_value, &mut scratch)?;
+            let value = scalar(row.get(key))?;
+            for accumulator in &mut accumulators {
+                accumulator.push(capture as u64, &value, &mut scratch)?;
+            }
+        }
+        // Like full(), This Synchronous Application Work Has No Cancellation Token.
+        let mut check = || Ok(());
+        let window = number(minimum.finish(&mut check)?).zip(number(maximum.finish(&mut check)?)).map(|(from, to)| PlotWindow { from, to });
+        let [count, min, max, mean, median, std, rms] = accumulators;
+        output.push(Statistics {
+            count: count_value(count.finish(&mut check)?)?,
+            rows: samples.len(),
+            min: number(min.finish(&mut check)?),
+            max: number(max.finish(&mut check)?),
+            mean: number(mean.finish(&mut check)?),
+            median: number(median.finish(&mut check)?),
+            std: number(std.finish(&mut check)?),
+            rms: number(rms.finish(&mut check)?),
+            window,
+        });
+    }
+    Ok(output)
 }
 
-pub(super) async fn histogram(
-    read: super::ReadContext<'_, '_>, at: &StorageCursor, scope: &str, contract: &TelemetryContract, key: &str, bins: usize,
-    statistics: &Statistics,
+pub(super) fn histogram(
+    read: ReadContext<'_, '_>, samples: &[TelemetrySample], contract: &TelemetryContract, key: &str, bins: usize, statistics: &Statistics,
 ) -> Result<HistogramSeries> {
-    let super::ReadContext { ctx, settings } = read;
     let count = bins.max(1);
     if count >= 65_536 {
         return Err(invalid("histogram bin count exceeds storage transform limit"));
     }
+    validate_field(contract, key, true)?;
+    let bytes = samples
+        .len()
+        .checked_mul(std::mem::size_of::<Option<f64>>() * 2)
+        .and_then(|bytes| count.checked_add(2)?.checked_mul(128)?.checked_add(bytes))
+        .and_then(|bytes| bytes.checked_add(65536))
+        .ok_or_else(|| invalid("report histogram memory overflow"))?;
+    let _memory = reserve(read, bytes)?;
     let (minimum, maximum) = statistics.min.zip(statistics.max).unwrap_or((0.0, 0.0));
     let width = if minimum == maximum { 1.0 } else { (maximum - minimum) / count as f64 };
     let edges =
         (0..=count).map(|index| if index == count && minimum != maximum { maximum } else { minimum + index as f64 * width }).collect();
-    let codec = crate::storage::telemetry::codec(contract)?;
-    let query = telemetry::plan(at, scope, &codec, vec![Transform::Histogram(Histogram { field: field(key), edges })])?;
-    let batches = super::batches(ctx, settings, query).await?;
+    let validator = validator(contract)?;
+    let mut values = Vec::with_capacity(samples.len());
+    for sample in samples {
+        let payload = sample.storage_payload.as_deref().ok_or_else(|| invalid("report sample has no original typed payload"))?;
+        let row = crate::storage::telemetry::decode_values(&validator, payload)?;
+        values.push(number(scalar(row.get(key))?));
+    }
+    let schema = Arc::new(Schema::new(vec![Field::new("value", DataType::Float64, true)]));
+    let input = RecordBatch::try_new(schema, vec![Arc::new(Float64Array::from(values))])
+        .map_err(|_| invalid("captured histogram input is invalid"))?;
+    let plan = Histogram { field: FieldPath { fields: vec!["value".into()] }, edges };
+    let batch = plan.apply(&input, &mut || Ok(()))?;
     let mut output = Vec::with_capacity(count);
     let mut actual = 0usize;
-    for batch in batches.iter() {
-        let batch = batch.as_record_batch();
-        for row in 0..batch.num_rows() {
-            let value = |name: &str| FieldPath { fields: vec![name.into()] }.value(batch, row);
-            let amount = count_value(value("count")?)?;
-            let lower = number(value("lower")?);
-            let upper = number(value("upper")?);
-            let Some((lower, upper)) = lower.zip(upper) else {
-                if amount != 0 {
-                    return Err(invalid("histogram edges omitted finite selected values"));
-                }
-                continue;
-            };
-            actual = actual.checked_add(amount).ok_or_else(|| invalid("histogram count overflow"))?;
-            output.push(HistogramBin { lower, upper, count: amount });
-        }
+    for row in 0..batch.num_rows() {
+        let value = |name: &str| FieldPath { fields: vec![name.into()] }.value(&batch, row);
+        let amount = count_value(value("count")?)?;
+        let lower = number(value("lower")?);
+        let upper = number(value("upper")?);
+        let Some((lower, upper)) = lower.zip(upper) else {
+            if amount != 0 {
+                return Err(invalid("histogram edges omitted finite selected values"));
+            }
+            continue;
+        };
+        actual = actual.checked_add(amount).ok_or_else(|| invalid("histogram count overflow"))?;
+        output.push(HistogramBin { lower, upper, count: amount });
     }
     if actual != statistics.count || output.len() != count {
         return Err(invalid("histogram does not cover the full selected dataset"));
@@ -182,7 +220,6 @@ pub(super) async fn histogram(
     })();
     Ok(HistogramSeries { key: key.into(), bins: output, count: actual, statistics })
 }
-
 pub(super) fn number(value: ScalarValue) -> Option<f64> {
     let number = match value {
         ScalarValue::Float(value) => value,
@@ -196,6 +233,66 @@ pub(super) fn number(value: ScalarValue) -> Option<f64> {
 }
 
 /* === Private Functions === */
+
+fn validator(contract: &TelemetryContract) -> Result<Validator> {
+    let schema = contract.storage_schema.as_ref().ok_or_else(|| invalid("captured telemetry has no typed storage schema"))?;
+    Validator::from_schema(schema, &harmos::config::SchemaSettings::default()).map_err(|_| invalid("captured telemetry graph is invalid"))
+}
+
+fn validate_field(contract: &TelemetryContract, key: &str, numeric: bool) -> Result<()> {
+    let schema = contract.storage_schema.as_ref().ok_or_else(|| invalid("captured telemetry has no typed storage schema"))?;
+    let field = schema
+        .definitions
+        .get(schema.root)
+        .and_then(|fields| fields.iter().find(|field| field.name == key))
+        .ok_or_else(|| invalid("report field is absent from the captured schema"))?;
+    // Same Direct-Field Mapping As Harmos Query Source; Eligibility Stays In Its Kernel.
+    let kind = match field.kind {
+        Kind::Bool => DataType::Boolean,
+        Kind::U32 => DataType::UInt32,
+        Kind::U64 => DataType::UInt64,
+        Kind::I32 => DataType::Int32,
+        Kind::I64 => DataType::Int64,
+        Kind::F32 => DataType::Float32,
+        Kind::F64 => DataType::Float64,
+        Kind::String => DataType::Utf8,
+        Kind::Bytes => DataType::Binary,
+        Kind::Message { .. } => DataType::Struct(Vec::<Field>::new().into()),
+    };
+    let kind = if field.cardinality == Cardinality::Repeated { DataType::List(Arc::new(Field::new("item", kind, false))) } else { kind };
+    let input = Schema::new(vec![Field::new("value", kind, matches!(field.cardinality, Cardinality::Optional | Cardinality::Variant))]);
+    let plan = Reduction {
+        groups: vec![],
+        measures: vec![Measure {
+            name: "value".into(),
+            field: FieldPath { fields: vec!["value".into()] },
+            statistic: if numeric { Aggregate::Mean } else { Aggregate::Min },
+        }],
+    };
+    plan.output_schema(&input)?;
+    Ok(())
+}
+
+fn reserve(read: ReadContext<'_, '_>, bytes: usize) -> Result<harmos::storage::arrow::RetainedMemory> {
+    if bytes > read.settings.budget.read_memory_bytes.get() {
+        return Err(invalid("report reduction exceeds configured read memory"));
+    }
+    let storage = read.ctx.scope().storage::<crate::app::Dokime>().ok_or_else(|| invalid("report storage is unavailable"))?;
+    Ok(storage.reserve_arrow_memory(bytes)?)
+}
+
+fn scalar(value: Option<&Value>) -> Result<ScalarValue> {
+    Ok(match value {
+        None => ScalarValue::Missing,
+        Some(Value::Null) => ScalarValue::Null,
+        Some(Value::Bool(value)) => ScalarValue::Bool(*value),
+        Some(Value::Integer(value)) => ScalarValue::Signed(*value),
+        Some(Value::Unsigned(value)) => ScalarValue::Unsigned(*value),
+        Some(Value::Number(value)) => ScalarValue::Float(*value),
+        Some(Value::Text(value)) => ScalarValue::Text(value.clone()),
+        _ => return Err(invalid("report statistics require original scalar values")),
+    })
+}
 
 fn count_value(value: ScalarValue) -> Result<usize> {
     if let ScalarValue::Unsigned(value) = value {

@@ -25,6 +25,7 @@ use harmos::{
         downsample::{Algorithm, Downsample},
     },
 };
+use tokio::sync::OnceCell;
 
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
@@ -173,7 +174,7 @@ async fn plots(
     execution: &dokime_domain::model::execution::result::TestExecution, records: &[dokime_domain::model::records::evidence::RecordEntry],
     documents: &BTreeMap<DocumentId, crate::document::capture::Capture>,
 ) -> Result<BTreeMap<String, super::value::Value>> {
-    let mut pending = FuturesUnordered::new();
+    let mut groups = Vec::<(super::query::ReadPlan, Vec<_>)>::new();
     let mut completed = Vec::new();
     let mut index = 0;
     for document in documents.values() {
@@ -182,11 +183,26 @@ async fn plots(
                 continue;
             };
             let request = crate::plot::plot_payload_request_for_descriptor(descriptor, Some(execution.scope.clone()), None, None, None);
-            let current = index;
+            let plan = super::query::read_plan(&request, &captured.telemetry_contracts);
+            let plot = (index, descriptor.plot_id.to_string(), request);
             index += 1;
+            if let Some((_, requests)) = groups.iter_mut().find(|(candidate, _)| candidate == &plan) {
+                requests.push(plot);
+            } else {
+                groups.push((plan, vec![plot]));
+            }
+        }
+    }
+
+    // A Group Retains One Completed Read; No Native Reader Survives Its Completion.
+    for (_, requests) in groups {
+        let shared = OnceCell::new();
+        let mut pending = FuturesUnordered::new();
+        for (current, id, request) in requests {
+            let shared = &shared;
             pending.push(async move {
-                let payload = super::query::materialize(ctx, settings, captured, execution, records, request).await?;
-                Ok::<_, Error>((current, descriptor.plot_id.to_string(), payload))
+                let payload = super::query::materialize(ctx, settings, captured, execution, records, request, shared).await?;
+                Ok::<_, Error>((current, id, payload))
             });
             if pending.len() == ACTIVE_PLOT_PLANS
                 && let Some(plot) = pending.next().await
@@ -194,11 +210,11 @@ async fn plots(
                 completed.push(plot?);
             }
         }
+        while let Some(plot) = pending.next().await {
+            completed.push(plot?);
+        }
+        drop(pending);
     }
-    while let Some(plot) = pending.next().await {
-        completed.push(plot?);
-    }
-    drop(pending);
     completed.sort_by_key(|(index, _, _)| *index);
     let mut plots = BTreeMap::new();
     for (_, id, plot) in completed {

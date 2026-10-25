@@ -1,3 +1,5 @@
+# === Package === #
+
 [package]
 name = "obc-runtime"
 publish = false
@@ -8,9 +10,17 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+# === Package Targets === #
+
+# === Features === #
+
+# === Dependencies === #
+
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["plugin-sidecar"] }
+
+# Git
 
 # Error Handling
 thiserror = { workspace = true }
@@ -18,5 +28,47 @@ thiserror = { workspace = true }
 # Logging
 tracing = { workspace = true }
 
+# Utilities
+
 # Serialization
 serde = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

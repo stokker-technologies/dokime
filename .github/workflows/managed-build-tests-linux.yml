@@ -1,5 +1,5 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-tests-linux.yml; sha256:2fef1ae54831f7c7ab88c77273e8ee50b7eb798a873932503b4966dbbe826e50
-name: Build
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build-tests-linux.yml; sha256:1c49a5bffaaba8546d803ccbe33d6007295666924c9dd8e22cbce1f8aeba5202
+name: Build / Tests / Linux
 "on":
   workflow_call:
     inputs:

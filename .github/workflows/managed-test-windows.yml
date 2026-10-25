@@ -1,5 +1,5 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:2a7f733104529f50c3f3fafb7bf3950120dee616cc256e398a38086a979e706f
-name: Test
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-windows.yml; sha256:f98ef5b9d6fe87b03174f706b0eb4ef7c419a3114d9481a1162e89394d470ddd
+name: Test / Windows
 "on":
   workflow_call:
     inputs:

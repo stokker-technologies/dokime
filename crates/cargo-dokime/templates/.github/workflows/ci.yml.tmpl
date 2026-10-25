@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:ea0f30d1e7b23e5621a4e08b8f8bd382ae66f8276fc8bf7dd1630b1003d33a57
+# Rendered by stkr project update from templates/ci/.github/workflows/ci.yml; sha256:830adeb74e3d7749d77297493555fd19924ba88e95e3dc51f6cefc7312a326af
 name: CI
 "on":
   push:
@@ -8,16 +8,7 @@ name: CI
     tags:
     - v*
   pull_request: {}
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Release version bump: auto from the Conventional Commits, or a 0.x override"
-        type: choice
-        options:
-        - auto
-        - minor
-        - major
-        default: auto
+  workflow_dispatch: {}
 permissions:
   contents: read
 jobs:
@@ -491,7 +482,6 @@ jobs:
       ready: >-
         ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result,
         'cancelled') }}
-      bump: ${{ inputs.bump || 'auto' }}
     secrets:
       release_token: ${{ secrets.RELEASE_TOKEN }}
       mirror_deploy_key: ${{ secrets.MIRROR_DEPLOY_KEY }}

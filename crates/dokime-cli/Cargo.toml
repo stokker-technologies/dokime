@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 name = "dokime-cli"
 edition.workspace = true
@@ -21,9 +23,21 @@ publish = false
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ version }-{ target }{ binary-ext }"
 pkg-fmt = "bin"
 
+# === Package Targets === #
+
+[[bin]]
+name = "dokime"
+path = "src/main.rs"
+doc = false
+test = false
+
+# === Features === #
+
 [features]
 default = []
 media-native = ["dokime-server/media-native"]
+
+# === Dependencies === #
 
 [dependencies]
 # Local
@@ -47,22 +61,30 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Configuration
-dotenv = { workspace = true }
 clap = { workspace = true }
+dotenv = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
 
+# Parsing
+
+# Concurrency
+
 # Async
 tokio = { workspace = true }
 
+# Networking
+
+# Storage
+
 # UI
 
-[[bin]]
-name = "dokime"
-path = "src/main.rs"
-doc = false
-test = false
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
 
 [dev-dependencies]
 # Local
@@ -71,11 +93,23 @@ dokime = { workspace = true, features = ["plugin-sidecar"] }
 # Git
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
+# Error Handling
+
+# Logging
+
 # Utilities
 time = { workspace = true }
 
+# Serialization
+
+# Configuration
+
 # Filesystem
 tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
 
 # Async
 futures-util = { workspace = true }
@@ -83,8 +117,28 @@ futures-util = { workspace = true }
 # Networking
 tonic = { workspace = true }
 
+# Storage
+
 # UI
 portable-pty = { workspace = true }
 
 # Testing
 criterion = { workspace = true }
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

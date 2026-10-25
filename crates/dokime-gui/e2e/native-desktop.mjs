@@ -137,7 +137,14 @@ const OPERATOR_NOTE = "Trace steady, no fault indicated.";
 const STARTUP_PROMPT = "Inspect Powered Charger";
 
 /** The WebDriver code points for the named keys this gate presses. */
-const WEBDRIVER_KEYS = { Enter: "\uE007", Escape: "\uE00C", Tab: "\uE004" };
+const WEBDRIVER_KEYS = {
+  Enter: "\uE007",
+  Escape: "\uE00C",
+  Tab: "\uE004",
+  Control: "\uE009",
+  Null: "\uE000",
+  Backspace: "\uE003",
+};
 
 /** The journeys everything after them depends on, whatever the filter says. */
 const REQUIRED_JOURNEYS = new Set(["startup", "library"]);
@@ -651,20 +658,10 @@ async function startSession(work, endpoint, evidence) {
   };
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
-    if (!value.length) {
-      /* `clear` empties the element without the input event a controlled
-         React field listens for, so an emptied box keeps its old value. */
-      return session.execute(
-        `const input = arguments[0];
-         const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-         setter.call(input, '');
-         input.dispatchEvent(new Event('input', {bubbles: true}));
-         input.dispatchEvent(new Event('change', {bubbles: true}));`,
-        [element],
-      );
-    }
-    await session.request("POST", `/element/${key}/clear`, {});
-    await session.request("POST", `/element/${key}/value`, { text: value, value: [...value] });
+    /* Replace Through Native Input Once: a separate clear can leave React's
+       controlled value intact and restore it before the following typing. */
+    const replacement = `${WEBDRIVER_KEYS.Control}a${WEBDRIVER_KEYS.Null}${value.length ? value : WEBDRIVER_KEYS.Backspace}`;
+    await session.request("POST", `/element/${key}/value`, { text: replacement, value: [...replacement] });
   };
   /**
    * Press a key the way a person does, through the WebDriver Actions API.
@@ -807,6 +804,82 @@ async function startSession(work, endpoint, evidence) {
         },
         40000,
       );
+    } catch (failure) {
+      const label = `failure-native-close-${Date.now()}`;
+      const captures = await Promise.allSettled([
+        session.screenshot(label),
+        session.text().then((body) => writeFile(join(evidence, `${label}.txt`), redact(`${failure.stack ?? failure.message}\n\n${body}`))),
+        session
+          .executeAsync(`
+          const done = arguments[arguments.length - 1];
+          globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status')
+            .then(done, (error) => done({error: String(error)}));
+        `)
+          .then(async (status) => ({
+            status,
+            listening: status.connection?.endpoint ? await listening(status.connection.endpoint) : null,
+          })),
+        drainInvokeLedger(session),
+        windows
+          ? promisify(execFile)(
+              "powershell.exe",
+              [
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                `
+              $ErrorActionPreference = 'Stop'
+              Add-Type -AssemblyName UIAutomationClient
+              Add-Type -AssemblyName UIAutomationTypes
+              $providers = Add-Type -AssemblyName UIAutomationClientsideProviders -PassThru
+              [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].Assembly.GetName())
+              $processes = @(Get-CimInstance Win32_Process)
+              $owned = [System.Collections.Generic.HashSet[uint32]]::new()
+              [void]$owned.Add([uint32]$env:DOKIME_CLOSE_DRIVER)
+              do {
+                $added = $false
+                foreach ($candidate in $processes) {
+                  if ($owned.Contains([uint32]$candidate.ParentProcessId)) {
+                    $added = $owned.Add([uint32]$candidate.ProcessId) -or $added
+                  }
+                }
+              } while ($added)
+              $root = [System.Windows.Automation.AutomationElement]::RootElement
+              $windows = @(foreach ($candidate in $processes) {
+                if (!$owned.Contains([uint32]$candidate.ProcessId) -or $candidate.ExecutablePath -ne $env:DOKIME_CLOSE_SHELL) { continue }
+                $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, [int]$candidate.ProcessId)
+                foreach ($window in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)) {
+                  $text = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
+                  [ordered]@{
+                    process = $candidate.ProcessId
+                    handle = $window.Current.NativeWindowHandle
+                    title = $window.Current.Name
+                    text = @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $text) | ForEach-Object { $_.Current.Name })
+                  }
+                }
+              })
+              ConvertTo-Json -InputObject $windows -Depth 4 -Compress
+            `,
+              ],
+              {
+                windowsHide: true,
+                timeout: 120000,
+                env: { ...process.env, DOKIME_CLOSE_DRIVER: String(webdriver.pid), DOKIME_CLOSE_SHELL: resolve(shellBinary) },
+              },
+            ).then((result) => JSON.parse(result.stdout))
+          : Promise.resolve(null),
+      ]);
+      const names = ["screenshot", "text", "session", "invocations", "nativeWindows"];
+      const diagnostics = Object.fromEntries(
+        captures.map((capture, index) => [
+          names[index],
+          capture.status === "fulfilled" ? capture.value : { error: String(capture.reason) },
+        ]),
+      );
+      await writeFile(join(evidence, `${label}.json`), redact(JSON.stringify({ error: failure.message, ...diagnostics }, null, 2))).catch(
+        (error) => process.stderr.write(`Native close evidence failed: ${error.message}\n`),
+      );
+      throw failure;
     } finally {
       session.closed = true;
     }
@@ -901,6 +974,22 @@ async function installSaveTap(session) {
     globalThis.__dokimeInvokes = globalThis.__dokimeInvokes ?? [];
     globalThis.__dokimeStreams = globalThis.__dokimeStreams ?? [];
     globalThis.__dokimeStreamReads = globalThis.__dokimeStreamReads ?? 0;
+    globalThis.__dokimeToasts = globalThis.__dokimeToasts ?? [];
+    if (!globalThis.__dokimeToastObserver) {
+      let previous = '';
+      const observe = () => {
+        const text = [...document.querySelectorAll('[data-sonner-toast]')].map(toast => toast.innerText).join(' | ').slice(0, 1000);
+        if (text && text !== previous) {
+          const timeline = globalThis.__dokimeToasts;
+          if (timeline.length >= 32) timeline.shift();
+          timeline.push({at: Date.now(), text});
+        }
+        previous = text;
+      };
+      globalThis.__dokimeToastObserver = new MutationObserver(observe);
+      globalThis.__dokimeToastObserver.observe(document.body, {childList: true, subtree: true, characterData: true});
+      observe();
+    }
     if (!globalThis.fetch.__dokimeTap) {
       const original = globalThis.fetch.bind(globalThis);
       const saved = globalThis.__dokimeSavedDocuments;
@@ -1012,8 +1101,16 @@ async function installSaveTap(session) {
         }
         return original(input, init).then(
           function (value) {
-            entry.state = 'settled';
+            entry.nativeResponse = value.headers.get('Tauri-Response');
+            entry.httpStatus = value.status;
+            entry.state = entry.nativeResponse === 'error' ? 'rejected' : 'settled';
             entry.ms = Date.now() - entry.at;
+            if (entry.path?.endsWith('/StopExecution') && entry.nativeResponse === 'error') {
+              return value.clone().text().then(
+                error => { entry.error = error.slice(0, 1024); return value; },
+                error => { entry.error = 'Stop error capture failed: ' + String(error); return value; },
+              );
+            }
             if (reportSave && value.headers.get('Tauri-Response') === 'ok') {
               return value.clone().json().then((delivered) => {
                 if (!delivered?.path) throw new Error('native report pull returned no verified path');
@@ -1111,10 +1208,13 @@ async function drainInvokeLedger(session) {
       const entries = globalThis.__dokimeInvokes ?? [];
       const rows = new Map();
       for (const entry of entries) {
-        const row = rows.get(entry.command) ?? {
+        const key = JSON.stringify([entry.command, entry.path ?? null]);
+        const row = rows.get(key) ?? {
           command: entry.command,
+          path: entry.path ?? null,
           calls: 0,
           pending: 0,
+          rejected: 0,
           slowestMs: 0,
         };
         row.calls += 1;
@@ -1122,19 +1222,29 @@ async function drainInvokeLedger(session) {
           row.pending += 1;
           row.waitingMs = Math.max(row.waitingMs ?? 0, now - entry.at);
         }
-        if (entry.state === 'rejected') row.lastError = String(entry.error).slice(0, 300);
+        if (entry.state === 'rejected') {
+          row.rejected += 1;
+          if (entry.error) row.lastError = String(entry.error).slice(0, 300);
+        }
+        if (entry.nativeResponse) row.lastNativeResponse = entry.nativeResponse;
         row.slowestMs = Math.max(row.slowestMs, entry.ms ?? 0);
-        rows.set(entry.command, row);
+        rows.set(key, row);
       }
       return {
         recorded: entries.length,
+        stops: entries.filter(entry => entry.path?.endsWith('/StopExecution')).slice(-8).map(entry => ({
+          path: entry.path, at: entry.at, state: entry.state, ms: entry.ms,
+          nativeResponse: entry.nativeResponse, httpStatus: entry.httpStatus, error: entry.error,
+        })),
+        toasts: globalThis.__dokimeToasts ?? [],
         streams: globalThis.__dokimeStreams ?? [],
         peakStreams: globalThis.__dokimeStreamPeak ?? 0,
         network: globalThis.__dokimeNetwork ?? 0,
         commands: [...rows.values()].sort((left, right) => right.calls - left.calls),
       };
     `)
-    .catch((failure) => ({ error: String(failure) }));
+    .then((summary) => JSON.parse(redact(JSON.stringify(summary))))
+    .catch((failure) => ({ error: redact(String(failure)) }));
 }
 
 /* Shared Interactions */
@@ -2378,6 +2488,7 @@ async function executionStopJourney(session, cycleId) {
 
   await session.clickNamed("button", "Stop Execution");
   await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), 120000);
+  await writeFile(join(evidence, "invokes-execution-stop.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
   const header = normalize(await session.text());
   assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
 
@@ -2838,6 +2949,7 @@ async function remoteAccessJourney() {
   assert.equal(decision.checkboxes, 0, "The decision belongs in the footer without a duplicate checkbox");
   await session.clickNamed("button", "Stop Execution");
   await until("rotation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
+  await writeFile(join(evidence, "invokes-remote-access.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
 
   // Authentication And Encryption Are Independent Explicit Lab Choices.
   await session.goto("/settings/remote");
@@ -2948,6 +3060,19 @@ async function settingsJourney(session, notes) {
       `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Compaction Interval (Hours)');
      return label?.control ?? null;`,
     ),
+  );
+  await session.type(interval, "2");
+  assert.equal(
+    await session.execute("return arguments[0].value", [interval]),
+    "2",
+    "Native typing replaces the entire backend policy value",
+  );
+  await session.type(interval, "");
+  assert.equal(await session.execute("return arguments[0].value", [interval]), "", "Native deletion clears the controlled value");
+  assert.equal(
+    await session.execute("return arguments[0].getAttribute('aria-invalid')", [interval]),
+    "true",
+    "Deletion updates React's draft state",
   );
   await session.type(interval, "2");
   /* The backend keeps the policy in its own state store: the save is proven by
@@ -3808,6 +3933,7 @@ async function stagePluginThroughPicker(session) {
 
 async function chooseNativeFile(picker, file) {
   if (!windows) {
+    if (picker.failure) throw picker.failure;
     const children = await readFile(`/proc/${driverProcess.pid}/task/${driverProcess.pid}/children`, "utf8");
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
@@ -3817,22 +3943,85 @@ async function chooseNativeFile(picker, file) {
         if (error.code === 1) return null;
         throw error;
       });
-      if (!found) return picker.window !== null;
+      if (!found) return picker.submitted === true;
       const ids = found.stdout.trim().split(/\s+/);
       assert.equal(ids.length, 1, "The owned desktop exposes exactly one native file picker");
-      if (picker.window !== null) {
-        assert.equal(ids[0], picker.window, "Selection remains with its original native dialog");
-        await run(["windowfocus", "--sync", picker.window]);
-        const focus = await run(["getwindowfocus"]);
-        await appendFile(join(evidence, "native-picker.log"), `picker window=${picker.window} focus=${focus.stdout.trim()} submit\n`);
-        await run(["key", "--clearmodifiers", "Return"]);
-        return false;
+      if (picker.window !== null) assert.equal(ids[0], picker.window, "Selection remains with its original native dialog");
+      if (picker.submitted) return false;
+
+      const action = picker.window === null ? "ready" : picker.entered ? "open" : "fill";
+      const script = `
+import sys
+import gi
+gi.require_version("Atspi", "2.0")
+from gi.repository import Atspi
+
+Atspi.init()
+pid, action, path = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+desktop = Atspi.get_desktop(0)
+
+def descendants(node):
+    yield node
+    for index in range(node.get_child_count()):
+        child = node.get_child_at_index(index)
+        if child is not None:
+            yield from descendants(child)
+
+def ready(node):
+    states = node.get_state_set()
+    bounds = Atspi.Component.get_extents(node, Atspi.CoordType.SCREEN)
+    return all(states.contains(state) for state in (Atspi.StateType.SHOWING, Atspi.StateType.SENSITIVE)) and bounds.width > 0 and bounds.height > 0
+
+for index in range(desktop.get_child_count()):
+    app = desktop.get_child_at_index(index)
+    if app.get_process_id() != pid:
+        continue
+    dialogs = [app.get_child_at_index(child) for child in range(app.get_child_count())]
+    dialogs = [node for node in dialogs if node.get_role() == Atspi.Role.FILE_CHOOSER and node.get_name() == "Open File"]
+    assert len(dialogs) <= 1, "The owned process exposes one accessible file picker"
+    if not dialogs:
+        break
+    controls = list(descendants(dialogs[0]))
+    if action == "fill":
+        fields = [node for node in controls if node.get_role() == Atspi.Role.TEXT and node.get_state_set().contains(Atspi.StateType.FOCUSED) and ready(node)]
+        if not fields:
+            break
+        assert len(fields) == 1, "The native location entry has unique focus"
+        field = fields[0]
+        assert field.get_editable_text_iface() is not None, "The native location entry is editable"
+        assert Atspi.EditableText.set_text_contents(field, path), "The native location entry accepts the path"
+        assert Atspi.Text.get_text(field, 0, -1) == path, "The native location entry retains the selected path"
+    else:
+        name = "Cancel" if action == "ready" else "Open"
+        buttons = [node for node in controls if node.get_role() == Atspi.Role.PUSH_BUTTON and node.get_name() == name and ready(node)]
+        if not buttons:
+            break
+        assert len(buttons) == 1, "The native picker exposes one ready action"
+        if action == "open":
+            assert Atspi.Action.do_action(buttons[0], 0), "The native Open action is activated once"
+    print(action)
+    break
+`;
+      try {
+        const result = await promisify(execFile)("/usr/bin/python3", ["-c", script, pid, action, resolve(file)], {
+          windowsHide: true,
+          timeout: 120000,
+        });
+        if (result.stdout.trim() !== action) return false;
+        await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
+        if (action === "ready") {
+          await run(["windowfocus", "--sync", ids[0]]);
+          await run(["key", "--clearmodifiers", "ctrl+l"]);
+          picker.window = ids[0];
+        } else if (action === "fill") {
+          picker.entered = true;
+        } else {
+          picker.submitted = true;
+        }
+      } catch (failure) {
+        picker.failure = failure;
+        throw failure;
       }
-      await run(["windowfocus", "--sync", ids[0]]);
-      await run(["key", "--clearmodifiers", "ctrl+l"]);
-      await run(["type", "--clearmodifiers", "--delay", "0", "--", resolve(file)]);
-      await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} file=${resolve(file)} entered\n`);
-      picker.window = ids[0];
       return false;
     }
     return false;

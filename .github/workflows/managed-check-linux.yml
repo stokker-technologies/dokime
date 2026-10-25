@@ -1,5 +1,5 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-linux.yml; sha256:f87a362ed391e2ce6bd732574ad7e180da30c0776c1f289a19b4f2229aa199af
-name: Check
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-linux.yml; sha256:9f4ed214ab4cabbe0dddd079b505a31309ec49a52ec4a05422613f4f52d1408b
+name: Check / Linux
 "on":
   workflow_call:
     inputs:

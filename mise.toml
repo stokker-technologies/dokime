@@ -337,24 +337,6 @@ depends = [
 ]
 env.CARGO_INCREMENTAL = "0"
 
-[tasks."test:rust:extended"]
-description = "Run Optional Local Compatibility And Fault-Injection Stories"
-usage = 'flag "--profile <profile>" default="dev"'
-run = [
-  { task = "build --profile {{usage.profile}}" },
-  { task = "build:rust:compatibility --profile {{usage.profile}}" },
-  "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}} --extended",
-  { task = "test:rust --profile {{usage.profile}}" },
-]
-
-env.CARGO_INCREMENTAL = "0"
-
-[tasks."test:rust:starter"]
-description = "Prove The Standalone Starter In Nightly Validation"
-usage = 'flag "--profile <profile>" default="release"'
-run = "{{vars.tools}} dokime_tools.test.rust.starter --profile {{usage.profile}}"
-env.CARGO_INCREMENTAL = "0"
-
 [tasks."test:rust:coverage"]
 description = "Measure Rust Coverage Over Instrumented Lanes"
 usage = 'flag "--profile <profile>" default="dev"'
@@ -381,6 +363,24 @@ run = [
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
   "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust",
 ]
+env.CARGO_INCREMENTAL = "0"
+
+[tasks."test:rust:extended"]
+description = "Run Optional Local Compatibility And Fault-Injection Stories"
+usage = 'flag "--profile <profile>" default="dev"'
+run = [
+  { task = "build --profile {{usage.profile}}" },
+  { task = "build:rust:compatibility --profile {{usage.profile}}" },
+  "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}} --extended",
+  { task = "test:rust --profile {{usage.profile}}" },
+]
+
+env.CARGO_INCREMENTAL = "0"
+
+[tasks."test:rust:starter"]
+description = "Prove The Standalone Starter In Nightly Validation"
+usage = 'flag "--profile <profile>" default="release"'
+run = "{{vars.tools}} dokime_tools.test.rust.starter --profile {{usage.profile}}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:system"]

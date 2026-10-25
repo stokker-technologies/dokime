@@ -70,17 +70,21 @@ const HOST_STREAMS: &[&str] =
 
 type Changes = ResponseStream<model::observation::wire::RuntimeStateFrame>;
 
-async fn on_change<T>(changes: &mut Changes, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
+async fn on_change<T>(changes: &mut Changes, boundary: &str, mut probe: impl AsyncFnMut() -> Option<T>) -> T {
     loop {
         if let Some(value) = probe().await {
             return value;
         }
-        changes.message().await.unwrap().expect("the runtime watch stays open");
+        changes
+            .message()
+            .await
+            .unwrap_or_else(|error| panic!("runtime watch failed while waiting for {boundary}: {error:?}"))
+            .unwrap_or_else(|| panic!("runtime watch closed while waiting for {boundary}"));
     }
 }
 
 async fn wait_prompt(changes: &mut Changes, prompts: &mut Client, cycle_id: &str) -> model::prompts::wire::PendingPromptIdentity {
-    on_change(changes, async || {
+    on_change(changes, "a pending prompt", async || {
         let page = prompts
             .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.to_owned()), ..Default::default() })
             .await
@@ -91,7 +95,7 @@ async fn wait_prompt(changes: &mut Changes, prompts: &mut Client, cycle_id: &str
 }
 
 async fn wait_completed(changes: &mut Changes, execution: &mut Client, cycle_id: &str) -> model::execution::wire::CycleSummary {
-    on_change(changes, async || {
+    on_change(changes, "cycle completion", async || {
         let cycle = execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.to_owned() }).await.unwrap();
         // An Active cycle has settled once it is idle again with every member run.
         let settled = cycle.status == model::execution::wire::CycleStatus::Ready
@@ -108,7 +112,7 @@ fn passed(cycle: &model::execution::wire::CycleSummary) -> bool {
 }
 
 async fn execution_id(changes: &mut Changes, execution: &mut Client, cycle_id: &str) -> String {
-    on_change(changes, async || {
+    on_change(changes, "the first execution", async || {
         let page = execution
             .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.to_owned(), ..Default::default() })
             .await
@@ -732,7 +736,7 @@ async fn steady_reports(client: &Client, changes: &mut Changes) {
 
     // Answer Every Case, Then Explicitly Seal The Completed Container.
     let prompts = client.clone();
-    on_change(changes, async || {
+    on_change(changes, "steady report sweep completion", async || {
         let pending = prompts
             .prompts_list_pending(contracts::prompts::ListPending { cycle_id: Some(cycle_id.clone()), ..Default::default() })
             .await
@@ -832,7 +836,7 @@ async fn open_report_while_cycle_runs() {
     }
 
     // Back-To-Back Requests Cover The Measuring Member's Seal, The Next Admission And The Question
-    on_change(&mut changes, async || {
+    on_change(&mut changes, "the measuring member to pass", async || {
         let page = execution
             .execution_list_executions(contracts::execution::ListExecutions { cycle_id: cycle_id.clone(), ..Default::default() })
             .await
@@ -1047,7 +1051,7 @@ async fn plugin_host_walkthrough() {
     // The Explicitly Sealed Cycle Serves Its Report
     let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
     execution.cycle(id).seal().await.unwrap();
-    on_change(&mut changes, async || {
+    on_change(&mut changes, "the startup cycle to seal", async || {
         execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap().sealed.then_some(())
     })
     .await;

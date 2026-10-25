@@ -20,11 +20,12 @@ pub(crate) use crate::transactions::FinishProvider as Finish;
 // Third Party Imports
 
 // Local Imports
-use crate::transactions::provider_finish::prepare_finish_effects;
+use crate::transactions::provider_finish::prepare_finish_telemetry;
 use crate::{
     RuntimeHandle,
     runtime::error::{Error, Result},
 };
+use dokime_domain::model::execution::result::ExecutionStatus;
 
 /* === Constants === */
 
@@ -230,11 +231,12 @@ impl RuntimeHandle {
         })
     }
     async fn finish_provider_attempts(&self, finish: Finish) -> Result<()> {
+        let cycle_id = finish.test_cycle_id.clone();
+        let started_execution_ids = finish.started_execution_ids.clone();
         let execution_ids = finish.started_execution_ids.iter().cloned().collect::<std::collections::BTreeSet<_>>();
         let quiescence = self.quiesce_execution_sampling(&execution_ids).await?;
-        let effects = prepare_finish_effects(&self.state_read(), &finish);
-        let finalize_execution_ids = effects.terminal_execution_ids.clone();
-        let admission = match self.prepare_sample_admission(&effects.telemetry).await {
+        let telemetry = prepare_finish_telemetry(&self.state_read(), &finish);
+        let admission = match self.prepare_sample_admission(&telemetry).await {
             Ok(admission) => admission.within_quiescence(),
             Err(error) => {
                 self.resume_sampling(&quiescence).await;
@@ -254,7 +256,18 @@ impl RuntimeHandle {
             self.resume_sampling(&quiescence).await;
             return Err(error);
         }
-        self.refresh_state().await?;
+        let state = self.refresh_state().await?;
+        let finalize_execution_ids = started_execution_ids
+            .into_iter()
+            .filter(|id| state.cycles.get(&cycle_id).is_some_and(|cycle| cycle.execution_ids.contains(id)))
+            .filter(|id| {
+                state
+                    .executions
+                    .get(id)
+                    .is_some_and(|execution| !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running))
+            })
+            .collect::<Vec<_>>();
+        drop(state);
         for execution_id in finalize_execution_ids {
             Box::pin(self.finalize_execution_aggregate_outputs(&execution_id)).await;
         }

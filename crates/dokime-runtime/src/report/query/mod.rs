@@ -15,7 +15,7 @@ pub(crate) mod telemetry;
 
 /* === Re-Exports === */
 
-pub(super) use plots::materialize;
+pub(super) use plots::{ReadPlan, materialize, read_plan};
 
 /* === Imports === */
 

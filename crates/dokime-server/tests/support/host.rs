@@ -46,6 +46,17 @@ pub struct Host {
 
 /* === Implementations === */
 
+impl Drop for Host {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            return;
+        }
+        let status = self.child.try_wait();
+        let diagnostics = std::fs::read_to_string(&self.stderr).unwrap_or_default();
+        eprintln!("backend status at story failure: {status:?}\n{diagnostics}");
+    }
+}
+
 impl Host {
     pub async fn launch(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();

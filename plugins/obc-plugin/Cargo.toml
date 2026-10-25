@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 description = "Demonstrates onboard charger validation on a simulated testbench."
 name = "obc-plugin"
@@ -18,18 +20,26 @@ license.workspace = true
 [package.metadata.dokime]
 debuginfo = false
 
-[features]
-benchmarks = []
+# === Package Targets === #
 
 [[bin]]
 name = "obc-plugin"
 path = "src/main.rs"
 test = false
 
+# === Features === #
+
+[features]
+benchmarks = []
+
+# === Dependencies === #
+
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["plugin-sidecar"] }
 obc-runtime = { version = "0.1.0", path = "runtime" }
+
+# Git
 
 # Error Handling
 thiserror = { workspace = true }
@@ -43,13 +53,77 @@ sysinfo = { workspace = true }
 # Serialization
 serde_json = { workspace = true }
 
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
 # Async
 tokio = { workspace = true }
 
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
 [dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
 # Utilities
 sha2 = { workspace = true }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
 
 # Async
 futures-util = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

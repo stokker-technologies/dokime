@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:b2b92e1e38921791a52df566c9d1bb7e4278646382c2b5845e8564d2a5b5ef5b
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:8860bc2dcb8ab2d4d7dc37a7153a36137d31e15fd814a2493e661b81a94d7a91
 name: Release
 "on":
   workflow_call:
@@ -22,10 +22,6 @@ name: Release
       review_version:
         type: string
         default: ""
-      bump:
-        type: string
-        default: auto
-        description: auto, minor or major; Release / Prepare only
     secrets:
       release_token:
         required: false
@@ -314,7 +310,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build
       env:
-        RELEASE_PROFILE: ${{ startsWith(github.head_ref, 'release/v') && 'release' || 'dev' }}
+        RELEASE_PROFILE: ${{ env.PROFILE }}
         _STKR_CI_BUILD_SCRIPT: mise run release:publish:dry
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
@@ -588,6 +584,7 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
+    - run: mise run release:prepare
     - name: Check Runner Group Allowlist
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
@@ -595,7 +592,6 @@ jobs:
       env:
         GITHUB_RUNNER_WORKFLOWS: "{\"ci.yml\":${{ inputs.runners }}}"
         GH_TOKEN: ${{ secrets.runner_group_read_token || github.token }}
-    - run: mise run release:prepare
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.release.run review
@@ -647,7 +643,6 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: go,node,python,rust,pnpm,uv,gh,git-cliff,glab,minisign
-      RELEASE_BUMP: ${{ inputs.bump }}
       RELEASE_TOKEN: ${{ secrets.release_token }}
       GH_TOKEN: ${{ github.token }}
       CRATES_BOOTSTRAP_AVAILABLE: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}

@@ -2,7 +2,7 @@
 name: dokime-architecture
 description: Define Dokime domain, runtime, shell and packaging ownership and lifecycle boundaries.
 ---
-<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:5e178c97c50f0557dadafc1ed7ae0b5c4b9e7454d3b096ef93921787b3d64e4f -->
+<!-- Rendered by stkr project update from .agents/skills/dokime-architecture/SKILL.md; sha256:62cbf9343f42b1b20fff33383518cf3bdc05bfa1f13a09a86f12339d55e39ce1 -->
 
 # Dokime Architecture
 
@@ -13,10 +13,9 @@ Apply `stkr-architecture` and `stkr-rust-architecture` for the shared tier model
 | `dokime` | Consumer entry library; depends on domain and runtime, with optional client support. |
 | `dokime-domain` | Host-free operation requests/replies, records, streams, prompts and settings contracts; no runtime dependency. |
 | `dokime-runtime` | Handlers, execution, evidence and storage; depends on domain and optionally macros. |
-| `dokime-cli` | Command interface and the `dokime` executable; depends on the entry library. |
+| `dokime-cli` | Command interface and the `dokime` executable, including `dokime server`; depends on the entry library and server library. |
 | `dokime-gui` | Desktop interface; depends on the entry library. |
-| `dokime-server` | Server library; depends on the entry library. |
-| `dokime-server-cli` | Non-publishable process entry point owning the `dokime-server` executable. |
+| `dokime-server` | Server library owning session boot, listeners and bounded drain; shared by CLI and desktop composition, depends on the entry library. |
 | `dokime-client` | Remote client implementation; depends on domain, exposed through the entry library's `client` feature. |
 | `dokime-packaging` | Packaging implementation; depends on the entry library. |
 | `dokime-macros` | Authoring declarations; no production runtime dependency. |

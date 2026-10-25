@@ -1,5 +1,5 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-linux.yml; sha256:d5f73fa4fd2aaff3c873bdd18e5d69e3ec66dfbde48ecec1f6a18de919d43e47
-name: Package
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-linux.yml; sha256:46263ba015d52606cf1619f4cca5ae897fd7501649b8eead0ae2e5e500587c81
+name: Package / Linux
 "on":
   workflow_call:
     inputs:

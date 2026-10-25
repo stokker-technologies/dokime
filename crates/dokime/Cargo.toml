@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 name = "dokime"
 edition.workspace = true
@@ -14,6 +16,10 @@ description.workspace = true
 license.workspace = true
 repository.workspace = true
 version = { workspace = true }
+
+# === Package Targets === #
+
+# === Features === #
 
 [features]
 default = []
@@ -31,6 +37,8 @@ media-native = ["dokime-runtime/media-native"]
 simulation = ["dokime-runtime/simulation"]
 client = ["dep:dokime-client", "dep:dotenv", "dep:tokio", "dep:zeroize"]
 terminal = ["diagnostics", "dep:anstream", "dep:anstyle", "dep:indicatif"]
+
+# === Dependencies === #
 
 [dependencies]
 # Local
@@ -61,14 +69,74 @@ dotenv = { workspace = true, optional = true }
 # Filesystem
 tempfile = { workspace = true }
 
+# Parsing
+
+# Concurrency
+
 # Async
 tokio = { workspace = true, optional = true }
+
+# Networking
+
+# Storage
 
 # UI
 anstream = { workspace = true, optional = true }
 anstyle = { workspace = true, optional = true }
 indicatif = { workspace = true, optional = true }
 
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
 [dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
 # Filesystem
 tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

@@ -339,7 +339,14 @@ async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut
     // The host settles by handing captured records and samples back. Bound
     // idle time between new inputs or their first settlement confirmation,
     // rather than total replay duration.
-    let mut deadline = tokio::time::Instant::now() + bound;
+    let mut advanced = tokio::time::Instant::now();
+    let mut deadline = advanced + bound;
+    tracing::debug!(
+        execution_token = token,
+        cancelled = was_cancelled,
+        idle_bound_ms = bound.as_millis(),
+        "execution input settlement started"
+    );
     let mut staged = None;
     loop {
         let progress = match lock(executions).get(token) {
@@ -348,10 +355,24 @@ async fn settle_record_inputs(executions: &Executions, token: &str, cancel: &mut
             Some(state) => state.settlement_progress(),
         };
         if !was_cancelled && staged.is_some_and(|staged| progress > staged) {
-            deadline = tokio::time::Instant::now() + bound;
+            let now = tokio::time::Instant::now();
+            tracing::debug!(
+                execution_token = token,
+                progress,
+                idle_ms = now.duration_since(advanced).as_millis(),
+                "execution input settlement advanced"
+            );
+            advanced = now;
+            deadline = now + bound;
         }
         staged = Some(progress);
         if tokio::time::Instant::now() >= deadline {
+            tracing::debug!(
+                execution_token = token,
+                progress,
+                idle_ms = advanced.elapsed().as_millis(),
+                "execution input settlement expired"
+            );
             return Err(Diagnostic::of(format!("host did not settle execution inputs before the deadline; input progress: {progress}")));
         }
         tokio::select! {

@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Workspace === #
+
 [workspace]
 members = [
   "crates/dokime",
@@ -24,6 +26,8 @@ members = [
 ]
 resolver = "2"
 
+# === Workspace Package === #
+
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
@@ -32,6 +36,8 @@ description = "Dokime application and runtime packages."
 license = "Apache-2.0"
 publish = true
 repository = "https://github.com/stokker-technologies/dokime"
+
+# === Workspace Dependencies === #
 
 [workspace.dependencies]
 # Local
@@ -43,10 +49,12 @@ dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-fe
 dokime-server = { version = "0.1.0", path = "crates/dokime-server" }
 
 # Framework
-harmos = { version = "=0.1.2", git = "https://github.com/stokker-technologies/harmos.git", rev = "3c06471dfbcfe602b8cd0047eb19daff35255980" }
-harmos-domain = { version = "=0.1.2", git = "https://github.com/stokker-technologies/harmos.git", rev = "3c06471dfbcfe602b8cd0047eb19daff35255980" }
-harmos-packaging = { version = "=0.1.2", git = "https://github.com/stokker-technologies/harmos.git", rev = "3c06471dfbcfe602b8cd0047eb19daff35255980" }
-harmos-sdk = { version = "=0.1.2", git = "https://github.com/stokker-technologies/harmos.git", rev = "3c06471dfbcfe602b8cd0047eb19daff35255980" }
+harmos = "=0.1.3"
+harmos-domain = "=0.1.3"
+harmos-packaging = "=0.1.3"
+harmos-sdk = "=0.1.3"
+
+# Git
 
 # Error Handling
 anyhow = { version = "1.0.104" }
@@ -119,6 +127,8 @@ proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }
 syn = { version = "3.0.9", features = ["extra-traits", "full"] }
 
+# Concurrency
+
 # Async
 async-trait = { version = "0.1.92" }
 futures-util = { version = "0.3.34" }
@@ -167,3 +177,13 @@ xcap = { version = "0.9.8" }
 
 # Testing
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #
