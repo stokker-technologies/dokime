@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package.yml; sha256:1fc753eba33e49d25c912ab54cf98ce55a3986b2153d5cd57cc03ebd5ecdc12a
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package.yml; sha256:761a3f65df27b9e557410be1e131fe12b3e6d307a5e9143cfec9c2a314187b4d
 name: Package
 "on":
   workflow_call:
@@ -38,7 +38,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_python }}
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
       MISE_TASK_SKIP: build:python
     steps:
     - name: Configure Checkout Git

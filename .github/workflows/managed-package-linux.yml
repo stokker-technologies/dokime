@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-linux.yml; sha256:239712472aaf698e41d0e2900c5b062abd9ac7b428ffadc173ab42eef9681d95
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-package-linux.yml; sha256:7adf3b87edebe5411d0dca207932fec35185502dea6f19dc365786325f8f6bbc
 name: Package / Linux
 "on":
   workflow_call:
@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: ${{ fromJSON(inputs.timeouts).package_rust_linux }}
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,python,rust,uv
+        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
       MISE_TASK_SKIP: build
     steps:
     - name: Configure Checkout Git

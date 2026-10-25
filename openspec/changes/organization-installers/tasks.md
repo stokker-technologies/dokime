@@ -22,6 +22,10 @@
 
 - [x] 3.10 Integration owner completes the nightly sidecar lifecycle in `tools/python/src/dokime_tools/test/rust/starter.py` by running the generated package recipe after build and tests, exercising package inspection against the existing product without recompilation.
 
+- [x] 3.11 Integration owner repairs Windows system-test PowerShell selection so child scripts use the declared native executable rather than a shim fallback. Inventory: `mise.toml`, `mise.lock`, affected generated CI workflows and simulator copies; extend test-runner source only if declaration-level repair cannot satisfy the existing contract. Preserve test behavior, deadlines and platform requirements.
+
+- [x] 3.12 Integration owner refreshes canonical simulator workspace ownership from the installed Hub override while regenerating the PowerShell declaration. Inventory: generated `ci/simulate.py`, `ci/containers.py`, `ci/workspaces.py` in product tooling and sidecar templates. Review owned-path, lease, process-tree and report-preservation guards; validate the existing targeted Hub workspace-lifecycle contract without changing Hub source or publication state.
+
 ## Final Validation
 - [ ] 4.1 Declare source complete only after all implementation items and writer handoffs; run default all-required-platform mise run ci:simulate and repair failing lanes without weakening checks.
 

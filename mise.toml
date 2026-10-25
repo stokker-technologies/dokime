@@ -18,6 +18,7 @@ lockfile = true
 # Languages And Runtimes
 go = "1.27.3"
 node = "26.11.1"
+powershell = { version = "7.6.7", os = ["windows"] }
 python = "3.15.0"
 rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools", profile = "minimal", targets = "wasm32-unknown-unknown" }
 
@@ -387,7 +388,6 @@ env.CARGO_INCREMENTAL = "0"
 [tasks."test:rust:system"]
 description = "Test System Rust"
 depends = ["prepare"]
-tools = { powershell = { version = "7.6.7", os = ["windows"] } }
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",

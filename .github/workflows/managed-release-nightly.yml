@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release-nightly.yml; sha256:beb1aedae18e516b4088f98e325b6a7c34dd596a6c97b6ba2e1987a0317bb889
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release-nightly.yml; sha256:8bfeaaa9d08f64cdc01a7d7d0d69b04eace43908af9c8f11fb7680dcc1e64ff0
 name: Release / Nightly
 "on":
   workflow_call:
@@ -33,7 +33,7 @@ jobs:
     env:
       RELEASE_PROFILE: release
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,python,rust,sccache,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
       STKR_SCCACHE_BACKEND: gha
       STKR_SCCACHE_MODE: >-

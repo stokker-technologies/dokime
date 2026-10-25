@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:c78a3726570919842528e2cd3770fe07eb1d1483acc8522ad0cd36fa5e91a0d5
+# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:6104f52fbcaa799fd66e6c6a5766761bdafc47c3fb57c2bd48a45eeba3b4b22c
 # ***
 #
 # {{package}}
@@ -29,7 +29,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from . import containers, impact
+from . import containers, impact, workspaces
 from . import environment as step_environment
 from . import summary as reporting
 
@@ -56,7 +56,7 @@ class SimulationError(RuntimeError):
 
 
 class ProcessTree:
-    def __init__(self):
+    def __init__(self, name: str | None = None):
         if sys.platform != "win32":
             raise SimulationError("native process ownership requires Windows")
 
@@ -87,12 +87,13 @@ class ProcessTree:
             ]
 
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.CreateJobObjectW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
         kernel.CreateJobObjectW.restype = ctypes.c_void_p
         kernel.SetInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong]
         kernel.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         kernel.CloseHandle.argtypes = [ctypes.c_void_p]
         self.kernel = kernel
-        self.handle = kernel.CreateJobObjectW(None, None)
+        self.handle = kernel.CreateJobObjectW(None, name)
         if not self.handle:
             raise SimulationError("cannot create native process tree")
         limits = Limits()
@@ -101,7 +102,7 @@ class ProcessTree:
             self.close()
             raise SimulationError("cannot configure owned process-tree cleanup")
 
-    def attach(self, process) -> None:
+    def attach(self, process, workspace_owner: workspaces.Owner | None = None) -> None:
         if sys.platform != "win32":
             raise SimulationError("native process ownership requires Windows")
 
@@ -109,6 +110,8 @@ class ProcessTree:
             process.kill()
             process.wait()
             raise SimulationError("cannot attach the owned command to its owned process tree")
+        if workspace_owner:
+            workspace_owner.attached(process.pid)
 
         class Thread(ctypes.Structure):
             _fields_ = [
@@ -155,8 +158,18 @@ class ProcessTree:
             return
 
         if self.handle:
-            self.kernel.CloseHandle(self.handle)
-            self.handle = None
+            self.kernel.TerminateJobObject.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+            try:
+                if not self.kernel.TerminateJobObject(self.handle, 1):
+                    raise SimulationError("cannot terminate the owned command tree")
+                deadline = time.monotonic() + 5
+                while workspaces.active_processes(self.kernel, self.handle):
+                    if time.monotonic() >= deadline:
+                        raise SimulationError("owned command tree did not settle after termination")
+                    time.sleep(0.01)
+            finally:
+                self.kernel.CloseHandle(self.handle)
+                self.handle = None
 
 
 # === Public Functions === #
@@ -190,6 +203,7 @@ def main() -> int:
     try:
         root = next(path for path in (Path.cwd(), *Path.cwd().parents) if (path / "mise.toml").is_file())
         containers.reconcile(root / "target/ci/simulation", cache_root(root).name, recover_reports)
+        workspaces.reconcile(root / "target/ci/simulation", cache_root(root).name, recover_workspace)
         platforms = options.platform or PLAN["platforms"]
         executors = {platform: "native" if platform == "windows" else "docker" for platform in platforms}
         for selection in options.executor or []:
@@ -254,8 +268,8 @@ def main() -> int:
         identity = cache.name
         cache.mkdir(parents=True, exist_ok=True)
         profile = "release" if options.pipeline in ("release", "nightly") or release_review else "dev"
-        with tempfile.TemporaryDirectory(prefix="stkr-ci-simulation-") as temporary:
-            candidate = Path(temporary) / "candidate"
+        with workspaces.job(output, identity, token, "_candidate", lambda _: None) as owner:
+            candidate = owner.root / "workspace"
             stage(root, candidate)
 
             def execute(job):
@@ -540,8 +554,8 @@ def run_job(job: dict, candidate: Path, output: Path, cache: Path, identity: str
     started = time.monotonic()
     key = job["key"]
     result: dict = {"state": "failed", "seconds": 0, "cache": None}
-    with tempfile.TemporaryDirectory(prefix="stkr-ci-job-") as temporary:
-        workspace = Path(temporary) / "workspace"
+    with workspaces.job(output, identity, token, key, lambda workspace: recover_workspace(output, key, workspace)) as owner:
+        workspace = owner.root / "workspace"
         shutil.copytree(candidate, workspace, symlinks=True)
         transferred_modes = {}
         transfer_started = time.monotonic()
@@ -645,16 +659,15 @@ def run_job(job: dict, candidate: Path, output: Path, cache: Path, identity: str
                     lines.extend(step_environment.commands(windows, sys.executable, str(Path(__file__).with_name("environment.py"))))
                 script.write_text("\n".join(lines) + "\n", encoding="utf-8")
                 shell = ["pwsh", "-NoProfile", "-NonInteractive", "-File", str(script)] if windows else ["bash", str(script)]
-                try:
-                    status = stream(shell, workspace, environment, label, log, job["minutes"] * 60 - (time.monotonic() - started), result)
-                    if status == 0:
-                        transfer_started = time.monotonic()
-                        archive = workspace / "target/ci/simulation-output.tar"
-                        export(workspace, outputs, archive)
-                        transport(archive, output / "artifacts" / key)
-                        transfer_seconds += time.monotonic() - transfer_started
-                finally:
-                    preserve_reports(workspace, output, key, log)
+                status = stream(
+                    shell, workspace, environment, label, log, job["minutes"] * 60 - (time.monotonic() - started), result, owner
+                )
+                if status == 0:
+                    transfer_started = time.monotonic()
+                    archive = workspace / "target/ci/simulation-output.tar"
+                    export(workspace, outputs, archive)
+                    transport(archive, output / "artifacts" / key)
+                    transfer_seconds += time.monotonic() - transfer_started
         result.setdefault("phases", {})["Transfer"] = transfer_seconds
         result.update(state="passed" if status == 0 else "failed", seconds=time.monotonic() - started)
     return result
@@ -769,15 +782,22 @@ def docker(
         return status
 
 
+def recover_workspace(output: Path, key: str, workspace: Path) -> None:
+    with (output / f"{key}.log").open("a", encoding="utf-8") as log:
+        if not preserve_reports(workspace, output, key, log):
+            raise SimulationError("workspace reports remain available for recovery")
+
+
 def recover_reports(output: Path, key: str, container: str) -> None:
     with (
         tempfile.TemporaryDirectory(prefix="stkr-ci-recovery-") as directory,
         (output / f"{key}.cleanup.log").open("a", encoding="utf-8") as log,
     ):
-        preserve_reports(Path(directory) / "workspace", output, key, log, container)
+        if not preserve_reports(Path(directory) / "workspace", output, key, log, container):
+            raise SimulationError("Docker reports remain available for recovery")
 
 
-def preserve_reports(workspace: Path, output: Path, key: str, log, container: str | None = None) -> None:
+def preserve_reports(workspace: Path, output: Path, key: str, log, container: str | None = None) -> bool:
     archive = workspace.with_suffix(".reports.tar")
     try:
         if container:
@@ -792,7 +812,7 @@ def preserve_reports(workspace: Path, output: Path, key: str, log, container: st
         else:
             reports = workspace / "target/tests"
             if not reports.exists():
-                return
+                return True
             with tarfile.open(archive, "w") as target:
                 for path in [reports, *reports.rglob("*")]:
                     if path.is_symlink() or not path.resolve().is_relative_to(reports.resolve()):
@@ -800,12 +820,22 @@ def preserve_reports(workspace: Path, output: Path, key: str, log, container: st
                     if path.is_file() or path.is_dir():
                         target.add(path, arcname=path.relative_to(reports.parent).as_posix(), recursive=False)
         transport(archive, output / "diagnostics" / key)
+        return True
     except (OSError, tarfile.TarError, subprocess.SubprocessError, SimulationError) as error:
+        missing = f"Error response from daemon: Could not find the file /workspace/target/tests in container {container}"
+        if (
+            container
+            and isinstance(error, subprocess.CalledProcessError)
+            and error.returncode == 1
+            and error.stderr == (missing + "\n").encode()
+        ):
+            return True
         try:
             log.write(f"Diagnostic collection unavailable: {error}\n")
             log.flush()
         except OSError:
             pass
+        return False
 
 
 def evidence(output: Path, job: dict, commands: list[str], environment: dict) -> None:
@@ -827,11 +857,21 @@ def evidence(output: Path, job: dict, commands: list[str], environment: dict) ->
     (output / f"{job['key']}.execution.json").write_text(json.dumps(recorded, indent=2) + "\n", encoding="utf-8")
 
 
-def stream(command: list[str], cwd: Path, environment: dict | None, key: str, log, timeout: float, result: dict) -> int:
+def stream(
+    command: list[str],
+    cwd: Path,
+    environment: dict | None,
+    key: str,
+    log,
+    timeout: float,
+    result: dict,
+    workspace_owner: workspaces.Owner | None = None,
+) -> int:
     if timeout <= 0:
         raise SimulationError("job deadline exceeded")
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    owner = ProcessTree() if os.name == "nt" and command[0] != "docker" else None
+    name = workspace_owner.starting() if workspace_owner else None
+    owner = ProcessTree(name) if os.name == "nt" and command[0] != "docker" else None
     if owner:
         flags |= 4
     try:
@@ -846,16 +886,26 @@ def stream(command: list[str], cwd: Path, environment: dict | None, key: str, lo
             creationflags=flags,
             start_new_session=os.name != "nt",
         )
+    except BaseException as error:
+        if owner:
+            owner.close()
+        if workspace_owner and isinstance(error, FileNotFoundError):
+            workspace_owner.settled()
+        raise
+    try:
+        if owner:
+            owner.attach(process, workspace_owner)
+        elif workspace_owner:
+            workspace_owner.attached(process.pid)
     except BaseException:
         if owner:
             owner.close()
+        else:
+            import signal
+
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
         raise
-    if owner:
-        try:
-            owner.attach(process)
-        except BaseException:
-            owner.close()
-            raise
 
     def drain():
         assert process.stdout is not None
@@ -887,7 +937,10 @@ def stream(command: list[str], cwd: Path, environment: dict | None, key: str, lo
         else:
             import signal
 
-            os.killpg(process.pid, signal.SIGKILL)
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         process.wait()
         if isinstance(error, KeyboardInterrupt):
             raise
@@ -902,6 +955,13 @@ def stream(command: list[str], cwd: Path, environment: dict | None, key: str, lo
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+        if workspace_owner:
+            deadline = time.monotonic() + 5
+            while workspaces.command_live(workspace_owner.record["command"]):
+                if time.monotonic() >= deadline:
+                    raise SimulationError("owned command tree did not settle after termination")
+                time.sleep(0.01)
+            workspace_owner.settled()
         reader.join(timeout=5)
         if reader.is_alive():
             raise SimulationError("owned command retained its output stream after termination")

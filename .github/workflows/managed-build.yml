@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-build.yml; sha256:382aa5acbce8a624fa6b02b1ab0fd65ade2a9fe8fde5795e6c293282923e4313
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-build.yml; sha256:0efb470893910439b3fb71831bbb8cf0b4f28005ecc3466385e114cb7cc11662
 name: Build
 "on":
   workflow_call:
@@ -298,5 +298,5 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo,protoc
     if: contains(fromJSON(inputs.impact), 'build:python') && (true)
