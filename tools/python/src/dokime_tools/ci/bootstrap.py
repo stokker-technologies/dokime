@@ -33,7 +33,6 @@ from typing import Any
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import storage
 
 # Type Checking Imports
 
@@ -326,6 +325,8 @@ def prepare_harmos(
             if "registry" in identity:
                 published_sha256 = _install_harmos_release(staged, identity, binary.name)
             else:
+                from dokime_tools.build import storage
+
                 source_arguments = (
                     ["--path", str(local_source / "crates/cargo-harmos")]
                     if local_source is not None

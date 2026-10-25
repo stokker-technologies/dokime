@@ -14,12 +14,15 @@
 import hashlib
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 # Third Party Imports
 import pytest
 
 # Local Imports
+from dokime_tools.build import storage
 from dokime_tools.ci import bootstrap
 from dokime_tools.prepare import bindings
 
@@ -100,6 +103,20 @@ def processes(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(bootstrap, "_run", install)
     monkeypatch.setattr(bootstrap, "_override_source", lambda _path: source[0])
     return calls, source
+
+
+def test_standalone_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.undo()
+    script = Path(bootstrap.__file__).resolve()
+    result = subprocess.run(
+        [sys.executable, "-I", str(script)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_public_source_selection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, processes) -> None:
@@ -386,7 +403,7 @@ def test_source_tool_preflight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, 
         assert admitted == [target]
         install(command)
 
-    monkeypatch.setattr(bootstrap.storage, "preflight", preflight)
+    monkeypatch.setattr(storage, "preflight", preflight)
     monkeypatch.setattr(bootstrap, "_run", compile_tool)
     bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=config)
     assert admitted == [tmp_path / "target/tooling/harmos"]

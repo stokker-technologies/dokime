@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/workspaces.py; sha256:3c4ea64ba7e213fb5379a8c864a86a0a4a6fc66fae72e2c278a36a7208eff9c2
+# Rendered by stkr project update from templates/python/ci/workspaces.py; sha256:5fbc23dc446cac4fb2653cb86cf54d6c4898f829af243bad2ab0bdffe6f39caf
 # ***
 #
 # Dokime
@@ -145,6 +145,9 @@ def command_live(command: dict) -> bool:
 
 
 def active_processes(kernel, handle) -> int:
+    if os.name != "nt":
+        raise OSError("Windows command-tree accounting is unavailable on this platform")
+
     class Accounting(ctypes.Structure):
         _fields_ = [
             ("user", ctypes.c_longlong),
