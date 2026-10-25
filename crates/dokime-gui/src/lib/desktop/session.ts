@@ -16,12 +16,15 @@ import type { ConnectionSnapshot, ConnectionTarget, ConnectRequest } from "./con
 
 /* === Types === */
 
+export type BackendChoice = { kind: "owned_local" } | { kind: "profile"; name: string };
+
 export type BackendSelection = { kind: "owned_local" } | { kind: "profile"; name: string } | { kind: "attach"; request: ConnectRequest };
 
 export type BackendOwnership = "none" | "owned_local" | "attached";
 
 export type DesktopSessionSnapshot = {
   ownership: BackendOwnership;
+  selection: BackendChoice | null;
   /** The startup phase an owned local backend last reported while starting
    * (`"storage"`, `"plugins"`, `"requests"`, …, free-form so an older GUI
    * tolerates a name it does not recognize). `null` once connected or
@@ -40,6 +43,7 @@ export type BackendDiagnostics = {
 
 /** Secret-free launch preferences supplied by the native process. */
 export type DesktopLaunch = {
+  selection: BackendChoice;
   target: ConnectionTarget | null;
   expectedBackendId: string | null;
   localBackendAvailable: boolean;

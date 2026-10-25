@@ -12,8 +12,8 @@
 # === Imports === #
 
 # Standard Library Imports
-import argparse
 import asyncio
+import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -29,6 +29,14 @@ from dokime_client.client import DokimeClient, Record, Sample
 
 # === Constants === #
 
+ENDPOINT = "https://127.0.0.1:8766"
+KEY_FILE: Path | None = Path("remote.key")
+CA_CERTIFICATE: Path | None = Path("server.pem")
+ENV_FILE: Path | None = None
+EXECUTION_ID = "00000000-0000-0000-0000-000000000001"
+RPC_TIMEOUT = 30.0
+WAIT_SECONDS: float | None = None
+
 # === Types === #
 
 # === Classes === #
@@ -36,19 +44,21 @@ from dokime_client.client import DokimeClient, Record, Sample
 # === Public Functions === #
 
 
-async def run(arguments: argparse.Namespace) -> int:
-    token = arguments.token_file.read_text(encoding="utf-8").strip()
+async def run() -> int:
+    if urlsplit(ENDPOINT).scheme != "https":
+        raise ValueError("remote control requires an HTTPS endpoint")
     async with DokimeClient(
-        arguments.endpoint,
-        token=token,
-        ca_certificate=arguments.ca_certificate,
-        rpc_timeout=arguments.rpc_timeout,
+        ENDPOINT,
+        key_file=KEY_FILE,
+        env_file=ENV_FILE,
+        ca_certificate=CA_CERTIFICATE,
+        rpc_timeout=RPC_TIMEOUT,
     ) as client:
         backend = await client.connect()
         print(f"Backend: {backend.id} Epoch: {backend.epoch}", flush=True)
-        execution = await client.execution(arguments.execution)
+        execution = await client.execution(EXECUTION_ID)
         print(
-            f"Execution: {execution.id} Request Key: {arguments.request_key}",
+            f"Execution: {execution.id}",
             flush=True,
         )
 
@@ -59,38 +69,18 @@ async def run(arguments: argparse.Namespace) -> int:
             print(f"Sample: {item.stream} #{item.sequence} {item.values!r}", flush=True)
 
         outcome = await execution.run(
-            request_key=arguments.request_key,
             on_record=record,
             on_sample=sample,
-            timeout=arguments.timeout,
+            timeout=WAIT_SECONDS,
         )
         print(
             f"Saved Outcome: {outcome.status} Execution: {outcome.checkpoint.execution_id}",
             flush=True,
         )
-        return 0 if outcome.status == "passed" else 1
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--endpoint", required=True, help="Authenticated HTTPS listener")
-    parser.add_argument("--token-file", required=True, type=Path)
-    parser.add_argument("--ca-certificate", type=Path)
-    parser.add_argument("--execution", required=True, help="Existing planned execution ID")
-    parser.add_argument("--request-key", required=True, help="Retain this key for recovery")
-    parser.add_argument("--rpc-timeout", type=float, default=30)
-    parser.add_argument("--timeout", type=float, help="Local wait timeout; never stops remote work")
-    arguments = parser.parse_args()
-    if urlsplit(arguments.endpoint).scheme != "https":
-        parser.error("remote control requires an HTTPS endpoint")
-    try:
-        return asyncio.run(run(arguments))
-    except KeyboardInterrupt:
-        print(
-            f"Local Client Closed; Remote Work May Still Be Running. Execution: {arguments.execution} Request Key: {arguments.request_key}",
-            flush=True,
+        Path("execution.json").write_text(
+            json.dumps({"execution_id": execution.id, "status": outcome.status}, indent=2) + "\n", encoding="utf-8"
         )
-        return 130
+        return 0
 
 
 # === Private Functions === #
@@ -98,4 +88,8 @@ def main() -> int:
 # === Entry Point === #
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(asyncio.run(run()))
+    except KeyboardInterrupt:
+        print(f"Local Client Closed; Remote Work May Still Be Running. Execution: {EXECUTION_ID}", flush=True)
+        raise SystemExit(130)

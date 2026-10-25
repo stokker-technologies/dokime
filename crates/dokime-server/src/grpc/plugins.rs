@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+mod admission;
 mod inventory;
 mod wire;
 
@@ -24,13 +25,13 @@ use std::{
 
 // Third Party Imports
 use contract as v1;
-use dokime::harmos::domain::Portable;
+use dokime::harmos::domain::{Message, Portable};
 use dokime::harmos::{
     MemorySize,
     operations::{Context, Operation, Response, StreamInput, StreamItem},
 };
 use sha2::{Digest, Sha256};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::OwnedSemaphorePermit;
 use tonic::Status;
 use uuid::Uuid;
 
@@ -53,7 +54,7 @@ use dokime::{
 
 struct Resources {
     pub runtime: RuntimeHandle,
-    pub admission: Arc<Semaphore>,
+    pub admission: admission::Admission,
     pub max_message_bytes: usize,
 }
 
@@ -65,15 +66,9 @@ struct GetInstallation {
     resources: Arc<Resources>,
 }
 
-struct Stage {
+struct Install {
     resources: Arc<Resources>,
 }
-
-struct Consent {
-    resources: Arc<Resources>,
-}
-
-struct ConsentError(Status);
 
 struct SetEnabled {
     resources: Arc<Resources>,
@@ -93,27 +88,10 @@ struct ListAdmittedPlugins {
 
 /* === Implementations === */
 
-impl From<PluginError> for ConsentError {
-    fn from(error: PluginError) -> Self {
-        Self(failure(error))
-    }
-}
-
-impl From<std::io::Error> for ConsentError {
-    fn from(error: std::io::Error) -> Self {
-        Self(failure(PluginError::Io(error)))
-    }
-}
-
 impl Resources {
-    fn permit(&self) -> Result<OwnedSemaphorePermit, Status> {
-        let permit = self.admission.clone().try_acquire_owned().map_err(|_| Status::resource_exhausted("plugin management is busy"))?;
-        Ok(permit)
-    }
     async fn blocking<T: Send + 'static>(
-        &self, operation: impl FnOnce(PluginStore) -> Result<T, PluginError> + Send + 'static,
+        &self, permit: OwnedSemaphorePermit, operation: impl FnOnce(PluginStore) -> Result<T, PluginError> + Send + 'static,
     ) -> Result<T, Status> {
-        let permit = self.permit()?;
         let store = self.runtime.plugin_store();
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
@@ -157,7 +135,12 @@ impl Operation for ListInstallations {
         let size = page_size(request.page_size)?;
         let after =
             request.after.take().map(|cursor| Ok::<_, Status>((id(&cursor.after_install_id)?, cursor.manifest_sha256))).transpose()?;
-        let page = self.resources.blocking(move |store| store.page(after.as_ref().map(|(id, hash)| (*id, hash.as_str())), size)).await?;
+        let page = self
+            .resources
+            .blocking(self.resources.admission.read()?, move |store| {
+                store.page(after.as_ref().map(|(id, hash)| (*id, hash.as_str())), size)
+            })
+            .await?;
         let mut page = page;
         let mut required = std::mem::size_of::<plugins_model::InstallationPage>() + 256;
         for entry in &mut page.entries {
@@ -197,47 +180,47 @@ impl Operation for GetInstallation {
         &mut self, _: Self::Context<'a>, request: &mut v1::GetInstallation, _: &mut Self::Endpoints,
     ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let id = id(&request.install_id)?;
-        let entry = self.resources.blocking(move |store| store.get(id)).await?;
+        let entry = self.resources.blocking(self.resources.admission.read()?, move |store| store.get(id)).await?;
         self.resources.entry(entry)
     }
 }
 
-impl Operation for Stage {
-    type Declaration = v1::Stage;
+impl Operation for Install {
+    type Declaration = v1::Install;
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamInput<plugins_model::StagePluginFrame>;
+    type Endpoints = StreamInput<plugins_model::InstallPluginFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _request: &mut v1::Stage, input: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, _request: &mut v1::Install, input: &mut Self::Endpoints,
     ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let operation = self.resources.runtime.operation_progress().begin("Installing Plugin");
         operation.phase("Receiving Archive");
-        let staged = self.stage(input, &operation).await;
-        if let Err(status) = &staged {
+        let installed = self.install(input, &operation).await;
+        if let Err(status) = &installed {
             operation.fail(status.message());
         }
-        staged
+        installed
     }
 }
 
-impl Stage {
-    async fn stage(
-        &mut self, input: &mut StreamInput<plugins_model::StagePluginFrame>, operation: &dokime::runtime::progress::Operation,
+impl Install {
+    async fn install(
+        &mut self, input: &mut StreamInput<plugins_model::InstallPluginFrame>, operation: &dokime::runtime::progress::Operation,
     ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
-        let permit = self.resources.permit().map_err(reject)?;
-        let first = message(input).await?.ok_or_else(|| reject(Status::invalid_argument("stage header is required")))?;
-        let Some(plugins_model::StagePluginFrameFrame::Header(header)) = &first.frame else {
-            return Err(reject(Status::invalid_argument("first stage frame must be a header")));
+        let permit = self.resources.admission.mutation().map_err(reject)?;
+        let first = message(input).await?.ok_or_else(|| reject(Status::invalid_argument("install header is required")))?;
+        let Some(plugins_model::InstallPluginFrameFrame::Header(header)) = &first.frame else {
+            return Err(reject(Status::invalid_argument("first install frame must be a header")));
         };
         digest(&header.sha256).map_err(reject)?;
-        if header.size_bytes == 0 || header.size_bytes > plugins_model::STAGE_ARCHIVE_MAX_BYTES {
+        if header.size_bytes == 0 || header.size_bytes > plugins_model::INSTALL_ARCHIVE_MAX_BYTES {
             return Err(reject(Status::resource_exhausted("plugin archive size exceeds native limit")));
         }
-        tracing::info!(declared_bytes = header.size_bytes, digest_prefix = &header.sha256[..8], "plugin stage header received",);
+        tracing::info!(declared_bytes = header.size_bytes, digest_prefix = &header.sha256[..8], "plugin installation header received",);
         let size_bytes = header.size_bytes;
         let expected_sha256 = header.sha256.clone();
         drop(first);
@@ -246,14 +229,14 @@ impl Stage {
         bytes.try_reserve_exact(size_bytes as usize).map_err(|_| reject(Status::resource_exhausted("plugin upload memory unavailable")))?;
         let mut hash = Sha256::new();
         while let Some(frame) = message(input).await? {
-            let Some(plugins_model::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else {
-                return Err(reject(Status::invalid_argument("only chunks may follow stage header")));
+            let Some(plugins_model::InstallPluginFrameFrame::Chunk(chunk)) = &frame.frame else {
+                return Err(reject(Status::invalid_argument("only chunks may follow install header")));
             };
             if chunk.offset != bytes.len() as u64 || chunk.data.is_empty() || chunk.data.len() > self.resources.max_message_bytes {
-                return Err(reject(Status::invalid_argument("invalid stage chunk offset or size")));
+                return Err(reject(Status::invalid_argument("invalid install chunk offset or size")));
             }
             if chunk.data.len() as u64 > size_bytes.saturating_sub(bytes.len() as u64) {
-                return Err(reject(Status::invalid_argument("stage exceeds declared size")));
+                return Err(reject(Status::invalid_argument("install exceeds declared size")));
             }
             hash.update(&chunk.data);
             bytes.extend_from_slice(&chunk.data);
@@ -262,16 +245,29 @@ impl Stage {
         if bytes.len() as u64 != size_bytes
             || hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>() != expected_sha256
         {
-            return Err(reject(Status::invalid_argument("stage size or digest mismatch")));
+            return Err(reject(Status::invalid_argument("install size or digest mismatch")));
         }
-        tracing::info!(received_bytes = bytes.len(), elapsed_ms = received_started.elapsed().as_millis(), "plugin stage upload completed",);
+        tracing::info!(
+            received_bytes = bytes.len(),
+            elapsed_ms = received_started.elapsed().as_millis(),
+            "plugin installation upload completed",
+        );
         operation.phase("Inspecting Archive");
         operation.indeterminate();
-        let store = self.resources.runtime.plugin_store();
+        let runtime = self.resources.runtime.clone();
         let inspect_started = Instant::now();
-        let entry = match tokio::task::spawn_blocking(move || {
+        let maximum = self.resources.max_message_bytes;
+        let entry = match tokio::spawn(async move {
             let _permit = permit;
-            store.stage(&bytes)
+            runtime
+                .install_plugin(bytes, move |entry| {
+                    let reply = wire::entry(entry.clone(), maximum).map_err(|_| PluginError::ResultLimit)?;
+                    if reply.encoded_len() > maximum {
+                        return Err(PluginError::ResultLimit);
+                    }
+                    Ok(())
+                })
+                .await
         })
         .await
         .map_err(join)
@@ -280,45 +276,7 @@ impl Stage {
             Ok(Err(error)) => return Err(reject(failure(error))),
             Err(status) => return Err(reject(status)),
         };
-        tracing::info!(elapsed_ms = inspect_started.elapsed().as_millis(), "plugin stage inspection completed",);
-        self.resources.entry(entry)
-    }
-}
-
-impl Operation for Consent {
-    type Declaration = v1::Consent;
-    type Resources = Resources;
-    type Error = Status;
-    type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self { resources })
-    }
-    async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::Consent, _: &mut Self::Endpoints,
-    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
-        let id = id(&request.install_id)?;
-        digest(&request.expected_sha256)?;
-        let permit = self.resources.permit()?;
-        let expected_sha256 = std::mem::take(&mut request.expected_sha256);
-        let runtime = self.resources.runtime.clone();
-        let max_message_bytes = self.resources.max_message_bytes;
-        // Admission retains its permit after transport cancellation. Consent can
-        // already have published; callers reconcile by UUID, never blindly retry.
-        let entry = tokio::spawn(async move {
-            let _permit = permit;
-            runtime
-                .consent_plugin(id, move |current| {
-                    if current.installation.sha256 != expected_sha256 {
-                        return Err(ConsentError(Status::failed_precondition("consent digest does not match staged installation")));
-                    }
-                    wire::disclosure(current, max_message_bytes).map_err(ConsentError)
-                })
-                .await
-                .map_err(|error| error.0)
-        })
-        .await
-        .map_err(join)??;
+        tracing::info!(elapsed_ms = inspect_started.elapsed().as_millis(), "plugin installation inspection completed",);
         self.resources.entry(entry)
     }
 }
@@ -339,7 +297,7 @@ impl Operation for SetEnabled {
         let enabled = request.enabled;
         let entry = self
             .resources
-            .blocking(move |store| {
+            .blocking(self.resources.admission.mutation()?, move |store| {
                 store.set_enabled(id, enabled)?;
                 store.get(id)
             })
@@ -363,7 +321,7 @@ impl Operation for Remove {
         let id = id(&request.install_id)?;
         let entry = self
             .resources
-            .blocking(move |store| {
+            .blocking(self.resources.admission.mutation()?, move |store| {
                 store.remove(id)?;
                 match store.get(id) {
                     Ok(entry) => Ok(Some(entry)),
@@ -405,11 +363,10 @@ impl Operation for ListAdmittedPlugins {
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
-    let resources = Arc::new(Resources { runtime: runtime.clone(), admission: Arc::new(Semaphore::new(1)), max_message_bytes: maximum });
+    let resources = Arc::new(Resources { runtime: runtime.clone(), admission: admission::Admission::new(), max_message_bytes: maximum });
     runtime.operations().register_wire_operation::<ListInstallations>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<GetInstallation>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Stage>("dokime", dokime::app::Lanes::Open, resources.clone())?;
-    runtime.operations().register_wire_operation::<Consent>("dokime", dokime::app::Lanes::Open, resources.clone())?;
+    runtime.operations().register_wire_operation::<Install>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<SetEnabled>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Remove>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<ListAdmittedPlugins>("dokime", dokime::app::Lanes::Open, resources.clone())?;
@@ -419,15 +376,15 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 /* === Private Functions === */
 
 async fn message(
-    input: &mut StreamInput<plugins_model::StagePluginFrame>,
-) -> Result<Option<StreamItem<plugins_model::StagePluginFrame>>, Status> {
+    input: &mut StreamInput<plugins_model::InstallPluginFrame>,
+) -> Result<Option<StreamItem<plugins_model::InstallPluginFrame>>, Status> {
     tokio::time::timeout(Duration::from_secs(30), input.recv())
         .await
         .map_err(|_| reject(Status::deadline_exceeded("plugin upload idle deadline exceeded")))
 }
 
 fn reject(status: Status) -> Status {
-    tracing::warn!(code = ?status.code(), message = %status.message(), "plugin stage rejected");
+    tracing::warn!(code = ?status.code(), message = %status.message(), "plugin installation rejected");
     status
 }
 
@@ -457,6 +414,7 @@ fn join(_: tokio::task::JoinError) -> Status {
 
 fn failure(error: PluginError) -> Status {
     match error {
+        PluginError::ResultLimit => Status::resource_exhausted("plugin installation result exceeds response budget"),
         PluginError::Limit => Status::resource_exhausted("plugin query IO budget exceeded; request a smaller page"),
         PluginError::Cursor => Status::failed_precondition("plugin manifest cursor changed; restart listing"),
         PluginError::Unknown(_) => Status::not_found("plugin installation not found"),
@@ -465,7 +423,7 @@ fn failure(error: PluginError) -> Status {
         } else {
             "invalid plugin bundle (validation detail exceeds response limit)".into()
         }),
-        PluginError::NotStaged(_) | PluginError::NotInstalled(_) | PluginError::Changed(_) | PluginError::Collision(_) => {
+        PluginError::NotInstalled(_) | PluginError::Changed(_) | PluginError::Collision(_) => {
             Status::failed_precondition(error.to_string())
         }
         _ => Status::unavailable("plugin storage unavailable; reconcile installation state before retrying mutation"),

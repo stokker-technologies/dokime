@@ -242,7 +242,7 @@ async fn execution_failure(client: &Client, member: &model::execution::wire::Exe
     panic!("benchmark execution {} failed: {:?}; steps: {steps:?}", member.execution_id, member.status);
 }
 
-// (a) Staging And Consenting The Built Bundle Through The Client Install Stream.
+// (a) Installing The Built Bundle Through The Client Install Stream.
 fn install(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, bundle: &Path) {
     let bytes = padded_bundle(bundle, 50 * 1024 * 1024);
     let mut server = Server::start(None);
@@ -257,7 +257,7 @@ fn install(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, bundle
                 for _ in 0..iterations {
                     let before = server.storage_counters();
                     let started = Instant::now();
-                    let installation = stage(&client, &bytes).await;
+                    let installation = install_bundle(&client, &bytes).await;
                     elapsed += started.elapsed();
                     counters("plugin_install", before, server.storage_counters(), bytes.len());
                     client.plugins_remove(contracts::plugins::Remove { install_id: installation.install_id }).await.unwrap();
@@ -546,17 +546,16 @@ fn export(criterion: &mut Criterion, executor: &tokio::runtime::Runtime, session
     group.finish();
 }
 
-async fn stage(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
-    use {model::plugins::wire::StagePluginFrame, model::plugins::wire::StagePluginFrameFrame as Frame};
+async fn install_bundle(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
+    use {model::plugins::wire::InstallPluginFrame, model::plugins::wire::InstallPluginFrameFrame as Frame};
     let sha256 = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-    let header = model::plugins::wire::StagePluginHeader { size_bytes: bytes.len() as u64, sha256: sha256.clone() };
-    let mut frames = vec![StagePluginFrame { frame: Some(Frame::Header(header)) }];
+    let header = model::plugins::wire::InstallPluginHeader { size_bytes: bytes.len() as u64, sha256: sha256.clone() };
+    let mut frames = vec![InstallPluginFrame { frame: Some(Frame::Header(header)) }];
     for (index, chunk) in bytes.chunks(64 * 1024).enumerate() {
-        let chunk = model::plugins::wire::StagePluginChunk { offset: (index * 64 * 1024) as u64, data: chunk.to_vec() };
-        frames.push(StagePluginFrame { frame: Some(Frame::Chunk(chunk)) });
+        let chunk = model::plugins::wire::InstallPluginChunk { offset: (index * 64 * 1024) as u64, data: chunk.to_vec() };
+        frames.push(InstallPluginFrame { frame: Some(Frame::Chunk(chunk)) });
     }
-    let staged = client.plugins_stage(tokio_stream::iter(frames)).await.unwrap();
-    client.plugins_consent(contracts::plugins::Consent { install_id: staged.install_id, expected_sha256: sha256 }).await.unwrap()
+    client.plugins_install(tokio_stream::iter(frames)).await.unwrap()
 }
 
 async fn respond(client: &Client, prompt_id: String) -> usize {

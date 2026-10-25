@@ -33,9 +33,11 @@ pub use logging::{LoggingGuards, init as install_logging};
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 // Third Party Imports
+use futures_util::future::BoxFuture;
 
 // Local Imports
 
@@ -52,11 +54,17 @@ const STOP_BUDGET: std::time::Duration = std::time::Duration::from_secs(dokime::
 
 pub struct Session {
     executor: tokio::runtime::Handle,
-    runtime: Option<dokime::Runtime>,
-    server: Option<crate::grpc::Server>,
-    stage: &'static str,
+    resources: Option<Resources>,
+    draining: Option<tokio::task::JoinHandle<(Resources, Result<()>)>>,
+    stage: Arc<Mutex<&'static str>>,
+    task_failure: Option<String>,
     plugins: Vec<PathBuf>,
     expected: Vec<ExpectedPlugin>,
+}
+
+struct Resources {
+    runtime: Option<dokime::Runtime>,
+    server: Option<crate::grpc::Server>,
 }
 
 struct ExpectedPlugin {
@@ -87,14 +95,15 @@ impl Session {
         let runtime = dokime::app::launch(config).await.map_err(|error| Error::launch(error, config_root.clone()))?;
         let mut session = Self {
             executor: tokio::runtime::Handle::current(),
-            runtime: Some(runtime),
-            server: None,
-            stage: "starting",
+            resources: Some(Resources { runtime: Some(runtime), server: None }),
+            draining: None,
+            stage: Arc::new(Mutex::new("starting")),
+            task_failure: None,
             plugins: args.plugins.clone(),
             expected,
         };
         on_phase("plugins");
-        let runtime = session.runtime.as_ref().expect("session owns runtime");
+        let runtime = session.resources.as_ref().unwrap().runtime.as_ref().expect("session owns runtime");
         if let Err(error) = verify_plugins(&runtime.handle(), if args.dev_control { &[] } else { &session.expected }).await {
             return match session.shutdown().await {
                 Ok(()) => Err(error),
@@ -102,10 +111,10 @@ impl Session {
             };
         }
         on_phase("requests");
-        let runtime = session.runtime.as_ref().expect("session owns runtime");
+        let runtime = session.resources.as_ref().unwrap().runtime.as_ref().expect("session owns runtime");
         match crate::grpc::Server::start(runtime.handle(), server_config).await {
             Ok(server) => {
-                session.server = Some(server);
+                session.resources.as_mut().unwrap().server = Some(server);
                 Ok(session)
             }
             Err(error) => {
@@ -119,11 +128,11 @@ impl Session {
     }
 
     pub fn endpoint(&self) -> String {
-        self.server.as_ref().expect("ready session owns listener").local_endpoint()
+        self.resources.as_ref().and_then(|resources| resources.server.as_ref()).expect("ready session owns listener").local_endpoint()
     }
 
     pub fn address(&self) -> SocketAddr {
-        self.server.as_ref().expect("ready session owns listener").address()
+        self.resources.as_ref().and_then(|resources| resources.server.as_ref()).expect("ready session owns listener").address()
     }
 
     pub async fn reload(&mut self, path: &Path, rerun: bool) -> Result<Option<String>> {
@@ -137,60 +146,93 @@ impl Session {
         if candidate[0].package != self.expected[index].package {
             return Err(Error::Input("package name changed; restart the development command".into()));
         }
-        let runtime = self.runtime.as_mut().expect("session owns runtime");
+        let runtime = self.resources.as_mut().and_then(|resources| resources.runtime.as_mut()).expect("session owns runtime");
         runtime.reload_plugin(dokime::plugins::PluginBundle::new(path)).await?;
         verify_plugins(&runtime.handle(), &candidate).await?;
         if rerun { Ok(Some(rerun_latest_case(&runtime.handle(), &candidate[0].owners).await)) } else { Ok(None) }
     }
 
-    pub async fn shutdown(mut self) -> Result<()> {
-        match tokio::time::timeout(STOP_BUDGET, self.drain()).await {
-            Ok(result) => result,
-            Err(_) => {
-                let stage = if self.stage == "stopping runtime" {
-                    self.runtime.as_ref().map_or(self.stage, dokime::Runtime::shutdown_stage)
-                } else {
-                    self.stage
-                };
-                Err(Error::StopIncomplete { stage, budget_s: STOP_BUDGET.as_secs() })
+    pub fn shutdown(&mut self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async move {
+            if let Some(message) = &self.task_failure {
+                return Err(Error::Setup(message.clone()));
             }
-        }
+            if self.draining.is_none() {
+                let Some(mut resources) = self.resources.take() else { return Ok(()) };
+                let stage = self.stage.clone();
+                self.draining = Some(self.executor.spawn(async move {
+                    let outcome = resources.drain(&stage).await;
+                    (resources, outcome)
+                }));
+            }
+            let waiting = self.draining.as_mut().expect("one retained drain");
+            let result = match tokio::time::timeout(STOP_BUDGET, waiting).await {
+                Err(_) => {
+                    let stage = *self.stage.lock().expect("shutdown stage poisoned");
+                    return Err(Error::StopIncomplete { stage, budget_s: STOP_BUDGET.as_secs() });
+                }
+                Ok(result) => result,
+            };
+            self.draining = None;
+            match result {
+                Ok((resources, outcome)) => {
+                    if outcome.is_err() {
+                        self.resources = Some(resources);
+                    }
+                    outcome
+                }
+                Err(error) => {
+                    let message = format!("server shutdown task failed: {error}");
+                    self.task_failure = Some(message.clone());
+                    Err(Error::Setup(message))
+                }
+            }
+        })
     }
+}
 
-    async fn drain(&mut self) -> Result<()> {
-        self.stage = "stopping listeners";
-        let server_result = match self.server.take() {
-            Some(server) => server.shutdown().await,
+impl Resources {
+    async fn drain(&mut self, stage: &Mutex<&'static str>) -> Result<()> {
+        *stage.lock().expect("shutdown stage poisoned") = "stopping listeners";
+        let server_result = match self.server.as_mut() {
+            Some(server) => server.drain().await,
             None => Ok(()),
         };
-        self.stage = "stopping runtime";
+        if server_result.is_ok() {
+            self.server = None;
+        }
+        *stage.lock().expect("shutdown stage poisoned") = "stopping runtime";
         let runtime_result = match self.runtime.as_mut() {
             Some(runtime) => runtime.shutdown().await.map(|_| ()),
             None => Ok(()),
         };
-        let outcome = Error::shutdown(server_result, runtime_result);
-        if outcome.is_ok() {
+        if runtime_result.is_ok() {
+            // Runtime Completion Includes Every Registered gRPC Generation And Storage.
+            // A Prior Detach Failure Is Resolved Only By That Authoritative Completion.
+            self.server = None;
             self.runtime = None;
         }
-        outcome
+        Error::shutdown(server_result, runtime_result)
     }
 }
 
 impl Drop for Session {
     fn drop(&mut self) {
-        let runtime = self.runtime.take();
-        let server = self.server.take();
-        if runtime.is_none() && server.is_none() {
+        let resources = self.resources.take();
+        let draining = self.draining.take();
+        if resources.is_none() && draining.is_none() {
             return;
         }
-        let executor = self.executor.clone();
+        let stage = self.stage.clone();
         self.executor.spawn(async move {
-            let mut session = Session { executor, runtime, server, stage: "cancelled startup", plugins: Vec::new(), expected: Vec::new() };
-            if let Err(error) = session.drain().await {
+            if let Some(draining) = draining {
+                if let Ok((_, Err(error))) = draining.await {
+                    tracing::error!(%error, "server session cleanup failed");
+                }
+            } else if let Some(mut resources) = resources
+                && let Err(error) = resources.drain(&stage).await
+            {
                 tracing::error!(%error, "cancelled server session cleanup failed");
-                // Do not recursively spawn cleanup on an unrecoverable drain failure.
-                session.runtime = None;
-                session.server = None;
             }
         });
     }

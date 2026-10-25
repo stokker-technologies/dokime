@@ -120,7 +120,6 @@ tonic = { workspace = true }
 # Storage
 
 # UI
-portable-pty = { workspace = true }
 
 # Testing
 criterion = { workspace = true }

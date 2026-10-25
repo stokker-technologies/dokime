@@ -294,8 +294,7 @@ async fn installations(client: &Client) -> Vec<model::plugins::wire::PluginInsta
 
 async fn install(client: &Client, bytes: &[u8]) -> model::plugins::wire::PluginInstallation {
     let sha256 = dokime::client::plugin_bundle_digest(bytes);
-    let staged = client.plugins_stage_bundle(bytes.to_vec(), sha256.clone(), |_, _| {}).await.unwrap();
-    client.plugins_consent(contracts::plugins::Consent { install_id: staged.install_id, expected_sha256: sha256 }).await.unwrap()
+    client.plugins_install_bundle(bytes.to_vec(), sha256, |_, _| {}).await.unwrap()
 }
 
 fn installed_copy(root: &Path, bytes: &[u8]) -> Option<PathBuf> {
@@ -1093,7 +1092,7 @@ async fn plugin_host_walkthrough() {
     drop(changes);
     drop(client);
 
-    // Scene: A Consented Installation Activates Only After A Restart
+    // Scene: A Installed Plugin Activates Only After A Restart
     let store = root.path().join("store");
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;
@@ -1116,7 +1115,7 @@ async fn plugin_host_walkthrough() {
         .await
         .unwrap()
         .installation
-        .expect("a consented installation stays pending removal");
+        .expect("a installed installation stays pending removal");
     assert_eq!(removed.state, model::plugins::wire::PluginInstallationState::RemovalPending);
     assert!(removed.active && removed.restart_required);
     assert!(serves_startup(&client).await);
@@ -1129,8 +1128,8 @@ async fn plugin_host_walkthrough() {
     // Scene: A Corrupted Installed Bundle Is Skipped And Boot Succeeds
     install(&client, &bytes).await;
     host.stop(false).await;
-    let installed = installed_copy(&store, &bytes).expect("the store keeps the consented bytes");
-    std::fs::write(&installed, b"corrupted after consent").unwrap();
+    let installed = installed_copy(&store, &bytes).expect("the store keeps the installed bytes");
+    std::fs::write(&installed, b"corrupted after installation").unwrap();
     let host = Host::launch_in(&store, None).await;
     let client = host.connect().await;
     let listed = installations(&client).await;

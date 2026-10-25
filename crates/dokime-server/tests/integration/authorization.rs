@@ -48,14 +48,14 @@ const STREAMING_CASES: &[Case] = &[
         },
     },
     Case {
-        path: "/dokime.v1.Plugins/Stage",
+        path: "/dokime.v1.Plugins/Install",
         call: |stream, token| {
             Box::pin(async move {
-                let entries = Vec::<model::plugins::wire::StagePluginFrame>::new();
+                let entries = Vec::<model::plugins::wire::InstallPluginFrame>::new();
                 let frames = tokio_stream::iter(entries);
                 let request = secreted(frames, token);
                 let client = WireClient::new(stream);
-                let response = client.upload::<contracts::plugins::Stage>(request).await;
+                let response = client.upload::<contracts::plugins::Install>(request).await;
                 response.err()
             })
         },
@@ -241,7 +241,6 @@ matrix! {
     "/dokime.v1.Plots/ListAnalyses", unary, contracts::plots::ListAnalyses;
     "/dokime.v1.Plots/QuerySnapshots", unary, contracts::plots::QuerySnapshots;
     "/dokime.v1.Plots/Watch", download, contracts::plots::Watch;
-    "/dokime.v1.Plugins/Consent", unary, contracts::plugins::Consent;
     "/dokime.v1.Plugins/GetInstallation", unary, contracts::plugins::GetInstallation;
     "/dokime.v1.Plugins/ListAdmittedPlugins", unary, contracts::plugins::ListAdmittedPlugins;
     "/dokime.v1.Plugins/ListInstallations", unary, contracts::plugins::ListInstallations;

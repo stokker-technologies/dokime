@@ -25,7 +25,7 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
 use dokime::domain::model;
-use model::plugins::wire::StagePluginFrameFrame as Frame;
+use model::plugins::wire::InstallPluginFrameFrame as Frame;
 
 /* === Constants === */
 
@@ -415,23 +415,23 @@ async fn fixture(root: &std::path::Path) -> Runtime {
     Runtime::start(config).await.unwrap()
 }
 
-fn frames(bytes: &[u8]) -> Vec<model::plugins::wire::StagePluginFrame> {
-    let mut frames = vec![model::plugins::wire::StagePluginFrame {
-        frame: Some(Frame::Header(model::plugins::wire::StagePluginHeader {
+fn frames(bytes: &[u8]) -> Vec<model::plugins::wire::InstallPluginFrame> {
+    let mut frames = vec![model::plugins::wire::InstallPluginFrame {
+        frame: Some(Frame::Header(model::plugins::wire::InstallPluginHeader {
             size_bytes: bytes.len() as u64,
             sha256: Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
         })),
     }];
     for (index, chunk) in bytes.chunks(37).enumerate() {
-        frames.push(model::plugins::wire::StagePluginFrame {
-            frame: Some(Frame::Chunk(model::plugins::wire::StagePluginChunk { offset: (index * 37) as u64, data: chunk.to_vec() })),
+        frames.push(model::plugins::wire::InstallPluginFrame {
+            frame: Some(Frame::Chunk(model::plugins::wire::InstallPluginChunk { offset: (index * 37) as u64, data: chunk.to_vec() })),
         });
     }
     frames
 }
 
 #[tokio::test]
-async fn plugin_stage_identity() {
+async fn plugin_install_identity() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = fixture(root.path()).await;
     let server = Server::start(owner.handle(), keyed()).await.unwrap();
@@ -441,35 +441,13 @@ async fn plugin_stage_identity() {
         Code::Unauthenticated
     );
     let staged =
-        client.upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(frames(&bundle())))).await.unwrap().into_inner();
-    assert_eq!(staged.state, model::plugins::wire::PluginInstallationState::Staged);
+        client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bundle())))).await.unwrap().into_inner();
+    assert_eq!(staged.state, model::plugins::wire::PluginInstallationState::Installed);
     assert!(!staged.active);
-    assert!(!staged.restart_required);
+    assert!(staged.restart_required);
     assert_eq!(staged.metadata.as_ref().unwrap().owners, ["grpc-plugin"]);
     assert_eq!(staged.metadata.as_ref().unwrap().identity.as_ref().unwrap().name, "grpc-fixture");
-    assert_eq!(
-        client
-            .unary::<contracts::plugins::Consent>(authenticated(contracts::plugins::Consent {
-                install_id: staged.install_id.clone(),
-                expected_sha256: "0".repeat(64)
-            }))
-            .await
-            .unwrap_err()
-            .code(),
-        Code::FailedPrecondition
-    );
-    let installed = client
-        .unary::<contracts::plugins::Consent>(authenticated(contracts::plugins::Consent {
-            install_id: staged.install_id.clone(),
-            expected_sha256: staged.sha256.clone(),
-        }))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(installed.state, model::plugins::wire::PluginInstallationState::Installed);
-    assert!(installed.consented_at.is_some());
-    assert!(installed.restart_required);
-    assert!(!installed.active);
+    assert!(staged.installed_at.is_some());
     let disabled = client
         .unary::<contracts::plugins::SetEnabled>(authenticated(contracts::plugins::SetEnabled {
             install_id: staged.install_id.clone(),
@@ -639,13 +617,13 @@ async fn invalid_uploads_mutate() {
         chunk.offset = 1;
     }
     assert_eq!(
-        client.upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(bad))).await.unwrap_err().code(),
+        client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(bad))).await.unwrap_err().code(),
         Code::InvalidArgument
     );
     let mut short = frames(&bundle());
     short.pop();
     assert_eq!(
-        client.upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(short))).await.unwrap_err().code(),
+        client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(short))).await.unwrap_err().code(),
         Code::InvalidArgument
     );
     assert_eq!(
@@ -715,12 +693,12 @@ async fn listener_shutdown_admission() {
     owner.shutdown().await.unwrap();
 }
 
-// A competing query can win the sole permit before the upload arrives. Retry
+// A competing mutation can win admission before the upload arrives. Retry
 // only that explicit pre-admission Busy outcome, never an uncertain mutation.
 async fn open_upload(
     client: &mut WireClient,
 ) -> (
-    tokio::sync::mpsc::Sender<model::plugins::wire::StagePluginFrame>,
+    tokio::sync::mpsc::Sender<model::plugins::wire::InstallPluginFrame>,
     tokio::task::JoinHandle<Result<tonic::Response<model::plugins::wire::PluginInstallation>, tonic::Status>>,
 ) {
     loop {
@@ -728,20 +706,23 @@ async fn open_upload(
         sender.send(frames(&bundle()).remove(0)).await.unwrap();
         let uploader = client.clone();
         let upload = tokio::spawn(async move {
-            uploader.upload::<contracts::plugins::Stage>(authenticated(tokio_stream::wrappers::ReceiverStream::new(receiver))).await
+            uploader.upload::<contracts::plugins::Install>(authenticated(tokio_stream::wrappers::ReceiverStream::new(receiver))).await
         });
         // Let the streaming RPC submit its request before the admission
         // probe; otherwise this task wins the sole permit every time.
         tokio::task::yield_now().await;
         loop {
             match client
-                .unary::<contracts::plugins::ListInstallations>(authenticated(contracts::plugins::ListInstallations::default()))
+                .unary::<contracts::plugins::SetEnabled>(authenticated(contracts::plugins::SetEnabled {
+                    install_id: "01900000-0000-7000-8000-000000000001".into(),
+                    enabled: true,
+                }))
                 .await
             {
                 Err(error) if error.code() == Code::ResourceExhausted => {
                     return (sender, upload);
                 }
-                Ok(_) => {
+                Err(error) if error.code() == Code::NotFound => {
                     if upload.is_finished() {
                         assert_eq!(upload.await.unwrap().unwrap_err().code(), Code::ResourceExhausted);
                         break;
@@ -755,59 +736,54 @@ async fn open_upload(
 }
 
 #[tokio::test]
-async fn oversized_permissions_consent() {
+async fn result_budget_atomicity() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = fixture(root.path()).await;
+    let store = owner.handle().plugin_store();
+    let first = store.install(&bundle(), &[], &std::collections::BTreeSet::new()).unwrap().installation.install_id;
+    let original = std::fs::read(store.path(first)).unwrap();
+    let settings = owner.handle().settings().paths().settings();
+    let before = std::fs::read(&settings).unwrap();
+    let server = Server::start(owner.handle(), keyed().with_max_message_bytes(512)).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let error = client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bundle())))).await.unwrap_err();
+    assert_eq!(error.code(), Code::ResourceExhausted);
+    assert_eq!(std::fs::read(&settings).unwrap(), before);
+    assert_eq!(std::fs::read(store.path(first)).unwrap(), original);
+    assert_eq!(store.list().unwrap().len(), 1);
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn bounded_installed_metadata() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = fixture(root.path()).await;
     let server = Server::start(owner.handle(), keyed().with_max_message_bytes(4096)).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let bytes = bundle_description(&"d".repeat(8192));
-    let staged = client.upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(frames(&bytes)))).await.unwrap().into_inner();
-    assert!(staged.metadata.is_none());
-    assert!(staged.error.as_ref().unwrap().contains("budget"));
-    let page = client
-        .unary::<contracts::plugins::ListInstallations>(authenticated(contracts::plugins::ListInstallations::default()))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(page.installations[0].install_id, staged.install_id);
+    let installed =
+        client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bytes)))).await.unwrap().into_inner();
+    assert_eq!(installed.state, model::plugins::wire::PluginInstallationState::Installed);
+    assert!(installed.restart_required);
+    assert!(installed.metadata.is_none());
+    assert!(installed.error.is_some());
     let entry = client
         .unary::<contracts::plugins::GetInstallation>(authenticated(contracts::plugins::GetInstallation {
-            install_id: staged.install_id.clone(),
+            install_id: installed.install_id.clone(),
         }))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(entry.sha256, staged.sha256);
+    assert_eq!(entry.sha256, installed.sha256);
+    assert_eq!(entry.state, model::plugins::wire::PluginInstallationState::Installed);
     assert!(entry.metadata.is_none());
-    assert_eq!(
-        client
-            .unary::<contracts::plugins::Consent>(authenticated(contracts::plugins::Consent {
-                install_id: staged.install_id.clone(),
-                expected_sha256: staged.sha256
-            }))
-            .await
-            .unwrap_err()
-            .code(),
-        Code::ResourceExhausted
-    );
-    let entry = client
-        .unary::<contracts::plugins::GetInstallation>(authenticated(contracts::plugins::GetInstallation {
-            install_id: staged.install_id.clone(),
-        }))
+    let removed = client
+        .unary::<contracts::plugins::Remove>(authenticated(contracts::plugins::Remove { install_id: installed.install_id }))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(entry.state, model::plugins::wire::PluginInstallationState::Staged);
-    assert!(entry.consented_at.is_none());
-    assert!(
-        client
-            .unary::<contracts::plugins::Remove>(authenticated(contracts::plugins::Remove { install_id: staged.install_id }))
-            .await
-            .unwrap()
-            .into_inner()
-            .installation
-            .is_none()
-    );
+    assert_eq!(removed.installation.unwrap().state, model::plugins::wire::PluginInstallationState::RemovalPending);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

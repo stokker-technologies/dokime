@@ -24,6 +24,7 @@ mod media;
 mod notes;
 mod planning;
 mod plots;
+mod plugin_admission;
 mod plugins;
 mod prompts;
 mod query;

@@ -27,14 +27,14 @@ use tauri_plugin_dialog::DialogExt;
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
 use crate::connection::{ConnectionSession, SessionLease};
-use dokime::domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES;
+use dokime::domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES;
 
 /* === Constants === */
 
-const STAGE_DEADLINE: Duration = Duration::from_secs(300);
+const INSTALL_DEADLINE: Duration = Duration::from_secs(300);
 // Each progress message re-renders the webview; bound how often one is sent.
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
-// A native drop is staged right after the webview sees it; an older one is stale.
+// A native drop is installed right after the webview sees it; an older one is stale.
 const DROP_VALIDITY: Duration = Duration::from_secs(30);
 
 /* === Macros === */
@@ -43,7 +43,7 @@ const DROP_VALIDITY: Duration = Duration::from_secs(30);
 
 /* === Structs === */
 
-// The latest native file drop per window, recorded by the shell so a staging
+// The latest native file drop per window, recorded by the shell so a installation
 // request names a dropped bundle without the webview passing a path.
 #[derive(Default)]
 pub struct DroppedFiles(Mutex<Option<FileDrop>>);
@@ -58,10 +58,10 @@ struct FileDrop {
 
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(tag = "phase", rename_all = "snake_case")]
-pub enum StageProgress {
+pub enum InstallProgress {
     Reading,
     Uploading { sent: u64, total: u64 },
-    Inspecting,
+    Installing,
 }
 
 /* === Traits === */
@@ -88,10 +88,10 @@ impl DroppedFiles {
 
 /* === Public Functions === */
 
-// Stage the bundle just dropped on the window, or pick one natively; `None` when the operator cancels the picker.
-pub async fn desktop_plugin_stage_file(
+// Install the bundle just dropped on the window, or pick one natively; `None` when the operator cancels the picker.
+pub async fn desktop_plugin_install_file(
     window: WebviewWindow, state: State<'_, ConnectionSession>, dropped: State<'_, DroppedFiles>, app: AppHandle, generation: String,
-    drop: bool, progress: Channel<StageProgress>,
+    drop: bool, progress: Channel<InstallProgress>,
 ) -> Result<Option<String>, String> {
     let lease = admit(&window, &state, &generation)?;
     let path = if drop {
@@ -104,11 +104,11 @@ pub async fn desktop_plugin_stage_file(
         path
     };
 
-    let _ = progress.send(StageProgress::Reading);
-    let reading = move || dokime::harmos::filesystem::input::read(&path, STAGE_ARCHIVE_MAX_BYTES as usize);
+    let _ = progress.send(InstallProgress::Reading);
+    let reading = move || dokime::harmos::filesystem::input::read(&path, INSTALL_ARCHIVE_MAX_BYTES as usize);
     let read = tauri::async_runtime::spawn_blocking(reading).await.map_err(text)?;
     let bytes = read.map_err(|error| format!("The plugin bundle could not be read: {error}"))?;
-    stage(&lease, bytes, progress, None).await.map(|staged| Some(staged.install_id))
+    install(&lease, bytes, progress, None).await.map(|installed| Some(installed.install_id))
 }
 
 /* === Private Functions === */
@@ -116,7 +116,7 @@ pub async fn desktop_plugin_stage_file(
 pub(super) fn admit(window: &WebviewWindow, state: &ConnectionSession, generation: &str) -> Result<SessionLease, String> {
     ensure_main_window(window)?;
     ensure_generation_token(generation)?;
-    state.lease(generation).map_err(|error| format!("Native plugin staging lost its owning connection: {error:?}"))
+    state.lease(generation).map_err(|error| format!("Native plugin installation lost its owning connection: {error:?}"))
 }
 
 fn pick_bundle(app: AppHandle) -> Result<Option<PathBuf>, String> {
@@ -127,8 +127,8 @@ fn pick_bundle(app: AppHandle) -> Result<Option<PathBuf>, String> {
     path.into_path().map(Some).map_err(text)
 }
 
-pub(super) async fn stage(
-    lease: &SessionLease, bytes: Vec<u8>, progress: Channel<StageProgress>, expected_digest: Option<&str>,
+pub(super) async fn install(
+    lease: &SessionLease, bytes: Vec<u8>, progress: Channel<InstallProgress>, expected_digest: Option<&str>,
 ) -> Result<dokime::domain::model::plugins::wire::PluginInstallation, String> {
     // Hash Once, Off The Async Workers
     let started = Instant::now();
@@ -144,24 +144,24 @@ pub(super) async fn stage(
 
     // Stream The Advertised Chunk Size Over The Shared Client
     let frame_limit = NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit");
-    let client = lease.client().with_frame_limit(frame_limit).with_timeout(STAGE_DEADLINE);
+    let client = lease.client().with_frame_limit(frame_limit).with_timeout(INSTALL_DEADLINE);
     let mut reported: Option<Instant> = None;
     let report = move |sent: u64, total: u64| {
         if sent == total {
-            let _ = progress.send(StageProgress::Inspecting);
+            let _ = progress.send(InstallProgress::Installing);
             return;
         }
         if reported.is_some_and(|last| last.elapsed() < PROGRESS_INTERVAL) {
             return;
         }
         reported = Some(Instant::now());
-        let _ = progress.send(StageProgress::Uploading { sent, total });
+        let _ = progress.send(InstallProgress::Uploading { sent, total });
     };
-    let staging = client.plugins_stage_bundle(bytes, sha256, report);
-    let staged = lease.guard(staging).await.map_err(|error| format!("{error:?}"))?;
-    let staged = staged.map_err(text)?;
-    tracing::info!(size_bytes, elapsed_ms = started.elapsed().as_millis(), "plugin bundle staged from the desktop");
-    Ok(staged)
+    let installing = client.plugins_install_bundle(bytes, sha256, report);
+    let installed = lease.guard(installing).await.map_err(|error| format!("{error:?}"))?;
+    let installed = installed.map_err(text)?;
+    tracing::info!(size_bytes, elapsed_ms = started.elapsed().as_millis(), "plugin bundle installed from the desktop");
+    Ok(installed)
 }
 
 fn text(error: impl std::fmt::Display) -> String {
@@ -175,7 +175,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_drop_stages_once_and_only_a_single_bundle() {
+    fn native_drop_ownership() {
         let dropped = DroppedFiles::default();
         assert!(dropped.take("main").is_err(), "nothing was dropped");
 
@@ -183,7 +183,7 @@ mod tests {
         assert!(dropped.take("other").is_err(), "a drop belongs to its window");
         dropped.record("main", &[PathBuf::from("/bundles/obc-plugin.dokime")]);
         assert_eq!(dropped.take("main").unwrap(), PathBuf::from("/bundles/obc-plugin.dokime"));
-        assert!(dropped.take("main").is_err(), "a drop is consumed by one staging");
+        assert!(dropped.take("main").is_err(), "a drop is consumed by one installation");
 
         dropped.record("main", &[PathBuf::from("/bundles/a.dokime"), PathBuf::from("/bundles/b.dokime")]);
         assert!(dropped.take("main").is_err(), "several files are refused");

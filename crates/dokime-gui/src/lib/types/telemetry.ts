@@ -7,7 +7,7 @@
  * ***
  */
 
-import type { JsonObject, RecordScope } from "../types";
+import type { JsonObject } from "../types";
 import type { ValueFormat } from "./format";
 import type { ContractValidationMode } from "./records";
 
@@ -54,16 +54,4 @@ export type TelemetryStream = {
   total_samples: number;
   dropped_samples: number;
   updated_at: string;
-};
-
-export type TelemetryStreamLiveSummary = Omit<TelemetryStream, "samples"> & {
-  retained_sample_count: number;
-  samples?: JsonObject[];
-};
-
-export type TelemetrySampleRecord = {
-  stream: string;
-  sequence: number;
-  sample: JsonObject;
-  scope?: RecordScope | null;
 };

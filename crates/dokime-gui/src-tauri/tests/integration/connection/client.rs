@@ -180,7 +180,7 @@ async fn stream_clones_close() {
 async fn upload_stop_releases() {
     for action in ["reply", "caller", "client"] {
         let mut service = Service::new("shared");
-        service.methods.push("/dokime.v1.Plugins/Stage".into());
+        service.methods.push("/dokime.v1.Plugins/Install".into());
         let gate = Arc::new(Gate::new());
         if action != "reply" {
             service.upload_gate = Some(gate.clone());
@@ -190,7 +190,7 @@ async fn upload_stop_releases() {
         let dropped = Arc::new(Notify::new());
         let input = UploadInput { first: true, dropped: dropped.clone() };
         let retained = client.clone();
-        let task = tokio::spawn(async move { retained.plugins_stage(input).await });
+        let task = tokio::spawn(async move { retained.plugins_install(input).await });
 
         match action {
             "reply" => {
@@ -219,7 +219,7 @@ async fn upload_stop_releases() {
 async fn upload_operation_closes() {
     for action in ["finish", "cancel", "client", "waiter"] {
         let mut service = Service::new("shared");
-        service.methods.push("/dokime.v1.Plugins/Stage".into());
+        service.methods.push("/dokime.v1.Plugins/Install".into());
         service.upload_drain = true;
         // An Empty Canonical Input Envelope Requires Two Framing Bytes.
         service.max_request_bytes = 2;
@@ -229,9 +229,9 @@ async fn upload_operation_closes() {
         }
         let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
         let client = Client::connect(Target::local(&server.endpoint).unwrap(), None, None).await.unwrap();
-        let upload = client.plugins_stage_open().unwrap();
-        let oversized = model::plugins::wire::StagePluginFrame {
-            frame: Some(model::plugins::wire::StagePluginFrameFrame::Header(model::plugins::wire::StagePluginHeader {
+        let upload = client.plugins_install_open().unwrap();
+        let oversized = model::plugins::wire::InstallPluginFrame {
+            frame: Some(model::plugins::wire::InstallPluginFrameFrame::Header(model::plugins::wire::InstallPluginHeader {
                 size_bytes: 1,
                 sha256: String::new(),
             })),
@@ -239,11 +239,11 @@ async fn upload_operation_closes() {
         assert!(matches!(upload.send(oversized).await,
             Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange));
         let retained = upload.clone();
-        upload.send(model::plugins::wire::StagePluginFrame::default()).await.unwrap();
+        upload.send(model::plugins::wire::InstallPluginFrame::default()).await.unwrap();
         drop(upload);
 
         if action == "finish" {
-            retained.send(model::plugins::wire::StagePluginFrame::default()).await.unwrap();
+            retained.send(model::plugins::wire::InstallPluginFrame::default()).await.unwrap();
             assert_eq!(retained.finish().await.unwrap().install_id, "2");
             assert!(matches!(retained.finish().await, Err(Error::Closed)));
         } else {
@@ -271,7 +271,7 @@ async fn upload_operation_closes() {
             gate.release.add_permits(1);
         }
 
-        assert!(matches!(retained.send(model::plugins::wire::StagePluginFrame::default()).await, Err(Error::Closed)));
+        assert!(matches!(retained.send(model::plugins::wire::InstallPluginFrame::default()).await, Err(Error::Closed)));
         retained.close().await;
         retained.close().await;
         server_health(&server.endpoint).await;

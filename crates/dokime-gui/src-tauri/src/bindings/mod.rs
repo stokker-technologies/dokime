@@ -77,6 +77,16 @@ native_commands! {
         () -> Result<dokime::client::profiles::Document, String>
         => crate::native_session::desktop_profiles_list;
 
+    sync desktop_profiles_save
+        []
+        (profile: dokime::client::profiles::Profile) -> Result<dokime::client::profiles::Document, String>
+        => crate::native_session::desktop_profiles_save;
+
+    sync desktop_profiles_remove
+        [state: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (name: String) -> Result<dokime::client::profiles::Document, String>
+        => crate::native_session::desktop_profiles_remove;
+
     // Open the failed owned start's log; the shell supplies the path.
     async desktop_open_backend_log
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::native_session::DesktopSessionControl>, app: tauri::AppHandle]
@@ -156,10 +166,10 @@ native_commands! {
         => crate::app::recording::desktop_recording_finish;
 
     // Stage the bundle just dropped on the window, or pick one natively; `None` when the operator cancels.
-    async desktop_plugin_stage_file
+    async desktop_plugin_install_file
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, dropped: tauri::State<'_, crate::app::plugins::DroppedFiles>, app: tauri::AppHandle]
-        (generation: String, drop: bool, progress: tauri::ipc::Channel<crate::app::plugins::StageProgress>) -> Result<Option<String>, String>
-        => crate::app::plugins::desktop_plugin_stage_file;
+        (generation: String, drop: bool, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<Option<String>, String>
+        => crate::app::plugins::desktop_plugin_install_file;
 
     sync desktop_set_title
         [window: tauri::WebviewWindow]
@@ -240,10 +250,10 @@ native_commands! {
         (generation: String) -> Result<crate::app::updates::plugins::Release, String>
         => crate::app::updates::plugins::desktop_plugin_release_check;
 
-    async desktop_plugin_release_stage
+    async desktop_plugin_release_install
         [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
-        (generation: String, candidate: String, progress: tauri::ipc::Channel<crate::app::plugins::StageProgress>) -> Result<String, String>
-        => crate::app::updates::plugins::desktop_plugin_release_stage;
+        (generation: String, candidate: String, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<String, String>
+        => crate::app::updates::plugins::desktop_plugin_release_install;
 }
 
 /* === Type Aliases === */

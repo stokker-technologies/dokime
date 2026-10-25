@@ -27,7 +27,7 @@
 //   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, shared secrets, diagnostics
-//   f'. plugin-install  native bundle picker, digest consent, restart activation and catalog
+//   f'. plugin-install  native bundle picker, direct installation, restart activation and catalog
 //   f'. organization  native pack import, restart activation and invalid-pending retention
 //   f'. remote-access  TLS/key setup, saved secrets, restart, rotation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
@@ -1144,7 +1144,7 @@ async function installSaveTap(session) {
           const headers = (init && init.headers) || {};
           entry.path = typeof headers.get === 'function' ? headers.get('dokime-rpc-path') : headers['dokime-rpc-path'];
         }
-        if (command === 'desktop_plugin_stage_file') {
+        if (command === 'desktop_plugin_install_file') {
           const payload = String(init && init.body);
           entry.keys = Object.keys(JSON.parse(payload));
           entry.size = payload.length;
@@ -3189,26 +3189,32 @@ async function settingsJourney(session, notes) {
 
   /* Plugins: rows with a Settings button, and the plugin page behind it. */
   await session.goto("/settings/plugins");
-  await until("the plugins section", async () => hasText(await session.text(), "Install A Plugin"), 120000);
-  const rows = await session.execute(`return document.querySelectorAll('button[aria-label="Plugin Settings"]').length`);
-  const configurable = await session.execute(
-    `return [...document.querySelectorAll('button[aria-label="Plugin Settings"]')].filter(
-       (button) => !button.disabled,
-     ).length;`,
+  const plugins = await until(
+    "the plugins section",
+    async () => {
+      const state = await session.execute(`
+        const buttons = [...document.querySelectorAll('button[aria-label="Plugin Settings"]')];
+        return {rows: buttons.length, configurable: buttons.filter(button => !button.disabled).length, text: document.body.innerText};
+      `);
+      return state.rows || hasText(state.text, "Loaded from the launch configuration; managed outside the installation store.")
+        ? state
+        : null;
+    },
+    120000,
   );
-  if (!rows) {
+  if (!plugins.rows) {
     /* Nothing is in the installation store: this backend was launched with
        `--plugin`, and the section has to say where its plugins came from
        rather than leaving the list unexplained. */
     assert.ok(
-      hasText(await session.text(), "Loaded from the launch configuration; managed outside the installation store."),
+      hasText(plugins.text, "Loaded from the launch configuration; managed outside the installation store."),
       "With no installed plugin the Plugins section must still name the loaded ones",
     );
     notes.push(
       "settings: the gate launches the backend with --plugin, so the installation store is empty and the plugin row's Settings button is not on this path",
     );
   }
-  if (configurable) {
+  if (plugins.configurable) {
     await session.clickNamed("button", "Plugin Settings");
     await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 120000);
     assert.ok(hasText(await session.text(), "Plugins"), "The plugin page must carry its breadcrumb");
@@ -3789,7 +3795,7 @@ async function ownedStartupJourney() {
   await session.connected();
   await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", "owned_local");
   await installSaveTap(session);
-  await stagePluginThroughPicker(session);
+  await installPluginThroughPicker(session);
   await closeSession();
   session = await startSession(work, undefined, evidence);
   await session.connected();
@@ -3980,7 +3986,7 @@ async function pluginInstallJourney() {
     session = await startSession(root, backend.endpoint, evidence);
     await sizeViewport(session, densities.desktop);
     await installSaveTap(session);
-    await stagePluginThroughPicker(session);
+    await installPluginThroughPicker(session);
 
     await closeSession();
     await stopBackend();
@@ -4011,24 +4017,24 @@ async function pluginInstallJourney() {
   }
 }
 
-async function stagePluginThroughPicker(session) {
+async function installPluginThroughPicker(session) {
   await session.goto("/settings/plugins");
   await until("plugin installer", async () => hasText(await session.text(), "Install A Plugin"), 120000);
   await session.execute("globalThis.__dokimeInvokes.length = 0;");
   await session.clickNamed("button", "Choose File");
   const picker = { window: null };
   await until("native plugin file picker", () => chooseNativeFile(picker, pluginBundle), 120000);
-  await until("inspected plugin consent", async () => hasText(await session.text(), "Review Plugin"), 300000);
-  const digest = await sha256(pluginBundle);
-  assert.ok(hasText(await session.text(), digest), "Consent must display the digest of the selected native file");
+  await until("saved plugin installation", async () => hasText(await session.text(), "Plugin changes are saved"), 300000);
   const invokes = await session.execute(
-    "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_stage_file');",
+    "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_install_file');",
   );
-  assert.equal(invokes.length, 1, "A bundle uses one native staging invocation");
-  assert.deepEqual(invokes[0].keys.sort(), ["drop", "generation", "progress"], "Staging passes control arguments without bundle bytes");
-  assert.ok(invokes[0].size < 1024, "The staging invocation stays bounded independently of bundle size");
-  await session.clickNamed("button", "Install plugin");
-  await until("saved plugin consent", async () => hasText(await session.text(), "Plugin changes are saved"), 120000);
+  assert.equal(invokes.length, 1, "A bundle uses one native installation invocation");
+  assert.deepEqual(
+    invokes[0].keys.sort(),
+    ["drop", "generation", "progress"],
+    "Installation passes control arguments without bundle bytes",
+  );
+  assert.ok(invokes[0].size < 1024, "The installation invocation stays bounded independently of bundle size");
   await session.clickNamed("button", "Later");
   await until("plugin restart requirement", async () => hasText(await session.text(), "Restart Required"), 120000);
   await session.screenshot("plugin-install");

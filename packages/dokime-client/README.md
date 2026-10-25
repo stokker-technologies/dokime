@@ -200,10 +200,10 @@ python control-test.py
 python control-prompt.py
 ```
 
-The device script optionally sets `RESPONSE_DIRECTORY` to a new directory and
-saves five successful replies as JSON objects with their Protobuf field
-names. It refuses an existing directory before connecting and never overwrites
-a response file. A local write failure can follow a successful device command;
+The device script writes `before.json`, `power-on.json`, `running.json`,
+`power-off.json` and `after.json` in the current working directory, replacing
+these fixed response files on each run. Replies are JSON objects with their
+Protobuf field names. A local write failure can follow a successful device command;
 read the current device state before resending an unconfirmed operation.
 The test and prompt scripts request cancellation on Ctrl+C and save collected
 evidence. They seal their own cycle before waiting for the saved result, closing
@@ -213,6 +213,14 @@ uv lock; a matching published release combination remains separately required
 before describing it as a released tutorial.
 The printed cycle and execution UUIDs remain recovery identities after an
 uncertain reply. Scripts never manage Start keys or retry mutations automatically.
+
+All Python examples use direct client APIs and editable globals, with no
+argument parser or Dokime CLI subprocess. The standalone
+[`remote_control.py`](examples/remote_control.py) attaches to `EXECUTION_ID`,
+drains its callbacks and saves `execution.json`.
+[`client/poll_run.py`](examples/client/poll_run.py) materializes `TEMPLATE`,
+runs one attempt and writes `cycle.json` and `summary.json`. Edit their globals,
+then run the file without arguments.
 
 Repository Python Build stages the canonical guides, scripts, locked tutorial
 environment and bundled candidate wheel under

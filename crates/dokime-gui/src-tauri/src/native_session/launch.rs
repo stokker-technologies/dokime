@@ -32,6 +32,7 @@ use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopLaunch {
+    pub selection: super::BackendChoice,
     pub target: Option<ConnectionTarget>,
     pub expected_backend_id: Option<String>,
     pub local_backend_available: bool,
@@ -99,6 +100,7 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<Conne
 
 pub fn configuration(arguments: impl IntoIterator<Item = String>) -> DesktopLaunch {
     let mut launch = DesktopLaunch {
+        selection: super::BackendChoice::OwnedLocal,
         target: None,
         expected_backend_id: None,
         // The local server is linked into this desktop.

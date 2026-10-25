@@ -114,7 +114,7 @@ pub(super) fn headers(auth: Option<&Authorization>, target: &Url) -> Result<Head
 pub(super) async fn fetch(url: &Url, auth: Option<&Authorization>, maximum: usize) -> Result<Vec<u8>, String> {
     https_url(url.as_str())?;
     let headers = headers(auth, url)?;
-    let client = client(reqwest::Client::builder()).build().map_err(|_| "Release HTTP client initialization failed")?;
+    let client = client(crate::app::http::client()).build().map_err(|_| "Release HTTP client initialization failed")?;
     let response = client.get(url.clone()).headers(headers).send().await.map_err(|_| "Release request failed")?;
     let mut response = response.error_for_status().map_err(|_| "Release source is unavailable or requires another account")?;
     if response.content_length().is_some_and(|length| length > maximum as u64) {

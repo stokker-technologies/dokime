@@ -32,6 +32,7 @@ use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopSessionSnapshot {
+    pub selection: Option<BackendChoice>,
     pub ownership: BackendOwnership,
     pub phase: Option<String>,
     pub archived_bytes: Option<u64>,
@@ -47,6 +48,13 @@ pub struct BackendDiagnostics {
 
 /* === Enums === */
 
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BackendChoice {
+    OwnedLocal,
+    Profile { name: String },
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BackendSelection {
@@ -60,7 +68,6 @@ pub enum BackendSelection {
 pub enum BackendOwnership {
     None,
     OwnedLocal,
-    Profile { name: String },
     Attached,
 }
 

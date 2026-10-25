@@ -30,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { AccessKeyDialog } from "@/features/settings/sections/AccessKeyDialog";
+import { BackendSelectionCard } from "@/features/settings/sections/BackendSelectionCard";
 import { RemoteSessionsCard } from "@/features/settings/sections/RemoteSessionsCard";
 import {
   certificateIssue,
@@ -67,14 +68,22 @@ export function RemoteSection() {
   const canManage = session?.snapshot.connection.backend?.methods.includes("/dokime.v1.Remote/ReadListener") ?? false;
   if (!isTauriDesktop() || !session || !canManage) {
     return (
-      <SettingsCard title="Remote Access">
-        <SettingsRow label="Host Settings">
-          <p role="status">Open Remote Access in the host's connected desktop session to configure its listener.</p>
-        </SettingsRow>
-      </SettingsCard>
+      <>
+        {isTauriDesktop() ? <BackendSelectionCard /> : null}
+        <SettingsCard title="Remote Access">
+          <SettingsRow label="Host Settings">
+            <p role="status">Open Remote Access in the host's connected desktop session to configure its listener.</p>
+          </SettingsRow>
+        </SettingsCard>
+      </>
     );
   }
-  return <ConnectedRemoteSection key={session.identity.generation} session={session} />;
+  return (
+    <>
+      <BackendSelectionCard />
+      <ConnectedRemoteSection key={session.identity.generation} session={session} />
+    </>
+  );
 }
 
 function ConnectedRemoteSection({ session }: { session: ConnectedSession }) {

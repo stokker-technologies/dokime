@@ -44,7 +44,7 @@ terminal = ["diagnostics", "dep:anstream", "dep:anstyle", "dep:indicatif"]
 # Local
 dokime-client = { workspace = true, optional = true }
 dokime-domain = { workspace = true }
-dokime-runtime = { workspace = true, default-features = false }
+dokime-runtime = { workspace = true }
 
 # Git
 

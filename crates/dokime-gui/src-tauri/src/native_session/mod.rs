@@ -13,6 +13,7 @@ pub mod backend;
 mod contract;
 pub mod launch;
 mod owner;
+pub mod preferences;
 pub mod storage;
 
 /* === Re-Exports === */
@@ -171,6 +172,41 @@ pub async fn desktop_open_backend_log(
 pub fn desktop_profiles_list() -> Result<dokime::client::profiles::Document, String> {
     let store = dokime::client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
     store.load().map_err(|error| error.to_string())
+}
+
+pub fn desktop_profiles_save(profile: dokime::client::profiles::Profile) -> Result<dokime::client::profiles::Document, String> {
+    let store = dokime::client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
+    store
+        .update(|document| {
+            profile.selection()?;
+            if let Some(current) = document.profiles.iter_mut().find(|current| current.name == profile.name) {
+                *current = profile;
+            } else {
+                document.profiles.push(profile);
+            }
+            document.validate()?;
+            Ok(document.clone())
+        })
+        .map_err(|error| error.to_string())
+}
+
+pub fn desktop_profiles_remove(
+    state: tauri::State<'_, DesktopSessionControl>, name: String,
+) -> Result<dokime::client::profiles::Document, String> {
+    if state.0.profile_selected(&name)? {
+        return Err("Select another desktop backend before removing this profile.".to_owned());
+    }
+    let store = dokime::client::profiles::Store::discover(None).map_err(|error| error.to_string())?;
+    store
+        .update(|document| {
+            document.get(&name)?;
+            if document.default.as_deref() == Some(&name) {
+                return Err(dokime::client::profiles::Error::Invalid("The CLI default backend cannot be removed.".to_owned()));
+            }
+            document.profiles.retain(|profile| profile.name != name);
+            Ok(document.clone())
+        })
+        .map_err(|error| error.to_string())
 }
 
 /* === Private Functions === */

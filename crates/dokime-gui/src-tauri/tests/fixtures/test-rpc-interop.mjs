@@ -109,10 +109,10 @@ try {
     lateRead,
     (error) => error.kind === "session" && error.detail.kind === "superseded",
   );
-  // Full-Control Access Permits Staging; Invalid Bytes Retain The Backend's Refusal.
+  // Full-Control Access Permits Installation; Invalid Bytes Retain The Backend's Refusal.
   await assert.rejects(
     (async () => {
-      const staging = await api.pluginsStage(session, {
+      const staging = await api.pluginsInstall(session, {
         frame: {
           HarmosVariant: {
             case: "Header",

@@ -17,7 +17,6 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use uuid::Uuid;
 
 // Local Imports
 use super::store::read_bounded;
@@ -51,9 +50,9 @@ impl RuntimeHandle {
         PluginStore::new(self.settings().clone())
     }
 
-    pub async fn consent_plugin<E: From<PluginError> + From<std::io::Error> + Send + 'static>(
-        &self, id: Uuid, validate: impl FnOnce(&PluginEntry) -> Result<(), E> + Send + 'static,
-    ) -> Result<PluginEntry, E> {
+    pub async fn install_plugin(
+        &self, bytes: Vec<u8>, validate: impl FnOnce(&PluginEntry) -> Result<(), PluginError> + Send + 'static,
+    ) -> Result<PluginEntry, PluginError> {
         let store = self.plugin_store();
         let configured = self.config().plugins.clone();
         let host_sources: BTreeSet<_> = self
@@ -71,10 +70,10 @@ impl RuntimeHandle {
                     inspect(&bytes).map(|(_, metadata)| metadata)
                 })
                 .collect::<Result<Vec<_>, PluginError>>()?;
-            store.consent_checked(id, &configured, &host_sources, validate)
+            store.install_checked(&bytes, &configured, &host_sources, validate)
         })
         .await
-        .map_err(|error| E::from(PluginError::Io(std::io::Error::other(error.to_string()))))?
+        .map_err(|error| PluginError::Io(std::io::Error::other(error.to_string())))?
     }
 }
 
@@ -87,8 +86,7 @@ fn process_state(entry: &mut PluginEntry, attempted: Option<bool>) {
     entry.restart_required = match entry.installation.state {
         super::PluginState::Installed => attempted.is_none(),
         super::PluginState::Disabled => entry.active,
-        super::PluginState::RemovalPending => entry.installation.consented_at.is_some(),
-        super::PluginState::Staged => false,
+        super::PluginState::RemovalPending => true,
     };
     // Only an attempt this process itself made and refused ever surfaces a
     // reason. No caller ever observes a `RuntimeHandle` until `install_plugins`

@@ -46,6 +46,7 @@ pub struct Server {
     attachment: Option<Attached>,
     listeners: Arc<Listeners>,
     remote: Option<Arc<super::remote::Controller>>,
+    detach_failure: Option<Arc<dokime::harmos::Error>>,
 }
 
 /* === Enums === */
@@ -113,7 +114,7 @@ impl Service {
         let attachment = self.runtime.grpc().attach(settings).await?;
         let address = attachment.local_addr();
         self.listeners.insert(address, policy, local);
-        Ok(Server { address, tls, attachment: Some(attachment), listeners: self.listeners.clone(), remote: None })
+        Ok(Server { address, tls, attachment: Some(attachment), listeners: self.listeners.clone(), remote: None, detach_failure: None })
     }
 }
 
@@ -135,16 +136,31 @@ impl Server {
     }
 
     pub async fn shutdown(mut self) -> Result<(), Error> {
-        if let Some(remote) = self.remote.take() {
+        self.drain().await
+    }
+
+    pub(crate) async fn drain(&mut self) -> Result<(), Error> {
+        if let Some(remote) = self.remote.as_ref() {
             remote.stop().await?;
         }
-        self.detach().await
+        self.detach_listener().await
     }
 
     pub(super) async fn detach(mut self) -> Result<(), Error> {
+        self.detach_listener().await
+    }
+
+    pub(super) async fn detach_listener(&mut self) -> Result<(), Error> {
+        if let Some(error) = &self.detach_failure {
+            return Err(Error::ListenerDetach(error.clone()));
+        }
         self.listeners.remove(self.address);
-        if let Some(attachment) = self.attachment.take() {
-            attachment.detach().await?;
+        if let Some(attachment) = self.attachment.take()
+            && let Err(error) = attachment.detach().await
+        {
+            let error = Arc::new(error);
+            self.detach_failure = Some(error.clone());
+            return Err(Error::ListenerDetach(error));
         }
         Ok(())
     }

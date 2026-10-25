@@ -32,21 +32,17 @@ pub type Values = BTreeMap<String, BTreeMap<String, Value>>;
 
 /* === Structs === */
 
-/* === Enums === */
-
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(untagged)]
-pub enum Value {
-    Legacy(String),
-    Defined {
-        raw: String,
+pub struct Value {
+    pub raw: String,
 
-        #[serde(rename = "valueType")]
-        value_type: String,
+    #[serde(rename = "valueType")]
+    pub value_type: String,
 
-        unit: Option<String>,
-    },
+    pub unit: Option<String>,
 }
+
+/* === Enums === */
 
 /* === Traits === */
 
@@ -65,7 +61,9 @@ pub fn load(path: &Path) -> std::io::Result<Option<Values>> {
     if bytes.len() > MAX_BYTES {
         return Err(invalid("remembered parameters exceed 1 MiB"));
     }
-    let values = serde_json::from_slice(&bytes).map_err(std::io::Error::other)?;
+    let values = serde_json::from_slice(&bytes).map_err(|error| {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, format!("invalid or unsupported remembered parameter format: {error}"))
+    })?;
     validate(&values)?;
     Ok(Some(values))
 }
@@ -89,13 +87,10 @@ fn validate(values: &Values) -> std::io::Result<()> {
         || values.iter().any(|(template, parameters)| {
             !valid_id(template)
                 || parameters.iter().any(|(id, value)| {
-                    let (raw, metadata_valid) = match value {
-                        Value::Legacy(raw) => (raw, true),
-                        Value::Defined { raw, value_type, unit } => {
-                            (raw, valid_id(value_type) && unit.as_ref().is_none_or(|unit| unit.len() <= 256))
-                        }
-                    };
-                    !valid_id(id) || raw.len() > 8192 || !metadata_valid
+                    !valid_id(id)
+                        || value.raw.len() > 8192
+                        || !valid_id(&value.value_type)
+                        || value.unit.as_ref().is_some_and(|unit| unit.len() > 256)
                 })
         })
     {

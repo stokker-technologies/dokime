@@ -12,6 +12,8 @@
 mod closing;
 pub(crate) mod content;
 pub(crate) mod desktop;
+mod http;
+mod instance;
 pub(crate) mod local;
 mod logging;
 pub(crate) mod media;
@@ -93,9 +95,26 @@ fn start_tauri_app() -> tauri::Result<()> {
         let root = std::path::absolute(root)?;
         context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(root));
     }
-    let _log_guards = logging::init(&context.config().identifier);
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
-    let launch = crate::native_session::launch::configuration(arguments.clone());
+    let mut launch = crate::native_session::launch::configuration(arguments.clone());
+    let root = settings::application_root(&context.config().identifier)?;
+    let instance = if launch.target.is_none() && launch.error.is_none() {
+        match tauri::async_runtime::block_on(instance::Instance::acquire(&root))? {
+            Some(instance) => Some(instance),
+            None => return Ok(()),
+        }
+    } else {
+        None
+    };
+    let preferences = root.join("desktop.json");
+    if launch.error.is_none() {
+        match crate::native_session::preferences::load(&preferences) {
+            Ok(selection) => launch.selection = selection,
+            Err(error) => launch.error = Some(format!("Cannot read desktop backend choice: {error}")),
+        }
+    }
+    let _log_guards = logging::init(&context.config().identifier);
+    let initial_selection = launch.selection.clone();
     let shutdown_stdin = launch.error.is_none() && arguments.iter().any(|argument| argument == "--shutdown-stdin");
     let retained = Arc::new(Mutex::new(None::<crate::native_session::DesktopSession>));
     let setup_owner = Arc::clone(&retained);
@@ -138,12 +157,16 @@ fn start_tauri_app() -> tauri::Result<()> {
         .setup(move |app| {
             settings::setup(app);
             let connection = app.state::<crate::connection::ConnectionSession>().inner().clone();
-            let owner = crate::native_session::DesktopSession::with_local_configuration(connection, local::configuration(app.handle()));
+            let owner = crate::native_session::DesktopSession::with_local_configuration(connection, local::configuration(app.handle()))
+                .with_preferences(preferences, initial_selection);
             *setup_owner.lock().expect("setup owner poisoned") = Some(owner.clone());
             app.manage(crate::native_session::DesktopSessionControl::active(owner));
             organization::setup(app)?;
             updates::setup(app)?;
             create_main_windows(app)?;
+            if let Some(instance) = instance {
+                app.manage(instance.start(app.handle().clone()));
+            }
             if shutdown_stdin {
                 let handle = app.handle().clone();
                 // A dedicated thread avoids retaining a blocking Tokio task on

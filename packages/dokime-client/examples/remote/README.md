@@ -109,11 +109,10 @@ launching another local server there is unnecessary.
 
 On the host, open **Settings → Plugins**. Under **Install A Plugin**, choose
 **Choose File**, then select the host-platform `obc-plugin.dokime` from the
-candidate's `plugins/` directory. Inspect the plugin identity, version and
-SHA-256, then choose **Install plugin**.
+candidate's `plugins/` directory. Selecting the bundle installs it directly.
 
-Choose **Restart Now** in the restart dialog. A staged installation has not
-activated until the host restarts. Return to Plugins and check that the
+Choose **Restart Now** in the restart dialog. The installed plugin activates
+when the host restarts. Return to Plugins and check that the
 installation is enabled and its programs loaded without an error. The simulated
 plugin needs no physical device or institute secrets.
 
@@ -201,9 +200,13 @@ terminal's working directory. Leave dotenv empty unless deliberately selected.
 Run the scripts without arguments.
 
 `control-device` reads the manual device, powers it on, verifies its 230 V RMS
-state, powers it off and reads zero volts. Optional response files contain the
-five replies. This manual device is separate from each execution's simulation;
+state, powers it off and reads zero volts. Fixed JSON files in the current
+directory contain the five replies. This manual device is separate from each execution's simulation;
 manual commands are not logged as execution evidence.
+
+The device CLI preserves existing response files through its native output
+policy; use a fresh working directory for another run. Python replaces its
+fixed response files when rerun.
 
 `control-test` checks evidence destinations, materializes one case, appends two
 independent attempts to a new cycle, then spells out each run and export in order.
@@ -217,10 +220,12 @@ live. The script downloads `execution-1.zip`,
 blocking, displays its pending question and answers the exact prompt UUID with
 `ANSWER` (default `yes`). Sampling begins after confirmation. It downloads
 `execution.zip` and `cycle.zip` into `prompt-evidence/`. A `no` answer
-produces a truthful nonpassing outcome and a nonzero script result.
+produces a nonpassing execution outcome. Inspect that outcome rather than
+treating the demonstration script's exit status as an aggregated verdict.
 
-Use a new output directory before rerunning, or explicitly choose overwrite.
-A nonpassing outcome still produces evidence. Do not resubmit an uncertain
+Use a new evidence directory before rerunning, or explicitly choose overwrite.
+Shell error handling can stop a script before its later export commands; use
+the printed identities to inspect and export that attempt. Do not resubmit an uncertain
 mutation just because a response or connection was lost.
 
 ## Stop And Recover
@@ -321,8 +326,8 @@ and captured files together. Use `.quit` to leave the SQLite CLI.
 | Status is unreachable | Keep the host running; check **Listening On**, the host IP, selected port, firewall and network route. A remote client must not use the bind address `0.0.0.0` or its own loopback address. |
 | Certificate verification fails | Match the endpoint's IP/DNS name to **Certificate DNS Names And IP Addresses**. After regeneration, transfer the new public certificate. Do not disable verification to hide a mismatch. |
 | Authentication fails | Use the saved key, check explicit key/env-file selection and process `DOKIME_KEY`. After rotation the old key no longer works; copy the new one. |
-| OBC operations/template are missing | Install the host-OS plugin from the same candidate, consent, restart the host and check Plugins for loading errors. |
-| Existing response/evidence destination | Select a new directory. Response directories must be new; evidence overwrite is an explicit choice. Preserve previous results. |
+| OBC operations/template are missing | Install the host-OS plugin from the same candidate, restart the host and check Plugins for loading errors. |
+| Existing evidence destination | Select a new evidence directory or explicitly choose overwrite. Preserve previous results you need to retain. |
 | A script timed out or disconnected | Retain its printed UUIDs; reconnect to the same host and inspect. Remote work may continue. Rerunning a script would create new attempts. |
 | SQLite reports a schema error | Confirm the database was extracted fully and use SQLite 3.37+. Compare its SHA-256 with the manifest before interpreting data. |
 

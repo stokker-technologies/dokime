@@ -128,6 +128,17 @@ invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
 
+The desktop starts with Local on first launch. Settings lets you select Local
+or add, edit and remove saved remote profiles from the same `backends.json`
+catalog used by the CLI. The desktop remembers its selection separately from
+the CLI default. An unavailable remembered remote stays selected and offers
+reconnection or another selection; it does not silently start Local.
+
+**Start Local Backend** and **Stop Local Backend** control the embedded backend.
+**Connect** and **Disconnect** control attachment to a remote without stopping
+that server. Reopening the desktop for the same application root focuses its
+existing window; explicitly different application roots remain independent.
+
 The CLI connects to an existing server. Save and select a backend with:
 
 ```sh
@@ -779,7 +790,7 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | --- | --- | --- |
 | `dokime operation list\|show` | Discover operations and their provider contracts. | `--json` |
 | `dokime operation call` | Call a provider and read its items and completion. | `--json`, `--input`, `--output` |
-| `dokime plugin install` | Stage a bundle, review it and authorize next-boot activation. | `--yes` |
+| `dokime plugin install` | Verify and install a bundle directly for next-boot activation. | Bundle path and backend selection |
 
 ### Plugin Authoring
 
@@ -945,9 +956,10 @@ uv run --locked --project tools/python python -m dokime_tools.package.plugins \
 Repeat `--asset` for other targets of the same package and version, then publish
 the feed and those exact bundles together. Settings › Plugins checks compatibility
 against the connected backend's version and target, verifies the digest and
-inspected package identity, and opens the existing consent and restart flow.
-Discovery alone never grants installation consent. A missing feed or target is
-reported without substituting a different package.
+inspected package identity, and installs the selected bundle directly. Restart
+the host to activate it. Dropping a bundle or selecting it with the native
+picker uses the same installation path without a review or consent dialog.
+A missing feed or target is reported without substituting a different package.
 
 ## Generated Clients
 

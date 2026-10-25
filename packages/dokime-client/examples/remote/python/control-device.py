@@ -37,9 +37,6 @@ CA_CERTIFICATE: Path | None = Path("server.pem")
 KEY_FILE: Path | None = Path("remote.key")
 ENV_FILE: Path | None = None
 
-# Response Files
-RESPONSE_DIRECTORY: Path | None = None
-
 # === Types === #
 
 # === Classes === #
@@ -48,10 +45,6 @@ RESPONSE_DIRECTORY: Path | None = None
 
 
 async def run() -> int:
-    # Reserve Optional Response Files Before Connecting
-    if RESPONSE_DIRECTORY is not None:
-        RESPONSE_DIRECTORY.mkdir(parents=True, exist_ok=False)
-
     async with DokimeClient(ENDPOINT, ca_certificate=CA_CERTIFICATE, key_file=KEY_FILE, env_file=ENV_FILE) as client:
         # Discover Device Operations
         operations = await client.operations()
@@ -61,25 +54,19 @@ async def run() -> int:
         reply = await client.call("obc.device.read", {})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("Before:", json.dumps(observed), flush=True)
-        if RESPONSE_DIRECTORY is not None:
-            with (RESPONSE_DIRECTORY / "before.json").open("x", encoding="utf-8", newline="\n") as output:
-                output.write(json.dumps(observed, indent=2) + "\n")
+        Path("before.json").write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
 
         # Enable The Manual Device; This Is Separate From Test Evidence
         reply = await client.call("obc.device.set_power", {"enabled": True})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("Power On:", json.dumps(observed), flush=True)
-        if RESPONSE_DIRECTORY is not None:
-            with (RESPONSE_DIRECTORY / "power-on.json").open("x", encoding="utf-8", newline="\n") as output:
-                output.write(json.dumps(observed, indent=2) + "\n")
+        Path("power-on.json").write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
 
         # Read Back The Powered State: 230 V RMS
         reply = await client.call("obc.device.read", {})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("Running:", json.dumps(observed), flush=True)
-        if RESPONSE_DIRECTORY is not None:
-            with (RESPONSE_DIRECTORY / "running.json").open("x", encoding="utf-8", newline="\n") as output:
-                output.write(json.dumps(observed, indent=2) + "\n")
+        Path("running.json").write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
         if observed.get("enabled") is not True or observed.get("voltage_rms_v") != 230.0:
             raise ValueError("manual device did not report the expected powered state")
 
@@ -87,17 +74,13 @@ async def run() -> int:
         reply = await client.call("obc.device.set_power", {"enabled": False})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("Power Off:", json.dumps(observed), flush=True)
-        if RESPONSE_DIRECTORY is not None:
-            with (RESPONSE_DIRECTORY / "power-off.json").open("x", encoding="utf-8", newline="\n") as output:
-                output.write(json.dumps(observed, indent=2) + "\n")
+        Path("power-off.json").write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
 
         # Read Back The Powered-Off State: Zero Volts
         reply = await client.call("obc.device.read", {})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("After:", json.dumps(observed), flush=True)
-        if RESPONSE_DIRECTORY is not None:
-            with (RESPONSE_DIRECTORY / "after.json").open("x", encoding="utf-8", newline="\n") as output:
-                output.write(json.dumps(observed, indent=2) + "\n")
+        Path("after.json").write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
         if observed.get("enabled") is not False or observed.get("voltage_rms_v") != 0.0:
             raise ValueError("manual device did not report the expected powered-off state")
     return 0
@@ -109,8 +92,7 @@ async def run() -> int:
 
 if __name__ == "__main__":
     try:
-        status = asyncio.run(run())
-        raise SystemExit(status)
+        raise SystemExit(asyncio.run(run()))
     except KeyboardInterrupt:
         print("Stopped Waiting; Read Device State Before Resending An Unconfirmed Command", file=sys.stderr)
         raise SystemExit(130)

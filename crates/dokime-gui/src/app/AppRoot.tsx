@@ -31,8 +31,8 @@ export function AppRoot() {
               secrets: { kind: configuration.target.kind === "remote" ? "saved" : "none" },
             },
           });
-        } else if (configuration.localBackendAvailable) {
-          void owner.select({ kind: "owned_local" });
+        } else {
+          void owner.select(configuration.selection);
         }
       })
       .catch((error: unknown) => {

@@ -285,7 +285,7 @@ pub async fn desktop_artifact_deliver(
                     return Err(open("The automation report opener must be an owned loopback endpoint.".to_owned()));
                 }
                 ensure_document_session(&session, &generation).map_err(prepare)?;
-                let client = reqwest::Client::builder()
+                let client = crate::app::http::client()
                     .no_proxy()
                     .redirect(reqwest::redirect::Policy::none())
                     .build()

@@ -585,26 +585,20 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn plugins_stage(
-        &self, message: impl tokio_stream::Stream<Item = dokime_domain::model::plugins::wire::StagePluginFrame> + Send + 'static,
+    pub async fn plugins_install(
+        &self, message: impl tokio_stream::Stream<Item = dokime_domain::model::plugins::wire::InstallPluginFrame> + Send + 'static,
     ) -> Result<dokime_domain::model::plugins::wire::PluginInstallation> {
-        self.upload::<contracts::plugins::Stage, _>(contracts::plugins::Stage::PATH, contracts::plugins::Stage {}, message).await
+        self.upload::<contracts::plugins::Install, _>(contracts::plugins::Install::PATH, contracts::plugins::Install {}, message).await
     }
 
-    pub fn plugins_stage_open(
+    pub fn plugins_install_open(
         &self,
-    ) -> Result<RequestStream<dokime_domain::model::plugins::wire::StagePluginFrame, dokime_domain::model::plugins::wire::PluginInstallation>>
-    {
-        self.require(contracts::plugins::Stage::PATH)?;
+    ) -> Result<
+        RequestStream<dokime_domain::model::plugins::wire::InstallPluginFrame, dokime_domain::model::plugins::wire::PluginInstallation>,
+    > {
+        self.require(contracts::plugins::Install::PATH)?;
         let client = self.clone();
-        RequestStream::new(self, move |stream| async move { client.plugins_stage(stream).await })
-    }
-
-    pub async fn plugins_consent(
-        &self, message: contracts::plugins::Consent,
-    ) -> Result<dokime_domain::model::plugins::wire::PluginInstallation> {
-        let reply = self.unary::<contracts::plugins::Consent>(contracts::plugins::Consent::PATH, message).await?;
-        super::transport::value(reply)
+        RequestStream::new(self, move |stream| async move { client.plugins_install(stream).await })
     }
 
     pub async fn plugins_set_enabled(

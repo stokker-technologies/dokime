@@ -136,7 +136,7 @@ test("Brand Label", () => {
   // A Pending Removal Waits For The Brand To Restart
   const entry = {
     active: true,
-    consented_at: 1,
+    installed_at: "2026-10-25T00:00:00Z",
     error: null,
     state: "removal_pending",
   } as unknown as Parameters<typeof statusPresentation>[0];

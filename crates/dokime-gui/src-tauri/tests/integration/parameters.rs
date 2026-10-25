@@ -47,8 +47,8 @@ fn replacement_keeps_parameters() {
     let values = [(
         "template".into(),
         [
-            ("parameter".into(), parameters::Value::Legacy("12".into())),
-            ("defined".into(), parameters::Value::Defined { raw: "115".into(), value_type: "int".into(), unit: Some("V".into()) }),
+            ("parameter".into(), parameters::Value { raw: "12".into(), value_type: "int".into(), unit: None }),
+            ("defined".into(), parameters::Value { raw: "115".into(), value_type: "int".into(), unit: Some("V".into()) }),
         ]
         .into(),
     )]
@@ -56,11 +56,21 @@ fn replacement_keeps_parameters() {
     parameters::save(&path, &values).unwrap();
     assert_eq!(parameters::load(&path).unwrap(), Some(values));
     let saved = fs::read(&path).unwrap();
-    let invalid = [("template".into(), [("parameter".into(), parameters::Value::Legacy("x".repeat(8193)))].into())].into();
+    let invalid = [(
+        "template".into(),
+        [("parameter".into(), parameters::Value { raw: "x".repeat(8193), value_type: "str".into(), unit: None })].into(),
+    )]
+    .into();
     assert!(parameters::save(&path, &invalid).is_err());
     assert_eq!(fs::read(&path).unwrap(), saved);
     parameters::save(&path, &parameters::Values::new()).unwrap();
     assert_eq!(parameters::load(&path).unwrap(), Some(parameters::Values::new()));
+    let unsupported = br#"{"template":{"parameter":"12"}}"#;
+    fs::write(&path, unsupported).unwrap();
+    let error = parameters::load(&path).unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    assert!(error.to_string().contains("unsupported remembered parameter format"));
+    assert_eq!(fs::read(&path).unwrap(), unsupported);
     fs::write(&path, b"broken").unwrap();
     assert!(parameters::load(&path).is_err());
     assert_eq!(fs::read(&path).unwrap(), b"broken");

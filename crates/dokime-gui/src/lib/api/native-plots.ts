@@ -43,7 +43,6 @@ import type {
   PlotPoint,
   PlotSeries,
   RecordScope,
-  TelemetrySampleRecord,
 } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import { aggregateMessage } from "./native-aggregate";
@@ -57,7 +56,6 @@ import {
   nativeValueToJson,
   recordScopeFromNative,
   safeNumber,
-  timestampIso,
 } from "./native-values";
 
 /* === Canonical Types === */
@@ -93,12 +91,10 @@ const PlotRequestSchema = plotWire.Row3Schema;
 const PlotWindowSchema = plotWire.Row16Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamKind = PlotStreamFrame["kind"];
-type NativeTelemetrySample = Wire<Awaited<ReturnType<typeof rpc.telemetryListSamples>>>["samples"][number];
 
 /* === Constants === */
 
 export const NATIVE_PLOT_MAX_REQUESTS = 32;
-export const NATIVE_TELEMETRY_MAX_LIMIT = 5_000;
 const MAX_PLOT_TRANSFORMS = 32;
 
 /* === Types === */
@@ -158,25 +154,6 @@ export type NativePlotStreamMessage = (PlotPayloadStreamMessage & { nativeCursor
 export interface NativePlotStream extends AsyncIterable<NativePlotStreamMessage> {
   cancel(): Promise<void>;
 }
-
-export type NativeTelemetrySamples = {
-  samples: TelemetrySampleRecord[];
-  throughStreamCursors: Record<string, bigint>;
-  /** Continuation is unavailable for an explicit latest tail window. */
-  continuation: Record<string, bigint> | null;
-  /** False means a forward page may have more samples. */
-  complete: boolean;
-  /** True only when the request explicitly asked for the latest tail window. */
-  latestWindow: boolean;
-};
-
-export type NativeTelemetrySamplesOptions = {
-  limit?: number;
-  scope?: RecordScope | null;
-  signal?: AbortSignal;
-  latest?: boolean;
-  afterStreamCursors?: Readonly<Record<string, bigint>>;
-};
 
 export type NativePlotReadOptions = {
   signal?: AbortSignal;
@@ -383,56 +360,6 @@ export async function openNativePlotStream(
     cancel,
     [Symbol.asyncIterator]: () => mapped,
   };
-}
-
-/** Read typed telemetry samples with explicit forward-page and tail-window semantics. */
-export async function listNativeTelemetrySamples(
-  session: SessionIdentity,
-  stream: string,
-  options: NativeTelemetrySamplesOptions = {},
-): Promise<NativeTelemetrySamples> {
-  const limit = boundedTelemetryLimit(options.limit ?? 500);
-  const latest = options.latest ?? false;
-  const afterStreamCursors = { ...(options.afterStreamCursors ?? {}) };
-  if (latest && Object.keys(afterStreamCursors).length > 0) {
-    throw new Error("Latest telemetry windows cannot be continued with after cursors.");
-  }
-  ensureActive(session, options.signal);
-  try {
-    const reply = await rpc.telemetryListSamples(session, {
-      streams: [requiredText(stream, "telemetry stream")],
-      limit,
-      schemaVersions: [],
-      sources: [],
-      signals: [],
-      ...(nativeEvidenceScope(options.scope) ? { scope: nativeEvidenceScope(options.scope) } : {}),
-      afterStreamCursors: Object.entries(afterStreamCursors).map(([key, value]) => ({
-        key,
-        value,
-      })),
-      latest,
-    });
-    ensureActive(session, options.signal);
-    const throughStreamCursors = Object.fromEntries(reply.throughStreamCursors.map(({ key, value }) => [key, value]));
-    return {
-      samples: reply.samples.map(mapNativeTelemetrySample),
-      throughStreamCursors,
-      continuation: latest || reply.complete ? null : throughStreamCursors,
-      complete: reply.complete,
-      latestWindow: latest,
-    };
-  } catch (error) {
-    throw normalizeCancellation(error, session, options.signal);
-  }
-}
-
-/** Compatibility-shaped sample projection for callers that only need samples. */
-export async function fetchNativeTelemetrySamples(
-  session: SessionIdentity,
-  stream: string,
-  options: NativeTelemetrySamplesOptions = {},
-): Promise<TelemetrySampleRecord[]> {
-  return (await listNativeTelemetrySamples(session, stream, options)).samples;
 }
 
 /** Map one protobuf envelope into the payload family used by the renderer. */
@@ -932,20 +859,6 @@ function mapNativePlotDiagnostics(diagnostics: NativePlotPayloadDiagnostics): Pl
   };
 }
 
-function mapNativeTelemetrySample(sample: NativeTelemetrySample): TelemetrySampleRecord {
-  const timestamp = timestampIso(sample.timestamp);
-  return {
-    stream: sample.stream,
-    sequence: safeNumber(sample.sequence, "Telemetry sample sequence"),
-    sample: {
-      ...(timestamp ? { timestamp } : {}),
-      ...nativeValueObjectToJson(sample.values),
-      ...nativeValueObjectToJson(sample.summary),
-    },
-    scope: recordScopeFromNative(sample.scope),
-  };
-}
-
 function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"] {
   switch (value?.HarmosVariant.case) {
     case "Snapshot":
@@ -978,13 +891,6 @@ function boundedRequestCount(count: number, operation: string): void {
   if (count > NATIVE_PLOT_MAX_REQUESTS) {
     throw new NativeApiLimitError(operation, `more than ${NATIVE_PLOT_MAX_REQUESTS} plots`);
   }
-}
-
-function boundedTelemetryLimit(value: number): number {
-  if (!Number.isSafeInteger(value) || value < 0 || value > NATIVE_TELEMETRY_MAX_LIMIT) {
-    throw new NativeApiLimitError("Telemetry.ListSamples", `limit must be an integer between 0 and ${NATIVE_TELEMETRY_MAX_LIMIT}`);
-  }
-  return value;
 }
 
 function boundedUint64(value: number, label: string): bigint {

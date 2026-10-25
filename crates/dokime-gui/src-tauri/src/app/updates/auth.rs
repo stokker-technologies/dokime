@@ -269,7 +269,7 @@ fn random_token() -> String {
 async fn exchange(connection: &Connection, code: &str, verifier: &str) -> Result<(User, Zeroizing<String>), String> {
     let origin = https_url(&connection.host)?;
     let token_url = origin.join("oauth/token").map_err(|_| "The OAuth origin is invalid")?;
-    let client = reqwest::Client::builder()
+    let client = crate::app::http::client()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(30))
         .build()

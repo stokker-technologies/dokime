@@ -39,8 +39,8 @@ operating conditions, and review the evidence behind each result.
 ### GUI
 
 The desktop brings the test library, active cycles, measurements and evidence
-together. It starts its own embedded server or attaches to a configured remote
-backend; operators do not need a source checkout.
+together. Start with the built-in Local backend or select a saved remote in
+Settings. The desktop remembers that choice; operators do not need a source checkout.
 
 #### Examples
 
@@ -93,7 +93,7 @@ to see the public authoring API in context.
 ## Quick Start
 
 1. **Download An Installer.** Choose a matching successful [CI candidate](https://github.com/stokker-technologies/dokime/actions). Dokime has no published release yet; the [download walkthrough](packages/dokime-client/examples/remote/README.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
-2. **Download The Example Plugin.** Take `obc-plugin.dokime` from that same candidate. Add it through the application's plugin settings and restart.
+2. **Download The Example Plugin.** Take `obc-plugin.dokime` from that same candidate. Drop it into the application's plugin settings to install it, then restart to activate it.
 3. **Try A Test.** Create a cycle, add an OBC charging template from the library, select its operating points, then run it and inspect the measurements and report. No physical charger is required.
 4. **Write Your Plugin.** Start with the [plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
 

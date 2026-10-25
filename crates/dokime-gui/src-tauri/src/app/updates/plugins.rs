@@ -25,11 +25,10 @@ use tauri::{State, WebviewWindow, ipc::Channel};
 use super::{UpdateState, sources};
 use crate::app::{
     organization::policy::https_url,
-    plugins::{self, StageProgress},
+    plugins::{self, InstallProgress},
 };
 use crate::connection::ConnectionSession;
-use dokime::client::contracts;
-use dokime::domain::model::plugins::wire::STAGE_ARCHIVE_MAX_BYTES;
+use dokime::domain::model::plugins::wire::INSTALL_ARCHIVE_MAX_BYTES;
 
 /* === Constants === */
 
@@ -152,9 +151,9 @@ pub async fn desktop_plugin_release_check(
     Ok(release)
 }
 
-pub async fn desktop_plugin_release_stage(
+pub async fn desktop_plugin_release_install(
     window: WebviewWindow, connection: State<'_, ConnectionSession>, state: State<'_, UpdateState>, generation: String, candidate: String,
-    progress: Channel<StageProgress>,
+    progress: Channel<InstallProgress>,
 ) -> Result<String, String> {
     let lease = plugins::admit(&window, &connection, &generation)?;
     let selected = {
@@ -164,7 +163,7 @@ pub async fn desktop_plugin_release_stage(
             .as_ref()
             .filter(|item| item.id == candidate && item.connection == generation && item.generation == inner.generation)
             .cloned()
-            .ok_or("The reviewed plugin release is no longer available")?
+            .ok_or("The selected plugin release is no longer available")?
     };
     let (policy, policy_generation) = state.snapshot()?;
     if selected.generation != policy_generation {
@@ -172,33 +171,72 @@ pub async fn desktop_plugin_release_stage(
     }
     let auth = state.authorization(&policy).await?;
     let url = https_url(&selected.asset.url)?;
-    let bytes = sources::fetch(&url, auth.as_ref(), STAGE_ARCHIVE_MAX_BYTES as usize).await?;
+    let bytes = sources::fetch(&url, auth.as_ref(), INSTALL_ARCHIVE_MAX_BYTES as usize).await?;
     let client = lease.client();
     selected.manifest.select(&client.backend().product_version, &client.backend().target)?;
+    let manifest = selected.manifest.clone();
+    let bytes = tauri::async_runtime::spawn_blocking(move || {
+        validate_release_bundle(&bytes, &manifest)?;
+        Ok::<_, String>(bytes)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
     if state.snapshot()?.1 != policy_generation {
-        return Err("The plugin release source changed while downloading".into());
+        return Err("The plugin release source changed while inspecting the download".into());
     }
-    let staged = plugins::stage(&lease, bytes, progress, Some(&selected.asset.sha256)).await?;
-    let identity = staged.metadata.as_ref().and_then(|metadata| metadata.identity.as_ref());
-    let matching = identity
-        .is_some_and(|identity| identity.name == selected.manifest.package && identity.version == selected.manifest.version)
-        && staged.sha256.eq_ignore_ascii_case(&selected.asset.sha256)
-        && state.snapshot().is_ok_and(|(_, generation)| generation == policy_generation);
-    if !matching {
-        let removal = contracts::plugins::Remove { install_id: staged.install_id };
-        client.plugins_remove(removal).await.map_err(|_| "Plugin release identity was rejected; its unconsented stage requires removal")?;
-        return Err("The inspected plugin identity does not match the reviewed release or its source changed".into());
-    }
-    Ok(staged.install_id)
+    let installed = plugins::install(&lease, bytes, progress, Some(&selected.asset.sha256)).await?;
+    Ok(installed.install_id)
 }
 
 /* === Private Functions === */
+
+fn validate_release_bundle(bytes: &[u8], selected: &Manifest) -> Result<(), String> {
+    let bundle =
+        harmos_packaging::bundle::Bundle::inspect(bytes, harmos_packaging::bundle::Limits::default()).map_err(|error| error.to_string())?;
+    let identity = &bundle.manifest().identity;
+    if identity.name != selected.package || identity.version.to_string() != selected.version {
+        return Err("The downloaded plugin identity does not match the selected release".into());
+    }
+    Ok(())
+}
 
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_bundle_identity() {
+        use harmos_packaging::bundle::{Bundle, Identity, Limits, Source};
+
+        let bundle = Bundle::build(
+            Identity {
+                name: "instruments".into(),
+                version: "1.2.3".parse().unwrap(),
+                description: String::new(),
+                package: Default::default(),
+            },
+            &[Source { path: "resource.txt", bytes: b"verified resource", executable: None }],
+            Limits::default(),
+        )
+        .unwrap();
+        let bytes = bundle.bytes();
+        let mut selected = Manifest {
+            format_version: 1,
+            package: "instruments".into(),
+            version: "1.2.3".into(),
+            requires_dokime: "*".into(),
+            assets: vec![],
+        };
+        validate_release_bundle(bytes, &selected).unwrap();
+        selected.package = "other".into();
+        assert!(validate_release_bundle(bytes, &selected).unwrap_err().contains("identity does not match"));
+        selected.package = "instruments".into();
+        selected.version = "2.0.0".into();
+        assert!(validate_release_bundle(bytes, &selected).unwrap_err().contains("identity does not match"));
+        assert!(validate_release_bundle(b"invalid archive", &selected).is_err());
+    }
 
     #[test]
     fn release_selection_requires_compatible_host_unique_target_and_digest() {

@@ -24,7 +24,7 @@ use std::{
 // Local Imports
 use super::backend::Backend;
 use super::storage::StorageRoot;
-use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
+use super::{BackendChoice, BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
 use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionSession, ConnectionTarget};
 
 /* === Constants === */
@@ -43,11 +43,14 @@ struct Inner {
     state: Mutex<State>,
     transition: tokio::sync::Mutex<Resources>,
     local: Option<Result<Backend, String>>,
+    preferences: Option<PathBuf>,
+    profiles: Option<PathBuf>,
     // Cancelled once, when the operator exits without finishing.
     abandon: tokio_util::sync::CancellationToken,
 }
 
 struct State {
+    selection: Option<BackendChoice>,
     revision: u64,
     closing: bool,
     ownership: BackendOwnership,
@@ -74,6 +77,7 @@ impl DesktopSession {
         Self(Arc::new(Inner {
             connection,
             state: Mutex::new(State {
+                selection: None,
                 revision: 0,
                 closing: false,
                 ownership: BackendOwnership::None,
@@ -83,6 +87,8 @@ impl DesktopSession {
             }),
             transition: tokio::sync::Mutex::new(Resources::default()),
             local: None,
+            preferences: None,
+            profiles: None,
             abandon: tokio_util::sync::CancellationToken::new(),
         }))
     }
@@ -94,14 +100,33 @@ impl DesktopSession {
         Arc::get_mut(&mut owner.0).expect("new owner").local = Some(backend);
         owner
     }
+    pub fn with_preferences(mut self, path: PathBuf, selection: BackendChoice) -> Self {
+        let inner = Arc::get_mut(&mut self.0).expect("configure before sharing desktop owner");
+        inner.preferences = Some(path);
+        inner.state.get_mut().expect("desktop owner poisoned").selection = Some(selection);
+        self
+    }
+    pub fn with_profile_store(mut self, path: PathBuf) -> Self {
+        Arc::get_mut(&mut self.0).expect("configure before sharing desktop owner").profiles = Some(path);
+        self
+    }
     pub fn status(&self) -> DesktopSessionSnapshot {
         let state = self.0.state.lock().expect("desktop owner poisoned");
         DesktopSessionSnapshot {
+            selection: state.selection.clone(),
             ownership: state.ownership.clone(),
             phase: state.phase.clone(),
             archived_bytes: state.archived,
             connection: self.0.connection.status(),
         }
+    }
+    pub fn profile_selected(&self, name: &str) -> Result<bool, String> {
+        let selected = self.0.state.lock().expect("desktop owner poisoned").selection.clone();
+        if matches!(selected, Some(BackendChoice::Profile { name: selected }) if selected == name) {
+            return Ok(true);
+        }
+        let remembered = self.0.preferences.as_deref().map(super::preferences::load).transpose().map_err(|error| error.to_string())?;
+        Ok(matches!(remembered, Some(BackendChoice::Profile { name: selected }) if selected == name))
     }
     fn report_phase(&self, revision: u64, phase: &str) {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
@@ -137,10 +162,15 @@ impl DesktopSession {
         }
     }
     pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, Error> {
+        let choice = match &selection {
+            BackendSelection::OwnedLocal => Some(BackendChoice::OwnedLocal),
+            BackendSelection::Profile { name } => Some(BackendChoice::Profile { name: name.clone() }),
+            BackendSelection::Attach { .. } => None,
+        };
         // Resolve The Shared Profile Before Replacing An Active Session.
         let selection = match selection {
             BackendSelection::Profile { name } => {
-                let store = dokime::client::profiles::Store::discover(None)
+                let store = dokime::client::profiles::Store::discover(self.0.profiles.as_deref())
                     .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
                 let document = store.load().map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
                 let profile = document.get(&name).map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
@@ -166,7 +196,7 @@ impl DesktopSession {
         }
         let revision = self.begin(false)?;
         let owner = self.clone();
-        let result = tokio::spawn(async move { owner.select_owned(revision, selection).await })
+        let result = tokio::spawn(async move { owner.select_owned(revision, selection, choice).await })
             .await
             .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
         // Startup is over, one way or another: whatever phase it last
@@ -275,11 +305,22 @@ impl DesktopSession {
         .await
         .map_err(|error| Error::Shutdown { message: error.to_string() })?
     }
-    async fn select_owned(&self, revision: u64, selection: BackendSelection) -> Result<DesktopSessionSnapshot, Error> {
+    async fn select_owned(
+        &self, revision: u64, selection: BackendSelection, choice: Option<BackendChoice>,
+    ) -> Result<DesktopSessionSnapshot, Error> {
         let mut resources = self.0.transition.lock().await;
         self.current(revision)?;
         resources.shutdown(&self.0.abandon).await?;
-        self.current(revision)?;
+        {
+            let mut state = self.0.state.lock().expect("desktop owner poisoned");
+            if state.revision != revision {
+                return Err(Error::Superseded);
+            }
+            if let (Some(path), Some(choice)) = (&self.0.preferences, &choice) {
+                super::preferences::save(path, choice).map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?;
+            }
+            state.selection = choice;
+        }
         self.establish(revision, selection, &mut resources).await
     }
     async fn establish(
@@ -323,6 +364,7 @@ impl DesktopSession {
                         state.phase = None;
                         state.archived = None;
                         Some(DesktopSessionSnapshot {
+                            selection: state.selection.clone(),
                             ownership,
                             phase: None,
                             archived_bytes: None,
@@ -395,7 +437,7 @@ impl DesktopSession {
 
 impl Resources {
     async fn shutdown(&mut self, abandon: &tokio_util::sync::CancellationToken) -> Result<(), Error> {
-        if let Some(local) = self.local.take() {
+        if let Some(local) = self.local.as_mut() {
             tokio::select! {
                 result = local.shutdown() => result.map_err(|error| Error::Shutdown { message: error.to_string() })?,
                 () = abandon.cancelled() => {
@@ -403,6 +445,7 @@ impl Resources {
                     return Err(Error::Shutdown { message: "The local server drain was interrupted.".to_owned() });
                 }
             }
+            self.local = None;
         }
         Ok(())
     }

@@ -16,12 +16,13 @@ import json
 import math
 import sys
 from collections import Counter
+from contextlib import aclosing
 from dataclasses import asdict
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_client.client import DokimeClient, TestExecutionHandle, Value
+from dokime_client.client import DokimeClient, Execution, Value
 
 # Type Checking Imports
 
@@ -29,13 +30,14 @@ from dokime_client.client import DokimeClient, TestExecutionHandle, Value
 
 # === Constants === #
 
-ENDPOINT = "http://127.0.0.1:8765"
-SUITE = "mini.charger.steady"
-TEMPLATE = "mini.charger.steady.measurement"
-PARAMETERS: dict[str, Value] = {"duration_s": 1.0, "sample_interval_s": 0.1}
+ENDPOINT = "https://127.0.0.1:8766"
+CYCLE_LABEL = "Polling Demonstration"
+TEMPLATE = "obc.checks.pulse"
+PARAMETERS: dict[str, Value] = {"sample_count": 8}
 
-TOKEN_FILE: Path | None = None
-CA_CERTIFICATE: Path | None = None
+KEY_FILE: Path | None = Path("remote.key")
+ENV_FILE: Path | None = None
+CA_CERTIFICATE: Path | None = Path("server.pem")
 
 POLL_INTERVAL = 0.5
 
@@ -46,7 +48,7 @@ POLL_INTERVAL = 0.5
 # === Public Functions === #
 
 
-async def poll(handle: TestExecutionHandle, interval: float) -> dict[str, object]:
+async def poll(handle: Execution, interval: float) -> dict[str, object]:
     """Read forward cursors continuously, including final pages after completion."""
     samples: Counter[str] = Counter()
     events: Counter[str] = Counter()
@@ -75,16 +77,22 @@ async def main() -> None:
     if not math.isfinite(POLL_INTERVAL) or POLL_INTERVAL <= 0:
         raise ValueError("POLL_INTERVAL must be finite and greater than zero")
 
-    token = TOKEN_FILE.read_text(encoding="utf-8").strip() if TOKEN_FILE else None
-    client = DokimeClient(ENDPOINT, token=token, ca_certificate=CA_CERTIFICATE)
+    client = DokimeClient(ENDPOINT, key_file=KEY_FILE, env_file=ENV_FILE, ca_certificate=CA_CERTIFICATE)
 
     try:
-        cycle = await client.new_cycle(suite=SUITE, template=TEMPLATE, parameters=PARAMETERS)
-        (handle,) = cycle.executions
-        await handle.start(request_key="poll-example")
+        template = await client.template(TEMPLATE)
+        (test_case,) = await template.materialize(parameters=PARAMETERS)
+        handle = Execution(test_case)
+        cycle = await client.create_cycle(label=CYCLE_LABEL, continue_automatically=False)
+        print(f"Cycle: {cycle.id} Execution: {handle.id}", flush=True)
+        Path("cycle.json").write_text(json.dumps({"cycle_id": cycle.id}, indent=2) + "\n", encoding="utf-8")
+        await cycle.append([handle])
+        await handle.start()
         summary = await poll(handle, POLL_INTERVAL)
 
         print("Summary:", json.dumps(summary, indent=2, default=str), flush=True)
+        Path("summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n", encoding="utf-8")
+        await cycle.seal()
 
     finally:
         # Disconnecting the client does not cancel the execution.
@@ -92,15 +100,17 @@ async def main() -> None:
 
 
 # Keep one iterator alive to retain cursors.
-async def count_samples(handle: TestExecutionHandle, counts: Counter[str], interval: float) -> None:
-    async for sample in handle.samples(follow=True, poll_interval=interval):
-        counts[sample.stream] += 1
+async def count_samples(handle: Execution, counts: Counter[str], interval: float) -> None:
+    async with aclosing(handle.samples(follow=True, poll_interval=interval)) as reader:
+        async for sample in reader:
+            counts[sample.stream] += 1
 
 
 # Summarize without printing individual records.
-async def count_records(handle: TestExecutionHandle, counts: Counter[str]) -> None:
-    async for record in handle.records(follow=True):
-        counts[record.type] += 1
+async def count_records(handle: Execution, counts: Counter[str]) -> None:
+    async with aclosing(handle.records(follow=True)) as reader:
+        async for record in reader:
+            counts[record.type] += 1
 
 
 # === Private Functions === #

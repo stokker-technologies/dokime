@@ -16,16 +16,9 @@ import { useState } from "react";
 
 import { useNativeSession } from "@/app/native-session/context";
 import { restartDesktopApp } from "@/features/settings/plugins/plugin-data-source";
-import type { PluginSource, StagePluginProgress } from "@/lib/api/native-plugins";
-import {
-  consentNativePlugin,
-  listNativePlugins,
-  removeNativePlugin,
-  setNativePluginEnabled,
-  stageNativePlugin,
-} from "@/lib/api/native-plugins";
+import type { InstallPluginProgress, PluginSource } from "@/lib/api/native-plugins";
+import { installNativePlugin, listNativePlugins, removeNativePlugin, setNativePluginEnabled } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
-import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Query Keys === */
 
@@ -46,14 +39,14 @@ export function usePluginsQuery() {
   });
 }
 
-export function useStagePluginMutation() {
+export function useInstallPluginMutation() {
   const session = useNativeSession();
   const queryClient = useQueryClient();
-  const [progress, setProgress] = useState<StagePluginProgress | null>(null);
+  const [progress, setProgress] = useState<InstallPluginProgress | null>(null);
   const mutation = useMutation({
     mutationFn: (source: PluginSource) => {
       setProgress(null);
-      return stageNativePlugin(session.identity, source, { onProgress: setProgress });
+      return installNativePlugin(session.identity, source, { onProgress: setProgress });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() });
@@ -70,17 +63,6 @@ export function usePluginReleaseMutation() {
       const release = await commands.desktopPluginReleaseCheck(session.identity.generation);
       if (!session.identity.isCurrent()) throw new Error("The backend changed while checking plugin releases.");
       return release;
-    },
-  });
-}
-
-export function useConsentPluginMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (reviewed: PluginEntry) => consentNativePlugin(session.identity, reviewed),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.list() });
     },
   });
 }

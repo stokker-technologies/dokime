@@ -69,7 +69,7 @@ export function PluginList({
             <PackagePlus />
           </EmptyMedia>
           <EmptyTitle>No Installed Plugins</EmptyTitle>
-          <EmptyDescription>Drop a .dokime bundle above to inspect it and review its declared identity before install.</EmptyDescription>
+          <EmptyDescription>Drop a .dokime bundle above to install it.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );
@@ -77,7 +77,7 @@ export function PluginList({
 
   const rows = entries.map((entry): PluginTableRow => {
     const status = statusPresentation(entry, brand.label);
-    const removalPending = entry.state === "removal_pending" && entry.consented_at !== null;
+    const removalPending = entry.state === "removal_pending";
     const configurable = settingsSectionOf(entry) !== null;
     const name = entry.metadata?.identity.name ?? entry.install_id;
     const switchable = entry.state === "installed" || entry.state === "disabled";
@@ -109,13 +109,7 @@ export function PluginList({
           variant="destructive"
         >
           <Trash2 />
-          {removalPending
-            ? "Removal queued"
-            : removingId === entry.install_id
-              ? "Removing…"
-              : entry.consented_at === null
-                ? "Discard"
-                : "Remove"}
+          {removalPending ? "Removal queued" : removingId === entry.install_id ? "Removing…" : "Remove"}
         </Button>
       ),
     };
@@ -136,13 +130,10 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
   }
   if (entry.state === "removal_pending") {
     return {
-      label: entry.consented_at === null ? "Cleanup pending" : "Removal pending",
+      label: "Removal pending",
       reason: entry.active ? `Active until ${brandLabel} restarts.` : entry.last_boot?.state === "failed" ? entry.last_boot.error : null,
       variant: "warning",
     };
-  }
-  if (entry.state === "staged") {
-    return { label: "Awaiting consent", reason: null, variant: "outline" };
   }
   if (entry.restart_required) {
     return {

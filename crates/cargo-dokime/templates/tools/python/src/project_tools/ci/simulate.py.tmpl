@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:bc3e4ee8fb1d6622c04a874e3c2622dec367266f850187bc7a2a3d9b959d5761
+# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:1d3a127b5905e0c7f8a18b18b031b04aab29b73c33f562bcee3a2c9ffb8cd1ad
 # ***
 #
 # {{package}}
@@ -753,6 +753,7 @@ def docker(
         MISE_CACHE_DIR="/cache/mise-cache",
         MISE_DOWNLOADS_DIR="/cache/downloads",
         CARGO_HOME="/cache/cargo",
+        RUSTUP_HOME="/cache/rustup",
         UV_CACHE_DIR="/cache/uv",
         pnpm_config_store_dir="/cache/pnpm",
         STKR_SCCACHE_DIR="/cache/sccache",
@@ -866,6 +867,7 @@ def evidence(output: Path, job: dict, commands: list[str], environment: dict) ->
             "RELEASE_PROFILE",
             "CARGO_INCREMENTAL",
             "CARGO_HOME",
+            "RUSTUP_HOME",
             "UV_CACHE_DIR",
             "pnpm_config_store_dir",
         )

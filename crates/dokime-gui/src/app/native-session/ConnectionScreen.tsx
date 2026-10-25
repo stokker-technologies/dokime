@@ -92,12 +92,12 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
 
   useEffect(() => {
     let active = true;
-    commands
-      .desktopProfilesList()
-      .then((document) => {
+    Promise.all([commands.desktopProfilesList(), commands.desktopSessionLaunch()])
+      .then(([document, configuration]) => {
         if (!active) return;
         setProfiles(document);
-        setProfile(document.default ?? "");
+        const selected = state.selection ?? configuration.selection;
+        setProfile(selected?.kind === "profile" ? selected.name : "");
       })
       .catch((error) => {
         if (active) setProfileError(error instanceof Error ? error.message : String(error));
@@ -105,7 +105,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
     return () => {
       active = false;
     };
-  }, []);
+  }, [state.selection]);
 
   useEffect(() => {
     if (!busy) {
@@ -162,7 +162,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
     <main className="grid min-h-screen place-items-center px-6 py-12">
       <div className="grid w-full max-w-md justify-items-center gap-6 text-center">
         <BrandMark className="h-10" />
-        {profiles && profiles.profiles.length > 0 && (
+        {profiles && (profiles.profiles.length > 0 || profile) && (
           <div className="grid w-full gap-2 text-left">
             <label htmlFor={profileId}>Saved Backend</label>
             <select
@@ -173,6 +173,9 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
               className="rounded-md border bg-background p-2"
             >
               <option value="">Select A Backend</option>
+              {profile && !profiles.profiles.some((entry) => entry.name === profile) ? (
+                <option value={profile}>{profile} (Unavailable)</option>
+              ) : null}
               {profiles.profiles.map((entry) => (
                 <option key={entry.name} value={entry.name}>
                   {entry.name}

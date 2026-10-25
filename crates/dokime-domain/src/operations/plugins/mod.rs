@@ -9,23 +9,21 @@
 
 /* === Modules === */
 
-mod consent;
 mod get_installation;
+mod install;
 mod list_admitted_plugins;
 mod list_installations;
 mod remove;
 mod set_enabled;
-mod stage;
 
 /* === Re-Exports === */
 
-pub use consent::Consent;
 pub use get_installation::GetInstallation;
+pub use install::Install;
 pub use list_admitted_plugins::ListAdmittedPlugins;
 pub use list_installations::ListInstallations;
 pub use remove::Remove;
 pub use set_enabled::SetEnabled;
-pub use stage::Stage;
 
 /* === Imports === */
 
@@ -56,8 +54,7 @@ use crate::model::plugins::wire::*;
 pub enum Operations {
     ListInstallations(ListInstallations),
     GetInstallation(GetInstallation),
-    Stage(Stage),
-    Consent(Consent),
+    Install(Install),
     SetEnabled(SetEnabled),
     Remove(Remove),
     ListAdmittedPlugins(ListAdmittedPlugins),
@@ -75,12 +72,8 @@ impl Endpoint for GetInstallation {
     const PATH: &'static str = "/dokime.v1.Plugins/GetInstallation";
 }
 
-impl Endpoint for Stage {
-    const PATH: &'static str = "/dokime.v1.Plugins/Stage";
-}
-
-impl Endpoint for Consent {
-    const PATH: &'static str = "/dokime.v1.Plugins/Consent";
+impl Endpoint for Install {
+    const PATH: &'static str = "/dokime.v1.Plugins/Install";
 }
 
 impl Endpoint for SetEnabled {
