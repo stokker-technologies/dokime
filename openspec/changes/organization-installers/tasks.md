@@ -20,6 +20,8 @@
   Source Inventory: `crates/dokime-runtime/tests/integration/domains/installed_plugins/brand.rs`, `crates/dokime-runtime/tests/integration/report/materialize/restart.rs`, `crates/dokime-runtime/tests/integration/domains/execution/storage.rs`, `crates/dokime-runtime/tests/integration/domains/execution/definition.rs`, `crates/dokime-runtime/src/execution/context/captured/native/appearance.rs`, `crates/dokime-gui/src-tauri/src/app/organization.rs`, `crates/dokime-gui/tests/unit/settings/organization-pack.test.ts`, `crates/dokime-gui/tests/unit/shell/status.test.ts`, `crates/dokime-gui/tests/shell/organization.test.ts`, `crates/dokime-gui/e2e/native-desktop.mjs`, `packages/dokime-client/tests/integration/client/test_installers.py`, `packages/dokime-client/README.md`, `docs/product-guide.md`. Existing Dokime SVG/PNG marks and authentic IBM Plex fonts/OFL attribution remain unchanged.
 - [x] 3.9 Installer owner resolves reported structural style diagnostics in `crates/dokime-packaging/src/installer/native.rs`, preserving packaging, inspection, signing and validation behavior.
 
+- [x] 3.10 Integration owner completes the nightly sidecar lifecycle in `tools/python/src/dokime_tools/test/rust/starter.py` by running the generated package recipe after build and tests, exercising package inspection against the existing product without recompilation.
+
 ## Final Validation
 - [ ] 4.1 Declare source complete only after all implementation items and writer handoffs; run default all-required-platform mise run ci:simulate and repair failing lanes without weakening checks.
 

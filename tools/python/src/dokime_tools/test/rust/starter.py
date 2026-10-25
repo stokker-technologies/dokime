@@ -153,7 +153,7 @@ def test(profile: str) -> None:
             )
         environment["UV_OFFLINE"] = "true"
         print(f"[test:rust:starter] Prepared In {perf_counter() - started:.2f}s; running real standalone recipes", flush=True)
-        for task in ("check", "build", "build:rust:tests", "test:rust:unit"):
+        for task in ("check", "build", "build:rust:tests", "test:rust:unit", "package:rust"):
             command = ["mise", "run", task]
             if task != "check":
                 command += ["--profile", profile]
