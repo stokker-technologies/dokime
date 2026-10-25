@@ -397,7 +397,7 @@ mod tests {
         let session = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await.unwrap();
         let address = session.address();
         drop(session);
-        let replacement = reacquire(&args).await;
+        let mut replacement = reacquire(&args).await;
         assert!(tokio::net::TcpStream::connect(address).await.is_err(), "the dropped session releases its listener");
         replacement.shutdown().await.unwrap();
     }

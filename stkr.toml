@@ -512,6 +512,7 @@ path = "target/package/{profile}/any/python/dokime_client-{version}-py3-none-any
 [[release.assets]]
 target = "linux-x86_64"
 path = "target/package/{profile}/any/python/dokime_client-{version}.tar.gz"
+profiles = ["release"]
 
 [version]
 value = "0.1.0"
