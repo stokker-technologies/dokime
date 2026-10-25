@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:3bd99b20f76fb6d92a06a8e927c56b0b4a5ad0ab29378d44e36e343e6739d470
+# Rendered by stkr project update from templates/python/ci/simulate.py; sha256:70c461a77e13cf1e99f16579a3c2bf7d51ca117b78849d124ee54017c83efa25
 # ***
 #
 # Dokime
@@ -678,10 +678,20 @@ def docker(
     image_identity = hashlib.sha256(job["image"].encode()).hexdigest()[:12]
     cache = f"stkr-ci-{identity}-linux-{image_identity}-cache"
     script = workspace.with_suffix(".sh")
-    lines = [
-        "set -eo pipefail",
-        ': > "$GITHUB_ENV"; : > "$GITHUB_PATH"',
-    ]
+    lines = ["set -eo pipefail"]
+    if job["image"].startswith("stkr-ci-ubuntu24:"):
+        lines.extend(
+            [
+                'sudo -n chown -R "$(id -u):$(id -g)" /workspace',
+                'sudo -n chown "$(id -u):$(id -g)" /cache',
+            ]
+        )
+    lines.extend(
+        [
+            "mkdir -p /workspace/target/ci",
+            ': > "$GITHUB_ENV"; : > "$GITHUB_PATH"',
+        ]
+    )
     for index, command in enumerate(commands):
         lines.extend([f"printf '%s\n' 'Command {index + 1}/{len(commands)}'", command])
         lines.extend(step_environment.commands(False, "python3", "/ci-environment.py"))
@@ -717,8 +727,8 @@ def docker(
         UV_CACHE_DIR="/cache/uv",
         pnpm_config_store_dir="/cache/pnpm",
         STKR_SCCACHE_DIR="/cache/sccache",
-        GITHUB_ENV="/ci-environment",
-        GITHUB_PATH="/ci-path",
+        GITHUB_ENV="/workspace/target/ci/step.env",
+        GITHUB_PATH="/workspace/target/ci/step.path",
     )
     evidence(output, job, commands, child)
     create = [
@@ -905,6 +915,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 git cur
 COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
 COPY native-setup.sh /opt/stkr-ci/native-setup.sh
 RUN bash /opt/stkr-ci/native-setup.sh && rm -rf /var/lib/apt/lists/*
+RUN groupadd --gid 1001 runner && useradd --uid 1001 --gid 1001 --create-home --shell /bin/bash runner && echo 'runner ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/runner && chmod 0440 /etc/sudoers.d/runner
+ENV HOME=/home/runner
+USER runner
 ENTRYPOINT []
 """
     fingerprint = hashlib.sha256((recipe + setup).encode()).hexdigest()
