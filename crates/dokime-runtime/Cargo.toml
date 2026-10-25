@@ -47,6 +47,7 @@ host = [
   "dep:dokime-host",
   "dep:futures-util",
   "dep:keyring",
+  "dep:image",
   "dep:keyring-core",
   "dep:rustls-platform-verifier",
   "dep:sha2",
@@ -56,6 +57,7 @@ host = [
   "dep:tokio-util",
   "dep:tonic",
   "dep:toml",
+  "dep:url",
   "dep:walkdir",
   "dep:zip",
   "dep:zeroize",
@@ -132,6 +134,7 @@ tokio-util = { workspace = true, features = ["io", "rt"], optional = true }
 # Networking
 rustls-platform-verifier = { workspace = true, optional = true }
 suppaftp = { workspace = true, features = ["tokio", "tokio-rustls-ring"], optional = true }
+url = { workspace = true, optional = true }
 
 # Storage
 rusqlite = { workspace = true, optional = true }
@@ -245,7 +248,6 @@ libc = { workspace = true }
 # Async
 
 # Networking
-url = { workspace = true, optional = true }
 
 # Storage
 

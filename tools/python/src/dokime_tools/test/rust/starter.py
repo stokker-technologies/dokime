@@ -52,6 +52,7 @@ def test(profile: str) -> None:
         if not key.startswith("NEXTEST")
         and key
         not in {
+            "__MISE_DIFF",
             "VIRTUAL_ENV",
             "MISE_LOCKED",
             "MISE_ENABLE_TOOLS",
@@ -74,10 +75,13 @@ def test(profile: str) -> None:
             ceiling = ceiling[4:]
             if ceiling.startswith("UNC\\"):
                 ceiling = "\\\\" + ceiling[4:]
+        if os.name == "nt":
+            verbatim = "\\\\?\\UNC\\" + ceiling[2:] if ceiling.startswith("\\\\") else "\\\\?\\" + ceiling
+            ceiling = os.pathsep.join((ceiling, verbatim))
         environment.update(MISE_GLOBAL_CONFIG_FILE=str(neutral), MISE_SYSTEM_CONFIG_FILE=str(neutral), MISE_CEILING_PATHS=ceiling)
         plugin = scratch / "starter-plugin"
         for command, cwd in [
-            ([str(tool), "dokime", "new", str(plugin)], scratch),
+            ([str(tool), "dokime", "sidecar", "new", str(plugin)], scratch),
             (["git", "init", "--initial-branch=feat/starter"], plugin),
         ]:
             subprocess.run(
@@ -153,7 +157,7 @@ def test(profile: str) -> None:
             )
         environment["UV_OFFLINE"] = "true"
         print(f"[test:rust:starter] Prepared In {perf_counter() - started:.2f}s; running real standalone recipes", flush=True)
-        for task in ("check", "build", "build:rust:tests", "test:rust:unit"):
+        for task in ("check", "build", "build:rust:tests", "test:rust:unit", "package:rust"):
             command = ["mise", "run", task]
             if task != "check":
                 command += ["--profile", profile]

@@ -16,7 +16,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 /* Local Imports */
-@import "../../../organization/generated/theme.css";
+@import "./generated/organization/theme.css";
 
 /* === Variables === */
 

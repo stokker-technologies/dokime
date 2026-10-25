@@ -38,13 +38,10 @@ use tauri_plugin_dialog::DialogExt;
 const ARCHIVE_BYTES: u64 = 20 * 1024 * 1024;
 const ARCHIVE_ENTRIES: usize = 200;
 const MANIFEST: &str = "organization.toml";
-const LEGACY_MANIFEST: &str = "brand.toml";
 const ACTIVE: &str = "active";
 const PENDING: &str = "pending";
 /// Applied by the shell at runtime: identity, logos, theme CSS and fonts.
 const RUNTIME_EXTENSIONS: [&str; 5] = ["toml", "css", "woff2", "svg", "png"];
-/// Build-time folders a fork's organization folder carries; skipped, never applied.
-const IGNORED_FOLDERS: [&str; 2] = ["icons", "generated"];
 /// Licence and readme text beside fonts and logos; skipped, never applied.
 const IGNORED_EXTENSIONS: [&str; 2] = ["txt", "md"];
 const THEME_FILES: [&str; 4] = ["theme/typography.css", "theme/base.css", "theme/light.css", "theme/dark.css"];
@@ -77,6 +74,7 @@ struct Session {
 struct Boot {
     pack: Option<LoadedPack>,
     error: Option<String>,
+    active: bool,
 }
 
 /// The pack as the frontend applies it before it renders.
@@ -91,7 +89,10 @@ pub(crate) struct LoadedPack {
     css: String,
     pub(crate) updates: Option<policy::UpdatePolicy>,
     #[serde(skip)]
-    ignored: Vec<String>,
+    application_icon: Option<Vec<u8>>,
+
+    #[serde(skip)]
+    tray_icon: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -108,8 +109,6 @@ pub(crate) struct Organization {
 pub(crate) struct PackSummary {
     label: String,
     organization: Option<String>,
-    /// Build-time parts the pack carries that only a rebuild applies.
-    ignored: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -147,12 +146,6 @@ struct AppSection {
     #[serde(default)]
     title_template: Option<String>,
     #[serde(default)]
-    slug: Option<String>,
-    #[serde(default)]
-    identifier: Option<String>,
-    #[serde(default)]
-    deep_link_scheme: Option<String>,
-    #[serde(default)]
     organization: Option<Organization>,
     #[serde(default)]
     logos: BTreeMap<String, BTreeMap<String, String>>,
@@ -171,25 +164,26 @@ struct ThemeSection {
 /* === Implementations === */
 
 impl OrganizationState {
+    pub(crate) fn window_icon(&self) -> Option<tauri::image::Image<'static>> {
+        let bytes = self.boot.pack.as_ref()?.application_icon.as_deref()?;
+        tauri::image::Image::from_bytes(bytes).ok()
+    }
+
+    pub(crate) fn title(&self) -> Option<String> {
+        let pack = self.boot.pack.as_ref()?;
+        Some(pack.title_template.replace("{app}", &pack.label))
+    }
+
     pub(crate) fn update_policy(&self) -> Result<policy::UpdatePolicy, String> {
-        if let Some(updates) = self.boot.pack.as_ref().and_then(|pack| pack.updates.clone()) {
-            return Ok(updates);
-        }
-        #[derive(Deserialize)]
-        struct Compiled {
-            #[serde(default)]
-            updates: policy::UpdatePolicy,
-        }
-        let manifest = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../organization/organization.toml"));
-        let compiled: Compiled = toml::from_str(manifest).map_err(|_| "Compiled organization update policy is invalid")?;
-        compiled.updates.validate()?;
-        Ok(compiled.updates)
+        let updates = self.boot.pack.as_ref().and_then(|pack| pack.updates.clone()).unwrap_or_default();
+        updates.validate()?;
+        Ok(updates)
     }
 
     fn status(&self) -> OrganizationStatus {
         let session = self.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         OrganizationStatus {
-            active: (!session.removed).then(|| self.boot.pack.as_ref().map(LoadedPack::summary)).flatten(),
+            active: (!session.removed && self.boot.active).then(|| self.boot.pack.as_ref().map(LoadedPack::summary)).flatten(),
             pending: session.pending.clone(),
             removed: session.removed,
             error: self.boot.error.clone(),
@@ -206,11 +200,7 @@ impl OrganizationState {
 
 impl LoadedPack {
     fn summary(&self) -> PackSummary {
-        PackSummary {
-            label: self.label.clone(),
-            organization: self.organization.as_ref().map(|organization| organization.name.clone()),
-            ignored: self.ignored.clone(),
-        }
+        PackSummary { label: self.label.clone(), organization: self.organization.as_ref().map(|organization| organization.name.clone()) }
     }
 }
 
@@ -229,6 +219,14 @@ pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
         tracing::error!(%error, "organization pack could not be activated; retaining the last valid appearance");
     }
     let pending = load(&root.join(PENDING)).ok().map(|pack| pack.summary());
+    if let Some(pack) = &boot.pack
+        && let Some(bytes) = &pack.tray_icon
+    {
+        let icon = tauri::image::Image::from_bytes(bytes)?;
+        let menu = tauri::menu::Menu::new(app)?;
+        let tray = tauri::tray::TrayIconBuilder::with_id("organization").icon(icon).tooltip(&pack.label).menu(&menu).build(app)?;
+        app.manage(tray);
+    }
     app.manage(OrganizationState { root, boot, session: Mutex::new(Session { pending, removed: false }) });
     Ok(())
 }
@@ -288,23 +286,34 @@ fn boot(root: &Path) -> Boot {
             Ok(pack)
         });
         match promoted {
-            Ok(pack) => return Boot { pack: Some(pack), error: None },
+            Ok(pack) => return Boot { pack: Some(pack), error: None, active: true },
             Err(error) => {
                 promotion_error = Some(format!("the pending organization pack could not be activated: {error}"));
             }
         }
     }
     if !active.is_dir() {
-        return Boot { pack: None, error: promotion_error };
+        return base_boot(promotion_error);
     }
     match load(&active) {
-        Ok(pack) => Boot { pack: Some(pack), error: promotion_error },
+        Ok(pack) => Boot { pack: Some(pack), error: promotion_error, active: true },
         Err(error) => {
             let error = match promotion_error {
                 Some(pending) => format!("{pending}; the active pack also failed: {error}"),
                 None => error,
             };
-            Boot { pack: None, error: Some(error) }
+            base_boot(Some(error))
+        }
+    }
+}
+
+fn base_boot(error: Option<String>) -> Boot {
+    match dokime::config::organization::resolve(None).and_then(loaded) {
+        Ok(pack) => Boot { pack: Some(pack), error, active: false },
+        Err(base) => {
+            let base = format!("the bundled organization could not be loaded: {base}");
+            let error = error.map_or_else(|| base.clone(), |error| format!("{error}; {base}"));
+            Boot { pack: None, error: Some(error), active: false }
         }
     }
 }
@@ -399,9 +408,8 @@ fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
             continue;
         }
         let path = PathBuf::from(if relative == manifest { MANIFEST } else { relative });
-        let first = path.components().next().and_then(|component| component.as_os_str().to_str()).unwrap_or_default();
         let extension = path.extension().and_then(|extension| extension.to_str()).unwrap_or_default().to_ascii_lowercase();
-        if IGNORED_FOLDERS.contains(&first) || IGNORED_EXTENSIONS.contains(&extension.as_str()) {
+        if IGNORED_EXTENSIONS.contains(&extension.as_str()) {
             continue;
         }
         if !RUNTIME_EXTENSIONS.contains(&extension.as_str()) {
@@ -422,7 +430,6 @@ fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
     Ok(files)
 }
 
-// Legacy Manifests Are Accepted Only At The Explicit Archive Import Boundary.
 fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Result<(String, &'static str), String> {
     let mut manifests = Vec::new();
     for name in names.clone() {
@@ -432,7 +439,6 @@ fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Re
         let filename = name.rsplit('/').next().unwrap_or_default();
         let manifest = match filename {
             MANIFEST => MANIFEST,
-            LEGACY_MANIFEST => LEGACY_MANIFEST,
             _ => continue,
         };
         let prefix = name.trim_end_matches(manifest).to_owned();
@@ -440,8 +446,7 @@ fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Re
     }
 
     let [(prefix, manifest)] = manifests.as_slice() else {
-        return Err("the organization pack needs exactly one organization.toml (or legacy brand.toml) at its root or under one top folder"
-            .to_owned());
+        return Err("the organization pack needs exactly one organization.toml at its root or under one top folder".to_owned());
     };
     if names.any(|name| !name.starts_with(prefix)) {
         return Err("the organization pack must hold one top folder or its files at the root".to_owned());
@@ -451,6 +456,23 @@ fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Re
 
 /// Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
 fn load(dir: &Path) -> Result<LoadedPack, String> {
+    let pack = dokime::config::organization::resolve(Some(dir))?;
+    loaded(pack)
+}
+
+fn loaded(pack: dokime::config::organization::ResolvedPack) -> Result<LoadedPack, String> {
+    let staging = tempfile::tempdir().map_err(|error| error.to_string())?;
+    pack.write_to(staging.path())?;
+    let mut loaded = load_resolved(staging.path())?;
+    loaded.application_icon = pack.asset("application").map(|(_, bytes)| bytes.to_vec());
+    loaded.tray_icon = pack.asset("tray").map(|(_, bytes)| bytes.to_vec());
+    for bytes in [&loaded.application_icon, &loaded.tray_icon].into_iter().flatten() {
+        tauri::image::Image::from_bytes(bytes).map_err(|_| "organization application and tray artwork must be valid PNG images")?;
+    }
+    Ok(loaded)
+}
+
+fn load_resolved(dir: &Path) -> Result<LoadedPack, String> {
     let text = std::fs::read_to_string(dir.join(MANIFEST)).map_err(|error| format!("organization.toml could not be read: {error}"))?;
     let manifest: Manifest = toml::from_str(&text).map_err(|error: toml::de::Error| {
         let position = error.span().map_or(0, |span| span.start);
@@ -466,8 +488,7 @@ fn load(dir: &Path) -> Result<LoadedPack, String> {
     let mut logos = BTreeMap::new();
     for (treatment, surface, variant) in LOGO_VARIANTS {
         let Some(file) = app.logos.get(treatment).and_then(|surfaces| surfaces.get(surface)) else { continue };
-        let relative = format!("logos/{file}");
-        let bytes = read_inside(dir, &relative)?;
+        let bytes = read_inside(dir, file)?;
         let mime = match Path::new(file).extension().and_then(|extension| extension.to_str()) {
             Some("svg") => "image/svg+xml",
             Some("png") => "image/png",
@@ -489,16 +510,6 @@ fn load(dir: &Path) -> Result<LoadedPack, String> {
             css.push_str(&corner_radii(manifest.theme.as_ref()));
         }
     }
-    let ignored = [
-        app.slug.as_ref().map(|_| "slug"),
-        app.identifier.as_ref().map(|_| "bundle identifier"),
-        app.deep_link_scheme.as_ref().map(|_| "deep-link scheme"),
-        dir.join("icons").exists().then_some("OS icon"),
-    ]
-    .into_iter()
-    .flatten()
-    .map(str::to_owned)
-    .collect();
     Ok(LoadedPack {
         title_template: app.title_template.filter(|template| !template.trim().is_empty()).unwrap_or_else(|| "{app}".to_owned()),
         label: app.label,
@@ -506,7 +517,8 @@ fn load(dir: &Path) -> Result<LoadedPack, String> {
         logos,
         css,
         updates: manifest.updates,
-        ignored,
+        application_icon: None,
+        tray_icon: None,
     })
 }
 
@@ -594,7 +606,7 @@ mod tests {
     use zip::write::SimpleFileOptions;
 
     const LOGO: &[u8] = b"<svg xmlns='http://www.w3.org/2000/svg'/>";
-    const MANIFEST_TEXT: &str = "[app]\nlabel = \"Fork\"\nslug = \"fork\"\n[app.logos.transparent]\non_light = \"mark.svg\"\n";
+    const MANIFEST_TEXT: &str = "[app]\nlabel = \"Stokker Technologies\"\n[app.logos.transparent]\non_light = \"logos/mark.svg\"\n";
 
     fn archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
@@ -632,7 +644,7 @@ mod tests {
         for prefix in ["", "organization/"] {
             let files = validate_archive(&zip_folder(&organization_folder(), prefix)).unwrap();
             assert!(files.contains_key(Path::new("organization.toml")));
-            assert!(files.keys().all(|path| !path.starts_with("icons") && !path.starts_with("generated")));
+            assert!(files.keys().all(|path| !path.starts_with("generated")));
             assert!(!files.contains_key(Path::new("fonts/OFL.txt")));
             let root = tempfile::tempdir().unwrap();
             for (relative, contents) in &files {
@@ -646,7 +658,6 @@ mod tests {
             assert!(pack.css.contains("data:font/woff2;base64,"));
             assert!(pack.css.contains("--brand-radius-sm"));
             assert!(!pack.css.contains("url(\"fonts/"));
-            assert_eq!(pack.ignored, ["slug", "bundle identifier", "deep-link scheme"]);
         }
     }
 
@@ -668,14 +679,14 @@ mod tests {
     }
 
     #[test]
-    fn a_pack_needs_a_manifest_and_a_logo() {
+    fn partial_pack_inherits_assets() {
         assert!(validate_archive(&archive(&[("logos/mark.svg", LOGO)])).unwrap_err().contains("organization.toml"));
         let root = tempfile::tempdir().unwrap();
-        let pack = archive(&[(MANIFEST, b"[app]\nlabel = \"Fork\"\n")]);
+        let pack = archive(&[(MANIFEST, b"[app]\nlabel = \"Stokker Technologies\"\n")]);
         std::fs::write(root.path().join("pack.zip"), pack).unwrap();
-        assert!(stage(&root.path().join("organization"), &root.path().join("pack.zip")).unwrap_err().contains("logo"));
-        assert!(!root.path().join("organization").join(PENDING).exists(), "a refused pack leaves nothing pending");
-        let escaping = archive(&[(MANIFEST, b"[app]\nlabel = \"Fork\"\n[app.logos.transparent]\non_light = \"../../secret.svg\"\n")]);
+        assert_eq!(stage(&root.path().join("organization"), &root.path().join("pack.zip")).unwrap().label, "Stokker Technologies");
+        let escaping =
+            archive(&[(MANIFEST, b"[app]\nlabel = \"Stokker Technologies\"\n[app.logos.transparent]\non_light = \"../../secret.svg\"\n")]);
         std::fs::write(root.path().join("escape.zip"), escaping).unwrap();
         assert!(stage(&root.path().join("organization"), &root.path().join("escape.zip")).unwrap_err().contains("unsafe"));
     }
@@ -686,13 +697,13 @@ mod tests {
         let organization = root.path().join("organization");
         std::fs::write(root.path().join("pack.zip"), archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
         let summary = stage(&organization, &root.path().join("pack.zip")).unwrap();
-        assert_eq!((summary.label.as_str(), summary.ignored.as_slice()), ("Fork", ["slug".to_owned()].as_slice()));
+        assert_eq!(summary.label, "Stokker Technologies");
         let booted = boot(&organization);
-        assert_eq!(booted.pack.unwrap().label, "Fork");
+        assert_eq!(booted.pack.unwrap().label, "Stokker Technologies");
         assert!(!organization.join(PENDING).exists() && organization.join(ACTIVE).is_dir());
         std::fs::write(organization.join(ACTIVE).join(MANIFEST), "not toml [").unwrap();
         let fallback = boot(&organization);
-        assert!(fallback.pack.is_none());
+        assert_eq!(fallback.pack.unwrap().label, "Dokime");
         assert!(fallback.error.unwrap().contains("organization.toml"));
         assert!(organization.join(ACTIVE).is_dir(), "an invalid pack stays on disk for diagnosis");
     }
@@ -704,13 +715,13 @@ mod tests {
         let archive_path = root.path().join("pack.zip");
         std::fs::write(&archive_path, archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
         stage(&organization, &archive_path).unwrap();
-        assert_eq!(boot(&organization).pack.unwrap().label, "Fork");
+        assert_eq!(boot(&organization).pack.unwrap().label, "Stokker Technologies");
         stage(&organization, &archive_path).unwrap();
         std::fs::write(organization.join(PENDING).join(MANIFEST), "invalid [").unwrap();
 
         let retained = boot(&organization);
 
-        assert_eq!(retained.pack.unwrap().label, "Fork");
+        assert_eq!(retained.pack.unwrap().label, "Stokker Technologies");
         assert!(retained.error.unwrap().contains("pending organization pack"));
         assert_eq!(std::fs::read_to_string(organization.join(ACTIVE).join(MANIFEST)).unwrap(), MANIFEST_TEXT);
         assert_eq!(std::fs::read_to_string(organization.join(PENDING).join(MANIFEST)).unwrap(), "invalid [");
@@ -728,18 +739,6 @@ mod tests {
 
         assert_eq!(std::fs::read_to_string(active.join(MANIFEST)).unwrap(), MANIFEST_TEXT);
         assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1, "rollback removes only its empty backup directory");
-    }
-
-    #[test]
-    fn explicit_legacy_import_normalizes_only_the_manifest_name() {
-        let bytes = archive(&[("branding/brand.toml", MANIFEST_TEXT.as_bytes()), ("branding/logos/mark.svg", LOGO)]);
-        let files = validate_archive(&bytes).unwrap();
-
-        assert_eq!(files[Path::new(MANIFEST)], MANIFEST_TEXT.as_bytes());
-        assert_eq!(files[Path::new("logos/mark.svg")], LOGO);
-        assert!(!files.contains_key(Path::new(LEGACY_MANIFEST)));
-        let mixed = archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), (LEGACY_MANIFEST, MANIFEST_TEXT.as_bytes())]);
-        assert!(validate_archive(&mixed).unwrap_err().contains("exactly one"));
     }
 
     #[test]
@@ -770,7 +769,7 @@ mod tests {
 
         let error = load(root.path()).unwrap_err();
 
-        assert!(error.contains("organization.toml does not parse near byte"));
+        assert!(error.contains("organization update policy is invalid"));
         assert!(!error.contains("private-value-42"));
     }
 }

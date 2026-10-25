@@ -50,7 +50,7 @@ test("Brand Asset Lifecycle", async () => {
   const logos = categories.map((category) => ({
     variant: { HarmosVariant: { case: category } },
     asset: { reference: { pluginId: "brand", assetId: category, sha256 }, contentType: "image/svg+xml", sizeBytes: BigInt(bytes.length) },
-    alt: "Instrument",
+    alt: "Stokker Technologies",
   }));
   calls.appearance.mockResolvedValue({ logos });
   let failAsset: string | null = null;
@@ -79,11 +79,11 @@ test("Brand Asset Lifecycle", async () => {
     const resource = await loadAppearance(session);
     assert.equal(resource.logos.length, 4);
     for (const logo of resource.logos) assert.equal(await (await fetch(logo.url)).text(), "<svg/>");
-    const brand = brandFromLogos("Instrument", resource.logos);
+    const brand = brandFromLogos("Stokker Technologies", resource.logos);
     assert.equal(selectLogo(brand, "transparent", "light")?.src, resource.logos[0].url);
     assert.equal(selectLogo(brand, "transparent", "dark")?.src, resource.logos[1].url);
     assert.equal(selectLogo(brand, "contained", "dark")?.src, resource.logos[3].url);
-    const partial = brandFromLogos("Instrument", [resource.logos[2]]);
+    const partial = brandFromLogos("Stokker Technologies", [resource.logos[2]]);
     assert.equal(selectLogo(partial, "transparent", "light")?.src, resource.logos[2].url);
     assert.equal(selectLogo(partial, "transparent", "dark"), undefined);
     resource.dispose();

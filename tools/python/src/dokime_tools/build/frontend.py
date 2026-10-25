@@ -44,7 +44,7 @@ INPUT_ROOTS = [
     ROOT / "organization/theme",
     ROOT / "organization/fonts",
     ROOT / "organization/logos",
-    ROOT / "organization/generated/default-organization.json",
+    WEB_ROOT / "src/generated/organization/default-organization.json",
     WEB_ROOT / "pnpm-lock.yaml",
 ]
 

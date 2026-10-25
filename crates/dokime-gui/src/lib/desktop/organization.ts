@@ -29,8 +29,6 @@
 export type OrganizationPackSummary = {
   label: string;
   organization: string | null;
-  /** Build-time parts the pack carries that only a rebuild applies. */
-  ignored: string[];
 };
 
 /** Mirrors `OrganizationStatus` in `src-tauri/src/app/organization.rs`. */
@@ -71,7 +69,7 @@ export type BootOrganization = { pack: BootOrganizationPack | null; error: strin
 
 export function organizationPackError(error: string | null, retained: boolean): string | null {
   if (!error) return null;
-  const appearance = retained ? "The last valid pack remains active." : "The compiled brand applies.";
+  const appearance = retained ? "The last valid pack remains active." : "The bundled organization applies.";
   return `Not applied: ${error}. ${appearance}`;
 }
 

@@ -3,9 +3,6 @@
   ${IfNot} ${FileExists} "$INSTDIR\dokime.exe"
     Abort "Dokime CLI binary was not found at $INSTDIR\dokime.exe"
   ${EndIf}
-  ${IfNot} ${FileExists} "$INSTDIR\dokime.exe"
-    Abort "Dokime command binary was not found at $INSTDIR\dokime.exe"
-  ${EndIf}
   DetailPrint "Installing Dokime CLI command path"
   System::Call 'Kernel32::SetEnvironmentVariable(t "DOKIME_INSTALL_DIR", t "$INSTDIR") i .r0'
   ${If} $0 == 0

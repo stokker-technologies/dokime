@@ -138,7 +138,7 @@ pub fn run(args: Args) -> Result<(), Error> {
     terminal.success(format!("Created {name}"));
     terminal.hint(format!("cd {}", args.path.display()));
     terminal.hint("mise install, then commit mise.lock: CI installs the locked tools");
-    terminal.hint(format!("cargo dokime dev{selection}"));
+    terminal.hint(format!("cargo dokime sidecar dev{selection}"));
     Ok(())
 }
 

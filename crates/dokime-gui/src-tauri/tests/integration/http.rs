@@ -12,7 +12,7 @@
 /* === Modules === */
 
 #[path = "../../src/app/http.rs"]
-mod http;
+mod transport;
 
 /* === Re-Exports === */
 
@@ -50,7 +50,8 @@ use std::sync::Arc;
 async fn first_https_request() {
     let certificate = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
     let trust = reqwest::Certificate::from_der(certificate.cert.der()).unwrap();
-    let client = http::client().add_root_certificate(trust).no_proxy().build().unwrap();
+    let client = transport::client().add_root_certificate(trust).no_proxy().build().unwrap();
+
     let key = rustls::pki_types::PrivatePkcs8KeyDer::from(certificate.signing_key.serialize_der());
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let config = rustls::ServerConfig::builder_with_provider(provider)
@@ -59,6 +60,7 @@ async fn first_https_request() {
         .with_no_client_auth()
         .with_single_cert(vec![certificate.cert.der().clone()], key.into())
         .unwrap();
+
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let origin = format!("https://localhost:{}", listener.local_addr().unwrap().port());
     let server = tokio::task::spawn_blocking(move || {
@@ -75,6 +77,7 @@ async fn first_https_request() {
         stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nready").unwrap();
         stream.flush().unwrap();
     });
+
     let response = client.get(origin).send().await.unwrap();
     assert_eq!(response.status(), reqwest::StatusCode::OK);
     assert_eq!(response.text().await.unwrap(), "ready");

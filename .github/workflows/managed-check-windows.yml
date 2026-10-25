@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-windows.yml; sha256:4b4eacb2524bce47257e6a2e155b0842cd76e7ce02a6f023d24660f7bf8731d0
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-check-windows.yml; sha256:3a3703e4ed81dc3758c851290b6d04e2c508bedb702b771162b3dd2dd085760a
 name: Check / Windows
 "on":
   workflow_call:
@@ -306,5 +306,5 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,github:bnjbvr/cargo-machete,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo
+        go,node,powershell,python,rust,pnpm,uv,github:bnjbvr/cargo-machete,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,npm:@fission-ai/openspec,taplo
     if: contains(fromJSON(inputs.impact), 'check:rust') && (true)

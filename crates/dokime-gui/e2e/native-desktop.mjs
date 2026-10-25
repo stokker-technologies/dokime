@@ -589,6 +589,7 @@ async function startSession(work, endpoint, evidence) {
 
   const session = {
     closed: false,
+    applicationRoot: join(home, "application"),
     downloads,
     id: created.sessionId,
     lastBody: "",
@@ -3777,6 +3778,7 @@ async function ownedStartupJourney() {
   assert.equal(status.ownership, "owned_local", "the native shell owns its embedded backend");
   assert.ok(status.connection?.endpoint, "the embedded session reports its negotiated endpoint");
   assert.ok(await listening(status.connection.endpoint), "the embedded server is listening");
+  await ordinaryInstanceJourney(session, status);
   const cycleId = await createEmptyContainer(session, "Managed Shutdown Evidence");
   await cyclePhase(session, "Active");
   await session.screenshot("owned-startup");
@@ -3828,6 +3830,115 @@ async function ownedStartupJourney() {
   await session.screenshot("owned-running-recovered");
   await closeSession();
   await writeFile(join(evidence, "owned-startup.json"), JSON.stringify({ initial: status, closed: closing, idleMs, runningMs }, null, 2));
+}
+
+async function ordinaryInstanceJourney(primary, initial) {
+  const originalDriver = primary.process;
+  const separateWork = join(work, "independent-desktop");
+  const separateEvidence = join(evidence, "independent-desktop");
+  let independent;
+  let repeated;
+  let output;
+  const statusOf = (native) =>
+    native.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  const focused = async (native) => {
+    const result = await native.executeAsync(`
+      const done = arguments[arguments.length - 1];
+      globalThis.__TAURI_INTERNALS__.invoke('plugin:window|is_focused', {label: 'main'})
+        .then(done, (error) => done({error: String(error)}));
+    `);
+    assert.equal(typeof result, "boolean", `Native focus must be observable: ${JSON.stringify(result)}`);
+    return result;
+  };
+
+  try {
+    independent = await startSession(separateWork, undefined, separateEvidence);
+    session = independent;
+    await independent.connected();
+    const separate = await statusOf(independent);
+    assert.equal(separate.ownership, "owned_local", "a distinct application root owns its own backend");
+    assert.equal(separate.connection?.phase, "connected");
+    assert.notEqual(
+      separate.connection.backend.backendId,
+      initial.connection.backend.backendId,
+      "distinct roots have independent backend identities",
+    );
+    assert.notEqual(separate.connection.backend.epoch, initial.connection.backend.epoch, "distinct roots have independent backend epochs");
+    assert.notEqual(separate.connection.endpoint, initial.connection.endpoint, "distinct roots have independent listeners");
+    assert.ok(await listening(separate.connection.endpoint));
+    await until("the independent desktop owns native focus", () => focused(independent), 120000);
+    assert.equal(await focused(primary), false, "the original window loses focus before the repeated launch");
+
+    const environment = { ...process.env, DOKIME_APPLICATION_ROOT: primary.applicationRoot };
+    delete environment.TAURI_WEBVIEW_AUTOMATION;
+    output = await open(join(evidence, "repeated-launch.log"), "w");
+    repeated = spawn(resolve(shellBinary), [], {
+      cwd: workspace,
+      env: environment,
+      detached: !windows,
+      windowsHide: true,
+      stdio: ["ignore", output.fd, output.fd],
+    });
+    repeated.on("error", (error) => {
+      repeated.startupError = error;
+    });
+    await until(
+      "the same-root ordinary launch acknowledges focus and exits",
+      () => {
+        if (repeated.startupError) throw repeated.startupError;
+        return repeated.exitCode !== null || repeated.signalCode !== null;
+      },
+      120000,
+    );
+    assert.equal(repeated.signalCode, null, "the repeated launch exits without a forced signal");
+    assert.equal(repeated.exitCode, 0, "the repeated launch receives the existing desktop's focus acknowledgement");
+    await until("the original desktop regains native focus", () => focused(primary), 120000);
+    assert.equal(await focused(independent), false, "focus moves away from the independent root");
+    const after = await statusOf(primary);
+    assert.equal(after.ownership, initial.ownership);
+    assert.deepEqual(after.selection, initial.selection);
+    assert.deepEqual(after.connection, initial.connection, "focusing preserves backend identity, epoch, generation and endpoint");
+
+    await closeSession();
+    await until("the independent owned backend drains on close", async () => !(await listening(separate.connection.endpoint)), 120000);
+    assert.ok(await listening(initial.connection.endpoint), "closing a distinct root does not close the original backend");
+    const retained = await statusOf(primary);
+    assert.deepEqual(retained.connection, initial.connection);
+    assert.equal(retained.ownership, initial.ownership);
+    await writeFile(
+      join(evidence, "ordinary-instances.json"),
+      JSON.stringify({ initial, separate, after, retained, focused: true }, null, 2),
+    );
+  } catch (error) {
+    if (independent && !independent.closed) {
+      await independent.screenshot("failure-independent-desktop").catch(() => undefined);
+      await independent
+        .dump("failure-independent-desktop", { error: String(error), status: await statusOf(independent).catch(String) })
+        .catch(() => undefined);
+    }
+    throw error;
+  } finally {
+    const independentDriver = independent?.process ?? driverProcess;
+    try {
+      await terminate(repeated);
+      if (independent && !independent.closed) {
+        session = independent;
+        driverProcess = independent.process;
+        await closeSession();
+      }
+    } finally {
+      try {
+        if (independentDriver !== originalDriver) await terminate(independentDriver);
+      } finally {
+        session = primary;
+        driverProcess = originalDriver;
+        await output?.close();
+      }
+    }
+  }
 }
 
 async function idleJourney() {
@@ -4244,13 +4355,10 @@ async function organizationJourney() {
   const root = join(work, "shell", "application", "organization");
   const archive = join(work, "organization.zip");
   const manifest = `[app]
-label = "Validation Lab"
+label = "Stokker Technologies"
 title_template = "{app}"
-slug = "ignored-lab"
-identifier = "invalid.replacement.identity"
-deep_link_scheme = "ignored-lab"
 [app.logos.transparent]
-on_light = "mark.svg"
+on_light = "logos/mark.svg"
 [updates]
 mode = "disabled"
 source = "public"
@@ -4295,13 +4403,13 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   };
   await choose();
   assert.equal(
-    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"),
-    null,
+    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"),
+    "Dokime",
     "Staging does not change this boot's appearance",
   );
   await restart();
   await until("native organization activation", async () => hasText(await session.text(), "Active since this start."));
-  assert.ok(hasText(await session.text(), "Validation Lab"), "The mounted shell applies the imported label");
+  assert.ok(hasText(await session.text(), "Stokker Technologies"), "The mounted shell applies the imported label");
   assert.equal(
     await readFile(join(root, "active", "organization.toml"), "utf8"),
     manifest,
@@ -4361,7 +4469,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await choose();
   await writeFile(join(root, "pending", "organization.toml"), "invalid [");
   await restart();
-  assert.ok(hasText(await session.text(), "Validation Lab"), "An invalid pending pack retains the active appearance");
+  assert.ok(hasText(await session.text(), "Stokker Technologies"), "An invalid pending pack retains the active appearance");
   assert.equal(await readFile(join(root, "active", "organization.toml"), "utf8"), manifest);
   assert.equal(
     await readFile(join(root, "pending", "organization.toml"), "utf8"),
@@ -4373,10 +4481,10 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await session.screenshot("organization-invalid-pending");
   await session.goto("/settings/appearance");
   await session.clickNamed("button", "Remove");
-  await until("organization removal queued", async () => hasText(await session.text(), "Compiled brand applies on next start."));
+  await until("organization removal queued", async () => hasText(await session.text(), "Bundled organization applies on next start."));
   await restart();
-  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack;"), null);
-  assert.ok(hasText(await session.text(), "Compiled Brand"), "Removal restores the compiled appearance on restart");
+  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"), "Dokime");
+  assert.ok(hasText(await session.text(), "Bundled Organization"), "Removal restores the bundled appearance on restart");
 }
 
 async function writeJunit() {

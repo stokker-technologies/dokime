@@ -44,6 +44,11 @@ use {dokime_runtime::operations::reports::MaterializeReport, model::reports::wir
 async fn persisted_cycle_restart() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+    let mut pack = dokime_runtime::config::organization::resolve_with_base(None, None).unwrap();
+    pack.manifest["app"]["label"] = toml::Value::String("Stokker Technologies".into());
+    let mut brand = pack.brand().unwrap();
+    brand.materialize_logos(&root.path().join("appearance")).unwrap();
+    runtime.set_brand(Some(brand));
     let suite = fixture_suite(&["passed", "passed"]);
     register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite).await;
@@ -62,6 +67,10 @@ async fn persisted_cycle_restart() {
     assert!(before.test_executions[0].saved.is_some(), "member sealing precedes the open container's seal");
     let seal = crate::service_support::native::open(&runtime, &checkpoint).await.execution().saved.clone().unwrap();
     let sealed_html = crate::service_support::reports::bytes(runtime.storage(), &seal.report).await;
+    let captured = crate::service_support::reports::parse(std::str::from_utf8(&sealed_html).unwrap());
+    assert_eq!(captured["appearance"]["app_name"], "Stokker Technologies");
+    assert!(captured["appearance"]["logos"][0]["url"].as_str().unwrap().starts_with("data:image/svg+xml;base64,"));
+    assert!(captured["appearance"]["themes"][0]["stylesheet"].as_str().unwrap().contains("data:font/woff2;base64,"));
     let input_bytes = crate::service_support::reports::bytes(runtime.storage(), &seal.source.context).await;
     let boundary = runtime.storage().cursor_saved();
     let report = runtime
@@ -85,6 +94,7 @@ async fn persisted_cycle_restart() {
     assert_eq!(second.status, ExecutionStatus::Cancelled);
     drop((checkpoint, runtime));
     owner.shutdown().await.unwrap();
+    std::fs::remove_dir_all(root.path().join("appearance")).unwrap();
 
     // Sealed Reports Retain Their Exact Anchors Through Reclamation.
     let backend = dokime_runtime::storage::Backend::primary(root.path().to_owned()).await.unwrap();
@@ -123,6 +133,7 @@ async fn persisted_cycle_restart() {
     drop(backend);
 
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+    runtime.set_brand(dokime_runtime::config::organization::brand());
     let recovered = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()

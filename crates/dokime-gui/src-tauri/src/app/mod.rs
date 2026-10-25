@@ -23,6 +23,9 @@ pub(crate) mod recording;
 pub(crate) mod settings;
 pub(crate) mod updates;
 
+#[cfg(windows)]
+mod window_icon;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -156,12 +159,12 @@ fn start_tauri_app() -> tauri::Result<()> {
     let app = builder
         .setup(move |app| {
             settings::setup(app);
+            organization::setup(app)?;
             let connection = app.state::<crate::connection::ConnectionSession>().inner().clone();
             let owner = crate::native_session::DesktopSession::with_local_configuration(connection, local::configuration(app.handle()))
                 .with_preferences(preferences, initial_selection);
             *setup_owner.lock().expect("setup owner poisoned") = Some(owner.clone());
             app.manage(crate::native_session::DesktopSessionControl::active(owner));
-            organization::setup(app)?;
             updates::setup(app)?;
             create_main_windows(app)?;
             if let Some(instance) = instance {
@@ -213,6 +216,15 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
             .initialization_script(&brand)
             .on_navigation(move |url| crate::native_session::trusted_application_url(url, &navigation_config));
+        let organization = app.state::<organization::OrganizationState>();
+        let builder = match organization.title() {
+            Some(title) => builder.title(title),
+            None => builder,
+        };
+        let builder = match organization.window_icon() {
+            Some(icon) => builder.icon(icon)?,
+            None => builder,
+        };
         // The window-level OLE handler would otherwise swallow file drops
         // before WebView2 raises the HTML5 events the plugin drop zone uses.
         #[cfg(windows)]
@@ -234,6 +246,13 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         } else {
             builder
         };
+        #[cfg(windows)]
+        {
+            let window = builder.build()?;
+            let hwnd = window.hwnd()?;
+            window_icon::taskbar(hwnd)?;
+        }
+        #[cfg(not(windows))]
         builder.build()?;
     }
     Ok(())

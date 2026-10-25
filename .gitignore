@@ -37,10 +37,6 @@ __pycache__/
 /crates/dokime-gui/playwright-report/
 /crates/dokime-gui/src-tauri/gen/
 
-/crates/dokime-gui/src-tauri/binaries/*
-!/crates/dokime-gui/src-tauri/binaries/.gitkeep
-# Retired installer staging path may still exist in developer checkouts.
-/crates/dokime-gui/src-tauri/resources/runtime/
 /crates/dokime-gui/src-tauri/target/
 /examples/*/dist/
 

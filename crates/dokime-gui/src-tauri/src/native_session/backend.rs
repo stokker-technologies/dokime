@@ -63,11 +63,11 @@ impl Backend {
 /* === Public Functions === */
 
 pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Result<(host::Session, String), Error> {
-    let launch = async {
+    let launch: std::pin::Pin<Box<dyn std::future::Future<Output = _> + Send + '_>> = Box::pin(async {
         let config = backend.arguments.configuration()?;
         let network = backend.arguments.network.config()?;
         host::Session::start(&backend.arguments, config, network, on_phase).await
-    };
+    });
     let started = tokio::time::timeout(READY_TIMEOUT, launch).await;
     let result = match started {
         Ok(result) => result.map_err(|error| {

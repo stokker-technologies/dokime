@@ -27,9 +27,9 @@ export function BrandMark({ className, treatment = "transparent" }: { className?
         const logo = selectLogo(brand, treatment, surface);
         const visibility = surface === "light" ? "dark:hidden" : "hidden dark:block";
         return logo ? (
-          <img key={surface} alt={logo.alt ?? brand.label} className={cn("h-7 w-auto shrink-0", visibility, className)} src={logo.src} />
+          <img key={surface} alt={logo.alt ?? brand.label} className={cn("logo h-7 w-auto shrink-0", visibility, className)} src={logo.src} />
         ) : (
-          <span key={surface} className={cn("text-sm font-black tracking-tight", visibility, className)}>
+          <span key={surface} className={cn("logo text-sm font-black tracking-tight", visibility, className)}>
             {brand.label}
           </span>
         );

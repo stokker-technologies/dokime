@@ -6,7 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Cargo-driven native Dokime plugin packaging"
+description = "Dokime sidecar and native installer packaging"
 version = { workspace = true }
 
 # === Package Targets === #
@@ -17,7 +17,7 @@ version = { workspace = true }
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["terminal", "plugin-sidecar"] }
+dokime = { workspace = true, features = ["terminal", "plugin-sidecar", "host"] }
 
 # Git
 
@@ -30,16 +30,22 @@ tracing = { workspace = true }
 # Utilities
 harmos-packaging = { workspace = true }
 process-wrap = { workspace = true, features = ["tokio1"] }
+sha2 = { workspace = true }
+time = { workspace = true }
 
 # Serialization
+base64 = { workspace = true }
+image = { workspace = true, features = ["bmp", "ico", "png"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 
 # Configuration
 clap = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
+zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Parsing
 cargo_metadata = { workspace = true }
@@ -50,10 +56,13 @@ cargo_metadata = { workspace = true }
 tokio = { workspace = true, features = ["process"] }
 
 # Networking
+reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring", "std"] }
 
 # Storage
 
 # UI
+tauri-bundler = { workspace = true }
 
 # Testing
 
@@ -62,6 +71,39 @@ tokio = { workspace = true, features = ["process"] }
 # === Dev Dependencies === #
 
 # === Target Dependencies === #
+
+[target.'cfg(windows)'.dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging"] }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+tauri-utils = { workspace = true }
+
+# Testing
 
 # === Test Targets === #
 

@@ -92,7 +92,7 @@ arrow-ipc = { version = "=59.3.0" }
 arrow-schema = { version = "=59.3.0" }
 base64 = { version = "0.23.1" }
 hound = { version = "3.5.1" }
-# Excludes every default image codec (AVIF encoding pulls rav1e and rayon); Dokime encodes JPEG and PNG.
+# Excludes default image codecs; consumers select their required formats explicitly.
 image = { version = "0.25.10", default-features = false }
 prost = { version = "0.14.4" }
 prost-build = { version = "=0.14.4" }
@@ -169,10 +169,12 @@ nokhwa = { version = "0.10.11" }
 portable-pty = { version = "0.9.0" }
 tauri = { version = "2.12.5" }
 tauri-build = { version = "2.7.2" }
+tauri-bundler = { version = "2.10.4" }
 tauri-plugin-deep-link = { version = "2.6.1" }
 tauri-plugin-dialog = { version = "2.8.2" }
 tauri-plugin-opener = { version = "2.7.1" }
 tauri-plugin-updater = { version = "2.13.3" }
+tauri-utils = { version = "2.10.2" }
 xcap = { version = "0.9.8" }
 
 # Testing

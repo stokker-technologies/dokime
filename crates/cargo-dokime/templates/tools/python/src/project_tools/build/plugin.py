@@ -60,6 +60,7 @@ def build(root: Path, profile: str) -> None:
         command = [
             "cargo",
             "dokime",
+            "sidecar",
             "build",
             "--package",
             PACKAGE,
@@ -88,6 +89,7 @@ def build(root: Path, profile: str) -> None:
             [
                 "cargo",
                 "dokime",
+                "sidecar",
                 "package",
                 "--build-json",
                 str(collected),

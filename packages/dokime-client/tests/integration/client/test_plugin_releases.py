@@ -51,7 +51,7 @@ def test_release_feed_uses_inspected_identity_targets_and_complete_digest(tmp_pa
     assets = [(bundle, "https://example.test/instruments.dokime")]
     feed = plugins.release_feed(assets, tool=tool, requires_dokime="=0.1.0")
 
-    assert calls == [[str(tool), "dokime", "inspect", str(bundle)]]
+    assert calls == [[str(tool), "dokime", "sidecar", "inspect", str(bundle)]]
     assert (feed["format_version"], feed["package"], feed["version"]) == (1, "instruments", "1.2.3")
     assert feed["assets"] == [
         {"target": "x86_64-pc-windows-msvc", "url": assets[0][1], "sha256": hashlib.sha256(bundle.read_bytes()).hexdigest()}
