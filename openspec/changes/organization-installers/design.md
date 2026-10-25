@@ -22,5 +22,5 @@ Integration owner: OpenSpec, root manifests/lock, existing sidecar command group
 Owners coordinate shared type interfaces before edits. Cargo manifest dependency requests go to integration owner; no competing lockfile writes.
 
 ## Delivery
-All changes combine on feat/organization-installers. Only targeted proof until all implementation items close and writers hand off. Then default all-platform mise run ci:simulate once; fix and rerun failing lanes. Reconcile upstream PR 7 with dev before publishing an independent feature review. User authorizes push, PR and auto-merge after required gates; never bypass missing executors/checks. Finish the specification after actual tasks complete.
+All changes combine on feat/organization-installers. Refresh and merge the latest published product CI-fixes branch at integration checkpoints, before source closure and before delivery; validate affected behavior after each update. Only targeted proof until all implementation items close and writers hand off. Then default all-platform mise run ci:simulate once; fix and rerun failing lanes. Reconcile upstream PR 7 with dev before publishing an independent feature review. User authorizes push, PR and auto-merge after required gates; never bypass missing executors/checks. Finish the specification after actual tasks complete.
 
