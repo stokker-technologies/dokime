@@ -28,6 +28,13 @@
 
 - [x] 3.13 Integration owner migrates the remaining authored development caller in `mise.toml` to `sidecar build`, audits maintained callers for removed top-level commands, and verifies the command shape with the built candidate tool.
 
+- [x] 3.14 Organization owner implements bounded current-epoch record replay on the remote-access rotation Stop path using native evidence, preserving durable completion, complete reports, authorization behavior and the existing RPC deadline. Lock the exact affected source inventory after diagnosis and before edits; verify replay correctness in focused regressions. Native Stop deadline verification on required platforms remains in 4.1.
+  Source Inventory: `crates/dokime-runtime/src/domains/execution/run/session.rs`, `crates/dokime-runtime/tests/integration/runtime/query_records.rs`. Use the existing current-epoch captured-record reader with a logical cursor and fixed frontier to avoid decoding discarded historical prefixes; preserve selected-record completeness and failure propagation. Native deadline verification remains required after focused regression proof.
+
+- [x] 3.15 Integration owner removes inherited mise activation snapshot state from the standalone starter child environment in `tools/python/src/dokime_tools/test/rust/starter.py`, preventing nested shell activation from restoring machine configuration over the neutral configuration. Preserve public cache/tool inputs and validate nested recipe isolation without private tool downloads.
+
+- [x] 3.16 Installer owner repairs declared GUI package provisioning for the non-root local Linux runner in `tools/python/src/dokime_tools/ci/bootstrap.py`, with focused behavior tests in `packages/dokime-client/tests/integration/client/test_gui_bootstrap.py`. Use available noninteractive sudo independently of provider environment; preserve root execution, existing package selection and fail-closed behavior when installation is unavailable.
+
 ## Final Validation
 - [ ] 4.1 Declare source complete only after all implementation items and writer handoffs; run default all-required-platform mise run ci:simulate and repair failing lanes without weakening checks.
 

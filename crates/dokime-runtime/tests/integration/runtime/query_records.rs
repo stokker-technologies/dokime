@@ -225,6 +225,69 @@ async fn fixed_replay_append() {
 }
 
 #[tokio::test]
+async fn bounded_replay_restart() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    for _ in 0..300 {
+        publish(&handle).await;
+    }
+    let prior = handle.selected_records(RecordSelection::default()).await.unwrap();
+    assert_eq!(prior.len(), 300);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    for _ in 0..3 {
+        publish(&handle).await;
+    }
+    let prefix = handle.selected_records(RecordSelection::default()).await.unwrap();
+    let prefix_ids = prefix.iter().map(|record| &record.record_id).cloned().collect::<std::collections::BTreeSet<_>>();
+    let after = handle.captured_records().frontier();
+
+    for _ in 0..4 {
+        publish(&handle).await;
+    }
+    let reader = handle.captured_records();
+    let through = reader.frontier();
+    let mut selected = handle.selected_records(RecordSelection::default()).await.unwrap();
+    selected.sort_by_key(|record| record.sequence);
+    let expected = selected
+        .iter()
+        .filter(|record| {
+            let in_prefix = prefix_ids.contains(&record.record_id);
+            !in_prefix
+        })
+        .map(|record| &record.record_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(expected.len(), 4);
+    publish(&handle).await;
+
+    let mut cursor = after;
+    let mut actual = Vec::new();
+    while let Some(record) = reader.next(cursor, through).await.unwrap() {
+        assert!(record.sequence > cursor && record.sequence <= through);
+        cursor = record.sequence;
+        actual.push(record.record_id.clone());
+    }
+    assert_eq!(actual, expected);
+    let latest = handle.captured_records();
+    let continuation = latest.next(through, latest.frontier()).await.unwrap().unwrap();
+    assert!(continuation.sequence > through);
+    assert!(!actual.contains(&continuation.record_id));
+    assert!(latest.next(continuation.sequence, latest.frontier()).await.unwrap().is_none());
+    let retained = handle.selected_records(RecordSelection::default()).await.unwrap();
+    assert_eq!(retained.len(), 308);
+    assert!(prior.iter().all(|before| retained.iter().any(|record| record.record_id == before.record_id)));
+    drop(reader);
+    drop(latest);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn fixed_record_pressure() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;

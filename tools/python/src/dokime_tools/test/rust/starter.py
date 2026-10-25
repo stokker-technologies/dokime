@@ -52,6 +52,7 @@ def test(profile: str) -> None:
         if not key.startswith("NEXTEST")
         and key
         not in {
+            "__MISE_DIFF",
             "VIRTUAL_ENV",
             "MISE_LOCKED",
             "MISE_ENABLE_TOOLS",

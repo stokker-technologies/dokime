@@ -406,7 +406,7 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
         _step("skipping GUI packages: all prerequisites are installed")
         return
     prefix = []
-    if os.geteuid() != 0 and os.environ.get("GITHUB_ACTIONS") == "true" and shutil.which("sudo"):
+    if os.geteuid() != 0 and shutil.which("sudo"):
         prefix = ["sudo", "-n"]
     elif os.geteuid() != 0:
         raise SystemExit("GUI prerequisites are missing and apt-get needs root; install the selected packages or run this as root.")
