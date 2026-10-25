@@ -47,7 +47,6 @@ dokime-domain = { workspace = true }
 dokime-runtime = { workspace = true, default-features = false }
 
 # Git
-harmos = { workspace = true, features = ["plugin"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -56,6 +55,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos = { workspace = true, features = ["plugin"] }
 zeroize = { workspace = true, optional = true }
 
 # Serialization

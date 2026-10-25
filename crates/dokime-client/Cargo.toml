@@ -28,7 +28,6 @@ version.workspace = true
 dokime-domain = { version = "0.1.0", path = "../dokime-domain" }
 
 # Git
-harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -36,6 +35,7 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
+harmos = { workspace = true, features = ["grpc"] }
 keyring = { workspace = true }
 sha2 = { workspace = true }
 zeroize = { workspace = true }

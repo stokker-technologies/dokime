@@ -31,7 +31,6 @@ dokime = { workspace = true, features = ["terminal"] }
 dokime-packaging = { version = "0.1.0", path = "../dokime-packaging" }
 
 # Git
-harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -40,6 +39,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos-packaging = { workspace = true }
 semver = { workspace = true }
 sha2 = { workspace = true }
 

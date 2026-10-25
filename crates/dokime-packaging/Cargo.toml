@@ -20,7 +20,6 @@ version = { workspace = true }
 dokime = { workspace = true, features = ["terminal", "plugin-sidecar"] }
 
 # Git
-harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -29,6 +28,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos-packaging = { workspace = true }
 process-wrap = { workspace = true, features = ["tokio1"] }
 
 # Serialization

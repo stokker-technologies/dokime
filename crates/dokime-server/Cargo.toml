@@ -98,13 +98,13 @@ tonic-types = { workspace = true }
 dokime = { workspace = true }
 
 # Git
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
 
@@ -133,8 +133,6 @@ harmos-packaging = { workspace = true, features = ["generate-proto"] }
 dokime-cli = { path = "../dokime-cli" }
 
 # Git
-harmos-packaging = { workspace = true }
-harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 anyhow = { workspace = true }
@@ -142,6 +140,8 @@ anyhow = { workspace = true }
 # Logging
 
 # Utilities
+harmos-packaging = { workspace = true }
+harmos-sdk = { workspace = true, features = ["grpc"] }
 keyring-core = { workspace = true }
 
 # Serialization

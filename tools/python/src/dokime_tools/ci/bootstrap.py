@@ -260,33 +260,45 @@ def prepare_harmos(
         source_identity = harmos_pin(root)
     identity: dict[str, Any] = {
         **source_identity,
-        "profile": "dev",
         "platform": platform.system(),
         "architecture": platform.machine(),
-        "rustc": subprocess.check_output(
-            ["mise", "exec", "--", "rustc", "-vV"],
-            text=True,
-            encoding="utf-8",
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            stdin=sys.stdin,
-            stderr=sys.stderr,
-        ).strip(),
-        "environment": {
-            name: os.environ.get(name)
-            for name in sorted(
-                {
-                    "RUSTC",
-                    "RUSTC_WRAPPER",
-                    "RUSTC_WORKSPACE_WRAPPER",
-                    "RUSTFLAGS",
-                    "CARGO_ENCODED_RUSTFLAGS",
-                    "CARGO_BUILD_TARGET",
-                    "CARGO_BUILD_RUSTFLAGS",
-                }
-                | {name for name in os.environ if name.startswith("CARGO_PROFILE_")}
-            )
-        },
     }
+    if "registry" in source_identity:
+        targets = {"Windows": "x86_64-pc-windows-msvc", "Linux": "x86_64-unknown-linux-gnu"}
+        if identity["architecture"].lower() not in {"amd64", "x86_64"} or identity["platform"] not in targets:
+            raise ValueError("published Harmos tools require native Windows or Linux x86_64")
+        suffix = ".exe" if identity["platform"] == "Windows" else ""
+        identity["asset"] = f"cargo-harmos-{identity['version']}-{targets[identity['platform']]}{suffix}"
+        identity["release"] = f"https://github.com/stokker-technologies/harmos/releases/download/v{identity['version']}"
+    else:
+        identity.update(
+            {
+                "profile": "dev",
+                "rustc": subprocess.check_output(
+                    ["mise", "exec", "--", "rustc", "-vV"],
+                    text=True,
+                    encoding="utf-8",
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    stdin=sys.stdin,
+                    stderr=sys.stderr,
+                ).strip(),
+                "environment": {
+                    name: os.environ.get(name)
+                    for name in sorted(
+                        {
+                            "RUSTC",
+                            "RUSTC_WRAPPER",
+                            "RUSTC_WORKSPACE_WRAPPER",
+                            "RUSTFLAGS",
+                            "CARGO_ENCODED_RUSTFLAGS",
+                            "CARGO_BUILD_TARGET",
+                            "CARGO_BUILD_RUSTFLAGS",
+                        }
+                        | {name for name in os.environ if name.startswith("CARGO_PROFILE_")}
+                    )
+                },
+            }
+        )
     destination = root / ".cache/harmos-tool"
     binary = destination / "bin" / ("cargo-harmos.exe" if os.name == "nt" else "cargo-harmos")
     receipt = destination / "receipt.json"
@@ -295,37 +307,43 @@ def prepare_harmos(
         try:
             value = json.loads(receipt.read_text(encoding="utf-8"))
             available = value.get("identity") == identity and value.get("sha256") == hashlib.sha256(binary.read_bytes()).hexdigest()
+            if "registry" in identity:
+                available = available and value.get("version") == f"cargo harmos {identity['version']}"
+                available = available and value.get("published_sha256") == value.get("sha256")
         except (OSError, ValueError):
             available = False
     if not available:
         if not allow_install:
             raise ValueError("exact prepared Harmos tool artifact is missing or incompatible; consumers never rebuild it")
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if local_source is not None:
-            source_arguments = ["--path", str(local_source / "crates/cargo-harmos")]
-        elif "git" in identity:
-            source_arguments = ["--git", identity["git"], "--rev", identity["rev"]]
-        else:
-            source_arguments = ["--registry", "crates-io", "--version", f"={identity['version']}"]
         with tempfile.TemporaryDirectory(prefix="harmos-tool-") as temporary:
             staged = Path(temporary)
-            _run(
-                [
-                    "mise",
-                    "exec",
-                    "--",
-                    "cargo",
-                    "install",
-                    "--debug",
-                    *source_arguments,
-                    "--locked",
-                    "--root",
-                    str(staged),
-                    "--target-dir",
-                    str(root / "target/tooling/harmos"),
-                    identity["package"],
-                ]
-            )
+            published_sha256 = None
+            if "registry" in identity:
+                published_sha256 = _install_harmos_release(staged, identity, binary.name)
+            else:
+                source_arguments = (
+                    ["--path", str(local_source / "crates/cargo-harmos")]
+                    if local_source is not None
+                    else ["--git", identity["git"], "--rev", identity["rev"]]
+                )
+                _run(
+                    [
+                        "mise",
+                        "exec",
+                        "--",
+                        "cargo",
+                        "install",
+                        "--debug",
+                        *source_arguments,
+                        "--locked",
+                        "--root",
+                        str(staged),
+                        "--target-dir",
+                        str(root / "target/tooling/harmos"),
+                        identity["package"],
+                    ]
+                )
             if local_source is not None and _override_source(local_source) != identity["source"]:
                 raise ValueError("Harmos source changed while preparing the local tool")
             executable = staged / "bin" / binary.name
@@ -339,11 +357,15 @@ def prepare_harmos(
                 stdin=sys.stdin,
                 stderr=sys.stderr,
             ).strip()
+            if "registry" in identity and version != f"cargo harmos {identity['version']}":
+                raise ValueError("published Harmos executable reported an unexpected version")
             value = {
                 "identity": identity,
                 "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
                 "version": version,
             }
+            if published_sha256 is not None:
+                value["published_sha256"] = published_sha256
             (staged / "receipt.json").write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
             for path in staged.iterdir():
                 if path.name not in {"bin", "receipt.json"}:
@@ -460,6 +482,47 @@ def prepare_windows_desktop(root: Path) -> Path:
 
 
 # === Private Functions === #
+
+
+def _install_harmos_release(staged: Path, identity: dict[str, Any], binary: str) -> str:
+    with tempfile.TemporaryDirectory(prefix="harmos-release-") as temporary:
+        parent = Path(temporary)
+        checksums = parent / "SHA256SUMS"
+        urllib.request.urlretrieve(f"{identity['release']}/SHA256SUMS", checksums)
+        matches = []
+        for line in checksums.read_text(encoding="utf-8").splitlines():
+            fields = line.split()
+            if len(fields) == 2 and fields[1].removeprefix("*") == identity["asset"]:
+                matches.append(fields[0])
+        if len(matches) != 1 or re.fullmatch(r"[0-9a-f]{64}", matches[0]) is None:
+            raise ValueError("published Harmos checksums omit one exact executable digest")
+        expected = matches[0]
+        tool = f"github:stokker-technologies/harmos[asset_pattern={identity['asset']},bin={binary}]@{identity['version']}"
+        installed = parent / "installed"
+        environment = os.environ.copy()
+        environment.pop("MISE_ENABLE_TOOLS", None)
+        subprocess.run(
+            ["mise", "install-into", tool, str(installed)],
+            cwd=parent,
+            env=environment,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            check=True,
+        )
+        executables = list(installed.rglob(binary))
+        if len(executables) != 1 or executables[0].is_symlink() or not executables[0].is_file():
+            raise ValueError("published Harmos package omitted its required CLI")
+        executable = executables[0]
+        if any(path.is_symlink() for path in executable.parents if path.is_relative_to(installed)):
+            raise ValueError("published Harmos executable has a linked parent")
+        if hashlib.sha256(executable.read_bytes()).hexdigest() != expected:
+            raise ValueError("published Harmos executable differs from SHA256SUMS")
+        destination = staged / "bin" / binary
+        destination.parent.mkdir()
+        shutil.copy2(executable, destination)
+        return expected
 
 
 def _webview_version() -> str | None:
