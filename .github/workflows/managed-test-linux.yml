@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:67c91daf8fbadf1340324dcbf654526248f0d85ca541d62fc54b8e2fce0a05f2
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-test-linux.yml; sha256:179f25e8c226f6fdd3616b21ff5fac3c4e7f704b52511a08e01c7eda680fe8de
 name: Test / Linux
 "on":
   workflow_call:
@@ -1219,7 +1219,7 @@ jobs:
         dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
       MISE_TASK_SKIP: build,build:python,build:rust:tests
     if: contains(fromJSON(inputs.impact), 'test:rust:system') && (true)
   validate_test_typescript_system_linux:

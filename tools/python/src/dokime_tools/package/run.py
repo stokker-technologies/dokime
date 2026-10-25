@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/package/run.py; sha256:9ef7edfe3c9529171379961f9e5345fa1245d50b2dce371be66370810f048055
+# Rendered by stkr project update from templates/python/package/run.py; sha256:6f0e9adde2d089c26c12c033a185cb78ed16af83691e590f051109105cf83807
 # ***
 #
 # Dokime
@@ -217,7 +217,7 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
                         stdout=sys.stdout,
                         stderr=sys.stderr,
                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                        cwd=install,
+                        cwd=install.parent,
                         env=environment,
                         check=True,
                     )

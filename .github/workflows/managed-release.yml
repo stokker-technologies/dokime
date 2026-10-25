@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:afb9a45ff888f055fab3a556df5b19701047cb7d363b40a9fe590a99528d3c92
+# Rendered by stkr project update from templates/ci/.github/workflows/managed-release.yml; sha256:d2a6b9ff34de311aa972452cabc5be5b810f682fd79604e897c151f1f482f7bd
 name: Release
 "on":
   workflow_call:
@@ -310,7 +310,7 @@ jobs:
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build
       env:
-        RELEASE_PROFILE: ${{ startsWith(github.head_ref, 'release/v') && 'release' || 'dev' }}
+        RELEASE_PROFILE: ${{ env.PROFILE }}
         _STKR_CI_BUILD_SCRIPT: mise run release:publish:dry
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: >-
@@ -584,6 +584,7 @@ jobs:
         install: true
         cache: false
         mise_dir: ${{ env.MISE_DATA_DIR }}
+    - run: mise run release:prepare
     - name: Check Runner Group Allowlist
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
@@ -591,7 +592,6 @@ jobs:
       env:
         GITHUB_RUNNER_WORKFLOWS: "{\"ci.yml\":${{ inputs.runners }}}"
         GH_TOKEN: ${{ secrets.runner_group_read_token || github.token }}
-    - run: mise run release:prepare
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.release.run review

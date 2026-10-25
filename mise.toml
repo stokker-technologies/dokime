@@ -387,6 +387,7 @@ env.CARGO_INCREMENTAL = "0"
 [tasks."test:rust:system"]
 description = "Test System Rust"
 depends = ["prepare"]
+tools = { powershell = { version = "7.6.7", os = ["windows"] } }
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
