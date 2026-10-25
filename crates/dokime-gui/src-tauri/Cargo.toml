@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 name = "dokime-gui"
 publish = false
@@ -17,8 +19,17 @@ repository.workspace = true
 build = "build.rs"
 default-run = "dokime-gui"
 version = { workspace = true }
-# Ships Inside The Desktop Installers, Not Through crates.io.
 
+# === Package Targets === #
+
+[[bin]]
+name = "dokime-gui"
+path = "src/main.rs"
+test = false
+
+# === Features === #
+
+# Ships Inside The Desktop Installers, Not Through crates.io.
 [features]
 default = ["updater"]
 updater = ["dep:tauri-plugin-updater"]
@@ -26,23 +37,7 @@ updater = ["dep:tauri-plugin-updater"]
 # profile leave it off so the desktop never opens a terminal window.
 console = []
 
-[[bin]]
-name = "dokime-gui"
-path = "src/main.rs"
-test = false
-
-[build-dependencies]
-# Local
-dokime = { workspace = true }
-
-# Git
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
-
-# Serialization
-serde_json = { workspace = true }
-
-# UI
-tauri-build = { workspace = true, features = [] }
+# === Dependencies === #
 
 [dependencies]
 # Local
@@ -50,7 +45,6 @@ dokime = { workspace = true, features = ["native", "client", "diagnostics"] }
 dokime-server = { workspace = true }
 
 # Git
-harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -61,6 +55,7 @@ tracing-appender = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Utilities
+harmos-sdk = { workspace = true, features = ["grpc"] }
 keyring = { workspace = true }
 rand = { workspace = true }
 semver = { workspace = true }
@@ -82,6 +77,10 @@ dotenv = { workspace = true }
 # Filesystem
 tempfile = { workspace = true }
 
+# Parsing
+
+# Concurrency
+
 # Async
 tokio = { workspace = true, features = ["process"] }
 tokio-stream = { workspace = true }
@@ -92,6 +91,8 @@ reqwest = { workspace = true }
 tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
 url = { workspace = true }
 
+# Storage
+
 # UI
 tauri = { workspace = true, features = ["tray-icon", "image-png"] }
 tauri-plugin-deep-link = { workspace = true }
@@ -99,18 +100,69 @@ tauri-plugin-dialog = { workspace = true }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-updater = { workspace = true, optional = true }
 
-[target.'cfg(windows)'.dependencies]
+# Testing
+
+# === Build Dependencies === #
+
+[build-dependencies]
+# Local
+dokime = { workspace = true }
+
+# Git
+
+# Error Handling
+
+# Logging
+
 # Utilities
-windows = { workspace = true, features = ["Win32_System_Com"] }
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
+
+# Serialization
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+tauri-build = { workspace = true, features = [] }
+
+# Testing
+
+# === Dev Dependencies === #
 
 [dev-dependencies]
 # Local
 dokime = { path = "../../dokime", features = ["host", "fft", "plugin-sidecar"] }
 
 # Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
+# Serialization
+
+# Configuration
+
 # Filesystem
+
+# Parsing
+
+# Concurrency
 
 # Async
 async-trait = { workspace = true }
@@ -121,5 +173,59 @@ tokio-stream = { workspace = true, features = ["net"] }
 rcgen = { workspace = true }
 rustls = { workspace = true, features = ["ring", "std"] }
 
+# Storage
+
 # UI
 tauri = { workspace = true, features = ["test"] }
+
+# Testing
+
+# === Target Dependencies === #
+
+[target.'cfg(windows)'.dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+windows = { workspace = true, features = ["Win32_System_Com"] }
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

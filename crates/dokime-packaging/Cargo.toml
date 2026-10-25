@@ -1,3 +1,5 @@
+# === Package === #
+
 [package]
 name = "dokime-packaging"
 edition.workspace = true
@@ -7,12 +9,17 @@ repository.workspace = true
 description = "Dokime sidecar and native installer packaging"
 version = { workspace = true }
 
+# === Package Targets === #
+
+# === Features === #
+
+# === Dependencies === #
+
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["terminal", "plugin-sidecar", "host"] }
 
 # Git
-harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -21,6 +28,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos-packaging = { workspace = true }
 process-wrap = { workspace = true, features = ["tokio1"] }
 sha2 = { workspace = true }
 base64 = { workspace = true }
@@ -46,5 +54,37 @@ reqwest = { workspace = true }
 # Parsing
 cargo_metadata = { workspace = true }
 
+# Concurrency
+
 # Async
 tokio = { workspace = true, features = ["process"] }
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

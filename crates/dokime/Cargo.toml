@@ -6,6 +6,8 @@
 #
 # ***
 
+# === Package === #
+
 [package]
 name = "dokime"
 edition.workspace = true
@@ -14,6 +16,10 @@ description.workspace = true
 license.workspace = true
 repository.workspace = true
 version = { workspace = true }
+
+# === Package Targets === #
+
+# === Features === #
 
 [features]
 default = []
@@ -32,6 +38,8 @@ simulation = ["dokime-runtime/simulation"]
 client = ["dep:dokime-client", "dep:dotenv", "dep:tokio", "dep:zeroize"]
 terminal = ["diagnostics", "dep:anstream", "dep:anstyle", "dep:indicatif"]
 
+# === Dependencies === #
+
 [dependencies]
 # Local
 dokime-client = { workspace = true, optional = true }
@@ -39,7 +47,6 @@ dokime-domain = { workspace = true }
 dokime-runtime = { workspace = true, default-features = false }
 
 # Git
-harmos = { workspace = true, features = ["plugin"] }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -48,6 +55,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos = { workspace = true, features = ["plugin"] }
 zeroize = { workspace = true, optional = true }
 
 # Serialization
@@ -61,14 +69,74 @@ dotenv = { workspace = true, optional = true }
 # Filesystem
 tempfile = { workspace = true }
 
+# Parsing
+
+# Concurrency
+
 # Async
 tokio = { workspace = true, optional = true }
+
+# Networking
+
+# Storage
 
 # UI
 anstream = { workspace = true, optional = true }
 anstyle = { workspace = true, optional = true }
 indicatif = { workspace = true, optional = true }
 
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
 [dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
 # Filesystem
 tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

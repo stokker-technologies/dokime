@@ -24,6 +24,7 @@ use harmos::{
         sort::{Sort, SortKey},
     },
 };
+use tokio::sync::OnceCell;
 
 // Local Imports
 use super::{invalid, statistics, telemetry};
@@ -50,6 +51,12 @@ use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Enums === */
 
+#[derive(PartialEq, Eq)]
+pub(in crate::report) enum ReadPlan {
+    Raw(Vec<(Identifier, u32)>),
+    Sorted { stream: Identifier, version: u32, field: Vec<String> },
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -58,45 +65,76 @@ use dokime_domain::model::records::evidence::RecordEntry;
 
 pub(in crate::report) async fn materialize(
     ctx: &Context<'_>, settings: &crate::config::StorageSettings, source: &CapturedSource, execution: &TestExecution,
-    records: &[RecordEntry], request: PlotPayloadRequest,
+    records: &[RecordEntry], request: PlotPayloadRequest, shared: &OnceCell<Vec<crate::telemetry::TelemetrySample>>,
 ) -> Result<crate::report::value::Value> {
-    let context = PlotPayloadContext {
-        x_format: request.x_format.clone(),
-        series_format: request.y_format.clone(),
-        run_started_at: execution.started_at.as_ref().map(ToString::to_string),
-        cycle_started_at: source.context.cycle.cycle.started_at.as_ref().map(ToString::to_string),
-    };
     let payload = match direct(&request, &source.telemetry_contracts) {
         Some((request, contract)) => {
-            optimized(super::ReadContext { ctx, settings }, source, execution, records, &request, contract, &context).await?
+            optimized(super::ReadContext { ctx, settings }, source, execution, records, &request, contract, shared).await?
         }
         None => {
+            let context = payload_context(source, execution, &request);
             let streams = crate::plot::plot_streams(&request);
-            let samples = telemetry::streams(
-                ctx,
-                settings,
-                &source.evidence_through,
-                execution.test_execution_id.as_str(),
-                &source.telemetry_contracts,
-                &streams,
-            )
-            .await?;
+            let samples = shared
+                .get_or_try_init(|| {
+                    telemetry::streams(
+                        ctx,
+                        settings,
+                        &source.evidence_through,
+                        execution.test_execution_id.as_str(),
+                        &source.telemetry_contracts,
+                        &streams,
+                    )
+                })
+                .await?;
             if request.analysis.is_some() {
-                let projected = crate::plot::project_plot_payload(&samples, records, &request, source.captured_at.as_str(), &context);
+                let projected = crate::plot::project_plot_payload(samples, records, &request, source.captured_at.as_str(), &context);
                 let contract = source
                     .telemetry_contracts
                     .get(&Identifier::new(&request.stream).map_err(|_| invalid("invalid plot stream"))?)
                     .and_then(|versions| versions.values().next());
-                crate::report::analysis::materialize(ctx, &request, &samples, projected, contract).await?
+                crate::report::analysis::materialize(ctx, &request, samples, projected, contract).await?
             } else {
-                full(&samples, records, &request, source.captured_at.as_str(), &context)
+                full(samples, records, &request, source.captured_at.as_str(), &context)
             }
         }
     };
     crate::report::value::Value::from_serializable(&payload)
 }
 
+pub(in crate::report) fn read_plan(
+    request: &PlotPayloadRequest, contracts: &BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>,
+) -> ReadPlan {
+    if let Some((request, contract)) = direct(request, contracts) {
+        return ReadPlan::Sorted { stream: contract.stream.clone(), version: contract.schema_version, field: sort_field(&request).fields };
+    }
+    let selected = crate::plot::plot_streams(request);
+    let mut streams = Vec::new();
+    for (stream, versions) in contracts {
+        if !selected.iter().any(|name| crate::plot::stream_matches_alias(stream.as_str(), name)) {
+            continue;
+        }
+        streams.extend(versions.values().map(|contract| (contract.stream.clone(), contract.schema_version)));
+    }
+    ReadPlan::Raw(streams)
+}
+
 /* === Private Functions === */
+
+fn payload_context(source: &CapturedSource, execution: &TestExecution, request: &PlotPayloadRequest) -> PlotPayloadContext {
+    PlotPayloadContext {
+        x_format: request.x_format.clone(),
+        series_format: request.y_format.clone(),
+        run_started_at: execution.started_at.as_ref().map(ToString::to_string),
+        cycle_started_at: source.context.cycle.cycle.started_at.as_ref().map(ToString::to_string),
+    }
+}
+
+fn sort_field(request: &PlotPayloadRequest) -> FieldPath {
+    match request.x_key.as_deref() {
+        None | Some("timestamp") => FieldPath { fields: vec!["_storage".into(), "source_time".into()] },
+        Some(key) => statistics::field(key),
+    }
+}
 
 fn direct<'a>(
     request: &PlotPayloadRequest, contracts: &'a BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>,
@@ -144,35 +182,36 @@ fn direct<'a>(
 
 async fn optimized(
     read: super::ReadContext<'_, '_>, source: &CapturedSource, execution: &TestExecution, records: &[RecordEntry],
-    request: &PlotPayloadRequest, contract: &TelemetryContract, context: &PlotPayloadContext,
+    request: &PlotPayloadRequest, contract: &TelemetryContract, shared: &OnceCell<Vec<crate::telemetry::TelemetrySample>>,
 ) -> Result<PlotPayload> {
     let super::ReadContext { ctx, settings } = read;
     let at = &source.evidence_through;
     let scope = execution.test_execution_id.as_str();
-    let time_axis = request.x_key.as_deref().is_none_or(|key| key == "timestamp");
-    let x = if time_axis {
-        FieldPath { fields: vec!["_storage".into(), "source_time".into()] }
-    } else {
-        statistics::field(request.x_key.as_deref().unwrap())
-    };
-    let mut payload = crate::plot::build_plot_payload(&[], records, request.clone(), source.captured_at.as_str(), context);
+    let context = payload_context(source, execution, request);
+    let x = sort_field(request);
+    let mut payload = crate::plot::build_plot_payload(&[], records, request.clone(), source.captured_at.as_str(), &context);
     payload.series.clear();
     payload.summaries.clear();
     let mut summaries = Vec::new();
     let mut histograms = Vec::new();
-    for key in &request.y_keys {
-        let statistics = statistics::collect(read, at, scope, contract, key, x.clone()).await?;
+    let samples = shared
+        .get_or_try_init(|| {
+            let transforms =
+                vec![Transform::Sort(Sort { keys: vec![SortKey { field: x.clone(), descending: false, nulls_first: false }] })];
+            telemetry::read(ctx, settings, at, scope, contract, transforms)
+        })
+        .await?;
+    let statistics = statistics::collect(read, samples, contract, &request.y_keys, &x)?;
+    for (key, statistics) in request.y_keys.iter().zip(statistics) {
         // Missing Values Preserve Existing Gap Semantics Through The Raw Path.
         if statistics.count != statistics.rows && request.plot_type != Some(PlotType::Histogram) {
             let samples = telemetry::read(ctx, settings, at, scope, contract, vec![]).await?;
-            return Ok(full(&samples, records, request, source.captured_at.as_str(), context));
+            return Ok(full(&samples, records, request, source.captured_at.as_str(), &context));
         }
-        let transforms = vec![Transform::Sort(Sort { keys: vec![SortKey { field: x.clone(), descending: false, nulls_first: false }] })];
-        let samples = telemetry::read(ctx, settings, at, scope, contract, transforms).await?;
         let mut single = request.clone();
         single.y_keys = vec![key.clone()];
         single.max_points = Some(0);
-        let one = full(&samples, records, &single, source.captured_at.as_str(), context);
+        let one = full(samples, records, &single, source.captured_at.as_str(), &context);
         for mut series in one.series {
             series.raw_points = statistics.count;
             series.downsampled = series.points.len() < statistics.count;
@@ -182,7 +221,7 @@ async fn optimized(
             summaries.push(statistics.summary(key.clone()));
         }
         if request.plot_type == Some(PlotType::Histogram) {
-            histograms.push(statistics::histogram(read, at, scope, contract, key, request.histogram.bins, &statistics).await?);
+            histograms.push(statistics::histogram(read, samples, contract, key, request.histogram.bins, &statistics)?);
         }
     }
     let budget = std::mem::take(&mut payload.max_points);

@@ -78,19 +78,13 @@ pub struct FinishProvider {
     pub finished_at: Timestamp,
 }
 
-#[derive(Clone, Debug, Default)]
-pub(crate) struct ProviderFinishEffects {
-    pub telemetry: Vec<TelemetrySample>,
-    pub terminal_execution_ids: Vec<TestExecutionId>,
-}
-
 struct FinishPlan {
     evidence: Drafts,
     terminal: Drafts,
     cycle: Option<CycleView>,
     rejected_evidence: Vec<String>,
     health: Option<(HealthSeverity, String, Option<String>)>,
-    effects: ProviderFinishEffects,
+    telemetry: Vec<TelemetrySample>,
     prompts: Drafts,
     settled: SettledPrompts,
 }
@@ -141,7 +135,7 @@ impl FinishPlan {
             cycle: None,
             rejected_evidence: Vec::new(),
             health: None,
-            effects: ProviderFinishEffects::default(),
+            telemetry: Vec::new(),
             prompts: Drafts::new(state),
             settled: SettledPrompts::default(),
         }
@@ -153,7 +147,7 @@ impl FinishPlan {
         self.prompts.collect(out);
     }
 
-    fn apply(self, state: &mut RuntimeState, finish: &FinishProvider) -> ProviderFinishEffects {
+    fn apply(self, state: &mut RuntimeState, finish: &FinishProvider) {
         record_provider_plugin_errors(state, finish);
         self.evidence.apply(state);
         let scope = RecordScope::default().with_cycle(finish.test_cycle_id.clone());
@@ -224,18 +218,24 @@ impl FinishPlan {
         if let Some((severity, message, detail)) = self.health {
             state.record_health(scope, severity, message, detail, finish.finished_at.clone());
         }
-        self.effects
     }
 }
 
 /* === Public Functions === */
 
-pub(super) fn apply_finish_provider(state: &mut RuntimeState, finish: &FinishProvider) -> ProviderFinishEffects {
-    prepare_finish_provider(state, finish).apply(state, finish)
+pub(super) fn apply_finish_provider(state: &mut RuntimeState, finish: &FinishProvider) {
+    prepare_finish_provider(state, finish).apply(state, finish);
 }
 
-pub(crate) fn prepare_finish_effects(state: &RuntimeState, finish: &FinishProvider) -> ProviderFinishEffects {
-    prepare_finish_provider(state, finish).effects
+pub(crate) fn prepare_finish_telemetry(state: &RuntimeState, finish: &FinishProvider) -> Vec<TelemetrySample> {
+    let Ok(outcome) = &finish.outcome else {
+        return Vec::new();
+    };
+    let mut groups = outcome.executions.iter().flat_map(|execution| &execution.telemetry);
+    if !groups.any(|group| !group.samples.is_empty()) {
+        return Vec::new();
+    }
+    prepare_finish_provider(state, finish).telemetry
 }
 
 pub(super) fn summarize<'a>(executions: impl IntoIterator<Item = &'a TestExecution>) -> ResultSummary {
@@ -285,7 +285,6 @@ fn prepare_finish_provider(state: &RuntimeState, finish: &FinishProvider) -> Fin
         Ok(outcome) => prepare_provider_outcome(state, finish, outcome),
         Err(error) => prepare_provider_error(state, finish, error),
     };
-    plan.effects.terminal_execution_ids = provider_terminal_executions(plan.cycle.as_ref(), &finish.started_execution_ids);
     if state.run_requests.values().any(|request| request.summary.cycle_id == finish.test_cycle_id && !request.summary.phase.terminal()) {
         plan.terminal.retain(|record| record.scope.as_ref().is_some_and(|scope| scope.test_execution_id.is_some()));
     }
@@ -351,8 +350,7 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
             finish_execution(&mut execution, ExecutionStatus::Cancelled, ResultStatus::Cancelled, finish.finished_at.clone());
         }
         if let Some(projection) = projection
-            && let Err(error) =
-                append_provider_evidence(state, &execution, projection, finish, &mut plan.evidence, &mut plan.effects.telemetry)
+            && let Err(error) = append_provider_evidence(state, &execution, projection, finish, &mut plan.evidence, &mut plan.telemetry)
         {
             mark_evidence_failure(&mut execution, &error, &finish.finished_at);
             plan.rejected_evidence.push(error.message);
@@ -871,22 +869,6 @@ fn provider_failure_record(
     }
 
     record
-}
-
-fn provider_terminal_executions(cycle: Option<&CycleView>, started: &[TestExecutionId]) -> Vec<TestExecutionId> {
-    cycle.map_or_else(Vec::new, |cycle| {
-        started
-            .iter()
-            .filter_map(|id| {
-                cycle
-                    .test_executions
-                    .iter()
-                    .find(|execution| &execution.test_execution_id == id)
-                    .filter(|execution| !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running))
-                    .map(|execution| execution.test_execution_id.clone())
-            })
-            .collect()
-    })
 }
 
 fn finish_execution(execution: &mut TestExecution, status: ExecutionStatus, result: ResultStatus, at: Timestamp) {

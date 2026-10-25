@@ -66,6 +66,14 @@ const POOLED_MEMBERS: usize = 9;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn replay_diagnostics() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter("dokime_runtime::domains::execution::run=debug,dokime_runtime::execution::run=debug")
+        .with_ansi(false)
+        .try_init();
+}
+
 async fn smoke_runtime(root: &Path, behaviour: Behaviour, constrained: bool) -> (Runtime, RuntimeHandle, Arc<Behaviour>) {
     let smoke = Smoke::new(behaviour);
     let behaviour = smoke.behaviour();
@@ -73,6 +81,12 @@ async fn smoke_runtime(root: &Path, behaviour: Behaviour, constrained: bool) -> 
     if constrained {
         constrain_report_memory(&mut config);
     }
+    tracing::debug!(target: "dokime_runtime::domains::execution::run",
+        read_memory_bytes = config.storage.budget.read_memory_bytes.get(),
+        batch_rows = config.storage.response.batch_rows.get(),
+        batch_bytes = config.storage.response.batch_bytes.get(),
+        active_queries = config.storage.request.max_active_queries.get(),
+        "sampling fixture storage settings");
     let (runtime, handle) = started(config).await;
     (runtime, handle, behaviour)
 }
@@ -195,6 +209,7 @@ async fn paged_evidence_settles() {
 // one case far larger than the display budget seals its whole series up to the cap.
 #[tokio::test]
 async fn large_case_seals() {
+    replay_diagnostics();
     let root = tempdir().unwrap();
     let behaviour = Behaviour::new(LARGE_PULSE_ROWS, 0, false);
     let (mut runtime, handle, _) = smoke_runtime(root.path(), behaviour, false).await;
@@ -216,6 +231,7 @@ async fn large_case_seals() {
 // case whose other stream would overflow the report budget still seals both.
 #[tokio::test]
 async fn whole_capture_seals() {
+    replay_diagnostics();
     let root = tempdir().unwrap();
     let behaviour = Behaviour::new(LARGE_PULSE_ROWS, SPECTRUM_ROWS, false);
     let (mut runtime, handle, _) = smoke_runtime(root.path(), behaviour, false).await;

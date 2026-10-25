@@ -155,7 +155,7 @@ async fn idle_stop_leaves_sealing_to_next_start() {
     let plan = selection(PROTECTION_SUITE, &template.template_id, []);
     let cycle_id = create_cycle(&mut planning, &mut execution, plan, "native.charger.idle-stop", 1).await;
     run_cycle(&mut execution, &cycle_id).await;
-    on_change(&mut changes, async || {
+    on_change(&mut changes, "the idle-stop cycle to settle", async || {
         let cycle = execution.execution_get_cycle(contracts::execution::GetCycle { cycle_id: cycle_id.clone() }).await.unwrap();
         (cycle.running_count == 0 && cycle.queued_count == 0 && cycle.result.is_some()).then_some(())
     })

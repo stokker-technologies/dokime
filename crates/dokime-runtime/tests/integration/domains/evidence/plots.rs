@@ -262,14 +262,106 @@ async fn execution_plots_samples() {
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     register_plot_suite(&runtime).await;
+    let wide_keys = [
+        "elapsed_s",
+        "distance_m",
+        "position_x_m",
+        "position_y_m",
+        "speed_m_per_s",
+        "velocity_x_m_per_s",
+        "velocity_y_m_per_s",
+        "target_reacquire_time_s",
+        "connection_acquired_time_s",
+    ];
+    let mut contract = crate::service_support::contracts::tracking_contract();
+    contract.stream = Identifier::new("fixture.wide").unwrap();
+    let mut exact_contract = crate::service_support::contracts::fixture_telemetry_contract();
+    exact_contract.stream = Identifier::new("fixture.exact").unwrap();
+    for key in ["sample_index", "ordinal"] {
+        exact_contract.columns.push(
+            dokime_runtime::telemetry::TelemetryColumn::new(
+                Metadata::new(Identifier::new(key).unwrap(), key, None),
+                dokime_runtime::ValueType::Integer,
+                dokime_runtime::telemetry::TelemetryRole::Value,
+            )
+            .optional(),
+        );
+    }
+    let mut empty_contract = exact_contract.clone();
+    empty_contract.stream = Identifier::new("fixture.empty").unwrap();
+    let mut wide_suite = plot_query_suite();
+    wide_suite.metadata = Metadata::new(Identifier::new("wide.plot.suite").unwrap(), "Wide Plot Suite", None);
+    runtime
+        .set_suites(
+            "wide-plot",
+            dokime_runtime::definition::SuiteSet::new([TestSuiteDefinition {
+                suite_id: "wide.plot.suite".into(),
+                tags: Vec::new(),
+                workflow: None,
+                suite: wide_suite,
+                record_contracts: Vec::new(),
+                telemetry_contracts: vec![contract, exact_contract, empty_contract],
+            }]),
+        )
+        .await
+        .unwrap();
     let mut suite = fixture_suite(&["passed"]);
     let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Plot Settings");
     let mut section = dokime_runtime::document::DocumentSection::new("Settings");
     let mut plot = dokime_runtime::document::Plot::time_series("Captured Plot");
     plot.id("captured.plot");
     plot.stream = Some("host.wifi.channel_occupancy".into());
-    plot.y = vec!["network_count".into()];
+    plot.y = vec!["network_count".into(), "wifi_channel".into()];
     section.plot(plot);
+    let mut wide = dokime_runtime::document::Plot::time_series("Wide Plot");
+    wide.id("wide.plot");
+    wide.stream = Some("fixture.wide".into());
+    wide.y = wide_keys.iter().map(|key| (*key).into()).collect();
+    section.plot(wide);
+    let mut sparse = dokime_runtime::document::Plot::xy_scatter("Sparse Plot");
+    sparse.id("sparse.plot");
+    sparse.stream = Some("fixture.wide".into());
+    sparse.x = Some("elapsed_s".into());
+    sparse.y = vec!["connection_loss_distance_m".into()];
+    section.plot(sparse);
+    for (id, field, label) in [("distance.plot", "distance_m", "distance.selected"), ("position.plot", "position_x_m", "position.selected")]
+    {
+        let mut projection = dokime_runtime::document::Plot::xy_scatter(id);
+        projection.id(id);
+        projection.stream = Some("fixture.wide".into());
+        projection.x = Some("elapsed_s".into());
+        projection.y(dokime_runtime::expressions::telemetry("fixture.wide", field).label(label));
+        section.plot(projection);
+    }
+    let mut histogram = dokime_runtime::document::Plot::histogram("Histogram");
+    histogram.id("histogram.plot");
+    histogram.stream = Some("fixture.wide".into());
+    histogram.x = Some("distance_m".into());
+    histogram.histogram.bins = 2;
+    section.plot(histogram);
+    let mut exact = dokime_runtime::document::Plot::time_series("Exact Integers");
+    exact.id("exact.plot");
+    exact.stream = Some("fixture.exact".into());
+    exact.y = vec!["sample_index".into()];
+    section.plot(exact);
+    let mut missing_x = dokime_runtime::document::Plot::xy_scatter("Independent Window");
+    missing_x.id("missing-x.plot");
+    missing_x.stream = Some("fixture.exact".into());
+    missing_x.x = Some("ordinal".into());
+    missing_x.y = vec!["sample_index".into()];
+    section.plot(missing_x);
+    for (id, stream, field) in [
+        ("fractional.plot", "fixture.wide", "connection_acquired_distance_m"),
+        ("constant.plot", "fixture.exact", "ordinal"),
+        ("empty.plot", "fixture.empty", "value"),
+    ] {
+        let mut plot = dokime_runtime::document::Plot::histogram(id);
+        plot.id(id);
+        plot.stream = Some(stream.into());
+        plot.x = Some(field.into());
+        plot.histogram.bins = 2;
+        section.plot(plot);
+    }
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
@@ -303,13 +395,175 @@ async fn execution_plots_samples() {
         assert_eq!(receipt.dropped, 0);
     }
 
+    let mut wide_batch = samples("tracking", 3, Some(execution.clone()));
+    wide_batch.stream = Identifier::new("fixture.wide").unwrap();
+    for (row, sample) in wide_batch.samples.iter_mut().enumerate() {
+        for (index, key) in wide_keys.iter().enumerate() {
+            sample.values.insert((*key).into(), Value::Number((index * 10 + row) as f64));
+        }
+        sample.values.insert("elapsed_s".into(), Value::Number([2.0, 0.0, 1.0][row]));
+        sample.values.insert("connection_acquired_distance_m".into(), Value::Number([0.1, 0.2, 0.3][row]));
+        if row != 1 {
+            sample.values.insert("connection_loss_distance_m".into(), Value::Number(100.0 + row as f64));
+        }
+        *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
+        sample.stream = wide_batch.stream.clone();
+    }
+    let receipt = runtime.publish_telemetry_batch(wide_batch).await.unwrap();
+    assert_eq!(receipt.accepted, 3);
+    assert_eq!(receipt.dropped, 0);
+    let mut exact_batch = samples("host.wifi.channel_occupancy", 2, Some(execution.clone()));
+    exact_batch.stream = Identifier::new("fixture.exact").unwrap();
+    for (index, sample) in exact_batch.samples.iter_mut().enumerate() {
+        sample.stream = Identifier::new("fixture.telemetry").unwrap();
+        sample.values.clear();
+        sample.values.insert("timestamp".into(), Value::from(sample.timestamp.clone()));
+        sample.values.insert("value".into(), Value::Number(index as f64));
+        sample.values.insert("sample_index".into(), Value::Integer(9_007_199_254_740_993 + index as i64));
+        if index == 1 {
+            sample.values.insert("ordinal".into(), Value::Unsigned(7));
+        }
+        *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
+        sample.stream = exact_batch.stream.clone();
+    }
+    let receipt = runtime.publish_telemetry_batch(exact_batch).await.unwrap();
+    assert_eq!(receipt.accepted, 2);
+    assert_eq!(receipt.dropped, 0);
     let envelopes =
         runtime.query_plot_payloads(vec![wifi_request(Some(execution), Some(100), None)], RuntimePlotQueryMode::Snapshot).await.unwrap();
 
     assert_eq!(envelopes[0].payload.series[0].raw_points, 2);
     assert_eq!(envelopes[0].payload.series[0].points.len(), 2);
+    runtime.storage().flush().await.unwrap();
+    let opened = runtime.open_execution_report(&execution_id).await.unwrap();
+    let report = crate::service_support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+    let current = &report["case_runs"][0]["plots"]["captured.plot"];
+    let series = current["series"].as_array().unwrap();
+    assert_eq!(series.len(), 2);
+    for (series, key, values) in [(&series[0], "network_count", [0.0, 1.0]), (&series[1], "wifi_channel", [6.0, 6.0])] {
+        assert_eq!(series["key"], key);
+        assert_eq!(series["raw_points"], 2);
+        let points = series["points"].as_array().unwrap();
+        assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).collect::<Vec<_>>(), values);
+    }
+    assert_eq!(current["summaries"][0]["count"], 2);
+    assert_eq!(current["summaries"][0]["mean"], 0.5);
+    assert_eq!(current["summaries"][1]["count"], 2);
+    assert_eq!(current["summaries"][1]["mean"], 6.0);
+    let plots = &report["case_runs"][0]["plots"];
+    let wide = &plots["wide.plot"];
+    assert_eq!(wide["series"].as_array().unwrap().len(), wide_keys.len());
+    for (index, key) in wide_keys.iter().enumerate() {
+        let series = &wide["series"][index];
+        assert_eq!(series["key"], *key);
+        assert_eq!(series["raw_points"], 3);
+        let expected = if index == 0 { [2.0, 0.0, 1.0] } else { [(index * 10) as f64, (index * 10 + 1) as f64, (index * 10 + 2) as f64] };
+        let points = series["points"].as_array().unwrap();
+        assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).collect::<Vec<_>>(), expected);
+        let summary = &wide["summaries"][index];
+        assert_eq!(summary["series_id"], *key);
+        assert_eq!(summary["count"], 3);
+        let base = (index * 10) as f64;
+        for (name, expected) in [
+            ("min", base),
+            ("max", base + 2.0),
+            ("mean", base + 1.0),
+            ("median", base + 1.0),
+            ("std", (2.0_f64 / 3.0).sqrt()),
+            ("rms", ((base.powi(2) + (base + 1.0).powi(2) + (base + 2.0).powi(2)) / 3.0).sqrt()),
+        ] {
+            let actual = summary[name].as_f64().unwrap();
+            assert!((actual - expected).abs() < 1e-9, "{key} {name}: {actual} != {expected}");
+        }
+        assert_eq!(summary["window"], serde_json::json!({"from": 1_767_225_600.0, "to": 1_767_225_602.0}));
+    }
+    let sparse = plots["sparse.plot"]["series"][0]["points"].as_array().unwrap();
+    assert_eq!(sparse.len(), 3);
+    for (x, y) in [(0.0, None), (1.0, Some(102.0)), (2.0, Some(100.0))] {
+        let point = sparse.iter().find(|point| point["x"].as_f64() == Some(x)).unwrap();
+        assert_eq!(point["y"].as_f64(), y);
+    }
+    let definitions = report["case_runs"][0]["documents"]["default"]["definition"]["cards"].as_array().unwrap();
+    for (id, field, label, expected) in [
+        ("distance.plot", "distance_m", "distance.selected", [11.0, 12.0, 10.0]),
+        ("position.plot", "position_x_m", "position.selected", [21.0, 22.0, 20.0]),
+    ] {
+        let series = plots[id]["series"].as_array().unwrap();
+        assert_eq!(series.len(), 1);
+        assert_eq!(series[0]["key"], field);
+        assert_eq!(series[0]["label"], field);
+        assert_eq!(series[0]["raw_points"], 3);
+        let points = series[0]["points"].as_array().unwrap();
+        assert_eq!(points.iter().map(|point| point["x"].as_f64().unwrap()).collect::<Vec<_>>(), [0.0, 1.0, 2.0]);
+        assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).collect::<Vec<_>>(), expected);
+        let definition = definitions.iter().find(|card| card["data"]["plot"]["metadata"]["identifier"] == id).unwrap();
+        let expression = &definition["data"]["plot"]["y_expressions"][0];
+        assert_eq!(expression["label"], label);
+        assert_eq!(expression["source"]["field"], field);
+    }
+    let histogram = &plots["histogram.plot"]["analysis"]["series"][0];
+    assert_eq!(histogram["count"], 3);
+    assert_eq!(histogram["statistics"]["mean"], 11.0);
+    let bins = histogram["bins"].as_array().unwrap();
+    assert_eq!(
+        bins.iter()
+            .map(|bin| (bin["lower"].as_f64().unwrap(), bin["upper"].as_f64().unwrap(), bin["count"].as_u64().unwrap()))
+            .collect::<Vec<_>>(),
+        [(10.0, 11.0, 1), (11.0, 12.0, 2)]
+    );
+    let exact = &plots["exact.plot"]["summaries"][0];
+    assert_eq!(exact["count"], 2);
+    // Rounding Each Input First Would Yield 9_007_199_254_740_992 Instead.
+    assert_eq!(exact["mean"], 9_007_199_254_740_994.0);
+    assert_eq!(exact["median"], 9_007_199_254_740_994.0);
+    let missing_x = &plots["missing-x.plot"];
+    let points = missing_x["series"][0]["points"].as_array().unwrap();
+    assert_eq!(points.len(), 2);
+    assert_eq!(points.iter().find(|point| point["x"].is_null()).unwrap()["y"], 9_007_199_254_740_992.0);
+    assert_eq!(points.iter().find(|point| point["x"] == 7.0).unwrap()["y"], 9_007_199_254_740_994.0);
+    assert_eq!(missing_x["summaries"][0]["count"], 2);
+    assert_eq!(missing_x["summaries"][0]["window"], serde_json::json!({"from": 7.0, "to": 7.0}));
+    for (id, expected) in [
+        ("fractional.plot", vec![(0.1, 0.2, 1), (0.2, 0.3, 2)]),
+        ("constant.plot", vec![(7.0, 8.0, 1), (8.0, 9.0, 0)]),
+        ("empty.plot", vec![(0.0, 1.0, 0), (1.0, 2.0, 0)]),
+    ] {
+        let histogram = &plots[id]["analysis"]["series"][0];
+        assert_eq!(
+            histogram["bins"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|bin| (bin["lower"].as_f64().unwrap(), bin["upper"].as_f64().unwrap(), bin["count"].as_u64().unwrap()))
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
     executor.release();
     wait_for_cycle_outcome(&runtime, &cycle, ResultStatus::Passed).await;
+    let sealed = runtime.open_execution_report(&execution_id).await.unwrap();
+    assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
+    let saved = crate::service_support::reports::parse(std::str::from_utf8(&sealed.html).unwrap());
+    let final_plot = &saved["case_runs"][0]["plots"]["captured.plot"];
+    assert_eq!(final_plot["series"], current["series"]);
+    assert_eq!(final_plot["summaries"], current["summaries"]);
+    for key in [
+        "wide.plot",
+        "sparse.plot",
+        "distance.plot",
+        "position.plot",
+        "histogram.plot",
+        "exact.plot",
+        "missing-x.plot",
+        "fractional.plot",
+        "constant.plot",
+        "empty.plot",
+    ] {
+        let final_plot = &saved["case_runs"][0]["plots"][key];
+        assert_eq!(final_plot["series"], plots[key]["series"]);
+        assert_eq!(final_plot["summaries"], plots[key]["summaries"]);
+        assert_eq!(final_plot["analysis"], plots[key]["analysis"]);
+    }
     let error =
         runtime.update_plot_settings(&cycle, &execution_id, &document_id, &plot_id, Some(50), DownsampleTechnique::Auto).await.unwrap_err();
     assert_eq!(error.code(), Some("document_closed"));

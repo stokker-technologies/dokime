@@ -6,7 +6,7 @@
 #
 # ***
 
-# === Package ===
+# === Package === #
 
 [package]
 name = "dokime-client"
@@ -17,23 +17,25 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
-# === Package Targets ===
+# === Package Targets === #
 
-# === Features ===
+# === Features === #
 
-# === Dependencies ===
+# === Dependencies === #
 
 [dependencies]
 # Local
 dokime-domain = { version = "0.1.0", path = "../dokime-domain" }
 
 # Git
-harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true }
 
+# Logging
+
 # Utilities
+harmos = { workspace = true, features = ["grpc"] }
 keyring = { workspace = true }
 sha2 = { workspace = true }
 zeroize = { workspace = true }
@@ -42,6 +44,14 @@ zeroize = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
 
 # Async
 futures-util = { workspace = true }
@@ -54,31 +64,62 @@ rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
 url = { workspace = true }
 
+# Storage
 
-# === Build Dependencies ===
+# UI
 
+# Testing
 
-# === Dev Dependencies ===
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
 
 [dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
 # Filesystem
 tempfile = { workspace = true }
 
-# === Target Dependencies ===
+# Parsing
 
-# === Test Targets ===
+# Concurrency
 
-# === Bench Targets ===
+# Async
 
-# === Example Targets ===
+# Networking
 
+# Storage
 
-# === Workspace Lints ===
+# UI
 
-# === Lints ===
+# Testing
 
-# === Profiles ===
+# === Target Dependencies === #
 
-# === Patches ===
+# === Test Targets === #
 
-# === Other ===
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

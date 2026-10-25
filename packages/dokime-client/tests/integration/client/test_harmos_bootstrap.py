@@ -42,6 +42,7 @@ REVISION = "1" * 40
 def processes(monkeypatch: pytest.MonkeyPatch):
     calls = []
     source = ["local-source"]
+    version = ["0.1.0"]
     for name in ("CI", "GITHUB_ACTIONS", "DOKIME_CI_ROLE", "GITHUB_PATH"):
         monkeypatch.delenv(name, raising=False)
 
@@ -54,7 +55,7 @@ def processes(monkeypatch: pytest.MonkeyPatch):
         if len(command) == 2 and command[1] == "--version":
             executable = Path(command[0])
             assert executable.read_bytes() == b"offline tool"
-            return "cargo-harmos 0.1.0"
+            return f"cargo harmos {version[0]}"
         return refuse(command)
 
     def install(command):
@@ -67,7 +68,33 @@ def processes(monkeypatch: pytest.MonkeyPatch):
         binary.parent.mkdir()
         binary.write_bytes(b"offline tool")
 
-    monkeypatch.setattr(bootstrap.subprocess, "run", refuse)
+    def release(command, **kwargs):
+        assert command[:2] == ["mise", "install-into"]
+        assert command[2].startswith("github:stokker-technologies/harmos[asset_pattern=cargo-harmos-")
+        assert kwargs["cwd"] == Path(command[3]).parent
+        assert "MISE_ENABLE_TOOLS" not in kwargs["env"]
+        calls.append(command)
+        version[0] = command[2].rsplit("@", 1)[1]
+        staged = Path(command[3])
+        binary = staged / "bin" / ("cargo-harmos.exe" if os.name == "nt" else "cargo-harmos")
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b"offline tool")
+
+    def retrieve(url, path):
+        assert url.endswith("/SHA256SUMS")
+        selected = url.rsplit("/", 2)[1].removeprefix("v")
+        digest = hashlib.sha256(b"offline tool").hexdigest()
+        Path(path).write_text(
+            "".join(
+                f"{digest}  cargo-harmos-{selected}-{target}\n" for target in ("x86_64-pc-windows-msvc.exe", "x86_64-unknown-linux-gnu")
+            )
+        )
+
+    def run(command, **kwargs):
+        return release(command, **kwargs) if command[:2] == ["mise", "install-into"] else refuse(command, **kwargs)
+
+    monkeypatch.setattr(bootstrap.urllib.request, "urlretrieve", retrieve)
+    monkeypatch.setattr(bootstrap.subprocess, "run", run)
     monkeypatch.setattr(bootstrap.subprocess, "Popen", refuse)
     monkeypatch.setattr(bootstrap.subprocess, "check_output", output)
     monkeypatch.setattr(bootstrap, "_run", install)
@@ -152,11 +179,15 @@ def test_prepared_artifact(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proc
     github_path = tmp_path / "github-path"
     monkeypatch.setenv("GITHUB_PATH", str(github_path))
     assert bootstrap.prepare_harmos(tmp_path, allow_install=True) == binary
-    assert calls[-1][6:10] == ["--registry", "crates-io", "--version", "=0.1.0"]
+    assert calls[-1][:2] == ["mise", "install-into"]
+    assert calls[-1][2].endswith("]@0.1.0")
     receipt = binary.parent.parent / "receipt.json"
     value = json.loads(receipt.read_text())
     assert value["identity"]["registry"] == "crates-io"
     assert value["identity"]["version"] == "0.1.0"
+    assert "rustc" not in value["identity"] and "profile" not in value["identity"]
+    assert value["published_sha256"] == value["sha256"]
+    assert value["version"] == "cargo harmos 0.1.0"
     assert value["sha256"] == hashlib.sha256(binary.read_bytes()).hexdigest()
     assert github_path.read_text().splitlines() == [str(binary.parent)]
     assert bootstrap.prepare_harmos(tmp_path, allow_install=False) == binary
@@ -170,7 +201,7 @@ def test_prepared_artifact(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proc
     receipt.write_text(json.dumps(value))
     with pytest.raises(ValueError, match="consumers never rebuild"):
         bootstrap.prepare_harmos(tmp_path, allow_install=False)
-    value["identity"]["profile"] = "dev"
+    del value["identity"]["profile"]
     receipt.write_text(json.dumps(value))
 
     _manifest(tmp_path, '"=0.1.1"')
@@ -179,8 +210,42 @@ def test_prepared_artifact(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proc
         bootstrap.prepare_harmos(tmp_path, allow_install=False)
     assert len(calls) == 2
     assert bootstrap.prepare_harmos(tmp_path, allow_install=True) == binary
-    assert calls[-1][6:10] == ["--registry", "crates-io", "--version", "=0.1.1"]
+    assert calls[-1][:2] == ["mise", "install-into"]
+    assert calls[-1][2].endswith("]@0.1.1")
     assert len(calls) == 3
+
+
+@pytest.mark.parametrize("fault", ["checksum", "version", "manifest", "duplicate"])
+def test_release_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str, processes) -> None:
+    _manifest(tmp_path, '"=0.1.0"')
+    _lock(tmp_path)
+    retrieve = bootstrap.urllib.request.urlretrieve
+    output = bootstrap.subprocess.check_output
+
+    def checksums(url, path):
+        retrieve(url, path)
+        manifest = Path(path)
+        text = manifest.read_text()
+        if fault == "checksum":
+            text = text.replace(hashlib.sha256(b"offline tool").hexdigest(), "0" * 64)
+        elif fault == "manifest":
+            text = "not a checksum manifest"
+        elif fault == "duplicate":
+            text += text
+        manifest.write_text(text)
+
+    def version(command, **kwargs):
+        if len(command) == 2 and command[1] == "--version" and fault == "version":
+            return "cargo harmos 0.0.0"
+        if command == ["mise", "exec", "--", "rustc", "-vV"]:
+            pytest.fail("published executables must not depend on a compiler identity")
+        return output(command, **kwargs)
+
+    monkeypatch.setattr(bootstrap.urllib.request, "urlretrieve", checksums)
+    monkeypatch.setattr(bootstrap.subprocess, "check_output", version)
+    with pytest.raises(ValueError, match="published Harmos"):
+        bootstrap.prepare_harmos(tmp_path, allow_install=True)
+    assert not (tmp_path / ".cache/harmos-tool/receipt.json").exists()
 
 
 def test_branch_artifact(tmp_path: Path, processes) -> None:
@@ -219,10 +284,10 @@ def test_artifact_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, proce
         bootstrap.prepare_harmos(tmp_path, allow_install=False)
     assert len(calls) == 1
 
-    def omit(command):
-        assert command[-1] == "cargo-harmos"
+    def omit(command, **_kwargs):
+        assert command[:2] == ["mise", "install-into"]
 
-    monkeypatch.setattr(bootstrap, "_run", omit)
+    monkeypatch.setattr(bootstrap.subprocess, "run", omit)
     with pytest.raises(ValueError, match="omitted its required CLI"):
         bootstrap.prepare_harmos(tmp_path, allow_install=True)
     assert binary.is_symlink()

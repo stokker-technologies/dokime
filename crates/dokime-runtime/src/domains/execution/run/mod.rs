@@ -1280,6 +1280,7 @@ async fn replay_stream(
         harmos::Identifier::new(execution.test_execution_id.as_str()).map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let scope_json = serde_json::to_string(&execution.scope).map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let codec = crate::storage::telemetry::codec(contract).map_err(|error| samples_failure(replay_codec_error(error)))?;
+    let query_started = std::time::Instant::now();
     tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, after = *replayed, "sample replay opening query");
     let mut reader = context
         .runtime
@@ -1300,9 +1301,16 @@ async fn replay_stream(
         })
         .await
         .map_err(samples_failure)?;
-    tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, "sample replay query opened");
+    tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, elapsed_ms = query_started.elapsed().as_millis(), "sample replay query opened");
     let owner = &execution.scope;
-    while let Some(output) = reader.next().await.map_err(samples_failure)? {
+    loop {
+        let read_started = std::time::Instant::now();
+        tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, after = *replayed, "sample replay reading page");
+        let output = reader.next().await.map_err(samples_failure)?;
+        tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, after = *replayed, elapsed_ms = read_started.elapsed().as_millis(), "sample replay reader returned");
+        let Some(output) = output else {
+            break;
+        };
         let QueryArrow::Batch(batch) = output else {
             continue;
         };
@@ -1314,8 +1322,10 @@ async fn replay_stream(
             .and_then(|metadata| metadata.column_by_name("position"))
             .and_then(|column| column.as_any().downcast_ref::<arrow_array::UInt64Array>())
             .ok_or_else(|| failure("sidecar_samples", "storage positions are missing"))?;
+        let decode_started = std::time::Instant::now();
         let entries =
             crate::storage::telemetry::decode_batch(&codec, &batch).map_err(|error| samples_failure(replay_codec_error(error)))?;
+        tracing::debug!(execution_id = %execution.test_execution_id, stream = %contract.stream, elapsed_ms = decode_started.elapsed().as_millis(), "sample replay decoded");
         // Deliver Each Source Page Before Reading The Next One. The child
         // observes actual input progress even when the byte ceiling would
         // otherwise retain several pages in the host's buffer.
@@ -1366,6 +1376,9 @@ async fn deliver_replayed(
     if samples.is_empty() {
         return Ok(());
     }
+    let signal_started = std::time::Instant::now();
+    let rows = samples.len();
+    tracing::debug!(execution_id = %execution.test_execution_id, rows, "sample replay delivering signal");
     target
         .signal(ExecutionSignal {
             execution_token: execution.test_execution_id.to_string(),
@@ -1373,6 +1386,7 @@ async fn deliver_replayed(
             ..ExecutionSignal::default()
         })
         .await?;
+    tracing::debug!(execution_id = %execution.test_execution_id, rows, elapsed_ms = signal_started.elapsed().as_millis(), "sample replay signal returned");
     Ok(())
 }
 
