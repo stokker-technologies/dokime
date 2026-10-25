@@ -14,7 +14,7 @@ Dokime SHALL resolve bundled organization defaults with optional folder override
 - **THEN** activation reports the error and retains the last valid pack without resetting user data or historical reports.
 
 ### Requirement: Native Installer Assembly And Inspection
-The authoring tool SHALL expose installer package and inspect commands that use an installer manifest, unchanged local or pinned verified release artifacts, and organization assets. Packaging SHALL not compile application source.
+The authoring tool SHALL expose installer package and inspect commands that use an installer manifest, local or pinned verified release artifacts, and organization assets. Packaging SHALL preserve its input artifacts and SHALL not compile application source. Windows packaging SHALL customize icon resources on a staged GUI executable before signing and integrity recording.
 
 #### Scenario: Product Or Company Assembly
 - **WHEN** native packaging receives valid local artifacts or a verified exact release payload
@@ -23,6 +23,18 @@ The authoring tool SHALL expose installer package and inspect commands that use 
 #### Scenario: Requested Signing Fails
 - **WHEN** explicit signing lacks its external credentials or the signing backend fails
 - **THEN** packaging fails without claiming unsigned output is signed or exposing secret material.
+
+#### Scenario: Windows Application Icon
+- **WHEN** Windows packaging resolves organization application artwork
+- **THEN** the staged GUI executable and installed shortcuts use that artwork, requested signing occurs after resource modification, and inspection verifies the final packaged bytes while the source payload remains unchanged.
+
+#### Scenario: Solid Installer Sidebar
+- **WHEN** Windows packaging resolves a valid installer.sidebar_color from the organization pack
+- **THEN** generated install and uninstall sidebar bitmaps contain only that solid opaque color, with no authored image required; invalid colors fail validation and omitted override values inherit the bundled default.
+
+#### Scenario: Custom Installer Sidebar Image
+- **WHEN** the resolved organization pack supplies installer.sidebar_image
+- **THEN** packaging uses that pack-relative image instead of sidebar_color for install and uninstall sidebars, validates its reference and content, and fails on invalid input instead of silently using the color.
 
 ### Requirement: Harmonized Authoring And Validation
 The authoring tool SHALL group new, build, package, dev and inspect under sidecar. Build SHALL produce a .dokime bundle; package SHALL only assemble existing outputs. Product CI SHALL use the candidate installer command and inspect the produced packages, including in nightly CI.

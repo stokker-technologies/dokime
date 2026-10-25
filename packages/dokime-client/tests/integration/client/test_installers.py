@@ -24,6 +24,7 @@ import pytest
 # Local Imports
 from dokime_tools.build import organization
 from dokime_tools.package import installer, payload
+from dokime_tools.prepare import resources
 
 # Type Checking Imports
 
@@ -83,6 +84,23 @@ def test_organization_generation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert "data:font/woff2;base64," in stylesheet
     assert 'url("fonts/' not in stylesheet
     assert "--brand-radius-sm: 0.0625rem" in stylesheet
+
+
+def test_organization_resources_include_sidebar_image(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    assets = tmp_path / "organization"
+    shutil.copytree(organization.BRAND, assets)
+    sidebar = assets / "installer/sidebar.png"
+    sidebar.parent.mkdir()
+    sidebar.write_bytes((assets / "icons/icon.png").read_bytes())
+    distribution = tmp_path / "dist-brand"
+    monkeypatch.setattr(resources, "BRAND", assets)
+    monkeypatch.setattr(resources, "DISTRIBUTION", distribution)
+    monkeypatch.setattr(resources, "ensure_report", lambda: None)
+
+    resources.refresh()
+
+    assert (distribution / "installer/sidebar.png").read_bytes() == sidebar.read_bytes()
+    assert (distribution / "organization.toml").read_bytes() == (assets / "organization.toml").read_bytes()
 
 
 @pytest.mark.parametrize("provider", ["github", "gitlab"])

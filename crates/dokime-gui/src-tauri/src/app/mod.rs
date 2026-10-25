@@ -21,6 +21,9 @@ pub(crate) mod recording;
 pub(crate) mod settings;
 pub(crate) mod updates;
 
+#[cfg(windows)]
+mod window_icon;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -220,6 +223,13 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         } else {
             builder
         };
+        #[cfg(windows)]
+        {
+            let window = builder.build()?;
+            let hwnd = window.hwnd()?;
+            window_icon::taskbar(hwnd)?;
+        }
+        #[cfg(not(windows))]
         builder.build()?;
     }
     Ok(())

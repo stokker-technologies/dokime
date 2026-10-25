@@ -28,7 +28,6 @@ from dokime_tools.package.staging import stage_file, sync_output
 
 BRAND = ROOT / "organization"
 DISTRIBUTION = ROOT / "crates/dokime-runtime/dist-brand"
-BRAND_FOLDERS = ("theme", "fonts", "logos", "icons")
 
 # === Types === #
 
@@ -70,10 +69,17 @@ def main() -> None:
 
 
 def _brand_files() -> list[Path]:
-    return [
-        BRAND / "organization.toml",
-        *(file for folder in BRAND_FOLDERS for file in sorted((BRAND / folder).rglob("*")) if file.is_file()),
-    ]
+    if not (BRAND / "organization.toml").is_file():
+        raise ValueError("organization pack has no manifest")
+
+    files = []
+    for path in sorted(BRAND.rglob("*")):
+        if path.is_symlink():
+            raise ValueError("organization packs may not contain links")
+        if not path.is_file():
+            continue
+        files.append(path)
+    return files
 
 
 def _compare(source: Path, destination: Path) -> None:

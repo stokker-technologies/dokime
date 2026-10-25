@@ -137,6 +137,18 @@ pub fn inspect_tree(package: &Path, root: &Path) -> Result<Inspection, Error> {
             return Err(Error::Invalid(format!("finished installer content mismatch: {name}")));
         }
     }
+    #[cfg(windows)]
+    if windows {
+        let (_, expected_icon) =
+            pack.asset("application").ok_or_else(|| Error::Invalid("organization application artwork is missing".into()))?;
+        let image = image::load_from_memory(expected_icon).map_err(|error| Error::Invalid(error.to_string()))?;
+        let icon = super::artwork::icon(&image)?;
+        let executable = root.join("dokime-gui.exe");
+        super::windows::verify(&executable, &icon)?;
+        if metadata.installer_signed {
+            run(Command::new("signtool").args(["verify", "/pa"]).arg(&executable), "GUI executable Authenticode verification failed")?;
+        }
+    }
     if !windows {
         let launcher = root.join("usr/share/applications").join(format!("{}.desktop", metadata.label));
         let contents = std::fs::read_to_string(launcher)?;

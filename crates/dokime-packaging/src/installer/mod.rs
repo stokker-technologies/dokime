@@ -9,11 +9,15 @@
 
 /* === Modules === */
 
+mod artwork;
 mod inspect;
 mod manifest;
 mod native;
 mod payload;
 mod signing;
+
+#[cfg(windows)]
+mod windows;
 
 /* === Re-Exports === */
 

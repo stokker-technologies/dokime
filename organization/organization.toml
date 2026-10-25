@@ -15,8 +15,12 @@
 #
 # Run `mise run prepare:organization` and rebuild after editing compiled assets.
 #
-# Typography and palette values live in theme/. This TOML intentionally has no
-# font or color values.
+# Typography and application palette values live in theme/. Native installer
+# sidebar appearance is configured here without evaluating CSS.
+
+[installer]
+sidebar_color = "#1B1915"
+# sidebar_image = "installer/sidebar.png" # Optional PNG; takes precedence over color.
 
 [updates]
 mode = "manual"

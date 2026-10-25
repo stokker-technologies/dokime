@@ -205,6 +205,70 @@ fn organization_validation() {
 }
 
 #[test]
+fn installer_sidebar_overlay() {
+    use dokime_runtime::config::organization::resolve_with_base;
+
+    let baseline = resolve_with_base(None, None).unwrap();
+    assert_eq!(baseline.installer_sidebar_color().unwrap(), [0x1b, 0x19, 0x15]);
+    assert!(baseline.installer_sidebar_image().is_none());
+    let root = tempdir().unwrap();
+    let installed = root.path().join("installed");
+    let overrides = root.path().join("overrides");
+    baseline.write_to(&installed).unwrap();
+    fs::create_dir_all(overrides.join("installer")).unwrap();
+    let image = baseline.files["icons/icon.png"].clone();
+    fs::write(overrides.join("installer/sidebar.png"), &image).unwrap();
+    let manifest = overrides.join("organization.toml");
+    fs::write(&manifest, "[installer]\nsidebar_image = 'installer/sidebar.png'").unwrap();
+
+    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
+    assert_eq!(pack.installer_sidebar_color().unwrap(), baseline.installer_sidebar_color().unwrap());
+    assert_eq!(pack.installer_sidebar_image(), Some(("installer/sidebar.png", image.as_slice())));
+    pack.write_to(&installed).unwrap();
+    fs::write(&manifest, "[installer]\nsidebar_color = '#aB01fF'").unwrap();
+
+    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
+    assert_eq!(pack.installer_sidebar_color().unwrap(), [0xab, 0x01, 0xff]);
+    assert_eq!(pack.installer_sidebar_image(), Some(("installer/sidebar.png", image.as_slice())));
+    let mut old_manifest = baseline.manifest.clone();
+    old_manifest.as_table_mut().unwrap().remove("installer");
+    fs::write(installed.join("organization.toml"), toml::to_string(&old_manifest).unwrap()).unwrap();
+    let old_pack = resolve_with_base(Some(&installed), None).unwrap();
+    assert_eq!(old_pack.installer_sidebar_color().unwrap(), [0x1b, 0x19, 0x15]);
+}
+
+#[test]
+fn installer_sidebar_validation() {
+    use dokime_runtime::config::organization::resolve_with_base;
+
+    let overrides = tempdir().unwrap();
+    let manifest = overrides.path().join("organization.toml");
+    let invalid = [
+        "installer = 'invalid'",
+        "[installer]\nsidebar_color = 123456",
+        "[installer]\nsidebar_color = '#123'",
+        "[installer]\nsidebar_color = '#12345678'",
+        "[installer]\nsidebar_color = '123456'",
+        "[installer]\nsidebar_color = '#gg0000'",
+        "[installer]\nsidebar_image = 1",
+        "[installer]\nsidebar_image = ''",
+        "[installer]\nsidebar_image = '../outside.png'",
+        "[installer]\nsidebar_image = '/outside.png'",
+        "[installer]\nsidebar_image = 'icons/../icon.png'",
+        "[installer]\nsidebar_image = 'C:/outside.png'",
+        "[installer]\nsidebar_image = 'missing.png'",
+        "[installer]\nsidebar_image = 'logos/transparent-on-light.svg'",
+        "[installer]\nsidebar_image = 'broken.png'",
+        "[installer]\nsidebar_color = 'invalid'\nsidebar_image = 'icons/icon.png'",
+    ];
+    fs::write(overrides.path().join("broken.png"), b"\x89PNG\r\n\x1a\ntruncated").unwrap();
+    for value in invalid {
+        fs::write(&manifest, value).unwrap();
+        assert!(resolve_with_base(None, Some(overrides.path())).is_err(), "accepted invalid settings: {value}");
+    }
+}
+
+#[test]
 fn generated_organization_stylesheet_matches_runtime_resolution() {
     let directory = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory"))
         .join("../../organization");

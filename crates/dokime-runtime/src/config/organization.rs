@@ -30,6 +30,8 @@ use crate::domains::installed_plugins::brand::theme::{Bundled, Source};
 
 /* === Constants === */
 
+const DEFAULT_INSTALLER_SIDEBAR_COLOR: [u8; 3] = [0x1b, 0x19, 0x15];
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -57,6 +59,35 @@ impl ResolvedPack {
     pub fn asset(&self, role: &str) -> Option<(&str, &[u8])> {
         let path = self.manifest.get("app")?.get("artwork")?.get(role)?.as_str()?;
         Some((path, self.files.get(path)?.as_slice()))
+    }
+
+    pub fn installer_sidebar_color(&self) -> Result<[u8; 3], String> {
+        let Some(installer) = self.manifest.get("installer") else {
+            return Ok(DEFAULT_INSTALLER_SIDEBAR_COLOR);
+        };
+        let installer = installer.as_table().ok_or("organization installer must be a table")?;
+        let Some(value) = installer.get("sidebar_color") else {
+            return Ok(DEFAULT_INSTALLER_SIDEBAR_COLOR);
+        };
+
+        let color = value.as_str().ok_or("installer.sidebar_color must be an opaque #RRGGBB color")?;
+        let bytes = color.as_bytes();
+        if bytes.len() != 7 || bytes[0] != b'#' || !bytes[1..].iter().all(u8::is_ascii_hexdigit) {
+            return Err("installer.sidebar_color must be an opaque #RRGGBB color".into());
+        }
+
+        let mut channels = [0; 3];
+        for (index, channel) in channels.iter_mut().enumerate() {
+            let encoded = &color[1 + index * 2..3 + index * 2];
+            *channel = u8::from_str_radix(encoded, 16).map_err(|error| error.to_string())?;
+        }
+        Ok(channels)
+    }
+
+    pub fn installer_sidebar_image(&self) -> Option<(&str, &[u8])> {
+        let path = self.manifest.get("installer")?.get("sidebar_image")?.as_str()?;
+        let bytes = self.files.get(path)?.as_slice();
+        Some((path, bytes))
     }
 
     pub fn write_to(&self, destination: &Path) -> Result<(), String> {
@@ -165,11 +196,25 @@ fn validate(pack: &ResolvedPack) -> Result<(), String> {
                 .map_err(|_| format!("organization {role} artwork must be a valid PNG image"))?;
         }
     }
+    validate_installer(pack)?;
     if let Some(updates) = manifest.get("updates") {
         let updates: policy::UpdatePolicy = updates.clone().try_into().map_err(|_| "organization update policy is invalid")?;
         updates.validate()?;
     }
     pack.brand()?;
+    Ok(())
+}
+
+fn validate_installer(pack: &ResolvedPack) -> Result<(), String> {
+    pack.installer_sidebar_color()?;
+    let Some(installer) = pack.manifest.get("installer") else { return Ok(()) };
+    let Some(value) = installer.get("sidebar_image") else { return Ok(()) };
+    let path = value.as_str().ok_or("installer.sidebar_image must be a pack-root-relative PNG path")?;
+    validate_path(path)?;
+
+    let bytes = pack.files.get(path).ok_or_else(|| format!("organization installer sidebar image is missing: {path}"))?;
+    image::load_from_memory_with_format(bytes, image::ImageFormat::Png)
+        .map_err(|_| "organization installer sidebar image must be a valid PNG image")?;
     Ok(())
 }
 

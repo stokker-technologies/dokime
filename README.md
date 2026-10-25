@@ -51,7 +51,7 @@ backend; operators do not need a source checkout.
 
 Use `dokime` to run a server or control an existing backend. Use
 `cargo dokime sidecar` to create, build and inspect plugins, and
-`cargo dokime installer` to package unchanged binaries with an organization pack. The [CLI reference](docs/product-guide.md#cli-reference)
+`cargo dokime installer` to package prebuilt binaries with an organization pack. The [CLI reference](docs/product-guide.md#cli-reference)
 contains the complete workflow.
 
 #### Examples

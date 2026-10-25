@@ -882,8 +882,10 @@ directory.
 
 Runtime windows and the tray use their organization artwork roles; Linux
 launchers use the application artwork. Installer artwork sets the native
-installer icon. Windows executables and their desktop/Start-menu shortcuts keep
-the compiled PE icon because packaging preserves the executable bytes.
+installer icon. Windows packaging replaces the staged GUI executable's PE icon
+with application artwork, which its desktop/Start-menu shortcuts also use. The
+source payload remains unchanged. Organization installer settings select a
+solid-color sidebar or a custom PNG; see [Organization](#organization).
 
 #### Signing
 
@@ -1008,6 +1010,47 @@ application = "icons/icon.png"
 tray = "icons/icon.png"
 installer = "icons/icon.png"
 ```
+
+Native Windows installer styling also belongs in `organization.toml`:
+
+```toml
+[installer]
+sidebar_color = "#1B1915"
+# Optional PNG, relative to the organization pack root:
+# sidebar_image = "installer/sidebar.png"
+```
+
+`sidebar_image` takes precedence over `sidebar_color` for both install and
+uninstall sidebars. PNGs are resized to fill the native 164×314 sidebar;
+transparent pixels are composited over `sidebar_color`. Without an image,
+packaging generates a solid-color bitmap.
+Colors use opaque `#RRGGBB`; omitted settings default to `#1B1915`. Invalid
+colors, missing image files and invalid PNG data fail validation. Folder
+overrides follow the same two-layer merge rules as other organization settings.
+DEB/RPM packages do not display these sidebar assets.
+
+Windows packaging replaces the staged GUI executable's icon resources with
+`app.artwork.application`, which installed shortcuts also use. It preserves the
+input payload and compiled application identity. When installer signing is
+requested, it signs the modified executable before recording its final hash,
+then signs the finished installer. Installer artwork supplies the setup icon.
+
+The app's brand mark exposes the `.logo` class on both light and dark artwork,
+including its text fallback. Customize it in the pack's `theme/base.css`, for
+example:
+
+```css
+.logo {
+  padding: 0.5rem 1rem;
+  object-fit: contain;
+}
+```
+
+The root element carries `.light` or `.dark` for the active mode, so shared
+styles can target `.light .logo` and `.dark .logo` symmetrically. Alternatively,
+put mode-specific treatments in `theme/light.css` and `theme/dark.css`. This
+class styles the in-app logo; native window, tray and installer icons use the
+`app.artwork` assets.
 
 Resolve the installation's default pack with an optional organization override
 before validation. Manifest tables merge recursively; present scalar and array

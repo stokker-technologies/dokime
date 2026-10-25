@@ -23,8 +23,6 @@ use std::path::{Path, PathBuf};
 // Local Imports
 
 /* === Constants === */
-// The brand bundle folders the runtime embeds beside `organization.toml`.
-const BRAND_FOLDERS: &[&str] = &["theme", "fonts", "logos", "icons"];
 
 /* === Macros === */
 
@@ -76,22 +74,19 @@ fn embed_brand_bundle() {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies it"));
     let bundle = manifest.join("dist-brand");
     let bundle = bundle.canonicalize().unwrap_or_else(|error| panic!("organization bundle {}: {error}", bundle.display()));
+    assert!(bundle.join("organization.toml").is_file(), "organization bundle has no manifest");
 
     // Collect The Bundle Files
-    let mut files = vec![("organization.toml".to_owned(), bundle.join("organization.toml"))];
-    for folder in BRAND_FOLDERS {
-        let directory = bundle.join(folder);
-        println!("cargo:rerun-if-changed={}", directory.display());
-        let mut entries = Vec::new();
-        collect_assets(&directory, &mut entries);
-        entries.sort();
-        for path in entries {
-            let relative = path.strip_prefix(&bundle).expect("asset stays within bundle");
-            let name = relative.to_str().expect("UTF-8 name").replace('\\', "/");
-            files.push((name, path));
-        }
+    println!("cargo:rerun-if-changed={}", bundle.display());
+    let mut entries = Vec::new();
+    collect_assets(&bundle, &mut entries);
+    entries.sort();
+    let mut files = Vec::new();
+    for path in entries {
+        let relative = path.strip_prefix(&bundle).expect("asset stays within bundle");
+        let name = relative.to_str().expect("UTF-8 name").replace('\\', "/");
+        files.push((name, path));
     }
-    println!("cargo:rerun-if-changed={}", bundle.join("organization.toml").display());
 
     // Emit The Embedded Table
     let mut table = String::from("static FILES: &[(&str, &[u8])] = &[\n");

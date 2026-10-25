@@ -34,7 +34,7 @@ sha2 = { workspace = true }
 base64 = { workspace = true }
 time = { workspace = true }
 tauri-bundler = { workspace = true }
-image = { workspace = true, features = ["png", "ico"] }
+image = { workspace = true, features = ["png", "ico", "bmp"] }
 
 # Serialization
 serde = { workspace = true }
@@ -72,6 +72,14 @@ tokio = { workspace = true, features = ["process"] }
 # === Dev Dependencies === #
 
 # === Target Dependencies === #
+
+[target.'cfg(windows)'.dependencies]
+tauri-utils = { workspace = true }
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_System_LibraryLoader",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 # === Test Targets === #
 

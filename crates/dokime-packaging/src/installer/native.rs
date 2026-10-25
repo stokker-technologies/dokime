@@ -25,6 +25,7 @@ use tauri_bundler::{BundleBinary, BundleSettings, NsisSettings, PackageSettings,
 
 // Local Imports
 use super::{
+    artwork,
     inspect::{self, DistributionMetadata},
     manifest::{Format, InstallerSigning, Manifest, UpdaterSigning},
     payload::{self, Payload},
@@ -51,6 +52,12 @@ pub fn assemble(
     manifest: &Manifest, payload: &Payload, source: &Path, scratch: &Path, output: &Path, sign: bool,
 ) -> Result<Vec<PathBuf>, Error> {
     let pack = resolve_organization(manifest, source)?;
+    let Some((_, application_bytes)) = pack.asset("application") else {
+        return Err(Error::Invalid("organization application artwork is required".into()));
+    };
+    let application_image = image::load_from_memory(application_bytes).map_err(|error| Error::Invalid(error.to_string()))?;
+    #[cfg(windows)]
+    let application_icon = artwork::icon(&application_image)?;
     let pack_dir = scratch.join("organization");
     pack.write_to(&pack_dir).map_err(Error::Invalid)?;
     let label = pack.label().to_owned();
@@ -72,8 +79,16 @@ pub fn assemble(
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&destination, std::fs::Permissions::from_mode(0o755))?;
         }
+        #[cfg(windows)]
+        if windows && name == "dokime-gui" {
+            super::windows::replace(&destination, &application_icon)?;
+            if sign {
+                sign_installer(manifest, &destination)?;
+            }
+        }
         let installed = format!("{installed_bin_prefix}{file}");
-        let digest = payload::digest(&bytes);
+        let final_bytes = std::fs::read(&destination)?;
+        let digest = payload::digest(&final_bytes);
         files.insert(installed, digest);
     }
     // Stage Resolved Organization
@@ -124,18 +139,7 @@ pub fn assemble(
 
     // Generate Assembly Artwork
     let image_path = scratch.join("icon.png");
-    let Some((_, image_bytes)) = pack.asset("application") else {
-        let error = Error::Invalid("organization application artwork is required".into());
-        return Err(error);
-    };
-    let image = image::load_from_memory(image_bytes).map_err(|error| {
-        let message = error.to_string();
-        Error::Invalid(message)
-    })?;
-    image.save_with_format(&image_path, image::ImageFormat::Png).map_err(|error| {
-        let message = error.to_string();
-        Error::Invalid(message)
-    })?;
+    application_image.save_with_format(&image_path, image::ImageFormat::Png).map_err(|error| Error::Invalid(error.to_string()))?;
     let ico_path = scratch.join("icon.ico");
     let Some((_, installer_bytes)) = pack.asset("installer") else {
         let error = Error::Invalid("organization installer artwork is required".into());
@@ -145,14 +149,17 @@ pub fn assemble(
         let message = error.to_string();
         Error::Invalid(message)
     })?;
-    installer_image.resize(256, 256, image::imageops::FilterType::Lanczos3).save_with_format(&ico_path, image::ImageFormat::Ico).map_err(
-        |error| {
-            let message = error.to_string();
-            Error::Invalid(message)
-        },
-    )?;
+    artwork::write_ico(&installer_image, &ico_path)?;
     let hooks = scratch.join("installer-hooks.nsh");
-    std::fs::write(&hooks, include_str!("hooks.nsh"))?;
+    let sidebar = scratch.join("installer-sidebar.bmp");
+    let hook_source = if windows {
+        artwork::sidebar(&pack, &sidebar)?;
+        let sidebar_path = sidebar.to_string_lossy().replace('$', "$$");
+        format!("!define MUI_UNWELCOMEFINISHPAGE_BITMAP \"{sidebar_path}\"\n{}", include_str!("hooks.nsh"))
+    } else {
+        include_str!("hooks.nsh").to_owned()
+    };
+    std::fs::write(&hooks, hook_source)?;
     // Configure Native Backend
     let png_icon = image_path.to_string_lossy().into_owned();
     let ico_icon = ico_path.to_string_lossy().into_owned();
@@ -168,7 +175,12 @@ pub fn assemble(
         deep_link_protocols: Some(protocols),
         ..BundleSettings::default()
     };
-    bundle.windows.nsis = Some(NsisSettings { installer_hooks: Some(hooks), installer_icon: Some(ico_path), ..NsisSettings::default() });
+    bundle.windows.nsis = Some(NsisSettings {
+        installer_hooks: Some(hooks),
+        installer_icon: Some(ico_path),
+        sidebar_image: windows.then_some(sidebar),
+        ..NsisSettings::default()
+    });
     if windows {
         bundle.resources_map = Some(resources);
     } else {
