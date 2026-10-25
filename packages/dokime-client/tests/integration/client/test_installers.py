@@ -274,7 +274,7 @@ def _candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, P
     config.write_text(json.dumps({"version": "0.1.0"}), encoding="utf-8")
     brand = root / "organization/organization.toml"
     brand.parent.mkdir()
-    brand.write_text('[app]\nslug = "dokime"\n', encoding="utf-8")
+    brand.write_text('[app]\nlabel = "Dokime"\n', encoding="utf-8")
 
     dist = tmp_path / "installers"
     dist.mkdir()
