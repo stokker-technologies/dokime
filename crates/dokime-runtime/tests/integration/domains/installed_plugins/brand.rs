@@ -26,10 +26,10 @@ use dokime_runtime::domains::installed_plugins::load_brand;
 /* === Constants === */
 const NEUTRAL_BRAND: &str = r##"
 [app]
-label = "Acme Test Hub"
+label = "Stokker Technologies Test Hub"
 
 [app.organization]
-name = "Acme Corp"
+name = "Stokker Technologies"
 unit = "Quality"
 
 [app.logos.transparent]
@@ -42,8 +42,8 @@ on_dark = "logos/contained-on-dark.svg"
 [theme]
 policy = "required"
 default_mode = "force_dark"
-label = "Acme"
-description = "Acme brand theme."
+label = "Stokker Technologies"
+description = "Stokker Technologies brand theme."
 
 [theme.corner_radii]
 base = "0.375rem"
@@ -149,14 +149,14 @@ fn organization_overlay() {
     fs::create_dir_all(overrides.join("logos")).unwrap();
     fs::write(
         overrides.join("organization.toml"),
-        "[app]\nlabel = 'Company'\n[app.organization]\nunit = 'Quality'\n[app.logos.transparent]\non_dark = 'icons/icon.png'\n",
+        "[app]\nlabel = 'Stokker Technologies'\n[app.organization]\nunit = 'Quality'\n[app.logos.transparent]\non_dark = 'icons/icon.png'\n",
     )
     .unwrap();
     let replacement = b"<svg xmlns='http://www.w3.org/2000/svg' id='override'/>";
     fs::write(overrides.join("logos/transparent-on-light.svg"), replacement).unwrap();
 
     let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
-    assert_eq!(pack.label(), "Company");
+    assert_eq!(pack.label(), "Stokker Technologies");
     assert_eq!(pack.manifest["app"]["organization"]["unit"].as_str(), Some("Quality"));
     assert_eq!(pack.manifest["app"]["organization"]["name"], baseline.manifest["app"]["organization"]["name"]);
     assert_eq!(pack.files["logos/transparent-on-light.svg"], replacement);
@@ -184,7 +184,7 @@ fn organization_validation() {
         fs::write(&manifest, value).unwrap();
         assert!(resolve_with_base(None, Some(overrides.path())).is_err());
     }
-    fs::write(&manifest, "[app]\nlabel = 'Valid'").unwrap();
+    fs::write(&manifest, "[app]\nlabel = 'Stokker Technologies'").unwrap();
     fs::create_dir(overrides.path().join("generated")).unwrap();
     assert!(resolve_with_base(None, Some(overrides.path())).is_err());
 
@@ -222,13 +222,13 @@ fn organization_toml_types() {
 
     let brand = load_brand(dir.path()).unwrap();
 
-    assert_eq!(brand.identity.label, "Acme Test Hub");
+    assert_eq!(brand.identity.label, "Stokker Technologies Test Hub");
 
     let customization = &brand.customization;
-    assert_eq!(customization.display_name.as_deref(), Some("Acme Test Hub"));
+    assert_eq!(customization.display_name.as_deref(), Some("Stokker Technologies Test Hub"));
     assert_eq!(customization.title_template.as_deref(), Some("{app}"));
     let organization = customization.organization.as_ref().unwrap();
-    assert_eq!(organization.name, "Acme Corp");
+    assert_eq!(organization.name, "Stokker Technologies");
     assert_eq!(organization.unit.as_deref(), Some("Quality"));
     assert_eq!(customization.logo_assets.len(), 4);
     assert_eq!(customization.logo_assets[0].asset_id.as_str(), "brand.logo.transparent-on-light");
@@ -239,7 +239,7 @@ fn organization_toml_types() {
 
     let theme = brand.theme.expect("theme present");
     assert_eq!(theme.metadata.identifier.as_str(), "brand.theme");
-    assert_eq!(theme.metadata.label, "Acme");
+    assert_eq!(theme.metadata.label, "Stokker Technologies");
     assert_eq!(theme.variables.get("brand-font-sans").map(String::as_str), Some("sample"));
     assert_eq!(
         theme.corner_radii,
@@ -265,14 +265,14 @@ fn app_brand_label() {
         dir.path().join("organization.toml"),
         r#"
 [app]
-label = "Minimal"
+label = "Stokker Technologies Minimal"
 "#,
     )
     .unwrap();
 
     let brand = load_brand(dir.path()).unwrap();
 
-    assert_eq!(brand.customization.display_name.as_deref(), Some("Minimal"));
+    assert_eq!(brand.customization.display_name.as_deref(), Some("Stokker Technologies Minimal"));
     assert!(brand.customization.logo_assets.is_empty());
     assert!(brand.theme.is_none());
     assert!(matches!(brand.customization.theme_policy, ThemeActivationPolicy::RegisterOnly));
@@ -285,7 +285,7 @@ fn missing_logo_failing() {
         dir.path().join("organization.toml"),
         r#"
 [app]
-label = "NoLogo"
+label = "Stokker Technologies Without Artwork"
 
 [app.logos.contained]
 on_light = "missing.svg"
@@ -314,7 +314,7 @@ async fn runtime_appearance_brand() {
     runtime.set_brand(Some(brand));
 
     let frame = runtime.appearance_frame().await;
-    assert_eq!(frame.app_name, "Acme Test Hub");
+    assert_eq!(frame.app_name, "Stokker Technologies Test Hub");
     let captured = runtime.capture_appearance(64 * 1024).unwrap();
     assert_eq!(captured.frame, frame);
     assert_eq!(frame.logos.len(), 4);
@@ -325,7 +325,7 @@ async fn runtime_appearance_brand() {
     }
 
     runtime.set_brand(None);
-    assert_ne!(runtime.appearance_frame().await.app_name, "Acme Test Hub");
+    assert_ne!(runtime.appearance_frame().await.app_name, "Stokker Technologies Test Hub");
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

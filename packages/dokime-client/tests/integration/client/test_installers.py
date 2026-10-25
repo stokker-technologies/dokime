@@ -181,7 +181,9 @@ def test_payload_profiles(tmp_path: Path, native: str) -> None:
     for profile, source in sources.items():
         assert (source / f"bin/dokime{suffix}").read_bytes() == f"{profile} cli".encode()
         assert (source / f"bin/dokime-gui{suffix}").read_bytes() == f"{profile} shell".encode()
-        assert (source / "organization/organization.toml").read_bytes() == f'[app]\nlabel = "{profile} Company"\n'.encode()
+        assert (
+            source / "organization/organization.toml"
+        ).read_bytes() == f'[app]\nlabel = "Stokker Technologies {profile.title()}"\n'.encode()
         assert (source / "organization/theme/light.css").read_bytes() == f"/* {profile} default */".encode()
 
 
@@ -238,7 +240,7 @@ def _native_build(root: Path, profile: str, native: str) -> dict[str, bytes]:
     suffix = ".exe" if "windows" in native else ""
     expected = {
         "LICENSE": b"fixture license",
-        "organization/organization.toml": f'[app]\nlabel = "{profile} Company"\n'.encode(),
+        "organization/organization.toml": f'[app]\nlabel = "Stokker Technologies {profile.title()}"\n'.encode(),
         "organization/theme/light.css": f"/* {profile} default */".encode(),
         f"bin/dokime{suffix}": f"{profile} cli".encode(),
         f"bin/dokime-gui{suffix}": f"{profile} shell".encode(),

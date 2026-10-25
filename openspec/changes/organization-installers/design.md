@@ -16,6 +16,8 @@
 - sidecar new/build/package/dev/inspect replaces the old top-level leaves, migrating all consumers. Ordinary build compiles and packages; package assembles prebuilt bytes. Verify Harmos naming against local source before implementation.
 
 ## Ownership
+Organization examples in fixtures, fonts and assets use Stokker Technologies. Preserve authentic third-party font attribution and Dokime product identity. Customer names do not belong in tracked files or branch history.
+
 Organization owner: organization assets/schema and build identity split, domain/runtime brand/config/capture, GUI organization/tray/appearance, their tests and organization preparation tooling.
 Installer owner: dokime-packaging installer implementation and cargo-dokime installer leaves, native staging/download/inspection/signing and targeted tests.
 Integration owner: OpenSpec, root manifests/lock, existing sidecar command grouping and all caller migrations, CI/build exports/package tasks/release plumbing, documentation, integration and final proof.

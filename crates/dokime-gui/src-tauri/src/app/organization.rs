@@ -606,7 +606,7 @@ mod tests {
     use zip::write::SimpleFileOptions;
 
     const LOGO: &[u8] = b"<svg xmlns='http://www.w3.org/2000/svg'/>";
-    const MANIFEST_TEXT: &str = "[app]\nlabel = \"Fork\"\n[app.logos.transparent]\non_light = \"logos/mark.svg\"\n";
+    const MANIFEST_TEXT: &str = "[app]\nlabel = \"Stokker Technologies\"\n[app.logos.transparent]\non_light = \"logos/mark.svg\"\n";
 
     fn archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
@@ -682,10 +682,11 @@ mod tests {
     fn partial_pack_inherits_assets() {
         assert!(validate_archive(&archive(&[("logos/mark.svg", LOGO)])).unwrap_err().contains("organization.toml"));
         let root = tempfile::tempdir().unwrap();
-        let pack = archive(&[(MANIFEST, b"[app]\nlabel = \"Fork\"\n")]);
+        let pack = archive(&[(MANIFEST, b"[app]\nlabel = \"Stokker Technologies\"\n")]);
         std::fs::write(root.path().join("pack.zip"), pack).unwrap();
-        assert_eq!(stage(&root.path().join("organization"), &root.path().join("pack.zip")).unwrap().label, "Fork");
-        let escaping = archive(&[(MANIFEST, b"[app]\nlabel = \"Fork\"\n[app.logos.transparent]\non_light = \"../../secret.svg\"\n")]);
+        assert_eq!(stage(&root.path().join("organization"), &root.path().join("pack.zip")).unwrap().label, "Stokker Technologies");
+        let escaping =
+            archive(&[(MANIFEST, b"[app]\nlabel = \"Stokker Technologies\"\n[app.logos.transparent]\non_light = \"../../secret.svg\"\n")]);
         std::fs::write(root.path().join("escape.zip"), escaping).unwrap();
         assert!(stage(&root.path().join("organization"), &root.path().join("escape.zip")).unwrap_err().contains("unsafe"));
     }
@@ -696,9 +697,9 @@ mod tests {
         let organization = root.path().join("organization");
         std::fs::write(root.path().join("pack.zip"), archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
         let summary = stage(&organization, &root.path().join("pack.zip")).unwrap();
-        assert_eq!(summary.label, "Fork");
+        assert_eq!(summary.label, "Stokker Technologies");
         let booted = boot(&organization);
-        assert_eq!(booted.pack.unwrap().label, "Fork");
+        assert_eq!(booted.pack.unwrap().label, "Stokker Technologies");
         assert!(!organization.join(PENDING).exists() && organization.join(ACTIVE).is_dir());
         std::fs::write(organization.join(ACTIVE).join(MANIFEST), "not toml [").unwrap();
         let fallback = boot(&organization);
@@ -714,13 +715,13 @@ mod tests {
         let archive_path = root.path().join("pack.zip");
         std::fs::write(&archive_path, archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
         stage(&organization, &archive_path).unwrap();
-        assert_eq!(boot(&organization).pack.unwrap().label, "Fork");
+        assert_eq!(boot(&organization).pack.unwrap().label, "Stokker Technologies");
         stage(&organization, &archive_path).unwrap();
         std::fs::write(organization.join(PENDING).join(MANIFEST), "invalid [").unwrap();
 
         let retained = boot(&organization);
 
-        assert_eq!(retained.pack.unwrap().label, "Fork");
+        assert_eq!(retained.pack.unwrap().label, "Stokker Technologies");
         assert!(retained.error.unwrap().contains("pending organization pack"));
         assert_eq!(std::fs::read_to_string(organization.join(ACTIVE).join(MANIFEST)).unwrap(), MANIFEST_TEXT);
         assert_eq!(std::fs::read_to_string(organization.join(PENDING).join(MANIFEST)).unwrap(), "invalid [");

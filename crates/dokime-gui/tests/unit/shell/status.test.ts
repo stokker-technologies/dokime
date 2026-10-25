@@ -131,7 +131,7 @@ test("Brand Label", () => {
     owner: { kind: "host" },
     version: "1.2.0",
   } as unknown as RuntimeInstalledPluginRecord;
-  assert.equal(programSource(program, "Acme"), "Acme Host · v1.2.0");
+  assert.equal(programSource(program, "Stokker Technologies"), "Stokker Technologies Host · v1.2.0");
 
   // A Pending Removal Waits For The Brand To Restart
   const entry = {
@@ -140,7 +140,7 @@ test("Brand Label", () => {
     error: null,
     state: "removal_pending",
   } as unknown as Parameters<typeof statusPresentation>[0];
-  assert.equal(statusPresentation(entry, "Acme").reason, "Active until Acme restarts.");
+  assert.equal(statusPresentation(entry, "Stokker Technologies").reason, "Active until Stokker Technologies restarts.");
 });
 
 test("a failure during the desktop's stop never settles, and the stop shows only once it lasts", async () => {

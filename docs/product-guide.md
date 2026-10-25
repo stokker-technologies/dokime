@@ -1018,7 +1018,7 @@ A partial override can therefore contain only this manifest and a replacement
 
 ```toml
 [app]
-title_template = "Company Lab — {app}"
+title_template = "Stokker Technologies — {app}"
 ```
 
 The desktop's label, title, window/tray artwork and newly captured reports use

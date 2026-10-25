@@ -4116,7 +4116,7 @@ async function organizationJourney() {
   const root = join(work, "shell", "application", "organization");
   const archive = join(work, "organization.zip");
   const manifest = `[app]
-label = "Validation Lab"
+label = "Stokker Technologies"
 title_template = "{app}"
 [app.logos.transparent]
 on_light = "logos/mark.svg"
@@ -4170,7 +4170,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   );
   await restart();
   await until("native organization activation", async () => hasText(await session.text(), "Active since this start."));
-  assert.ok(hasText(await session.text(), "Validation Lab"), "The mounted shell applies the imported label");
+  assert.ok(hasText(await session.text(), "Stokker Technologies"), "The mounted shell applies the imported label");
   assert.equal(
     await readFile(join(root, "active", "organization.toml"), "utf8"),
     manifest,
@@ -4230,7 +4230,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await choose();
   await writeFile(join(root, "pending", "organization.toml"), "invalid [");
   await restart();
-  assert.ok(hasText(await session.text(), "Validation Lab"), "An invalid pending pack retains the active appearance");
+  assert.ok(hasText(await session.text(), "Stokker Technologies"), "An invalid pending pack retains the active appearance");
   assert.equal(await readFile(join(root, "active", "organization.toml"), "utf8"), manifest);
   assert.equal(
     await readFile(join(root, "pending", "organization.toml"), "utf8"),
