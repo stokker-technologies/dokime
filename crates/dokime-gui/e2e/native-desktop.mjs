@@ -142,7 +142,6 @@ const WEBDRIVER_KEYS = {
   Escape: "\uE00C",
   Tab: "\uE004",
   Control: "\uE009",
-  Null: "\uE000",
   Backspace: "\uE003",
 };
 
@@ -658,11 +657,28 @@ async function startSession(work, endpoint, evidence) {
   };
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
-    /* Replace Through Native Input Once: a separate clear can leave React's
-       controlled value intact and restore it before the following typing. */
-    const replacement = `${WEBDRIVER_KEYS.Control}a${WEBDRIVER_KEYS.Null}${value.length ? value : WEBDRIVER_KEYS.Backspace}`;
+    await session.click(element);
+    /* WebKit Holds Control Through ElementSendKeys' NULL, So Release It Through
+       Native Actions Before Sending Replacement Text To The Controlled Field. */
+    await session.request("POST", "/actions", {
+      actions: [
+        {
+          type: "key",
+          id: "keyboard",
+          actions: [
+            { type: "keyDown", value: WEBDRIVER_KEYS.Control },
+            { type: "keyDown", value: "a" },
+            { type: "keyUp", value: "a" },
+            { type: "keyUp", value: WEBDRIVER_KEYS.Control },
+          ],
+        },
+      ],
+    });
+    await session.request("DELETE", "/actions");
+    const replacement = value.length ? value : WEBDRIVER_KEYS.Backspace;
     await session.request("POST", `/element/${key}/value`, { text: replacement, value: [...replacement] });
   };
+
   /**
    * Press a key the way a person does, through the WebDriver Actions API.
    *
@@ -3656,6 +3672,7 @@ async function createEmptyContainer(session, title) {
   await session.clickNamed("button", "New Cycle");
   const input = await until("the new cycle form", () => session.find("css selector", "#new-cycle-title"));
   await session.type(input, title);
+  assert.equal(await session.execute("return arguments[0].value", [input]), title, "Native typing replaces the cycle title");
   await session.clickNamed("button", "Create Cycle");
   return until("the created cycle route", async () => /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname)?.[1] ?? null);
 }
