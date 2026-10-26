@@ -3647,7 +3647,17 @@ async function journey(name, run) {
 async function terminate(child, signal = "SIGTERM") {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
   if (windows) {
-    await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+    try {
+      await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+    } catch (error) {
+      if (child.exitCode !== null || child.signalCode !== null) return;
+      try {
+        process.kill(child.pid, 0);
+      } catch (probe) {
+        if (probe.code === "ESRCH") return;
+      }
+      throw error;
+    }
     return;
   }
   try {
@@ -3853,6 +3863,71 @@ async function ordinaryInstanceJourney(primary, initial) {
     assert.equal(typeof result, "boolean", `Native focus must be observable: ${JSON.stringify(result)}`);
     return result;
   };
+  const nativeFocus = async (activate = false) => {
+    if (!windows) return null;
+    const result = await promisify(execFile)(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `
+        $ErrorActionPreference = 'Stop'
+        Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class DesktopForeground {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+  [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool SetForegroundWindow(IntPtr window);
+}
+'@
+        function Read-Foreground {
+          $handle = [DesktopForeground]::GetForegroundWindow()
+          [uint32]$owner = 0
+          [void][DesktopForeground]::GetWindowThreadProcessId($handle, [ref]$owner)
+          @{handle=$handle.ToInt64(); process=$owner}
+        }
+        $processes = @(Get-CimInstance Win32_Process)
+        $owned = [System.Collections.Generic.HashSet[uint32]]::new()
+        [void]$owned.Add([uint32]$env:DOKIME_FOCUS_DRIVER)
+        do {
+          $added = $false
+          foreach ($candidate in $processes) {
+            if ($owned.Contains([uint32]$candidate.ParentProcessId)) {
+              $added = $owned.Add([uint32]$candidate.ProcessId) -or $added
+            }
+          }
+        } while ($added)
+        $windows = @(foreach ($candidate in $processes) {
+          if (!$owned.Contains([uint32]$candidate.ProcessId) -or $candidate.ExecutablePath -ne $env:DOKIME_FOCUS_SHELL) { continue }
+          $process = Get-Process -Id $candidate.ProcessId
+          $handle = $process.MainWindowHandle
+          if ($handle -eq [IntPtr]::Zero) { throw "The driver-owned desktop has no main native window" }
+          @{handle=$handle.ToInt64(); process=$candidate.ProcessId; title=$process.MainWindowTitle}
+        })
+        if ($windows.Count -ne 1) { throw "Expected one driver-owned independent desktop window, found $($windows.Count)" }
+        $before = Read-Foreground
+        $activated = $null
+        if ($env:DOKIME_FOCUS_ACTIVATE -eq '1') { $activated = [DesktopForeground]::SetForegroundWindow([IntPtr]$windows[0].handle) }
+        ConvertTo-Json -Depth 4 -Compress -InputObject @{
+          window=$windows[0]; before=$before; after=(Read-Foreground); activationSucceeded=$activated
+        }
+      `,
+      ],
+      {
+        windowsHide: true,
+        timeout: 120000,
+        env: {
+          ...process.env,
+          DOKIME_FOCUS_DRIVER: String(independent.process.pid),
+          DOKIME_FOCUS_SHELL: resolve(shellBinary),
+          DOKIME_FOCUS_ACTIVATE: activate ? "1" : "0",
+        },
+      },
+    );
+    return JSON.parse(result.stdout);
+  };
 
   try {
     independent = await startSession(separateWork, undefined, separateEvidence);
@@ -3869,6 +3944,12 @@ async function ordinaryInstanceJourney(primary, initial) {
     assert.notEqual(separate.connection.backend.epoch, initial.connection.backend.epoch, "distinct roots have independent backend epochs");
     assert.notEqual(separate.connection.endpoint, initial.connection.endpoint, "distinct roots have independent listeners");
     assert.ok(await listening(separate.connection.endpoint));
+    // Arrange Native Activation Before Testing The Ordinary Launch's Focus Transfer.
+    if (windows) {
+      const activation = await nativeFocus(true);
+      await writeFile(join(evidence, "independent-focus-setup.json"), JSON.stringify(activation, null, 2));
+      assert.equal(activation.activationSucceeded, true, `Native activation must succeed: ${JSON.stringify(activation)}`);
+    }
     await until("the independent desktop owns native focus", () => focused(independent), 120000);
     assert.equal(await focused(primary), false, "the original window loses focus before the repeated launch");
 
@@ -3897,6 +3978,7 @@ async function ordinaryInstanceJourney(primary, initial) {
     assert.equal(repeated.exitCode, 0, "the repeated launch receives the existing desktop's focus acknowledgement");
     await until("the original desktop regains native focus", () => focused(primary), 120000);
     assert.equal(await focused(independent), false, "focus moves away from the independent root");
+    if (windows) await writeFile(join(evidence, "ordinary-focus-result.json"), JSON.stringify(await nativeFocus(), null, 2));
     const after = await statusOf(primary);
     assert.equal(after.ownership, initial.ownership);
     assert.deepEqual(after.selection, initial.selection);
@@ -3914,6 +3996,11 @@ async function ordinaryInstanceJourney(primary, initial) {
     );
   } catch (error) {
     if (independent && !independent.closed) {
+      if (windows) {
+        await nativeFocus()
+          .then((snapshot) => writeFile(join(evidence, "failure-independent-focus.json"), JSON.stringify(snapshot, null, 2)))
+          .catch(() => undefined);
+      }
       await independent.screenshot("failure-independent-desktop").catch(() => undefined);
       await independent
         .dump("failure-independent-desktop", { error: String(error), status: await statusOf(independent).catch(String) })

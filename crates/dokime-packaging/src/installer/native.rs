@@ -108,6 +108,12 @@ pub fn assemble(
         files.insert(installed, digest);
     }
     let license = source.join("LICENSE");
+    #[cfg(windows)]
+    let license = {
+        let staged = scratch.join("LICENSE");
+        std::fs::copy(&license, &staged)?;
+        staged
+    };
     resources.insert(license.to_string_lossy().into_owned(), "LICENSE".into());
     linux_files.insert(PathBuf::from("/usr/lib/dokime/LICENSE"), license.clone());
     let license_bytes = std::fs::read(&license)?;
@@ -164,6 +170,11 @@ pub fn assemble(
     let png_icon = image_path.to_string_lossy().into_owned();
     let ico_icon = ico_path.to_string_lossy().into_owned();
     let icons = vec![png_icon, ico_icon];
+    #[cfg(windows)]
+    let icons = {
+        let root = std::env::current_dir()?;
+        icons.into_iter().map(|path| resource_path(Path::new(&path), &root)).collect::<Result<Vec<_>, _>>()?
+    };
     let protocol = serde_json::json!({"schemes":[payload.identity.deep_link_scheme],"name":label});
     let protocol = serde_json::from_value(protocol)?;
     let protocols = vec![protocol];
@@ -182,6 +193,14 @@ pub fn assemble(
         ..NsisSettings::default()
     });
     if windows {
+        #[cfg(windows)]
+        let resources = {
+            let root = std::env::current_dir()?;
+            resources
+                .into_iter()
+                .map(|(path, target)| resource_path(Path::new(&path), &root).map(|path| (path, target)))
+                .collect::<Result<HashMap<_, _>, _>>()?
+        };
         bundle.resources_map = Some(resources);
     } else {
         bundle.deb.files = linux_files.clone();
@@ -259,6 +278,16 @@ pub fn assemble(
         outputs.push(destination);
     }
     Ok(outputs)
+}
+
+#[cfg(any(windows, test))]
+fn resource_path(path: &Path, root: &Path) -> Result<String, Error> {
+    let relative = path.strip_prefix(root).map_err(|_| Error::Invalid("installer resource is outside its staging root".into()))?;
+    if relative.as_os_str().is_empty() || relative.components().any(|component| !matches!(component, std::path::Component::Normal(_))) {
+        return Err(Error::Invalid("installer resource has an invalid staging path".into()));
+    }
+    let relative = relative.to_str().ok_or_else(|| Error::Invalid("installer resource path is not UTF-8".into()))?;
+    Ok(relative.to_owned())
 }
 
 pub fn validate_signing(manifest: &Manifest, requested: bool) -> Result<(), Error> {
@@ -533,6 +562,31 @@ fn sign_windows_installer(settings: &InstallerSigning, path: &Path) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn resource_drives() {
+        let root = Path::new(r"D:\checkout");
+        for resource in ["organization/fonts/font.woff2", "icon.png", "icon.ico", "LICENSE", "distribution.json"] {
+            let staged = root.join("dokime-installer-fixture").join(resource);
+            let mapped = resource_path(&staged, root).unwrap();
+            assert_eq!(Path::new(&mapped), Path::new("dokime-installer-fixture").join(resource));
+            assert!(Path::new(&mapped).is_relative());
+            assert_eq!(root.join(mapped), staged);
+            let other_drive = Path::new(r"C:\Temp").join(resource);
+            assert!(resource_path(&other_drive, root).is_err());
+        }
+        assert!(resource_path(&root.join("../outside"), root).is_err());
+    }
+
+    #[test]
+    fn resource_boundaries() {
+        let root = Path::new("checkout");
+        assert_eq!(Path::new(&resource_path(&root.join("staging/LICENSE"), root).unwrap()), Path::new("staging/LICENSE"));
+        assert!(resource_path(root, root).is_err());
+        assert!(resource_path(Path::new("outside/LICENSE"), root).is_err());
+        assert!(resource_path(&root.join("staging/../outside"), root).is_err());
+    }
 
     #[test]
     fn updater_versions() {

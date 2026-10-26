@@ -1070,6 +1070,7 @@ async fn report_frames(mut stream: WireStream<model::reports::wire::ReportHtmlFr
 
 #[tokio::test]
 async fn large_artifact_buffering() {
+    let started = std::time::Instant::now();
     if std::env::var_os("RUST_LOG").is_some() {
         let _ = tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).with_test_writer().try_init();
     }
@@ -1081,6 +1082,7 @@ async fn large_artifact_buffering() {
     let server = Server::start(owner.handle(), keyed()).await.unwrap();
     let stream = Endpoint::from_shared(server.local_endpoint()).unwrap().connect().await.unwrap();
     let execution = WireClient::new(stream.clone());
+    eprintln!("artifact phase=runtime_ready elapsed_ms={}", started.elapsed().as_millis());
     let cycle_id = support::planned_cycle(
         &execution,
         authenticated(contracts::execution::CreateCycle {
@@ -1110,6 +1112,7 @@ async fn large_artifact_buffering() {
         (support::cycle_settled(&cycle, model::execution::wire::ResultStatus::Passed)).then_some(())
     })
     .await;
+    eprintln!("artifact phase=execution_settled elapsed_ms={}", started.elapsed().as_millis());
     let content = WireClient::new(stream);
     let artifacts = owner.handle().artifacts().await.unwrap();
     let artifact = artifacts.iter().find(|artifact| artifact.filename == "large.bin").unwrap();
@@ -1125,6 +1128,7 @@ async fn large_artifact_buffering() {
         payload => panic!("unexpected artifact header: {payload:?}"),
     };
     assert_eq!(metadata.size_bytes, LARGE_ARTIFACT_BYTES);
+    eprintln!("artifact phase=download_metadata elapsed_ms={}", started.elapsed().as_millis());
     let mut downloaded = 0_u64;
     let mut digest = Sha256::new();
     let completion = loop {
@@ -1147,8 +1151,11 @@ async fn large_artifact_buffering() {
     assert_eq!(metadata.size_bytes, downloaded);
     assert_eq!(metadata.sha256, completion.sha256);
     assert!(download.message().await.unwrap().is_none());
+    eprintln!("artifact phase=download_complete elapsed_ms={}", started.elapsed().as_millis());
     server.shutdown().await.unwrap();
+    eprintln!("artifact phase=server_stopped elapsed_ms={}", started.elapsed().as_millis());
     owner.shutdown().await.unwrap();
+    eprintln!("artifact phase=runtime_stopped elapsed_ms={}", started.elapsed().as_millis());
 }
 
 /* === Tests === */

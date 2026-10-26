@@ -24,6 +24,7 @@ use std::{
 
 // Third Party Imports
 use harmos::storage::*;
+use ring::digest::{Context, SHA256};
 use rusqlite::{Connection, params};
 use sha2::{Digest, Sha256, digest::common::hazmat::SerializableState};
 
@@ -433,7 +434,7 @@ pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error
     if file.metadata()?.len() != reference.length {
         return Err(Error::Data("file finish length differs"));
     }
-    let mut digest = Sha256::new();
+    let mut digest = Context::new(&SHA256);
     let mut buffer = [0; CHUNK_BYTES];
     loop {
         let count = file.read(&mut buffer)?;
@@ -442,7 +443,7 @@ pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error
         }
         digest.update(&buffer[..count]);
     }
-    if digest.finalize().as_slice() != reference.sha256.as_slice() {
+    if digest.finish().as_ref() != reference.sha256.as_slice() {
         return Err(Error::Data("file finish hash differs"));
     }
     Ok(())

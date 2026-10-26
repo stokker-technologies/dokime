@@ -2644,6 +2644,7 @@ dependencies = [
  "nokhwa",
  "prost",
  "regex",
+ "ring",
  "rusqlite",
  "rustls-platform-verifier",
  "serde",

@@ -23,7 +23,7 @@ use std::sync::{
 
 // Third Party Imports
 use harmos::storage::FileMetadata;
-use sha2::{Digest, Sha256};
+use ring::digest::{Context, SHA256};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 
 // Local Imports
@@ -87,7 +87,7 @@ pub(super) struct Upload {
     record: ArtifactRecord,
     expected_size: u64,
     expected_digest: Option<String>,
-    digest: Sha256,
+    digest: Context,
     owner: Weak<()>,
 }
 
@@ -317,7 +317,7 @@ impl ExecutionStorage {
             record,
             expected_size: input.size_bytes,
             expected_digest: input.sha256.map(|value| value.to_ascii_lowercase()),
-            digest: Sha256::new(),
+            digest: Context::new(&SHA256),
             owner: Arc::downgrade(&owner),
         };
         acquisition.artifacts.insert(id.clone(), state);
@@ -423,7 +423,8 @@ async fn close(upload: &mut Upload, complete: bool) -> Result<()> {
     if upload.closing.is_some() {
         return Ok(());
     }
-    let digest = upload.digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let digest = upload.digest.clone().finish();
+    let digest = digest.as_ref().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     let valid =
         upload.record.size_bytes == upload.expected_size && upload.expected_digest.as_ref().is_none_or(|expected| expected == &digest);
     let status = if complete && valid {
@@ -453,12 +454,14 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
         upload.file.flush().await.map_err(error)?;
         let file = upload.file.try_clone().await.map_err(error)?;
         let media_type = upload.record.content_type.as_deref().unwrap_or("application/octet-stream");
+        let digest = upload.digest.clone().finish();
+        let digest = digest.as_ref().try_into().expect("SHA-256 has 32 bytes");
         let metadata = FileMetadata {
             id: Identifier::new(upload.record.artifact_id.as_str()).map_err(error)?,
             scope: upload.record.scope.test_execution_id.as_ref().map(|id| Identifier::new(id.as_str())).transpose().map_err(error)?,
             media_type: media_type.to_owned(),
             expected_length: Some(upload.record.size_bytes),
-            expected_sha256: Some(upload.digest.clone().finalize().into()),
+            expected_sha256: Some(digest),
         };
         upload.pending = Some(FrozenFile::new(file, metadata));
     }

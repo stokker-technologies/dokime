@@ -27,6 +27,7 @@ use std::{
 // Third Party Imports
 use futures_util::future::BoxFuture;
 use harmos::storage::{FileMetadata, FileReference, StorageFile};
+use ring::digest::{Context, SHA256};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
@@ -490,7 +491,7 @@ async fn freeze(source: &NativeOutput) -> Result<(tokio::fs::File, [u8; 32])> {
     let source_bytes = remaining;
     tracing::debug!(source_bytes, "native snapshot freeze started");
     let mut frozen = tokio::fs::File::from_std(tempfile::tempfile().map_err(error)?);
-    let mut digest = Sha256::new();
+    let mut digest = Context::new(&SHA256);
     let mut buffer = vec![0; COPY_BYTES];
     while remaining > 0 {
         let count = remaining.min(buffer.len() as u64) as usize;
@@ -506,7 +507,9 @@ async fn freeze(source: &NativeOutput) -> Result<(tokio::fs::File, [u8; 32])> {
     frozen.flush().await.map_err(error)?;
     frozen.seek(std::io::SeekFrom::Start(0)).await.map_err(error)?;
     tracing::debug!(source_bytes, elapsed_ms = started.elapsed().as_millis() as u64, "native snapshot freeze settled");
-    Ok((frozen, digest.finalize().into()))
+    let digest = digest.finish();
+    let digest = digest.as_ref().try_into().expect("SHA-256 has 32 bytes");
+    Ok((frozen, digest))
 }
 
 fn store_descriptor(path: &str, source: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {

@@ -81,6 +81,7 @@ export function BackendSelectionCard() {
 
   return (
     <SettingsCard
+      span="full"
       title="Desktop Backend"
       description="Local is owned by this desktop. Saved remote profiles are shared with the CLI; its default stays separate."
     >

@@ -68,6 +68,10 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     }
     manifest.validate()?;
     native::validate_signing(&manifest, options.sign)?;
+    // Tauri drops Windows drive prefixes from resource paths, so staging must share its working directory.
+    #[cfg(windows)]
+    let scratch = tempfile::Builder::new().prefix("dokime-installer-").tempdir_in(std::env::current_dir()?)?;
+    #[cfg(not(windows))]
     let scratch = tempfile::tempdir()?;
     let downloaded = scratch.path().join("payload");
     let source = if let Some(source) = &options.artifacts {
