@@ -295,7 +295,7 @@ Ordered after the Harmos v0.1.7 repin and the contract migration; nothing here g
 
 - [ ] 9.4.1 Backends table: no horizontal overflow at the connection screen's width — column widths derive from the container (label/endpoint flexible, last-connected and actions fixed), the DataTable's minimum width equals the card's content width, headers never truncate at the default window size; same rule for every DataTable instance.
 - [x] 9.4.2 Default local backend: already present as the desktop-owned "Start Local Backend" action (owner confirmed); no table row needed.
-- [ ] 9.4.3 Logo: the connection-screen logo renders at one eighth of the viewport height (`h-[12.5vh]`, aspect preserved, capped on very tall windows), harmonized with the sidebar's logo size/spacing scale; the organization theme's custom-theme hook may style `.logo`, so the logo element carries the `logo` class and the theme CSS, not the component, owns color/filters.
+- [ ] 9.4.3 Logo (revised): keep the current default size; make the brand block themeable instead — the logo and wordmark are one `.brand` element with `.brand .logo` and `.brand .wordmark` children, default classes expose size (`--brand-logo-size`), flow (`brand-row` / `brand-column`), alignment (`brand-start` / `brand-center`) and gap as CSS custom properties, and the organization theme (custom-theme hook) can override them without touching components; the connection screen and sidebar use the same brand block.
 
 - [ ] R4.V.17 Migrate native-desktop.mjs owned-session startup and route reloads to the landed explicit Start Local Backend action. The prior auto-start assumption timed out on the correctly rendered connection screen. Preserve ownership, shutdown, recovery and plugin assertions and all deadlines.
 
