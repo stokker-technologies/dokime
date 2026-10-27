@@ -15,7 +15,8 @@
       "!src/routeTree.gen.ts",
       "!src/lib/rpc/generated",
       "!src/generated/organization",
-      "!src-tauri"
+      "!src-tauri",
+      "!!**/.stkr/templates/**"
     ]
   },
   "formatter": {
