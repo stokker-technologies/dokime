@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import { commands } from "@/lib/desktop/commands";
 import { isReportBuild } from "@/lib/ui-mode";
 
 /* === Public Functions === */
@@ -18,7 +19,6 @@ export async function openLocalPath(path: string | null | undefined): Promise<bo
   if (!trimmed || !isTauriDesktop()) {
     return false;
   }
-  const { commands } = await import("@/lib/desktop/commands");
   await commands.desktopOpenPath(trimmed);
   return true;
 }

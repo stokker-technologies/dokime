@@ -14,6 +14,7 @@
 // Third Party Imports
 
 // Local Imports
+import { commands } from "@/lib/desktop/commands";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { deliverNativeContent } from "./native-delivery";
@@ -58,7 +59,6 @@ export async function downloadNativeReport(
 ): Promise<SavedReport | null> {
   const delivered = await deliverNativeContent(session, { source, kind: "html_report", filename, action: "save" });
   if (!delivered) return null;
-  const { commands } = await import("@/lib/desktop/commands");
   try {
     await commands.desktopOpenPath(delivered.path);
     return { path: delivered.path, openFailure: null };

@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { commands } from "@/lib/desktop/commands";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileUp, Image as ImageIcon, Square, Video } from "lucide-react";
 import { type MutableRefObject, useEffect, useId, useRef, useState } from "react";
@@ -328,7 +329,6 @@ export function ArtifactUploader({
       if (!recordingWroteAnyBytes.current) {
         throw new Error("Recording produced no data.");
       }
-      const { commands } = await import("@/lib/desktop/commands");
       await commands.desktopRecordingFinish(session.identity.generation, durationMs, mediaType);
       setArtifactStatus("Recording saved");
       await Promise.all([invalidateWorkflowResourceQueries(queryClient), invalidateWorkflowDocuments(queryClient)]);

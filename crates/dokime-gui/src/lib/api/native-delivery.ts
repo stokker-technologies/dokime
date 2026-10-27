@@ -13,6 +13,7 @@
 
 /* === Local Imports === */
 
+import { commands } from "@/lib/desktop/commands";
 import type { ArtifactSource, Delivered, DeliveryAction, DesktopSaveDocument, DesktopSaveKind } from "@/lib/desktop/delivery";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import { normalizeDeliveryError } from "@/lib/rpc/errors";
@@ -45,7 +46,6 @@ export async function saveNativeDocument(session: SessionIdentity, request: Nati
     throw new NativeApiUnsupportedError("Save native document", "desktop_save_document (native file picker)");
   }
   const document = prepareNativeDocument(session, request);
-  const { commands } = await import("@/lib/desktop/commands");
   const saved = await commands.desktopSaveDocument(session.generation, document);
   assertCurrent(session);
   return saved;
@@ -73,7 +73,6 @@ export async function saveNativeDiagnosticsBundle(session: SessionIdentity, requ
     throw new Error(`The diagnostics bundle must be saved as a .zip archive; the backend named it "${request.filename}".`);
   }
   const document = prepareNativeDocument(session, { ...request, kind: "diagnostics_bundle" });
-  const { commands } = await import("@/lib/desktop/commands");
   const path = await commands.desktopSaveDiagnosticsBundle(session.generation, document);
   assertCurrent(session);
   return path;
@@ -104,7 +103,6 @@ export async function deliverNativeContent(session: SessionIdentity, request: Na
   const filename = request.filename.trim();
   if (!filename) throw new Error("Native artifact delivery requires a filename.");
   assertCurrent(session);
-  const { commands } = await import("@/lib/desktop/commands");
   const delivered = await commands
     .desktopArtifactDeliver(session.generation, {
       source: request.source,
@@ -129,7 +127,6 @@ export async function prepareNativeMedia(session: SessionIdentity, source: Artif
     throw new NativeApiUnsupportedError("Prepare native media preview", "desktop_media_prepare (native media preview cache)");
   }
   assertCurrent(session);
-  const { commands } = await import("@/lib/desktop/commands");
   const path = await commands.desktopMediaPrepare(session.generation, source);
   assertCurrent(session);
   return path;
@@ -142,7 +139,6 @@ export async function prepareNativeMedia(session: SessionIdentity, source: Artif
  */
 export async function releaseNativeMedia(generation: string): Promise<void> {
   if (!isTauriDesktop()) return;
-  const { commands } = await import("@/lib/desktop/commands");
   await commands.desktopMediaRelease(generation).catch(() => undefined);
 }
 
