@@ -1,0 +1,91 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-operations"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+# === Package Targets === #
+
+# === Features === #
+
+[features]
+# Enables the operation implementations; their host behaviour is reached through resources the host inserts.
+runtime = ["harmos/runtime", "dep:tonic"]
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime-domain = { workspace = true }
+
+# Git
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+
+# Utilities
+harmos = { workspace = true }
+harmos-domain = { workspace = true }
+sha2 = { workspace = true }
+time = { workspace = true }
+
+# Serialization
+base64 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+tonic = { workspace = true, optional = true }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

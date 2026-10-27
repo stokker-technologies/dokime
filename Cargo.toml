@@ -15,6 +15,7 @@ members = [
   "crates/dokime-runtime",
   "crates/dokime-client",
   "crates/dokime-domain",
+  "crates/dokime-operations",
   "crates/cargo-dokime",
   "crates/dokime-packaging",
   "crates/dokime-gui/src-tauri",
@@ -45,6 +46,7 @@ dokime = { version = "0.1.0", path = "crates/dokime" }
 dokime-cli = { version = "0.1.0", path = "crates/dokime-cli" }
 dokime-client = { version = "0.1.0", path = "crates/dokime-client" }
 dokime-domain = { version = "0.1.0", path = "crates/dokime-domain" }
+dokime-operations = { version = "0.1.0", path = "crates/dokime-operations" }
 dokime-runtime = { version = "0.1.0", path = "crates/dokime-runtime", default-features = false }
 dokime-server = { version = "0.1.0", path = "crates/dokime-server" }
 
