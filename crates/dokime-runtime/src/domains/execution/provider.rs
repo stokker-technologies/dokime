@@ -120,25 +120,27 @@ impl ExecutionFixtureContext {
         let mut cancellation = self.cancellation.clone();
         let mut shutdown = self.runtime.shutdown_requested.subscribe();
         let mut state = self.runtime.watch_state();
-        loop {
-            if self.is_cancelled() {
-                return;
-            }
-            tokio::select! {
-                () = async {
-                    if let Some(cancelled) = cancellation.as_mut() {
-                        let _ = cancelled.wait_for(|cancelled| *cancelled).await;
-                    } else {
-                        std::future::pending::<()>().await;
-                    }
-                } => return,
-                _ = shutdown.wait_for(|shutdown| *shutdown) => return,
-                changed = state.next() => {
-                    if changed.is_none() {
-                        return;
-                    }
+        if self.is_cancelled() {
+            return;
+        }
+        let request_id = self.request_id.as_ref();
+        // Commits Are Filtered On The Committed Payload, So Only A Stop Of This Request Wakes The Waiter.
+        let stopped = |snapshot: &crate::queries::RuntimeStateSnapshot| {
+            let Some(request_id) = request_id else {
+                return false;
+            };
+            snapshot.state().run_requests.get(request_id).is_some_and(|request| request.summary.stop_requested)
+        };
+        tokio::select! {
+            () = async {
+                if let Some(cancelled) = cancellation.as_mut() {
+                    let _ = cancelled.wait_for(|cancelled| *cancelled).await;
+                } else {
+                    std::future::pending::<()>().await;
                 }
-            }
+            } => {},
+            _ = shutdown.wait_for(|shutdown| *shutdown) => {},
+            _ = state.wait_until(stopped) => {},
         }
     }
 
