@@ -19,9 +19,11 @@ use std::time::{Duration, Instant};
 
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
+use futures_util::FutureExt;
 use harmos::{Message, schema::Described};
 
 // Local Imports
+use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
 use dokime_runtime::telemetry::{TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
 use dokime_runtime::{Identifier, Metadata, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig};
@@ -50,6 +52,10 @@ struct PlotRow {
 /* === Public Functions === */
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
+    if std::env::var_os("DOKIME_PLOT_MEASURE").is_some() {
+        executor.block_on(measure_queries());
+        return;
+    }
     let root = tempfile::tempdir().unwrap();
     let mut owner = executor.block_on(Runtime::start(config(root.path()))).unwrap();
     let runtime = owner.handle();
@@ -84,6 +90,49 @@ pub fn benchmark(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
+
+async fn measure_queries() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = Runtime::start(config(root.path())).boxed_local().await.unwrap();
+    let runtime = owner.handle();
+    let mut saved = 0;
+    for rows in [40_000, 1_000_000] {
+        while saved < rows {
+            let count = (rows - saved).min(2_000);
+            runtime.publish_telemetry_batch(batch(count)).await.unwrap();
+            saved += count;
+        }
+        runtime.storage().flush().await.unwrap();
+        let request = PlotPayloadRequest {
+            stream: STREAM.into(),
+            x_key: Some("timestamp".into()),
+            y_keys: vec!["value".into()],
+            max_points: Some(1_500),
+            ..Default::default()
+        };
+        let started = Instant::now();
+        let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).boxed_local().await;
+        let elapsed = started.elapsed();
+        match result {
+            Ok(envelopes) => {
+                let series = &envelopes[0].payload.series[0];
+                assert_eq!(series.raw_points, rows);
+                assert!(series.points.len() <= 1_500);
+                println!(
+                    "{}",
+                    serde_json::json!({"measurement":"plot_query", "rows":rows, "points":series.points.len(), "elapsed_ns":elapsed.as_nanos()})
+                );
+            }
+            Err(error) => println!(
+                "{}",
+                serde_json::json!({"measurement":"plot_query", "rows":rows, "elapsed_ns":elapsed.as_nanos(), "error":error.to_string()})
+            ),
+        }
+    }
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 fn config(root: &std::path::Path) -> RuntimeConfig {
     let schema = harmos::schema::graph::Schema::from_declaration(PlotRow::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
     let plugin = InstalledPlugin {
@@ -119,7 +168,13 @@ fn batch(rows: usize) -> TelemetryBatch {
             let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, timestamp.clone(), STREAM);
             let value = index as f64;
             sample.values.insert("value".to_owned(), value.into());
-            sample.storage_payload = Some(PlotRow { timestamp: timestamp.as_str().to_owned(), value: Some(value) }.encode_to_vec());
+            sample.storage_payload = Some(
+                PlotRow {
+                    timestamp: timestamp.as_str().to_owned(),
+                    value: Some(value),
+                }
+                .encode_to_vec(),
+            );
             sample
         })
         .collect();
