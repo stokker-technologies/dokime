@@ -167,7 +167,6 @@ def test_payload_profiles(tmp_path: Path, native: str) -> None:
     expected_identity = {
         "identifier": "com.example.compiled",
         "slug": "dokime",
-        "deep_link_scheme": "compiled-scheme",
         "updater_public_key": "compiled-trust",
     }
     sources = {}
@@ -250,7 +249,7 @@ def _native_build(root: Path, profile: str, native: str) -> dict[str, bytes]:
             {
                 "version": "1.2.3",
                 "identifier": "com.example.compiled",
-                "plugins": {"deep-link": {"desktop": {"schemes": ["compiled-scheme"]}}, "updater": {"pubkey": "compiled-trust"}},
+                "plugins": {"updater": {"pubkey": "compiled-trust"}},
             }
         ),
         encoding="utf-8",
