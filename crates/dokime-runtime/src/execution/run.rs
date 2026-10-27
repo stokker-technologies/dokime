@@ -309,7 +309,7 @@ async fn execute<T: SidecarTemplate>(
             false
         }
     };
-    evidence.record_gaps(transport.gaps());
+    evidence.record_gaps(transport.gaps(), transport.gap_counts());
     let outcome =
         conclude::<T>(&declaration, inputs_settled.then_some(&environment), &transport, &evidence, ended, cleanup_error, !inputs_settled)
             .await;

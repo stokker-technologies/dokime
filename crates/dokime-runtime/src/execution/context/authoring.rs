@@ -448,6 +448,7 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
                 .collect(),
             steps: self.evidence.steps.clone(),
             gaps: self.evidence.gaps.clone(),
+            gap_counts: self.evidence.gap_counts.clone(),
         }
     }
 
@@ -524,6 +525,11 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     pub fn gaps<R: TelemetryStream>(&self) -> Vec<LeaseGap> {
         let stream = R::ID;
         self.evidence.gaps.iter().filter(|gap| gap.stream.as_str() == stream).cloned().collect()
+    }
+
+    // Every Gap The Stream Had; `gaps` Returns Bounded Examples Of A Long Run's Gaps.
+    pub fn gap_count<R: TelemetryStream>(&self) -> u64 {
+        self.evidence.gap_counts.get(R::ID).copied().unwrap_or_default()
     }
 }
 

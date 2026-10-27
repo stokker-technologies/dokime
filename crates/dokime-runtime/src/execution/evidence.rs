@@ -14,12 +14,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use super::evidence_rows::EvidenceRows;
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use harmos::signal::Series;
 
 // Local Imports
+use super::evidence_rows::EvidenceRows;
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::identity::Identifier;
 
@@ -38,6 +39,8 @@ pub struct ExecutionEvidence {
     pub(crate) steps: Vec<Identifier>,
     pub(crate) attempts: Vec<dokime_domain::model::execution::result::TestStepAttempt>,
     pub(crate) gaps: Vec<crate::telemetry::LeaseGap>,
+    // Exact Gap Count Per Stream; `gaps` Holds Bounded Examples.
+    pub(crate) gap_counts: BTreeMap<String, u64>,
 }
 
 // Criteria Iterate Saved Rows In Capture Order; Explicit Column Collection
@@ -63,8 +66,9 @@ impl ExecutionEvidence {
         self.samples.push(sample.sample_id.as_str(), &sample).expect("execution evidence persistence failed");
     }
 
-    pub fn record_gaps(&mut self, gaps: Vec<crate::telemetry::LeaseGap>) {
+    pub fn record_gaps(&mut self, gaps: Vec<crate::telemetry::LeaseGap>, counts: BTreeMap<String, u64>) {
         self.gaps = gaps;
+        self.gap_counts = counts;
     }
 
     pub fn record_step(&mut self, step: Identifier) {

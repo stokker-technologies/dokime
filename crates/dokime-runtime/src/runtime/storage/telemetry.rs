@@ -403,7 +403,6 @@ pub(crate) async fn collect_saved(
     Ok(harmos::storage::ReadBatch::new(samples))
 }
 
-/// Visits The Explicit Durable Frontier In Bounded Pages.
 /// Reads One Page In Storage Order After `options.after`; Each Schema Stops Once It Holds The Page Limit.
 pub(crate) async fn collect_page(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
@@ -445,6 +444,7 @@ pub(crate) async fn collect_page(
     Ok(TelemetryPage { samples: harmos::storage::ReadBatch::new(samples), positions, limited })
 }
 
+/// Visits The Explicit Durable Frontier In Bounded Pages.
 pub(crate) async fn visit_saved(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
     settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
