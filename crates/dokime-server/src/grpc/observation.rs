@@ -35,6 +35,8 @@ use dokime::runtime::query::RuntimeChange;
 const SERVER_SHELL_RESPONSE_BYTES: u64 = 524_288;
 const SERVER_TRACEABILITY_RESPONSE_BYTES: u64 = 524_288;
 const SERVER_TRACEABILITY_SCAN_ITEMS: u64 = 8_192;
+// A Quiet Watch Repeats Its Current Frame Well Inside The Client's 30 s Idle Deadline.
+const WATCH_HEARTBEAT: std::time::Duration = std::time::Duration::from_secs(10);
 
 pub(super) const STREAM: &str = "runtime.state";
 
@@ -168,7 +170,11 @@ impl Operation for Runtime {
                     )
                     .await
                     .map_err(stream_failure)?;
-                match watch.next_change().await {
+                let Ok(change) = tokio::time::timeout(WATCH_HEARTBEAT, watch.next_change()).await else {
+                    resynchronized = false;
+                    continue;
+                };
+                match change {
                     None => return Ok(().into()),
                     Some(RuntimeChange::State(next)) => {
                         snapshot = next;
@@ -203,20 +209,26 @@ impl Operation for Progress {
             let mut snapshot = watch.latest();
             let mut previous = None;
             let mut resynchronized = true;
+            let mut heartbeat = false;
             loop {
                 let current = snapshot.get(&execution);
-                if resynchronized || current != previous.as_ref() {
+                if resynchronized || heartbeat || current != previous.as_ref() {
                     output
                         .send_owned((progress_frame(snapshot.revision(), resynchronized, current)).into())
                         .await
                         .map_err(stream_failure)?;
                     previous = current.cloned();
                 }
-                let Some(next) = watch.next().await else {
+                resynchronized = false;
+                let Ok(next) = tokio::time::timeout(WATCH_HEARTBEAT, watch.next()).await else {
+                    heartbeat = true;
+                    continue;
+                };
+                let Some(next) = next else {
                     return Ok(().into());
                 };
+                heartbeat = false;
                 snapshot = next;
-                resynchronized = false;
             }
         })
         .await
@@ -303,7 +315,10 @@ pub(super) fn register(runtime: &RuntimeHandle, max_message_bytes: usize) -> Res
     runtime.operations().register_wire_operations::<Operations, Resources>(
         "dokime",
         dokime::app::Lanes::Open,
-        Arc::new(Resources { runtime: runtime.clone(), max_message_bytes }),
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            max_message_bytes,
+        }),
     )?;
     Ok(())
 }

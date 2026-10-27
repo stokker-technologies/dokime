@@ -66,9 +66,10 @@ impl Client {
         let incoming = self
             .execute(async {
                 client.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+                // A Stream Carries No Total Deadline: Opening Is Bounded Here, Each Later Frame By The Idle Deadline.
                 client
                     .server_streaming(
-                        self.request(Response::new(message)),
+                        request(Response::new(message), self.inner.authorization.as_ref()),
                         tonic::codegen::http::uri::PathAndQuery::from_static(path),
                         codec,
                     )
@@ -76,9 +77,14 @@ impl Client {
                     .map(tonic::Response::into_inner)
             })
             .await?;
-        let frames = stream::unfold(Some(incoming), |state| async move {
+        let idle = self.timeout;
+        let frames = stream::unfold(Some(incoming), move |state| async move {
             let mut incoming = state?;
-            match incoming.next().await {
+            let next = match idle_frame(idle, incoming.next()).await {
+                Ok(next) => next,
+                Err(status) => return Some((Err(status), None)),
+            };
+            match next {
                 Some(Err(status)) => Some((Err(status), None)),
                 None => Some((Err(tonic::Status::data_loss("operation stream has no completion")), None)),
                 Some(Ok(frame)) => match OutputEnvelope::project(frame) {
@@ -86,10 +92,11 @@ impl Client {
                     Ok(OutputEnvelope::Item(item)) => Some((value(item).map_err(status), Some(incoming))),
                     Ok(OutputEnvelope::Response(_)) => {
                         // Final Status Must Be Observed Before Reporting End Of Stream.
-                        match incoming.next().await {
-                            Some(Err(status)) => Some((Err(status), None)),
-                            Some(Ok(_)) => Some((Err(tonic::Status::data_loss("operation stream continued after completion")), None)),
-                            None => None,
+                        match idle_frame(idle, incoming.next()).await {
+                            Err(status) => Some((Err(status), None)),
+                            Ok(Some(Err(status))) => Some((Err(status), None)),
+                            Ok(Some(Ok(_))) => Some((Err(tonic::Status::data_loss("operation stream continued after completion")), None)),
+                            Ok(None) => None,
                         }
                     }
                 },
@@ -168,7 +175,10 @@ where
     let retained_bytes =
         NonZeroUsize::new(usize::try_from(DECODE_RETAINED_BYTES).map_err(|_| Error::IncompatibleApi)?).ok_or(Error::IncompatibleApi)?;
     Codec::new(
-        DecodeSettings { message_bytes: response_bytes, retained_bytes },
+        DecodeSettings {
+            message_bytes: response_bytes,
+            retained_bytes,
+        },
         EncodeSettings {
             message_bytes: request_bytes,
             buffer_bytes: NonZeroUsize::new(
@@ -199,6 +209,14 @@ where
 }
 
 /* === Private Functions === */
+
+// A Live Stream Fails Only When No Frame, Heartbeats Included, Arrives Within The Idle Deadline.
+async fn idle_frame<T>(idle: Option<std::time::Duration>, next: impl Future<Output = T>) -> std::result::Result<T, tonic::Status> {
+    match idle {
+        Some(idle) => tokio::time::timeout(idle, next).await.map_err(|_| tonic::Status::deadline_exceeded("stream idle deadline elapsed")),
+        None => Ok(next.await),
+    }
+}
 
 fn status(error: Error) -> tonic::Status {
     match error {
