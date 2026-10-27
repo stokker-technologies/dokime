@@ -20,14 +20,7 @@ use std::collections::BTreeMap;
 
 // Third Party Imports
 
-use harmos::{
-    operations::Context,
-    storage::ReadBatch,
-    storage::query::transform::{
-        Transform,
-        downsample::{Algorithm, Downsample},
-    },
-};
+use harmos::{operations::Context, storage::ReadBatch};
 
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
@@ -51,6 +44,9 @@ use dokime_domain::model::records::evidence::RecordEntry;
 /* === Macros === */
 
 /* === Type Aliases === */
+
+type TelemetryRows = crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>;
+type ScannedTelemetry = (TelemetryRows, Vec<std::ops::Range<usize>>);
 
 /* === Structs === */
 
@@ -83,26 +79,12 @@ pub(crate) async fn execution(
     let selection = harmos::storage::ReadBatch::new(())
         .try_map(|_| Ok::<_, Error>(crate::document::DocumentSelection { scope: execution.scope.clone() }))?;
     let context = crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
-    let needs_rows =
-        captured.context.execution_documents.values().any(|definition| crate::document::binding::telemetry_needed(definition, context));
-    let telemetry = context_telemetry(ctx, inspection.session(), captured, execution, false).await?;
+    let needs_rows = captured.context.execution_documents.values().any(|definition| {
+        crate::document::binding::telemetry_needed(definition, context)
+            || definition.cards.iter().any(|card| matches!(card.body, crate::document::DocumentCardBody::Plot { .. }))
+    });
     let maximum = usize::try_from(captured.report_defaults.plot_points).map_err(|_| invalid("plot point policy exceeds native size"))?;
-    let mut exact_telemetry = crate::execution::evidence_rows::EvidenceRows::default();
-    if needs_rows {
-        for versions in captured.telemetry_contracts.values() {
-            for contract in versions.values() {
-                super::query::telemetry::spool(
-                    ctx,
-                    inspection.session(),
-                    &captured.evidence_through,
-                    execution.test_execution_id.as_str(),
-                    contract,
-                    &mut exact_telemetry,
-                )
-                .await?;
-            }
-        }
-    }
+    let (telemetry, exact_telemetry) = context_telemetry(ctx, inspection.session(), captured, execution, needs_rows).await?;
     let limits = crate::document::bounded::DocumentLimits {
         source_bytes: 64 * 1024 * 1024,
         materialized_bytes: 64 * 1024 * 1024,
@@ -126,17 +108,19 @@ pub(crate) async fn execution(
                 selected_records.try_reserve(1).map_err(|_| invalid("document record workspace allocation failed"))?;
                 selected_records.push(record);
             }
-            for sample in
-                exact_telemetry.iter().filter(|sample| sources.2 || sources.1.iter().any(|stream| stream == sample.stream.as_str()))
-            {
-                let size = crate::document::bounded::document_size(&sample, limits.source_bytes, limits.depth)
-                    .map_err(|_| invalid("document sample exceeds its 64 MiB input limit"))?;
-                bytes = bytes
-                    .checked_add(size)
-                    .filter(|bytes| *bytes <= limits.source_bytes)
-                    .ok_or_else(|| invalid("selected document data exceeds its 64 MiB input limit"))?;
-                selected_samples.try_reserve(1).map_err(|_| invalid("document telemetry workspace allocation failed"))?;
-                selected_samples.push(sample);
+            if sources.2 || !sources.1.is_empty() {
+                for sample in
+                    exact_telemetry.iter().filter(|sample| sources.2 || sources.1.iter().any(|stream| stream == sample.stream.as_str()))
+                {
+                    let size = crate::document::bounded::document_size(&sample, limits.source_bytes, limits.depth)
+                        .map_err(|_| invalid("document sample exceeds its 64 MiB input limit"))?;
+                    bytes = bytes
+                        .checked_add(size)
+                        .filter(|bytes| *bytes <= limits.source_bytes)
+                        .ok_or_else(|| invalid("selected document data exceeds its 64 MiB input limit"))?;
+                    selected_samples.try_reserve(1).map_err(|_| invalid("document telemetry workspace allocation failed"))?;
+                    selected_samples.push(sample);
+                }
             }
             selected_samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
             let data = crate::document::input::BorrowedData {
@@ -169,9 +153,8 @@ pub(crate) async fn execution(
         })?;
     }
     drop(cached);
-    drop(exact_telemetry);
     operation.phase("Querying Report Plots");
-    let plots = plots(ctx, inspection.session(), captured, execution, &records, &documents, operation).await?;
+    let plots = plots(ctx, captured, execution, &records, &exact_telemetry, &documents, operation).await?;
     let selected = super::render::cycle::selection(telemetry.len(), maximum);
     let count = selected.clone().count();
     let preview = telemetry.try_map(|telemetry| {
@@ -207,46 +190,63 @@ async fn context_records(inspection: &ExecutionView) -> Result<crate::execution:
     Ok(records)
 }
 
-// Display Telemetry: Every Row When A Document Binds Them, Else A Downsampled Preview.
+// One Saved-Evidence Pass Feeds The Preview And Every Exact Consumer.
 async fn context_telemetry(
     ctx: &Context<'_>, session: &crate::storage::Manager, captured: &CapturedSource,
     execution: &dokime_domain::model::execution::result::TestExecution, needs_rows: bool,
-) -> Result<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>> {
-    let mut telemetry = super::query::telemetry::empty()?;
-    for versions in captured.telemetry_contracts.values() {
-        for contract in versions.values() {
-            let transforms = if needs_rows {
-                vec![]
-            } else {
-                vec![Transform::Downsample(Downsample {
-                    max_rows: usize::try_from(captured.report_defaults.plot_points).expect("validated report plot point count"),
-                    algorithm: Algorithm::Decimate,
-                    value: None,
-                    axis: None,
-                })]
-            };
-            telemetry = super::query::telemetry::append(
-                telemetry,
-                super::query::telemetry::read(
+) -> Result<(
+    ReadBatch<Vec<crate::telemetry::TelemetrySample>>,
+    crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
+)> {
+    let scan = async {
+        let mut rows = TelemetryRows::default();
+        let mut spans = Vec::new();
+        for versions in captured.telemetry_contracts.values() {
+            for contract in versions.values() {
+                let start = rows.len();
+                super::query::telemetry::visit(
                     ctx,
                     session,
                     &captured.evidence_through,
                     execution.test_execution_id.as_str(),
                     contract,
-                    transforms,
+                    |sample| rows.append(sample).map_err(Error::Operation),
                 )
-                .await?,
-            )?;
+                .await?;
+                spans.push(start..rows.len());
+            }
+        }
+        Ok((rows, spans))
+    };
+    telemetry_pass(scan, captured.report_defaults.plot_points as usize, needs_rows).await
+}
+
+async fn telemetry_pass(
+    scan: impl std::future::Future<Output = Result<ScannedTelemetry>>, maximum: usize, needs_rows: bool,
+) -> Result<(ReadBatch<Vec<crate::telemetry::TelemetrySample>>, TelemetryRows)> {
+    let (mut rows, spans) = scan.await?;
+    let selected = spans.iter().flat_map(|span| harmos::signal::decimate_indices(span.len(), maximum).map(move |index| span.start + index));
+    let mut selected = selected.peekable();
+    let mut preview = Vec::new();
+    for (index, sample) in rows.iter().enumerate() {
+        if selected.peek() == Some(&index) {
+            preview.try_reserve(1).map_err(|_| invalid("report preview allocation failed"))?;
+            preview.push(sample);
+            selected.next();
         }
     }
-    super::query::telemetry::sort(telemetry)
+    let preview = super::query::telemetry::sort(ReadBatch::new(preview))?;
+    if !needs_rows {
+        rows = Default::default();
+    }
+    Ok((preview, rows))
 }
 
 // Plot Queries Respect The Supplied Concurrency; Results Keep Card Order.
 async fn plots(
-    ctx: &Context<'_>, session: &crate::storage::Manager, captured: &CapturedSource,
-    execution: &dokime_domain::model::execution::result::TestExecution,
+    ctx: &Context<'_>, captured: &CapturedSource, execution: &dokime_domain::model::execution::result::TestExecution,
     records: &crate::execution::evidence_rows::EvidenceRows<RecordEntry>,
+    telemetry: &crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
     documents: &BTreeMap<DocumentId, crate::document::capture::Capture>, operation: &Operation,
 ) -> Result<ReadBatch<BTreeMap<String, super::value::Value>>> {
     let mut groups = Vec::<(super::query::ReadPlan, Vec<_>)>::new();
@@ -274,6 +274,11 @@ async fn plots(
         }
     }
 
+    if groups.is_empty() {
+        return Ok(ReadBatch::new(BTreeMap::new()));
+    }
+    let input = plot_inputs(telemetry, records)?;
+    let input = &input;
     let mut pending_groups = futures_util::stream::iter(groups.into_iter().map(|(plan, requests)| async move {
         let _group = operation.report_group().await;
         let _plan = plan;
@@ -282,9 +287,7 @@ async fn plots(
             let shared = &shared;
             async move {
                 let _permit = operation.report_work().await;
-                let payload =
-                    super::query::materialize(super::query::ReadContext { ctx, session }, captured, execution, records, request, shared)
-                        .await?;
+                let payload = super::query::materialize(ctx, captured, execution, request, input, telemetry, shared).await?;
                 Ok::<_, Error>((current, payload.try_map(|payload| Ok::<_, Error>((id, payload)))?))
             }
         }))
@@ -308,6 +311,19 @@ async fn plots(
         })?;
     }
     Ok(plots)
+}
+
+fn plot_inputs(
+    telemetry: &TelemetryRows, records: &crate::execution::evidence_rows::EvidenceRows<RecordEntry>,
+) -> Result<crate::plot::spilled::Input> {
+    let input = crate::plot::spilled::Input::new()?;
+    for sample in telemetry.iter() {
+        input.append(&sample)?;
+    }
+    for record in records.iter() {
+        input.append_record(&record)?;
+    }
+    Ok(input)
 }
 
 fn reserve_plot_slot<T>(values: &mut Vec<T>) -> Result<()> {
@@ -406,3 +422,84 @@ fn invalid(reason: &'static str) -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        Value,
+        plot::{PlotPayloadContext, PlotPayloadRequest},
+        telemetry::TelemetrySample,
+    };
+    use dokime_domain::model::{identity::Identifier, time::Timestamp};
+
+    #[tokio::test]
+    async fn report_plans_share_one_telemetry_scan() {
+        let scans = std::cell::Cell::new(0);
+        let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
+        let stream = Identifier::new("fixture.capture").unwrap();
+        let scan = async {
+            scans.set(scans.get() + 1);
+            let mut rows = TelemetryRows::default();
+            for index in 0..4096_u64 {
+                let mut sample = TelemetrySample::new(
+                    dokime_domain::model::identity::TelemetrySampleId::from_seed(index.to_string()),
+                    stream.clone(),
+                    index,
+                    timestamp.clone(),
+                    "fixture",
+                );
+                sample.values.insert("value".into(), Value::Number(index as f64));
+                rows.append(&sample).map_err(Error::Operation)?;
+            }
+            let length = rows.len();
+            Ok((rows, std::iter::once(0..length).collect()))
+        };
+        let (preview, exact) = telemetry_pass(scan, 32, true).await.unwrap();
+        assert_eq!(preview.len(), 32);
+        assert_eq!(exact.len(), 4096);
+        assert_eq!(exact.retained_rows(), 0);
+        assert!(exact.spooled_bytes() > 0);
+        let input = plot_inputs(&exact, &Default::default()).unwrap();
+        for maximum in [8, 16, 32] {
+            let request = PlotPayloadRequest {
+                stream: stream.to_string(),
+                y_keys: vec!["value".into()],
+                max_points: Some(maximum),
+                plot_type: Some(crate::document::PlotType::TimeSeries),
+                ..Default::default()
+            };
+            let context = PlotPayloadContext {
+                default_max_points: 32,
+                x_format: None,
+                series_format: None,
+                run_started_at: None,
+                cycle_started_at: None,
+            };
+            let payload = crate::plot::spilled::project(&input, &request, timestamp.as_str(), &context).unwrap();
+            assert_eq!(payload.series[0].raw_points, 4096);
+            assert!(payload.series[0].points.len() <= maximum);
+        }
+        assert_eq!(scans.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn report_preview_releases_rows_without_exact_plans() {
+        let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
+        let mut rows = TelemetryRows::default();
+        for index in 0..16_u64 {
+            let sample = TelemetrySample::new(
+                dokime_domain::model::identity::TelemetrySampleId::from_seed(index.to_string()),
+                Identifier::new("fixture.preview").unwrap(),
+                index,
+                timestamp.clone(),
+                "fixture",
+            );
+            rows.append(&sample).unwrap();
+        }
+        let spans = std::iter::once(0..rows.len()).collect();
+        let (preview, exact) = telemetry_pass(async { Ok((rows, spans)) }, 4, false).await.unwrap();
+        assert_eq!(preview.len(), 4);
+        assert!(exact.is_empty());
+    }
+}

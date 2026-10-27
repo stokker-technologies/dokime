@@ -21,10 +21,7 @@ pub(super) use plots::{ReadCache, ReadPlan, materialize, read_plan};
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{
-    operations::Context,
-    storage::{arrow::ArrowBatch, operations::Query, query::QueryArrow},
-};
+use harmos::storage::{arrow::ArrowBatch, operations::Query, query::QueryArrow};
 
 // Local Imports
 use crate::{runtime::Error, runtime::Result};
@@ -36,12 +33,6 @@ use crate::{runtime::Error, runtime::Result};
 /* === Type Aliases === */
 
 /* === Structs === */
-
-#[derive(Clone, Copy)]
-pub(super) struct ReadContext<'a, 'ctx> {
-    pub ctx: &'a Context<'ctx>,
-    pub session: &'a crate::storage::Manager,
-}
 
 /* === Enums === */
 

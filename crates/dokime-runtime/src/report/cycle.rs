@@ -47,6 +47,9 @@ pub(crate) struct CycleReport {
 
 pub(crate) struct CapturedMember {
     spool: std::sync::Mutex<std::fs::File>,
+
+    #[cfg(test)]
+    pub(in crate::report) decodes: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 /* === Enums === */
@@ -68,7 +71,11 @@ impl CycleMember {
         serde_json::to_writer(&mut output, &*input).map_err(crate::storage::Error::from)?;
         output.flush()?;
         let spool = output.into_inner().map_err(|error| error.into_error())?;
-        Ok(Self::Captured(CapturedMember { spool: std::sync::Mutex::new(spool) }))
+        Ok(Self::Captured(CapturedMember {
+            spool: std::sync::Mutex::new(spool),
+            #[cfg(test)]
+            decodes: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        }))
     }
 }
 
@@ -78,6 +85,8 @@ impl CapturedMember {
             self.spool.lock().map_err(|_| crate::runtime::Error::InvalidReportInputs("member spool lock is poisoned".into()))?;
         spool.seek(SeekFrom::Start(0))?;
         let input = serde_json::from_reader(BufReader::with_capacity(1024 * 1024, &mut *spool)).map_err(crate::storage::Error::from)?;
+        #[cfg(test)]
+        self.decodes.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Ok(harmos::storage::ReadBatch::new(input))
     }
 }
@@ -87,10 +96,12 @@ impl CycleReport {
         manager: &Manager, snapshot: CycleSnapshot, members: Vec<CycleMember>, operation: &Operation,
         report_defaults: &crate::config::ReportDefaults,
     ) -> Result<Self> {
-        let source = HtmlReport::from_cycle(snapshot, members, operation, report_defaults)?;
+        let operation = operation.clone();
+        let report_defaults = *report_defaults;
         let nonce = uuid::Uuid::now_v7();
         let manager = manager.clone();
         tokio::task::spawn_blocking(move || {
+            let source = HtmlReport::from_cycle(snapshot, members, &operation, &report_defaults)?;
             let owner = source.header().cycle.test_cycle_id.as_str();
             let file = super::saved::ReportFile::render(&source, owner, nonce, ".cycle-report")?;
             Ok(Self { manager, file })

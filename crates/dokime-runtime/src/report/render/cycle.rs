@@ -14,7 +14,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, io::Write};
+use std::{
+    collections::BTreeMap,
+    io::{self, Write},
+};
 
 // Third Party Imports
 use serde::{
@@ -42,6 +45,12 @@ pub(in crate::report) struct Report<'a> {
     pub index: &'a Index,
     pub appearance: &'a crate::installed_plugins::RuntimeAppearanceFrame,
     pub read: &'a ReadMember<'a>,
+}
+
+// Render Every Section While Its Typed Member Is Borrowed; Retain Only Encoded Rows On Disk.
+pub(in crate::report) struct MemberRows {
+    connection: rusqlite::Connection,
+    _directory: tempfile::TempDir,
 }
 
 struct Rows<'a, 'r>(&'a Report<'r>, Section);
@@ -84,6 +93,236 @@ impl Report<'_> {
     }
 }
 
+impl Report<'_> {
+    pub(in crate::report) fn write_prepared(&self, writer: &mut dyn Write, rows: &MemberRows) -> Result<()> {
+        output::write_html_with(writer, REPORT_APP_TEMPLATE, |writer| {
+            let mut fields = output::Object::new(writer)?;
+            fields.field("appearance", self.appearance)?;
+            fields.field("report_defaults", self.report_defaults)?;
+            fields.raw("case_runs", |writer| rows.array(writer, "cases"))?;
+            fields.field("documents", &self.header.documents)?;
+            fields.field("generated_at", &self.header.generated_at)?;
+            fields.field(
+                "hub",
+                &Hub {
+                    generator: "dokime-runtime",
+                    name: "Dokime",
+                    version: env!("CARGO_PKG_VERSION"),
+                },
+            )?;
+            fields.field("plots", &self.header.plots.unwrap_or(&BTreeMap::new()))?;
+            fields.field("schema_version", &1u8)?;
+            fields.raw("snapshot", |writer| self.write_snapshot(writer, rows))?;
+            fields.field("test_cycle_plan", &PlanRows(self))?;
+            fields.field("test_executions", &Rows(self, Section::Executions))?;
+            fields.raw("warnings", |writer| {
+                writer.write_all(b"[")?;
+                let mut first = true;
+                for warning in [
+                    (self.index.members == 0)
+                        .then_some("report.no_executions: No executions are available yet; this report reflects the current cycle plan."),
+                    self.header
+                        .cycle
+                        .result
+                        .is_none()
+                        .then_some("report.no_result_summary: No result summary has been produced for this cycle."),
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    separator(writer, &mut first)?;
+                    output::write_json(writer, &warning)?;
+                }
+                rows.visit("warnings", |bytes| {
+                    separator(writer, &mut first)?;
+                    writer.write_all(bytes)
+                })?;
+                writer.write_all(b"]")
+            })?;
+            fields.finish()
+        })
+        .map_err(|source| Error::InvalidReportInputs(source.to_string()))
+    }
+
+    fn write_snapshot(&self, writer: &mut dyn Write, rows: &MemberRows) -> io::Result<()> {
+        let snapshot = snapshot(self.header);
+        let mut fields = output::Object::new(writer)?;
+        fields.field("run", &snapshot.run)?;
+        fields.field("session_id", &snapshot.session_id)?;
+        fields.field("title", &snapshot.title)?;
+        fields.field("revision", &snapshot.revision)?;
+        fields.raw("records", |writer| rows.array(writer, "records"))?;
+        fields.raw("telemetry", |writer| {
+            let mut streams = output::Object::new(writer)?;
+            let mut remaining = self.index.samples.as_slice();
+            while let Some(first) = remaining.first() {
+                let count = remaining.iter().take_while(|sample| sample.stream == first.stream).count();
+                let (samples, rest) = remaining.split_at(count);
+                remaining = rest;
+                let maximum = self.report_defaults.plot_points as usize;
+                let returned = selection(count, maximum).count();
+                streams.raw(first.stream.as_str(), |writer| {
+                    let mut stream = output::Object::new(writer)?;
+                    stream.field("stream", &first.stream.as_str())?;
+                    stream.field("spec", &None::<()>)?;
+                    stream.field("summary", &BTreeMap::<(), ()>::new())?;
+                    stream.raw("samples", |writer| {
+                        writer.write_all(b"[")?;
+                        let mut first = true;
+                        for sample in selected_samples(samples, maximum) {
+                            separator(writer, &mut first)?;
+                            rows.row(writer, "samples", sample.member, sample.sample)?;
+                        }
+                        writer.write_all(b"]")
+                    })?;
+                    stream.field("max_samples", &maximum)?;
+                    stream.field("total_samples", &count)?;
+                    stream.field("dropped_samples", &(count - returned))?;
+                    stream.field("downsampled", &(returned < count))?;
+                    stream.field("updated_at", &samples.last().unwrap().timestamp)?;
+                    stream.finish()
+                })?;
+            }
+            streams.finish()
+        })?;
+        fields.field("pending_prompts", &snapshot.pending_prompts)?;
+        for (name, kind, section) in [("notes", AnnotationKind::Note, "notes"), ("health", AnnotationKind::Health, "health")] {
+            fields.raw(name, |writer| {
+                writer.write_all(b"[")?;
+                let mut first = true;
+                for annotation in self.index.annotations.iter().filter(|annotation| annotation.kind == kind) {
+                    separator(writer, &mut first)?;
+                    rows.row(writer, section, annotation.member, annotation.position)?;
+                }
+                writer.write_all(b"]")
+            })?;
+        }
+        fields.field("result_summary", &snapshot.result_summary)?;
+        fields.field("traceability", &snapshot.traceability)?;
+        fields.raw("artifacts", |writer| rows.array(writer, "artifacts"))?;
+        fields.field("updated_at", &snapshot.updated_at)?;
+        fields.finish()
+    }
+}
+
+impl MemberRows {
+    pub(in crate::report) fn new() -> Result<Self> {
+        let directory = tempfile::tempdir()?;
+        let connection = rusqlite::Connection::open(directory.path().join("report.sqlite")).map_err(rows_error)?;
+        connection
+            .execute_batch(
+                "PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; PRAGMA temp_store=FILE;
+             PRAGMA cache_size=-8192; PRAGMA mmap_size=0;
+             CREATE TABLE rows(section TEXT,member INTEGER,ordinal INTEGER,payload BLOB NOT NULL,
+             PRIMARY KEY(section,member,ordinal)) WITHOUT ROWID; BEGIN;",
+            )
+            .map_err(rows_error)?;
+        Ok(Self { connection, _directory: directory })
+    }
+
+    pub(in crate::report) fn capture(
+        &self, member: usize, captured: &crate::report::CapturedExecutionReportInput, header: Header<'_>,
+    ) -> Result<()> {
+        let input = &captured.input;
+        let execution = &input.cycle.test_executions[0];
+        self.append("cases", member, 0, &case_session(input, execution.snapshot.case()))?;
+        for (ordinal, link) in input.artifact_links.iter().enumerate() {
+            self.append("artifacts", member, ordinal, &ArtifactRow { link, download_href: &link.href })?;
+        }
+        for (ordinal, record) in input.records.iter().enumerate() {
+            self.append("records", member, ordinal, &record_row(header, &record))?;
+        }
+        for (ordinal, (code, message)) in crate::report::document::document_warnings(input).enumerate() {
+            self.append("warnings", member, ordinal, &DocumentWarningText(code, message))?;
+        }
+        for (ordinal, sample) in input.telemetry.iter().enumerate() {
+            self.append("samples", member, ordinal, &telemetry::SampleValues(sample))?;
+        }
+        for (ordinal, note) in captured.context.notes.iter().enumerate() {
+            self.append(
+                "notes",
+                member,
+                ordinal,
+                &NoteRow {
+                    note_id: note.note_id.as_str(),
+                    author: note.author.as_deref(),
+                    text: &note.message,
+                    timestamp: &note.created_at,
+                    scope: &note.scope,
+                },
+            )?;
+        }
+        for (ordinal, item) in captured.context.health.iter().enumerate() {
+            self.append(
+                "health",
+                member,
+                ordinal,
+                &HealthRow {
+                    health_id: item.health_item_id.as_str(),
+                    level: &item.severity,
+                    title: &item.message,
+                    message: item.detail.as_deref(),
+                    details: BTreeMap::new(),
+                    created_at: &item.observed_at,
+                    scope: &item.scope,
+                },
+            )?;
+        }
+        Ok(())
+    }
+
+    fn append(&self, section: &str, member: usize, ordinal: usize, value: &impl Serialize) -> Result<()> {
+        let member = i64::try_from(member).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+        let ordinal = i64::try_from(ordinal).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+        let mut bytes = Vec::new();
+        output::write_json(&mut bytes, value)?;
+        self.connection
+            .prepare_cached("INSERT INTO rows VALUES (?1,?2,?3,?4)")
+            .map_err(rows_error)?
+            .execute(rusqlite::params![section, member, ordinal, bytes])
+            .map_err(rows_error)?;
+        Ok(())
+    }
+
+    fn visit(&self, section: &str, mut visit: impl FnMut(&[u8]) -> io::Result<()>) -> io::Result<()> {
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT payload FROM rows WHERE section=?1 ORDER BY member,ordinal")
+            .map_err(io::Error::other)?;
+        let mut rows = statement.query([section]).map_err(io::Error::other)?;
+        while let Some(row) = rows.next().map_err(io::Error::other)? {
+            visit(row.get_ref(0).map_err(io::Error::other)?.as_blob().map_err(io::Error::other)?)?;
+        }
+        Ok(())
+    }
+
+    fn array(&self, writer: &mut dyn Write, section: &str) -> io::Result<()> {
+        writer.write_all(b"[")?;
+        let mut first = true;
+        self.visit(section, |bytes| {
+            separator(writer, &mut first)?;
+            writer.write_all(bytes)
+        })?;
+        writer.write_all(b"]")
+    }
+
+    fn row(&self, writer: &mut dyn Write, section: &str, member: usize, ordinal: usize) -> io::Result<()> {
+        let member = i64::try_from(member).map_err(io::Error::other)?;
+        let ordinal = i64::try_from(ordinal).map_err(io::Error::other)?;
+        self.connection
+            .prepare_cached("SELECT payload FROM rows WHERE section=?1 AND member=?2 AND ordinal=?3")
+            .map_err(io::Error::other)?
+            .query_row(rusqlite::params![section, member, ordinal], |row| {
+                let bytes = row
+                    .get_ref(0)?
+                    .as_blob()
+                    .map_err(|error| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Blob, Box::new(error)))?;
+                Ok(writer.write_all(bytes))
+            })
+            .map_err(io::Error::other)?
+    }
+}
+
 impl fmt::Display for DocumentWarningText<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{}: {}", self.0, self.1)
@@ -104,7 +343,14 @@ impl Serialize for Report<'_> {
         fields.serialize_entry("case_runs", &Rows(self, Section::Cases))?;
         fields.serialize_entry("documents", &self.header.documents)?;
         fields.serialize_entry("generated_at", &self.header.generated_at)?;
-        fields.serialize_entry("hub", &Hub { generator: "dokime-runtime", name: "Dokime", version: env!("CARGO_PKG_VERSION") })?;
+        fields.serialize_entry(
+            "hub",
+            &Hub {
+                generator: "dokime-runtime",
+                name: "Dokime",
+                version: env!("CARGO_PKG_VERSION"),
+            },
+        )?;
         fields.serialize_entry("plots", &self.header.plots.unwrap_or(&BTreeMap::new()))?;
         fields.serialize_entry("schema_version", &1u8)?;
         fields.serialize_entry("snapshot", &SnapshotRows(self))?;
@@ -192,7 +438,10 @@ impl Serialize for Rows<'_, '_> {
                     started_at: member.started_at.as_ref(),
                     finished_at: member.finished_at.as_ref(),
                     parameters: ReportValues(&member.parameters),
-                    metadata: ExecutionMetadata { result: member.result.as_ref(), parameters: ReportValues(&member.parameters) },
+                    metadata: ExecutionMetadata {
+                        result: member.result.as_ref(),
+                        parameters: ReportValues(&member.parameters),
+                    },
                     steps: Steps(report, member),
                 })?;
             }
@@ -429,6 +678,18 @@ pub(crate) fn selection(length: usize, maximum: usize) -> impl Iterator<Item = u
 
 /* === Private Functions === */
 
+fn separator(writer: &mut dyn Write, first: &mut bool) -> io::Result<()> {
+    if !*first {
+        writer.write_all(b",")?;
+    }
+    *first = false;
+    Ok(())
+}
+
+fn rows_error(error: rusqlite::Error) -> Error {
+    Error::InvalidReportInputs(error.to_string())
+}
+
 // An Undispatched Attempt Reads As The Live Cycle Spells It: A Skipped One Is Planned.
 fn member_status(status: &ExecutionStatus, planned: bool) -> &'static str {
     if planned && *status == ExecutionStatus::Skipped { "planned" } else { execution_status(status) }
@@ -456,4 +717,64 @@ fn preview_selection_preserves_order_and_terminal_endpoint() {
         assert_eq!(indices.clone().count(), expected.len());
         assert_eq!(indices.collect::<Vec<_>>(), expected);
     }
+}
+
+#[test]
+fn fixture_report_save_measurement() {
+    use crate::report::{CapturedExecutionReportInput, cycle::CycleMember};
+    use std::{
+        io::{BufWriter, Read},
+        sync::atomic::Ordering,
+        time::Instant,
+    };
+    let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("../fixtures/execution-report-input.json")).unwrap();
+    let input = harmos::storage::ReadBatch::new(captured);
+    let CycleMember::Captured(member) = CycleMember::capture(input.clone()).unwrap() else { unreachable!() };
+    let mut index = Index::new();
+    index.push_capture(&input).unwrap();
+    index.sort();
+    let read = |_| member.read().map(crate::report::html::Member::Captured);
+    let report = Report {
+        header: (&input.input).into(),
+        index: &index,
+        appearance: &input.context.appearance,
+        report_defaults: &input.report_defaults,
+        read: &read,
+    };
+    let mut baseline_file = None;
+    let started = Instant::now();
+    for _ in 0..20 {
+        let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
+        drop(member.read().unwrap());
+        report.write(&mut writer).unwrap();
+        writer.flush().unwrap();
+        baseline_file = Some(writer.into_inner().unwrap());
+    }
+    let before = started.elapsed() / 20;
+    let mut baseline_bytes = Vec::new();
+    let mut baseline_file = baseline_file.unwrap();
+    std::io::Seek::rewind(&mut baseline_file).unwrap();
+    baseline_file.read_to_end(&mut baseline_bytes).unwrap();
+    let baseline_decodes = member.decodes.load(Ordering::Relaxed);
+    let mut candidate_file = None;
+    let started = Instant::now();
+    for _ in 0..20 {
+        let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
+        let captured = member.read().unwrap();
+        let rows = MemberRows::new().unwrap();
+        rows.capture(0, &captured, report.header).unwrap();
+        drop(captured);
+        report.write_prepared(&mut writer, &rows).unwrap();
+        writer.flush().unwrap();
+        candidate_file = Some(writer.into_inner().unwrap());
+    }
+    let after = started.elapsed() / 20;
+    let mut candidate_bytes = Vec::new();
+    let mut candidate_file = candidate_file.unwrap();
+    std::io::Seek::rewind(&mut candidate_file).unwrap();
+    candidate_file.read_to_end(&mut candidate_bytes).unwrap();
+    assert_eq!(member.decodes.load(Ordering::Relaxed) - baseline_decodes, 20);
+    assert!(baseline_decodes > 20);
+    assert_eq!(candidate_bytes, baseline_bytes);
+    eprintln!("Fixture Report Save: before={before:?}, after={after:?}, bytes={}", candidate_bytes.len());
 }

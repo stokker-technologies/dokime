@@ -32,7 +32,6 @@ use crate::storage::telemetry::TypedCodec;
 use crate::storage::telemetry::decode_positioned;
 use crate::telemetry::TelemetryContract;
 use crate::telemetry::TelemetrySample;
-use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -67,67 +66,20 @@ pub(super) fn plan(at: &StorageCursor, scope: &str, codec: &TypedCodec, transfor
     })
 }
 
-pub(in crate::report) async fn read(
+pub(in crate::report) async fn visit(
     ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
-    transforms: Vec<Transform>,
-) -> Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
-    let codec = saved_codec(ctx, session, at, contract).await?;
-    let query = plan(at, scope, &codec, transforms)?;
-    let mut samples = Some(empty()?);
-    let mut retained_bytes = 0usize;
-    super::visit_batches(session, at, query, |batch| {
-        let entries = decode_positioned(&codec, batch)?;
-        let page = crate::storage::projection::page(entries, |(_, entry)| Ok(entry.sample))?;
-        retained_bytes = retained_bytes
-            .checked_add(crate::execution::evidence_rows::encoded_bytes(&*page))
-            .filter(|bytes| *bytes <= 128 * 1024 * 1024)
-            .ok_or_else(|| invalid("raw report plot workspace exceeds 128 MiB"))?;
-        samples = Some(append(samples.take().expect("report sample owner exists"), page)?);
-        Ok(())
-    })
-    .await?;
-    sort(samples.expect("completed report sample owner exists"))
-}
-
-pub(in crate::report) async fn spool(
-    ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
-    samples: &mut crate::execution::evidence_rows::EvidenceRows<TelemetrySample>,
+    mut visit: impl FnMut(&TelemetrySample) -> Result<()>,
 ) -> Result<()> {
     let codec = saved_codec(ctx, session, at, contract).await?;
     let query = plan(at, scope, &codec, Vec::new())?;
     super::visit_batches(session, at, query, |batch| {
         let entries = decode_positioned(&codec, batch)?;
         for (_, entry) in entries.iter() {
-            samples.append(&entry.sample).map_err(crate::runtime::Error::Operation)?;
+            visit(&entry.sample)?;
         }
         Ok(())
     })
     .await
-}
-
-pub(super) async fn streams(
-    ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, scope: &str,
-    contracts: &std::collections::BTreeMap<Identifier, std::collections::BTreeMap<u32, TelemetryContract>>, selected: &[String],
-) -> Result<crate::plot::spilled::Input> {
-    let input = crate::plot::spilled::Input::new()?;
-    for (stream, versions) in contracts {
-        if !selected.iter().any(|name| crate::plot::stream_matches_alias(stream.as_str(), name)) {
-            continue;
-        }
-        for contract in versions.values() {
-            let codec = saved_codec(ctx, session, at, contract).await?;
-            let query = plan(at, scope, &codec, Vec::new())?;
-            super::visit_batches(session, at, query, |batch| {
-                let entries = decode_positioned(&codec, batch)?;
-                for (_, entry) in entries.iter() {
-                    input.append(&entry.sample)?;
-                }
-                Ok(())
-            })
-            .await?;
-        }
-    }
-    Ok(input)
 }
 
 /* === Private Functions === */
@@ -163,16 +115,6 @@ pub(in crate::report) async fn saved_codec(
         Ok(codecs.pop().expect("one report codec"))
     })
 }
-pub(in crate::report) fn empty() -> Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
-    Ok(harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::storage::Error>(Vec::new()))?)
-}
-
-pub(in crate::report) fn append(
-    samples: harmos::storage::ReadBatch<Vec<TelemetrySample>>, page: harmos::storage::ReadBatch<Vec<TelemetrySample>>,
-) -> Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
-    Ok(crate::runtime::storage::telemetry::append_retained(samples, page)?)
-}
-
 pub(in crate::report) fn sort(
     samples: harmos::storage::ReadBatch<Vec<TelemetrySample>>,
 ) -> Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {

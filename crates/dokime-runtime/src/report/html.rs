@@ -22,7 +22,10 @@ use std::{cell::RefCell, collections::BTreeMap, io::Write, ops::Deref};
 use super::{
     CapturedExecutionReportInput, CycleReportInput,
     cycle::{CycleMember, Index},
-    render::{cycle::Report, header::Header},
+    render::{
+        cycle::{MemberRows, Report},
+        header::Header,
+    },
 };
 use crate::document::capture::Capture;
 use crate::execution::context::captured::source::CapturedSource;
@@ -52,7 +55,7 @@ enum Source {
         report_defaults: harmos::storage::ReadBatch<crate::config::ReportDefaults>,
         snapshot: CycleSnapshot,
         documents: harmos::storage::ReadBatch<BTreeMap<DocumentId, Capture>>,
-        members: Vec<super::cycle::CapturedMember>,
+        rows: MemberRows,
     },
     Captured {
         input: harmos::storage::ReadBatch<CapturedExecutionReportInput>,
@@ -84,7 +87,7 @@ impl HtmlReport {
         let report_defaults = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(*report_defaults))?;
         let count = cycle_members.len();
         let documents = cycle_document(&snapshot, crate::document::bounded::DocumentLimits::default())?;
-        let mut members = Vec::with_capacity(count);
+        let rows = MemberRows::new()?;
         let mut index = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Index::new()))?;
         // Compose Member Results Materialized From Their Saved Context And Evidence.
         for (materialized, member) in cycle_members.into_iter().enumerate() {
@@ -110,14 +113,22 @@ impl HtmlReport {
                 index.push_capture(&captured)?;
                 Ok::<_, Error>(index)
             })?;
-            members.push(member);
+            rows.capture(index.members - 1, &captured, Header::cycle(&snapshot, &documents))?;
         }
         operation.progress(count as u64, count as u64);
         let index = index.try_map(|mut index| {
             index.sort();
             Ok::<_, Error>(index)
         })?;
-        Ok(Self { index, source: Source::Saved { report_defaults, snapshot, documents, members } })
+        Ok(Self {
+            index,
+            source: Source::Saved {
+                report_defaults,
+                snapshot,
+                documents,
+                rows,
+            },
+        })
     }
 
     pub(super) fn from_capture(
@@ -129,7 +140,10 @@ impl HtmlReport {
             index.sort();
             Ok::<_, Error>(index)
         })?;
-        Ok(Self { index, source: Source::Captured { input: captured, evidence } })
+        Ok(Self {
+            index,
+            source: Source::Captured { input: captured, evidence },
+        })
     }
 
     fn report_defaults(&self) -> &crate::config::ReportDefaults {
@@ -143,9 +157,7 @@ impl HtmlReport {
         match &self.source {
             Source::Captured { input, .. } if member == 0 => Ok(Member::Captured(input.clone())),
             Source::Captured { .. } => Err(invalid("captured report has only one member")),
-            Source::Saved { members, .. } => {
-                members.get(member).ok_or_else(|| invalid("cycle report member is missing"))?.read().map(Member::Captured)
-            }
+            Source::Saved { .. } => Err(invalid("cycle members are already rendered")),
         }
     }
 
@@ -194,7 +206,10 @@ impl HtmlReport {
             report_defaults: self.report_defaults(),
             read: &read,
         };
-        let outcome = report.write(writer);
+        let outcome = match &self.source {
+            Source::Saved { rows, .. } => report.write_prepared(writer, rows),
+            Source::Captured { .. } => report.write(writer),
+        };
         if let Some(source) = failure.into_inner() {
             return Err(source);
         }
@@ -237,3 +252,52 @@ fn invalid(message: &str) -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, atomic::Ordering};
+
+    #[test]
+    fn cycle_members_are_decoded_once_for_all_sections_and_repeated_writes() {
+        let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("fixtures/execution-report-input.json")).unwrap();
+        let mut source = serde_json::to_value(&captured.context.cycle.cycle).unwrap();
+        let fields = source.as_object_mut().unwrap();
+        fields.remove("test_executions");
+        fields.insert("execution_ids".into(), serde_json::json!([captured.execution_id]));
+        let source = serde_json::from_value(source).unwrap();
+        let snapshot = CycleSnapshot::current(
+            captured.evidence_through.clone(),
+            Arc::new(source),
+            Arc::new(captured.context.appearance.clone()),
+            &captured.owner_node_id,
+        )
+        .unwrap();
+        let defaults = captured.report_defaults;
+        let captured = harmos::storage::ReadBatch::new(captured);
+        let mut members = Vec::new();
+        let mut counters = Vec::new();
+        for _ in 0..2 {
+            let member = CycleMember::capture(captured.clone()).unwrap();
+            let CycleMember::Captured(input) = &member else { unreachable!() };
+            counters.push(input.decodes.clone());
+            members.push(member);
+        }
+        let registry = crate::runtime::progress::OperationRegistry::new();
+        let operation = registry.begin("Fixture Report");
+        let report = HtmlReport::from_cycle(snapshot, members, &operation, &defaults).unwrap();
+        let mut first = Vec::new();
+        report.write(&mut first).unwrap();
+        let mut second = Vec::new();
+        report.write(&mut second).unwrap();
+        assert_eq!(first, second);
+        for counter in counters {
+            assert_eq!(counter.load(Ordering::Relaxed), 1);
+        }
+        let html = std::str::from_utf8(&first).unwrap();
+        let payload = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1;
+        let payload = payload.split_once("</script>").unwrap().0;
+        let payload: serde_json::Value = serde_json::from_str(payload).unwrap();
+        assert_eq!(payload["case_runs"].as_array().unwrap().len(), 2);
+    }
+}
