@@ -294,4 +294,4 @@ Ordered after the Harmos v0.1.7 repin and the contract migration; nothing here g
 ## Connection Screen Follow-Ups (Owner Feedback 2026-10-27)
 
 - [ ] 9.4.1 Backends table: no horizontal overflow at the connection screen's width — column widths derive from the container (label/endpoint flexible, last-connected and actions fixed), the DataTable's minimum width equals the card's content width, headers never truncate at the default window size; same rule for every DataTable instance.
-- [ ] 9.4.2 Default local backend: the desktop-owned local backend is always the first row of the table ("Local", endpoint shown as the owned loopback, actions: Connect/Start), it is the remembered backend when none was chosen, and startup connects to it automatically; "Start Local Backend" becomes that row's action rather than a separate primary button (keep one primary action on the screen).
+- [x] 9.4.2 Default local backend: already present as the desktop-owned "Start Local Backend" action (owner confirmed); no table row needed.
