@@ -29,7 +29,9 @@
 //   f. settings     every section, the density switch, storage, plugins, shared secrets, diagnostics
 //   f'. plugin-install  native bundle picker, direct installation, restart activation and catalog
 //   f'. organization  native pack import, restart activation and invalid-pending retention
-//   f'. remote-access  TLS/key setup, saved secrets, restart, rotation and lab modes
+//   f'. remote-access  listener and TLS setup, one pairing file per client exported from the
+//                      backend's Remote Access settings and imported in the desktop Backends
+//                      table, restart, independent revocation and lab modes
 //   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
@@ -184,7 +186,6 @@ const passedJourneys = [];
 
 const notes = [];
 const secrets = new Set();
-let savedKeyCount = 0;
 
 /** What the prompt queue and its counts showed before each prompt was answered. */
 const promptSightings = [];
@@ -1276,15 +1277,7 @@ async function drainSavedDocuments(session) {
       throw new Error(`The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`);
     }
     const bytes = Buffer.from(base64, "base64");
-    let target = join(session.downloads, document.filename);
-    if (document.kind === "remote_key") {
-      assert.ok(bytes.toString("utf8").trim().length > 0, "the saved access key is nonempty");
-      secrets.add(base64);
-      secrets.add(bytes.toString("utf8").trim());
-      const directory = join(work, "secrets");
-      await mkdir(directory, { recursive: true, mode: 0o700 });
-      target = join(directory, `remote-${++savedKeyCount}.key`);
-    }
+    const target = join(session.downloads, document.filename);
     await writeFile(target, bytes, { mode: 0o600 });
     written.push({ kind: document.kind, path: target });
   }
@@ -2841,10 +2834,12 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
 async function remoteAccessJourney() {
   const input = (label) =>
     until(label, () => session.find("xpath", `//input[@id=//label[normalize-space(.)=${xpathLiteral(label)}]/@for]`));
-  /* Every control commits to the host at once and stays disabled until the host has answered. */
+  /* Preferences Autosave Before The Listener Is Explicitly Restarted. */
   const settled = () =>
     until("remote settings settled", () =>
-      session.execute("return [...document.querySelectorAll('input[id], button[role=switch]')].every((control) => !control.disabled);"),
+      session.execute(
+        "return [...document.querySelectorAll('input[id], button[role=switch]')].every((control) => !control.disabled) && [...document.querySelectorAll('[role=status][data-state]')].every((status) => status.dataset.state === 'saved');",
+      ),
     );
   const toggle = async (label, checked) => {
     const control = await until(label, () =>
@@ -2860,9 +2855,7 @@ async function remoteAccessJourney() {
       ]),
     );
   };
-  /* A field applies when the operator presses Enter, as its description says;
-     leaving one field for the next would otherwise commit it mid-typing and
-     disable every control until the host answers. */
+  /* Wait For Each Persisted Field Before Editing The Next One. */
   const commitField = async (label, value) => {
     await settled();
     await session.type(await input(label), value);
@@ -2877,120 +2870,106 @@ async function remoteAccessJourney() {
   };
   const endpoint = () =>
     until("remote listening address", async () => {
-      const match = /Listening on (127\.0\.0\.1:\d+)/i.exec(await session.text());
-      return match ? `https://${match[1]}` : null;
+      const address = await session.execute(`
+        const section = [...document.querySelectorAll('section')].find(node => node.querySelector('h2')?.textContent === 'Effective Listener State');
+        return section?.querySelector('[role=status]')?.textContent?.trim() ?? '';
+      `);
+      return /^127\.0\.0\.1:\d+$/.test(address) ? `https://${address}` : null;
     });
-  const connect = async (address, keyFile, certificate, accepted) => {
-    const args = ["catalog", "list", "--endpoint", address, "--timeout-seconds", "120"];
-    if (keyFile) args.push("--key-file", keyFile);
-    if (certificate) args.push("--ca", certificate);
-    const env = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
-    delete env.DOKIME_KEY;
-    delete env.DOKIME_ENDPOINT;
+  const restart = async () => {
+    await settled();
+    await session.clickNamed("button", "Restart Listener");
+    await settled();
+  };
+  const regenerate = async () => {
+    await settled();
+    await session.clickNamed("button", "Regenerate Certificate");
+    await settled();
+  };
+  const profiles = join(work, "pairing-profiles.json");
+  const env = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
+  delete env.DOKIME_ENDPOINT;
+  const cli = (args) => promisify(execFile)(cliBinary, args, { windowsHide: true, cwd: work, env, timeout: 120000 });
+  const connect = async (identifier, accepted) => {
     let result;
     try {
-      result = await promisify(execFile)(cliBinary, args, { windowsHide: true, cwd: work, env, timeout: 120000 });
+      result = await cli(["catalog", "list", "--backend", identifier, "--profiles-file", profiles]);
     } catch (error) {
-      assert.ok(!accepted, "the saved remote secrets establish a real CLI connection");
-      assert.equal(error.killed, false, "secret refusal returns without killing the client");
-      assert.ok(Number.isInteger(error.code) && error.code !== 0, "secret refusal has a native failure exit code");
+      assert.ok(!accepted, "The paired client establishes a real CLI connection");
+      assert.equal(error.killed, false);
+      assert.ok(Number.isInteger(error.code) && error.code !== 0);
       return;
     }
-    assert.ok(accepted, "superseded or missing secrets must be refused");
-    assert.ok(result.stdout.trim().length > 0, "the connected CLI reads the real catalog");
-    assert.ok(
-      ![...secrets].some((secret) => result.stdout.includes(secret) || result.stderr.includes(secret)),
-      "CLI output contains no key",
-    );
+    assert.ok(accepted, "The revoked client is refused");
+    assert.ok(result.stdout.trim().length > 0);
+    assert.ok(![...secrets].some((secret) => result.stdout.includes(secret) || result.stderr.includes(secret)));
   };
-  const saveKey = async () => {
-    await until("one-time key dialog", async () => hasText(await session.text(), "Save Your Access Key"));
-    const value = await session.execute("return document.querySelector('[aria-label=\"Generated Access Key\"]').value;");
-    assert.ok(typeof value === "string" && value.length > 0, "the one-time key is available");
-    secrets.add(value);
-    secrets.add(Buffer.from(`${value}\n`).toString("base64"));
-    await sizeViewport(session, { width: 1080, height: 760 });
-    const keyLayout = await session.execute(`
-      const input = document.querySelector('[aria-label="Generated Access Key"]');
-      const dialog = input.closest('[role=dialog]');
-      const bounds = dialog.getBoundingClientRect();
-      const controls = [...dialog.querySelectorAll('textarea, button')].map(node => {
-        const rect = node.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 && rect.left >= bounds.left && rect.right <= bounds.right
-          && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
-      });
-      return {controls, fits: bounds.left >= 0 && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight,
-        keyFits: input.scrollWidth <= input.clientWidth && input.scrollHeight <= input.clientHeight,
-        overflow: dialog.scrollWidth > dialog.clientWidth};
-    `);
-    await writeFile(join(evidence, "access-key-layout.json"), JSON.stringify(keyLayout, null, 2));
-    assert.ok(
-      keyLayout.fits && keyLayout.keyFits && !keyLayout.overflow,
-      "The access key and its dialog must fit the small native viewport",
-    );
-    assert.ok(keyLayout.controls.length >= 5 && keyLayout.controls.every(Boolean), "Every key action must remain inside the dialog");
-    assert.equal(
-      await session.execute("return document.hasFocus();"),
-      true,
-      "The native key dialog must own keyboard focus before copying",
-    );
-    await session.clickNamed("button", "Copy Key");
-    await until("native clipboard write", () => session.exists("button", "Copied"));
-    await session.clickNamed("button", "Save Key File…");
-    await until("saved key acknowledgement", async () => hasText(await session.text(), "Key File Saved"));
-    await session.clickNamed("button", "Save Public Certificate…");
-    await until("saved public certificate acknowledgement", async () => hasText(await session.text(), "Certificate Saved"));
-    const documents = await drainSavedDocuments(session);
-    const key = documents.find((document) => document.kind === "remote_key")?.path;
-    const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
-    assert.ok(key && certificate, "the GUI produces both secret files");
-    assert.ok((await readFile(key, "utf8")).trim() === value, "the saved key matches the one-time value");
-    assert.match(await readFile(certificate, "utf8"), /-----BEGIN CERTIFICATE-----/);
-    await session.clickNamed("button", "I Have Saved The Key");
-    await sizeViewport(session, densities.desktop);
-    return { key, certificate };
+  const createPairing = async (identifier, address) => {
+    await session.type(await input("Label"), identifier);
+    await session.type(await input("Reachable Endpoint"), address);
+    const path = join(work, `${identifier}.dokime-pair`);
+    await notice("Pairing File Saved", async () => {
+      await session.clickNamed("button", "Create Pairing File");
+      const picker = { window: null };
+      await until("native pairing save", () => chooseNativeFile(picker, path, "Save"), 120000);
+    });
+    const pairing = JSON.parse(await readFile(path, "utf8"));
+    assert.equal(pairing.version, 1);
+    assert.equal(pairing.endpoint, address);
+    if (pairing.access_key) secrets.add(pairing.access_key);
+    await cli(["backend", "add", "--pairing", path, "--identifier", identifier, "--profiles-file", profiles]);
+    return path;
   };
 
-  // Enable TLS And Authentication Through The Native GUI.
+  // Enable A Stable TLS Endpoint Before Exporting Client Pairings.
   await session.goto("/settings/remote");
-  await until("remote settings", async () => hasText(await session.text(), "Enable Remote Access"));
-  const settingsLayout = await session.execute(`
-    const card = title => [...document.querySelectorAll('main section')].find(section => section.querySelector('h2')?.textContent === title);
-    const listener = card('Listener').getBoundingClientRect();
-    const secrets = card('Secrets').getBoundingClientRect();
-    const sessions = card('Recent Remote Sessions').getBoundingClientRect();
-    return {columns: Math.abs(listener.top - secrets.top) < 2 && listener.right <= secrets.left,
-      equal: Math.abs(listener.width - secrets.width) < 2,
-      full: Math.abs(sessions.left - listener.left) < 2 && Math.abs(sessions.right - secrets.right) < 2};
-  `);
-  assert.ok(
-    settingsLayout.columns && settingsLayout.equal && settingsLayout.full,
-    "Remote settings must use two equal columns and a full-width sessions table",
-  );
-  await commitField("Listen Address", "127.0.0.1:0");
-  await notice("Certificate Generated", () => commitField("Certificate DNS Names And IP Addresses", "127.0.0.1, localhost"));
-  await toggle("TLS Encryption", true);
-  await toggle("Require An Access Key", true);
-  await session.clickNamed("button", "Generate Access Key");
-  const original = await saveKey();
-  await notice("Remote Access Enabled", () => toggle("Enable Remote Access", true));
-  let address = await endpoint();
-  await connect(address, original.key, original.certificate, true);
-  await connect(address, null, original.certificate, false);
+  await until("remote settings", async () => hasText(await session.text(), "Listener Enabled"));
+  await toggle("Show advanced", true);
+  const reservation = net.createServer();
+  reservation.listen(0, "127.0.0.1");
+  await once(reservation, "listening");
+  const listenAddress = `127.0.0.1:${reservation.address().port}`;
+  await new Promise((done) => reservation.close(done));
+  await commitField("Listener Address", listenAddress);
+  await commitField("Certificate Names", "127.0.0.1, localhost");
+  await regenerate();
+  await toggle("Listener TLS", true);
+  await toggle("Listener Authentication", true);
+  await toggle("Listener Enabled", true);
+  await restart();
+  const address = await endpoint();
+  const first = await createPairing("desktop-first", address);
+  await createPairing("desktop-second", address);
+  await connect("desktop-first", true);
+  await connect("desktop-second", true);
 
-  // A Failed Bind Restores The Previous Listener And Leaves The Desktop Connected.
+  // Import Through The Desktop's Native Picker Without Exposing Credentials To The WebView.
+  await session.goto("/settings/general");
+  await session.clickNamed("button", "Add Backend");
+  const identifier = await until("backend identifier", () => session.find("css selector", '[aria-label="Backend Identifier"]'));
+  await session.type(identifier, "desktop-pairing");
+  await session.clickNamed("button", "Import Pairing File");
+  const importPicker = { window: null };
+  await until("native pairing import", () => chooseNativeFile(importPicker, first), 120000);
+  await until("imported backend", async () => hasText(await session.text(), "desktop-pairing"));
+
+  // A Failed Bind Preserves The Existing Listener.
+  await session.goto("/settings/remote");
   const occupied = net.createServer();
   occupied.listen(0, "127.0.0.1");
   await once(occupied, "listening");
   try {
-    await notice("Remote Access Change Failed", () => commitField("Listen Address", `127.0.0.1:${occupied.address().port}`));
-    assert.equal(await endpoint(), address, "failed listener replacement retains the original bound address");
-    await connect(address, original.key, original.certificate, true);
+    await commitField("Listener Address", `127.0.0.1:${occupied.address().port}`);
+    await notice("Remote Access Change Failed", restart);
+    assert.equal(await endpoint(), address);
+    await connect("desktop-first", true);
+    await commitField("Listener Address", listenAddress);
+    await restart();
   } finally {
     await new Promise((done) => occupied.close(done));
   }
 
-  // Restart Both Clients And Server To Prove Persisted Settings And Secrets.
+  // Restart Preserves Both Independent Client Verifiers.
   const nativeEndpoint = backend.endpoint;
   await closeSession();
   await stopBackend();
@@ -2998,35 +2977,32 @@ async function remoteAccessJourney() {
   session = await startSession(work, nativeEndpoint, evidence);
   await session.connected();
   await session.goto("/settings/remote");
-  address = await endpoint();
-  assert.ok(await session.exists("button", "Rotate Access Key…"), "only the key verifier is restored");
-  assert.equal(await session.execute("return document.querySelector('[aria-label=\"Generated Access Key\"]') === null;"), true);
+  assert.equal(await endpoint(), address);
+  await connect("desktop-first", true);
+  await connect("desktop-second", true);
   const browserStorage = await session.execute("return JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]);");
-  assert.ok(![...secrets].some((secret) => browserStorage.includes(secret)), "browser storage contains no access key");
-  await connect(address, original.key, original.certificate, true);
+  assert.ok(![...secrets].some((secret) => browserStorage.includes(secret)));
 
-  // Keep An Admitted Execution Waiting For Its Operator Throughout Rotation.
+  // Revocation Preserves An Admitted Execution Waiting For Its Operator.
   const activeCycle = (await libraryJourney(session)).id;
-  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "the native GUI admits the rotation execution");
-  await until("operator prompt before rotation", async () => hasText(await session.text(), STARTUP_PROMPT), 120000);
+  assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE));
+  await until("operator prompt before revocation", async () => hasText(await session.text(), STARTUP_PROMPT), 120000);
   await session.goto("/settings/remote");
-  await session.clickNamed("button", "Rotate Access Key…");
-  await session.clickNamed("button", "Rotate");
-  const replacement = await saveKey();
-  address = await endpoint();
-  await connect(address, original.key, replacement.certificate, false);
-  await connect(address, replacement.key, replacement.certificate, true);
-  const previousCertificate = join(work, "secrets", "previous.pem");
-  await copyFile(replacement.certificate, previousCertificate);
-  await notice("Certificate Generated", () => session.clickNamed("button", "Regenerate Certificate"));
-  address = await endpoint();
-  await session.clickNamed("button", "Save Certificate…");
-  await until("saved regenerated certificate acknowledgement", async () => hasText(await session.text(), "Certificate Saved"));
-  const documents = await drainSavedDocuments(session);
-  const certificate = documents.find((document) => document.kind === "public_certificate")?.path;
-  assert.ok(certificate, "the regenerated public certificate is saved");
-  await connect(address, replacement.key, previousCertificate, false);
-  await connect(address, replacement.key, certificate, true);
+
+  // Revoking One Client Leaves The Other Client And Local Desktop Connected.
+  const revoke = await until("first paired client", () =>
+    session.find(
+      "xpath",
+      "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]//button[normalize-space(.)='Revoke']",
+    ),
+  );
+  await session.click(revoke);
+  await until(
+    "first client removed",
+    async () => !(await session.find("xpath", "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]")),
+  );
+  await connect("desktop-first", false);
+  await connect("desktop-second", true);
   await session.goto(`/cycles/${activeCycle}?view=cycle`);
   await cyclePhase(session, "Active");
   /* The cycle page names the execution waiting on input; the prompt itself is answered there. */
@@ -3034,7 +3010,7 @@ async function remoteAccessJourney() {
     hasText(await session.text(), "Input needed on #"),
   );
   const running = await caseRowText(session, STARTUP_TEMPLATE);
-  assert.match(running, /\b(Running|Waiting)\b/, "rotation leaves the admitted execution running");
+  assert.match(running, /\b(Running|Waiting)\b/, "revocation leaves the admitted execution running");
   await session.execute(
     `const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
       .find((candidate) => candidate.innerText.includes(arguments[0]));
@@ -3050,25 +3026,32 @@ async function remoteAccessJourney() {
   assert.ok(decision.actions.includes("No") && decision.actions.includes("Yes"), "The inspection decision must offer No and Yes");
   assert.equal(decision.checkboxes, 0, "The decision belongs in the footer without a duplicate checkbox");
   await session.clickNamed("button", "Stop Execution");
-  await until("rotation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
-  await writeFile(join(evidence, "invokes-remote-access.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
-
-  // Authentication And Encryption Are Independent Explicit Lab Choices.
+  await until("revocation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
+  // Regenerating The Certificate Requires A New Pairing Trust Anchor.
   await session.goto("/settings/remote");
-  await toggle("Require An Access Key", false);
-  address = await endpoint();
-  await connect(address, null, certificate, true);
-  await toggle("Require An Access Key", true);
-  await toggle("TLS Encryption", false);
-  address = (await endpoint()).replace("https:", "http:");
-  await connect(address, replacement.key, null, true);
-  await connect(address, null, null, false);
+  await regenerate();
+  await connect("desktop-second", false);
+  await createPairing("desktop-regenerated", address);
+  await connect("desktop-regenerated", true);
 
-  // Leave The Host In Its Verified TLS And Authentication Configuration.
-  await toggle("TLS Encryption", true);
-  const restoredAddress = await endpoint();
-  await connect(restoredAddress, replacement.key, certificate, true);
-  for (let index = 0; index < 21; index += 1) await connect(restoredAddress, replacement.key, certificate, true);
+  // Authentication And Encryption Remain Independent Lab Choices.
+  await session.goto("/settings/remote");
+  await toggle("Listener Authentication", false);
+  await restart();
+  await createPairing("desktop-lab-anonymous", address);
+  await connect("desktop-lab-anonymous", true);
+  await toggle("Listener Authentication", true);
+  await restart();
+  await connect("desktop-lab-anonymous", false);
+  await toggle("Listener TLS", false);
+  await restart();
+  await createPairing("desktop-lab-http", address.replace("https:", "http:"));
+  await connect("desktop-lab-http", true);
+  await toggle("Listener TLS", true);
+  await restart();
+  await connect("desktop-regenerated", true);
+  await writeFile(join(evidence, "invokes-remote-access.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
+  for (let index = 0; index < 21; index += 1) await connect("desktop-regenerated", true);
   await session.goto("/settings/remote");
   const sessionRows = () =>
     session.execute(`
@@ -3091,6 +3074,14 @@ async function remoteAccessJourney() {
   await session.clickNamed("button", "Newer");
   await until("newest remote sessions restored", async () => JSON.stringify(await sessionRows()) === JSON.stringify(firstPage));
   await session.screenshot("remote-access");
+  for (const identifier of ["desktop-first", "desktop-second", "desktop-regenerated", "desktop-lab-anonymous", "desktop-lab-http"]) {
+    await cli(["backend", "remove", "--identifier", identifier, "--profiles-file", profiles]);
+  }
+  await session.goto("/settings/general");
+  await openMenu(session, "Actions for desktop-pairing");
+  await session.clickNamed("menuitem", "Delete");
+  await session.clickNamed("button", "Confirm Delete");
+  await until("paired backend removed", async () => !(await session.exists("button", "Actions for desktop-pairing")));
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
@@ -4261,7 +4252,7 @@ async function installPluginThroughPicker(session) {
   await session.screenshot("plugin-install");
 }
 
-async function chooseNativeFile(picker, file) {
+async function chooseNativeFile(picker, file, operation = "Open") {
   if (!windows) {
     if (picker.failure) throw picker.failure;
     const children = await readFile(`/proc/${driverProcess.pid}/task/${driverProcess.pid}/children`, "utf8");
@@ -4269,7 +4260,15 @@ async function chooseNativeFile(picker, file) {
     for (const pid of children.trim().split(/\s+/)) {
       if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
       const run = (args) => promisify(execFile)("xdotool", args, { windowsHide: true, timeout: 120000 });
-      const found = await run(["search", "--all", "--onlyvisible", "--pid", pid, "--name", "^Open File$"]).catch((error) => {
+      const found = await run([
+        "search",
+        "--all",
+        "--onlyvisible",
+        "--pid",
+        pid,
+        "--name",
+        operation === "Save" ? "^Save( File| As)?$" : "^Open File$",
+      ]).catch((error) => {
         if (error.code === 1) return null;
         throw error;
       });
@@ -4287,7 +4286,7 @@ gi.require_version("Atspi", "2.0")
 from gi.repository import Atspi
 
 Atspi.init()
-pid, action, path = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+pid, action, path, operation = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
 desktop = Atspi.get_desktop(0)
 
 def descendants(node):
@@ -4307,7 +4306,7 @@ for index in range(desktop.get_child_count()):
     if app.get_process_id() != pid:
         continue
     dialogs = [app.get_child_at_index(child) for child in range(app.get_child_count())]
-    dialogs = [node for node in dialogs if node.get_role() == Atspi.Role.FILE_CHOOSER and node.get_name() == "Open File"]
+    dialogs = [node for node in dialogs if node.get_role() == Atspi.Role.FILE_CHOOSER and node.get_name() in (("Save", "Save File", "Save As") if operation == "Save" else ("Open File",))]
     assert len(dialogs) <= 1, "The owned process exposes one accessible file picker"
     if not dialogs:
         break
@@ -4322,18 +4321,18 @@ for index in range(desktop.get_child_count()):
         assert Atspi.EditableText.set_text_contents(field, path), "The native location entry accepts the path"
         assert Atspi.Text.get_text(field, 0, -1) == path, "The native location entry retains the selected path"
     else:
-        name = "Cancel" if action == "ready" else "Open"
+        name = "Cancel" if action == "ready" else operation
         buttons = [node for node in controls if node.get_role() == Atspi.Role.PUSH_BUTTON and node.get_name() == name and ready(node)]
         if not buttons:
             break
         assert len(buttons) == 1, "The native picker exposes one ready action"
         if action == "open":
-            assert Atspi.Action.do_action(buttons[0], 0), "The native Open action is activated once"
+            assert Atspi.Action.do_action(buttons[0], 0), "The Native File Action Is Activated Once"
     print(action)
     break
 `;
       try {
-        const result = await promisify(execFile)("/usr/bin/python3", ["-c", script, pid, action, resolve(file)], {
+        const result = await promisify(execFile)("/usr/bin/python3", ["-c", script, pid, action, resolve(file), operation], {
           windowsHide: true,
           timeout: 120000,
         });
@@ -4432,7 +4431,7 @@ for index in range(desktop.get_child_count()):
             Write-PickerState 'before-invoke' $window $pidCondition
             $entered = $field.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
             if (![String]::Equals($entered, $env:DOKIME_PICKER_FILE, [StringComparison]::Ordinal)) {
-              throw 'The native picker filename differs from the requested file before Open'
+              throw 'The Native Picker Filename Differs From The Requested File Before Selection'
             }
             $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             Write-PickerState 'after-invoke' $window $pidCondition
