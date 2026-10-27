@@ -203,7 +203,7 @@ async fn refuses_invalid_dispatch() {
         for (bytes, kind) in [
             (vec![], "invalid_request"),
             (vec![0; 40], "incompatible_descriptor"),
-            (vec![0; 4_194_304 as usize + 40 + 1], "limit_exceeded"),
+            (vec![0; 4_194_304_usize + 40 + 1], "limit_exceeded"),
         ] {
             assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
         }
