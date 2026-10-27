@@ -303,7 +303,8 @@ impl<T: SidecarTemplate> Workflow<T> {
             Some(command) => Some(self.command(command)?),
             None => None,
         };
-        Ok(SignalReply { command })
+        let samples = crate::transport::buffer::lock(&self.executions).get(token).map(|state| state.sample_receipts()).unwrap_or_default();
+        Ok(SignalReply { command, samples })
     }
 
     fn answered(&self, token: &str, answered: Answered) {

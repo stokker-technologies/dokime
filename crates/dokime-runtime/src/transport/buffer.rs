@@ -244,6 +244,18 @@ impl ExecutionState {
         self.stage(sample)
     }
 
+    pub(crate) fn sample_receipts(&self) -> Vec<super::protocol::SampleReceipt> {
+        self.sample_streams
+            .iter()
+            .filter_map(|(stream, state)| {
+                state.recent.back().map(|row| super::protocol::SampleReceipt {
+                    stream: stream.clone(),
+                    sample_id: row.sample_id.clone(),
+                })
+            })
+            .collect()
+    }
+
     pub(crate) fn validate_sample(&self, sample: &crate::telemetry::TelemetrySample) -> Result<(), String> {
         let Some(stream) = self.sample_streams.get(sample.stream.as_str()) else {
             return Ok(());
@@ -398,7 +410,11 @@ impl ExecutionState {
                     _ => "captured record identity was reused with different contents".to_owned(),
                 };
                 self.cancel();
-                self.push(BufferedFrame::terminal(SidecarExecutionOutcome { passed: false, message: Some(message), ..Default::default() }));
+                self.push(BufferedFrame::terminal(SidecarExecutionOutcome {
+                    passed: false,
+                    message: Some(message),
+                    ..Default::default()
+                }));
                 return false;
             }
         }
@@ -533,7 +549,10 @@ impl ExecutionState {
         self.local_scope.origin = dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id: start.attempt_id.clone() };
         self.step_admission = Some((start.attempt_id.clone(), None));
         self.phase = step.to_owned();
-        self.push(BufferedFrame { step_begin: Some(encoded), ..Default::default() });
+        self.push(BufferedFrame {
+            step_begin: Some(encoded),
+            ..Default::default()
+        });
     }
 
     pub(crate) fn acknowledge_step(&mut self, request: &crate::transport::StepAdmission) {
@@ -644,7 +663,10 @@ impl ExecutionState {
 
     pub(crate) fn raise(&mut self, prompt_id: PromptId, request: String) {
         self.prompt = Some(PromptExchange { prompt_id, outcome: None });
-        self.push(BufferedFrame { prompt_request: Some(request), ..BufferedFrame::default() });
+        self.push(BufferedFrame {
+            prompt_request: Some(request),
+            ..BufferedFrame::default()
+        });
     }
 
     pub(crate) fn answer(&mut self, prompt_id: &str, response: PromptResponse) {
@@ -681,7 +703,10 @@ impl ExecutionState {
         if stream.recent.len() == RECENT_STREAM_SAMPLES {
             stream.recent.pop_front();
         }
-        stream.recent.push_back(RecentSample { sample_id: sample.sample_id.to_string(), row });
+        stream.recent.push_back(RecentSample {
+            sample_id: sample.sample_id.to_string(),
+            row,
+        });
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
         self.settled.notify_waiters();
         Ok(true)
@@ -913,15 +938,24 @@ impl Drop for ExecutionState {
 
 impl BufferedFrame {
     pub(crate) fn capture_phase(phase: String) -> Self {
-        Self { capture_phase: Some(phase), ..Default::default() }
+        Self {
+            capture_phase: Some(phase),
+            ..Default::default()
+        }
     }
 
     pub(crate) fn step_attempt(attempt: String) -> Self {
-        Self { step_attempt: Some(attempt), ..Default::default() }
+        Self {
+            step_attempt: Some(attempt),
+            ..Default::default()
+        }
     }
 
     pub(crate) fn progress(progress: crate::execution::ExecutionProgress) -> Self {
-        Self { progress: Some(progress), ..Self::default() }
+        Self {
+            progress: Some(progress),
+            ..Self::default()
+        }
     }
 
     pub(crate) fn record(record: String) -> Self {
@@ -929,27 +963,45 @@ impl BufferedFrame {
     }
 
     pub(crate) fn log(level: crate::execution::log::Level, message: String) -> Self {
-        Self { diagnostic: Some(crate::execution::log::Entry::new(level, message)), ..Self::default() }
+        Self {
+            diagnostic: Some(crate::execution::log::Entry::new(level, message)),
+            ..Self::default()
+        }
     }
 
     pub(crate) fn artifact(artifact_chunk: ArtifactChunk) -> Self {
-        Self { artifact_chunk: Some(artifact_chunk), ..Self::default() }
+        Self {
+            artifact_chunk: Some(artifact_chunk),
+            ..Self::default()
+        }
     }
 
     pub(crate) fn traceability(section: String) -> Self {
-        Self { traceability: Some(section), ..Self::default() }
+        Self {
+            traceability: Some(section),
+            ..Self::default()
+        }
     }
 
     pub(crate) fn document(change: String) -> Self {
-        Self { document: Some(change), ..Self::default() }
+        Self {
+            document: Some(change),
+            ..Self::default()
+        }
     }
 
     pub(crate) fn lease_request(request: String) -> Self {
-        Self { lease_request: Some(request), ..Self::default() }
+        Self {
+            lease_request: Some(request),
+            ..Self::default()
+        }
     }
 
     pub(crate) fn lease_release(lease_token: String) -> Self {
-        Self { lease_release: Some(lease_token), ..Self::default() }
+        Self {
+            lease_release: Some(lease_token),
+            ..Self::default()
+        }
     }
 
     pub(crate) fn terminal(outcome: SidecarExecutionOutcome) -> Self {
@@ -1107,7 +1159,13 @@ mod tests {
     }
 
     fn progress(completed: u64) -> crate::execution::ExecutionProgress {
-        crate::execution::ExecutionProgress { phase: "flood".into(), completed, total: u64::MAX, elapsed_ms: 0, remaining_ms: None }
+        crate::execution::ExecutionProgress {
+            phase: "flood".into(),
+            completed,
+            total: u64::MAX,
+            elapsed_ms: 0,
+            remaining_ms: None,
+        }
     }
 
     // Drains Every Retained Frame From `cursor`, Returning The Records, The Last Progress Seen And The Final Cursor.
@@ -1238,6 +1296,11 @@ mod tests {
         }
 
         assert_eq!(state.sample_streams.len(), 1);
+        let receipts = state.sample_receipts();
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].stream, "reading");
+        let last = dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("minute:{}", 7 * 1440 - 1));
+        assert_eq!(receipts[0].sample_id, last.as_str());
         assert_eq!(state.stream_rows.retained_rows(), 0);
         assert_eq!(state.stream_rows.len(), 7 * 1440);
         assert_eq!(state.receive(first.clone()).unwrap_err(), "sample stream sequence is out of order");
@@ -1279,8 +1342,10 @@ mod tests {
             "fixture",
         )
         .with_storage_payload(vec![1, 2]);
-        original.scope =
-            Some(RecordScope { test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()), ..Default::default() });
+        original.scope = Some(RecordScope {
+            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
+            ..Default::default()
+        });
         let wire: TelemetrySample = serde_json::from_value(serde_json::to_value(&original).unwrap()).unwrap();
         assert!(sample_difference(&original, &wire, false).is_none());
         let mut admitted = wire.clone();
@@ -1299,8 +1364,10 @@ mod tests {
         changed.storage_payload = Some(vec![3]);
         assert!(sample_difference(&original, &changed, true).is_some());
         let mut changed = wire;
-        changed.scope =
-            Some(RecordScope { test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()), ..Default::default() });
+        changed.scope = Some(RecordScope {
+            test_execution_id: Some(crate::model::identity::new_id::<TestExecutionId>()),
+            ..Default::default()
+        });
         assert!(sample_difference(&original, &changed, true).is_some());
     }
 

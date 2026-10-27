@@ -314,6 +314,15 @@ pub struct ExecutionSignal {
 pub struct SignalReply {
     #[row(description = "The command's receipt, when the signal carried one.")]
     pub command: Option<CommandExecutionReply>,
+
+    pub samples: Vec<SampleReceipt>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+pub struct SampleReceipt {
+    pub stream: String,
+    pub sample_id: String,
 }
 
 #[harmos::message]
@@ -399,7 +408,16 @@ impl ArtifactChunk {
         let name = name.into();
         let mime = mime.into();
         if bytes.is_empty() {
-            return vec![Self { transfer_id, name, mime, sequence: 0, bytes, last: true, aborted: false, replace: false }];
+            return vec![Self {
+                transfer_id,
+                name,
+                mime,
+                sequence: 0,
+                bytes,
+                last: true,
+                aborted: false,
+                replace: false,
+            }];
         }
         let chunk_count = bytes.len().div_ceil(MAX_ARTIFACT_CHUNK_BYTES);
         bytes
@@ -424,7 +442,12 @@ impl ArtifactChunk {
 /* === Private Functions === */
 
 const fn bounded(timeout: Duration) -> OperationPolicy {
-    OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
+    OperationPolicy {
+        timeout,
+        attempt_timeout: timeout,
+        retries: RetryPolicy::Never,
+        restart: RestartPolicy::Never,
+    }
 }
 
 /* === Tests === */

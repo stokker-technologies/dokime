@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
 
 // Third Party Imports
 use tokio_util::sync::CancellationToken;
@@ -70,7 +69,6 @@ pub(crate) struct Session {
 struct Pages {
     cursor: u64,
     settled: bool,
-    replayed: BTreeMap<harmos::Identifier, u64>,
     stream_log: StreamLog,
     artifacts: ArtifactBridge,
     phase: PhaseTracker,
@@ -96,7 +94,6 @@ impl Session {
             pages: tokio::sync::Mutex::new(Pages {
                 cursor: 0,
                 settled: false,
-                replayed: BTreeMap::new(),
                 stream_log: StreamLog::default(),
                 artifacts: ArtifactBridge::new(spill),
                 phase: opened.phase,
@@ -383,7 +380,7 @@ impl Session {
         }
         self.step_leases.release(context, &batch.lease_releases).await?;
         if batch.record_subscriptions_settling && !pages.settled {
-            self.settle_records(Some(&mut pages.replayed)).await?;
+            self.settle_records(true).await?;
             pages.settled = true;
         }
         pages.cursor = pages.cursor.max(batch.cursor);
@@ -430,13 +427,12 @@ impl Session {
             return;
         }
         *replayed = true;
-        if let Err(refusal) = self.settle_records(None).await {
+        if let Err(refusal) = self.settle_records(false).await {
             self.refuse(refusal).await;
         }
     }
 
-    async fn settle_records(&self, replayed: Option<&mut BTreeMap<harmos::Identifier, u64>>) -> Result<(), ProviderExecutionFailure> {
-        let close = replayed.is_some();
+    async fn settle_records(&self, close: bool) -> Result<(), ProviderExecutionFailure> {
         let context = &self.context;
         let execution = &self.execution;
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement flushing publications");
@@ -486,9 +482,9 @@ impl Session {
             }
             tokio::task::yield_now().await;
         }
-        if let Some(replayed) = replayed {
+        if close {
             tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");
-            super::replay_sample_inputs(context, &self.target, execution, replayed).await?;
+            super::replay_sample_inputs(context, &self.target, execution).await?;
         }
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement finished");
         Ok(())

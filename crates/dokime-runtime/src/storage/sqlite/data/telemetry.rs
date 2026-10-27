@@ -18,7 +18,7 @@
 use super::{Entry, State, blob, check_digest, entry, position, saved};
 use crate::storage::{Error, telemetry::TypedCodec};
 use harmos::storage::{SchemaKey, StorageCursor, StoredRow};
-use rusqlite::{Connection, params, types::Value};
+use rusqlite::{Connection, OptionalExtension, params, types::Value};
 
 // Standard Library Imports
 
@@ -29,6 +29,11 @@ use rusqlite::{Connection, params, types::Value};
 /* === Constants === */
 
 pub(super) const SCHEMA: &str = "
+CREATE TABLE IF NOT EXISTS storage_sample_receipts (
+    execution TEXT NOT NULL, stream TEXT NOT NULL, sample_id TEXT NOT NULL, position TEXT NOT NULL,
+    PRIMARY KEY(execution,stream)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS storage_sample_identity ON storage_data_entries(scope,stream,item,position) WHERE kind='stream';
 CREATE TABLE IF NOT EXISTS storage_telemetry_index (
     position TEXT PRIMARY KEY REFERENCES storage_data_entries(position) ON DELETE CASCADE,
     schema_key TEXT NOT NULL, source_time BLOB NOT NULL,
@@ -65,6 +70,25 @@ CREATE INDEX IF NOT EXISTS storage_telemetry_case_time ON storage_telemetry_inde
 /* === Implementations === */
 
 impl State {
+    pub(crate) async fn acknowledge_sample(
+        &self, execution: String, stream: String, sample_id: String, through: u64,
+    ) -> Result<u64, Error> {
+        self.call(move |connection| {
+            Ok((|| -> Result<u64, Error> {
+                let transaction = connection.transaction()?;
+                let selected = acknowledged_position(&transaction, &execution, &stream, &sample_id, through)?;
+                transaction.execute(
+                    "INSERT INTO storage_sample_receipts VALUES (?1,?2,?3,?4)
+                 ON CONFLICT(execution,stream) DO UPDATE SET sample_id=excluded.sample_id,position=excluded.position",
+                    params![execution, stream, sample_id, position(selected)],
+                )?;
+                super::super::commit(transaction)?;
+                Ok(selected)
+            })())
+        })
+        .await?
+    }
+
     pub(crate) async fn telemetry_page(
         &self, at: StorageCursor, after: u64, execution: Option<String>, stream: Option<String>,
     ) -> Result<Vec<StoredRow>, Error> {
@@ -238,6 +262,29 @@ pub(super) fn index(connection: &Connection, row: &StoredRow) -> Result<(), Erro
 
 /* === Private Functions === */
 
+fn acknowledged_position(connection: &Connection, execution: &str, stream: &str, sample_id: &str, through: u64) -> Result<u64, Error> {
+    let checkpoint: Option<String> = connection
+        .query_row(
+            "SELECT position FROM storage_sample_receipts WHERE execution=?1 AND stream=?2 AND sample_id=?3 AND position<=?4",
+            params![execution, stream, sample_id, position(through)],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let selected = match checkpoint {
+        Some(position) => position,
+        None => connection
+            .query_row(
+                "SELECT position FROM storage_data_entries WHERE kind='stream' AND scope=?1 AND stream=?2 AND item=?3 AND position<=?4
+             ORDER BY position DESC LIMIT 1",
+                params![execution, stream, sample_id, position(through)],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .ok_or(Error::Corrupt("acknowledged sample is absent from saved execution evidence"))?,
+    };
+    u64::from_str_radix(&selected, 16).map_err(|_| Error::Corrupt("invalid sample receipt position"))
+}
+
 fn anchor_query(
     schema: &SchemaKey, at: u64, terms: &[(&'static str, Value)], selection: &crate::evidence_runtime::TelemetrySelection,
 ) -> Result<(String, Vec<Value>), Error> {
@@ -311,6 +358,43 @@ fn anchor_query(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn acknowledged_sample_resumes_after_reopen_and_rejects_unsaved_receipts() {
+        let root = tempfile::tempdir().unwrap();
+        let store = State::open(root.path()).await.unwrap();
+        store
+            .call(|connection| {
+                connection.execute_batch(super::super::SCHEMA)?;
+                connection.execute_batch(SCHEMA)?;
+                connection.execute_batch(
+                    "WITH RECURSIVE rows(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM rows WHERE n<10080)
+                 INSERT INTO storage_data_entries(position,kind,identity,item,scope,stream,body,digest)
+                 SELECT printf('%016x',n),'stream',printf('row-%d',n),printf('sample-%d',n),'execution','stream',x'00',zeroblob(32)
+                 FROM rows;",
+                )?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        let acknowledged = store.acknowledge_sample("execution".into(), "stream".into(), "sample-10079".into(), 10080).await.unwrap();
+        assert_eq!(acknowledged, 10079);
+        store.close().await.unwrap();
+        drop(store);
+
+        let reopened = State::open(root.path()).await.unwrap();
+        let resumed = reopened.acknowledge_sample("execution".into(), "stream".into(), "sample-10079".into(), 10080).await.unwrap();
+        assert_eq!(resumed, acknowledged);
+        assert!(reopened.acknowledge_sample("execution".into(), "stream".into(), "sample-10080".into(), 10079).await.is_err());
+        let checkpoint = reopened
+            .call(|connection| connection.query_row("SELECT position FROM storage_sample_receipts", [], |row| row.get::<_, String>(0)))
+            .await
+            .unwrap();
+        assert_eq!(checkpoint, position(acknowledged));
+        let next = reopened.acknowledge_sample("execution".into(), "stream".into(), "sample-10080".into(), 10080).await.unwrap();
+        assert_eq!(next, 10080);
+        reopened.close().await.unwrap();
+    }
 
     #[test]
     fn latest_anchor_skips_historical_rows() {

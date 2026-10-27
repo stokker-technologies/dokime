@@ -12,26 +12,37 @@
 use super::{ExecutionFixtureContext, ExecutionSignal, ProviderExecutionFailure, Target, TestExecution, failure};
 use harmos::storage::operations::Query;
 use harmos::storage::query::{QueryArrow, RowSlice, Source, StreamSelection};
-use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 const REPLAY_SIGNAL_BYTES: usize = crate::transport::MAX_ARTIFACT_CHUNK_BYTES;
 
 pub(super) async fn replay_sample_inputs(
-    context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution, replayed: &mut BTreeMap<harmos::Identifier, u64>,
+    context: &ExecutionFixtureContext, target: &Target, execution: &TestExecution,
 ) -> Result<(), ProviderExecutionFailure> {
-    // The run's own evidence is fixed once its publications are flushed. Each
-    // stream is one query against that cut, read through its own pages. The
-    // positions outlive this call: a settling page the run sends again after
-    // its call ran out of time resumes each stream instead of starting over.
+    // Reconcile The Durable Checkpoint With The Receiver Before Reading History.
+    // A Replacement Receiver Has No Receipts And Must Rebuild Its Evidence.
     let storage = context.runtime.storage();
     let cut = storage.flush().await.map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let mut at = storage.cursor_saved();
     at.sequence = cut.sequence;
+    let acknowledged = target
+        .signal(ExecutionSignal {
+            execution_token: execution.test_execution_id.to_string(),
+            ..Default::default()
+        })
+        .await?;
     let contracts = context.runtime.state_read().telemetry_contracts();
     for contract in contracts.iter().filter(|contract| !contract.foreign) {
-        let position = replayed.entry(contract.stream.clone()).or_default();
-        replay_stream(context, target, execution, &at, contract, position).await?;
+        let mut position = match acknowledged.samples.iter().find(|receipt| receipt.stream == contract.stream.as_str()) {
+            Some(receipt) => context
+                .runtime
+                .local_storage
+                .acknowledge_sample(execution.test_execution_id.to_string(), receipt.stream.clone(), receipt.sample_id.clone(), at.sequence)
+                .await
+                .map_err(failed)?,
+            None => 0,
+        };
+        replay_stream(context, target, execution, &at, contract, &mut position).await?;
     }
     Ok(())
 }
@@ -125,7 +136,7 @@ async fn replay_stream(
                 samples.push(json(&entry.sample)?);
             }
             let scope_json = json(&execution.scope)?;
-            target
+            let acknowledged = target
                 .signal(ExecutionSignal {
                     execution_token: execution.test_execution_id.to_string(),
                     samples: Some(crate::transport::DeliverSamplesRequest { scope_json, samples, gaps: Vec::new() }),
@@ -133,7 +144,22 @@ async fn replay_stream(
                 })
                 .await?;
             // The Receipt Advances Only After The Child Acknowledges This Chunk.
-            *replayed = entries[end - 1].0;
+            let last = &entries[end - 1].1.sample;
+            let receipt = acknowledged.samples.iter().find(|receipt| receipt.stream == contract.stream.as_str());
+            if !receipt.is_some_and(|receipt| receipt.sample_id == last.sample_id.as_str()) {
+                return Err(failed("sample signal did not acknowledge its final row"));
+            }
+            *replayed = context
+                .runtime
+                .local_storage
+                .acknowledge_sample(
+                    execution.test_execution_id.to_string(),
+                    contract.stream.to_string(),
+                    last.sample_id.to_string(),
+                    at.sequence,
+                )
+                .await
+                .map_err(failed)?;
             offset = end;
         }
     }
