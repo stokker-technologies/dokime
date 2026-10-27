@@ -182,11 +182,14 @@ async fn process_fixture_mode() {
     match mode.as_str() {
         "leader" => {
             let pid = std::env::var_os("DOKIME_PROCESS_TEST_PID").unwrap();
-            let _child = Command::new(std::env::current_exe().unwrap())
+            let mut child = Command::new(std::env::current_exe().unwrap())
                 .args(["--exact", "process::process_fixture_mode", "--nocapture"])
                 .env("DOKIME_PROCESS_TEST_MODE", "descendant")
                 .spawn()
                 .unwrap();
+            // Reap Early Exits While The Leader Lives; Its Exit Leaves The Session Owner Responsible.
+            let reap = move || child.wait().unwrap();
+            std::thread::spawn(reap);
             while !Path::new(&pid).is_file() {
                 std::thread::sleep(GONE_POLL);
             }
