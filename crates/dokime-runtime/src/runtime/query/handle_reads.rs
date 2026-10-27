@@ -99,19 +99,28 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn refresh_state(&self) -> crate::runtime::Result<Arc<crate::runtime::state::RuntimeState>> {
+        let revision = self.state_manager.state().read(|_| ()).await?.position.0;
+        if self.state_watch.borrow().revision() >= revision {
+            return Ok(self.state_read());
+        }
         let state =
             self.state_manager.state().read(Clone::clone).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
         let frontier = state.position.0;
         let state = Arc::new(state.value);
-        *self.state.write().expect("runtime state read-model lock is healthy") = Arc::clone(&state);
-        self.state_watch.send_replace(crate::queries::RuntimeStateSnapshot::new(Arc::clone(&state), frontier));
-        Ok(state)
+        self.state_watch.send_if_modified(|snapshot| {
+            if snapshot.revision() >= frontier {
+                return false;
+            }
+            *self.state.write().expect("runtime state read-model lock is healthy") = Arc::clone(&state);
+            *snapshot = crate::queries::RuntimeStateSnapshot::new(Arc::clone(&state), frontier);
+            true
+        });
+        Ok(self.state_read())
     }
 
     pub(crate) async fn capture_state(&self) -> crate::runtime::Result<crate::queries::RuntimeStateSnapshot> {
-        let state =
-            self.state_manager.state().read(Clone::clone).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
-        Ok(crate::queries::RuntimeStateSnapshot::new(Arc::new(state.value), state.position.0))
+        self.refresh_state().await?;
+        Ok(self.state_watch.borrow().clone())
     }
 
     pub(crate) async fn settled_evidence_state(&self) -> Arc<crate::runtime::state::RuntimeState> {
