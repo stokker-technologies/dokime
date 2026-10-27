@@ -511,8 +511,7 @@ impl RuntimeHandle {
         })
     }
 
-    // Each Delivered Row Is Encoded Once, Lazily, With The Scope It Was Captured Under. Every Leaseholder
-    // Receives That Same Frame; The Receiving Run Stamps It With The Scope Its Request Names.
+    // Encode Measurement Fields Once; Append Each Leaseholder's Captured Scope To Its Wire Row.
     pub(crate) async fn forward_leased_rows(
         &self, delivery: harmos::storage::ReadBatch<LeasedRows>, samples: &[super::streams::PreparedSample],
         identities: &[super::streams::admission::SampleIdentity<'_>],
@@ -543,10 +542,21 @@ impl RuntimeHandle {
                 let request = (|| -> crate::runtime::Result<_> {
                     let mut encoded = super::streams::admission::slots(count)?;
                     for (row, frame) in samples.iter().zip(frames.iter_mut()).filter(|(row, _)| delivered(row)) {
-                        let frame = lease_frame(frame, &*row.sample)?;
+                        let frame = lease_frame(frame, &LeaseSample(&row.sample))?;
+                        let source = row.sample.scope.as_ref();
+                        let scope = source
+                            .filter(|scope| scope.test_execution_id.is_some() && scope.test_execution_id == holder.scope.test_execution_id)
+                            .unwrap_or(&holder.scope);
+                        let scope = lease_json(scope)?;
                         let mut copy = String::new();
-                        copy.try_reserve_exact(frame.len()).map_err(|_| lease_memory_error())?;
-                        copy.push_str(frame);
+                        copy.try_reserve_exact(
+                            frame.len().checked_add(scope.len()).and_then(|size| size.checked_add(10)).ok_or_else(lease_memory_error)?,
+                        )
+                        .map_err(|_| lease_memory_error())?;
+                        copy.push_str(&frame[..frame.len() - 1]);
+                        copy.push_str(",\"scope\":");
+                        copy.push_str(&scope);
+                        copy.push('}');
                         encoded.push(copy);
                     }
                     Ok(DeliverSamplesRequest {
@@ -762,6 +772,27 @@ impl std::io::Write for LeaseJson {
         Ok(())
     }
 }
+struct LeaseSample<'a>(&'a crate::telemetry::TelemetrySample);
+
+impl serde::Serialize for LeaseSample<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let sample = self.0;
+        let mut map = serializer.serialize_map(Some(10))?;
+        map.serialize_entry("sample_id", &sample.sample_id)?;
+        map.serialize_entry("stream", &sample.stream)?;
+        map.serialize_entry("schema_version", &sample.schema_version)?;
+        map.serialize_entry("sequence", &sample.sequence)?;
+        map.serialize_entry("timestamp", &sample.timestamp)?;
+        map.serialize_entry("received_at", &sample.received_at)?;
+        map.serialize_entry("source", &sample.source)?;
+        map.serialize_entry("values", &sample.values)?;
+        map.serialize_entry("summary", &sample.summary)?;
+        map.serialize_entry("metadata", &sample.metadata)?;
+        map.end()
+    }
+}
+
 fn lease_frame<'a>(frame: &'a mut Option<String>, value: &impl serde::Serialize) -> crate::runtime::Result<&'a str> {
     if frame.is_none() {
         *frame = Some(lease_json(value)?);
@@ -794,7 +825,7 @@ mod tests {
     struct Counted(Cell<usize>);
 
     impl serde::Serialize for Counted {
-        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
             self.0.set(self.0.get() + 1);
             serializer.serialize_str("shared row")
         }
