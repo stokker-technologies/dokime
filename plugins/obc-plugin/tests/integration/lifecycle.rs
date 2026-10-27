@@ -72,7 +72,7 @@ fn start_request(token: &str, sample_count: u64) -> RunExecution {
 }
 
 fn workflow() -> Workflow<Pulse> {
-    Workflow::new(suites::checks::ID, SOURCE, &Default::default())
+    Workflow::new(suites::checks::ID, SOURCE)
 }
 
 fn drain(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch {

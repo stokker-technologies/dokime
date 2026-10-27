@@ -87,7 +87,7 @@ where
 // The options a host materializes one registration's cases with.
 fn materialization() -> dokime::definition::CaseMaterializationOptions {
     dokime::definition::CaseMaterializationOptions {
-        max_cases: dokime::definition::DEFAULT_MATERIALIZED_CASE_CAP,
+        max_cases: 1_000,
         force: false,
         registration_id: dokime::model::identity::new_id(),
         first_label_number: 1,
