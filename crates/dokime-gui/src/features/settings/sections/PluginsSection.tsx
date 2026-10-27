@@ -327,5 +327,6 @@ function errorMessage(error: unknown, fallback: string): string | null {
   if (!error) {
     return null;
   }
+  if (typeof error === "string" && error.trim()) return error;
   return error instanceof Error && error.message.trim() ? error.message : fallback;
 }

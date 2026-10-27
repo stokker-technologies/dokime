@@ -159,7 +159,10 @@ pub(super) async fn install(
     };
     let installing = client.plugins_install_bundle(bytes, sha256, report);
     let installed = lease.guard(installing).await.map_err(|error| format!("{error:?}"))?;
-    let installed = installed.map_err(text)?;
+    let installed = installed.map_err(|error| match error {
+        dokime::client::UploadError::Client(dokime::client::Error::Rpc(status)) => format!("{}: {}", status.code(), status.message()),
+        error => error.to_string(),
+    })?;
     tracing::info!(size_bytes, elapsed_ms = started.elapsed().as_millis(), "plugin bundle installed from the desktop");
     Ok(installed)
 }
