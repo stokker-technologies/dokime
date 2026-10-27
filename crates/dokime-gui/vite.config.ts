@@ -131,6 +131,7 @@ export default defineConfig(() => ({
         pluginTimings: false,
       },
       output: {
+        strictExecutionOrder: true,
         codeSplitting: {
           maxSize: 800_000,
           groups: [
