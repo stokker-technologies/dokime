@@ -324,7 +324,11 @@ impl Operation for Watch {
                         waiting.retain(|request| plot_key(request) != key);
                         let selection = selection_for_plot(&original, &selections, &key)
                             .ok_or_else(|| Status::internal("plot selection is missing"))?;
-                        let frame = FrameContext { epoch: &epoch, selection, kind: PlotPayloadStreamKind::Snapshot };
+                        let frame = FrameContext {
+                            epoch: &epoch,
+                            selection,
+                            kind: PlotPayloadStreamKind::Snapshot,
+                        };
                         if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
                             opened.insert(key);
                         } else {
@@ -353,7 +357,12 @@ impl Operation for Watch {
                         // Every Query And Any Reduced Retry In This Pass Uses One
                         // Durable Primary Cut; None Reads Accepted Pending Samples.
                         let at = runtime.storage().cursor_saved();
-                        if at.sequence > observed.sequence { dirty.extend(requests.iter().map(plot_key)); }
+                        if at.sequence > observed.sequence {
+                            let streams = runtime.plot_streams_saved_between(&observed, &at).await
+                                .map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
+                            dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
+                                .map(|(key, _)| key.clone()));
+                        }
                         observed = at.clone();
                         let served = requests.iter().filter(|request| dirty.contains(&plot_key(request))).cloned().collect::<Vec<_>>();
                         let mut refused = false;
@@ -382,8 +391,12 @@ impl Operation for Watch {
                         } else { retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS); }
                     }
                     advanced = runtime.storage().wait_saved_after(&observed) => {
-                        observed = advanced.map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
-                        dirty.extend(requests.iter().map(plot_key));
+                        let advanced = advanced.map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
+                        let streams = runtime.plot_streams_saved_between(&observed, &advanced).await
+                            .map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
+                        dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
+                            .map(|(key, _)| key.clone()));
+                        observed = advanced;
                     }
                 }
                 if next_flush.is_none() && !dirty.is_empty() {
@@ -567,7 +580,10 @@ mod tests {
 
     #[test]
     fn pending_frame_names_the_plot() {
-        let request = dokime::runtime::query::PlotPayloadRequest { plot_id: Some("power.voltage".to_owned()), ..Default::default() };
+        let request = dokime::runtime::query::PlotPayloadRequest {
+            plot_id: Some("power.voltage".to_owned()),
+            ..Default::default()
+        };
         let frame = plot_pending_frame(&request, "epoch", "selection");
         assert_eq!(frame.kind, dokime::domain::model::plots::wire::PlotStreamKind::Unspecified);
         let envelope = frame.envelope.unwrap();

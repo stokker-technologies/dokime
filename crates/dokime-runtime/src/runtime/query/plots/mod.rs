@@ -65,6 +65,32 @@ pub struct PlotWatchKeys {
 
 /* === Implementations === */
 
+impl RuntimeHandle {
+    /// Telemetry Streams With Newly Durable Rows Between Two Saved Frontiers.
+    pub async fn plot_streams_saved_between(
+        &self, after: &harmos::storage::StorageCursor, at: &harmos::storage::StorageCursor,
+    ) -> crate::runtime::Result<std::collections::BTreeSet<String>> {
+        if !at.covers(after)? {
+            return Err(crate::runtime::Error::Operation("plot saved frontier moved backwards".into()));
+        }
+        let mut position = after.sequence;
+        let mut streams = std::collections::BTreeSet::new();
+        while position < at.sequence {
+            let page = self.local_storage.telemetry_page(at.clone(), position, None, None).await?;
+            if page.is_empty() {
+                break;
+            }
+            for row in page {
+                position = row.record.position.sequence;
+                if let Some(stream) = row.record.schema.id.as_str().strip_prefix("dokime.telemetry.") {
+                    streams.insert(stream.to_owned());
+                }
+            }
+        }
+        Ok(streams)
+    }
+}
+
 impl PlotWatchKeys {
     pub fn for_request(request: &PlotPayloadRequest) -> Self {
         Self {
@@ -121,7 +147,10 @@ pub async fn query_plot_stream_batches(
     Ok(query_plot_payloads(runtime, requests.to_vec(), RuntimePlotQueryMode::Replace)
         .await?
         .into_iter()
-        .map(|envelope| RuntimePlotStreamBatch { mode: RuntimePlotQueryMode::Replace, envelope })
+        .map(|envelope| RuntimePlotStreamBatch {
+            mode: RuntimePlotQueryMode::Replace,
+            envelope,
+        })
         .collect())
 }
 
@@ -296,7 +325,11 @@ async fn query_spilled_plot(
     }
     let streams = request_telemetry_streams(&request);
     if !streams.is_empty() {
-        let selection = TelemetrySelection { streams: streams.into_iter().map(Into::into).collect(), scope, ..Default::default() };
+        let selection = TelemetrySelection {
+            streams: streams.into_iter().map(Into::into).collect(),
+            scope,
+            ..Default::default()
+        };
         let options = crate::runtime::storage::telemetry::ReadOptions {
             scan_limit: analysis.as_ref().map(|_| dokime_domain::model::analysis::MAX_SAMPLES as usize),
             window: request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
@@ -360,8 +393,11 @@ mod tests {
 
     #[test]
     fn plot_refresh_follows_declared_inputs() {
-        let mut request =
-            PlotPayloadRequest { stream: "fixture.progress".to_owned(), y_keys: vec!["progress".to_owned()], ..Default::default() };
+        let mut request = PlotPayloadRequest {
+            stream: "fixture.progress".to_owned(),
+            y_keys: vec!["progress".to_owned()],
+            ..Default::default()
+        };
         let telemetry = PlotWatchKeys::for_request(&request);
         assert!(telemetry.reads_stream("fixture.progress"));
         assert!(!telemetry.reads_stream("fixture.unrelated"));

@@ -105,9 +105,7 @@ async fn sample_watch_fixed_frontier_and_resume() {
     owner.shutdown().await.unwrap();
 }
 
-// A 10,000-point window is served; the 100,000-point cap does not fit one
-// message, so the server reads the plot again under what fits, says so in a
-// warning, and keeps following it.
+// Oversized Plot Responses Reduce Display Points Without Repeating The Storage Query.
 #[tokio::test]
 async fn plot_points_admission() {
     let root = tempfile::tempdir().unwrap();
@@ -139,10 +137,10 @@ async fn plot_points_admission() {
         "{:?}",
         reduced.envelope.as_ref().map(|envelope| &envelope.warnings)
     );
-    let warning = reduced.envelope.as_ref().unwrap().warnings.iter().find(|warning| warning.contains("do not fit one message")).cloned();
-    let warning = warning.expect("the reduced snapshot says why it holds fewer points");
-    let maximum = maximum_points(&warning);
-    assert!((10_000..100_000).contains(&maximum), "the reduction lands between the window and the cap: {warning}");
+    let envelope = reduced.envelope.as_ref().unwrap();
+    assert!(!envelope.warnings.is_empty());
+    let maximum = envelope.payload.as_ref().unwrap().max_points as usize;
+    assert!((10_000..100_000).contains(&maximum));
     assert!((1..=maximum).contains(&served_points(&reduced)), "the reduced snapshot keeps its budget");
     // The plot stays in the watch under its reduced budget: a later row reaches it.
     publish(&handle, &id, ROWS, 1).await;
@@ -161,8 +159,8 @@ async fn plot_points_admission() {
         .unwrap()
         .into_inner();
     let envelope = &unary.envelopes[0];
-    let warning = envelope.warnings.iter().find(|warning| warning.contains("do not fit one message")).expect("the unary reply warns too");
-    assert_eq!(maximum_points(warning), maximum);
+    assert!(!envelope.warnings.is_empty());
+    assert_eq!(envelope.payload.as_ref().unwrap().max_points as usize, maximum);
 
     let beyond = client
         .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(100_001)] })
@@ -170,6 +168,39 @@ async fn plot_points_admission() {
         .unwrap_err();
     assert_eq!(beyond.code(), Code::InvalidArgument, "{beyond:?}");
 
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// Late Rows Retain Time Order And Exact Full-Selection Summary Counts.
+#[tokio::test]
+async fn late_samples_keep_time_order() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"])).await;
+    let id = Identifier::new("fixture.progress").unwrap();
+    publish(&handle, &id, 10, 10).await;
+    publish(&handle, &id, 0, 10).await;
+    let server = Server::start(handle.clone(), Config::local()).await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let reply = client
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(100)] })
+        .await
+        .unwrap()
+        .into_inner();
+    let payload = reply.envelopes[0].payload.as_ref().unwrap();
+    assert_eq!(
+        payload.series[0].points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(),
+        (0..20).map(f64::from).collect::<Vec<_>>()
+    );
+    let summary = &payload.summaries[0];
+    assert_eq!(summary.count, 20);
+    assert_eq!(summary.min, Some(0.0));
+    assert_eq!(summary.max, Some(19.0));
+    assert!((summary.mean.unwrap() - 9.5).abs() <= 16.0 * f64::EPSILON);
+    assert_eq!(summary.median, Some(9.5));
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -278,9 +309,9 @@ async fn sealed_window_all() {
     owner.shutdown().await.unwrap();
 }
 
-// A Saved Frontier Refreshes Every Watched Plot With A Complete Snapshot.
+// A Saved Frontier Refreshes Only Plots Reading The Changed Stream.
 #[tokio::test]
-async fn saved_frontier_refreshes_all_plots() {
+async fn saved_frontier_refreshes_affected_plots() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
@@ -291,9 +322,17 @@ async fn saved_frontier_refreshes_all_plots() {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let progress = ["fixture.progress.a", "fixture.progress.b", "fixture.progress.c"];
     let idle = "fixture.idle.plot";
-    let mut requests =
-        progress.map(|plot_id| model::plots::wire::PlotRequest { plot_id: Some(plot_id.into()), ..request(10_000) }).to_vec();
-    requests.push(model::plots::wire::PlotRequest { plot_id: Some(idle.into()), stream: "fixture.idle".into(), ..request(10_000) });
+    let mut requests = progress
+        .map(|plot_id| model::plots::wire::PlotRequest {
+            plot_id: Some(plot_id.into()),
+            ..request(10_000)
+        })
+        .to_vec();
+    requests.push(model::plots::wire::PlotRequest {
+        plot_id: Some(idle.into()),
+        stream: "fixture.idle".into(),
+        ..request(10_000)
+    });
     let mut watch = client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests }).await.unwrap().into_inner();
     let mut initial = std::collections::BTreeMap::new();
     let mut initial_cut = None;
@@ -310,11 +349,14 @@ async fn saved_frontier_refreshes_all_plots() {
         assert_eq!(points, if envelope.plot_id == idle { 0 } else { 10 });
         assert!(initial.insert(envelope.plot_id, series).is_none());
     }
+    let before = handle.storage().cursor_saved();
     publish(&handle, &id, 10, 1).await;
     let saved = handle.storage().cursor_saved();
+    let changed = handle.plot_streams_saved_between(&before, &saved).await.unwrap();
+    assert_eq!(changed, std::collections::BTreeSet::from(["fixture.progress".to_owned()]));
     let mut refreshed = std::collections::BTreeSet::new();
     let mut replacement_cut = None;
-    while refreshed.len() < initial.len() {
+    while refreshed.len() < progress.len() {
         let frame = data_frame(&mut watch).await;
         let envelope = frame.envelope.unwrap();
         if envelope.revision < saved.sequence {
@@ -327,17 +369,16 @@ async fn saved_frontier_refreshes_all_plots() {
         replacement_cut = Some(envelope.revision);
         let series = envelope.payload.unwrap().series;
         let previous = &initial[&envelope.plot_id];
-        if envelope.plot_id == idle {
-            assert_eq!(series, *previous);
-        } else {
-            assert!(progress.contains(&envelope.plot_id.as_str()));
-            assert_eq!(series[0].points.len(), 11);
-            assert_eq!(series[0].points[..10], previous[0].points);
-            assert_eq!(series[0].points.last().unwrap().y, Some(10.0));
-        }
+        assert!(progress.contains(&envelope.plot_id.as_str()));
+        assert_eq!(series[0].points.len(), 11);
+        assert_eq!(series[0].points[..10], previous[0].points);
+        assert_eq!(series[0].points.last().unwrap().y, Some(10.0));
         assert!(refreshed.insert(envelope.plot_id));
     }
-    assert_eq!(refreshed.len(), 4);
+    assert_eq!(refreshed.len(), progress.len());
+    assert!(!refreshed.contains(idle));
+    let changed = handle.plot_streams_saved_between(&saved, &handle.storage().cursor_saved()).await.unwrap();
+    assert!(changed.is_empty());
     drop(watch);
     server.shutdown().await.unwrap();
     drop(handle);
@@ -436,15 +477,6 @@ async fn publish_scoped(handle: &dokime::RuntimeHandle, id: &Identifier, scope: 
         .collect();
     handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples)).await.unwrap();
     handle.storage().flush().await.unwrap();
-}
-
-fn maximum_points(message: &str) -> usize {
-    message
-        .split("at most ")
-        .nth(1)
-        .and_then(|rest| rest.split(' ').next())
-        .and_then(|number| number.replace(',', "").parse().ok())
-        .unwrap_or_else(|| panic!("the refusal names a maximum: {message}"))
 }
 
 /* === Tests === */
