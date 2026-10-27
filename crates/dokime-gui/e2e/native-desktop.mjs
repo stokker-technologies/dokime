@@ -835,6 +835,7 @@ async function startSession(work, endpoint, evidence) {
   session.goto = async (path) => {
     await session.load(path.startsWith("file:") ? path : session.origin + path);
     if (path.startsWith("file:")) return;
+    if (!endpoint) await session.clickNamed("button", "Start Local Backend");
     await session.connected();
     await until(`route ${path}`, async () => (await session.location()).pathname === new URL(session.origin + path).pathname, 120000);
     await installSaveTap(session);
@@ -1000,6 +1001,7 @@ async function startSession(work, endpoint, evidence) {
     (["http:", "https:"].includes(initial.protocol) && initial.hostname === "tauri.localhost");
   assert.ok(embedded, `the packaged shell must render embedded assets, received ${initial.href}`);
   session.origin = `${initial.protocol}//${initial.host}`;
+  if (!endpoint) await session.clickNamed("button", "Start Local Backend");
   return session;
 }
 
@@ -1208,10 +1210,10 @@ async function installSaveTap(session) {
             entry.httpStatus = value.status;
             entry.state = entry.nativeResponse === 'error' ? 'rejected' : 'settled';
             entry.ms = Date.now() - entry.at;
-            if (entry.path?.endsWith('/StopExecution') && entry.nativeResponse === 'error') {
+            if ((entry.path?.endsWith('/StopExecution') || command === 'desktop_plugin_install_file') && entry.nativeResponse === 'error') {
               return value.clone().text().then(
                 error => { entry.error = error.slice(0, 1024); return value; },
-                error => { entry.error = 'Stop error capture failed: ' + String(error); return value; },
+                error => { entry.error = 'Native error capture failed: ' + String(error); return value; },
               );
             }
             if (reportSave && value.headers.get('Tauri-Response') === 'ok') {
@@ -3868,16 +3870,7 @@ async function ordinaryInstanceJourney(primary, initial) {
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
   `);
-  const focused = async (native) => {
-    const result = await native.executeAsync(`
-      const done = arguments[arguments.length - 1];
-      globalThis.__TAURI_INTERNALS__.invoke('plugin:window|is_focused', {label: 'main'})
-        .then(done, (error) => done({error: String(error)}));
-    `);
-    assert.equal(typeof result, "boolean", `Native focus must be observable: ${JSON.stringify(result)}`);
-    return result;
-  };
-  const nativeFocus = async (activate = false) => {
+  const nativeFocus = async (native, activate = false) => {
     if (!windows) return null;
     const result = await promisify(execFile)(
       "powershell.exe",
@@ -3934,13 +3927,27 @@ public static class DesktopForeground {
         timeout: 120000,
         env: {
           ...process.env,
-          DOKIME_FOCUS_DRIVER: String(independent.process.pid),
+          DOKIME_FOCUS_DRIVER: String(native.process.pid),
           DOKIME_FOCUS_SHELL: resolve(shellBinary),
           DOKIME_FOCUS_ACTIVATE: activate ? "1" : "0",
         },
       },
     );
     return JSON.parse(result.stdout);
+  };
+
+  const focused = async (native) => {
+    if (windows) {
+      const snapshot = await nativeFocus(native);
+      return snapshot.after.handle === snapshot.window.handle && snapshot.after.process === snapshot.window.process;
+    }
+    const result = await native.executeAsync(`
+      const done = arguments[arguments.length - 1];
+      globalThis.__TAURI_INTERNALS__.invoke('plugin:window|is_focused', {label: 'main'})
+        .then(done, (error) => done({error: String(error)}));
+    `);
+    assert.equal(typeof result, "boolean", `Native focus must be observable: ${JSON.stringify(result)}`);
+    return result;
   };
 
   try {
@@ -3960,7 +3967,7 @@ public static class DesktopForeground {
     assert.ok(await listening(separate.connection.endpoint));
     // Arrange Native Activation Before Testing The Ordinary Launch's Focus Transfer.
     if (windows) {
-      const activation = await nativeFocus(true);
+      const activation = await nativeFocus(independent, true);
       await writeFile(join(evidence, "independent-focus-setup.json"), JSON.stringify(activation, null, 2));
       assert.equal(activation.activationSucceeded, true, `Native activation must succeed: ${JSON.stringify(activation)}`);
     }
@@ -3992,7 +3999,7 @@ public static class DesktopForeground {
     assert.equal(repeated.exitCode, 0, "the repeated launch receives the existing desktop's focus acknowledgement");
     await until("the original desktop regains native focus", () => focused(primary), 120000);
     assert.equal(await focused(independent), false, "focus moves away from the independent root");
-    if (windows) await writeFile(join(evidence, "ordinary-focus-result.json"), JSON.stringify(await nativeFocus(), null, 2));
+    if (windows) await writeFile(join(evidence, "ordinary-focus-result.json"), JSON.stringify(await nativeFocus(independent), null, 2));
     const after = await statusOf(primary);
     assert.equal(after.ownership, initial.ownership);
     assert.deepEqual(after.selection, initial.selection);
@@ -4011,7 +4018,7 @@ public static class DesktopForeground {
   } catch (error) {
     if (independent && !independent.closed) {
       if (windows) {
-        await nativeFocus()
+        await nativeFocus(independent)
           .then((snapshot) => writeFile(join(evidence, "failure-independent-focus.json"), JSON.stringify(snapshot, null, 2)))
           .catch(() => undefined);
       }
@@ -4231,12 +4238,26 @@ async function pluginInstallJourney() {
 
 async function installPluginThroughPicker(session) {
   await session.goto("/settings/plugins");
-  await until("plugin installer", async () => hasText(await session.text(), "Install A Plugin"), 120000);
+  await session.clickNamed("button", "Install Plugin");
   await session.execute("globalThis.__dokimeInvokes.length = 0;");
   await session.clickNamed("button", "Choose File");
   const picker = { window: null };
   await until("native plugin file picker", () => chooseNativeFile(picker, pluginBundle), 120000);
-  await until("saved plugin installation", async () => hasText(await session.text(), "Plugin changes are saved"), 300000);
+  const installed = await until(
+    "native plugin installation completes",
+    () =>
+      session.execute(`
+    const entry = globalThis.__dokimeInvokes.find(entry => entry.command === 'desktop_plugin_install_file');
+    return entry && entry.state !== 'pending' ? {entry} : null;
+  `),
+    300000,
+  );
+  assert.equal(
+    installed.entry.state,
+    "settled",
+    `Native plugin installation failed: ${installed.entry.error ?? installed.entry.nativeResponse}`,
+  );
+  await until("saved plugin installation", () => session.exists("button", "Later"), 300000);
   const invokes = await session.execute(
     "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_install_file');",
   );
