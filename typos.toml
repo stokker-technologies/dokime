@@ -1,0 +1,12 @@
+# Rendered by stkr project update from templates/tools/typos.toml; sha256:b0e4541d18d2df86792c0eaf8b98fc4f67b7b1c7a1a023b5cda539db2303c15a
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[files]
+# Templates Are Rendered Before Source Checks
+extend-exclude = ["**/.stkr/templates/**"]

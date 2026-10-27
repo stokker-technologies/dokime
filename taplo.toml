@@ -1,0 +1,14 @@
+# Rendered by stkr project update from templates/tools/taplo.toml; sha256:606490151d5e32ddd5359537a018a247b6b8ba202b8985c017373820772ba97d
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# Templates Are Rendered Before Source Formatting
+exclude = ["**/.stkr/templates/**"]
+
+[formatting]
+column_width = 140
