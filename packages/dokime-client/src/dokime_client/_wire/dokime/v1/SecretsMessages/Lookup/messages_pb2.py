@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nCdokime_client/_wire/dokime/v1/SecretsMessages/Lookup/messages.proto\x12 dokime.v1.SecretsMessages.Lookup\"\x1d\n\x04Row1\x12\x15\n\x04name\x18\xf3\xa2\xe7i \x01(\tR\x04name\"A\n\x04Row2\x12\x1c\n\x05value\x18\x85\xbf\xfb\x12 \x01(\tH\x00R\x05value\x88\x01\x01\x42\x1b\n\x19_harmos_presence_39772037\"\x8c\x01\n\x04Row0\x12@\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Lookup.Row1R\x07request\x12\x42\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Lookup.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nCdokime_client/_wire/dokime/v1/SecretsMessages/Lookup/messages.proto\x12 dokime.v1.SecretsMessages.Lookup\")\n\x04Row1\x12!\n\nidentifier\x18\x90\xe0\x96\x45 \x01(\tR\nidentifier\"A\n\x04Row2\x12\x1c\n\x05value\x18\x85\xbf\xfb\x12 \x01(\tH\x00R\x05value\x88\x01\x01\x42\x1b\n\x19_harmos_presence_39772037\"\x8c\x01\n\x04Row0\x12@\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Lookup.Row1R\x07request\x12\x42\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.SecretsMessages.Lookup.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -53,11 +53,11 @@ _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.SecretsMessages.Lookup.me
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ROW1']._serialized_start=105
-  _globals['_ROW1']._serialized_end=134
-  _globals['_ROW2']._serialized_start=136
-  _globals['_ROW2']._serialized_end=201
-  _globals['_ROW0']._serialized_start=204
-  _globals['_ROW0']._serialized_end=344
+  _globals['_ROW1']._serialized_end=146
+  _globals['_ROW2']._serialized_start=148
+  _globals['_ROW2']._serialized_end=213
+  _globals['_ROW0']._serialized_start=216
+  _globals['_ROW0']._serialized_end=356
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

@@ -229,7 +229,6 @@ def _profile_type(value: object) -> str:
     raise ValueError("invalid generated profile field")
 
 
-
 def _skeleton(source: str) -> str:
     """Lay one generated wire module out in the canonical file skeleton."""
     if not source.startswith(_PROTOC, source.find("\n") + 1):

@@ -158,6 +158,10 @@ async fn bootstrap_identity_survives_before_admitted_open() {
     let root = tempfile::tempdir().unwrap();
     let backend = Backend::<()>::primary(root.path().to_path_buf()).await.unwrap();
     let history = backend.history().clone();
+    let empty = StorageCursor { history: history.clone(), sequence: 0 };
+    let complete =
+        backend.prune_objects(&empty, std::num::NonZeroUsize::new(16).unwrap(), |_| Ok(ObjectRetention::UntilReleased)).await.unwrap();
+    assert!(complete);
     let local = backend.local_state();
     let deferred = local
         .call(|connection| {
@@ -349,8 +353,12 @@ async fn file_digests_match() {
         metadata.expected_sha256 = None;
         let staged = backend.create_file(&metadata).await.unwrap();
         let split = bytes.len().min(31);
-        backend.write_file(&staged, 0, store.batch(bytes[..split].to_vec())).await.unwrap();
-        backend.write_file(&staged, split as u64, store.batch(bytes[split..].to_vec())).await.unwrap();
+        if split > 0 {
+            backend.write_file(&staged, 0, store.batch(bytes[..split].to_vec())).await.unwrap();
+        }
+        if split < bytes.len() {
+            backend.write_file(&staged, split as u64, store.batch(bytes[split..].to_vec())).await.unwrap();
+        }
 
         assert!(backend.finish_file(&staged, &store.at(1), length as u64, [0; 32]).await.is_err());
         let file = backend.finish_file(&staged, &store.at(1), length as u64, expected).await.unwrap();

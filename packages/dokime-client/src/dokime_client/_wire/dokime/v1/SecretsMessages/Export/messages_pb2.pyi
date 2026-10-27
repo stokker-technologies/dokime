@@ -7,12 +7,12 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("names", "generation")
-    NAMES_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("identifiers", "generation")
+    IDENTIFIERS_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
-    names: _containers.RepeatedScalarFieldContainer[str]
+    identifiers: _containers.RepeatedScalarFieldContainer[str]
     generation: int
-    def __init__(self, names: _Optional[_Iterable[str]] = ..., generation: _Optional[int] = ...) -> None: ...
+    def __init__(self, identifiers: _Optional[_Iterable[str]] = ..., generation: _Optional[int] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("data",)

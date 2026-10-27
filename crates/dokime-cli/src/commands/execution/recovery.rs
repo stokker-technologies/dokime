@@ -180,29 +180,31 @@ impl Plan {
 
 /* === Public Functions === */
 
-pub(crate) async fn observe<T>(
-    client: &Client, execution: &TestExecutionHandle, recovery: Option<&Plan>, subject: &str,
-    operation: impl Future<Output = crate::Result<T>>,
-) -> crate::Result<T> {
-    let work = async {
-        if let Some(plan) = recovery {
-            plan.verify(execution).await?;
-        }
-        operation.await
-    };
-    tokio::select! {
-        biased;
-        signal = interrupted(execution.id().as_str(), subject, recovery.is_some()) => {
-            signal?;
-            eprintln!("Cancellation Requested For {subject} In Execution {}.", execution.id());
+pub(crate) fn observe<'a, T: 'a>(
+    client: &'a Client, execution: &'a TestExecutionHandle, recovery: Option<&'a Plan>, subject: &'a str,
+    operation: impl Future<Output = crate::Result<T>> + 'a,
+) -> impl Future<Output = crate::Result<T>> + 'a {
+    Box::pin(async move {
+        let work = async {
             if let Some(plan) = recovery {
-                plan.recover(client, execution).await?;
-                return Err(crate::Error::Setup(format!("Interrupted {subject} in execution {}. Collected execution and cycle evidence were saved; no operation was retried.", execution.id())));
+                plan.verify(execution).await?;
             }
-            Err(crate::Error::Setup(format!("Interrupted {subject} in execution {}. Remote work may continue; reconnect using this identity.", execution.id())))
+            operation.await
+        };
+        tokio::select! {
+            biased;
+            signal = interrupted(execution.id().as_str(), subject, recovery.is_some()) => {
+                signal?;
+                eprintln!("Cancellation Requested For {subject} In Execution {}.", execution.id());
+                if let Some(plan) = recovery {
+                    plan.recover(client, execution).await?;
+                    return Err(crate::Error::Setup(format!("Interrupted {subject} in execution {}. Collected execution and cycle evidence were saved; no operation was retried.", execution.id())));
+                }
+                Err(crate::Error::Setup(format!("Interrupted {subject} in execution {}. Remote work may continue; reconnect using this identity.", execution.id())))
+            }
+            outcome = work => outcome,
         }
-        outcome = work => outcome,
-    }
+    })
 }
 
 pub(crate) async fn interrupted(identity: &str, subject: &str, recovery: bool) -> std::io::Result<()> {

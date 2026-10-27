@@ -61,7 +61,7 @@ const IDENTITY: ExecutionFileIdentity = {
   epoch: "epoch",
   fileId: "file",
   executionId: "execution",
-  relativePath: "obc.charger.steady/stream.log",
+  relativePath: "obc.charger.steady/stream.000000.log",
 } as ExecutionFileIdentity;
 
 /* === Types === */

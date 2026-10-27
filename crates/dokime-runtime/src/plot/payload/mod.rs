@@ -19,6 +19,8 @@ mod projection;
 mod records;
 #[cfg(feature = "storage")]
 mod retained;
+#[cfg(feature = "storage")]
+pub(crate) mod spilled;
 mod types;
 
 /* === Re-Exports === */
@@ -29,8 +31,7 @@ pub use analyses::{
 };
 #[cfg(feature = "storage")]
 pub(crate) use retained::{
-    finish as finish_retained_plot_payload, frame as finish_retained_plot_frame, frame_owned as finish_plot_frame,
-    project as project_retained_plot_payload,
+    finish as finish_retained_plot_payload, frame_owned as finish_plot_frame, project as project_retained_plot_payload,
 };
 pub use types::{
     DownsampleTechnique, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain,

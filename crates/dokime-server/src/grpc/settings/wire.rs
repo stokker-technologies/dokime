@@ -78,7 +78,7 @@ pub(super) fn encode_frame(
     let mut budget = Budget::new()?;
     let sections = frame.sections.into_iter().map(encode_section).collect::<Result<_, _>>()?;
     let cards = frame.cards.into_iter().map(|card| encode_card(card, &mut budget)).collect::<Result<_, _>>()?;
-    let frame = dokime::domain::model::settings::wire::SettingsFrame { sections, cards };
+    let frame = dokime::domain::model::settings::wire::SettingsFrame { bootstrap_paths: frame.bootstrap_paths, sections, cards };
     ensure_size(&frame, max_message_bytes, "settings frame")?;
     Ok(frame)
 }

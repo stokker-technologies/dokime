@@ -7,12 +7,12 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("names", "generation")
-    NAMES_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("identifiers", "generation")
+    IDENTIFIERS_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
-    names: _containers.RepeatedScalarFieldContainer[str]
+    identifiers: _containers.RepeatedScalarFieldContainer[str]
     generation: int
-    def __init__(self, names: _Optional[_Iterable[str]] = ..., generation: _Optional[int] = ...) -> None: ...
+    def __init__(self, identifiers: _Optional[_Iterable[str]] = ..., generation: _Optional[int] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("host_id", "host_label", "generation", "entries", "cleanup_pending")
@@ -37,14 +37,14 @@ class Row3(_message.Message):
     def __init__(self, metadata: _Optional[_Union[Row4, _Mapping]] = ..., known_uses: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("name", "label", "description")
-    NAME_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("identifier", "label", "description")
+    IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
-    name: str
+    identifier: str
     label: str
     description: str
-    def __init__(self, name: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ...) -> None: ...
+    def __init__(self, identifier: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response")

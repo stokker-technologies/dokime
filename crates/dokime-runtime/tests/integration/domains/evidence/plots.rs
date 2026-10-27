@@ -909,6 +909,7 @@ async fn selected_fft_manager() {
     let mut batch = samples("host.wifi.channel_occupancy", 64, None);
     for (index, sample) in batch.samples.iter_mut().enumerate() {
         sample.values.insert("network_count".into(), Value::Integer(if index % 2 == 0 { 1 } else { -1 }));
+        *sample = typed_fixture_sample(sample.clone());
     }
     runtime.publish_telemetry_batch(batch).await.unwrap();
     runtime.storage().flush().await.unwrap();

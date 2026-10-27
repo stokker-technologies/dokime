@@ -154,7 +154,7 @@ async fn appearance_asset_bound() {
             model::content::wire::AppearanceAssetFramePayload::Chunk(chunk) => {
                 assert!(!complete);
                 assert_eq!(chunk.offset, received.len() as u64);
-                assert!(chunk.data.len() <= 64 * 1024);
+                assert!(chunk.data.len() <= 1024 * 1024);
                 received.extend(chunk.data);
             }
             model::content::wire::AppearanceAssetFramePayload::Complete(value) => {

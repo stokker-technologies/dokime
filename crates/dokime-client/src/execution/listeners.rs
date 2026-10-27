@@ -54,7 +54,7 @@ impl TestExecutionHandle {
             let result = async {
                 handle.snapshot().await?;
                 let completion = follow.then_some(async { handle.wait(None, Some(interval)).await.map(|_| ()) });
-                read_records(&handle.client, record_scope(&handle.id), record_types, completion, &sender).await
+                Box::pin(read_records(&handle.client, record_scope(&handle.id), record_types, completion, &sender)).await
             }
             .await;
             if let Err(error) = result {

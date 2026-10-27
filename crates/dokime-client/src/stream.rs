@@ -240,7 +240,7 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
         }
         let cancellation = client.inner.cancellation.child_token();
         let stopped = cancellation.clone();
-        let (sender, receiver) = mpsc::channel(capacity);
+        let (sender, receiver) = mpsc::channel(1);
         let worker = client.inner.readers.spawn(async move {
             tokio::select! {
                 biased;

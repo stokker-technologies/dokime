@@ -15,9 +15,9 @@ import asyncio
 import hashlib
 import json
 import math
-import ssl
 import os
 import re
+import ssl
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,8 +34,8 @@ from ..dynamic import from_contract
 from ..operation import Operation
 from . import _contracts, _wire
 from .errors import BackendChanged, ClientClosed, ProtocolError, RpcError
-from .secrets import _validate_key
 from .models import Backend
+from .secrets import _validate_key
 
 # Type Checking Imports
 
@@ -321,8 +321,10 @@ class Transport:
                         continue
                     try:
                         descriptor = from_contract(
-                            row["contract"], max_bytes=PROJECTION_BYTES,
-                            max_work=PROJECTION_WORK, max_definitions=PROJECTION_DEFINITIONS,
+                            row["contract"],
+                            max_bytes=PROJECTION_BYTES,
+                            max_work=PROJECTION_WORK,
+                            max_definitions=PROJECTION_DEFINITIONS,
                         )
                     except (ValueError, TypeError, KeyError) as error:
                         raise ProtocolError("invalid operation contract") from error
@@ -563,7 +565,8 @@ class _Stream:
         self._closed = False
         self._open_lock = asyncio.Lock()
         self._report = operation.grpc_path in (
-            "/dokime.v1.Reports/DownloadCycleReport", "/dokime.v1.Reports/DownloadExecutionReport",
+            "/dokime.v1.Reports/DownloadCycleReport",
+            "/dokime.v1.Reports/DownloadExecutionReport",
         )
         self._prefetch = asyncio.Queue(maxsize=3) if self._report else None
         self._frame_limit = 2_097_152
@@ -618,7 +621,7 @@ class _Stream:
         if self._reader_task is None:
             self._reader_task = asyncio.create_task(self._read_ahead())
             self._transport._readers.add(self._reader_task)
-            self._reader_task.add_done_callback(self._transport._readers.discard)
+            self._reader_task.add_done_callback(self._reader_finished)
         try:
             item = await self._prefetch.get()
             self._credit.release()
@@ -649,6 +652,13 @@ class _Stream:
             raise
         except Exception as error:
             await self._prefetch.put(error)
+            raise
+
+    def _reader_finished(self, task: asyncio.Task) -> None:
+        self._transport._readers.discard(task)
+        if not task.cancelled():
+            # The Queue Transfers The Failure To The Consumer; Observe Task Completion Too.
+            task.exception()
 
     async def _next(self) -> Message:
         await self._open()

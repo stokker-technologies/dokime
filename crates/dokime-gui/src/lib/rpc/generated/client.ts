@@ -10,9 +10,6 @@ export const backendCollectDiagnostics = (session: SessionIdentity, request: Par
 import { Row1Schema as backendGetAvailabilityRequest } from "@generated/dokime/v1/BackendMessages/GetAvailability/messages_pb.js";
 import { Row2Schema as backendGetAvailabilityResponse } from "@generated/dokime/v1/BackendMessages/GetAvailability/messages_pb.js";
 export const backendGetAvailability = (session: SessionIdentity, request: Parameters<typeof unary<typeof backendGetAvailabilityRequest, typeof backendGetAvailabilityResponse>>[4]) => unary("/dokime.v1.Backend/GetAvailability", backendGetAvailabilityRequest, backendGetAvailabilityResponse, session, request, 10000);
-import { Row1Schema as backendGetDiagnosticsRequest } from "@generated/dokime/v1/BackendMessages/GetDiagnostics/messages_pb.js";
-import { Row2Schema as backendGetDiagnosticsResponse } from "@generated/dokime/v1/BackendMessages/GetDiagnostics/messages_pb.js";
-export const backendGetDiagnostics = (session: SessionIdentity, request: Parameters<typeof unary<typeof backendGetDiagnosticsRequest, typeof backendGetDiagnosticsResponse>>[4]) => unary("/dokime.v1.Backend/GetDiagnostics", backendGetDiagnosticsRequest, backendGetDiagnosticsResponse, session, request, 10000);
 import { Row1Schema as backendGetHealthRequest } from "@generated/dokime/v1/BackendMessages/GetHealth/messages_pb.js";
 import { Row2Schema as backendGetHealthResponse } from "@generated/dokime/v1/BackendMessages/GetHealth/messages_pb.js";
 export const backendGetHealth = (session: SessionIdentity, request: Parameters<typeof unary<typeof backendGetHealthRequest, typeof backendGetHealthResponse>>[4]) => unary("/dokime.v1.Backend/GetHealth", backendGetHealthRequest, backendGetHealthResponse, session, request, 10000);
@@ -317,9 +314,12 @@ export const promptsRespond = (session: SessionIdentity, request: Parameters<typ
 import { Row1Schema as queryAggregateRequest } from "@generated/dokime/v1/QueryMessages/Aggregate/messages_pb.js";
 import { Row2Schema as queryAggregateResponse } from "@generated/dokime/v1/QueryMessages/Aggregate/messages_pb.js";
 export const queryAggregate = (session: SessionIdentity, request: Parameters<typeof unary<typeof queryAggregateRequest, typeof queryAggregateResponse>>[4]) => unary("/dokime.v1.Query/Aggregate", queryAggregateRequest, queryAggregateResponse, session, request, 10000);
-import { Row1Schema as remoteGenerateKeyRequest } from "@generated/dokime/v1/RemoteMessages/GenerateKey/messages_pb.js";
-import { Row2Schema as remoteGenerateKeyResponse } from "@generated/dokime/v1/RemoteMessages/GenerateKey/messages_pb.js";
-export const remoteGenerateKey = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteGenerateKeyRequest, typeof remoteGenerateKeyResponse>>[4]) => unary("/dokime.v1.Remote/GenerateKey", remoteGenerateKeyRequest, remoteGenerateKeyResponse, session, request, 300000);
+import { Row1Schema as remoteCreatePairingRequest } from "@generated/dokime/v1/RemoteMessages/CreatePairing/messages_pb.js";
+import { Row2Schema as remoteCreatePairingResponse } from "@generated/dokime/v1/RemoteMessages/CreatePairing/messages_pb.js";
+export const remoteCreatePairing = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteCreatePairingRequest, typeof remoteCreatePairingResponse>>[4]) => unary("/dokime.v1.Remote/CreatePairing", remoteCreatePairingRequest, remoteCreatePairingResponse, session, request, 300000);
+import { Row1Schema as remoteListPairedClientsRequest } from "@generated/dokime/v1/RemoteMessages/ListPairedClients/messages_pb.js";
+import { Row2Schema as remoteListPairedClientsResponse } from "@generated/dokime/v1/RemoteMessages/ListPairedClients/messages_pb.js";
+export const remoteListPairedClients = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteListPairedClientsRequest, typeof remoteListPairedClientsResponse>>[4]) => unary("/dokime.v1.Remote/ListPairedClients", remoteListPairedClientsRequest, remoteListPairedClientsResponse, session, request, 300000);
 import { Row1Schema as remoteListSessionsRequest } from "@generated/dokime/v1/RemoteMessages/ListSessions/messages_pb.js";
 import { Row2Schema as remoteListSessionsResponse } from "@generated/dokime/v1/RemoteMessages/ListSessions/messages_pb.js";
 export const remoteListSessions = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteListSessionsRequest, typeof remoteListSessionsResponse>>[4]) => unary("/dokime.v1.Remote/ListSessions", remoteListSessionsRequest, remoteListSessionsResponse, session, request, 10000);
@@ -329,6 +329,9 @@ export const remoteReadListener = (session: SessionIdentity, request: Parameters
 import { Row1Schema as remoteRegenerateCertificateRequest } from "@generated/dokime/v1/RemoteMessages/RegenerateCertificate/messages_pb.js";
 import { Row2Schema as remoteRegenerateCertificateResponse } from "@generated/dokime/v1/RemoteMessages/RegenerateCertificate/messages_pb.js";
 export const remoteRegenerateCertificate = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRegenerateCertificateRequest, typeof remoteRegenerateCertificateResponse>>[4]) => unary("/dokime.v1.Remote/RegenerateCertificate", remoteRegenerateCertificateRequest, remoteRegenerateCertificateResponse, session, request, 300000);
+import { Row1Schema as remoteRevokePairedClientRequest } from "@generated/dokime/v1/RemoteMessages/RevokePairedClient/messages_pb.js";
+import { Row2Schema as remoteRevokePairedClientResponse } from "@generated/dokime/v1/RemoteMessages/RevokePairedClient/messages_pb.js";
+export const remoteRevokePairedClient = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteRevokePairedClientRequest, typeof remoteRevokePairedClientResponse>>[4]) => unary("/dokime.v1.Remote/RevokePairedClient", remoteRevokePairedClientRequest, remoteRevokePairedClientResponse, session, request, 300000);
 import { Row1Schema as remoteUpdateListenerRequest } from "@generated/dokime/v1/RemoteMessages/UpdateListener/messages_pb.js";
 import { Row2Schema as remoteUpdateListenerResponse } from "@generated/dokime/v1/RemoteMessages/UpdateListener/messages_pb.js";
 export const remoteUpdateListener = (session: SessionIdentity, request: Parameters<typeof unary<typeof remoteUpdateListenerRequest, typeof remoteUpdateListenerResponse>>[4]) => unary("/dokime.v1.Remote/UpdateListener", remoteUpdateListenerRequest, remoteUpdateListenerResponse, session, request, 300000);

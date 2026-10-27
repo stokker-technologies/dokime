@@ -94,7 +94,7 @@ async fn interrupt_recovery_boundaries() {
             let arguments = command.iter().copied().chain(missing);
             assert!(Cli::try_parse_from(arguments).is_err(), "partial recovery choices must be refused");
         }
-        let recovery = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+        let recovery = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "http://"];
         let arguments = command.iter().copied().chain(recovery);
         let parsed = Cli::try_parse_from(arguments).unwrap();
         assert!(
@@ -117,10 +117,10 @@ async fn interrupt_recovery_boundaries() {
     for incomplete in [vec!["--cancel-on-interrupt"], vec!["--owned-cycle", cycle], vec!["--recovery-directory", path]] {
         assert!(Cli::try_parse_from(append.into_iter().chain(incomplete)).is_err());
     }
-    let flags = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+    let flags = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "http://"];
     let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
     assert!(matches!(parsed.run(configuration.clone()).await, Err(Error::Client(_))));
-    let flags = ["--cancel-on-interrupt", "--owned-cycle", execution, "--recovery-directory", path, "--endpoint", "invalid-endpoint"];
+    let flags = ["--cancel-on-interrupt", "--owned-cycle", execution, "--recovery-directory", path, "--endpoint", "http://"];
     let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
     assert!(matches!(parsed.run(configuration.clone()).await, Err(Error::Input(_))), "append cannot authorize recovery of another cycle");
 }
@@ -179,18 +179,17 @@ async fn json_files_connection() {
         "call",
         "dokime.runtime.health",
         "--endpoint",
-        "invalid-endpoint",
+        "http://",
         "--input",
         file.path().to_str().unwrap(),
     ])
     .unwrap();
     assert!(matches!(args.run(configuration.clone()).await, Err(Error::Input(_))));
 
-    let args = Cli::try_parse_from(["dokime", "operation", "call", "missing.operation", "--endpoint", "invalid-endpoint"]).unwrap();
+    let args = Cli::try_parse_from(["dokime", "operation", "call", "missing.operation", "--endpoint", "http://"]).unwrap();
     assert!(matches!(args.run(configuration.clone()).await, Err(Error::Client(_))));
 
-    let args =
-        Cli::try_parse_from(["dokime", "operation", "call", "dokime.evidence.watch_records", "--endpoint", "invalid-endpoint"]).unwrap();
+    let args = Cli::try_parse_from(["dokime", "operation", "call", "dokime.evidence.watch_records", "--endpoint", "http://"]).unwrap();
     let refused = args.run(configuration.clone()).await.unwrap_err();
     assert_eq!(refused.exit_code(), std::process::ExitCode::from(2));
     assert!(matches!(refused, Error::Client(_)));
@@ -242,7 +241,7 @@ async fn json_files_connection() {
         vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--case-id", "invalid"],
         vec!["cycle", "append", "--input-file", file.path().to_str().unwrap()],
     ] {
-        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "invalid-endpoint"])).unwrap();
+        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "http://"])).unwrap();
         assert!(matches!(args.run(configuration.clone()).await, Err(Error::Input(_))));
     }
 
@@ -257,7 +256,7 @@ async fn json_files_connection() {
             "{\"suite_id\":\"bench.checks\",\"template_id\":\"bench.checks.probe_2\",\"parameters\":[],\"files\":[]}",
         ],
     ] {
-        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "invalid-endpoint"])).unwrap();
+        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "http://"])).unwrap();
         assert!(matches!(args.run(configuration.clone()).await, Err(Error::Client(_))));
     }
 }
@@ -278,7 +277,7 @@ async fn operation_files() {
     let destination = directory.path().join("response.json");
     std::fs::write(&destination, b"previous response").unwrap();
     let path = destination.to_str().unwrap();
-    let command = ["dokime", "operation", "call", "device.enable", "--endpoint", "invalid-endpoint", "--json", "{}", "--output", path];
+    let command = ["dokime", "operation", "call", "device.enable", "--endpoint", "http://", "--json", "{}", "--output", path];
     let args = Cli::try_parse_from(command).unwrap();
     let error = args.run(configuration.clone()).await.unwrap_err();
     assert!(matches!(error, Error::Input(_)), "existing output must be refused before connection");
@@ -296,7 +295,7 @@ async fn operation_files() {
         "call",
         "device.enable",
         "--endpoint",
-        "invalid-endpoint",
+        "http://",
         "--json",
         "{broken",
         "--output",
@@ -315,7 +314,7 @@ async fn operation_files() {
         "call",
         "device.enable",
         "--endpoint",
-        "invalid-endpoint",
+        "http://",
         "--output",
         directory_output.to_str().unwrap(),
         "--overwrite",
@@ -382,16 +381,16 @@ async fn offline_backend_profiles() {
     ]);
     assert!(matches!(duplicate.run(configuration.clone()).await, Err(Error::Input(_))));
     assert_eq!(std::fs::read(&path).unwrap(), original);
-    command(&["backend", "use", "lab", "--profiles-file", filename]).run(configuration.clone()).await.unwrap();
+    command(&["backend", "use", "--identifier", "lab", "--profiles-file", filename]).run(configuration.clone()).await.unwrap();
     assert_eq!(Store::new(&path).load().unwrap().default.as_deref(), Some("lab"));
-    command(&["backend", "show", "lab", "--profiles-file", filename, "--json"]).run(configuration.clone()).await.unwrap();
+    command(&["backend", "show", "--identifier", "lab", "--profiles-file", filename, "--json"]).run(configuration.clone()).await.unwrap();
     let selected = std::fs::read(&path).unwrap();
     assert!(matches!(
-        command(&["backend", "use", "unknown", "--profiles-file", filename]).run(configuration.clone()).await,
+        command(&["backend", "use", "--identifier", "unknown", "--profiles-file", filename]).run(configuration.clone()).await,
         Err(Error::Input(_))
     ));
     assert_eq!(std::fs::read(&path).unwrap(), selected);
-    command(&["backend", "remove", "lab", "--profiles-file", filename]).run(configuration.clone()).await.unwrap();
+    command(&["backend", "remove", "--identifier", "lab", "--profiles-file", filename]).run(configuration.clone()).await.unwrap();
     let document = Store::new(&path).load().unwrap();
     assert!(document.default.is_none());
     assert!(document.profiles.is_empty());

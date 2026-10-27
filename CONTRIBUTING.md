@@ -34,6 +34,8 @@ rather than silently deleting or simplifying them.
 Use Conventional Commits, such as `fix(runtime): preserve stopped execution evidence`.
 Keep generated outputs with their source. Refresh embedded reports with
 `mise run prepare:report` and organization assets with `mise run prepare:organization`.
+Regenerate Python and desktop bindings with `mise run prepare:bindings -- <compiler-messages.jsonl>`
+using the compiler messages from one successful server build.
 Organization defaults generate JSON/theme under
 `crates/dokime-gui/src/generated/organization/`; keep authored pack inputs separate.
 Build exports the matching native installer payload. `mise run package:rust`
@@ -117,10 +119,14 @@ before and after results; these timings are not correctness-test deadlines.
 
 ### Large-Cycle Report Saves
 
-The existing system report benchmark also has an opt-in measurement harness.
-Set `DOKIME_REPORT_MEASURE_COPIES=32` in the task environment and select the
-system report benchmark through the declared benchmark task. Copies must be
-between 1 and 128. The harness expands the same plugin cases, freezes at the
+Build the benchmark and its matching plugin fixture, then run the save harness:
+
+```sh
+mise run build:rust:bench
+mise run measure:report-save --copies 32
+```
+
+Copies must be between 1 and 128. The harness expands the same plugin cases, freezes at the
 inspection prompt, saves the current cycle, seals it, and saves the sealed cycle.
 Use identical copies, plugin revision, build profile and native hardware for
 baseline and candidate runs. Preserve a baseline checkout before source edits;

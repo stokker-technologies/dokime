@@ -252,7 +252,7 @@ impl ExecutionStorage {
     }
 }
 
-#[cfg(feature = "fault-injection")]
+#[cfg(any(test, feature = "fault-injection"))]
 impl crate::RuntimeHandle {
     pub fn inject_log_write_faults(&self, execution: &TestExecutionId, count: usize, kind: std::io::ErrorKind) {
         let mut faults = self.execution_storage.log_faults.lock().unwrap();

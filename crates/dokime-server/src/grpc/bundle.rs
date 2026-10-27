@@ -89,7 +89,6 @@ pub(super) struct Entry {
 pub(super) enum Part {
     Json { path: String, value: Value },
     Tail { path: String, source: PathBuf, max_bytes: u64 },
-    File { path: String, source: PathBuf, max_bytes: u64 },
 }
 
 enum Input {
@@ -157,15 +156,10 @@ impl Part {
         Self::Tail { path: path.into(), source, max_bytes }
     }
 
-    pub(super) fn file(path: impl Into<String>, source: PathBuf, max_bytes: u64) -> Self {
-        Self::File { path: path.into(), source, max_bytes }
-    }
-
     async fn prepare(self, session: &dokime::storage::Manager) -> Result<ReadBatch<Prepared>, Status> {
         let (path, input) = match self {
             Self::Json { path, value } => return prepare_json(path, value).await,
-            Self::Tail { path, source, max_bytes } => (path, freeze_input(session, source, max_bytes, true).await?),
-            Self::File { path, source, max_bytes } => (path, freeze_input(session, source, max_bytes, false).await?),
+            Self::Tail { path, source, max_bytes } => (path, freeze_input(session, source, max_bytes).await?),
         };
         let (input, note) = match input {
             Ok(input) => (Some(input), None),
@@ -354,10 +348,8 @@ async fn prepare_json(path: String, mut value: Value) -> Result<ReadBatch<Prepar
         .map_err(native_failure)
 }
 
-async fn freeze_input(
-    session: &dokime::storage::Manager, source: PathBuf, max_bytes: u64, tail: bool,
-) -> Result<Result<Input, String>, Status> {
-    if tail && max_bytes == 0 {
+async fn freeze_input(session: &dokime::storage::Manager, source: PathBuf, max_bytes: u64) -> Result<Result<Input, String>, Status> {
+    if max_bytes == 0 {
         return Ok(Err("the request asked for no log tail".to_owned()));
     }
     let file = match tokio::fs::File::open(source).await {
@@ -369,10 +361,7 @@ async fn freeze_input(
         Err(error) => return Ok(Err(absence(&error))),
     };
     let length = metadata.len();
-    if !tail && length > max_bytes {
-        return Ok(Err(format!("source exceeds the {max_bytes} byte entry ceiling")));
-    }
-    let start = if tail { length.saturating_sub(max_bytes) } else { 0 };
+    let start = length.saturating_sub(max_bytes);
     let range = ByteRange { offset: start, limit: Some(length - start) };
     let file = match session.freeze_opened_file(file.into_std().await, range).await {
         Ok(file) => file,

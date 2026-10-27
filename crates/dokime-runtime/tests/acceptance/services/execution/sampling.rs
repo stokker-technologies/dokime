@@ -341,7 +341,7 @@ async fn report_shows_progress() {
             }
         }
     });
-    let mut opened = handle.open_cycle_report(&cycle_id).await.unwrap();
+    let opened = handle.open_cycle_report(&cycle_id).await.unwrap();
     assert!(opened.file.length > 0);
     let seen = observer.await.unwrap();
 

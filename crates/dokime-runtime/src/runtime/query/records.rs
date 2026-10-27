@@ -49,9 +49,9 @@ pub struct RuntimeRecordFrame {
 
 /* === Public Functions === */
 
-pub(crate) fn record_frame<'a, 'b>(
+pub(crate) fn record_frame<'a>(
     records: impl Iterator<Item = &'a RecordEntry>, window: &RuntimeWindow, resolution: &RuntimeResolution,
-    captured: impl Fn(&RecordEntry) -> Option<&'b RecordScope>,
+    captured: impl Fn(&'a RecordEntry) -> Option<&'a RecordScope>,
 ) -> RuntimeRecordFrame {
     let mut records = records
         .map(|record| {

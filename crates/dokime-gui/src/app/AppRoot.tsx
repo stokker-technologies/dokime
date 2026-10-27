@@ -34,7 +34,7 @@ export function AppRoot() {
           });
         } else {
           const backends = await preferencesCommands.desktopBackendsList();
-          if (active && backends.default) void owner.select({ kind: "profile", name: backends.default });
+          if (active && backends.default) void owner.select({ kind: "profile", identifier: backends.default });
         }
       })
       .catch((error: unknown) => {

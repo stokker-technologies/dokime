@@ -22,12 +22,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-# Third Party Imports
+from ._transport import _target
 
+# Third Party Imports
 # Local Imports
 from .profiles import _fields, _object
 from .secrets import _validate_key
-from ._transport import _target
 
 # Type Checking Imports
 
@@ -43,6 +43,7 @@ PAIRING_BYTES = 1_048_576
 # === Classes === #
 
 # === Public Functions === #
+
 
 def read(path: str | Path) -> dict[str, Any]:
     source = Path(path)
@@ -69,23 +70,29 @@ def read(path: str | Path) -> dict[str, Any]:
     if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in identifier):
         raise ValueError("invalid backend identity")
     label = value["label"]
-    if (not isinstance(label, str) or not label.strip() or len(label.encode("utf-8")) > 256
-            or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in label)):
+    if (
+        not isinstance(label, str)
+        or not label.strip()
+        or len(label.encode("utf-8")) > 256
+        or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in label)
+    ):
         raise ValueError("invalid pairing label")
     endpoint = value["endpoint"]
-    if not isinstance(endpoint, str):
+    if not isinstance(endpoint, str) or not endpoint:
         raise ValueError("invalid pairing endpoint")
     _, tls = _target(endpoint)
     origin = urlsplit(endpoint)
     host = origin.hostname
-    if (origin.port is None or origin.port == 0 or origin.path or any(char in endpoint for char in ("%", "\\"))):
+    if origin.port is None or origin.port == 0 or origin.path or any(char in endpoint for char in ("%", "\\")):
         raise ValueError("pairing endpoint requires an explicit port and no path")
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
-        if (not host or len(host) > 253 or not all(
-            re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", part) for part in host.split(".")
-        )):
+        if (
+            not host
+            or len(host) > 253
+            or not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", part) for part in host.split("."))
+        ):
             raise ValueError("invalid pairing endpoint host") from None
     else:
         if address.is_unspecified or address.is_multicast:

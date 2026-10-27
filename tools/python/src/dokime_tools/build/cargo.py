@@ -123,7 +123,7 @@ def focused(directory: Path, operation: str, arguments: Sequence[str]) -> int:
     if operation == "test" and ("--release" in compiler_arguments or profile not in (None, "test")):
         raise ValueError("focused tests use Cargo's default test profile")
     if operation in ("build", "test", "run"):
-        clippy(directory, [argument for argument in compiler_arguments if argument != "--no-run"])
+        clippy(directory, [argument for argument in compiler_arguments if argument not in ("--no-run", "--no-fail-fast")])
     else:
         storage.preflight(directory)
     return subprocess.run(

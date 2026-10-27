@@ -6,10 +6,10 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("name",)
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    def __init__(self, name: _Optional[str] = ...) -> None: ...
+    __slots__ = ("identifier",)
+    IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
+    identifier: str
+    def __init__(self, identifier: _Optional[str] = ...) -> None: ...
 
 class Row2(_message.Message):
     __slots__ = ("value",)

@@ -64,52 +64,6 @@ export type CycleHistorySummary = {
 
 export type DebugLevel = "debug" | "info" | "warning" | "error";
 
-export type DiagnosticFileFormat = "json" | "jsonl" | "zip";
-
-export type DiagnosticPathConvention = {
-  key: DiagnosticPathKey;
-  scope: DiagnosticPathScope;
-  format: DiagnosticFileFormat;
-  relative_path: string;
-  absolute_path: string | null;
-};
-
-export type DiagnosticPathKey = "hub_log" | "collect_bundle" | "cycle_log_pattern" | "execution_log_pattern";
-
-export type DiagnosticPathScope = "root" | "cycle_pattern" | "execution_pattern";
-
-export type DiagnosticsCounts = {
-  test_suites: number;
-  cycles: number;
-  installed_plugin_errors: number;
-  /**
-   *  Content-bearing runtime collections whose growth must be visible before
-   *  retention and eviction policy can be changed safely.
-   */
-  state_cycles: number;
-  state_executions_total: number;
-  state_record_count: number;
-  telemetry_cursor_entries: number;
-};
-
-export type DiagnosticsResponse = {
-  server: ServerDiagnostics;
-  runtime: DiagnosticsSnapshot;
-};
-
-export type DiagnosticsSnapshot = {
-  captured_at: Timestamp;
-  session_id: SessionId;
-  identity: DokimeIdentity;
-  revision: number;
-  shutting_down: boolean;
-  storage_root: string;
-  hub_metadata: Metadata;
-  path_conventions: DiagnosticPathConvention[];
-  counts: DiagnosticsCounts;
-  installed_plugin_errors: InstalledPluginErrorRecord[];
-};
-
 export type DokimeActorIdentity = {
   actor_id: ActorId;
   display_name: string;
@@ -512,6 +466,7 @@ export type RuntimeSettingsCard = {
 export type RuntimeSettingsCardState = "ready" | "disabled" | "disconnected" | "stale" | "error" | "permission_denied";
 
 export type RuntimeSettingsFrame = {
+  bootstrap_paths: { application: string; storage: string; plugins: string; logs: string } | null;
   sections: RuntimeSettingsSection[];
   cards: RuntimeSettingsCard[];
 };
@@ -546,23 +501,6 @@ export type SecretSetting = {
   description: string | null;
   default: SecretReference | null;
   required?: boolean;
-};
-
-export type ServerDiagnostics = {
-  bind_addr: string;
-  body_limit_bytes: number;
-  auth: string;
-  allowed_origins: string[];
-  heartbeat_interval_ms: number;
-  version: string;
-  process: ServerProcessDiagnostics;
-};
-
-export type ServerProcessDiagnostics = {
-  pid: number;
-  cpu_percent: number | null;
-  memory_bytes: number | null;
-  virtual_memory_bytes: number | null;
 };
 
 export type SessionId = string;

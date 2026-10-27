@@ -78,7 +78,20 @@ pub struct StorageCounters {
     pub data_scan_rows: u64,
 }
 
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+pub struct ReadCounters {
+    pub data_scan_rows: u64,
+    pub telemetry_anchor_rows: u64,
+}
+
+#[derive(Default)]
+struct ReadMetrics {
+    data_scan_rows: AtomicU64,
+    telemetry_anchor_rows: AtomicU64,
+}
+
 struct Owner {
+    read_metrics: Arc<ReadMetrics>,
     live: Arc<Mutex<Option<Live>>>,
     closing: AtomicBool,
     interrupt: InterruptHandle,
@@ -115,6 +128,13 @@ impl Drop for Interruption {
 }
 
 impl State {
+    pub fn read_counters(&self) -> ReadCounters {
+        ReadCounters {
+            data_scan_rows: self.0.read_metrics.data_scan_rows.load(Ordering::Relaxed),
+            telemetry_anchor_rows: self.0.read_metrics.telemetry_anchor_rows.load(Ordering::Relaxed),
+        }
+    }
+
     pub async fn open(root: impl AsRef<Path>) -> Result<Self, Error> {
         let root = root.as_ref().to_path_buf();
         tokio::task::spawn_blocking(move || {
@@ -133,6 +153,7 @@ impl State {
             commit(transaction)?;
             let interrupt = connection.get_interrupt_handle();
             Ok(Self(Arc::new(Owner {
+                read_metrics: Arc::new(ReadMetrics::default()),
                 live: Arc::new(Mutex::new(Some(Live { connection, _lease: lease }))),
                 closing: AtomicBool::new(false),
                 interrupt,

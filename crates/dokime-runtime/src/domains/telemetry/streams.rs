@@ -173,12 +173,6 @@ impl RuntimeHandle {
         .await
     }
 
-    pub(crate) async fn collect_telemetry_in(
-        &self, session: &crate::storage::Manager, selection: &TelemetrySelection,
-    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
-        self.collect_telemetry_at_in(session, selection, None, None, &self.storage().cursor_saved()).await
-    }
-
     pub(crate) async fn collect_telemetry_at_in(
         &self, session: &crate::storage::Manager, selection: &TelemetrySelection, scan_limit: Option<usize>, window: Option<(&str, f64)>,
         at: &harmos::storage::StorageCursor,

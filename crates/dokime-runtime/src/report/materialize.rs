@@ -278,26 +278,6 @@ async fn plots(
         let _group = operation.report_group().await;
         let _plan = plan;
         let shared = super::query::ReadCache::new();
-        let mut kinds = Vec::new();
-        for (_, _, request) in &requests {
-            kinds.extend(crate::runtime::query::plots::request_record_types(request));
-        }
-        kinds.sort();
-        kinds.dedup();
-        let mut selected_records = Vec::new();
-        let mut bytes = 0usize;
-        for record in records.iter().filter(|record| kinds.contains(&record.record_type)) {
-            bytes = bytes
-                .checked_add(
-                    crate::document::bounded::document_size(&record, 64 * 1024 * 1024, 32)
-                        .map_err(|_| invalid("plot record exceeds bounded workspace"))?,
-                )
-                .filter(|bytes| *bytes <= 64 * 1024 * 1024)
-                .ok_or_else(|| invalid("plot record selection exceeds bounded workspace"))?;
-            selected_records.try_reserve(1).map_err(|_| invalid("plot record workspace allocation failed"))?;
-            selected_records.push(record);
-        }
-        let records: crate::records::view::View<'_> = selected_records.as_slice().into();
         let results = futures_util::stream::iter(requests.into_iter().map(|(current, id, request)| {
             let shared = &shared;
             async move {

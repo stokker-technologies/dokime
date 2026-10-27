@@ -75,7 +75,7 @@ async fn frozen_catalog_multiply() {
             .await
             .unwrap(),
             Default::default(),
-            285_212_672 as usize,
+            285_212_672_usize,
         );
         assert!(store.install(forged.bytes(), &[], &Default::default()).await.unwrap_err().to_string().contains(reason));
         assert!(store.list().await.unwrap().is_empty());
@@ -110,7 +110,7 @@ async fn unsupported_schema_refused() {
                 .await
                 .unwrap(),
                 Default::default(),
-                285_212_672 as usize,
+                285_212_672_usize,
             );
             let error = store.install(forged.bytes(), &[], &Default::default()).await.unwrap_err().to_string();
             assert!(error.contains(&format!("unsupported `{namespace}` schema {schema}")), "{error}");

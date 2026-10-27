@@ -88,35 +88,43 @@ impl Source {
     pub(crate) async fn saved_filtered_records_at_in(
         &self, session: &crate::storage::Manager, through: u64, at: &harmos::storage::StorageCursor, select: impl Fn(&RecordEntry) -> bool,
     ) -> Result<crate::storage::projection::Pages<RecordEntry>> {
-        let rows = session
+        let mut pages = harmos::storage::ReadBatch::new(Vec::new());
+        self.visit_saved_records_at_in(session, through, at, |page| {
+            let page = page.try_map(|rows| Ok::<_, crate::runtime::Error>(rows.into_iter().filter(&select).collect()))?;
+            let previous = std::mem::replace(&mut pages, harmos::storage::ReadBatch::new(Vec::new()));
+            pages = crate::storage::projection::push(previous, page)?;
+            Ok(())
+        })
+        .await?;
+        Ok(pages)
+    }
+
+    pub(crate) async fn visit_saved_records_at_in(
+        &self, session: &crate::storage::Manager, through: u64, at: &harmos::storage::StorageCursor,
+        mut visit: impl FnMut(harmos::storage::ReadBatch<Vec<RecordEntry>>) -> Result<()>,
+    ) -> Result<()> {
+        let mut rows = session
             .read_records::<RecordRow>(RecordRead {
                 at: at.clone(),
                 selection: RecordSelection { schema: self.schema.clone(), scope: None, item: None, source_start: None, source_end: None },
                 after: 0,
             })
             .await?;
-        let mut rows = rows;
-        let mut pages = harmos::storage::ReadBatch::new(Vec::new());
         while let Some(page) = rows.next().await? {
             let page = page.try_map(|rows| -> Result<_> {
-                let mut entries = Vec::new();
-                entries.try_reserve_exact(rows.len()).map_err(|_| error("record allocation failed"))?;
+                let mut entries = Vec::with_capacity(rows.len());
                 for row in rows {
                     let current = row.scope.as_ref() == Some(&self.epoch);
                     let record = row.payload.entry()?;
-                    if (!current || record.sequence <= through) && select(&record) {
+                    if !current || record.sequence <= through {
                         entries.push(record);
                     }
                 }
                 Ok(entries)
             })?;
-            pages = crate::storage::projection::push(pages, page)?;
+            visit(page)?;
         }
-        Ok(pages)
-    }
-
-    pub(crate) async fn history(self: &Arc<Self>, state_manager: &crate::app::StateManager, after: u64, through: u64) -> Result<History> {
-        self.history_scoped(&self.storage.clone(), state_manager, Start::Physical(after), through, None).await
+        Ok(())
     }
 
     pub(super) async fn history_scoped(

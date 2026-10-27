@@ -44,9 +44,13 @@ def test_settings_operation_round_trip() -> None:
     assert received.update.settings.client.request_timeout_ms == 5678
     assert received.update.settings.telemetry.interval_ms == 42
 
-    response = _contracts.construct(operation.response.DESCRIPTOR, {
-        "revision": 8, "settings": received.update.settings,
-    })
+    response = _contracts.construct(
+        operation.response.DESCRIPTOR,
+        {
+            "revision": 8,
+            "settings": received.update.settings,
+        },
+    )
     restored = operation.response.FromString(response.SerializeToString())
     assert restored.revision == 8
     assert restored.settings == received.update.settings

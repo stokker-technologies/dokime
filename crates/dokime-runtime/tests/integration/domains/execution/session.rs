@@ -289,7 +289,7 @@ async fn cancellation_retains_verdict() {
             assert_eq!(criteria[0].message.as_deref(), Some("cancelled before deciding"));
         }
         let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-        let log = files.iter().find(|file| file.relative_path.ends_with("stream.log")).unwrap();
+        let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
         let content =
             handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
         let log_path = log.relative_path.clone();
@@ -374,7 +374,7 @@ async fn ignored_stop(mode: Settlement) {
     assert!(cycle.saved.is_some(), "host settlement seals the final cycle report");
     assert!(handle.pending_prompt_projection().await.is_empty());
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     assert!(
         std::str::from_utf8(&log.bytes)

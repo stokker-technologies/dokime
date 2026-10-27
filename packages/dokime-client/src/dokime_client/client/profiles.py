@@ -19,10 +19,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .._profiles import Document, Profile
+
 # Third Party Imports
 # Local Imports
 from ._transport import _target
-from .._profiles import Document, Profile
 
 # Type Checking Imports
 
@@ -33,7 +34,7 @@ from .._profiles import Document, Profile
 CA_BYTES = 1048576
 PROFILE_BYTES = 1048576
 PROFILE_ID_BYTES = 256
-PROFILE_IDENTIFIER_BYTES = 64
+PROFILE_IDENTIFIER_BYTES = 128
 PROFILES = 128
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9_.-]+\Z")
@@ -125,8 +126,12 @@ def _profile(value: object) -> Profile:
     )
     identifier = _identifier(value["identifier"])
     label = value["label"]
-    if (not isinstance(label, str) or not label.strip() or len(label.encode("utf-8")) > 256
-            or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in label)):
+    if (
+        not isinstance(label, str)
+        or not label.strip()
+        or len(label.encode("utf-8")) > 256
+        or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in label)
+    ):
         raise ValueError("invalid backend profile label")
     endpoint = value["endpoint"]
     if not isinstance(endpoint, str):
@@ -154,8 +159,12 @@ def _profile(value: object) -> Profile:
     if secret not in ("none", "keyring"):
         raise ValueError("invalid secret association")
     return Profile(
-        identifier=identifier, label=label, endpoint=endpoint,
-        expected_backend_id=identity, ca_certificate_pem=ca, secret=secret,
+        identifier=identifier,
+        label=label,
+        endpoint=endpoint,
+        expected_backend_id=identity,
+        ca_certificate_pem=ca,
+        secret=secret,
     )
 
 
@@ -176,7 +185,9 @@ def _object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 def _identifier(value: object) -> str:
     if (
-        not isinstance(value, str) or value in (".", "..") or not _IDENTIFIER.fullmatch(value)
+        not isinstance(value, str)
+        or value in (".", "..")
+        or not _IDENTIFIER.fullmatch(value)
         or len(value.encode("utf-8")) > PROFILE_IDENTIFIER_BYTES
     ):
         raise ValueError("invalid backend profile identifier")

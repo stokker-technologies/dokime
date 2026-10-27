@@ -209,10 +209,7 @@ export type DokimeIdentity = {
   } | null;
 };
 
-export type {
-  DiagnosticsResponse as DiagnosticsSnapshot,
-  InstalledPluginErrorRecord,
-} from "./view-contracts";
+export type { InstalledPluginErrorRecord } from "./view-contracts";
 
 export type HubRevisionSet = {
   run: number;

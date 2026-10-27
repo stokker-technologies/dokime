@@ -159,7 +159,7 @@ impl Controller {
             write!(key, "{byte:02x}").expect("writing to a string succeeds");
         }
         let metadata = PairedClient {
-            identifier: uuid::Uuid::new_v4().to_string(),
+            identifier: uuid::Uuid::now_v7().to_string(),
             label: pairing.label.clone(),
             created_at: unix_millis(),
             last_seen_at: None,
@@ -236,7 +236,7 @@ fn encode_cursor(client: &PairedClient) -> String {
 
 fn decode_cursor(cursor: &str) -> Result<(u64, String), Error> {
     let invalid = || Error::Configuration("invalid paired client cursor");
-    if cursor.len() > 128 || cursor.len() % 2 != 0 || !cursor.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    if cursor.len() > 128 || !cursor.len().is_multiple_of(2) || !cursor.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(invalid());
     }
     let bytes: Vec<u8> = (0..cursor.len())

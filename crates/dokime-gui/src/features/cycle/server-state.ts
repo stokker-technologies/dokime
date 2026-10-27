@@ -27,7 +27,7 @@ import {
 } from "@/lib/api/native-evidence";
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeCycleHistory } from "@/lib/api/native-history";
-import { fetchNativeDiagnostics, fetchNativeTraceability } from "@/lib/api/native-observation";
+import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import { respondNativePrompt } from "@/lib/api/native-prompts";
 import type { DocumentViewPayload, RecordScope } from "@/lib/types";
 import { documentRetry, documentRetryDelay } from "./document-query-model";
@@ -69,7 +69,6 @@ export const workflowQueryKeys = {
   cycleDetails: () => [...workflowQueryKeys.all, "cycles", "detail"] as const,
   cycleDetail: (cycleId: string | null = null) => [...workflowQueryKeys.all, "cycles", "detail", cycleId ?? "current"] as const,
   cycleHistory: () => [...workflowQueryKeys.all, "cycles", "history"] as const,
-  diagnostics: () => [...workflowQueryKeys.all, "diagnostics"] as const,
   records: (limit = GUI_PAGE_ITEMS) => [...workflowQueryKeys.all, "records", { limit }] as const,
   executionDocument: ({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) =>
     [...workflowQueryKeys.all, "documents", "execution", cycleId ?? "", executionId ?? ""] as const,
@@ -103,18 +102,6 @@ function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
 }
 
 /* === Query Hooks === */
-
-export function useDiagnosticsQuery() {
-  const session = useNativeSession();
-  // Diagnostics only feeds slow-moving facts (server version, process
-  // stats, startup doctor); live health arrives over the runtime stream. A
-  // fresh read on mount or window focus is enough.
-  return useQuery({
-    queryFn: () => fetchNativeDiagnostics(session.identity),
-    queryKey: [...workflowQueryKeys.diagnostics(), session.identity.generation],
-    refetchOnWindowFocus: true,
-  });
-}
 
 /**
  * A scope's latest records: the tail read once, then appended from the

@@ -180,7 +180,10 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<crate::evidence_runtime::TelemetryStreamSummary>>> {
         let session = self.storage();
         let at = session.cursor_saved();
-        let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &at, None, self.schema_settings(), |_, _| true).await?;
+        let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &at, None, self.schema_settings(), |id, _| {
+            crate::storage::telemetry::selected_schema(id, &[])
+        })
+        .await?;
         let mut summaries = EvidenceSummaries::default();
         let mut after = 0;
         loop {
@@ -210,17 +213,6 @@ impl RuntimeHandle {
         Ok(selection.apply_with_subscriptions(&self.records_at(&snapshot).await?, |record| {
             captured.and_then(|captures| captures.captured_scope(record))
         }))
-    }
-
-    pub(crate) async fn journal_records_through(&self, frontier: harmos::state::Position) -> crate::runtime::Result<Vec<RecordEntry>> {
-        validate_frontier(frontier, self.state_manager.applied())?;
-        self.record_source.wait_through(&self.state_manager, frontier.0).await?;
-        let mut records = Vec::new();
-        let mut reader = self.record_source.history(&self.state_manager, 0, frontier.0).await?;
-        while let Some(record) = reader.next().await? {
-            records.push((*record).clone());
-        }
-        Ok(records)
     }
 
     pub(crate) async fn record_pages_at_in(
@@ -356,13 +348,6 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn validate_frontier(frontier: harmos::state::Position, applied: harmos::state::Position) -> crate::runtime::Result<()> {
-    if frontier > applied {
-        return Err(crate::runtime::Error::Operation("record frontier exceeds applied state position".into()));
-    }
-    Ok(())
-}
 
 fn evidence_memory() -> crate::runtime::Error {
     harmos::Error::ResourceExhausted { resource: "evidence snapshot construction" }.into()

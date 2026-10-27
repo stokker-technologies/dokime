@@ -95,17 +95,24 @@ fn admission_order_publishers() {
     };
 
     assert_eq!(state.record_count, 0);
-    publish("gateway", "gateway.clamped").apply(&mut state);
-    publish("bench", "unit.connected").apply(&mut state);
-    publish("gateway", "gateway.clamped").apply(&mut state);
+    for (index, (owner, kind)) in
+        [("gateway", "gateway.clamped"), ("bench", "unit.connected"), ("gateway", "gateway.clamped")].into_iter().enumerate()
+    {
+        let transaction = publish(owner, kind);
+        let (_, members) = harmos::state::Records::collect(&transaction, &state).unwrap();
+        assert_eq!(members.len(), 1);
+        let fact = members[0].0.as_ref().expect("sidecar record source");
+        let envelope: serde_json::Value = serde_json::from_slice(&fact.payload).unwrap();
+        let captured: dokime_domain::state::records::CapturedRecord = serde_json::from_value(envelope["payload"].clone()).unwrap();
+        assert_eq!(captured.ordinal, index as u64 + 1);
+        assert!(captured.record.scope.is_none());
+        assert!(captured.scopes.is_empty());
+        transaction.apply(&mut state);
+        assert_eq!(state.records.through, captured.ordinal);
+    }
 
     // Three admissions, three positions, assigned by the fold and not by any
     // sequence the publishers chose. Interleaving publishers changes nothing:
     // one fold admits them one after another, in the order it received them.
     assert_eq!(state.record_count, 3);
-    assert_eq!(state.records.record_visibility.len(), 3);
-    // The fold carries the scope it was given and invents none. That the
-    // requests arrived unscoped is the publication pump's doing, pinned where
-    // the pump is.
-    assert!(state.records.record_visibility.iter().all(|visibility| visibility.scope.is_none()));
 }

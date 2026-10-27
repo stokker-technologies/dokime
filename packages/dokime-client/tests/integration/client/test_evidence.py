@@ -124,10 +124,8 @@ def test_example_listeners_drain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             server.sample_page_size = 1
             server.finish_gate.clear()
             for key, value in {
-                "DokimeClient": lambda *_args, **_kwargs: client,
+                "DokimeClient": SimpleNamespace(from_pairing=lambda _path: client),
                 "TEMPLATE": TEMPLATE,
-                "KEY_FILE": None,
-                "CA_CERTIFICATE": None,
                 "OUTPUT_DIRECTORY": tmp_path,
                 "EXECUTION_COUNT": 1,
                 "RECORD_TYPES": ("fixture.fin*",),

@@ -104,7 +104,7 @@ pub(crate) async fn materialize(
     };
     prepared.check_evidence(telemetry, request)?;
     prepared
-        .execute_in(crate::runtime::query::plots::analysis::Environment::Report { ctx, resources }, request, position, payload, contract)
+        .execute_in(crate::runtime::query::plots::analysis::Environment::Report { resources }, request, position, payload, contract)
         .await
 }
 

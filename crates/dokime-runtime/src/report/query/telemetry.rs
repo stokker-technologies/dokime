@@ -108,23 +108,26 @@ pub(in crate::report) async fn spool(
 pub(super) async fn streams(
     ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, scope: &str,
     contracts: &std::collections::BTreeMap<Identifier, std::collections::BTreeMap<u32, TelemetryContract>>, selected: &[String],
-) -> Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
-    let mut samples = empty()?;
-    let mut bytes = 0usize;
+) -> Result<crate::plot::spilled::Input> {
+    let input = crate::plot::spilled::Input::new()?;
     for (stream, versions) in contracts {
         if !selected.iter().any(|name| crate::plot::stream_matches_alias(stream.as_str(), name)) {
             continue;
         }
         for contract in versions.values() {
-            let rows = read(ctx, session, at, scope, contract, Vec::new()).await?;
-            bytes = bytes
-                .checked_add(crate::execution::evidence_rows::encoded_bytes(&*rows))
-                .filter(|bytes| *bytes <= 128 * 1024 * 1024)
-                .ok_or_else(|| invalid("raw report plot workspace exceeds 128 MiB"))?;
-            samples = append(samples, rows)?;
+            let codec = saved_codec(ctx, session, at, contract).await?;
+            let query = plan(at, scope, &codec, Vec::new())?;
+            super::visit_batches(session, at, query, |batch| {
+                let entries = decode_positioned(&codec, batch)?;
+                for (_, entry) in entries.iter() {
+                    input.append(&entry.sample)?;
+                }
+                Ok(())
+            })
+            .await?;
         }
     }
-    sort(samples)
+    Ok(input)
 }
 
 /* === Private Functions === */

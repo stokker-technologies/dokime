@@ -99,6 +99,7 @@ impl State {
         &self, at: StorageCursor, schema: SchemaKey, terms: Vec<(&'static str, Value)>,
         selection: crate::evidence_runtime::TelemetrySelection, codec: TypedCodec,
     ) -> Result<Option<std::time::SystemTime>, Error> {
+        let metrics = self.0.read_metrics.clone();
         self.read(move |connection| {
             Ok((|| {
                 let head = saved(connection)?;
@@ -111,6 +112,7 @@ impl State {
                 let mut rows = statement.query(rusqlite::params_from_iter(arguments))?;
                 while let Some(row) = rows.next()? {
                     super::super::TELEMETRY_ANCHOR_ROWS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    metrics.telemetry_anchor_rows.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let encoded = blob(row, 0)?;
                     check_digest(encoded, blob(row, 1)?)?;
                     let indexed_time = blob(row, 2)?.to_vec();

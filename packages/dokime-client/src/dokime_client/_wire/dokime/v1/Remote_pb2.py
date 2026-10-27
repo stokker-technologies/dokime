@@ -21,10 +21,12 @@ from google.protobuf.internal import builder as _builder
 # Local Imports
 from dokime_client._wire import _pool
 # @@protoc_insertion_point(imports)
-from dokime_client._wire.dokime.v1.RemoteMessages.GenerateKey import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_RemoteMessages_dot_GenerateKey_dot_messages__pb2
+from dokime_client._wire.dokime.v1.RemoteMessages.CreatePairing import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_RemoteMessages_dot_CreatePairing_dot_messages__pb2
+from dokime_client._wire.dokime.v1.RemoteMessages.ListPairedClients import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_RemoteMessages_dot_ListPairedClients_dot_messages__pb2
 from dokime_client._wire.dokime.v1.RemoteMessages.ListSessions import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_RemoteMessages_dot_ListSessions_dot_messages__pb2
 from dokime_client._wire.dokime.v1.RemoteMessages.ReadListener import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_RemoteMessages_dot_ReadListener_dot_messages__pb2
 from dokime_client._wire.dokime.v1.RemoteMessages.RegenerateCertificate import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_RemoteMessages_dot_RegenerateCertificate_dot_messages__pb2
+from dokime_client._wire.dokime.v1.RemoteMessages.RevokePairedClient import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_RemoteMessages_dot_RevokePairedClient_dot_messages__pb2
 from dokime_client._wire.dokime.v1.RemoteMessages.UpdateListener import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_RemoteMessages_dot_UpdateListener_dot_messages__pb2
 
 # Type Checking Imports
@@ -50,15 +52,15 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n*dokime_client/_wire/dokime/v1/Remote.proto\x12\tdokime.v1\x1aGdokime_client/_wire/dokime/v1/RemoteMessages/GenerateKey/messages.proto\x1aHdokime_client/_wire/dokime/v1/RemoteMessages/ListSessions/messages.proto\x1aHdokime_client/_wire/dokime/v1/RemoteMessages/ReadListener/messages.proto\x1aQdokime_client/_wire/dokime/v1/RemoteMessages/RegenerateCertificate/messages.proto\x1aJdokime_client/_wire/dokime/v1/RemoteMessages/UpdateListener/messages.proto2\xb9\x04\n\x06Remote\x12\x65\n\x0bGenerateKey\x12*.dokime.v1.RemoteMessages.GenerateKey.Row1\x1a*.dokime.v1.RemoteMessages.GenerateKey.Row2\x12h\n\x0cListSessions\x12+.dokime.v1.RemoteMessages.ListSessions.Row1\x1a+.dokime.v1.RemoteMessages.ListSessions.Row2\x12h\n\x0cReadListener\x12+.dokime.v1.RemoteMessages.ReadListener.Row1\x1a+.dokime.v1.RemoteMessages.ReadListener.Row2\x12\x83\x01\n\x15RegenerateCertificate\x12\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row1\x1a\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row2\x12n\n\x0eUpdateListener\x12-.dokime.v1.RemoteMessages.UpdateListener.Row1\x1a-.dokime.v1.RemoteMessages.UpdateListener.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n*dokime_client/_wire/dokime/v1/Remote.proto\x12\tdokime.v1\x1aIdokime_client/_wire/dokime/v1/RemoteMessages/CreatePairing/messages.proto\x1aMdokime_client/_wire/dokime/v1/RemoteMessages/ListPairedClients/messages.proto\x1aHdokime_client/_wire/dokime/v1/RemoteMessages/ListSessions/messages.proto\x1aHdokime_client/_wire/dokime/v1/RemoteMessages/ReadListener/messages.proto\x1aQdokime_client/_wire/dokime/v1/RemoteMessages/RegenerateCertificate/messages.proto\x1aNdokime_client/_wire/dokime/v1/RemoteMessages/RevokePairedClient/messages.proto\x1aJdokime_client/_wire/dokime/v1/RemoteMessages/UpdateListener/messages.proto2\xb4\x06\n\x06Remote\x12k\n\rCreatePairing\x12,.dokime.v1.RemoteMessages.CreatePairing.Row1\x1a,.dokime.v1.RemoteMessages.CreatePairing.Row2\x12w\n\x11ListPairedClients\x12\x30.dokime.v1.RemoteMessages.ListPairedClients.Row1\x1a\x30.dokime.v1.RemoteMessages.ListPairedClients.Row2\x12h\n\x0cListSessions\x12+.dokime.v1.RemoteMessages.ListSessions.Row1\x1a+.dokime.v1.RemoteMessages.ListSessions.Row2\x12h\n\x0cReadListener\x12+.dokime.v1.RemoteMessages.ReadListener.Row1\x1a+.dokime.v1.RemoteMessages.ReadListener.Row2\x12\x83\x01\n\x15RegenerateCertificate\x12\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row1\x1a\x34.dokime.v1.RemoteMessages.RegenerateCertificate.Row2\x12z\n\x12RevokePairedClient\x12\x31.dokime.v1.RemoteMessages.RevokePairedClient.Row1\x1a\x31.dokime.v1.RemoteMessages.RevokePairedClient.Row2\x12n\n\x0eUpdateListener\x12-.dokime.v1.RemoteMessages.UpdateListener.Row1\x1a-.dokime.v1.RemoteMessages.UpdateListener.Row2b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Remote_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_REMOTE']._serialized_start=438
-  _globals['_REMOTE']._serialized_end=1007
+  _globals['_REMOTE']._serialized_start=599
+  _globals['_REMOTE']._serialized_end=1419
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

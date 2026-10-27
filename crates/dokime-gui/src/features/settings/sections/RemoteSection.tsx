@@ -332,7 +332,7 @@ function PairedClients({ session }: { session: ConnectedSession }) {
           }),
         ])}
         actions={
-          <Button disabled={busy} variant="outline" onClick={() => setRevision((value) => value + 1)}>
+          <Button disabled={busy} variant="outline" onClick={() => setRequest((value) => ({ ...value }))}>
             Refresh
           </Button>
         }

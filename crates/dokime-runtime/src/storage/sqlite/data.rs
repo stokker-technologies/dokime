@@ -153,8 +153,9 @@ impl State {
     }
 
     async fn data_scan(&self, scan: Scan) -> Result<Vec<Entry>, Error> {
+        let metrics = self.0.read_metrics.clone();
         self.read(move |connection| {
-            let result = read_scan(connection, &scan);
+            let result = read_scan(connection, &scan, &metrics);
             Ok(result)
         })
         .await?
@@ -186,7 +187,12 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
             [],
             |row| row.get(0),
         )?;
-        if !indexed {
+        let initialized: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='storage_data_entries')",
+            [],
+            |row| row.get(0),
+        )?;
+        if initialized && !indexed {
             return Err(Error::Incompatible("local.sqlite does not satisfy the current indexed evidence schema".into()));
         }
         let format: Option<String> = connection
@@ -257,9 +263,6 @@ pub(super) fn sequence(value: &str) -> Result<u64, Error> {
 fn bootstrap(connection: &mut Connection) -> Result<StoreHistory, Error> {
     let transaction = connection.transaction()?;
     transaction.execute_batch(HEAD_SCHEMA)?;
-    transaction.execute_batch(SCHEMA)?;
-    transaction.execute_batch(telemetry::SCHEMA)?;
-    transaction.execute_batch(records::SCHEMA)?;
     initialize_head(&transaction, None)?;
 
     let history = {
@@ -500,6 +503,10 @@ fn scan_query(scan: &Scan) -> Result<(String, Vec<Value>), Error> {
     let scoped = scan.filters.iter().any(|(column, _)| *column == "scope");
     let schema = scan.filters.iter().any(|(column, _)| *column == "schema_key");
     let stream = scan.filters.iter().any(|(column, _)| *column == "stream");
+    if scan.kind == "stream" {
+        // SQLite Must Prove The Partial Index Predicate During Preparation.
+        clauses.push("entries.kind='stream'".to_owned());
+    }
     let index = match (scan.kind, scan.source_window.is_some(), schema, scoped) {
         ("stream", false, false, true) if stream => "storage_data_stream_owner",
         ("stream", true, true, true) => "storage_data_stream_scope_time",
@@ -517,7 +524,7 @@ fn scan_query(scan: &Scan) -> Result<(String, Vec<Value>), Error> {
     Ok((sql, arguments))
 }
 
-fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> {
+fn read_scan(connection: &Connection, scan: &Scan, metrics: &super::ReadMetrics) -> Result<Vec<Entry>, Error> {
     let (sql, arguments) = scan_query(scan)?;
     let mut statement = connection.prepare(&sql)?;
     let mut selected = statement.query(rusqlite::params_from_iter(arguments))?;
@@ -534,6 +541,7 @@ fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> 
             break;
         }
         super::DATA_SCAN_ROWS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        metrics.data_scan_rows.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let body = blob(row, 2)?;
         if body.len() != length {
             return Err(Error::Corrupt("entry body length changed"));
@@ -581,7 +589,7 @@ mod tests {
             assert!(!statement.exists(rusqlite::params_from_iter(arguments)).unwrap());
             let steps = statement.get_status(rusqlite::StatementStatus::VmStep);
             assert!(steps < 100, "an absent schema performed {steps} VM steps over unrelated rows");
-            assert!(read_scan(&connection, &scan).unwrap().is_empty());
+            assert!(read_scan(&connection, &scan, &super::super::ReadMetrics::default()).unwrap().is_empty());
         }
     }
 }

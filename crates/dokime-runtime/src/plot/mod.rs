@@ -18,6 +18,8 @@ pub(crate) mod stored;
 /* === Re-Exports === */
 
 pub(crate) use payload::builtins;
+#[cfg(feature = "storage")]
+pub(crate) use payload::spilled;
 pub use payload::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
@@ -33,7 +35,7 @@ pub(crate) use payload::{
 pub(crate) use record_timing::RECORD_CONTEXT_STREAM;
 
 #[cfg(feature = "storage")]
-pub(crate) use payload::{finish_plot_frame, finish_retained_plot_frame, finish_retained_plot_payload, project_retained_plot_payload};
+pub(crate) use payload::{finish_plot_frame, finish_retained_plot_payload, project_retained_plot_payload};
 
 /* === Imports === */
 

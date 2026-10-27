@@ -228,7 +228,7 @@ async fn execution_failure(client: &Client, member: &model::execution::wire::Exe
     let request = contracts::content::ListExecutionFiles { execution_id: member.execution_id.clone(), ..Default::default() };
     let files = client.content_list_execution_files(request).await.unwrap();
 
-    let logs = files.files.iter().filter(|file| file.relative_path.ends_with("stream.log"));
+    let logs = files.files.iter().filter(|file| file.relative_path.ends_with("stream.000000.log"));
     for file in logs {
         let request = contracts::content::ReadExecutionFile {
             execution_id: member.execution_id.clone(),

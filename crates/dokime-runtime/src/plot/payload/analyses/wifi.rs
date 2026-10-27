@@ -96,13 +96,13 @@ fn channel_slots(series: &[PlotSeries]) -> Result<Vec<Channel>, &'static str> {
     Ok(channels)
 }
 
-fn reading(point: &PlotPoint) -> Option<(i64, usize)> {
+pub(in crate::plot::payload) fn reading(point: &PlotPoint) -> Option<(i64, usize)> {
     let second = point_x(point)?.floor() as i64;
     let count = point.y.filter(|value| value.is_finite()).map_or(0, |value| value.round().max(0.0) as usize);
     Some((second, count))
 }
 
-fn window_bands(occupied: &[i64]) -> Result<Vec<WifiBandWindow>, &'static str> {
+pub(in crate::plot::payload) fn window_bands(occupied: &[i64]) -> Result<Vec<WifiBandWindow>, &'static str> {
     let count = (0..BANDS.len()).filter(|&band| occupied.iter().any(|&channel| band_index(channel) == Some(band))).count();
     let mut output = slots(count)?;
     for (band, name) in BANDS.iter().enumerate() {
@@ -114,7 +114,7 @@ fn window_bands(occupied: &[i64]) -> Result<Vec<WifiBandWindow>, &'static str> {
     Ok(output)
 }
 
-fn scan(time: String, counts: Counts) -> Result<WifiScan, &'static str> {
+pub(in crate::plot::payload) fn scan(time: String, counts: Counts) -> Result<WifiScan, &'static str> {
     let (occupied_channels, total_networks, peak_count) = occupancy(counts.values())?;
     let present = (0..BANDS.len()).filter(|&band| counts.keys().any(|&channel| band_index(channel) == Some(band))).count();
     let mut bands = slots(present)?;
@@ -150,7 +150,7 @@ fn time_length(point: &PlotPoint) -> Result<usize, &'static str> {
     Ok(output.0)
 }
 
-fn time(point: &PlotPoint) -> Result<String, &'static str> {
+pub(in crate::plot::payload) fn time(point: &PlotPoint) -> Result<String, &'static str> {
     if let Some(value) = point.x.as_str() {
         return text(value);
     }
@@ -172,7 +172,7 @@ fn slots<T>(count: usize) -> Result<Vec<T>, &'static str> {
     Ok(output)
 }
 
-fn series_channel(entry: &PlotSeries) -> Option<i64> {
+pub(in crate::plot::payload) fn series_channel(entry: &PlotSeries) -> Option<i64> {
     let channel =
         |text: &str| text.trim().parse::<f64>().ok().filter(|value| value.is_finite() && value.fract() == 0.0).map(|value| value as i64);
     channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))

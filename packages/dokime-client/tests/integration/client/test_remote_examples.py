@@ -59,7 +59,7 @@ def test_response_files(existing: bool, tmp_path: Path, monkeypatch: pytest.Monk
     connection = MagicMock()
     connection.__aenter__ = AsyncMock(return_value=client)
     connection.__aexit__ = AsyncMock(return_value=False)
-    monkeypatch.setitem(run.__globals__, "DokimeClient", MagicMock(return_value=connection))
+    monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
     monkeypatch.setitem(run.__globals__, "MessageToDict", lambda message, **_options: message)
 
     assert asyncio.run(run()) == 0
@@ -113,7 +113,7 @@ def test_interrupted_submission(
     connection = MagicMock()
     connection.__aenter__ = AsyncMock(return_value=client)
     connection.__aexit__ = AsyncMock(return_value=False)
-    monkeypatch.setitem(run.__globals__, "DokimeClient", MagicMock(return_value=connection))
+    monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
     monkeypatch.setitem(run.__globals__, "Execution", MagicMock(return_value=execution))
     monkeypatch.setitem(run.__globals__, "OUTPUT_DIRECTORY", tmp_path)
     monkeypatch.setitem(run.__globals__, "EXECUTION_COUNT", 1)
@@ -177,7 +177,7 @@ def test_append_cancellation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     connection = MagicMock()
     connection.__aenter__ = AsyncMock(return_value=client)
     connection.__aexit__ = AsyncMock(return_value=False)
-    monkeypatch.setitem(run.__globals__, "DokimeClient", MagicMock(return_value=connection))
+    monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
     monkeypatch.setitem(run.__globals__, "Execution", MagicMock(return_value=execution))
     monkeypatch.setitem(run.__globals__, "OUTPUT_DIRECTORY", tmp_path)
 
@@ -205,7 +205,7 @@ def test_existing_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     connection = MagicMock()
     connection.__aenter__ = AsyncMock(return_value=client)
     connection.__aexit__ = AsyncMock(return_value=False)
-    monkeypatch.setitem(run.__globals__, "DokimeClient", MagicMock(return_value=connection))
+    monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
     monkeypatch.setitem(run.__globals__, "EXECUTION_ID", EXECUTION)
 
     assert asyncio.run(run()) == 0
@@ -247,7 +247,7 @@ def test_polling_example(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         create_cycle=AsyncMock(return_value=cycle),
         close=AsyncMock(),
     )
-    monkeypatch.setitem(main.__globals__, "DokimeClient", MagicMock(return_value=client))
+    monkeypatch.setitem(main.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: client))
     monkeypatch.setitem(main.__globals__, "Execution", MagicMock(return_value=execution))
 
     asyncio.run(main())

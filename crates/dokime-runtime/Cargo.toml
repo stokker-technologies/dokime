@@ -163,7 +163,7 @@ tracing-subscriber = { workspace = true }
 harmos = { workspace = true, features = ["plugin-sidecar"] }
 
 # Serialization
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["float_roundtrip"] }
 
 # Configuration
 

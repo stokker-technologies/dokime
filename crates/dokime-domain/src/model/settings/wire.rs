@@ -55,8 +55,18 @@ pub struct StorageSources {
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingsFrame {
+    pub bootstrap_paths: Option<BootstrapPaths>,
     pub sections: Vec<SettingsSection>,
     pub cards: Vec<SettingsCard>,
+}
+
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct BootstrapPaths {
+    pub application: String,
+    pub storage: String,
+    pub plugins: String,
+    pub logs: String,
 }
 
 #[harmos_domain::message]

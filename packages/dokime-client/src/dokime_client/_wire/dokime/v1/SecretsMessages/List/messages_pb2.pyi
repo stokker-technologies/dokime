@@ -33,14 +33,14 @@ class Row3(_message.Message):
     def __init__(self, metadata: _Optional[_Union[Row4, _Mapping]] = ..., known_uses: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("name", "label", "description")
-    NAME_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("identifier", "label", "description")
+    IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
-    name: str
+    identifier: str
     label: str
     description: str
-    def __init__(self, name: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ...) -> None: ...
+    def __init__(self, identifier: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response")

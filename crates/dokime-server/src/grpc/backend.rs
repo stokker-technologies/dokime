@@ -33,7 +33,6 @@ use dokime::domains::exports::storage::DiagnosticPathKey;
 /* === Constants === */
 
 const SERVER_BUNDLE_BYTES: u64 = 16_777_216;
-const SERVER_BUNDLE_LOG_TAIL_BYTES: u64 = 2_097_152;
 
 /* === Macros === */
 

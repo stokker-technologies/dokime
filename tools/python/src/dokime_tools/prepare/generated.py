@@ -63,8 +63,12 @@ def restore(profile: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=paths.PROFILES, default="dev")
+    parser.add_argument("--stage", action="store_true", help="Stage freshly generated modules instead of restoring them")
     options = parser.parse_args()
-    restore(options.profile)
+    if options.stage:
+        stage(options.profile)
+    else:
+        restore(options.profile)
     return 0
 
 

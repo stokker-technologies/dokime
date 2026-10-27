@@ -330,7 +330,7 @@ async fn report_opens_anytime() {
         std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut running).await).unwrap(),
     );
     assert_eq!(payload["test_executions"][0]["test_execution_id"], execution.as_str());
-    let mut running = runtime.open_execution_report(&execution).await.unwrap();
+    let running = runtime.open_execution_report(&execution).await.unwrap();
     assert_eq!(running.origin, dokime_runtime::ReportOrigin::Current);
     assert_eq!(running.test_execution_id.as_ref(), Some(&execution));
     assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
@@ -345,7 +345,7 @@ async fn report_opens_anytime() {
     let mut sealed = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
     assert_eq!(crate::service_support::reports::opened_bytes(&mut sealed).await, published);
-    let mut sealed = runtime.open_execution_report(&execution).await.unwrap();
+    let sealed = runtime.open_execution_report(&execution).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
 
     // Missing Published Bytes Are An Error; A Seal Is Never Regenerated

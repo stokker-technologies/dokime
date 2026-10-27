@@ -150,7 +150,7 @@ async fn persisted_cycle_restart() {
     assert_eq!(crate::service_support::native::open(&runtime, &recovered_checkpoint).await.execution().saved.as_ref(), Some(&seal));
     drop(recovered_checkpoint);
     assert_eq!(crate::service_support::reports::bytes(runtime.storage(), &seal.source.context).await, input_bytes);
-    let mut report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
     assert!(report.file.length > 0);
     assert_eq!(
         crate::service_support::reports::bytes(runtime.storage(), &seal.report).await,

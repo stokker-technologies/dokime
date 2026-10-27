@@ -396,6 +396,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn seven_day_capture_keeps_payloads_on_disk() {
+        let mut rows = EvidenceRows::<(u64, String)>::default();
+        let mut previous_bytes = 0;
+        for day in 0..7_u64 {
+            for minute in 0..1440_u64 {
+                rows.append(&(day * 1440 + minute, "x".repeat(256))).unwrap();
+            }
+            assert_eq!(rows.len(), (day as usize + 1) * 1440);
+            assert_eq!(rows.retained_rows(), 0);
+            assert!(rows.spooled_bytes() > previous_bytes);
+            previous_bytes = rows.spooled_bytes();
+        }
+        let retained = rows.clone();
+        drop(rows);
+        assert_eq!(retained.retained_rows(), 0);
+        for (index, row) in retained.iter().enumerate() {
+            assert_eq!(row.0, index as u64);
+            assert_eq!(row.1.len(), 256);
+        }
+    }
+
+    #[test]
     fn spooled_identities_are_exact_and_iteration_is_ordered() {
         let mut rows = EvidenceRows::<Vec<u8>>::default();
         let first = uuid::Uuid::from_u128(1).to_string();

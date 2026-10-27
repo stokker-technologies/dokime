@@ -48,7 +48,6 @@ pub(super) struct Opened {
     pub source: String,
     pub target: Target,
     pub prompts: PromptBridge,
-    pub record_subscription_after: u64,
     pub phase: PhaseTracker,
 }
 
@@ -60,7 +59,6 @@ pub(crate) struct Session {
     pub(super) target: Target,
     pub(super) prompts: tokio::sync::Mutex<PromptBridge>,
     pub(super) step_leases: StepLeaseBridge,
-    record_subscription_after: u64,
     pages: tokio::sync::Mutex<Pages>,
     replayed: tokio::sync::Mutex<bool>,
     cancelling: CancellationToken,
@@ -94,7 +92,6 @@ impl Session {
             target: opened.target,
             prompts: tokio::sync::Mutex::new(opened.prompts),
             step_leases: StepLeaseBridge::default(),
-            record_subscription_after: opened.record_subscription_after,
             pages: tokio::sync::Mutex::new(Pages {
                 cursor: 0,
                 settled: false,
@@ -413,8 +410,6 @@ impl Session {
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement flushing publications");
         context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_records", error.to_string()))?;
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement publications flushed");
-        let cycle_id = execution.test_cycle_id.clone();
-        let execution_id = execution.test_execution_id.clone();
         if close {
             close_record_subscriptions(context, execution).await?;
         }

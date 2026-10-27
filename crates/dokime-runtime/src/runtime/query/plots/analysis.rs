@@ -49,9 +49,9 @@ enum Target {
     Plugin { source: Identifier, dispatcher: Arc<dyn ActionDispatcher> },
 }
 
-pub(crate) enum Environment<'a, 'ctx> {
+pub(crate) enum Environment<'a> {
     Live(&'a RuntimeHandle),
-    Report { ctx: &'a harmos::operations::Context<'ctx>, resources: &'a crate::report::analysis::Resources },
+    Report { resources: &'a crate::report::analysis::Resources },
 }
 
 /* === Traits === */
@@ -157,7 +157,7 @@ impl Prepared {
     }
 
     pub(crate) async fn execute_in(
-        self, environment: Environment<'_, '_>, request: &PlotPayloadRequest, position: &harmos::storage::StorageCursor,
+        self, environment: Environment<'_>, request: &PlotPayloadRequest, position: &harmos::storage::StorageCursor,
         payload: harmos::storage::ReadBatch<PlotPayload>, contract: Option<&TelemetryContract>,
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayload>> {
         let total: usize = payload.series.iter().map(|series| series.points.len()).sum();
@@ -263,7 +263,7 @@ impl Prepared {
     }
 }
 
-impl Environment<'_, '_> {
+impl Environment<'_> {
     async fn invoke(&self, target: &Target, operation: &str, request: Request) -> crate::runtime::Result<crate::analysis::Response> {
         match (self, target) {
             (Self::Live(runtime), Target::Builtin) => {

@@ -53,6 +53,7 @@ pub const IDENTITY_SETTINGS_SECTION_ID: &str = "identity";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeSettingsFrame {
+    pub bootstrap_paths: Option<dokime_domain::model::settings::wire::BootstrapPaths>,
     pub sections: Vec<RuntimeSettingsSection>,
     pub cards: Vec<RuntimeSettingsCard>,
 }
@@ -146,7 +147,17 @@ impl RuntimeHandle {
         }));
         let sources = sources.await;
         drop(state);
-        settings_frame_from_sources(sources)
+        let mut frame = settings_frame_from_sources(sources);
+        let config = self.config();
+        let paths = crate::paths::ApplicationPaths::new(&config.application_root);
+        let plugins = config.plugin_lookup.clone().unwrap_or_else(|| paths.plugins());
+        frame.bootstrap_paths = Some(dokime_domain::model::settings::wire::BootstrapPaths {
+            application: config.application_root.to_string_lossy().into_owned(),
+            storage: config.storage_root.to_string_lossy().into_owned(),
+            plugins: plugins.to_string_lossy().into_owned(),
+            logs: paths.logs().to_string_lossy().into_owned(),
+        });
+        frame
     }
 
     async fn settings_card_posture(&self, module: &crate::InstalledPlugin) -> (RuntimeSettingsCardState, Option<DispatchContext>) {
@@ -254,7 +265,7 @@ fn settings_frame_from_sources(sources: Vec<SettingsSource>) -> RuntimeSettingsF
         left.order.cmp(&right.order).then_with(|| left.label.cmp(&right.label)).then_with(|| left.card_id.cmp(&right.card_id))
     });
 
-    RuntimeSettingsFrame { sections, cards }
+    RuntimeSettingsFrame { bootstrap_paths: None, sections, cards }
 }
 
 fn apply_live_status(

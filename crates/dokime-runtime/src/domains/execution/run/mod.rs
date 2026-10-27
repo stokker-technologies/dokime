@@ -389,7 +389,6 @@ async fn execute_case(
         .native_executions
         .admit(source, &execution_token, publication_scope, declared.streams.clone())
         .map_err(|error| failure("sidecar_start", error))?;
-    let record_subscription_after = context.runtime.state_manager.applied().0;
     let mut phase = PhaseTracker::default();
     phase.observe(context, &execution.scope, "initialization", execution, true).await?;
     context.capture_phase(execution.scope.clone(), dokime_domain::model::execution::CapturePhase::Initialization).await.map_err(
@@ -421,7 +420,6 @@ async fn execute_case(
         source: source.to_owned(),
         target: target.clone(),
         prompts: PromptBridge::new(declared.prompts),
-        record_subscription_after,
         phase,
     };
     let session = Arc::new(Session::new(opened));

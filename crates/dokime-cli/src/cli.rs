@@ -52,7 +52,7 @@ impl Cli {
 
     pub async fn run(self, configuration: dokime::config::Config) -> crate::Result<()> {
         crate::terminal::set_color_mode(self.color);
-        crate::commands::run(self.command, configuration).await
+        Box::pin(crate::commands::run(self.command, configuration)).await
     }
 }
 

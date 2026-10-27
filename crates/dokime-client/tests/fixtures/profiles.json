@@ -11,7 +11,7 @@
   },
   {
     "name": "remote",
-    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"endpoint\": \"https://dokime.example:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": \"-----BEGIN CERTIFICATE-----\\nexample\\n-----END CERTIFICATE-----\", \"secret\": \"keyring\", \"identifier\": \"local\", \"label\": \"Local Backend\"}]}",
+    "document": "{\"version\": 1, \"default\": \"local\", \"profiles\": [{\"endpoint\": \"https://dokime.example:8765\", \"expected_backend_id\": \"machine-1\", \"ca_certificate_pem\": \"-----BEGIN CERTIFICATE-----\\nMIICyDCCAbCgAwIBAgIJALMgAs/TKVw0MA0GCSqGSIb3DQEBCwUAMBkxFzAVBgNV\\nBAMTDmRva2ltZS5leGFtcGxlMB4XDTI2MDEwMTAwMDAwMFoXDTM2MDEwMTAwMDAw\\nMFowGTEXMBUGA1UEAxMOZG9raW1lLmV4YW1wbGUwggEiMA0GCSqGSIb3DQEBAQUA\\nA4IBDwAwggEKAoIBAQDJDivVwGjuDEXULRlXS4HKW0d2b9gWIVFvTOScJ0nD+rMn\\npRt87uxYLsksTxYP1GSZXNCzP8wUp2WKUjDb3COxUaQgcgIKrxSX0c38NSD/etD+\\nPbY1ax3NIeCMtew3Oo3ugBAVEvV+bP7HvWaCLFD1KjBPvGN/g0A7fV7xpGdyZ6oR\\nNEXLYUp2DwEE/grye7jqJd1ee7ErSQTKo+K+LEjirUR7KUQO7qhHOVArZJZc+3wb\\nEJye2JeLiWQqWqhENdtHgYS0gp1AjGhlSGlK5ZiPBsebtToA2kaD1MAIeXIvXn7z\\nHLyAZ+klFJd3Cn0cd/y8UILy8JamVhrvzVFCfifNAgMBAAGjEzARMA8GA1UdEwEB\\n/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAKc6scbKlZY5f+NqVDzLawLIA5iG\\nnsQ6GplpIwnty/LiMrfSbIkWJIoQ/aWmCNKwxnQml5RR7H6SWW6HV2RNg2t3nF8u\\nOuP3Fx6QzBBQm9nKjMzHK2rVIE4j30xm0fdTDcRORJBlxUe4Hc9JEZWAb8zq2CmQ\\nhxffEKLXH96XyJ8AVLJaX2NkVNodQAksA5QNj7226iZmZ4ntGVU4MHhUswyGvkYK\\n1Z83nd8cHx93Hxt8caaUt/eNWuB1PGPBZ3XIq4wYfUY7N/ToTdiIbKQTe7FssKFS\\nn8Bh+Eja3z6W4yyQiAlSaPveA/zSS76VfMlgMN+fo6ZYwnie26l/1DCU/jU=\\n-----END CERTIFICATE-----\", \"secret\": \"keyring\", \"identifier\": \"local\", \"label\": \"Local Backend\"}]}",
     "valid": true
   },
   {

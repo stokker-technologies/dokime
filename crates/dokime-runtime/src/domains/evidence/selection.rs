@@ -116,7 +116,7 @@ impl RecordSelection {
     }
 
     pub(crate) fn apply_with_subscriptions<'a>(
-        &self, records: &[RecordEntry], captured: impl Fn(&RecordEntry) -> Option<&'a RecordScope>,
+        &self, records: &'a [RecordEntry], captured: impl Fn(&'a RecordEntry) -> Option<&'a RecordScope>,
     ) -> Vec<RecordEntry> {
         let mut unscoped = self.clone();
         unscoped.scope = ScopeSelection::default();

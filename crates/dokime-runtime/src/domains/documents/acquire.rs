@@ -62,6 +62,12 @@ pub(super) enum DocumentAcquisitionFailure {
 
 /* === Implementations === */
 
+impl From<harmos::storage::Error> for DocumentAcquisitionFailure {
+    fn from(error: harmos::storage::Error) -> Self {
+        source(error)
+    }
+}
+
 impl From<DocumentAcquisitionFailure> for crate::runtime::Error {
     fn from(error: DocumentAcquisitionFailure) -> Self {
         match error {

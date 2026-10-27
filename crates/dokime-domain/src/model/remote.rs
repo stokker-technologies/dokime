@@ -54,7 +54,7 @@ pub struct RemoteListenerStatus {
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PairingFile {
-    pub version: u8,
+    pub version: u32,
     pub endpoint: String,
     pub backend_identifier: String,
     pub label: String,
@@ -317,6 +317,20 @@ mod tests {
         assert!(!format!("{pairing:?}").contains(pairing.access_key.as_deref().unwrap()));
         let decoded: PairingFile = serde_json::from_value(encoded.clone()).unwrap();
         assert_eq!(pairing, decoded);
+        for version in [serde_json::json!(0), serde_json::json!(2), serde_json::json!(256), serde_json::json!(u32::MAX)] {
+            let mut unsupported = encoded.clone();
+            unsupported["version"] = version;
+            let decoded: PairingFile = serde_json::from_value(unsupported).unwrap();
+            assert!(decoded.validate().is_err());
+        }
+        for version in
+            [serde_json::json!(-1), serde_json::json!(1.5), serde_json::json!("1"), serde_json::json!(true), serde_json::json!(u64::MAX)]
+        {
+            let mut malformed = encoded.clone();
+            malformed["version"] = version;
+            assert!(serde_json::from_value::<PairingFile>(malformed).is_err());
+        }
+
         let mut unknown = encoded.clone();
         unknown["key"] = serde_json::Value::Null;
         assert!(serde_json::from_value::<PairingFile>(unknown).is_err());

@@ -337,6 +337,28 @@ pub(crate) async fn collect_saved(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
     settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
 ) -> Result<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>> {
+    let mut samples = Vec::new();
+    visit_saved(session, at, selection, settings, options, local, |sample| {
+        samples.push(sample);
+        Ok(())
+    })
+    .await?;
+    samples.sort_unstable_by_key(|sample| sample.sequence);
+    if let Some(limit) = selection.limit {
+        if selection.latest && samples.len() > limit {
+            samples.drain(..samples.len() - limit);
+        }
+        samples.truncate(limit);
+    }
+    Ok(harmos::storage::ReadBatch::new(samples))
+}
+
+/// Visits The Explicit Durable Frontier In Bounded Pages.
+pub(crate) async fn visit_saved(
+    session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
+    settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
+    mut visit: impl FnMut(crate::telemetry::TelemetrySample) -> Result<()>,
+) -> Result<()> {
     let ReadOptions { scan_limit, window, visible, sequence } = options;
     let codecs = saved_codecs(session, at, None, settings, |id, _| telemetry::selected_schema(id, &selection.streams)).await?;
 
@@ -369,7 +391,7 @@ pub(crate) async fn collect_saved(
         }
     }
     if window.is_some() && end.is_none() {
-        return Ok(harmos::storage::ReadBatch::new(Vec::new()));
+        return Ok(());
     }
     let start = window
         .map(|(_, seconds)| seconds)
@@ -382,21 +404,18 @@ pub(crate) async fn collect_saved(
             Ok::<std::time::SystemTime, Error>(start.into())
         })
         .transpose()?;
-    let mut samples =
-        harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::storage::Error>(Vec::<crate::telemetry::TelemetrySample>::new()))?;
-    let mut retained_bytes = 0usize;
+    let mut count = 0usize;
     for codec in codecs.iter() {
         if !selection.schema_versions.is_empty() && !selection.schema_versions.contains(&codec.schema().version.get()) {
             continue;
         }
         let secondary = window.is_some_and(|(anchor, _)| codec.schema().id.as_str().strip_prefix("dokime.telemetry.") != Some(anchor));
         if let Some(start) = start.filter(|_| secondary) {
-            let predecessors = telemetry_predecessors(at, codec, selection, visible, start, sequence, local).await?;
-            let length = samples.len().checked_add(predecessors.len()).ok_or_else(|| invalid("telemetry sample count overflows"))?;
-            if scan_limit.is_some_and(|limit| length > limit) {
-                return Err(invalid("telemetry scan exceeds the analysis sample budget"));
-            }
-            samples = append_retained(samples, predecessors)?;
+            let options = ReadOptions { visible, sequence, ..Default::default() };
+            telemetry_predecessors(at, codec, selection, start, options, local, |sample| {
+                visit_sample(sample, &mut count, scan_limit, selection, &mut visit)
+            })
+            .await?;
         }
         let mut query = telemetry_query(at, codec, selection, visible, 0)?;
         if let Source::Stream(source) = &mut query.source
@@ -417,15 +436,9 @@ pub(crate) async fn collect_saved(
                     let entry = codec.decode_stored(&row)?;
                     Ok(sequence.sample(entry, row.record.position.sequence))
                 })?;
-                let length = samples.len().checked_add(page.len()).ok_or_else(|| invalid("telemetry sample count overflows"))?;
-                if scan_limit.is_some_and(|limit| length > limit) {
-                    return Err(invalid("telemetry scan exceeds the analysis sample budget"));
+                for sample in page.iter() {
+                    visit_sample(sample.clone(), &mut count, scan_limit, selection, &mut visit)?;
                 }
-                retained_bytes = retained_bytes
-                    .checked_add(crate::execution::evidence_rows::encoded_bytes(&*page))
-                    .filter(|bytes| *bytes <= 128 * 1024 * 1024)
-                    .ok_or_else(|| invalid("raw telemetry workspace exceeds 128 MiB; read saved pages"))?;
-                samples = append_retained(samples, page)?;
             }
             continue;
         }
@@ -436,38 +449,33 @@ pub(crate) async fn collect_saved(
             };
             let entries = telemetry::decode_positioned(codec, batch)?;
             let page = crate::storage::projection::page(entries, |(position, entry)| Ok(sequence.sample(entry, position)))?;
-            let length = samples.len().checked_add(page.len()).ok_or_else(|| invalid("telemetry sample count overflows"))?;
-            if scan_limit.is_some_and(|limit| length > limit) {
-                return Err(invalid("telemetry scan exceeds the analysis sample budget"));
+            for sample in page.iter() {
+                visit_sample(sample.clone(), &mut count, scan_limit, selection, &mut visit)?;
             }
-            retained_bytes = retained_bytes
-                .checked_add(crate::execution::evidence_rows::encoded_bytes(&*page))
-                .filter(|bytes| *bytes <= 128 * 1024 * 1024)
-                .ok_or_else(|| invalid("raw telemetry workspace exceeds 128 MiB; read saved pages"))?;
-            samples = append_retained(samples, page)?;
         }
         reader.completion()?;
     }
-    Ok(samples.try_map(|mut samples| {
-        samples.sort_unstable_by_key(|sample| sample.sequence);
-        samples.retain(|sample| {
-            let follows = selection.after_stream_cursors.is_empty() || {
-                let stream = crate::telemetry_runtime::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
-                selection.after_stream_cursors.get(&stream).is_none_or(|after| sample.sequence > *after)
-            };
-            follows
-                && selection.scope.matches(sample.scope.as_ref())
-                && (selection.sources.is_empty() || selection.sources.contains(&sample.source))
-                && selection.signals.iter().all(|signal| sample.values.contains_key(signal))
-        });
-        if let Some(limit) = selection.limit {
-            if selection.latest && samples.len() > limit {
-                samples.drain(..samples.len() - limit);
-            }
-            samples.truncate(limit);
-        }
-        Ok::<_, crate::storage::Error>(samples)
-    })?)
+    Ok(())
+}
+
+fn visit_sample(
+    sample: crate::telemetry::TelemetrySample, count: &mut usize, scan_limit: Option<usize>,
+    selection: &crate::evidence_runtime::TelemetrySelection, visit: &mut impl FnMut(crate::telemetry::TelemetrySample) -> Result<()>,
+) -> Result<()> {
+    *count = count.checked_add(1).ok_or_else(|| invalid("telemetry sample count overflows"))?;
+    if scan_limit.is_some_and(|limit| *count > limit) {
+        return Err(invalid("telemetry scan exceeds the analysis sample budget"));
+    }
+    let stream = crate::telemetry_runtime::telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
+    let follows = selection.after_stream_cursors.get(&stream).is_none_or(|after| sample.sequence > *after);
+    let selected = follows
+        && selection.scope.matches(sample.scope.as_ref())
+        && (selection.sources.is_empty() || selection.sources.contains(&sample.source))
+        && selection.signals.iter().all(|signal| sample.values.contains_key(signal));
+    if selected {
+        visit(sample)?;
+    }
+    Ok(())
 }
 
 pub(crate) async fn plot_query(
@@ -524,9 +532,10 @@ pub(crate) fn append_retained<T>(
 
 async fn telemetry_predecessors(
     at: &harmos::storage::StorageCursor, codec: &telemetry::TypedCodec, selection: &crate::evidence_runtime::TelemetrySelection,
-    visible: Option<&dokime_domain::model::execution::RecordScope>, start: std::time::SystemTime, sequence: Sequence,
-    local: &crate::storage::sqlite::State,
-) -> Result<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>> {
+    start: std::time::SystemTime, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
+    mut visit: impl FnMut(crate::telemetry::TelemetrySample) -> Result<()>,
+) -> Result<()> {
+    let ReadOptions { visible, sequence, .. } = options;
     let terms = telemetry_terms(selection, visible)
         .map(|(field, value)| {
             (
@@ -538,9 +547,7 @@ async fn telemetry_predecessors(
             )
         })
         .collect::<Vec<_>>();
-    let mut samples = Vec::new();
     let mut after = String::new();
-    let mut bytes = 0usize;
     loop {
         let (cursor, rows) = local
             .telemetry_predecessor_page(at.clone(), codec.schema().clone(), selection.clone(), terms.clone(), start, after.clone())
@@ -552,15 +559,11 @@ async fn telemetry_predecessors(
         for row in rows {
             let entry = codec.decode_stored(&row)?;
             let sample = sequence.sample(entry, row.record.position.sequence);
-            bytes = bytes
-                .checked_add(crate::execution::evidence_rows::encoded_bytes(&sample))
-                .filter(|bytes| *bytes <= 128 * 1024 * 1024)
-                .ok_or_else(|| invalid("telemetry predecessor workspace exceeds 128 MiB"))?;
-            samples.push(sample);
+            visit(sample)?;
         }
         tokio::task::yield_now().await;
     }
-    Ok(harmos::storage::ReadBatch::new(samples))
+    Ok(())
 }
 
 fn telemetry_query(
@@ -741,6 +744,68 @@ mod admission_tests {
     #[harmos::message]
     struct Reading {
         value: String,
+    }
+
+    #[tokio::test]
+    async fn seven_day_window_scan_work_is_history_independent() {
+        let root = tempfile::tempdir().unwrap();
+        let backend = Arc::new(crate::storage::Backend::primary(root.path().to_owned()).await.unwrap());
+        let local = backend.local_state();
+        let state = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
+            crate::config::storage_state_defaults(),
+        ));
+        let storage = Manager::new(StorageBackends { primary: backend, state }, crate::config::storage_defaults()).unwrap();
+        let runtime = Runtime::<TestApp>::builder((), ()).runtime_with_storage(&storage).await.unwrap();
+        let contract = crate::telemetry::TelemetryContract::declared("fixture.longrun", "Long Run").typed::<Reading>();
+        let settings = harmos::config::SchemaSettings::default();
+        let codec = telemetry::codec(&contract, &settings).unwrap();
+        storage.write_schema(codec.schema().clone(), Arc::clone(codec.graph())).await.unwrap();
+        let epoch = dokime_domain::model::identity::SessionId::from_seed("longrun.epoch");
+        let selection = crate::evidence_runtime::TelemetrySelection { streams: vec![contract.stream.clone().into()], ..Default::default() };
+        let mut work = None;
+
+        for day in 0..7_u64 {
+            for start in (0..1440_u64).step_by(120) {
+                let mut batch = Vec::new();
+                for offset in 0..120_u64 {
+                    let minute = day * 1440 + start + offset;
+                    let timestamp = time::OffsetDateTime::UNIX_EPOCH + time::Duration::minutes(minute as i64);
+                    let sample = crate::telemetry::TelemetrySample::new(
+                        crate::model::identity::new_id(),
+                        contract.stream.clone(),
+                        minute,
+                        dokime_domain::model::time::Timestamp::from_datetime(timestamp),
+                        "fixture.longrun",
+                    )
+                    .typed(&Reading { value: minute.to_string() });
+                    batch.push(prepare_staged(&epoch, &sample, minute, &codec).unwrap().into_input());
+                }
+                storage.write_stream(batch).await.unwrap();
+            }
+            let at = storage.flush().await.unwrap();
+            assert_eq!(storage.status().pending_bytes, 0);
+            let before = local.read_counters();
+            let mut rows = Vec::new();
+            let options = ReadOptions { window: Some(("fixture.longrun", 300.0)), ..Default::default() };
+            visit_saved(&storage, &at, &selection, &settings, options, &local, |sample| {
+                rows.push(sample);
+                Ok(())
+            })
+            .await
+            .unwrap();
+            let after = local.read_counters();
+            let scanned = after.data_scan_rows - before.data_scan_rows;
+            assert_eq!(rows.len(), 6);
+            assert_eq!(after.telemetry_anchor_rows - before.telemetry_anchor_rows, 1);
+            assert!(scanned <= 16, "scanned {scanned} rows on day {day}");
+            if let Some(previous) = work {
+                assert_eq!(scanned, previous);
+            }
+            work = Some(scanned);
+        }
+        runtime.stop().await.unwrap();
     }
 
     #[tokio::test]

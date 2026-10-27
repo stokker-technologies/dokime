@@ -94,6 +94,8 @@ impl State {
             let mut head = saved(&transaction)?;
             head.history.check(&through.history)?;
             if through.sequence > head.sequence { return Err(Error::Data("retention exceeds saved frontier")); }
+            // Identity-Only Stores Have No Data Tables Or Retention Work Yet.
+            if head.sequence == 0 { return Ok((true, true)); }
             let mut retired = Vec::with_capacity(maximum);
             for (schema, keep, released) in &policies {
                 if retired.len() == maximum { break; }

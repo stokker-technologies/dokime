@@ -9,16 +9,16 @@
 
 /* === External Imports === */
 
-import { Activity, Clock3, Cpu, RadioTower } from "lucide-react";
+import { Activity, Clock3, RadioTower } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
 /* === Local Imports === */
 
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { Badge } from "@/components/ui/badge";
-import { formatBytes, formatDuration } from "@/lib/format";
+import { formatDuration } from "@/lib/format";
 import { elapsedLabel } from "@/lib/time-format";
-import type { DiagnosticsSnapshot, DocumentCardLayout, HubLiveState } from "@/lib/types";
+import type { DocumentCardLayout, HubLiveState } from "@/lib/types";
 import { useHubStore } from "@/stores/hub-store";
 
 const GUI_ELAPSED_TICK_MS = 1_000;
@@ -27,20 +27,18 @@ const GUI_ELAPSED_TICK_MS = 1_000;
 
 type RuntimeSectionProps = {
   connection: "connecting" | "connected" | "reconnecting";
-  diagnostics: DiagnosticsSnapshot | null;
   layout?: DocumentCardLayout;
   snapshot: HubLiveState | null;
 };
 
 /* === Components === */
 
-export function RuntimeSection({ connection, diagnostics, layout, snapshot }: RuntimeSectionProps) {
+export function RuntimeSection({ connection, layout, snapshot }: RuntimeSectionProps) {
   const now = useNow(GUI_ELAPSED_TICK_MS);
   const artifacts = snapshot?.installed_plugins ?? [];
   const readyArtifacts = artifacts.filter((artifact) => artifact.ready).length;
   const failedArtifacts = artifacts.filter((artifact) => artifact.status === "failed").length;
   const artifactSummary = artifacts.length ? `${readyArtifacts}/${artifacts.length} artifacts ready` : "Artifacts ready";
-  const process = diagnostics?.server.process;
   const runStartedAt = snapshot?.run.started_at ?? null;
   const runFinishedAt = snapshot?.run.finished_at ?? null;
   const lastStreamFrameAt = useHubStore.getState().lastStreamFrameAt;
@@ -67,12 +65,6 @@ export function RuntimeSection({ connection, diagnostics, layout, snapshot }: Ru
           }
         />
         <RuntimeMetric icon={<RadioTower />} label="Connection" value={connection} tone={connection === "connected" ? "good" : "bad"} />
-        <RuntimeMetric
-          icon={<Cpu />}
-          label="Process"
-          value={`CPU ${formatPercentValue(process?.cpu_percent)}`}
-          detail={`Mem ${formatBytes(process?.memory_bytes)}`}
-        />
       </div>
 
       <section className="grid gap-2">
@@ -113,7 +105,7 @@ function RuntimeMetric({
   tone,
   value,
 }: {
-  detail: string;
+  detail?: string;
   icon: ReactNode;
   label: string;
   tone?: "good" | "warn" | "bad";
@@ -142,11 +134,4 @@ function useNow(intervalMs: number): number {
   }, [intervalMs]);
 
   return now;
-}
-
-function formatPercentValue(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
-  }
-  return `${value.toFixed(1)}%`;
 }

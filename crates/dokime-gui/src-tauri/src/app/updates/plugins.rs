@@ -164,7 +164,7 @@ pub async fn desktop_plugin_release_install(
             .cloned()
             .ok_or("The selected plugin release is no longer available")?
     };
-    let (policy, policy_generation) = state.snapshot()?;
+    let (_, policy_generation) = state.snapshot()?;
     if selected.generation != policy_generation {
         return Err("The plugin release source changed".into());
     }

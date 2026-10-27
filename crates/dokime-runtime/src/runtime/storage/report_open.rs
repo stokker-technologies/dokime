@@ -115,7 +115,7 @@ impl RuntimeHandle {
                 })
                 .await?;
             let session = self.storage().clone();
-            let file = materialized.report;
+            let file = materialized.report.clone();
             let reader = report_reader(&session, &file).await?;
             return Ok(OpenedReport {
                 test_cycle_id: cycle,
@@ -159,7 +159,7 @@ impl RuntimeHandle {
             })
             .await?;
         let session = self.storage().clone();
-        let file = materialized.report;
+        let file = materialized.report.clone();
         let reader = report_reader(&session, &file).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),

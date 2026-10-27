@@ -50,7 +50,12 @@ async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokim
     wait_for_run_settled(&handle, &receipt.command_id).await;
     let cycle = cycle_snapshot(&handle, &cycle_id).await;
     assert_eq!(cycle.test_executions.len(), 1);
-    assert_eq!(cycle.test_executions[0].status, dokime_domain::model::execution::result::ExecutionStatus::Passed);
+    assert_eq!(
+        cycle.test_executions[0].status,
+        dokime_domain::model::execution::result::ExecutionStatus::Passed,
+        "{:?}",
+        cycle.test_executions[0]
+    );
     (runtime, handle, cycle)
 }
 
@@ -247,6 +252,7 @@ async fn required_evidence_files() {
                     error,
                     dokime_runtime::domains::exports::evidence::Error::Dependency(_)
                         | dokime_runtime::domains::exports::evidence::Error::Invalid(_)
+                        | dokime_runtime::domains::exports::evidence::Error::Runtime(dokime_runtime::runtime::Error::HarmosStorage(_))
                 ),
                 "unexpected export failure: {error}"
             );
@@ -310,7 +316,7 @@ async fn abandoned_transfer_slots() {
     let content = handle.read_artifact_content(&stored[0].artifact_id, SETTLED_CONTENT.len()).await.unwrap().unwrap();
     assert_eq!(content.bytes, SETTLED_CONTENT);
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 16_384).await.unwrap().unwrap();
     let log = std::str::from_utf8(&log.bytes).unwrap();
     let received = dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES;

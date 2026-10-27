@@ -49,6 +49,7 @@ type SettingValues = LegacyPluginRuntimeSettings["values"];
 export async function fetchNativeSettingsFrame(session: SessionIdentity): Promise<RuntimeSettingsFrame> {
   const frame = await rpc.settingsGetSettings(session, {});
   return {
+    bootstrap_paths: frame.bootstrapPaths ?? null,
     sections: frame.sections.map(mapSettingsSection),
     cards: frame.cards.map(mapSettingsCard),
   };

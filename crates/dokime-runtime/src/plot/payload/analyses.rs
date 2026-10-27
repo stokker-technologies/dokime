@@ -9,7 +9,7 @@
 
 /* === Modules === */
 
-mod wifi;
+pub(super) mod wifi;
 
 /* === Re-Exports === */
 

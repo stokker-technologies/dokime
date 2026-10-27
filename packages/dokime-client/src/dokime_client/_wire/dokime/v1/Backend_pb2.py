@@ -23,7 +23,6 @@ from dokime_client._wire import _pool
 # @@protoc_insertion_point(imports)
 from dokime_client._wire.dokime.v1.BackendMessages.CollectDiagnostics import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_BackendMessages_dot_CollectDiagnostics_dot_messages__pb2
 from dokime_client._wire.dokime.v1.BackendMessages.GetAvailability import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_BackendMessages_dot_GetAvailability_dot_messages__pb2
-from dokime_client._wire.dokime.v1.BackendMessages.GetDiagnostics import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_BackendMessages_dot_GetDiagnostics_dot_messages__pb2
 from dokime_client._wire.dokime.v1.BackendMessages.GetHealth import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_BackendMessages_dot_GetHealth_dot_messages__pb2
 from dokime_client._wire.dokime.v1.BackendMessages.GetIdentity import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_BackendMessages_dot_GetIdentity_dot_messages__pb2
 from dokime_client._wire.dokime.v1.BackendMessages.WatchLogs import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_BackendMessages_dot_WatchLogs_dot_messages__pb2
@@ -52,21 +51,21 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Backend.proto\x12\tdokime.v1\x1aOdokime_client/_wire/dokime/v1/BackendMessages/CollectDiagnostics/messages.proto\x1aLdokime_client/_wire/dokime/v1/BackendMessages/GetAvailability/messages.proto\x1aKdokime_client/_wire/dokime/v1/BackendMessages/GetDiagnostics/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/BackendMessages/GetHealth/messages.proto\x1aHdokime_client/_wire/dokime/v1/BackendMessages/GetIdentity/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/BackendMessages/WatchLogs/messages.proto\x1aGdokime_client/_wire/dokime/v1/BackendMessages/WatchTrace/messages.proto\"\xc6\x01\n\x1f\x42\x61\x63kendCollectDiagnosticsOutput\x12H\n\x04item\x18\x01 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row3H\x00R\x04item\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row2H\x00R\x08responseB\x07\n\x05value\"\xab\x01\n\x16\x42\x61\x63kendWatchLogsOutput\x12?\n\x04item\x18\x01 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row3H\x00R\x04item\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row2H\x00R\x08responseB\x07\n\x05value\"\xae\x01\n\x17\x42\x61\x63kendWatchTraceOutput\x12@\n\x04item\x18\x01 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row3H\x00R\x04item\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row2H\x00R\x08responseB\x07\n\x05value2\xf1\x05\n\x07\x42\x61\x63kend\x12v\n\x12\x43ollectDiagnostics\x12\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row1\x1a*.dokime.v1.BackendCollectDiagnosticsOutput0\x01\x12s\n\x0fGetAvailability\x12/.dokime.v1.BackendMessages.GetAvailability.Row1\x1a/.dokime.v1.BackendMessages.GetAvailability.Row2\x12p\n\x0eGetDiagnostics\x12..dokime.v1.BackendMessages.GetDiagnostics.Row1\x1a..dokime.v1.BackendMessages.GetDiagnostics.Row2\x12\x61\n\tGetHealth\x12).dokime.v1.BackendMessages.GetHealth.Row1\x1a).dokime.v1.BackendMessages.GetHealth.Row2\x12g\n\x0bGetIdentity\x12+.dokime.v1.BackendMessages.GetIdentity.Row1\x1a+.dokime.v1.BackendMessages.GetIdentity.Row2\x12[\n\tWatchLogs\x12).dokime.v1.BackendMessages.WatchLogs.Row1\x1a!.dokime.v1.BackendWatchLogsOutput0\x01\x12^\n\nWatchTrace\x12*.dokime.v1.BackendMessages.WatchTrace.Row1\x1a\".dokime.v1.BackendWatchTraceOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Backend.proto\x12\tdokime.v1\x1aOdokime_client/_wire/dokime/v1/BackendMessages/CollectDiagnostics/messages.proto\x1aLdokime_client/_wire/dokime/v1/BackendMessages/GetAvailability/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/BackendMessages/GetHealth/messages.proto\x1aHdokime_client/_wire/dokime/v1/BackendMessages/GetIdentity/messages.proto\x1a\x46\x64okime_client/_wire/dokime/v1/BackendMessages/WatchLogs/messages.proto\x1aGdokime_client/_wire/dokime/v1/BackendMessages/WatchTrace/messages.proto\"\xc6\x01\n\x1f\x42\x61\x63kendCollectDiagnosticsOutput\x12H\n\x04item\x18\x01 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row3H\x00R\x04item\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row2H\x00R\x08responseB\x07\n\x05value\"\xab\x01\n\x16\x42\x61\x63kendWatchLogsOutput\x12?\n\x04item\x18\x01 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row3H\x00R\x04item\x12G\n\x08response\x18\x02 \x01(\x0b\x32).dokime.v1.BackendMessages.WatchLogs.Row2H\x00R\x08responseB\x07\n\x05value\"\xae\x01\n\x17\x42\x61\x63kendWatchTraceOutput\x12@\n\x04item\x18\x01 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row3H\x00R\x04item\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.BackendMessages.WatchTrace.Row2H\x00R\x08responseB\x07\n\x05value2\xff\x04\n\x07\x42\x61\x63kend\x12v\n\x12\x43ollectDiagnostics\x12\x32.dokime.v1.BackendMessages.CollectDiagnostics.Row1\x1a*.dokime.v1.BackendCollectDiagnosticsOutput0\x01\x12s\n\x0fGetAvailability\x12/.dokime.v1.BackendMessages.GetAvailability.Row1\x1a/.dokime.v1.BackendMessages.GetAvailability.Row2\x12\x61\n\tGetHealth\x12).dokime.v1.BackendMessages.GetHealth.Row1\x1a).dokime.v1.BackendMessages.GetHealth.Row2\x12g\n\x0bGetIdentity\x12+.dokime.v1.BackendMessages.GetIdentity.Row1\x1a+.dokime.v1.BackendMessages.GetIdentity.Row2\x12[\n\tWatchLogs\x12).dokime.v1.BackendMessages.WatchLogs.Row1\x1a!.dokime.v1.BackendWatchLogsOutput0\x01\x12^\n\nWatchTrace\x12*.dokime.v1.BackendMessages.WatchTrace.Row1\x1a\".dokime.v1.BackendWatchTraceOutput0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Backend_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_BACKENDCOLLECTDIAGNOSTICSOUTPUT']._serialized_start=586
-  _globals['_BACKENDCOLLECTDIAGNOSTICSOUTPUT']._serialized_end=784
-  _globals['_BACKENDWATCHLOGSOUTPUT']._serialized_start=787
-  _globals['_BACKENDWATCHLOGSOUTPUT']._serialized_end=958
-  _globals['_BACKENDWATCHTRACEOUTPUT']._serialized_start=961
-  _globals['_BACKENDWATCHTRACEOUTPUT']._serialized_end=1135
-  _globals['_BACKEND']._serialized_start=1138
-  _globals['_BACKEND']._serialized_end=1891
+  _globals['_BACKENDCOLLECTDIAGNOSTICSOUTPUT']._serialized_start=509
+  _globals['_BACKENDCOLLECTDIAGNOSTICSOUTPUT']._serialized_end=707
+  _globals['_BACKENDWATCHLOGSOUTPUT']._serialized_start=710
+  _globals['_BACKENDWATCHLOGSOUTPUT']._serialized_end=881
+  _globals['_BACKENDWATCHTRACEOUTPUT']._serialized_start=884
+  _globals['_BACKENDWATCHTRACEOUTPUT']._serialized_end=1058
+  _globals['_BACKEND']._serialized_start=1061
+  _globals['_BACKEND']._serialized_end=1700
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

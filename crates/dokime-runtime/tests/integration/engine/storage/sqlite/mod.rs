@@ -113,7 +113,7 @@ async fn refuses_unversioned_schema() {
 }
 
 #[tokio::test]
-async fn refuses_retired_intent() {
+async fn preserves_unrelated_tables() {
     let root = tempfile::tempdir().unwrap();
     let owner = State::open(root.path()).await.unwrap();
     owner.close().await.unwrap();
@@ -126,7 +126,8 @@ async fn refuses_retired_intent() {
         )
         .unwrap();
     drop(existing);
-    assert!(matches!(State::open(root.path()).await, Err(Error::Incompatible(_))));
+    let owner = State::open(root.path()).await.unwrap();
+    owner.close().await.unwrap();
     let retained = Connection::open(&path).unwrap();
     let claim: (String, i64) = retained
         .query_row("SELECT state,attempt FROM storage_operations WHERE identifier='original'", [], |row| Ok((row.get(0)?, row.get(1)?)))

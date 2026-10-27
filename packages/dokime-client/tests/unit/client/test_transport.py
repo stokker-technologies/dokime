@@ -12,15 +12,16 @@
 # === Imports === #
 
 # Standard Library Imports
-from pathlib import Path
 import json
+from pathlib import Path
 
 # Third Party Imports
 import pytest
 
+from dokime_client.client import DokimeClient
+
 # Local Imports
 from dokime_client.client._transport import Transport
-from dokime_client.client import DokimeClient
 from dokime_client.client.pairing import read
 
 # Type Checking Imports
@@ -44,9 +45,12 @@ def test_ca_input_is_bounded(monkeypatch) -> None:
     with pytest.raises(ValueError, match="byte limit"):
         Transport("https://localhost:8765", None, 30, connect_timeout_ms=1000, ca_certificate_pem="certificate!")
 
-@pytest.mark.parametrize("case", json.loads(
-    (Path(__file__).resolve().parents[5] / "crates/dokime-client/tests/fixtures/pairing.json").read_text()
-), ids=lambda case: case["name"])
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).resolve().parents[5] / "crates/dokime-client/tests/fixtures/pairing.json").read_text()),
+    ids=lambda case: case["name"],
+)
 def test_pairing_conformance(case, tmp_path, monkeypatch):
     monkeypatch.setenv("DOKIME_KEY", "ambient-key-must-not-enter-pairing-client")
     path = tmp_path / "lab.dokime-pair"

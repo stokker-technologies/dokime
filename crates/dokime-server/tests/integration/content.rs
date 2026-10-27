@@ -307,10 +307,9 @@ async fn artifact_transfer(message_bytes: usize) {
         dynamic.close().await;
 
         // The CLI Saves The Same Streaming Protocol As A Complete JSON Document.
-        let token_file = root.path().join("cli-key.txt");
-        std::fs::write(&token_file, TOKEN).unwrap();
+        let cli_server = Server::start(owner.handle(), Config::local()).await.unwrap();
         let response_file = root.path().join("cli-response.json");
-        let endpoint = server.local_endpoint();
+        let endpoint = cli_server.local_endpoint();
         let cli_request = std::str::from_utf8(&request_json).unwrap();
         let command = [
             "dokime",
@@ -319,8 +318,6 @@ async fn artifact_transfer(message_bytes: usize) {
             "dokime.content.download_artifact",
             "--endpoint",
             &endpoint,
-            "--key-file",
-            token_file.to_str().unwrap(),
             "--json",
             cli_request,
             "--output",
@@ -367,14 +364,12 @@ async fn artifact_transfer(message_bytes: usize) {
         let cycle_id = records[0].0.scope.test_cycle_id.as_ref().unwrap().clone();
         native.cycle(cycle_id.clone()).seal().await.unwrap();
         let cycle_export = root.path().join("cycle.zip");
-        let endpoint = server.local_endpoint();
+        let endpoint = cli_server.local_endpoint();
         let output = cycle_export.to_str().unwrap();
         let cycle_id = cycle_id.to_string();
-        let key_file = root.path().join("remote.key");
-        std::fs::write(&key_file, TOKEN).unwrap();
-        let command =
-            ["dokime", "cycle", "export", &cycle_id, "--endpoint", &endpoint, "--key-file", key_file.to_str().unwrap(), "--output", output];
+        let command = ["dokime", "cycle", "export", &cycle_id, "--endpoint", &endpoint, "--output", output];
         dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
+        cli_server.shutdown().await.unwrap();
         assert!(cycle_export.is_file());
         assert!(!root.path().join("cycle.zip.part").exists());
         // A sealed execution cannot acquire another mutable artifact producer.

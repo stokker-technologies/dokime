@@ -97,7 +97,7 @@ impl TestExecutionHandle {
     ) -> Result<dokime_domain::model::history::wire::CheckpointDocument> {
         options.validate()?;
         let page_size = options.page_size.unwrap_or(SAMPLE_PAGE_ITEMS as u32);
-        let operation = async {
+        let operation = Box::pin(async {
             self.start(options.mode).await?;
             let records = if let Some(filters) = options.record_types {
                 let listener = self.records(filters, true, options.interval)?;
@@ -121,7 +121,7 @@ impl TestExecutionHandle {
                 reader.close().await;
             }
             result.map(|(outcome, (), ())| outcome)
-        };
+        });
         match options.timeout {
             Some(timeout) => tokio::time::timeout(timeout, operation).await.map_err(|source| super::Error::WaitTimedOut { source })?,
             None => operation.await,

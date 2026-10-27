@@ -32,7 +32,8 @@ class Profile:
     ca_certificate_pem: str | None
     endpoint: str
     expected_backend_id: str | None
-    name: str
+    identifier: str
+    label: str
     secret: Secret
 
 

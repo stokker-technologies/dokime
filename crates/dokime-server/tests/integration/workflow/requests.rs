@@ -320,7 +320,7 @@ async fn pairing_revocation_preserves_execution_receipts() {
     started(&gate).await;
     let running = receipt(&handle, &admission.command_id).await;
     assert_eq!(running.summary.phase, model::execution::request::RunPhase::Running);
-    assert_eq!(running.submitted_by.as_deref(), Some("remote"));
+    assert_eq!(running.submitted_by.as_deref(), Some(first.client.as_ref().unwrap().identifier.as_str()));
     let selection = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids.clone();
 
     // Revoke One Principal While Its Authenticated Stream Is Open.

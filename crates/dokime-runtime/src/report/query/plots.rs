@@ -43,7 +43,7 @@ use dokime_domain::model::identity::Identifier;
 /* === Structs === */
 
 pub(in crate::report) struct ReadCache {
-    raw: OnceCell<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>>,
+    raw: OnceCell<crate::plot::spilled::Input>,
     reduced: OnceCell<harmos::storage::ReadBatch<PlotPayload>>,
 }
 
@@ -68,40 +68,30 @@ pub(in crate::report) enum ReadPlan {
 /* === Public Functions === */
 
 pub(in crate::report) async fn materialize(
-    read: super::ReadContext<'_, '_>, source: &CapturedSource, execution: &TestExecution, records: crate::records::view::View<'_>,
+    read: super::ReadContext<'_, '_>, source: &CapturedSource, execution: &TestExecution,
+    records: &crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::RecordEntry>,
     request: PlotPayloadRequest, shared: &ReadCache,
 ) -> Result<harmos::storage::ReadBatch<crate::report::value::Value>> {
-    let super::ReadContext { ctx, session, .. } = read;
+    let super::ReadContext { ctx, .. } = read;
     // The Caller Retains The Read-Plan Claim; Its Released Clone And Selection
     // Workspace Is Reused Here Without Charging The Same Peak A Second Time.
     let payload = match direct(&request, &source.telemetry_contracts) {
         Some((request, contract)) => optimized(read, source, execution, records, &request, contract, shared).await?,
         None => {
             let context = payload_context(source, execution, &request, source.report_defaults.plot_points as usize);
-            let streams = crate::plot::plot_streams(&request);
-            let samples = shared
-                .raw
-                .get_or_try_init(|| {
-                    telemetry::streams(
-                        ctx,
-                        session,
-                        &source.evidence_through,
-                        execution.test_execution_id.as_str(),
-                        &source.telemetry_contracts,
-                        &streams,
-                    )
-                })
-                .await?;
+            let input = inputs(read, source, execution, records, &request, shared).await?;
+            let samples =
+                if request.analysis.is_some() { Some(input.collect(dokime_domain::model::analysis::MAX_SAMPLES as usize)?) } else { None };
+            let payload = crate::plot::spilled::project(input, &request, source.captured_at.as_str(), &context)?;
             if request.analysis.is_some() {
-                let projected =
-                    crate::plot::project_retained_plot_payload(samples, records, &request, source.captured_at.as_str(), &context)?;
+                let samples = samples.as_ref().expect("analysis samples checked");
                 let contract = source
                     .telemetry_contracts
                     .get(&Identifier::new(&request.stream).map_err(|_| invalid("invalid plot stream"))?)
                     .and_then(|versions| versions.values().next());
-                crate::report::analysis::materialize(ctx, &request, samples, projected, contract, &source.evidence_through).await?
+                crate::report::analysis::materialize(ctx, &request, samples, payload, contract, &source.evidence_through).await?
             } else {
-                full_retained(samples, records, &request, source.captured_at.as_str(), &context)?
+                payload
             }
         }
     };
@@ -109,7 +99,8 @@ pub(in crate::report) async fn materialize(
     // Projection And Cartesian Claims Stay With The Consumed Payload Owner.
     // Other Analysis Workspace Remains A Separate Construction Obligation.
     // This Claim Covers Only The New Portable Value, Before Serialization Builds It.
-    payload.try_map(|payload| crate::report::value::Value::from_serializable(&payload, depth))
+    let value = crate::report::value::Value::from_serializable(&*payload, depth)?;
+    Ok(harmos::storage::ReadBatch::new(value))
 }
 
 pub(in crate::report) fn read_plan(
@@ -156,6 +147,7 @@ fn direct<'a>(
     request: &PlotPayloadRequest, contracts: &'a BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>,
 ) -> Option<(PlotPayloadRequest, &'a TelemetryContract)> {
     if request.analysis.is_some()
+        || !request.marker_record_types.is_empty()
         || request.series_by.is_some()
         || request.series_by_expression.is_some()
         || request.z_expression.is_some()
@@ -201,7 +193,8 @@ fn direct<'a>(
 }
 
 async fn optimized(
-    read: super::ReadContext<'_, '_>, source: &CapturedSource, execution: &TestExecution, records: crate::records::view::View<'_>,
+    read: super::ReadContext<'_, '_>, source: &CapturedSource, execution: &TestExecution,
+    records: &crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::RecordEntry>,
     request: &PlotPayloadRequest, contract: &TelemetryContract, shared: &ReadCache,
 ) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
     shared
@@ -210,26 +203,59 @@ async fn optimized(
             let super::ReadContext { ctx, session } = read;
             let codec = telemetry::saved_codec(ctx, session, &source.evidence_through, contract).await?;
             if !crate::plot::stored::supports_codec(request, &codec) {
-                let samples =
-                    telemetry::read(ctx, session, &source.evidence_through, execution.test_execution_id.as_str(), contract, Vec::new())
-                        .await?;
+                let input = inputs(read, source, execution, records, request, shared).await?;
                 let context = payload_context(source, execution, request, source.report_defaults.plot_points as usize);
-                return full_retained(&samples, records, request, source.captured_at.as_str(), &context);
+                return crate::plot::spilled::project(input, request, source.captured_at.as_str(), &context);
             }
             let query = telemetry::plan(&source.evidence_through, execution.test_execution_id.as_str(), &codec, Vec::new())?;
             let context = payload_context(source, execution, request, source.report_defaults.plot_points as usize);
-            crate::plot::stored::materialize(session, query, &codec, request, source.captured_at.as_str(), &context, records, true).await
+            let selection = crate::plot::stored::Selection { query, codec: &codec, producer_order: true };
+            crate::plot::stored::materialize(session, selection, request, source.captured_at.as_str(), &context, Default::default()).await
         })
         .await
         .cloned()
 }
 
+async fn inputs<'a>(
+    read: super::ReadContext<'_, '_>, source: &CapturedSource, execution: &TestExecution,
+    records: &crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::RecordEntry>,
+    request: &PlotPayloadRequest, shared: &'a ReadCache,
+) -> Result<&'a crate::plot::spilled::Input> {
+    shared
+        .raw
+        .get_or_try_init(|| async {
+            let streams = crate::plot::plot_streams(request);
+            let input = telemetry::streams(
+                read.ctx,
+                read.session,
+                &source.evidence_through,
+                execution.test_execution_id.as_str(),
+                &source.telemetry_contracts,
+                &streams,
+            )
+            .await?;
+            for record in records.iter() {
+                input.append_record(&record)?;
+            }
+            Ok(input)
+        })
+        .await
+}
+
+#[cfg(test)]
+
 fn full_retained(
     samples: &[crate::telemetry::TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest,
     generated_at: &str, context: &PlotPayloadContext,
 ) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
-    let payload = crate::plot::project_retained_plot_payload(samples, records, request, generated_at, context)?;
-    crate::plot::finish_retained_plot_payload(payload, request)
+    let input = crate::plot::spilled::Input::new()?;
+    for sample in samples {
+        input.append(sample)?;
+    }
+    for record in records.iter() {
+        input.append_record(record)?;
+    }
+    crate::plot::spilled::project(&input, request, generated_at, context)
 }
 
 // Raw Evidence Stays In Storage; Materialized Views Apply Their Display Bound.

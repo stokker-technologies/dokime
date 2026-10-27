@@ -66,7 +66,9 @@ fn entry(sequence: u64, volts: f64) -> RecordEntry {
         ("ready".into(), Value::Bool(true)),
         ("limits".into(), Value::Array(vec![Value::Integer(-2), Value::Unsigned(u64::MAX)])),
     ]);
-    RecordEntry::from_record(sequence, record)
+    let mut entry = RecordEntry::from_record(sequence, record);
+    entry.ordinal = sequence;
+    entry
 }
 
 /* === Tests === */

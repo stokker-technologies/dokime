@@ -47,6 +47,12 @@ use harmos::{
 
 /* === Structs === */
 
+pub(crate) struct Selection<'a> {
+    pub query: Query,
+    pub codec: &'a TypedCodec,
+    pub producer_order: bool,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -57,6 +63,7 @@ use harmos::{
 
 pub(crate) fn supports(request: &PlotPayloadRequest) -> bool {
     request.analysis.is_none()
+        && request.max_points != Some(0)
         && request.series_by.is_none()
         && request.series_by_expression.is_none()
         && request.x_expression.is_none()
@@ -83,7 +90,7 @@ pub(crate) fn supports_codec(request: &PlotPayloadRequest, codec: &TypedCodec) -
     let Some(values) = graph.definitions.get(graph.root).and_then(|fields| fields.iter().find(|field| field.name == "values")) else {
         return false;
     };
-    let Kind::Message { index } = values.kind else {
+    let Kind::Message { definition: index } = values.kind else {
         return false;
     };
     let numeric = |name: &str| {
@@ -97,9 +104,10 @@ pub(crate) fn supports_codec(request: &PlotPayloadRequest, codec: &TypedCodec) -
 
 // Each Series Reduces The Original Selection Independently; No Re-Reduction Of A Union.
 pub(crate) async fn materialize(
-    session: &Manager, query: Query, codec: &TypedCodec, request: &PlotPayloadRequest, generated_at: &str,
-    context: &PlotPayloadContext<'_>, records: crate::records::view::View<'_>, producer_order: bool,
+    session: &Manager, selection: Selection<'_>, request: &PlotPayloadRequest, generated_at: &str, context: &PlotPayloadContext<'_>,
+    records: crate::records::view::View<'_>,
 ) -> Result<ReadBatch<PlotPayload>> {
+    let Selection { query, codec, producer_order } = selection;
     let maximum = request.max_points.unwrap_or(context.default_max_points);
     if maximum == 0 {
         return Err(invalid("plot output requires a finite point bound"));

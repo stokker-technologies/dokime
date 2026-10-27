@@ -131,6 +131,9 @@ async fn live_status_answered() {
     let (_root, mut owner, runtime) = fixture_runtime_with_dispatcher(Some(fixture_module()), Some(Arc::new(dispatcher))).await;
 
     let frame = runtime.settings_frame().await;
+    let paths = frame.bootstrap_paths.as_ref().expect("bootstrap paths are visible");
+    assert_eq!(std::path::Path::new(&paths.storage), runtime.storage_root());
+    assert_eq!(std::path::Path::new(&paths.application), runtime.application_root());
     let card = &frame.cards[0];
 
     assert_eq!(card.state, RuntimeSettingsCardState::Ready);

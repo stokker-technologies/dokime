@@ -155,7 +155,7 @@ def _model(item: Message) -> Prompt:
         item.definition.message if item.definition.HasField("message") else None,
         tuple(action.id for action in item.definition.actions),
         tuple(field.metadata.identifier for field in item.definition.fields),
-        _wire.fields(item.values),
+        _wire.fields(item.values, VALUE_DEPTH),
         level="info" if level == "unspecified" else level,
     )
 

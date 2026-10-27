@@ -88,6 +88,15 @@ description = "Generate Default Organization And Desktop Icons"
 depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.build.organization --icons"
 
+[tasks."prepare:bindings"]
+description = "Regenerate Python And Desktop Contracts From One Cargo Build"
+usage = 'arg "<messages>"'
+run = [
+  '{{vars.tools}} dokime_tools.prepare.bindings --build-json "{{usage.messages}}"',
+  'node crates/dokime-gui/tools/bindings.mjs "{{usage.messages}}"',
+  '{{vars.tools}} dokime_tools.prepare.generated --stage',
+]
+
 [tasks."prepare:report"]
 description = "Refresh Embedded Runtime Resources"
 depends = ["prepare"]
@@ -455,6 +464,11 @@ run = "{{vars.tools}} dokime_tools.test.run bench --category integration --langu
 [tasks."bench:rust:system"]
 description = "Bench System Rust"
 run = "{{vars.tools}} dokime_tools.test.run bench --category system --language rust"
+
+[tasks."measure:report-save"]
+description = "Measure Current And Sealed Large-Cycle Report Saves"
+usage = 'flag "--copies <copies>" default="32"'
+run = "{{vars.tools}} dokime_tools.test.report_save --copies {{usage.copies}}"
 
 # === Docs === #
 

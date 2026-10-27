@@ -36,6 +36,18 @@ use dokime_domain::operations::Endpoint;
 /* === Implementations === */
 
 impl Client {
+    pub async fn remote_create_pairing(
+        &self, message: contracts::remote::CreatePairing,
+    ) -> Result<dokime_domain::model::remote::CreatedPairing> {
+        let reply = self.unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing::PATH, message).await?;
+        super::transport::value(reply)
+    }
+
+    pub async fn remote_revoke_paired_client(&self, message: contracts::remote::RevokePairedClient) -> Result<()> {
+        let reply = self.unary::<contracts::remote::RevokePairedClient>(contracts::remote::RevokePairedClient::PATH, message).await?;
+        super::transport::value(reply)
+    }
+
     pub async fn content_follow_execution_file(
         &self, message: contracts::content::FollowExecutionFile,
     ) -> Result<ResponseStream<dokime_domain::model::content::wire::ExecutionFileFollowFrame>> {

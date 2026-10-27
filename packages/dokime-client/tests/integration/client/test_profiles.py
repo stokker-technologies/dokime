@@ -72,13 +72,8 @@ def test_profile_secret_supplied(tmp_path, monkeypatch):
     path = tmp_path / "backends.json"
     path.write_text(_CASES[2]["document"])
     monkeypatch.setenv("DOKIME_PROFILES_FILE", str(path))
-    with pytest.raises(ValueError, match="supplied by the caller"):
+    with pytest.raises(ValueError, match="pairing"):
         DokimeClient.from_profile("local")
-    key_file = tmp_path / "remote.key"
-    key_file.write_text("x" * 32)
-    certificate = DokimeClient.from_profile("local", key_file=key_file)._transport._ca
-    assert certificate is not None
-    assert certificate.startswith(b"-----BEGIN CERTIFICATE-----")
 
 
 def test_profile_explicit_path(tmp_path, monkeypatch):

@@ -78,38 +78,13 @@ impl RuntimePlotEnvelopeContext {
         Ok(Self { generated_at, snapshot, cycle_context: needs_cycles, traceability })
     }
 
-    pub(super) fn enrich_telemetry(
-        &self, telemetry: harmos::storage::ReadBatch<Vec<TelemetrySample>>, request: &PlotPayloadRequest,
-        records: &[dokime_domain::model::records::evidence::RecordEntry],
-    ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
-        let records = if request_needs_dimension_context(request) { records } else { &[] };
-        telemetry.try_map(|mut telemetry| -> crate::runtime::Result<_> {
-            telemetry
-                .try_reserve_exact(records.len())
-                .map_err(|error| crate::runtime::Error::Operation(format!("plot context allocation failed: {error}")))?;
-            for record in records {
-                let stream =
-                    dokime_domain::model::identity::Identifier::new(crate::plot::RECORD_CONTEXT_STREAM).expect("internal stream is valid");
-                let mut sample = TelemetrySample::new(
-                    crate::model::identity::new_id(),
-                    stream,
-                    record.sequence,
-                    record.timestamp.clone(),
-                    "plot_context",
-                );
-                sample.scope = record.scope.clone();
-                telemetry.push(sample);
-            }
-            for sample in &mut telemetry {
-                if let Some(execution) = self.execution_for_scope(sample.scope.as_ref(), request) {
-                    enrich_plot_samples_with_cycle_context(std::slice::from_mut(sample), execution);
-                }
-            }
-            if let Some(traceability) = self.traceability.as_ref().map(|rows| rows.as_slice()) {
-                enrich_plot_samples_with_traceability_context(&mut telemetry, traceability);
-            }
-            Ok(telemetry)
-        })
+    pub(super) fn enrich_sample(&self, sample: &mut TelemetrySample, request: &PlotPayloadRequest) {
+        if let Some(execution) = self.execution_for_scope(sample.scope.as_ref(), request) {
+            enrich_plot_samples_with_cycle_context(std::slice::from_mut(sample), execution);
+        }
+        if let Some(traceability) = self.traceability.as_ref().map(|rows| rows.as_slice()) {
+            enrich_plot_samples_with_traceability_context(std::slice::from_mut(sample), traceability);
+        }
     }
 
     fn execution_for_scope(&self, scope: Option<&RecordScope>, request: &PlotPayloadRequest) -> Option<&TestExecution> {

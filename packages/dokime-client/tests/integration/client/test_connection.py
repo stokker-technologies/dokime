@@ -174,11 +174,8 @@ def test_transport_secrets(endpoint: str, monkeypatch: pytest.MonkeyPatch, tmp_p
         with pytest.raises(ValueError, match="CA certificates require HTTPS"):
             DokimeClient(endpoint, ca_certificate_pem="certificate")
     else:
-        trusted = DokimeClient(endpoint, ca_certificate_pem="certificate")
-        assert trusted._transport._channel is None
-
-    with pytest.raises(ValueError, match="selected secret input must be a regular file"):
-        DokimeClient(endpoint, key_file=tmp_path / "missing.key")
+        with pytest.raises(ValueError, match="invalid CA certificate"):
+            DokimeClient(endpoint, ca_certificate_pem="certificate")
 
 
 def test_pairing_checks_identity_before_calls_and_after_reconnect(tmp_path: Path) -> None:
