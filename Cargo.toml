@@ -64,10 +64,10 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "re
 
 # Utilities
 blake2 = { version = "0.11.0" }
-harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "d228a0dd16c6cfca5c09e5ae22ef75a72bfba3d5" }
-harmos-domain = { git = "https://github.com/stokker-technologies/harmos.git", rev = "d228a0dd16c6cfca5c09e5ae22ef75a72bfba3d5" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "d228a0dd16c6cfca5c09e5ae22ef75a72bfba3d5" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "d228a0dd16c6cfca5c09e5ae22ef75a72bfba3d5" }
+harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "7832a106ca47b7a7a1d742274caa19364a8322e5" }
+harmos-domain = { git = "https://github.com/stokker-technologies/harmos.git", rev = "7832a106ca47b7a7a1d742274caa19364a8322e5" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos.git", rev = "7832a106ca47b7a7a1d742274caa19364a8322e5" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos.git", rev = "7832a106ca47b7a7a1d742274caa19364a8322e5" }
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
