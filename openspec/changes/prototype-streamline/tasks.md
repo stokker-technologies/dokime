@@ -252,7 +252,7 @@ Ordered after the Harmos v0.1.7 repin and the contract migration; nothing here g
 
 - [ ] 9.0.4 `dokime-operations`: one file per operation (definition division + `runtime`-gated division) with family catalogs, lifted from `dokime-runtime/src/runtime/operations/**` and the operation parts of `dokime-runtime/src/domains/**`; `dokime-runtime` keeps engines and resources only (storage, telemetry ingest, execution supervisors, host adapters) reached through `ctx.resource::<T>()`.
 - [ ] 9.0.5 `dokime-sdk`: the published plugin-author crate — re-exports `dokime-domain`, `harmos-sdk`, `dokime-macros` and the authoring kits (suites, steps, criteria, evidence builders); no runtime dependency; `cargo-dokime` scaffolds and `obc-plugin` depend on it, never on `dokime-runtime`. `dokime` stays the host-application facade. `dokime-server` drops its unused `harmos-sdk` dependency or documents why the feature activation is needed.
-- [ ] 9.0.6 Document the layer rule in `dokime-architecture`: domain = portable contracts, operations = behavior per file, runtime = resources, sdk = author surface (present only because third parties author plugins), facade = host assembly.
+- [ ] 9.0.6 Document in `dokime-architecture` and `dokime-authoring`: the plugin internal structure of 9.5.6/9.5.7 (operations families, `catalog/` with Common + Platform, `platform/` backends, one gate per file) and the layer rule: domain = portable contracts, operations = behavior per file, runtime = resources, sdk = author surface (present only because third parties author plugins), facade = host assembly.
 
 ## File And Log Streaming Through Generic Harmos File Facilities
 
