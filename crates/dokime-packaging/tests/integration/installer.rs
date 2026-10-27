@@ -64,7 +64,6 @@ async fn tampered_payload() {
         "identity":{
             "identifier":"com.example.dokime",
             "slug":"dokime",
-            "deep_link_scheme":"dokime-test-hub",
             "updater_public_key":"fixture",
         },
         "files":files,

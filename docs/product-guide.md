@@ -1086,8 +1086,8 @@ the resolved pack. Installers place their default organization folder beside the
 Windows executables or under `/usr/lib/dokime/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
-Compiled bundle identifier, storage identity and deep-link scheme remain owned
-by the build, alongside updater verification trust. An organization manifest
+Compiled bundle identifier and storage identity remain owned by the build,
+alongside updater verification trust. The desktop does not register a deep-link scheme. An organization manifest
 cannot set `app.identifier`, `app.slug` or `app.deep_link_scheme`. Distributions
 sharing that compiled identity remain the same application and storage; they
 are not independent installations.

@@ -433,7 +433,6 @@ mod tests {
         let identity = Identity {
             identifier: "com.example.dokime".into(),
             slug: "dokime".into(),
-            deep_link_scheme: "dokime-test-hub".into(),
             updater_public_key: "fixture".into(),
         };
         let mut metadata = DistributionMetadata {

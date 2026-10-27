@@ -175,15 +175,11 @@ pub fn assemble(
         let root = std::env::current_dir()?;
         icons.into_iter().map(|path| resource_path(Path::new(&path), &root)).collect::<Result<Vec<_>, _>>()?
     };
-    let protocol = serde_json::json!({"schemes":[payload.identity.deep_link_scheme],"name":label});
-    let protocol = serde_json::from_value(protocol)?;
-    let protocols = vec![protocol];
     let mut bundle = BundleSettings {
         identifier: Some(payload.identity.identifier.clone()),
         icon: Some(icons),
         license: Some("Apache-2.0".into()),
         license_file: Some(license),
-        deep_link_protocols: Some(protocols),
         ..BundleSettings::default()
     };
     bundle.windows.nsis = Some(NsisSettings {

@@ -5,7 +5,7 @@ Distribute unchanged Dokime binaries with a company organization pack using the 
 
 ## What Changes
 - Preserve the existing organization format and CSS/font/logo model; add tray and installer asset roles.
-- Remove compiled identifier, storage slug and deep-link identity from runtime organization declarations.
+- Remove compiled identifier and storage slug from runtime organization declarations; the current desktop does not register deep links.
 - Resolve bundled defaults plus folder overrides: merge manifest fields, replace whole files, then validate; retain last valid activation on invalid input.
 - Add cargo dokime installer package/inspect with local artifacts or a pinned verified release payload, ephemeral generated assets and explicit signing.
 - Group current authoring commands under sidecar; build still produces .dokime and advanced package never compiles.

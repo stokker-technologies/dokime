@@ -74,7 +74,6 @@ def export(root: Path, profile: str) -> Path:
     identity = {
         "identifier": config["identifier"],
         "slug": "dokime",
-        "deep_link_scheme": config["plugins"]["deep-link"]["desktop"]["schemes"][0],
         "updater_public_key": config["plugins"]["updater"]["pubkey"],
     }
     destination = build / "product/installer-payload"
