@@ -122,7 +122,12 @@ impl Drop for Starting {
 }
 
 impl Runtime {
-    pub async fn start(mut config: RuntimeConfig) -> Result<Self> {
+    pub async fn start(config: RuntimeConfig) -> Result<Self> {
+        let starting: BoxFuture<'_, Result<Self>> = Box::pin(Self::start_inner(config));
+        starting.await
+    }
+
+    async fn start_inner(mut config: RuntimeConfig) -> Result<Self> {
         let mut providers = BTreeMap::new();
         for provider in std::mem::take(&mut config.embedded_providers) {
             let provider = embedded::Active::prepare(provider, &config.schema)?;
@@ -170,8 +175,16 @@ impl Runtime {
         config: RuntimeConfig, fixtures: impl IntoIterator<Item = (String, Arc<dyn ExecutionFixture>)>, install_builtins: bool,
     ) -> Result<Self> {
         let fixtures = fixtures.into_iter().collect();
-        let runtime = Self::from_parts(RuntimeHandle::boot(config, fixtures, install_builtins).await?);
-        runtime.finish_start().await
+        Self::start_with_fixtures(config, fixtures, install_builtins).await
+    }
+
+    fn start_with_fixtures(
+        config: RuntimeConfig, fixtures: BTreeMap<String, Arc<dyn ExecutionFixture>>, install_builtins: bool,
+    ) -> BoxFuture<'static, Result<Self>> {
+        Box::pin(async move {
+            let runtime = Self::from_parts(RuntimeHandle::boot(config, fixtures, install_builtins).await?);
+            runtime.finish_start().await
+        })
     }
 
     async fn finish_start(self) -> Result<Self> {
