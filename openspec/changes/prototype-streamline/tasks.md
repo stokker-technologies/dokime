@@ -209,21 +209,45 @@ Audit: every payload is produced once at its boundary, borrowed by observers alo
 - [x] R4.C Runtime state: no deep clone per commit (`refresh_state`) or per plot query (`capture_state`); observers borrow or hold `Arc` snapshots.
 - [x] R4.C.1 Integrate immutable revision roots and persistent shared-entry maps in `state/{mod,shared,shared/map,encoding/mod,encoding/executions}.rs`, migrate `document/context.rs` and `transactions/lifecycle.rs`, and adapt `runtime/state/aggregate.rs`. Focused host-enabled runtime tests prove changed-entry copy counts, retained revisions, ordered-map mutation/serialization, published snapshot pointer reuse and the existing lifecycle encoding contract. `runtime/mod.rs` requires no edits. README reviewed: no usage or setup changes.
 - [ ] R4.D Report: cycle members decoded once from the spool; telemetry scanned once per materialization; `needs_rows` derived, not hardcoded.
-- [ ] R4.E Polling: execution supervisors react to their own execution's commits only; log subscribers tail incrementally with async I/O, one parser per file.
-- [ ] R4.E.1 Execution owner: close `domains/execution/run/{mod,commands,host,session,supervision}.rs` and `domains/execution/requests.rs`;
+- [ ] R4.D.1 Validate the report-owned decode counter, identical fixture HTML, bounded shared telemetry pass and preview release through the authorized focused report selection; measure the same fixture save before/after. Keep proof open until other owners repair denied Clippy warnings in `crates/dokime-runtime/src/files/lines.rs:371`, `crates/dokime-runtime/src/plot/payload/analyses.rs:667` and `crates/dokime-runtime/tests/acceptance/services/durability/cycles.rs:88`, then rerun the selection. README impact reviewed: report content, public operations and setup remain unchanged.
+- [x] R4.E Polling: execution supervisors react to their own execution's commits only; log subscribers tail incrementally with async I/O, one parser per file.
+- [x] R4.E.1 Execution owner: close `domains/execution/run/{mod,commands,host,session,supervision}.rs` and `domains/execution/requests.rs`;
   prove that unrelated committed snapshots never trigger command queries, own command admission invalidates one cached durable receipt,
   and stop/cycle-close concerns still interrupt the run. Run the focused supervision and long-command query-count tests against the shared tree.
-  The final receipt-cache proof remains pending until R4.V.3 restores shared compilation; keep this item open until that proof executes.
+  Receipt caching retains one mutable command receipt across polls and invalidates it only on this execution's command-admission signal.
+  Focused host-enabled runtime proof passed: committed-payload filtering, own-command reconciliation, stop/cycle-close interruption and
+  long-command receipt caching. The required server `--tests` build still reaches R4.V.1's `Runtime::start()` future-layout query-depth failure
+  in the `system` target (`crates/dokime-runtime/src/runtime/mod.rs` startup); its proof remains open without raising the limit or editing other owners.
+  README impact reviewed: no documented setup, public interface or user operation changes.
 - [x] R4.E.2 Server log owner: close `grpc/logs.rs` and `grpc/backend/status.rs`; prove one shared parser, appended-byte reads, bounded replay
   and partial-line storage, and correct replay after truncation. Run the focused log tests against the shared tree.
 - [x] R4.E.3 Close the execution owner's existing ingest integration in `domains/execution/provider_finish.rs` and `execution/serving.rs`:
   supply payload-validation provenance and stamp shared sample delivery with its requesting execution's scope while preserving the producer's
   own origin. Run the focused delivery-scope test.
 - [ ] R4.V Verify–fix–verify: targeted suites for every touched crate, multi-day proofs, latency numbers for the 40k and ~1M-sample plot cases.
-- [ ] R4.V.1 Repair `Runtime::start()` future layout so the server system test target compiles without increasing its query-depth limit;
-  rerun the focused server `--tests` selection after the owning process releases the integration executable's Windows output lock.
+- [x] R4.V.1 Repair `Runtime::start()` future layout so the server system test target compiles without increasing its query-depth limit.
+  Ordinary startup uses a boxed, type-erased future; fixture startup collects generic inputs before crossing a non-generic BoxFuture boundary.
+  Reproduced query-depth growth of 130 in fixture startup; boxing inside the generic initializer still overflowed during downstream layout.
+  Focused server `check --tests`, runtime `check --tests --features dokime-runtime/host`, and server `--test system --no-run` passed.
+  The requested server `test --tests -- system` command passed with zero matching tests and 167 filtered out; no behavioral coverage is claimed.
+  README impact reviewed: startup order, cancellation, cleanup and documented user operations are unchanged.
 - [ ] R4.V.2 Repair denied test Clippy warnings in runtime `report/query/plots.rs` (outer-attribute spacing), `files/lines.rs` and
   `plot/payload/analyses.rs` (default-field reassignment), `runtime/storage/telemetry.rs` (needless generic borrow), and
   `tests/acceptance/services/durability/cycles.rs` (needless borrow). Rerun R4.E's supervision and delivery-scope proofs without warning overrides.
 - [ ] R4.V.3 Plot owner: repair the missing `super::numeric_value` references in `crates/dokime-runtime/src/plot/stored.rs` so focused library
   compilation can finish. Then rerun the final R4.E library selection, including `domains::execution::run::commands` for the cached receipt proof.
+
+## Section 9 — Crate Reorganization (After The Work Blocker Is Removed)
+
+Ordered after the Harmos v0.1.7 repin and the contract migration; nothing here gates the candidate.
+
+- [ ] 9.0.4 `dokime-operations`: one file per operation (definition division + `runtime`-gated division) with family catalogs, lifted from `dokime-runtime/src/runtime/operations/**` and the operation parts of `dokime-runtime/src/domains/**`; `dokime-runtime` keeps engines and resources only (storage, telemetry ingest, execution supervisors, host adapters) reached through `ctx.resource::<T>()`.
+- [ ] 9.0.5 `dokime-sdk`: the published plugin-author crate — re-exports `dokime-domain`, `harmos-sdk`, `dokime-macros` and the authoring kits (suites, steps, criteria, evidence builders); no runtime dependency; `cargo-dokime` scaffolds and `obc-plugin` depend on it, never on `dokime-runtime`. `dokime` stays the host-application facade. `dokime-server` drops its unused `harmos-sdk` dependency or documents why the feature activation is needed.
+- [ ] 9.0.6 Document the layer rule in `dokime-architecture`: domain = portable contracts, operations = behavior per file, runtime = resources, sdk = author surface (present only because third parties author plugins), facade = host assembly.
+
+## File And Log Streaming Through Generic Harmos File Facilities
+
+- [ ] 9.1.1 Replace Dokime's bespoke file sources (`runtime/files/**`, `files/sources/{ftp,local}`, collector/captures) with the generic Harmos file facilities so streamed files and logs are saved and streamed directly as execution artifacts (bounded, resumable, multi-day safe).
+- [ ] 9.1.2 Use cases covered: log-file streaming (tail into the execution's log artifact), mirroring of changed files (watch + delta capture into artifacts), one-shot captures.
+- [ ] 9.1.3 Sources: local files, FTP and SSH (SFTP), each behind a feature flag (`files-local`, `files-ftp`, `files-ssh`) on `dokime-operations`; the operations for a source are gated with the same flag, and the catalog carries the `#[cfg(feature = ...)]` on the variant so a build without a source exposes no operation for it.
+- [ ] 9.1.4 Settings for sources stay in the DB settings model (no config files); credentials for FTP/SSH reference the pairing/secret store, never plain settings.
