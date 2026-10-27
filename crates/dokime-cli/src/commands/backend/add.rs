@@ -24,8 +24,6 @@ use dokime::client::profiles::{Error, Profile, Secret};
 
 /* === Constants === */
 
-const CA_BYTES: u64 = 1_048_576;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -37,20 +35,17 @@ pub(crate) struct Args {
     #[command(flatten)]
     config: super::Config,
 
-    #[arg(help = "Saved Backend Profile Name.")]
-    name: String,
+    #[arg(long, conflicts_with_all = ["label", "endpoint"], help = "Import A Version 1 Pairing File.")]
+    pairing: Option<std::path::PathBuf>,
 
-    #[arg(long, help = "Backend HTTP(S) Origin.")]
-    endpoint: String,
+    #[arg(long, required_unless_present = "pairing", help = "Saved Backend Profile Identifier.")]
+    identifier: Option<String>,
 
-    #[arg(long, help = "Require This Backend Identity During Connection.")]
-    expected_backend: Option<String>,
+    #[arg(long, required_unless_present = "pairing", help = "Human Backend Label.")]
+    label: Option<String>,
 
-    #[arg(long, help = "Read An Additional PEM CA Certificate From This Local File.")]
-    ca: Option<std::path::PathBuf>,
-
-    #[arg(long, help = "Resolve Secrets From The OS Store On Connection.")]
-    keyring: bool,
+    #[arg(long, required_unless_present = "pairing", help = "Unsecured Lab HTTP Origin.")]
+    endpoint: Option<String>,
 }
 
 /* === Enums === */
@@ -62,24 +57,28 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
-    let ca_certificate_pem = args
-        .ca
-        .as_deref()
-        .map(|path| {
-            let bytes = dokime::harmos::filesystem::input::read(path, CA_BYTES as usize)?;
-            String::from_utf8(bytes).map_err(|_| crate::Error::Input("CA certificate must be UTF-8 PEM".into()))
-        })
-        .transpose()?;
+    let store = args.config.store()?;
+    if let Some(path) = args.pairing {
+        let pairing = dokime::client::pairing::read(&path)?;
+        let identifier = args.identifier.as_deref().unwrap_or(&pairing.backend_identifier);
+        store.import_pairing(&pairing, identifier, &dokime::client::secrets::KeyringStore)?;
+        return Ok(());
+    }
+    let endpoint = args.endpoint.ok_or_else(|| crate::Error::Input("endpoint is required".into()))?;
+    if !endpoint.starts_with("http://") {
+        return Err(crate::Error::Input("manual profiles require an unsecured lab HTTP endpoint".into()));
+    }
     let profile = Profile {
-        name: args.name,
-        endpoint: args.endpoint,
-        expected_backend_id: args.expected_backend,
-        ca_certificate_pem,
-        secret: if args.keyring { Secret::Keyring } else { Secret::None },
+        identifier: args.identifier.ok_or_else(|| crate::Error::Input("identifier is required".into()))?,
+        label: args.label.ok_or_else(|| crate::Error::Input("label is required".into()))?,
+        endpoint,
+        expected_backend_id: None,
+        ca_certificate_pem: None,
+        secret: Secret::None,
     };
     dokime::client::profiles::selection(&profile)?;
-    args.config.store()?.update(move |document| {
-        if document.profiles.iter().any(|existing| existing.name == profile.name) {
+    store.update(move |document| {
+        if document.profiles.iter().any(|existing| existing.identifier == profile.identifier) {
             return Err(Error::Invalid("profile already exists".into()));
         }
         document.profiles.push(profile);

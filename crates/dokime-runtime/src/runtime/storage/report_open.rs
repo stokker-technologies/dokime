@@ -52,7 +52,8 @@ pub struct OpenedReport {
     pub metadata: Option<Metadata>,
     pub generated_at: Timestamp,
     pub origin: ReportOrigin,
-    pub html: harmos::storage::ReadBatch<Vec<u8>>,
+    pub file: harmos::storage::FileReference,
+    pub reader: harmos::storage::FileReader,
 }
 
 /* === Enums === */
@@ -88,14 +89,16 @@ impl RuntimeHandle {
             // An Execution Sealed Inside A Running Cycle Serves Its Final Report Directly.
             if let Some(seal) = self.execution_storage.durable_seal(id).await? {
                 let session = self.storage().clone();
-                let html = crate::storage::read_file_bytes(&session, &seal.report).await?;
+                let file = seal.report.clone();
+                let reader = report_reader(&session, &file).await?;
                 return Ok(OpenedReport {
                     test_cycle_id: cycle,
                     test_execution_id: Some(id.clone()),
                     metadata: None,
                     generated_at: seal.sealed_at.clone(),
                     origin: ReportOrigin::Sealed,
-                    html,
+                    file,
+                    reader,
                 });
             }
             let at = self
@@ -112,14 +115,16 @@ impl RuntimeHandle {
                 })
                 .await?;
             let session = self.storage().clone();
-            let html = crate::storage::read_file_bytes(&session, &materialized.report).await?;
+            let file = materialized.report;
+            let reader = report_reader(&session, &file).await?;
             return Ok(OpenedReport {
                 test_cycle_id: cycle,
                 test_execution_id: Some(id.clone()),
                 metadata: None,
                 generated_at: crate::model::time::now_utc(),
                 origin: ReportOrigin::Current,
-                html,
+                file,
+                reader,
             });
         }
         let session = self.storage().clone();
@@ -130,14 +135,16 @@ impl RuntimeHandle {
         let execution = inspection.execution();
         let seal = execution.saved.as_ref().expect("filtered sealed execution");
         let (generated_at, test_cycle_id) = (seal.sealed_at.clone(), execution.test_cycle_id.clone());
-        let html = crate::storage::read_file_bytes(&session, &seal.report).await?;
+        let file = seal.report.clone();
+        let reader = report_reader(&session, &file).await?;
         Ok(OpenedReport {
             test_cycle_id,
             test_execution_id: Some(id.clone()),
             metadata: None,
             generated_at,
             origin: ReportOrigin::Sealed,
-            html,
+            file,
+            reader,
         })
     }
 
@@ -152,14 +159,16 @@ impl RuntimeHandle {
             })
             .await?;
         let session = self.storage().clone();
-        let html = crate::storage::read_file_bytes(&session, &materialized.report).await?;
+        let file = materialized.report;
+        let reader = report_reader(&session, &file).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,
             metadata: Some(metadata),
             generated_at: crate::model::time::now_utc(),
             origin: ReportOrigin::Current,
-            html,
+            file,
+            reader,
         })
     }
 
@@ -172,14 +181,16 @@ impl RuntimeHandle {
         let cycle = &selected.value;
         let seal = cycle.saved.as_ref().ok_or_else(|| not_found("cycle_report_missing", "cycle has no sealed report"))?;
         seal.validate(cycle).map_err(crate::storage::Error::from)?;
-        let html = crate::storage::read_file_bytes(&session, &seal.report).await?;
+        let file = seal.report.clone();
+        let reader = report_reader(&session, &file).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,
             metadata: Some(cycle.metadata.clone()),
             generated_at: seal.sealed_at.clone(),
             origin: ReportOrigin::Sealed,
-            html,
+            file,
+            reader,
         })
     }
 }
@@ -187,6 +198,15 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn report_reader(storage: &crate::storage::Manager, file: &harmos::storage::FileReference) -> Result<harmos::storage::FileReader> {
+    Ok(storage
+        .read_file(harmos::storage::operations::ReadFile {
+            source: harmos::storage::FileSource::Stored(file.clone()),
+            range: harmos::storage::ByteRange { offset: 0, limit: None },
+        })
+        .await?)
+}
 
 fn not_found(code: &str, message: &str) -> Error {
     Error::Admission(AdmissionFailure::NotFound { code: code.into(), message: message.into() })

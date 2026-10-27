@@ -7,6 +7,8 @@
  * ***
  */
 
+// RevokePairedClient
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -16,8 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 // Local Imports
 use super::*;
@@ -31,11 +32,13 @@ use super::*;
 /* === Structs === */
 
 #[harmos_domain::message]
-#[harmos_domain::operation(response = DiagnosticsResponse, id = "dokime.backend.get_diagnostics", version = 1,
-        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
-        grpc(package = "dokime.v1", service = "Backend", method = "GetDiagnostics"))]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetDiagnostics {}
+#[harmos_domain::operation(response = (), id = "dokime.remote.revoke_paired_client", version = 1,
+    policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
+    grpc(package = "dokime.v1", service = "Remote", method = "RevokePairedClient"))]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevokePairedClient {
+    pub identifier: String,
+}
 
 /* === Enums === */
 

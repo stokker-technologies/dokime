@@ -15,6 +15,7 @@ pub mod context;
 pub mod document;
 pub mod environment;
 pub mod evidence;
+pub(crate) mod evidence_rows;
 pub mod lease;
 pub mod log;
 pub mod progress;

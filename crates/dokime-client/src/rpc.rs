@@ -70,13 +70,6 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn backend_get_diagnostics(
-        &self, message: contracts::backend::GetDiagnostics,
-    ) -> Result<dokime_domain::model::backend::wire::DiagnosticsResponse> {
-        let reply = self.unary::<contracts::backend::GetDiagnostics>(contracts::backend::GetDiagnostics::PATH, message).await?;
-        super::transport::value(reply)
-    }
-
     pub async fn backend_collect_diagnostics(
         &self, message: contracts::backend::CollectDiagnostics,
     ) -> Result<ResponseStream<dokime_domain::model::backend::wire::DiagnosticsBundleFrame>> {
@@ -681,13 +674,17 @@ impl Client {
     pub async fn reports_download_cycle_report(
         &self, message: contracts::reports::DownloadCycleReport,
     ) -> Result<ResponseStream<dokime_domain::model::reports::wire::ReportHtmlFrame>> {
-        self.download::<contracts::reports::DownloadCycleReport>(contracts::reports::DownloadCycleReport::PATH, message).await
+        self.with_timeout(std::time::Duration::from_millis(300_000))
+            .download::<contracts::reports::DownloadCycleReport>(contracts::reports::DownloadCycleReport::PATH, message)
+            .await
     }
 
     pub async fn reports_download_execution_report(
         &self, message: contracts::reports::DownloadExecutionReport,
     ) -> Result<ResponseStream<dokime_domain::model::reports::wire::ReportHtmlFrame>> {
-        self.download::<contracts::reports::DownloadExecutionReport>(contracts::reports::DownloadExecutionReport::PATH, message).await
+        self.with_timeout(std::time::Duration::from_millis(300_000))
+            .download::<contracts::reports::DownloadExecutionReport>(contracts::reports::DownloadExecutionReport::PATH, message)
+            .await
     }
 
     pub async fn settings_get_settings(

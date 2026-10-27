@@ -198,31 +198,35 @@ impl Operation for Watch {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::WatchSamples, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchSamples, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let mut selection = request.selection.take().ok_or_else(|| Status::invalid_argument("telemetry selection is missing"))?;
-        if selection.latest || request.follow && selection.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()).is_none() {
-            return Err(Status::invalid_argument("telemetry watch requires forward paging and an execution scope when following"));
-        }
-        let runtime = &self.resources.runtime;
-        let session = runtime.storage().clone();
-        let mut selection = self.resources.selection(&mut selection)?;
-        let mut at = session.cursor_saved();
-        loop {
-            let (page, sealed) = self.resources.page(&session, &selection, &at, true).await?;
-            let complete = page.complete;
-            let delivered = page.clone();
-            output.send_owned(page).await.map_err(|error| Status::unavailable(error.to_string()))?;
-            selection.advance_cursors(&delivered.through_stream_cursors);
-            if !complete {
-                continue;
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let mut selection = request.selection.take().ok_or_else(|| Status::invalid_argument("telemetry selection is missing"))?;
+            if selection.latest || request.follow && selection.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()).is_none() {
+                return Err(Status::invalid_argument("telemetry watch requires forward paging and an execution scope when following"));
             }
-            if !request.follow || sealed {
-                return Ok(().into());
+            let runtime = &self.resources.runtime;
+            let session = runtime.storage().clone();
+            let mut selection = self.resources.selection(&mut selection)?;
+            let mut at = session.cursor_saved();
+            loop {
+                let (page, sealed) = self.resources.page(&session, &selection, &at, true).await?;
+                let complete = page.complete;
+                let delivered = page.clone();
+                output.send_owned(page).await.map_err(|error| Status::unavailable(error.to_string()))?;
+                selection.advance_cursors(&delivered.through_stream_cursors);
+                if !complete {
+                    continue;
+                }
+                if !request.follow || sealed {
+                    return Ok(().into());
+                }
+                // Native Wait Registers Before Inspecting The Saved Frontier.
+                at = session.wait_saved_after(&at).await.map_err(storage_failure)?;
             }
-            // Native Wait Registers Before Inspecting The Saved Frontier.
-            at = session.wait_saved_after(&at).await.map_err(storage_failure)?;
-        }
+        })
+        .await
     }
 }
 

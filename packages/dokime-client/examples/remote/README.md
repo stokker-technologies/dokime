@@ -49,7 +49,7 @@ The Python artifact contains
 `target/package/dev/any/python/dokime-remote-examples-<version>.zip` and the client
 distribution under `target/package/dev/any/python/`. Extract the examples ZIP
 on the remote PC, then rename its `remote/` directory to `remote-demo/`. That directory contains this guide,
-`cli/`, `python/`, `wheels/` and `.env.example`. Preserve the folder layout:
+`cli/`, `python/` and `wheels/`. Preserve the folder layout:
 the Python environment uses the candidate wheel under `wheels/`.
 On Windows, set `$INSTALL_DOKIME = $false` in `cli/bootstrap.ps1` for this
 unreleased candidate, then run `cli/bootstrap.bat` (or `cli/bootstrap.ps1`)
@@ -127,61 +127,34 @@ Use the host's connected local desktop session, then open
 1. Find the host's LAN IP address in its operating system's network settings.
    The examples below use `192.168.1.50`; replace it with that actual address.
    `127.0.0.1` on the remote PC would refer to the remote PC itself.
-2. Choose **Generate Access Key**. In **Save Your Access Key**, use
-   **Save Key File…** and save the key. The dialog initially suggests
-   `dokime-remote.key`. Keep it private; the host cannot recover it later from
-   its saved verifier. Choose **I Have Saved The Key** after saving.
-3. Enable **Enable Remote Access**, **TLS Encryption** and
-   **Require An Access Key**. Set **Listen Address** to
-   `0.0.0.0:8766` to listen on the host's IPv4 interfaces at this tutorial's
-   chosen port. This is a bind address; clients use the host's LAN address.
-4. Set **Certificate DNS Names And IP Addresses** to the exact host IP or DNS
-   name the remote PC will use, such as `192.168.1.50`. Choose
-   **Regenerate Certificate…**, then **Confirm**, to generate a certificate
-   for those identities.
-5. Choose **Apply…**, review **Apply Remote Access Settings**, and choose
-   **Confirm**. Wait for **Listening On** with the selected address. Resolve
-   any **Listener Error** before continuing.
-6. Choose **Save Certificate…**. This saves the public certificate, initially
-   named `dokime-server.pem`. The TLS private key stays on the host.
-7. Allow the selected TCP port through the host firewall for the intended lab
-   network. Both PCs must have network reachability to that address and port.
+2. Enable remote access, TLS and authentication. Set the bind address to
+   `0.0.0.0:8766` and certificate identities to the host's actual IP or DNS name.
+   Apply the settings and wait for a successful listening state.
+3. Allow that TCP port through the host firewall for the intended lab network.
+4. Choose **Create Pairing File**, enter a client label and the reachable
+   advertised endpoint, such as `https://192.168.1.50:8766`. Save `lab.dokime-pair`.
 
-Transfer the access-key file and **public** certificate to the remote PC using
-your usual trusted file-transfer method. In `remote-demo/`, name the copies
-`remote.key` and `server.pem`. Do not transfer the host's TLS private key or
-application storage directory.
-
-One valid access key gives full remote control. This walkthrough keeps TLS and
-authentication enabled. Disabling either is a separate isolated-lab choice;
-it is not a repair for a certificate or authentication error.
+Transfer that pairing file privately to `remote-demo/` on the remote computer.
+It contains a one-time access key and public CA certificate; keep the file private.
+The host retains only a verifier. Create a separate pairing for each client, and
+revoke a lost client's entry in **Paired Clients**. Revocation leaves other clients usable.
 
 ## Connect From The Remote PC
 
-Open a terminal in `remote-demo/` and run the following, replacing only the
-example IP with the host's actual certificate identity:
+Import the pairing once into the native registry; its credential goes to the OS keyring:
 
 ```sh
-dokime status --endpoint https://192.168.1.50:8766 --ca server.pem --key-file remote.key --json
-dokime operation list --endpoint https://192.168.1.50:8766 --ca server.pem --key-file remote.key
-dokime catalog list --endpoint https://192.168.1.50:8766 --ca server.pem --key-file remote.key --json
+dokime backend add --pairing lab.dokime-pair --identifier lab
+dokime status --backend lab --json
+dokime operation list --backend lab
+dokime catalog list --backend lab --json
 ```
 
 Status must report `ready`. Discovery must include `obc.device.read`,
-`obc.device.set_power` and the `obc.checks.pulse` template before a script is
-submitted. These are native gRPC commands; no browser page or REST endpoint is
-required.
-
-An explicit key file takes precedence over process `DOKIME_KEY`, followed by
-the key in an explicitly selected dotenv file. Selected files must still be
-readable and valid. No parent directories are searched for dotenv files.
-For the simplest setup, keep the explicit `remote.key` file and omit dotenv.
-
-If you choose dotenv instead, copy `.env.example` to `.env`, replace its
-placeholder, clear each script's `KEY_FILE` and explicitly select that
-`ENV_FILE`. A pre-existing process `DOKIME_KEY` overrides dotenv; clear that
-environment value when intentionally switching to the file. Never paste the
-key into a script or test output.
+`obc.device.set_power` and the `obc.checks.pulse` template. The client checks both
+the TLS certificate and expected backend identity before calling application operations.
+Python scripts use `DokimeClient.from_pairing` and keep the credential only in
+that client's transport. Importing a pairing does not connect or change the default backend.
 
 ## Run The Three Workflows
 
@@ -193,11 +166,10 @@ Choose one family:
 - [Python scripts](python/README.md): supported CPython versions are
   `>=3.13,<3.16`, with a locked uv environment and bundled candidate wheel.
 
-Edit the globals at the top of each selected script. Use the host's HTTPS
-endpoint and, when running inside `cli/` or `python/`, certificate path
-`../server.pem` and key path `../remote.key`. Paths are relative to your
-terminal's working directory. Leave dotenv empty unless deliberately selected.
-Run the scripts without arguments.
+Edit the globals at the top of each selected script. Native CLI scripts use
+`BACKEND_IDENTIFIER = lab` after the import above. Python scripts use
+`PAIRING_FILE = Path("../lab.dokime-pair")` when run inside `python/`.
+Paths resolve relative to the terminal's working directory. Run scripts without arguments.
 
 `control-device` reads the manual device, powers it on, verifies its 230 V RMS
 state, powers it off and reads zero volts. Fixed JSON files in the current
@@ -324,8 +296,8 @@ and captured files together. Use `.quit` to leave the SQLite CLI.
 | Linux package dependencies cannot resolve | Use the package manager for the matching DEB/RPM and architecture. Retain its error; the candidate does not establish compatibility with every distribution release. |
 | PowerShell rejects a script or JSON argument | Run PowerShell 7.3+ (`pwsh --version`), not Windows PowerShell 5.1. Follow your organization's script-execution policy. Batch is available without PowerShell 7. |
 | Status is unreachable | Keep the host running; check **Listening On**, the host IP, selected port, firewall and network route. A remote client must not use the bind address `0.0.0.0` or its own loopback address. |
-| Certificate verification fails | Match the endpoint's IP/DNS name to **Certificate DNS Names And IP Addresses**. After regeneration, transfer the new public certificate. Do not disable verification to hide a mismatch. |
-| Authentication fails | Use the saved key, check explicit key/env-file selection and process `DOKIME_KEY`. After rotation the old key no longer works; copy the new one. |
+| Certificate verification fails | Match the endpoint's IP/DNS name to **Certificate DNS Names And IP Addresses**. After certificate replacement, create and import a new pairing. Do not disable verification to hide a mismatch. |
+| Authentication fails | Check that the paired client has not been revoked. Create and import a new pairing for that client if needed. |
 | OBC operations/template are missing | Install the host-OS plugin from the same candidate, restart the host and check Plugins for loading errors. |
 | Existing evidence destination | Select a new evidence directory or explicitly choose overwrite. Preserve previous results you need to retain. |
 | A script timed out or disconnected | Retain its printed UUIDs; reconnect to the same host and inspect. Remote work may continue. Rerunning a script would create new attempts. |

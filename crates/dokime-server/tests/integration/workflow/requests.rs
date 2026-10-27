@@ -272,30 +272,50 @@ async fn execution_admissions_restart() {
 }
 
 #[tokio::test]
-async fn key_rotation_isolation() {
+async fn pairing_revocation_preserves_execution_receipts() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
     let handle = owner.handle();
     let server = Server::start(handle.clone(), Config::local()).await.unwrap();
     let native = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let key = native.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner();
-    let mut settings = key.listener.as_ref().unwrap().settings.clone().unwrap();
-    settings.enabled = true;
-    settings.address = "127.0.0.1:0".into();
-    settings.tls_enabled = false;
-    settings.authentication_enabled = true;
+    let settings = model::remote::RemoteListenerSettings {
+        enabled: true,
+        address: "127.0.0.1:0".into(),
+        tls_enabled: false,
+        authentication_enabled: true,
+        certificate_names: vec![],
+    };
     let listening = native
         .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings) })
         .await
         .unwrap()
         .into_inner();
-    let client = WireClient::connect(format!("http://{}", listening.listening_address.unwrap())).await.unwrap();
-    let cycle = support::planned_cycle(&client, auth(create(), &key.access_key), selection_plan(&owner)).await.unwrap();
+    let endpoint = format!("http://{}", listening.listening_address.unwrap());
+    let first = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
+            label: "Revoked Client".into(),
+            endpoint: endpoint.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let second = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
+            label: "Surviving Client".into(),
+            endpoint: endpoint.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let key = first.pairing.access_key.unwrap();
+    let surviving_key = second.pairing.access_key.unwrap();
+    let client = WireClient::connect(endpoint).await.unwrap();
+    let cycle = support::planned_cycle(&client, auth(create(), &key), selection_plan(&owner)).await.unwrap();
     let cycle_id = dokime::domain::model::identity::TestCycleId::from_uuid(cycle.clone()).unwrap();
     let request = start(&owner, &cycle);
 
-    let admission = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key.access_key)).await.unwrap();
+    let admission = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key)).await.unwrap();
     let admission = accepted(admission.into_inner());
     started(&gate).await;
     let running = receipt(&handle, &admission.command_id).await;
@@ -303,25 +323,28 @@ async fn key_rotation_isolation() {
     assert_eq!(running.submitted_by.as_deref(), Some("remote"));
     let selection = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids.clone();
 
-    // Rotate Through The Managed Owner While An Authenticated Stream Is Open.
+    // Revoke One Principal While Its Authenticated Stream Is Open.
     let mut watching = client
-        .download::<contracts::observation::WatchRuntime>(auth(contracts::observation::WatchRuntime { cursor: None }, &key.access_key))
+        .download::<contracts::observation::WatchRuntime>(auth(contracts::observation::WatchRuntime { cursor: None }, &key))
         .await
         .unwrap()
         .into_inner();
     assert!(watching.message().await.unwrap().is_some());
-    let rotated = native.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner();
+    native
+        .unary::<contracts::remote::RevokePairedClient>(contracts::remote::RevokePairedClient {
+            identifier: first.client.unwrap().identifier,
+        })
+        .await
+        .unwrap();
     while let Ok(Some(frame)) = watching.message().await {
-        assert!(!frame.shutting_down, "key rotation must leave the runtime alive");
+        assert!(!frame.shutting_down, "revocation leaves the runtime alive");
     }
-    let listening = rotated.listener.as_ref().unwrap().listening_address.as_ref().unwrap();
-    let client = WireClient::connect(format!("http://{listening}")).await.unwrap();
-    let refused = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key.access_key)).await.unwrap_err();
+    let refused = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key)).await.unwrap_err();
     assert_eq!(refused.code(), Code::Unauthenticated);
     let unchanged = receipt(&handle, &admission.command_id).await;
     assert_eq!(&*unchanged, &*running);
 
-    let reply = client.unary::<contracts::execution::StartExecution>(auth(request, &rotated.access_key)).await.unwrap();
+    let reply = client.unary::<contracts::execution::StartExecution>(auth(request, &surviving_key)).await.unwrap();
     let replay = accepted(reply.into_inner());
     assert_eq!(replay.command_id, admission.command_id);
     assert_eq!(replay.accepted_at, admission.accepted_at);

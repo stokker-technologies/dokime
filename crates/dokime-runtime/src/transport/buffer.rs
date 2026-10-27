@@ -63,8 +63,7 @@ pub(crate) struct ExecutionState {
     step_admission: Option<(dokime_domain::model::identity::StepAttemptId, Option<Result<(), String>>)>,
     terminal: bool,
     prompt: Option<PromptExchange>,
-    stream_rows: Vec<crate::telemetry::TelemetrySample>,
-    sample_positions: BTreeMap<dokime_domain::model::identity::TelemetrySampleId, SamplePosition>,
+    stream_rows: crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
     confirmed_samples: usize,
     samples_closed: bool,
     local_samples: Vec<crate::telemetry::TelemetrySample>,
@@ -73,17 +72,12 @@ pub(crate) struct ExecutionState {
     produced: BTreeMap<String, u64>,
     delivered: Vec<dokime_domain::model::records::evidence::Record>,
     subscriptions: Vec<dokime_domain::model::identity::Identifier>,
-    captured_records: Vec<dokime_domain::model::records::evidence::Record>,
+    captured_records: crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::Record>,
     subscriptions_settling: bool,
     subscriptions_settled: bool,
     dropped: usize,
     gaps: Vec<crate::telemetry::LeaseGap>,
     leases: BTreeMap<String, LeaseOutcome>,
-}
-
-struct SamplePosition {
-    index: usize,
-    confirmed: bool,
 }
 
 #[derive(Default)]
@@ -192,8 +186,7 @@ impl ExecutionState {
             step_admission: None,
             terminal: false,
             prompt: None,
-            stream_rows: Vec::new(),
-            sample_positions: BTreeMap::new(),
+            stream_rows: Default::default(),
             confirmed_samples: 0,
             samples_closed: false,
             local_samples: Vec::new(),
@@ -201,7 +194,7 @@ impl ExecutionState {
             produced: BTreeMap::new(),
             delivered: Vec::new(),
             subscriptions: Vec::new(),
-            captured_records: Vec::new(),
+            captured_records: Default::default(),
             subscriptions_settling: false,
             subscriptions_settled: false,
             dropped: 0,
@@ -219,13 +212,16 @@ impl ExecutionState {
     }
 
     pub(crate) fn validate_sample(&self, sample: &crate::telemetry::TelemetrySample) -> Result<(), String> {
-        if let Some(position) = self.sample_positions.get(&sample.sample_id)
-            && let Some(field) = sample_difference(&self.stream_rows[position.index], sample, self.local_inputs)
+        if let Some(previous) = self.stream_rows.get(sample.sample_id.as_str())?
+            && let Some(field) = sample_difference(&previous, sample, self.local_inputs)
         {
             let key = (field == "values")
                 .then(|| {
-                    let previous = &self.stream_rows[position.index].values;
-                    previous.keys().chain(sample.values.keys()).find(|key| !value_equivalent(previous.get(*key), sample.values.get(*key)))
+                    previous
+                        .values
+                        .keys()
+                        .chain(sample.values.keys())
+                        .find(|key| !value_equivalent(previous.values.get(*key), sample.values.get(*key)))
                 })
                 .flatten();
             let suffix = key.map_or_else(String::new, |key| format!(".{key}"));
@@ -310,7 +306,9 @@ impl ExecutionState {
         }
     }
 
-    pub(crate) fn captured_records(&self) -> Vec<dokime_domain::model::records::evidence::Record> {
+    pub(crate) fn captured_records(
+        &self,
+    ) -> crate::execution::evidence_rows::EvidenceRows<dokime_domain::model::records::evidence::Record> {
         self.captured_records.clone()
     }
 
@@ -328,19 +326,43 @@ impl ExecutionState {
             || self.subscriptions_settled
             || (capture.is_none() && !self.subscriptions.contains(&record.record_type))
             || (own && capture.is_none())
-            || self.captured_records.iter().any(|captured| captured.record_id == record.record_id)
         {
             return false;
-        }
-        if self.delivered.len() as u64 >= 256 {
-            self.delivered.remove(0);
-            self.dropped += 1;
         }
         let mut record = record.clone();
         if let Some(scope) = capture {
             record.scope = Some(scope.clone());
         }
-        self.captured_records.push(record.clone());
+        match self.captured_records.get(record.record_id.as_str()) {
+            Ok(Some(previous)) if previous == record => return false,
+            Ok(None) => {}
+            previous => {
+                let message = match previous {
+                    Err(error) => format!("captured record index is unreadable: {error}"),
+                    _ => "captured record identity was reused with different contents".to_owned(),
+                };
+                self.cancel();
+                self.push(BufferedFrame::terminal(SidecarExecutionOutcome { passed: false, message: Some(message), ..Default::default() }));
+                return false;
+            }
+        }
+        match self.captured_records.push(record.record_id.as_str(), &record) {
+            Ok(true) => {}
+            Ok(false) => return false,
+            Err(error) => {
+                self.cancel();
+                self.push(BufferedFrame::terminal(SidecarExecutionOutcome {
+                    passed: false,
+                    message: Some(format!("captured record persistence failed: {error}")),
+                    ..Default::default()
+                }));
+                return false;
+            }
+        }
+        if self.delivered.len() as u64 >= 256 {
+            self.delivered.remove(0);
+            self.dropped += 1;
+        }
         if !own {
             self.delivered.push(record);
         }
@@ -505,7 +527,7 @@ impl ExecutionState {
         if self.terminal {
             // Criteria are settled. Retain replay frames, not the staging copy
             // of cleanup or early-failure records until this run is evicted.
-            self.captured_records.clear();
+            self.captured_records = Default::default();
             self.settled.notify_waiters();
         }
         if let Some(chunk) = &frame.artifact_chunk {
@@ -544,11 +566,8 @@ impl ExecutionState {
             return Ok(false);
         }
         self.validate_sample(&sample)?;
-        if let Some(position) = self.sample_positions.get_mut(&sample.sample_id) {
-            // Live Delivery May Precede Settlement. Its First Replay Confirms
-            // Durable Evidence; Repeated Replay Of That Identity Is Not Progress.
-            let confirmed = self.subscriptions_settling && !position.confirmed;
-            position.confirmed |= confirmed;
+        if !self.stream_rows.push(sample.sample_id.as_str(), &sample)? {
+            let confirmed = self.subscriptions_settling && self.stream_rows.confirm(sample.sample_id.as_str())?;
             self.confirmed_samples += usize::from(confirmed);
             if confirmed {
                 self.settled.notify_waiters();
@@ -556,9 +575,6 @@ impl ExecutionState {
             return Ok(false);
         }
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
-        let position = SamplePosition { index: self.stream_rows.len(), confirmed: false };
-        self.sample_positions.insert(sample.sample_id.clone(), position);
-        self.stream_rows.push(sample);
         self.settled.notify_waiters();
         Ok(true)
     }
@@ -567,9 +583,8 @@ impl ExecutionState {
         self.produced.get(stream).copied().unwrap_or_default()
     }
 
-    pub(crate) fn take_staged(&mut self) -> Vec<crate::telemetry::TelemetrySample> {
+    pub(crate) fn take_staged(&mut self) -> crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample> {
         self.samples_closed = true;
-        self.sample_positions.clear();
         std::mem::take(&mut self.stream_rows)
     }
 

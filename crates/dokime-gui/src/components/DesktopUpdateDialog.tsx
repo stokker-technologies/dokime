@@ -115,26 +115,6 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
                 ))}
               </select>
             </label>
-            {status.connection ? (
-              <div className="grid gap-2 rounded border p-3">
-                <div>
-                  {status.connection} · {status.host}
-                </div>
-                <div>{status.user ? `${status.user.name} · ${status.user.username}` : "Public Access"}</div>
-                <Button
-                  variant="outline"
-                  disabled={busy || status.mode === "disabled" || (!status.user && !status.canSignIn)}
-                  onClick={() =>
-                    void perform(async () => {
-                      setStatus(await (status.user ? commands.desktopUpdatesSignOut() : commands.desktopUpdatesSignIn()));
-                      setUpdate(null);
-                    })
-                  }
-                >
-                  {status.user ? "Sign Out" : "Sign In With GitLab"}
-                </Button>
-              </div>
-            ) : null}
             {update ? (
               <div className="rounded border p-3">
                 <div>

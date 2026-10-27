@@ -18,7 +18,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "remote",
     label: "Remote Access",
-    description: "Listener, access key and public certificate",
+    description: "Listener, pairing files and paired clients",
     icon: Network,
     group: "primary",
   },

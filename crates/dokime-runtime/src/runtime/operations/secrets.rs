@@ -89,8 +89,8 @@ impl Operation for Lookup {
 
     async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::Lookup, _: &mut ()) -> Result<Response<Value>, Self::Error> {
         let store = Arc::clone(&self.store);
-        let name = std::mem::take(&mut request.name);
-        let value = store.get_secret(&name).await?;
+        let identifier = std::mem::take(&mut request.identifier);
+        let value = store.get_secret(&identifier).await?;
         let value = value.ok_or(SecretStoreError::Invalid("The named secret is missing or was deleted"))?;
         Ok(Value { value: Some(value.expose().to_owned()) }.into())
     }
@@ -150,10 +150,10 @@ impl Operation for Remove {
 
     async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::Remove, _: &mut ()) -> Result<Response<Snapshot>, Self::Error> {
         let store = Arc::clone(&self.store);
-        let names = std::mem::take(&mut request.names);
+        let identifiers = std::mem::take(&mut request.identifiers);
         let generation = request.generation;
         let snapshot = {
-            let cleanup = store.apply(Vec::new(), &names, generation).await?;
+            let cleanup = store.apply(Vec::new(), &identifiers, generation).await?;
             store.snapshot(cleanup).await?
         };
         Ok(snapshot.into())
@@ -173,9 +173,9 @@ impl Operation for Export {
 
     async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::Export, _: &mut ()) -> Result<Response<Archive>, Self::Error> {
         let store = Arc::clone(&self.store);
-        let names = std::mem::take(&mut request.names);
+        let identifiers = std::mem::take(&mut request.identifiers);
         let generation = request.generation;
-        let archive = store.export(&names, generation).await?;
+        let archive = store.export(&identifiers, generation).await?;
         Ok(archive.into())
     }
 }

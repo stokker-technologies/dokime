@@ -35,7 +35,6 @@ use super::{Target, secrets::SecretStore};
 const CA_BYTES: u64 = 1_048_576;
 const PROFILE_BYTES: u64 = 1_048_576;
 const PROFILE_ID_BYTES: u64 = 256;
-const PROFILE_NAME_BYTES: u64 = 64;
 const PROFILES: u64 = 128;
 
 /* === Macros === */
@@ -50,7 +49,7 @@ pub struct Store {
 }
 
 pub struct Selection {
-    pub name: Option<String>,
+    pub identifier: Option<String>,
     pub target: Target,
     pub expected_backend_id: Option<String>,
     pub secret: Secret,
@@ -102,22 +101,22 @@ pub fn validate(document: &Document) -> Result<(), Error> {
     if document.version != 1 || document.profiles.len() as u64 > PROFILES {
         return Err(invalid("unsupported version or too many profiles"));
     }
-    let mut names = BTreeSet::new();
+    let mut identifiers = BTreeSet::new();
     for profile in &document.profiles {
-        if !names.insert(&profile.name) {
-            return Err(invalid("duplicate profile name"));
+        if !identifiers.insert(&profile.identifier) {
+            return Err(invalid("duplicate profile identifier"));
         }
         selection(profile)?;
     }
-    if let Some(name) = &document.default {
-        get(document, name)?;
+    if let Some(identifier) = &document.default {
+        get(document, identifier)?;
     }
     Ok(())
 }
 
-pub fn get<'a>(document: &'a Document, name: &str) -> Result<&'a Profile, Error> {
-    validate_name(name)?;
-    document.profiles.iter().find(|profile| profile.name == name).ok_or_else(|| invalid("requested profile does not exist"))
+pub fn get<'a>(document: &'a Document, identifier: &str) -> Result<&'a Profile, Error> {
+    validate_identifier(identifier)?;
+    document.profiles.iter().find(|profile| profile.identifier == identifier).ok_or_else(|| invalid("requested profile does not exist"))
 }
 
 // Selection happens once; subsequent default edits cannot alter a connection.
@@ -127,18 +126,15 @@ pub fn select(document: &Document, backend: Option<&str>, endpoint: Option<&str>
     }
     if let Some(endpoint) = endpoint {
         let target = Target::new(endpoint, None).map_err(|_| invalid("invalid endpoint"))?;
-        return Ok(Selection { name: None, target, expected_backend_id: None, secret: Secret::None });
+        return Ok(Selection { identifier: None, target, expected_backend_id: None, secret: Secret::None });
     }
-    let name =
+    let identifier =
         backend.or(environment).or(document.default.as_deref()).ok_or_else(|| invalid("select a backend profile or explicit endpoint"))?;
-    selection(get(document, name)?)
+    selection(get(document, identifier)?)
 }
 
 pub fn selection(profile: &Profile) -> Result<Selection, Error> {
-    validate_name(&profile.name)?;
-    if profile.name.len() as u64 > PROFILE_NAME_BYTES {
-        return Err(invalid("profile name exceeds the configured byte limit"));
-    }
+    profile.validate().map_err(invalid)?;
     if let Some(identity) = &profile.expected_backend_id
         && (identity.is_empty() || identity.len() as u64 > PROFILE_ID_BYTES || identity.chars().any(char::is_control))
     {
@@ -152,14 +148,62 @@ pub fn selection(profile: &Profile) -> Result<Selection, Error> {
     let target = Target::new(&profile.endpoint, profile.ca_certificate_pem.clone())
         .map_err(|_| invalid("invalid endpoint or CA certificate association"))?;
     Ok(Selection {
-        name: Some(profile.name.clone()),
+        identifier: Some(profile.identifier.clone()),
         target,
         expected_backend_id: profile.expected_backend_id.clone(),
         secret: profile.secret,
     })
 }
 
+impl Selection {
+    pub fn credential_key(&self) -> String {
+        match &self.identifier {
+            Some(identifier) => format!("dokime-profile:{identifier}:{}", self.target.endpoint()),
+            None => self.target.endpoint().to_owned(),
+        }
+    }
+}
+
 impl Store {
+    pub fn import_pairing(
+        &self, pairing: &dokime_domain::model::remote::PairingFile, identifier: &str, secrets: &dyn SecretStore,
+    ) -> Result<Profile, Error> {
+        pairing.validate().map_err(Error::Invalid)?;
+        let profile = Profile {
+            identifier: identifier.to_owned(),
+            label: pairing.label.clone(),
+            endpoint: pairing.endpoint.clone(),
+            expected_backend_id: Some(pairing.backend_identifier.clone()),
+            ca_certificate_pem: pairing.ca_certificate_pem.clone(),
+            secret: if pairing.access_key.is_some() { Secret::Keyring } else { Secret::None },
+        };
+        let selected = selection(&profile)?;
+        let credential = selected.credential_key();
+        let mut saved_secret = false;
+        let result = self.update(|document| {
+            if document.profiles.iter().any(|existing| existing.identifier == identifier) {
+                return Err(invalid("profile already exists"));
+            }
+            document.profiles.push(profile.clone());
+            encode(document)?;
+            if let Some(key) = &pairing.access_key {
+                if secrets.read(&credential)?.is_some() {
+                    return Err(invalid("profile credential already exists"));
+                }
+                secrets.write(&credential, key)?;
+                saved_secret = true;
+            }
+            Ok(())
+        });
+        if let Err(error) = result {
+            if saved_secret {
+                secrets.remove(&credential)?;
+            }
+            return Err(error);
+        }
+        Ok(profile)
+    }
+
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }
@@ -214,19 +258,19 @@ impl Store {
     // Protect the original profile association across the preceding network IO.
     // A file publication failure can leave the secret saved separately.
     pub fn remember(&self, selection: &Selection, token: &str, secrets: &dyn SecretStore) -> Result<(), Error> {
-        let name = selection.name.as_deref().ok_or_else(|| invalid("a named profile is required"))?;
+        let identifier = selection.identifier.as_deref().ok_or_else(|| invalid("a named profile is required"))?;
         self.update(|document| {
-            let current = self::selection(get(document, name)?)?;
+            let current = self::selection(get(document, identifier)?)?;
             if current.target.with_settings(*selection.target.settings()) != selection.target
                 || current.expected_backend_id != selection.expected_backend_id
             {
                 return Err(invalid("profile target changed during login; retry explicitly"));
             }
-            let profile = document.profiles.iter_mut().find(|profile| profile.name == name).expect("validated profile exists");
+            let profile = document.profiles.iter_mut().find(|profile| profile.identifier == identifier).expect("validated profile exists");
             profile.secret = Secret::Keyring;
             // Refuse Schema And Capacity Failures Before Saving A Secret.
             encode(document)?;
-            secrets.write(selection.target.endpoint(), token)?;
+            secrets.write(&selection.credential_key(), token)?;
             Ok(())
         })
     }
@@ -260,18 +304,98 @@ fn invalid(message: &str) -> Error {
     Error::Invalid(message.to_owned())
 }
 
-fn validate_name(name: &str) -> Result<(), Error> {
-    if name.is_empty() || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')) {
-        return Err(invalid("profile names require ASCII letters, digits, dots, underscores or hyphens"));
-    }
-    Ok(())
+fn validate_identifier(identifier: &str) -> Result<(), Error> {
+    dokime_domain::model::secrets::catalog::validate_identifier(identifier).map_err(invalid)
 }
 
-fn environment_path(name: &str) -> Result<PathBuf, Error> {
-    env::var_os(name)
+fn environment_path(identifier: &str) -> Result<PathBuf, Error> {
+    env::var_os(identifier)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .ok_or_else(|| invalid("standard configuration root is unavailable; provide an explicit profile file"))
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use std::sync::Mutex;
+    use zeroize::Zeroizing;
+
+    struct Credentials {
+        values: Mutex<BTreeMap<String, String>>,
+        fail_publication: Option<PathBuf>,
+    }
+
+    impl SecretStore for Credentials {
+        fn read(&self, key: &str) -> Result<Option<Zeroizing<String>>, super::super::secrets::Error> {
+            Ok(self.values.lock().unwrap().get(key).cloned().map(Zeroizing::new))
+        }
+
+        fn write(&self, key: &str, token: &str) -> Result<(), super::super::secrets::Error> {
+            self.values.lock().unwrap().insert(key.to_owned(), token.to_owned());
+            if let Some(path) = &self.fail_publication {
+                std::fs::create_dir(path).unwrap();
+            }
+            Ok(())
+        }
+
+        fn remove(&self, key: &str) -> Result<(), super::super::secrets::Error> {
+            self.values.lock().unwrap().remove(key);
+            Ok(())
+        }
+    }
+
+    fn pairing(key: char) -> dokime_domain::model::remote::PairingFile {
+        dokime_domain::model::remote::PairingFile {
+            version: 1,
+            endpoint: "http://127.0.0.1:8765".into(),
+            backend_identifier: "backend".into(),
+            label: "Lab Backend".into(),
+            ca_certificate_pem: None,
+            access_key: Some(key.to_string().repeat(32)),
+        }
+    }
+
+    #[test]
+    fn pairing_profiles_keep_independent_credentials() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::new(root.path().join("backends.json"));
+        let secrets = Credentials { values: Mutex::new(BTreeMap::new()), fail_publication: None };
+        let first = store.import_pairing(&pairing('a'), "first", &secrets).unwrap();
+        let second = store.import_pairing(&pairing('b'), "second", &secrets).unwrap();
+        let first_key = selection(&first).unwrap().credential_key();
+        let second_key = selection(&second).unwrap().credential_key();
+        assert_ne!(first_key, second_key);
+        assert_eq!(secrets.read(&first_key).unwrap().unwrap().as_str(), "a".repeat(32));
+        assert_eq!(secrets.read(&second_key).unwrap().unwrap().as_str(), "b".repeat(32));
+        assert!(store.load().unwrap().default.is_none());
+        assert!(store.import_pairing(&pairing('c'), "first", &secrets).is_err());
+        assert_eq!(secrets.read(&first_key).unwrap().unwrap().as_str(), "a".repeat(32));
+    }
+
+    #[test]
+    fn pairing_save_failure_removes_new_credential() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("backends.json");
+        let store = Store::new(&path);
+        let secrets = Credentials { values: Mutex::new(BTreeMap::new()), fail_publication: Some(path) };
+        assert!(store.import_pairing(&pairing('a'), "first", &secrets).is_err());
+        assert!(secrets.values.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn invalid_pairing_never_opens_registry_or_keyring() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("absent/backends.json");
+        let store = Store::new(&path);
+        let secrets = Credentials { values: Mutex::new(BTreeMap::new()), fail_publication: None };
+        let mut invalid = pairing('a');
+        invalid.endpoint = "http://0.0.0.0:8765".into();
+        assert!(store.import_pairing(&invalid, "first", &secrets).is_err());
+        assert!(!path.parent().unwrap().exists());
+        assert!(secrets.values.lock().unwrap().is_empty());
+    }
+}

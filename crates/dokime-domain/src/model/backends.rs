@@ -26,7 +26,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Profile {
-    pub name: String,
+    pub identifier: String,
+    pub label: String,
     pub endpoint: String,
     pub expected_backend_id: Option<String>,
     pub ca_certificate_pem: Option<String>,
@@ -57,6 +58,14 @@ pub enum Secret {
 impl Default for Document {
     fn default() -> Self {
         Self { version: 1, default: None, profiles: Vec::new() }
+    }
+}
+
+impl Profile {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        crate::model::secrets::catalog::validate_identifier(&self.identifier)?;
+        crate::model::secrets::catalog::validate_label(&self.label)?;
+        Ok(())
     }
 }
 

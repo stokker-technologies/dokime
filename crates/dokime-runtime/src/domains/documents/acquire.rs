@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeSet, io::Write};
+use std::io::Write;
 
 // Third Party Imports
 use harmos::MemorySize;
@@ -104,43 +104,49 @@ pub(super) async fn acquire(
             .executions
             .get(selection.scope.test_execution_id.as_ref().ok_or(DocumentAcquisitionFailure::Missing)?)
             .ok_or(DocumentAcquisitionFailure::Missing)?;
-        let scopes = execution.records.subscribed_records();
-        if scopes.len() > source_rows {
-            return Err(DocumentAcquisitionFailure::Limit);
+        let mut reader = session
+            .read_records::<crate::storage::records::RecordRow>(harmos::storage::RecordRead {
+                at: at.clone(),
+                selection: harmos::storage::query::RecordSelection {
+                    schema: crate::storage::records::schema(),
+                    scope: None,
+                    item: None,
+                    source_start: None,
+                    source_end: None,
+                },
+                after: 0,
+            })
+            .await
+            .map_err(source)?;
+        let mut pages = harmos::storage::ReadBatch::new(Vec::new());
+        let mut count = 0usize;
+        while let Some(page) = reader.next().await.map_err(source)? {
+            let page = page.try_map(|rows| {
+                let mut selected = Vec::new();
+                for row in rows {
+                    let mut record = row.payload.entry().map_err(source)?;
+                    let scope = execution.records.captured_scope(&record).or(record.scope.as_ref());
+                    if selection.foreign_execution_scope(scope) {
+                        return Err(DocumentAcquisitionFailure::IncompleteCapture);
+                    }
+                    if !selection.matches_scope(scope) {
+                        continue;
+                    }
+                    let scope = scope.cloned();
+                    record.scope = scope;
+                    count = count.checked_add(1).filter(|count| *count <= source_rows).ok_or(DocumentAcquisitionFailure::Limit)?;
+                    let encoded = document_size(&record, source_bytes, source_depth).map_err(|_| DocumentAcquisitionFailure::Limit)?;
+                    charge(encoded.max(record.memory_size()))?;
+                    selected.try_reserve(1).map_err(|_| DocumentAcquisitionFailure::Limit)?;
+                    selected.push(record);
+                }
+                Ok::<_, DocumentAcquisitionFailure>(selected)
+            })?;
+            pages = crate::storage::projection::push(pages, page).map_err(|error| native_error(error.into()))?;
         }
-        if scopes.values().any(|scope| !selection.matches_scope(Some(scope))) {
-            return Err(DocumentAcquisitionFailure::IncompleteCapture);
-        }
-        // Borrow Frozen Ownership And Keep Original Charged Pages Through Evaluation.
-        charge(scopes.memory_size())?;
-        charge(harmos::btree_map_memory::<&dokime_domain::model::identity::RecordId, ()>(scopes.len()))?;
-        let mut missing: BTreeSet<_> = scopes.keys().collect();
-        let pages = runtime.record_pages_at_in(&session, snapshot, &at).await.map_err(native_error)?;
-        let records = crate::storage::ReadRows::from(pages);
-        let mut scanned_bytes = 0usize;
-        if records.len() > source_rows {
-            return Err(DocumentAcquisitionFailure::Limit);
-        }
-        for record in records.iter() {
-            scanned_bytes = scanned_bytes
-                .checked_add(record.memory_size())
-                .filter(|bytes| *bytes <= source_bytes)
-                .ok_or(DocumentAcquisitionFailure::Limit)?;
-            missing.remove(&record.record_id);
-            let scope = scopes.get(&record.record_id).or(record.scope.as_ref());
-            if selection.foreign_execution_scope(scope) {
-                return Err(DocumentAcquisitionFailure::IncompleteCapture);
-            }
-            if selection.matches_scope(scope) {
-                document_size(record, source_bytes, source_depth).map_err(|_| DocumentAcquisitionFailure::Limit)?;
-                charge(record.memory_size())?;
-            }
-        }
-        captured.records = records;
-        if !missing.is_empty() {
-            return Err(DocumentAcquisitionFailure::IncompleteCapture);
-        }
+        captured.records = pages.into();
     }
+
     if telemetry_needed {
         let samples = runtime
             .collect_telemetry_at_in(

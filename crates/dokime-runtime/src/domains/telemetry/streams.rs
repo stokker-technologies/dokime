@@ -168,6 +168,7 @@ impl RuntimeHandle {
                 sequence: crate::runtime::storage::telemetry::Sequence::StoragePosition,
                 ..Default::default()
             },
+            &self.local_storage,
         )
         .await
     }
@@ -188,6 +189,7 @@ impl RuntimeHandle {
             selection,
             self.schema_settings(),
             crate::runtime::storage::telemetry::ReadOptions { scan_limit, window, ..Default::default() },
+            &self.local_storage,
         )
         .await
     }
@@ -206,18 +208,8 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<Vec<crate::telemetry_runtime::output::AggregateOutput>> {
         let state = self.settled_evidence_state().await;
         let contracts = state.telemetry_contracts();
-        let samples = self
-            .collect_telemetry(&TelemetrySelection {
-                scope: crate::evidence_runtime::ScopeSelection {
-                    test_cycle_id: scope.test_cycle_id.clone(),
-                    test_execution_id: scope.test_execution_id.clone(),
-                    test_case_id: scope.test_case_id.clone(),
-                    template_id: scope.template_id.clone(),
-                },
-                ..TelemetrySelection::default()
-            })
-            .await?;
-        Ok(crate::telemetry_runtime::output::project_samples(&contracts, &samples))
+        crate::telemetry_runtime::output::project_saved(self.storage(), &self.local_storage, self.schema_settings(), scope, &contracts)
+            .await
     }
 
     pub(crate) fn retained_traceability_in(
@@ -273,6 +265,7 @@ impl RuntimeHandle {
             &TelemetrySelection { streams, ..Default::default() },
             self.schema_settings(),
             crate::runtime::storage::telemetry::ReadOptions { window: Some(("host.system", 0.0)), visible: scope, ..Default::default() },
+            &self.local_storage,
         )
         .await?;
         self.enrich_retained_traceability(snapshots, scope, &host, include_leases)
@@ -294,6 +287,7 @@ impl RuntimeHandle {
             &TelemetrySelection { streams: vec![Identifier::new("host.system").expect("valid stream").into()], ..Default::default() },
             self.schema_settings(),
             crate::runtime::storage::telemetry::ReadOptions { window: Some(("host.system", 0.0)), visible: scope, ..Default::default() },
+            &self.local_storage,
         )
         .await?;
         let latest = host

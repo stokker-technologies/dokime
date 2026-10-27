@@ -20,7 +20,7 @@ use std::io::Write;
 use serde::Serialize;
 
 // Local Imports
-use super::input::BorrowedInput;
+use super::input::{BorrowedData, BorrowedInput, DocumentSelection};
 use super::{DocumentDefinition, DocumentNode, DocumentPayload, DocumentResolveInput};
 
 /* === Constants === */
@@ -45,6 +45,14 @@ pub struct DocumentLimits {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DocumentLimit;
+
+pub(crate) struct SharedBindings<'a> {
+    selection: &'a DocumentSelection,
+    data: BorrowedData<'a>,
+    bytes: usize,
+    rows: usize,
+    limits: DocumentLimits,
+}
 
 /* === Enums === */
 
@@ -74,6 +82,54 @@ impl std::fmt::Display for DocumentLimit {
 }
 
 impl std::error::Error for DocumentLimit {}
+
+impl<'a> SharedBindings<'a> {
+    pub(crate) fn new(selection: &'a DocumentSelection, data: BorrowedData<'a>, limits: DocumentLimits) -> crate::Result<Self> {
+        #[derive(Serialize)]
+        struct Shared<'a> {
+            selection: &'a DocumentSelection,
+            data: BorrowedData<'a>,
+        }
+        let bytes =
+            document_size(&Shared { selection, data }, limits.source_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
+        let rows =
+            data.telemetry.len().saturating_add(data.context.len()).saturating_add(data.records.len()).saturating_add(data.artifacts.len());
+        Ok(Self { selection, data, bytes, rows, limits })
+    }
+
+    pub(crate) fn accounting(&self) -> (usize, usize) {
+        (self.bytes, self.rows)
+    }
+
+    pub(crate) fn validated(
+        selection: &'a DocumentSelection, data: BorrowedData<'a>, limits: DocumentLimits, bytes: usize, rows: usize,
+    ) -> Self {
+        Self { selection, data, bytes, rows, limits }
+    }
+
+    fn validate(&self, definition: &DocumentDefinition) -> crate::Result<()> {
+        let bytes = document_size(definition, self.limits.source_bytes, self.limits.depth.saturating_sub(1))
+            .map_err(|_| super::DocumentFailure::Limit)?;
+        let total = self.bytes.checked_add(b",\"definition\":".len()).and_then(|total| total.checked_add(bytes));
+        if total.is_none_or(|total| total > self.limits.source_bytes) {
+            return Err(super::DocumentFailure::Limit.into());
+        }
+        preflight_definition(definition, self.rows, self.limits, bytes).map_err(|_| super::DocumentFailure::Limit)?;
+        let context_work = bytes.checked_mul(self.data.context.len()).and_then(|work| work.checked_mul(self.rows.max(1)));
+        if context_work.is_none_or(|work| work > self.limits.evaluation_work) {
+            return Err(super::DocumentFailure::Limit.into());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn capture(&self, definition: &'a DocumentDefinition) -> crate::Result<crate::document::capture::Capture> {
+        self.validate(definition)?;
+        let input = BorrowedInput { definition, selection: self.selection, data: self.data };
+        let captured = super::resolve::capture_borrowed(input, self.limits)?;
+        document_size(&captured, self.limits.materialized_bytes, self.limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
+        Ok(captured)
+    }
+}
 
 /* === Public Functions === */
 
@@ -133,6 +189,32 @@ pub fn preflight_document(definition: &DocumentDefinition, telemetry_rows: usize
     // Encoded Inspection Bounds Depth And Evaluation Work; Native Graph Admission
     // Accounts Actual Capacities, Typed Slots And Nested Field Allocations.
     let bytes = document_size(definition, limits.source_bytes, limits.depth)?;
+    preflight_definition(definition, telemetry_rows, limits, bytes)
+}
+
+pub(crate) fn validate_native_resolution(input: &BorrowedInput<'_>, limits: DocumentLimits) -> crate::Result<()> {
+    SharedBindings::new(input.selection, input.data, limits)?.validate(input.definition)
+}
+
+pub(super) fn resolve_bounded(
+    input: DocumentResolveInput, limits: DocumentLimits, materialize_plots: bool,
+) -> crate::Result<DocumentPayload> {
+    validate_native_resolution(&input.borrowed(), limits)?;
+    let payload = super::resolve::resolve(input, materialize_plots, limits)?;
+    check_payload(payload, limits)
+}
+
+pub(crate) fn capture_document_borrowed(
+    input: BorrowedInput<'_>, limits: DocumentLimits,
+) -> crate::Result<crate::document::capture::Capture> {
+    SharedBindings::new(input.selection, input.data, limits)?.capture(input.definition)
+}
+
+/* === Private Functions === */
+
+fn preflight_definition(
+    definition: &DocumentDefinition, telemetry_rows: usize, limits: DocumentLimits, bytes: usize,
+) -> Result<usize, DocumentLimit> {
     fn nodes(items: &[DocumentNode], samples: usize, depth: usize, limit: usize) -> Result<(usize, usize), DocumentLimit> {
         if depth == 0 {
             return Err(DocumentLimit);
@@ -208,45 +290,6 @@ pub fn resolve_document_bounded(input: DocumentResolveInput, limits: DocumentLim
     resolve_bounded(input, limits, false)
 }
 
-pub(crate) fn validate_native_resolution(input: &BorrowedInput<'_>, limits: DocumentLimits) -> crate::Result<()> {
-    document_size(input, limits.source_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
-    let rows = input
-        .data
-        .telemetry
-        .len()
-        .saturating_add(input.data.context.len())
-        .saturating_add(input.data.records.len())
-        .saturating_add(input.data.artifacts.len());
-    preflight_document(input.definition, rows, limits).map_err(|_| super::DocumentFailure::Limit)?;
-    let context_work = document_size(input.definition, limits.source_bytes, limits.depth)
-        .map_err(|_| super::DocumentFailure::Limit)?
-        .checked_mul(input.data.context.len())
-        .and_then(|work| work.checked_mul(rows.max(1)));
-    if context_work.is_none_or(|work| work > limits.evaluation_work) {
-        return Err(super::DocumentFailure::Limit.into());
-    }
-    Ok(())
-}
-
-pub(super) fn resolve_bounded(
-    input: DocumentResolveInput, limits: DocumentLimits, materialize_plots: bool,
-) -> crate::Result<DocumentPayload> {
-    validate_native_resolution(&input.borrowed(), limits)?;
-    let payload = super::resolve::resolve(input, materialize_plots, limits)?;
-    check_payload(payload, limits)
-}
-
-pub(crate) fn capture_document_borrowed(
-    input: BorrowedInput<'_>, limits: DocumentLimits,
-) -> crate::Result<crate::document::capture::Capture> {
-    validate_native_resolution(&input, limits)?;
-    let captured = super::resolve::capture_borrowed(input, limits)?;
-    document_size(&captured, limits.materialized_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
-    Ok(captured)
-}
-
-/* === Private Functions === */
-
 pub(crate) fn check_payload(payload: DocumentPayload, limits: DocumentLimits) -> crate::Result<DocumentPayload> {
     document_size(&payload, limits.materialized_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
     Ok(payload)
@@ -264,6 +307,24 @@ fn has_repeat(nodes: &[DocumentNode]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_bindings_preserve_the_exact_source_boundary() {
+        let input = DocumentResolveInput {
+            definition: DocumentDefinition::new("bindings.boundary", "Boundary"),
+            selection: DocumentSelection::default(),
+            data: Default::default(),
+        };
+        let borrowed = input.borrowed();
+        let length = document_size(&borrowed, usize::MAX, 32).unwrap();
+        for source_bytes in [length - 1, length] {
+            let limits = DocumentLimits { source_bytes, ..Default::default() };
+            let result =
+                SharedBindings::new(borrowed.selection, borrowed.data, limits).and_then(|bindings| bindings.validate(borrowed.definition));
+            assert_eq!(result.is_ok(), source_bytes == length);
+        }
+    }
+
     #[test]
     fn normalization_preserves_placements() {
         use crate::document::{DocumentCard, DocumentSection};

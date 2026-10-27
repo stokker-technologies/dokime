@@ -437,21 +437,8 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
 
     fn selected_evidence(&self, phase: Option<CapturePhase>) -> ExecutionEvidence {
         ExecutionEvidence {
-            samples: self
-                .evidence
-                .samples
-                .iter()
-                .map(|(stream, samples)| {
-                    (stream.clone(), samples.iter().filter(|sample| self.selected(sample.scope.as_ref(), phase)).cloned().collect())
-                })
-                .collect(),
-            subscribed_records: self
-                .evidence
-                .subscribed_records
-                .iter()
-                .filter(|record| self.selected(record.scope.as_ref(), phase))
-                .cloned()
-                .collect(),
+            samples: self.evidence.samples.selected(|sample| self.selected(sample.scope.as_ref(), phase)),
+            subscribed_records: self.evidence.subscribed_records.selected(|record| self.selected(record.scope.as_ref(), phase)),
             attempts: self
                 .evidence
                 .attempts
@@ -492,23 +479,8 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     }
 
     fn selected_samples<S: TelemetryStream>(&self, phase: Option<CapturePhase>) -> Samples<S::Row> {
-        let rows = self
-            .evidence
-            .samples
-            .get(S::ID)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
-            .iter()
-            .filter(|sample| self.selected(sample.scope.as_ref(), phase))
-            .filter_map(|sample| match S::Row::from_row(&sample.values) {
-                Ok(row) => Some(row),
-                Err(refusal) => {
-                    tracing::warn!(stream = S::ID, "a captured row does not match the shape that declared this stream: {refusal}");
-                    None
-                }
-            })
-            .collect();
-        Samples::new(rows)
+        let rows = self.evidence.samples.selected(|sample| sample.stream.as_str() == S::ID && self.selected(sample.scope.as_ref(), phase));
+        Samples::new(rows, S::Row::from_row)
     }
 
     pub fn records<R: DeclaredRecord>(&self) -> crate::Result<Vec<R>> {
@@ -520,13 +492,29 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     }
 
     fn selected_records<R: DeclaredRecord>(&self, phase: Option<CapturePhase>) -> crate::Result<Vec<R>> {
-        self.evidence
+        let mut rows = Vec::new();
+        let mut bytes = 0usize;
+        for record in self
+            .evidence
             .subscribed_records
             .iter()
             .filter(|record| record.record_type.as_str() == R::RECORD_TYPE && self.selected(record.scope.as_ref(), phase))
-            .map(|record| &record.details)
-            .map(|details| R::from_details(details).map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error)))
-            .collect()
+        {
+            bytes = bytes
+                .checked_add(crate::execution::evidence_rows::encoded_bytes(&record))
+                .filter(|bytes| *bytes <= 64 * 1024 * 1024)
+                .expect("criterion record collection exceeds bounded workspace; use record_rows");
+            rows.push(R::from_details(&record.details).map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error))?);
+        }
+        Ok(rows)
+    }
+
+    pub fn record_rows<R: DeclaredRecord>(&self) -> impl Iterator<Item = crate::Result<R>> + '_ {
+        self.evidence
+            .subscribed_records
+            .iter()
+            .filter(|record| record.record_type.as_str() == R::RECORD_TYPE && self.selected(record.scope.as_ref(), None))
+            .map(|record| R::from_details(&record.details).map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error)))
     }
 
     pub fn steps_reached(&self) -> &'a [Identifier] {

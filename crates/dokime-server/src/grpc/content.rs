@@ -60,7 +60,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 pub(super) fn download_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> Result<usize, Status> {
     let bytes = runtime.storage().info().map_err(super::bundle::native_failure)?.file_batch_bytes;
     let bytes = usize::try_from(bytes).map_err(|_| Status::resource_exhausted("native file batch size overflows"))?;
-    Ok(bytes.min(maximum).min(64 * 1024))
+    Ok(bytes.min(maximum).min(1_048_576))
 }
 
 pub(super) fn transfer_chunk_bytes(runtime: &RuntimeHandle, maximum: usize) -> Result<usize, Status> {

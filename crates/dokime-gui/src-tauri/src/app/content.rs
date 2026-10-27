@@ -151,6 +151,11 @@ pub(crate) async fn fetch_verified(
     }
     let frame_limit = std::num::NonZeroUsize::new(frame_bytes).expect("desktop frame limit");
     let client = lease.client().with_frame_limit(frame_limit);
+    let client = if matches!(source, ArtifactSource::CycleReport { .. } | ArtifactSource::ExecutionReport { .. }) {
+        client.with_timeout(std::time::Duration::from_secs(300))
+    } else {
+        client
+    };
     let destination = destination.to_path_buf();
     let result = match source {
         ArtifactSource::Artifact { artifact_id } => {

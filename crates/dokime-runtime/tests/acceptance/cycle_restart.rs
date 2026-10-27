@@ -236,8 +236,8 @@ async fn cycle_crash_recovery() {
             .unwrap();
         runtime.storage().flush_until(&marker.position).await.unwrap();
         assert!(marker.position.sequence > intent.evidence_at.sequence);
-        let opened = runtime.open_cycle_report(&id).await.unwrap();
-        let original_html = opened.html.to_vec();
+        let mut opened = runtime.open_cycle_report(&id).await.unwrap();
+        let original_html = crate::service_support::reports::opened_bytes(&mut opened).await;
         drop(opened);
         runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
         assert!(!runtime.watch_state().latest().state().cycle_report_finalizations.contains_key(&id));
@@ -250,9 +250,9 @@ async fn cycle_crash_recovery() {
         header.phase = dokime_domain::model::execution::result::CyclePhase::Sealing;
         assert_eq!(header, intent.source, "restart cannot rewrite the frozen terminal lifecycle");
         assert_eq!(sealed, sealed_at_startup, "an explicit repeat cannot replace the startup seal");
-        let opened = runtime.open_cycle_report(&id).await.unwrap();
+        let mut opened = runtime.open_cycle_report(&id).await.unwrap();
         assert_eq!(opened.origin, dokime_runtime::ReportOrigin::Sealed);
-        assert_eq!(opened.html.as_slice(), original_html.as_slice());
+        assert_eq!(crate::service_support::reports::opened_bytes(&mut opened).await.as_slice(), original_html.as_slice());
         drop((opened, native, runtime));
         owner.shutdown().await.unwrap();
     }

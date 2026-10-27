@@ -84,6 +84,10 @@ fn preference_models() -> Result<serde_json::Value, Error> {
         "UpdateSettings".to_owned(),
         "SettingsScope".to_owned(),
         "Document".to_owned(),
+        "PairingFile".to_owned(),
+        "PairedClient".to_owned(),
+        "PairedClientPage".to_owned(),
+        "CreatedPairing".to_owned(),
     ];
     let mut models = serde_json::Map::new();
     while let Some(name) = pending.pop() {

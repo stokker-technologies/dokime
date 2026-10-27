@@ -88,7 +88,11 @@ fn ftp(url: String, secret: Option<&str>) -> FileWatchSourcePayload {
 
 async fn store_ftp_secret(bench: &Bench) {
     let request = dokime_domain::operations::secrets::Put {
-        metadata: dokime_domain::model::secrets::catalog::Metadata { name: SECRET.into(), label: "FTP Password".into(), description: None },
+        metadata: dokime_domain::model::secrets::catalog::Metadata {
+            identifier: SECRET.into(),
+            label: "FTP Password".into(),
+            description: None,
+        },
         value: Some(PASSWORD.into()),
         generation: 0,
     };

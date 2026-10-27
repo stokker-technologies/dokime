@@ -26,6 +26,7 @@ import { DataTable, DataTableRowActions } from "@/components/data-table/DataTabl
 import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/features/settings/SettingsCard";
@@ -39,7 +40,7 @@ import { putSecret, readSecrets, removeSecret, type SecretCatalog, type SecretEn
 
 const SECRETS_DESCRIPTION_BYTES = 2_048;
 const SECRETS_LABEL_BYTES = 256;
-const SECRETS_NAME_BYTES = 128;
+const SECRETS_IDENTIFIER_BYTES = 128;
 const SECRETS_SECRET_BYTES = 65_536;
 
 /* === Types === */
@@ -66,7 +67,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
   const queryKey = ["settings", "secrets", session.identity.generation];
   const query = useQuery({ queryKey, queryFn: () => readSecrets(session.identity) });
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [deleting, setDeleting] = useState<{ name: string; generation: bigint } | null>(null);
+  const [deleting, setDeleting] = useState<{ identifier: string; generation: bigint } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const snapshot = query.data;
@@ -90,13 +91,17 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
 
   const column = dataTableColumns<SecretEntry>();
   const columns = column.columns([
-    column.accessor((entry) => entry.metadata.name, {
-      id: "name",
-      header: "Name",
+    column.accessor((entry) => entry.metadata.identifier, {
+      id: "identifier",
+      header: "Identifier",
+      cell: ({ row }) => <span className="font-mono text-xs">{row.original.metadata.identifier}</span>,
+    }),
+    column.accessor((entry) => entry.metadata.label, {
+      id: "label",
+      header: "Label",
       cell: ({ row }) => (
         <div className="grid gap-1">
           <strong>{row.original.metadata.label}</strong>
-          <span className="font-mono text-xs">{row.original.metadata.name}</span>
           <p className="text-xs text-muted-foreground">{row.original.metadata.description}</p>
         </div>
       ),
@@ -121,7 +126,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
       header: "Actions",
       cell: ({ row }) => (
         <DataTableRowActions
-          label={row.original.metadata.name}
+          label={row.original.metadata.identifier}
           primary={{
             label: "Edit",
             disabled: busy || !snapshot,
@@ -131,7 +136,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
           <DropdownMenuItem
             variant="destructive"
             disabled={busy || !snapshot}
-            onSelect={() => snapshot && setDeleting({ name: row.original.metadata.name, generation: snapshot.generation })}
+            onSelect={() => snapshot && setDeleting({ identifier: row.original.metadata.identifier, generation: snapshot.generation })}
           >
             Delete
           </DropdownMenuItem>
@@ -146,7 +151,9 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
         <span>{snapshot ? `${snapshot.hostLabel} · ${snapshot.hostId}` : "Loading host…"}</span>
       </SettingsRow>
       <div className="grid gap-3 px-4 py-3">
-        <p className="text-sm text-muted-foreground">All plugins on this host can look up these names. Values stay in its OS keyring.</p>
+        <p className="text-sm text-muted-foreground">
+          All plugins on this host can look up these identifiers. Values stay in its OS keyring.
+        </p>
         {(error || query.error) && (
           <p role="alert" className="text-sm text-destructive">
             {error ?? query.error?.message}
@@ -176,18 +183,18 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
           }
           columns={columns}
           data={snapshot?.entries ?? []}
-          getRowId={(entry) => entry.metadata.name}
+          getRowId={(entry) => entry.metadata.identifier}
           emptyText="No shared secrets."
         />
         {deleting && (
           <fieldset className="flex flex-wrap items-center gap-3 rounded-lg border p-3" aria-label="Confirm Secret Deletion">
-            <p className="text-sm">Delete {deleting.name}?</p>
+            <p className="text-sm">Delete {deleting.identifier}?</p>
             <Button
               variant="destructive"
               disabled={busy}
               onClick={() => {
                 const removal = deleting;
-                void change(() => removeSecret(session.identity, removal.name, removal.generation));
+                void change(() => removeSecret(session.identity, removal.identifier, removal.generation));
               }}
             >
               Confirm Delete
@@ -199,7 +206,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
         )}
         {editor && snapshot && (
           <SecretEditor
-            key={editor.kind === "edit" ? editor.entry.metadata.name : editor.kind}
+            key={editor.kind === "edit" ? editor.entry.metadata.identifier : editor.kind}
             editor={editor}
             busy={busy}
             cancel={() => setEditor(null)}
@@ -224,67 +231,82 @@ function SecretEditor({
 }) {
   const id = useId();
   const original = editor.kind === "edit" ? editor.entry.metadata : undefined;
-  const [name, setName] = useState(original?.name ?? "");
+  const [identifier, setIdentifier] = useState(original?.identifier ?? "");
   const [label, setLabel] = useState(original?.label ?? "");
   const [description, setDescription] = useState(original?.description ?? "");
   const [value, setValue] = useState("");
 
   return (
-    <form
-      className="grid gap-3 rounded-lg border p-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const entered = value || undefined;
-        setValue("");
-        void submit({ name, label, description: description || undefined }, entered);
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) cancel();
       }}
     >
-      <Label htmlFor={`${id}-name`}>Name</Label>
-      <Input
-        id={`${id}-name`}
-        required
-        maxLength={SECRETS_NAME_BYTES}
-        value={name}
-        disabled={busy || editor.kind === "edit"}
-        onChange={(event) => setName(event.target.value)}
-      />
-      <Label htmlFor={`${id}-label`}>Label</Label>
-      <Input
-        id={`${id}-label`}
-        required
-        maxLength={SECRETS_LABEL_BYTES}
-        value={label}
-        disabled={busy}
-        onChange={(event) => setLabel(event.target.value)}
-      />
-      <Label htmlFor={`${id}-description`}>Description</Label>
-      <Input
-        id={`${id}-description`}
-        maxLength={SECRETS_DESCRIPTION_BYTES}
-        value={description}
-        disabled={busy}
-        onChange={(event) => setDescription(event.target.value)}
-      />
-      <Label htmlFor={`${id}-value`}>{editor.kind === "edit" ? "Replacement Value (Leave Empty To Keep)" : "Value"}</Label>
-      <Input
-        id={`${id}-value`}
-        type="password"
-        autoComplete="new-password"
-        required={editor.kind === "new"}
-        maxLength={SECRETS_SECRET_BYTES}
-        value={value}
-        disabled={busy}
-        onChange={(event) => setValue(event.target.value)}
-      />
-      <div className="flex gap-2">
-        <Button type="submit" disabled={busy}>
-          Save Secret
-        </Button>
-        <Button type="button" disabled={busy} variant="outline" onClick={cancel}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editor.kind === "new" ? "Add Secret" : "Edit Secret"}</DialogTitle>
+          <DialogDescription>Values stay in the host’s OS keyring.</DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const entered = value || undefined;
+            setValue("");
+            void submit({ identifier, label, description: description || undefined }, entered);
+          }}
+        >
+          <Label htmlFor={`${id}-identifier`}>Identifier</Label>
+          <Input
+            id={`${id}-identifier`}
+            required
+            className="font-mono"
+            pattern="(?!\.{1,2}$)[A-Za-z0-9._\-]+"
+            maxLength={SECRETS_IDENTIFIER_BYTES}
+            value={identifier}
+            disabled={busy || editor.kind === "edit"}
+            onChange={(event) => setIdentifier(event.target.value)}
+          />
+          <Label htmlFor={`${id}-label`}>Label</Label>
+          <Input
+            id={`${id}-label`}
+            required
+            maxLength={SECRETS_LABEL_BYTES}
+            value={label}
+            disabled={busy}
+            onChange={(event) => setLabel(event.target.value)}
+          />
+          <Label htmlFor={`${id}-description`}>Description</Label>
+          <Input
+            id={`${id}-description`}
+            maxLength={SECRETS_DESCRIPTION_BYTES}
+            value={description}
+            disabled={busy}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+          <Label htmlFor={`${id}-value`}>{editor.kind === "edit" ? "Replacement Value (Leave Empty To Keep)" : "Value"}</Label>
+          <Input
+            id={`${id}-value`}
+            type="password"
+            autoComplete="new-password"
+            required={editor.kind === "new"}
+            maxLength={SECRETS_SECRET_BYTES}
+            value={value}
+            disabled={busy}
+            onChange={(event) => setValue(event.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={busy}>
+              Save Secret
+            </Button>
+            <Button type="button" disabled={busy} variant="outline" onClick={cancel}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

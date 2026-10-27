@@ -66,7 +66,7 @@ export function BackendsTable({
   const [mutating, setBusy] = useState(false);
   const busy = mutating || state.phase === "connecting";
   const connectionFailure = failure ?? (state.phase === "failed" ? connectionError(state.error) : null);
-  const failedProfile = document?.profiles.find((profile) => profile.name === (lastSelected.current ?? document.default));
+  const failedProfile = document?.profiles.find((profile) => profile.identifier === (lastSelected.current ?? document.default));
   useEffect(() => {
     let active = true;
     void preferencesCommands
@@ -96,11 +96,11 @@ export function BackendsTable({
       setBusy(false);
     }
   }
-  function connect(name: string) {
+  function connect(identifier: string) {
     if (busy) return;
     onConnect?.();
-    lastSelected.current = name;
-    void owner.select({ kind: "profile", name });
+    lastSelected.current = identifier;
+    void owner.select({ kind: "profile", identifier });
   }
   return (
     <SettingsCard className="w-full text-left">
@@ -140,15 +140,16 @@ export function BackendsTable({
       <DataTable
         aria-label="Saved Backends"
         data={document?.profiles ?? []}
-        getRowId={(profile) => profile.name}
+        getRowId={(profile) => profile.identifier}
         emptyText="No saved backends."
         columns={dataTableColumns<Profile>().columns([
-          dataTableColumns<Profile>().accessor("name", { header: "Name", meta: { primary: true, filter: "text" } }),
+          dataTableColumns<Profile>().accessor("identifier", { header: "Identifier", meta: { primary: true, filter: "text" } }),
+          dataTableColumns<Profile>().accessor("label", { header: "Label", meta: { filter: "text" } }),
           dataTableColumns<Profile>().accessor("endpoint", {
             header: "Endpoint",
             meta: { filter: "text", width: "w-[40%]", truncate: true },
           }),
-          dataTableColumns<Profile>().accessor((profile) => (document?.default === profile.name ? "Last Used" : "—"), {
+          dataTableColumns<Profile>().accessor((profile) => (document?.default === profile.identifier ? "Last Used" : "—"), {
             id: "lastUsed",
             header: "Last Used",
             meta: { filter: "facet", width: "w-28" },
@@ -159,17 +160,17 @@ export function BackendsTable({
             meta: { width: "w-36" },
             cell: ({ row }) => (
               <DataTableRowActions
-                label={row.original.name}
-                primary={{ label: "Connect", disabled: busy, onSelect: () => connect(row.original.name) }}
+                label={row.original.identifier}
+                primary={{ label: "Connect", disabled: busy, onSelect: () => connect(row.original.identifier) }}
               >
-                <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => setDeleting(row.original.name)}>
+                <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => setDeleting(row.original.identifier)}>
                   Delete
                 </DropdownMenuItem>
               </DataTableRowActions>
             ),
           }),
         ])}
-        onRowClick={(profile) => connect(profile.name)}
+        onRowClick={(profile) => connect(profile.identifier)}
         actions={
           <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setAdding(true)}>
             Add Backend
@@ -213,7 +214,7 @@ export function BackendsTable({
       </Dialog>
       {adding && (
         <AddBackend
-          names={document?.profiles.map((profile) => profile.name) ?? []}
+          identifiers={document?.profiles.map((profile) => profile.identifier) ?? []}
           restoreFocus={() => addButton.current?.focus()}
           endpoint={session?.snapshot.connection.endpoint ?? ""}
           onClose={() => setAdding(false)}
@@ -228,47 +229,46 @@ export function BackendsTable({
 }
 
 function AddBackend({
-  names,
+  identifiers,
   restoreFocus,
   endpoint: initialEndpoint,
   onClose,
   onSaved,
 }: {
-  names: string[];
+  identifiers: string[];
   restoreFocus: () => void;
   endpoint: string;
   onClose: () => void;
   onSaved: (document: Document) => void;
 }) {
   const fieldId = useId();
-  const nameInput = useRef<HTMLInputElement>(null);
+  const identifierInput = useRef<HTMLInputElement>(null);
   const endpointInput = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [endpoint, setEndpoint] = useState(initialEndpoint);
-  const [identity, setIdentity] = useState("");
-  const [ca, setCa] = useState("");
-  const [secret, setSecret] = useState<Profile["secret"]>("none");
+  const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [submitted, setSubmitted] = useState(false);
-  const validation = backendValidation(name, endpoint, ca, names);
+  const validation = backendValidation(identifier, endpoint, identifiers);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(undefined);
     try {
       setSubmitted(true);
       if (Object.keys(validation).length) {
-        (validation.name ? nameInput : endpointInput).current?.focus();
+        (validation.identifier ? identifierInput : endpointInput).current?.focus();
         return;
       }
       setBusy(true);
       onSaved(
         await preferencesCommands.desktopBackendAdd({
-          name: name.trim(),
+          identifier: identifier.trim(),
+          label: label.trim(),
           endpoint: endpoint.trim(),
-          expected_backend_id: identity.trim() || null,
-          ca_certificate_pem: ca.trim() || null,
-          secret,
+          expected_backend_id: null,
+          ca_certificate_pem: null,
+          secret: "none",
         }),
       );
     } catch (failure) {
@@ -295,25 +295,50 @@ function AddBackend({
           <DialogTitle>Add Backend</DialogTitle>
           <DialogDescription>Saved profiles are shared with the CLI. Access keys stay in the system keyring.</DialogDescription>
         </DialogHeader>
-        <form noValidate onSubmit={submit} className="grid gap-3">
+        <Button
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setError(undefined);
+            try {
+              const document = await preferencesCommands.desktopBackendImportPairing(identifier.trim() || null);
+              if (document) onSaved(document);
+            } catch (failure) {
+              setError(failure);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Import Pairing File
+        </Button>
+        <p className="text-sm text-muted-foreground">Manual entry is for unsecured HTTP lab listeners.</p>
+        <form onSubmit={submit} className="grid gap-3">
           <fieldset disabled={busy} className="grid gap-4 [&_label]:grid [&_label]:gap-2 [&_label]:text-sm">
-            <label htmlFor={`${fieldId}-name`}>
-              Name
+            <label htmlFor={`${fieldId}-identifier`}>
+              Identifier
               <Input
-                ref={nameInput}
-                id={`${fieldId}-name`}
-                aria-label="Backend Name"
-                aria-invalid={submitted && Boolean(validation.name)}
-                aria-describedby={submitted && validation.name ? `${fieldId}-name-error` : undefined}
+                className="font-mono"
+                maxLength={128}
+                pattern="(?!\.{1,2}$)[A-Za-z0-9._\-]+"
+                ref={identifierInput}
+                id={`${fieldId}-identifier`}
+                aria-label="Backend Identifier"
+                aria-invalid={submitted && Boolean(validation.identifier)}
+                aria-describedby={submitted && validation.identifier ? `${fieldId}-identifier-error` : undefined}
                 required
-                value={name}
-                onChange={(event) => setName(event.target.value)}
+                value={identifier}
+                onChange={(event) => setIdentifier(event.target.value)}
               />
-              {submitted && validation.name && (
-                <span id={`${fieldId}-name-error`} className="text-xs text-destructive">
-                  {validation.name}
+              {submitted && validation.identifier && (
+                <span id={`${fieldId}-identifier-error`} className="text-xs text-destructive">
+                  {validation.identifier}
                 </span>
               )}
+            </label>
+            <label htmlFor={`${fieldId}-label`}>
+              Label
+              <Input id={`${fieldId}-label`} required maxLength={256} value={label} onChange={(event) => setLabel(event.target.value)} />
             </label>
             <label htmlFor={`${fieldId}-endpoint`}>
               Endpoint
@@ -324,7 +349,7 @@ function AddBackend({
                 required
                 aria-invalid={submitted && Boolean(validation.endpoint)}
                 aria-describedby={submitted && validation.endpoint ? `${fieldId}-endpoint-error` : undefined}
-                placeholder="https://backend.example.com"
+                placeholder="http://lab.example:8765"
                 type="url"
                 value={endpoint}
                 onChange={(event) => setEndpoint(event.target.value)}
@@ -335,43 +360,6 @@ function AddBackend({
                 </span>
               )}
             </label>
-            <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">
-                Advanced Connection Options
-              </summary>
-              <div className="mt-3 grid gap-3">
-                <label htmlFor={`${fieldId}-identity`}>
-                  Expected Backend ID
-                  <Input
-                    id={`${fieldId}-identity`}
-                    aria-label="Expected Backend ID"
-                    value={identity}
-                    onChange={(event) => setIdentity(event.target.value)}
-                  />
-                </label>
-                <label>
-                  CA Certificate (PEM)
-                  <textarea
-                    className="w-full rounded-lg border bg-background p-2 font-mono text-xs focus-visible:outline-2 focus-visible:outline-ring"
-                    aria-label="CA Certificate (PEM)"
-                    value={ca}
-                    onChange={(event) => setCa(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Secret Reference
-                  <select
-                    className="w-full rounded-lg border bg-background p-2 focus-visible:outline-2 focus-visible:outline-ring"
-                    aria-label="Secret Reference"
-                    value={secret}
-                    onChange={(event) => setSecret(event.target.value as Profile["secret"])}
-                  >
-                    <option value="none">None</option>
-                    <option value="keyring">System Keyring</option>
-                  </select>
-                </label>
-              </div>
-            </details>
             <div className="mt-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
@@ -393,21 +381,20 @@ function AddBackend({
 /* === Private Functions === */
 
 export function backendValidation(
-  name: string,
+  identifier: string,
   endpoint: string,
-  ca: string,
-  names: readonly string[],
-): { name?: string; endpoint?: string } {
-  const errors: { name?: string; endpoint?: string } = {};
-  if (!name.trim()) errors.name = "Enter a backend name.";
-  else if (names.includes(name.trim())) errors.name = "A backend already uses this name.";
+  identifiers: readonly string[],
+): { identifier?: string; endpoint?: string } {
+  const errors: { identifier?: string; endpoint?: string } = {};
+  if (!/^(?!\.{1,2}$)[A-Za-z0-9._-]{1,128}$/.test(identifier.trim())) errors.identifier = "Enter a backend identifier.";
+  else if (identifiers.includes(identifier.trim())) errors.identifier = "A backend already uses this identifier.";
   try {
     const url = new URL(endpoint.trim());
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-      errors.endpoint = "Enter an HTTP or HTTPS origin without credentials, a path, or a query.";
-    } else if (ca.trim() && url.protocol !== "https:") errors.endpoint = "A custom CA certificate requires HTTPS.";
+    if (url.protocol !== "http:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+      errors.endpoint = "Enter an unsecured HTTP origin without credentials, a path, or a query.";
+    }
   } catch {
-    errors.endpoint = "Enter a valid endpoint, such as https://backend.example.com.";
+    errors.endpoint = "Enter a valid endpoint, such as http://lab.example:8765.";
   }
   return errors;
 }

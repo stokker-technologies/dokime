@@ -16,7 +16,6 @@ import { toast } from "sonner";
 /* === Local Imports === */
 
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -45,10 +44,8 @@ import type { DiagnosticPathKey } from "@/lib/types/view-contracts";
    own below. */
 const pathConventionLabels: Record<Exclude<DiagnosticPathKey, "collect_bundle">, string> = {
   cycle_log_pattern: "Cycle Log Pattern",
-  diagnostics_snapshot: "Diagnostics Snapshot",
   execution_log_pattern: "Execution Log Pattern",
   hub_log: "Hub Log",
-  startup_doctor: "Startup Doctor Report",
 };
 
 /* === Types === */
@@ -64,13 +61,7 @@ export function DiagnosticsSection() {
   const openable = isTauriDesktop() && session?.snapshot?.ownership === "owned_local";
 
   if (diagnosticsQuery.isPending) {
-    return (
-      <SettingsCard title="Diagnostics">
-        <SettingsRow label="Status">
-          <span className="text-sm text-muted-foreground">Loading…</span>
-        </SettingsRow>
-      </SettingsCard>
-    );
+    return <SettingsCard title="Diagnostics"></SettingsCard>;
   }
 
   if (diagnosticsQuery.isError || !snapshot) {
@@ -104,9 +95,6 @@ export function DiagnosticsSection() {
   return (
     <>
       <SettingsCard title="Server">
-        <SettingsRow label="Status">
-          <Badge className={startupBadgeClass(runtime.startup_doctor.status)}>{startupLabel(runtime.startup_doctor.status)}</Badge>
-        </SettingsRow>
         <SettingsRow label="Version">
           <span className="font-mono text-sm">v{server.version}</span>
         </SettingsRow>
@@ -303,26 +291,3 @@ function StorageResetRow({ directory }: { directory: string }) {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-function startupLabel(status: string): string {
-  if (status === "ok") {
-    return "Healthy";
-  }
-  if (status === "warning") {
-    return "Warning";
-  }
-  if (status === "failed") {
-    return "Failed";
-  }
-  return status;
-}
-
-function startupBadgeClass(status: string): string {
-  if (status === "ok") {
-    return "border-success/30 bg-success/10 text-success";
-  }
-  if (status === "warning") {
-    return "border-warning/30 bg-warning/10 text-warning";
-  }
-  return "border-destructive/40 bg-destructive/10 text-destructive";
-}

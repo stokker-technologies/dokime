@@ -38,6 +38,8 @@ use dokime_domain::model::time::Timestamp;
 #[derive(Clone, PartialEq)]
 pub struct RecordRow {
     sequence: u64,
+    ordinal: u64,
+    captured_scopes: Vec<ScopeRow>,
     record_id: String,
     timestamp: String,
     received_at: String,
@@ -313,6 +315,8 @@ impl RecordRow {
         }
         Ok(Self {
             sequence: entry.sequence,
+            ordinal: entry.ordinal,
+            captured_scopes: entry.captured_scopes.iter().map(ScopeRow::from).collect(),
             record_id: copy_text(entry.record_id.as_str())?,
             timestamp: copy_text(entry.timestamp.as_str())?,
             received_at: copy_text(entry.received_at.as_str())?,
@@ -377,7 +381,9 @@ impl RecordRow {
             _ => return Err(error("invalid native record severity")),
         };
         let details = values::decode_owned(self.details)?;
-        Ok(RecordEntry::from_record(
+        let ordinal = self.ordinal;
+        let captured_scopes = self.captured_scopes.into_iter().map(TryInto::try_into).collect::<Result<Vec<_>>>()?;
+        let mut entry = RecordEntry::from_record(
             self.sequence,
             Record {
                 record_id: RecordId::from_uuid(self.record_id)?,
@@ -395,7 +401,10 @@ impl RecordRow {
                 related_stream_id: self.related_stream_id.map(TelemetryStreamId::from_uuid).transpose()?,
                 related_artifact_id: self.related_artifact_id.map(ArtifactId::from_uuid).transpose()?,
             },
-        ))
+        );
+        entry.ordinal = ordinal;
+        entry.captured_scopes = captured_scopes;
+        Ok(entry)
     }
 }
 

@@ -48,32 +48,21 @@ Use the complete examples artifact for its matching package version and dependen
 
 ## Edit Connection Globals
 
-Open each `control-*.py` file in a text editor. Under **Connection Parameters**,
-replace the example IP with the host's actual certificate identity:
+Open each `control-*.py` file and select the private pairing file:
 
 ```python
-ENDPOINT = "https://192.168.1.50:8766"
-CA_CERTIFICATE: Path | None = Path("../server.pem")
-KEY_FILE: Path | None = Path("../remote.key")
-ENV_FILE: Path | None = None
+PAIRING_FILE = Path("../lab.dokime-pair")
 ```
 
-The shared walkthrough places `server.pem` and `remote.key` one directory above
-`python/`. Run from this directory so those relative paths resolve. Keep
-`Path` imported as supplied by the scripts. The endpoint speaks native gRPC;
-its `https://` scheme enables verified TLS.
+Run from `python/` so the path resolves. Each script constructs its client with
+`DokimeClient.from_pairing(PAIRING_FILE)`. The file supplies endpoint, expected
+backend identity, CA and access key together. The client validates the file before
+connecting and checks TLS and backend identity before application calls.
+It retains the key only in its transport credentials.
 
-Secret precedence is explicit `KEY_FILE`, process `DOKIME_KEY`, then
-`DOKIME_KEY` in an explicitly selected `ENV_FILE`. Explicit files are validated
-even when another source supplies the key. For dotenv instead of a key file,
-copy the parent `.env.example` to `.env`, fill it privately, set
-`KEY_FILE = None` and `ENV_FILE = Path("../.env")`. No parent-directory search
-or environment overwrite occurs. Keep actual keys out of script source.
-
-The same global names, grouping and meanings appear in the
-[native CLI scripts](../cli/README.md). Python uses `Path` objects for files,
-tuples for filters, `None` to omit an optional file, and `True`/`False` for
-boolean choices. These are edit-and-run examples; they accept no CLI arguments.
+The remaining execution, filter and evidence parameters match the
+[native CLI scripts](../cli/README.md). These are edit-and-run examples; they
+accept no command-line arguments.
 
 ## Control The Manual Device
 
@@ -202,7 +191,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | uv cannot find a supported Python | Run `uv python install 3.13`, then sync with `--python 3.13`. Supported versions are 3.13, 3.14 and 3.15, not an unrestricted future version. |
 | The local wheel path is missing | Extract the complete examples ZIP. `python/` and `wheels/` must remain siblings. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
-| `server.pem` or `remote.key` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
+| `lab.dokime-pair` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A secret/certificate is refused | Follow the shared [connection troubleshooting](../README.md#troubleshooting), including process-key precedence and certificate identity. |
 | There is no record or sample output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
 | Previous evidence blocks a run | Select a new output directory or explicitly enable overwrite; preserve prior bundles. |

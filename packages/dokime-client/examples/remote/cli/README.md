@@ -102,28 +102,25 @@ and [supported Windows releases](https://learn.microsoft.com/dotnet/core/install
 ## Configure A Script
 
 Install Dokime on `PATH`, restart the host after admitting the matching OBC
-plugin, and copy the host's public certificate and downloaded access key to the
-remote computer. Keep the server's private key on the host.
+plugin, and import the host-created pairing once:
+
+```sh
+dokime backend add --pairing ../lab.dokime-pair --identifier lab
+```
 
 Edit the globals at the top of each script before running it. Names, grouping,
 order and meanings match the [Python examples](../python/README.md):
 
 | Group | Parameters |
 | --- | --- |
-| Connection Parameters | `ENDPOINT`, `CA_CERTIFICATE`, `KEY_FILE`, `ENV_FILE` |
+| Connection Parameters | `BACKEND_IDENTIFIER` |
 | Case And Execution Parameters | `TEMPLATE`, `CYCLE_LABEL`, then `SAMPLE_COUNT`, `EXECUTION_COUNT`, `WAIT_SECONDS` for tests; `ANSWER`, `WAIT_SECONDS` for prompts |
 | Observation Filters | `RECORD_TYPES`, `STREAMS` for tests |
 | Evidence Files | `OUTPUT_DIRECTORY`, `OVERWRITE` |
 
-Set `ENDPOINT` to the host's actual gRPC endpoint, such as
-`https://lab-host.example:8766`. Its hostname must match the public certificate.
-Use an empty certificate path only for an explicitly configured plaintext
-isolated lab endpoint. An empty key or dotenv path omits that file.
-
-An explicit `KEY_FILE` takes precedence over process `DOKIME_KEY`, which takes
-precedence over an explicitly selected `ENV_FILE`. Copy
-[`../.env.example`](../.env.example) when using dotenv, replace its placeholder,
-and clear `KEY_FILE`. No parent-directory search occurs. Keep secrets private.
+Set `BACKEND_IDENTIFIER` to the imported profile identifier, normally `lab`.
+Its label, endpoint, expected identity and CA come from the pairing file; the
+native client resolves its access key from the OS keyring.
 
 POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
 `set "NAME=value"`. Each test call shows one record filter and

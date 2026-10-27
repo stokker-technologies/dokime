@@ -52,9 +52,41 @@ pub struct RemoteListenerStatus {
 
 #[harmos_domain::message(skip_debug)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GeneratedAccessKey {
-    pub access_key: String,
-    pub listener: Option<RemoteListenerStatus>,
+#[serde(deny_unknown_fields)]
+pub struct PairingFile {
+    pub version: u8,
+    pub endpoint: String,
+    pub backend_identifier: String,
+    pub label: String,
+
+    #[serde(deserialize_with = "required_optional")]
+    pub ca_certificate_pem: Option<String>,
+
+    #[serde(deserialize_with = "required_optional")]
+    pub access_key: Option<String>,
+}
+
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PairedClient {
+    pub identifier: String,
+    pub label: String,
+    pub created_at: u64,
+    pub last_seen_at: Option<u64>,
+}
+
+#[harmos_domain::message]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PairedClientPage {
+    pub clients: Vec<PairedClient>,
+    pub next_cursor: Option<String>,
+}
+
+#[harmos_domain::message(skip_debug)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreatedPairing {
+    pub client: Option<PairedClient>,
+    pub pairing: PairingFile,
 }
 
 /// One remote client's calls from one peer address, admitted or rejected.
@@ -66,7 +98,7 @@ pub struct GeneratedAccessKey {
 pub struct RemoteSession {
     pub id: String,
     pub peer_address: String,
-    /// `access-key` for a verified key, otherwise `anonymous`.
+    /// The paired client identifier for a verified key, otherwise `anonymous`.
     pub principal: String,
     pub connected_at: u64,
     pub last_seen_at: u64,
@@ -132,15 +164,123 @@ impl RemoteListenerSettings {
     }
 }
 
-impl std::fmt::Debug for GeneratedAccessKey {
+impl PairingFile {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.version != 1 {
+            return Err("unsupported pairing version".into());
+        }
+        if self.backend_identifier.trim().is_empty()
+            || self.backend_identifier.len() > 128
+            || self.backend_identifier.chars().any(|character| character.is_control() || character.is_whitespace())
+        {
+            return Err("invalid backend identifier".into());
+        }
+        if self.label.trim().is_empty() || self.label.len() > 256 || self.label.chars().any(char::is_control) {
+            return Err("pairing label must be nonblank, control-free and at most 256 bytes".into());
+        }
+        if self.endpoint.len() > 2048 {
+            return Err("pairing endpoint is too large".into());
+        }
+        let (scheme, address) = self.endpoint.split_once("://").ok_or("invalid pairing endpoint")?;
+        if !matches!(scheme, "http" | "https") || address.contains(['/', '?', '#', '@', '%', '\\']) {
+            return Err("pairing endpoint must be an HTTP(S) origin with an explicit port".into());
+        }
+        let (host, port) = address.rsplit_once(':').ok_or("pairing endpoint requires a port")?;
+        if port.is_empty()
+            || !port.bytes().all(|byte| byte.is_ascii_digit())
+            || port.parse::<u16>().ok().filter(|port| *port != 0).is_none()
+        {
+            return Err("invalid pairing endpoint port".into());
+        }
+        if host.contains(':') && !(host.starts_with('[') && host.ends_with(']')) {
+            return Err("IPv6 pairing endpoints require brackets".into());
+        }
+        let bracketed = host.starts_with('[');
+        let host = host.strip_prefix('[').and_then(|host| host.strip_suffix(']')).unwrap_or(host);
+        if bracketed && host.parse::<std::net::Ipv6Addr>().is_err() {
+            return Err("bracketed pairing hosts must be IPv6 addresses".into());
+        }
+        match host.parse::<std::net::IpAddr>() {
+            Ok(ip) if ip.is_unspecified() || ip.is_multicast() => return Err("pairing endpoint must be a concrete host".into()),
+            Ok(_) => {}
+            Err(_) if host.len() <= 253 && host.split('.').all(valid_dns_label) => {}
+            Err(_) => return Err("invalid pairing endpoint host".into()),
+        }
+        match (scheme, &self.ca_certificate_pem) {
+            ("https", Some(pem)) => validate_certificate_pem(pem)?,
+            ("http", None) => {}
+            _ => return Err("HTTPS requires a CA certificate; HTTP must not include one".into()),
+        }
+        if self.access_key.as_ref().is_some_and(|key| !(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()))
+        {
+            return Err("invalid pairing access key".into());
+        }
+        let bytes = serde_json::to_vec(self).map_err(|_| "cannot encode pairing file")?;
+        if bytes.len() > 1_048_576 {
+            return Err("pairing file exceeds 1 MiB".into());
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for PairingFile {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("GeneratedAccessKey").field("access_key", &"<redacted>").field("listener", &self.listener).finish()
+        formatter
+            .debug_struct("PairingFile")
+            .field("version", &self.version)
+            .field("endpoint", &self.endpoint)
+            .field("backend_identifier", &self.backend_identifier)
+            .field("label", &self.label)
+            .field("access_key", &self.access_key.as_ref().map(|_| "<redacted>"))
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for CreatedPairing {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("CreatedPairing").field("client", &self.client).field("pairing", &self.pairing).finish()
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn required_optional<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(deserializer)
+}
+
+fn validate_certificate_pem(pem: &str) -> Result<(), String> {
+    use base64::Engine as _;
+    if pem.len() > 262_144 {
+        return Err("pairing certificate is too large".into());
+    }
+    let body = pem
+        .trim()
+        .strip_prefix("-----BEGIN CERTIFICATE-----")
+        .and_then(|body| body.strip_suffix("-----END CERTIFICATE-----"))
+        .ok_or("invalid CA certificate PEM")?;
+    let body: String = body.chars().filter(|character| !character.is_ascii_whitespace()).collect();
+    let der = base64::engine::general_purpose::STANDARD.decode(body).map_err(|_| "invalid CA certificate PEM")?;
+    // Check The DER Envelope; Transport Imports Validate X.509 And Trust.
+    if der.len() < 4 || der[0] != 0x30 {
+        return Err("invalid CA certificate DER".into());
+    }
+    let (header, length) = if der[1] & 0x80 == 0 {
+        (2, usize::from(der[1]))
+    } else {
+        let count = usize::from(der[1] & 0x7f);
+        if count == 0 || count > 4 || der.len() < 2 + count {
+            return Err("invalid CA certificate DER length".into());
+        }
+        let length = der[2..2 + count].iter().fold(0usize, |length, byte| (length << 8) | usize::from(*byte));
+        (2 + count, length)
+    };
+    if length != der.len() - header || der.get(header) != Some(&0x30) {
+        return Err("invalid CA certificate DER envelope".into());
+    }
+    Ok(())
+}
 
 fn valid_dns_label(label: &str) -> bool {
     !label.is_empty()
@@ -151,3 +291,70 @@ fn valid_dns_label(label: &str) -> bool {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lab() -> PairingFile {
+        PairingFile {
+            version: 1,
+            endpoint: "http://127.0.0.1:8765".into(),
+            backend_identifier: "backend-id".into(),
+            label: "Lab".into(),
+            ca_certificate_pem: None,
+            access_key: None,
+        }
+    }
+
+    #[test]
+    fn pairing_shape_is_exact_and_secret_debug_is_redacted() {
+        let mut pairing = lab();
+        pairing.access_key = Some("a".repeat(64));
+        pairing.validate().unwrap();
+        let encoded = serde_json::to_value(&pairing).unwrap();
+        assert_eq!(encoded.as_object().unwrap().len(), 6);
+        assert!(!format!("{pairing:?}").contains(pairing.access_key.as_deref().unwrap()));
+        let decoded: PairingFile = serde_json::from_value(encoded.clone()).unwrap();
+        assert_eq!(pairing, decoded);
+        let mut unknown = encoded.clone();
+        unknown["key"] = serde_json::Value::Null;
+        assert!(serde_json::from_value::<PairingFile>(unknown).is_err());
+        for field in ["ca_certificate_pem", "access_key"] {
+            let mut missing = encoded.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert!(serde_json::from_value::<PairingFile>(missing).is_err());
+        }
+    }
+
+    #[test]
+    fn pairing_rejects_invalid_origins_versions_and_tls() {
+        for endpoint in [
+            "http://0.0.0.0:8765",
+            "http://[::]:8765",
+            "http://*.example:8765",
+            "http://host:0",
+            "https://host:8765",
+            "ftp://host:8765",
+            "http://host:8765/path",
+            "http://user@host:8765",
+            "http://::1:8765",
+            "http://host:8765?key=value",
+        ] {
+            let mut pairing = lab();
+            pairing.endpoint = endpoint.into();
+            assert!(pairing.validate().is_err(), "{endpoint}");
+        }
+        let mut pairing = lab();
+        pairing.version = 2;
+        assert!(pairing.validate().is_err());
+        pairing = lab();
+        pairing.backend_identifier = " ".into();
+        assert!(pairing.validate().is_err());
+        pairing = lab();
+        pairing.ca_certificate_pem = Some("invalid".into());
+        assert!(pairing.validate().is_err());
+        pairing.endpoint = "https://localhost:8765".into();
+        assert!(pairing.validate().is_err());
+    }
+}

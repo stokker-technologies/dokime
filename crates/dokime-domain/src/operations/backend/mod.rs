@@ -11,7 +11,6 @@
 
 mod collect_diagnostics;
 mod get_availability;
-mod get_diagnostics;
 mod get_health;
 mod get_identity;
 mod watch_logs;
@@ -21,7 +20,6 @@ mod watch_trace;
 
 pub use collect_diagnostics::CollectDiagnostics;
 pub use get_availability::GetAvailability;
-pub use get_diagnostics::GetDiagnostics;
 pub use get_health::GetHealth;
 pub use get_identity::GetIdentity;
 pub use watch_logs::WatchLogs;
@@ -58,7 +56,6 @@ pub enum Operations {
     GetIdentity(GetIdentity),
     GetHealth(GetHealth),
     GetAvailability(GetAvailability),
-    GetDiagnostics(GetDiagnostics),
     CollectDiagnostics(CollectDiagnostics),
     WatchLogs(WatchLogs),
     WatchTrace(WatchTrace),
@@ -78,10 +75,6 @@ impl Endpoint for GetHealth {
 
 impl Endpoint for GetAvailability {
     const PATH: &'static str = "/dokime.v1.Backend/GetAvailability";
-}
-
-impl Endpoint for GetDiagnostics {
-    const PATH: &'static str = "/dokime.v1.Backend/GetDiagnostics";
 }
 
 impl Endpoint for CollectDiagnostics {

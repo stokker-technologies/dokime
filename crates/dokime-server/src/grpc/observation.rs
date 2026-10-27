@@ -143,39 +143,43 @@ impl Operation for Runtime {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::WatchRuntime, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchRuntime, output: &mut Self::Endpoints,
     ) -> Result<dokime::harmos::operations::Response<()>, Status> {
-        let mut watch = self.resources.runtime.watch_state();
-        let mut snapshot = watch.latest();
-        canonical::cursor(&snapshot).validate(request.cursor.as_ref(), false).map_err(canonical::cursor_failure)?;
-        let mut operations = watch.operations();
-        let mut resynchronized = true;
-        loop {
-            let observed = canonical::cursor(&snapshot);
-            let frames = operation_frames(&operations)?;
-            output
-                .send_owned(
-                    (dokime::domain::model::observation::wire::RuntimeStateFrame {
-                        cursor: Some(observed),
-                        resynchronized,
-                        shutting_down: snapshot.state().shutting_down,
-                        cycle_count: snapshot.state().cycles.len() as u64,
-                        operations: frames,
-                    })
-                    .into(),
-                )
-                .await
-                .map_err(stream_failure)?;
-            match watch.next_change().await {
-                None => return Ok(().into()),
-                Some(RuntimeChange::State(next)) => {
-                    snapshot = next;
-                    operations = watch.operations();
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let mut watch = self.resources.runtime.watch_state();
+            let mut snapshot = watch.latest();
+            canonical::cursor(&snapshot).validate(request.cursor.as_ref(), false).map_err(canonical::cursor_failure)?;
+            let mut operations = watch.operations();
+            let mut resynchronized = true;
+            loop {
+                let observed = canonical::cursor(&snapshot);
+                let frames = operation_frames(&operations)?;
+                output
+                    .send_owned(
+                        (dokime::domain::model::observation::wire::RuntimeStateFrame {
+                            cursor: Some(observed),
+                            resynchronized,
+                            shutting_down: snapshot.state().shutting_down,
+                            cycle_count: snapshot.state().cycles.len() as u64,
+                            operations: frames,
+                        })
+                        .into(),
+                    )
+                    .await
+                    .map_err(stream_failure)?;
+                match watch.next_change().await {
+                    None => return Ok(().into()),
+                    Some(RuntimeChange::State(next)) => {
+                        snapshot = next;
+                        operations = watch.operations();
+                    }
+                    Some(RuntimeChange::Operations(next)) => operations = next,
                 }
-                Some(RuntimeChange::Operations(next)) => operations = next,
+                resynchronized = false;
             }
-            resynchronized = false;
-        }
+        })
+        .await
     }
 }
 
@@ -189,26 +193,33 @@ impl Operation for Progress {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::WatchExecutionProgress, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchExecutionProgress, output: &mut Self::Endpoints,
     ) -> Result<dokime::harmos::operations::Response<()>, Status> {
-        let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
-            .map_err(|_| Status::invalid_argument("invalid test execution UUID"))?;
-        let mut watch = self.resources.runtime.watch_execution_progress();
-        let mut snapshot = watch.latest();
-        let mut previous = None;
-        let mut resynchronized = true;
-        loop {
-            let current = snapshot.get(&execution);
-            if resynchronized || current != previous.as_ref() {
-                output.send_owned((progress_frame(snapshot.revision(), resynchronized, current)).into()).await.map_err(stream_failure)?;
-                previous = current.cloned();
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
+                .map_err(|_| Status::invalid_argument("invalid test execution UUID"))?;
+            let mut watch = self.resources.runtime.watch_execution_progress();
+            let mut snapshot = watch.latest();
+            let mut previous = None;
+            let mut resynchronized = true;
+            loop {
+                let current = snapshot.get(&execution);
+                if resynchronized || current != previous.as_ref() {
+                    output
+                        .send_owned((progress_frame(snapshot.revision(), resynchronized, current)).into())
+                        .await
+                        .map_err(stream_failure)?;
+                    previous = current.cloned();
+                }
+                let Some(next) = watch.next().await else {
+                    return Ok(().into());
+                };
+                snapshot = next;
+                resynchronized = false;
             }
-            let Some(next) = watch.next().await else {
-                return Ok(().into());
-            };
-            snapshot = next;
-            resynchronized = false;
-        }
+        })
+        .await
     }
 }
 

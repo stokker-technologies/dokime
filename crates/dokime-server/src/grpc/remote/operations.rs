@@ -26,7 +26,7 @@ use tonic::Status;
 use super::{Change, Controller, Error};
 use dokime::RuntimeHandle;
 use dokime::domain::{
-    model::remote::{GeneratedAccessKey, RemoteListenerStatus, RemoteSessionPage},
+    model::remote::{CreatedPairing, PairedClientPage, RemoteListenerStatus, RemoteSessionPage},
     operations::remote as wire,
 };
 
@@ -46,7 +46,7 @@ struct UpdateListener {
     controller: Arc<Controller>,
 }
 
-struct GenerateKey {
+struct CreatePairing {
     controller: Arc<Controller>,
 }
 
@@ -98,12 +98,12 @@ impl Operation for UpdateListener {
     ) -> Result<Response<RemoteListenerStatus>, Status> {
         let settings = request.settings.take().ok_or_else(|| Status::invalid_argument("listener settings are required"))?;
         let result = self.controller.change(Change::Settings(settings)).await.map_err(status)?;
-        result.listener.ok_or_else(|| Status::internal("listener state unavailable")).map(Response::new)
+        Ok(result.into())
     }
 }
 
-impl Operation for GenerateKey {
-    type Declaration = wire::GenerateKey;
+impl Operation for CreatePairing {
+    type Declaration = wire::CreatePairing;
     type Resources = Controller;
     type Error = Status;
     type Context<'a> = Context<'a>;
@@ -114,9 +114,9 @@ impl Operation for GenerateKey {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _: &mut wire::GenerateKey, _: &mut (),
-    ) -> Result<Response<GeneratedAccessKey>, Status> {
-        let result = self.controller.change(Change::Key).await.map_err(status)?;
+        &mut self, _: Self::Context<'a>, request: &mut wire::CreatePairing, _: &mut (),
+    ) -> Result<Response<CreatedPairing>, Status> {
+        let result = self.controller.create_pairing(request.label.clone(), request.endpoint.clone()).await.map_err(status)?;
         Ok(result.into())
     }
 }
@@ -137,7 +137,7 @@ impl Operation for RegenerateCertificate {
     ) -> Result<Response<RemoteListenerStatus>, Status> {
         let names = std::mem::take(&mut request.certificate_names);
         let result = self.controller.change(Change::Certificate(names)).await.map_err(status)?;
-        result.listener.ok_or_else(|| Status::internal("listener state unavailable")).map(Response::new)
+        Ok(result.into())
     }
 }
 
@@ -159,14 +159,57 @@ impl Operation for ListSessions {
     }
 }
 
+struct ListPairedClients {
+    controller: Arc<Controller>,
+}
+struct RevokePairedClient {
+    controller: Arc<Controller>,
+}
+
+impl Operation for ListPairedClients {
+    type Declaration = wire::ListPairedClients;
+    type Resources = Controller;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(controller: Arc<Controller>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { controller })
+    }
+
+    async fn run<'a>(
+        &mut self, _: Self::Context<'a>, request: &mut wire::ListPairedClients, _: &mut (),
+    ) -> Result<Response<PairedClientPage>, Status> {
+        self.controller.clients.list(request.cursor.as_deref(), request.limit).map(Response::new).map_err(status)
+    }
+}
+
+impl Operation for RevokePairedClient {
+    type Declaration = wire::RevokePairedClient;
+    type Resources = Controller;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(controller: Arc<Controller>, _: Self::Context<'ctx>) -> Result<Self, Status> {
+        Ok(Self { controller })
+    }
+
+    async fn run<'a>(&mut self, _: Self::Context<'a>, request: &mut wire::RevokePairedClient, _: &mut ()) -> Result<Response<()>, Status> {
+        self.controller.revoke_client(request.identifier.clone()).await.map(Response::new).map_err(status)
+    }
+}
+
 /* === Public Functions === */
 
 pub(super) fn register(runtime: &RuntimeHandle, controller: Arc<Controller>) -> Result<(), Error> {
     let operations = runtime.operations();
     operations.register_wire_operation::<ReadListener>("dokime", dokime::app::Lanes::Open, controller.clone())?;
     operations.register_wire_operation::<UpdateListener>("dokime", dokime::app::Lanes::Open, controller.clone())?;
-    operations.register_wire_operation::<GenerateKey>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<CreatePairing>("dokime", dokime::app::Lanes::Open, controller.clone())?;
     operations.register_wire_operation::<RegenerateCertificate>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<ListPairedClients>("dokime", dokime::app::Lanes::Open, controller.clone())?;
+    operations.register_wire_operation::<RevokePairedClient>("dokime", dokime::app::Lanes::Open, controller.clone())?;
     operations.register_wire_operation::<ListSessions>("dokime", dokime::app::Lanes::Open, controller)?;
     Ok(())
 }

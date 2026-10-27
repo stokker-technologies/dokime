@@ -272,7 +272,7 @@ pub(crate) fn spawn_record_forwarding(handle: RuntimeHandle) -> BackgroundTask {
                 tracing::warn!("record capture failed; nothing further is forwarded to sidecars");
                 return;
             };
-            forward(&handle, &entry.record).await;
+            forward(&handle, &entry).await;
         }
     }))
 }
@@ -340,8 +340,8 @@ fn listener_demands(
     wanted
 }
 
-async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records::evidence::Record) {
-    let Ok(record_json) = serde_json::to_string(record) else {
+async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records::evidence::RecordEntry) {
+    let Ok(record_json) = serde_json::to_string(&record.record) else {
         tracing::warn!(
             record_type = %record.record_type,
             "an admitted record could not be encoded for delivery"
@@ -359,7 +359,7 @@ async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records:
             );
         }
     }
-    let id = record.record_id.clone();
+    let scopes = record.captured_scopes.clone();
     let captured = match handle
         .state_manager
         .state()
@@ -368,7 +368,7 @@ async fn forward(handle: &RuntimeHandle, record: &dokime_domain::model::records:
                 .executions
                 .values()
                 .filter_map(|execution| {
-                    let scope = execution.records.subscribed_records().get(&id)?;
+                    let scope = scopes.iter().find(|scope| scope.test_execution_id.as_ref() == Some(&execution.test_execution_id))?;
                     Some((
                         execution.snapshot.case().metadata.identifier.to_string(),
                         execution.test_execution_id.to_string(),

@@ -189,15 +189,19 @@ impl Operation for Install {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _request: &mut v1::Install, input: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, _request: &mut v1::Install, input: &mut Self::Endpoints,
     ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
-        let operation = self.resources.runtime.operation_progress().begin("Installing Plugin");
-        operation.phase("Receiving Archive");
-        let installed = self.install(input, &operation).await;
-        if let Err(status) = &installed {
-            operation.fail(status.message());
-        }
-        installed
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let operation = self.resources.runtime.operation_progress().begin("Installing Plugin");
+            operation.phase("Receiving Archive");
+            let installed = self.install(input, &operation).await;
+            if let Err(status) = &installed {
+                operation.fail(status.message());
+            }
+            installed
+        })
+        .await
     }
 }
 

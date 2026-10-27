@@ -63,11 +63,11 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
     setNotice(null);
   }
 
-  function select(name: string, checked: boolean) {
+  function select(identifier: string, checked: boolean) {
     setSelected((previous) => {
       const next = new Set(previous);
-      if (checked) next.add(name);
-      else next.delete(name);
+      if (checked) next.add(identifier);
+      else next.delete(identifier);
       return next;
     });
   }
@@ -99,7 +99,7 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
         const next = await previewSecrets(session, data);
         if (!session.isCurrent()) return;
         setPreview(next);
-        setSelected(new Set(next.entries.filter((entry) => !entry.exists).map((entry) => entry.metadata.name)));
+        setSelected(new Set(next.entries.filter((entry) => !entry.exists).map((entry) => entry.metadata.identifier)));
         return;
       }
       const next = await importSecrets(session, data, preview, selected);
@@ -162,19 +162,19 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
               }}
             >
               <p className="text-sm text-muted-foreground">
-                Choose names to save in a Base64 .b64 file. Base64 is not encryption: anyone with the file can read its secrets. Each
+                Choose identifiers to save in a Base64 .b64 file. Base64 is not encryption: anyone with the file can read its secrets. Each
                 transfer holds at most 512 KiB of secret data and metadata.
               </p>
               <fieldset className="grid gap-2" disabled={busy}>
-                <legend className="mb-2 text-sm font-medium">Names To Export</legend>
+                <legend className="mb-2 text-sm font-medium">Identifiers To Export</legend>
                 {catalog.entries.map((entry) => (
-                  <label key={entry.metadata.name} className="flex items-center gap-2 text-sm">
+                  <label key={entry.metadata.identifier} className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={selected.has(entry.metadata.name)}
-                      onChange={(event) => select(entry.metadata.name, event.target.checked)}
+                      checked={selected.has(entry.metadata.identifier)}
+                      onChange={(event) => select(entry.metadata.identifier, event.target.checked)}
                     />
-                    {entry.metadata.name}
+                    {entry.metadata.identifier}
                   </label>
                 ))}
               </fieldset>
@@ -218,20 +218,20 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
                     Import Into {preview.hostLabel} · {preview.hostId}
                   </p>
                   <fieldset className="grid gap-2" disabled={busy}>
-                    <legend className="mb-2 text-sm font-medium">Review Every Name</legend>
+                    <legend className="mb-2 text-sm font-medium">Review Every Identifier</legend>
                     {preview.entries.map((entry) => (
-                      <label key={entry.metadata.name} className="flex items-center gap-2 text-sm">
+                      <label key={entry.metadata.identifier} className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
-                          checked={selected.has(entry.metadata.name)}
-                          onChange={(event) => select(entry.metadata.name, event.target.checked)}
+                          checked={selected.has(entry.metadata.identifier)}
+                          onChange={(event) => select(entry.metadata.identifier, event.target.checked)}
                         />
-                        {entry.exists ? "Replace" : "Import"} {entry.metadata.name} ({entry.metadata.label})
+                        {entry.exists ? "Replace" : "Import"} {entry.metadata.identifier} ({entry.metadata.label})
                       </label>
                     ))}
                   </fieldset>
                   <p className="text-sm text-muted-foreground">
-                    Unchecked entries are skipped. Existing names start unchecked. Apply only the names you have reviewed.
+                    Unchecked entries are skipped. Existing identifiers start unchecked. Apply only the identifiers you have reviewed.
                   </p>
                 </>
               )}

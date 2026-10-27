@@ -306,22 +306,31 @@ impl Operation for Watch {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut v1::WatchRecords, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut v1::WatchRecords, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let mut reader =
-            Reader::new(&self.resources.runtime, request.selection.take(), request.after.take(), None, self.resources.max_message_bytes)?;
-        let mut initial = true;
-        loop {
-            if !initial && reader.scanned == reader.through {
-                match reader.source.wait_after(reader.scanned).await.map_err(capture_error)? {
-                    Some(through) => reader.through = through,
-                    None => return Ok(().into()),
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let mut reader = Reader::new(
+                &self.resources.runtime,
+                request.selection.take(),
+                request.after.take(),
+                None,
+                self.resources.max_message_bytes,
+            )?;
+            let mut initial = true;
+            loop {
+                if !initial && reader.scanned == reader.through {
+                    match reader.source.wait_after(reader.scanned).await.map_err(capture_error)? {
+                        Some(through) => reader.through = through,
+                        None => return Ok(().into()),
+                    }
                 }
+                let page = reader.page().await?;
+                output.send_owned(Response::from_owner(page.owner())).await.map_err(memory_error)?;
+                initial = false;
             }
-            let page = reader.page().await?;
-            output.send_owned(Response::from_owner(page.owner())).await.map_err(memory_error)?;
-            initial = false;
-        }
+        })
+        .await
     }
 }
 

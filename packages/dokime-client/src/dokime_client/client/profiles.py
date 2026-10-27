@@ -33,10 +33,10 @@ from .._profiles import Document, Profile
 CA_BYTES = 1048576
 PROFILE_BYTES = 1048576
 PROFILE_ID_BYTES = 256
-PROFILE_NAME_BYTES = 64
+PROFILE_IDENTIFIER_BYTES = 64
 PROFILES = 128
 
-_NAME = re.compile(r"[A-Za-z0-9_.-]+\Z")
+_IDENTIFIER = re.compile(r"[A-Za-z0-9_.-]+\Z")
 
 # === Types === #
 
@@ -67,9 +67,9 @@ def configuration_path(path: str | Path | None = None) -> Path:
     return base / "dokime/backends.json"
 
 
-def load(name: str, *, path: str | Path | None = None) -> Profile:
+def load(identifier: str, *, path: str | Path | None = None) -> Profile:
     """Read one explicitly named profile. No default selection or secret access."""
-    _name(name)
+    _identifier(identifier)
     source = configuration_path(path)
     # Bound Both The Read And The Decoded Document.
     if not source.is_file():
@@ -78,7 +78,7 @@ def load(name: str, *, path: str | Path | None = None) -> Profile:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise ValueError("profile configuration must be a regular file")
         data = stream.read(PROFILE_BYTES + 1)
-    return _get(decode(data), name)
+    return _get(decode(data), identifier)
 
 
 def decode(data: bytes) -> Document:
@@ -98,8 +98,8 @@ def decode(data: bytes) -> Document:
         profiles = tuple(_profile(item) for item in items)
     except TypeError as error:
         raise ValueError("invalid backend profile field type") from error
-    if len({profile.name for profile in profiles}) != len(profiles):
-        raise ValueError("duplicate backend profile name")
+    if len({profile.identifier for profile in profiles}) != len(profiles):
+        raise ValueError("duplicate backend profile identifier")
     document = Document(version=value["version"], default=value.get("default"), profiles=profiles)
     if document.default is not None:
         _get(document, document.default)
@@ -109,10 +109,10 @@ def decode(data: bytes) -> Document:
 # === Private Functions === #
 
 
-def _get(document: Document, name: str) -> Profile:
-    _name(name)
+def _get(document: Document, identifier: str) -> Profile:
+    _identifier(identifier)
     for profile in document.profiles:
-        if profile.name == name:
+        if profile.identifier == identifier:
             return profile
     raise ValueError("requested backend profile does not exist")
 
@@ -120,10 +120,14 @@ def _get(document: Document, name: str) -> Profile:
 def _profile(value: object) -> Profile:
     value = _fields(
         value,
-        {"name", "endpoint", "expected_backend_id", "ca_certificate_pem", "secret"},
-        {"name", "endpoint", "secret"},
+        {"identifier", "label", "endpoint", "expected_backend_id", "ca_certificate_pem", "secret"},
+        {"identifier", "label", "endpoint", "secret"},
     )
-    name = _name(value["name"])
+    identifier = _identifier(value["identifier"])
+    label = value["label"]
+    if (not isinstance(label, str) or not label.strip() or len(label.encode("utf-8")) > 256
+            or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in label)):
+        raise ValueError("invalid backend profile label")
     endpoint = value["endpoint"]
     if not isinstance(endpoint, str):
         raise TypeError("invalid backend endpoint")
@@ -139,10 +143,20 @@ def _profile(value: object) -> Profile:
     ca = value.get("ca_certificate_pem")
     if ca is not None and (not isinstance(ca, str) or not ca or len(ca.encode("utf-8")) > CA_BYTES or "\0" in ca or not tls):
         raise ValueError("invalid CA certificate association")
+    if ca is not None:
+        import ssl
+
+        try:
+            ssl.create_default_context(cadata=ca)
+        except (ssl.SSLError, ValueError):
+            raise ValueError("invalid CA certificate") from None
     secret = value["secret"]
     if secret not in ("none", "keyring"):
         raise ValueError("invalid secret association")
-    return Profile(name=name, endpoint=endpoint, expected_backend_id=identity, ca_certificate_pem=ca, secret=secret)
+    return Profile(
+        identifier=identifier, label=label, endpoint=endpoint,
+        expected_backend_id=identity, ca_certificate_pem=ca, secret=secret,
+    )
 
 
 def _fields(value: object, allowed: set[str], required: set[str]) -> dict[str, Any]:
@@ -160,14 +174,17 @@ def _object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     return result
 
 
-def _name(value: object) -> str:
-    if not isinstance(value, str) or not _NAME.fullmatch(value) or len(value.encode("utf-8")) > PROFILE_NAME_BYTES:
-        raise ValueError("invalid backend profile name")
+def _identifier(value: object) -> str:
+    if (
+        not isinstance(value, str) or value in (".", "..") or not _IDENTIFIER.fullmatch(value)
+        or len(value.encode("utf-8")) > PROFILE_IDENTIFIER_BYTES
+    ):
+        raise ValueError("invalid backend profile identifier")
     return value
 
 
-def _environment_path(name: str) -> Path:
-    value = os.environ.get(name)
+def _environment_path(identifier: str) -> Path:
+    value = os.environ.get(identifier)
     if not value:
         raise ValueError("standard configuration root is unavailable; provide an explicit profile file")
     return Path(value)

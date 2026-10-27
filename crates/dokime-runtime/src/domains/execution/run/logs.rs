@@ -7,7 +7,7 @@
  * ***
  */
 
-// Persist Sidecar Diagnostics Through Preadmitted Native Log Buffers.
+// Persist Sidecar Diagnostics In Bounded Ordered Segments.
 
 /* === Modules === */
 
@@ -25,6 +25,9 @@ use super::{ExecutionFixtureContext, TestExecution, artifacts::DiscardedArtifact
 
 /* === Constants === */
 
+const SEGMENT_BYTES: u64 = 64 * 1024 * 1024;
+const EXECUTION_BYTES: u64 = 1024 * 1024 * 1024;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -33,7 +36,10 @@ use super::{ExecutionFixtureContext, TestExecution, artifacts::DiscardedArtifact
 
 #[derive(Default)]
 pub(super) struct StreamLog {
-    failed: bool,
+    failure: Option<String>,
+    segment: u32,
+    segment_bytes: u64,
+    total_bytes: u64,
 }
 
 struct StreamLogWriter<'a> {
@@ -42,6 +48,8 @@ struct StreamLogWriter<'a> {
     path: String,
     capacity: usize,
     buffer: Option<Vec<u8>>,
+    log: &'a mut StreamLog,
+    workflow: &'a str,
 }
 
 /* === Enums === */
@@ -103,11 +111,11 @@ impl StreamLog {
                 ),
             }
         }
-        if self.failed {
+        if self.failure.is_some() {
             return;
         }
         let persisted = async {
-            let mut writer = StreamLogWriter::new(context, execution, workflow)?;
+            let mut writer = StreamLogWriter::new(context, execution, workflow, self)?;
             writer.storage.reserve_output(writer.execution, &writer.path).await?;
             for entry in entries {
                 writer.entry(entry).await?;
@@ -116,25 +124,27 @@ impl StreamLog {
         }
         .await;
         if let Err(error) = persisted {
-            self.failed = true;
+            self.failure = Some(error.to_string());
             tracing::warn!(plugin_id = source, %error, "failed to persist sidecar stream log");
         }
     }
 }
 
+impl StreamLog {
+    pub(super) fn failure(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+}
+
 impl<'a> StreamLogWriter<'a> {
-    fn new(context: &'a ExecutionFixtureContext, execution: &'a TestExecution, workflow: &str) -> crate::runtime::Result<Self> {
+    fn new(
+        context: &'a ExecutionFixtureContext, execution: &'a TestExecution, workflow: &'a str, log: &'a mut StreamLog,
+    ) -> crate::runtime::Result<Self> {
         let storage = &context.runtime.execution_storage;
         let capacity = 64 * 1024;
 
-        let Some(path_len) = workflow.len().checked_add("/stream.log".len()) else {
-            return Err(log_error("log path length overflows"));
-        };
-        let mut path = storage.output_buffer(path_len)?;
-        path.extend_from_slice(workflow.as_bytes());
-        path.extend_from_slice(b"/stream.log");
-        let path = String::from_utf8(path).expect("UTF-8 workflow path");
-        Ok(Self { storage, execution: &execution.test_execution_id, path, capacity, buffer: None })
+        let path = segment_path(workflow, log.segment);
+        Ok(Self { storage, execution: &execution.test_execution_id, path, capacity, buffer: None, log, workflow })
     }
 
     async fn entry(&mut self, entry: &crate::execution::log::Entry) -> crate::runtime::Result<()> {
@@ -265,7 +275,30 @@ impl<'a> StreamLogWriter<'a> {
         let Some(bytes) = self.buffer.take() else {
             return Ok(());
         };
-        self.storage.append_output(self.execution, &self.path, bytes).await
+        let next = self
+            .log
+            .total_bytes
+            .checked_add(bytes.len() as u64)
+            .filter(|next| *next <= EXECUTION_BYTES)
+            .ok_or_else(|| log_error("execution log reached its 1 GiB capture limit"))?;
+        let mut offset = 0;
+        while offset < bytes.len() {
+            if self.log.segment_bytes == SEGMENT_BYTES {
+                self.storage.close_output(self.execution, &self.path, false).await?;
+                self.log.segment = self.log.segment.checked_add(1).ok_or_else(|| log_error("log segment identity exhausted"))?;
+                self.log.segment_bytes = 0;
+                self.path = segment_path(self.workflow, self.log.segment);
+                self.storage.reserve_output(self.execution, &self.path).await?;
+            }
+            let count = (SEGMENT_BYTES - self.log.segment_bytes).min((bytes.len() - offset) as u64) as usize;
+            let page = bytes[offset..offset + count].to_vec();
+            self.storage.append_output(self.execution, &self.path, page).await?;
+            self.log.segment_bytes += count as u64;
+            self.log.total_bytes += count as u64;
+            offset += count;
+        }
+        debug_assert_eq!(self.log.total_bytes, next);
+        Ok(())
     }
 }
 
@@ -288,11 +321,11 @@ pub(super) async fn report_dropped(
             reason.trace()
         );
     }
-    if stream_log.failed {
+    if stream_log.failure.is_some() {
         return;
     }
     let persisted = async {
-        let mut writer = StreamLogWriter::new(context, execution, workflow)?;
+        let mut writer = StreamLogWriter::new(context, execution, workflow, stream_log)?;
         writer.storage.reserve_output(writer.execution, &writer.path).await?;
         for artifact in dropped {
             writer.artifact(artifact, reason).await?;
@@ -301,12 +334,16 @@ pub(super) async fn report_dropped(
     }
     .await;
     if let Err(error) = persisted {
-        stream_log.failed = true;
+        stream_log.failure = Some(error.to_string());
         tracing::warn!(plugin_id = source, %error, "failed to persist sidecar stream log");
     }
 }
 
 /* === Private Functions === */
+
+fn segment_path(workflow: &str, segment: u32) -> String {
+    format!("{workflow}/stream.{segment:06}.log")
+}
 
 fn log_error(error: impl ToString) -> crate::runtime::Error {
     crate::runtime::Error::Operation(error.to_string())

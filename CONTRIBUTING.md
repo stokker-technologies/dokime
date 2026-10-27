@@ -55,8 +55,8 @@ Debug assertions and overflow checks remain enabled.
 ## Tests And Checks
 
 During implementation, run targeted checks for changed behavior. Once all agreed
-source work and targeted proof are complete, run the full local gate before
-pushing the authorized candidate or opening/updating its review:
+source work and targeted proof are complete, push the authorized candidate, verify its remote SHA and immediately run
+the full local gate alongside hosted CI:
 
 ```sh
 mise run ci:simulate
@@ -72,9 +72,9 @@ policy changes retain full selection.
 Product and Tests build independently. Tests use Cargo's unoptimized test
 profile; test lanes consume their artifacts. Nightly additionally runs coverage,
 benchmarks and the generated-starter test, with release-profile installers.
-Missing local executors and failed required jobs block delivery. After the local
-gate passes, push the authorized candidate and let required hosted CI confirm
-the same revision. Keep auto-merge enabled and investigate every required failure.
+Report missing local executors and local failures; repair every failed required
+job. Hosted required checks and reviews gate integration. Create or update the
+authorized ready PR and enable auto-merge without waiting for local completion.
 
 ### Storage Benchmarks
 
@@ -82,8 +82,7 @@ The runtime's `integration-storage` Criterion target uses the actual SQLite
 backend and unmodified `dokime_runtime::config::storage_defaults()`. It mirrors
 Harmos's storage suite and reduced workloads: a 30 MiB file, 10,000 records
 with 256-byte payloads, and 1 million timestamped f64 samples. File chunks are 1 MiB;
-record and sample batches contain at most 4,096 items and 1 MiB charged using
-Harmos's public input memory accounting, including metadata and allocation capacity.
+record and sample batches contain at most 4,096 items and 1 MiB of bounded input.
 The sample workload represents one second at 1 MHz without paced sleeps.
 
 The shared fixture and suite cover accepted and durable ingestion, symmetric
@@ -115,6 +114,24 @@ mise run bench:rust:integration -- storage/
 The standard runner retains native Criterion results under `.stkr/benchmarks/`.
 Keep workload, settings, compiler profile and hardware consistent when comparing
 before and after results; these timings are not correctness-test deadlines.
+
+### Large-Cycle Report Saves
+
+The existing system report benchmark also has an opt-in measurement harness.
+Set `DOKIME_REPORT_MEASURE_COPIES=32` in the task environment and select the
+system report benchmark through the declared benchmark task. Copies must be
+between 1 and 128. The harness expands the same plugin cases, freezes at the
+inspection prompt, saves the current cycle, seals it, and saves the sealed cycle.
+Use identical copies, plugin revision, build profile and native hardware for
+baseline and candidate runs. Preserve a baseline checkout before source edits;
+a later measurement cannot reconstruct a missing baseline.
+
+Each save emits JSON with total/open/first-byte timing, delivery batch and
+writer retention, bytes and delivery passes. Materialization retention, scan
+counts, materialization passes and concurrent ingest latency remain null until
+source-owned instrumentation supplies them. Null is unavailable proof. The
+harness does not assert timing or claim a speedup, and its delivery memory
+measurement excludes report construction.
 
 ## Pull Requests
 

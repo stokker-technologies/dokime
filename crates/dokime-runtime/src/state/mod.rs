@@ -269,12 +269,6 @@ impl RuntimeState {
                 self.retired_executions.insert(execution_id.clone());
                 self.executions.remove(execution_id);
             }
-            self.records.record_visibility.retain(|record| {
-                !record.scope.as_ref().is_some_and(|scope| {
-                    scope.test_cycle_id.as_ref() == Some(&id)
-                        || scope.test_execution_id.as_ref().is_some_and(|execution| cycle.execution_ids.contains(execution))
-                })
-            });
         }
     }
 
@@ -812,26 +806,16 @@ impl RuntimeState {
         Ok(execution.capture_scope())
     }
 
-    pub fn commit_record(&mut self, record: dokime_domain::model::records::evidence::Record) {
-        for execution in self.executions.values_mut() {
-            let own = record.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()) == Some(&execution.test_execution_id);
-            let subscribed = execution.snapshot.template().is_some_and(|template| {
-                template.subscriptions.iter().filter_map(crate::definition::Subscription::record).any(|kind| kind == &record.record_type)
-            });
-
-            if (own || subscribed)
-                && !execution.records.record_subscriptions_closed()
-                && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Running
+    pub fn commit_record(&mut self, captured: dokime_domain::state::records::CapturedRecord) {
+        for scope in &captured.scopes {
+            if let Some(owner) = &scope.test_execution_id
+                && let Some(execution) = self.executions.get_mut(owner)
             {
-                let scope = execution.capture_scope();
-                execution.records.capture_record(record.record_id.clone(), scope);
+                execution.records.capture_frontier(owner.clone(), captured.ordinal);
             }
         }
-
-        self.records
-            .record_visibility
-            .push(dokime_domain::state::records::RecordVisibility { record_id: record.record_id.clone(), scope: record.scope.clone() });
-        self.resources.record_authored_record(&record);
+        self.records.through = captured.ordinal;
+        self.resources.record_authored_record(&captured.record);
         self.record_count = self.record_count.checked_add(1).expect("admitted record count fits");
     }
 }

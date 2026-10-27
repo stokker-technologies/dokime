@@ -80,6 +80,19 @@ pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
     bytes.as_slice().to_vec()
 }
 
+pub async fn opened_bytes(report: &mut dokime_runtime::OpenedReport) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    while let Some(batch) = report.reader.next().await.unwrap() {
+        assert_eq!(batch.offset(), bytes.len() as u64);
+        assert!(batch.bytes().len() <= 8 * 1024 * 1024);
+        bytes.extend_from_slice(batch.bytes());
+    }
+    report.reader.completion().unwrap();
+    assert_eq!(bytes.len() as u64, report.file.length);
+    assert_eq!(sha2::Sha256::digest(&bytes).as_slice(), report.file.sha256.as_slice());
+    bytes
+}
+
 pub async fn payload(manager: &Manager, file: &FileReference) -> serde_json::Value {
     parse(&String::from_utf8(bytes(manager, file).await).unwrap())
 }

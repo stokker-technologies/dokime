@@ -64,8 +64,6 @@ export type CycleHistorySummary = {
 
 export type DebugLevel = "debug" | "info" | "warning" | "error";
 
-export type DiagnosticCheckStatus = "ok" | "warning" | "failed";
-
 export type DiagnosticFileFormat = "json" | "jsonl" | "zip";
 
 export type DiagnosticPathConvention = {
@@ -76,13 +74,7 @@ export type DiagnosticPathConvention = {
   absolute_path: string | null;
 };
 
-export type DiagnosticPathKey =
-  | "hub_log"
-  | "startup_doctor"
-  | "diagnostics_snapshot"
-  | "collect_bundle"
-  | "cycle_log_pattern"
-  | "execution_log_pattern";
+export type DiagnosticPathKey = "hub_log" | "collect_bundle" | "cycle_log_pattern" | "execution_log_pattern";
 
 export type DiagnosticPathScope = "root" | "cycle_pattern" | "execution_pattern";
 
@@ -113,7 +105,6 @@ export type DiagnosticsSnapshot = {
   shutting_down: boolean;
   storage_root: string;
   hub_metadata: Metadata;
-  startup_doctor: StartupDoctorSnapshot;
   path_conventions: DiagnosticPathConvention[];
   counts: DiagnosticsCounts;
   installed_plugin_errors: InstalledPluginErrorRecord[];
@@ -601,21 +592,6 @@ export type SettingsEntry =
   | ({
       kind: "secret_reference";
     } & SecretSetting);
-
-export type StartupDoctorCheck = {
-  key: StartupDoctorCheckKey;
-  status: DiagnosticCheckStatus;
-  message: string;
-  detail: string | null;
-};
-
-export type StartupDoctorCheckKey = "storage_root" | "shutdown_state";
-
-export type StartupDoctorSnapshot = {
-  checked_at: Timestamp;
-  status: DiagnosticCheckStatus;
-  checks: StartupDoctorCheck[];
-};
 
 export type StepId = string;
 

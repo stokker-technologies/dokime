@@ -85,7 +85,7 @@ impl RuntimeHandle {
                     let records = self.record_source.saved_filtered_records(&self.state_manager, snapshot.revision(), filter).await?;
                     let records = records.iter().flat_map(|page| page.iter());
                     let frame = crate::queries::records::record_frame(records, window, resolution, |record| {
-                        captured.and_then(|captures| captures.subscribed_records().get(&record.record_id))
+                        captured.and_then(|captures| captures.captured_scope(record))
                     });
                     RuntimeViewPayload::Records { frame: Box::new(frame) }
                 }

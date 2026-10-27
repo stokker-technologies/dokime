@@ -20,6 +20,10 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::client::{
+    profiles::{self, Secret},
+    secrets::{KeyringStore, SecretStore},
+};
 
 /* === Constants === */
 
@@ -34,8 +38,8 @@ pub(crate) struct Args {
     #[command(flatten)]
     config: super::Config,
 
-    #[arg(help = "Saved Backend Profile Name.")]
-    name: String,
+    #[arg(long, help = "Saved Backend Profile Identifier.")]
+    identifier: String,
 }
 
 /* === Enums === */
@@ -47,14 +51,17 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
-    args.config.store()?.update(|document| {
-        dokime::client::profiles::get(document, &args.name)?;
-        document.profiles.retain(|profile| profile.name != args.name);
-        if document.default.as_deref() == Some(&args.name) {
+    let removed = args.config.store()?.update(|document| {
+        let removed = profiles::selection(profiles::get(document, &args.identifier)?)?;
+        document.profiles.retain(|profile| profile.identifier != args.identifier);
+        if document.default.as_deref() == Some(&args.identifier) {
             document.default = None;
         }
-        Ok(())
+        Ok(removed)
     })?;
+    if removed.secret == Secret::Keyring {
+        KeyringStore.remove(&removed.credential_key())?;
+    }
     Ok(())
 }
 

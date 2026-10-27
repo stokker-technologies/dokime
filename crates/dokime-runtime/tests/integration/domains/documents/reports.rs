@@ -324,11 +324,13 @@ async fn report_opens_anytime() {
     let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].test_execution_id.clone();
 
     // Running: Both Reports Render From Current Evidence And Seal Nothing
-    let running = runtime.open_cycle_report(&id).await.unwrap();
+    let mut running = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(running.origin, dokime_runtime::ReportOrigin::Current);
-    let payload = crate::service_support::reports::parse(std::str::from_utf8(&running.html).unwrap());
+    let payload = crate::service_support::reports::parse(
+        std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut running).await).unwrap(),
+    );
     assert_eq!(payload["test_executions"][0]["test_execution_id"], execution.as_str());
-    let running = runtime.open_execution_report(&execution).await.unwrap();
+    let mut running = runtime.open_execution_report(&execution).await.unwrap();
     assert_eq!(running.origin, dokime_runtime::ReportOrigin::Current);
     assert_eq!(running.test_execution_id.as_ref(), Some(&execution));
     assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
@@ -340,10 +342,10 @@ async fn report_opens_anytime() {
     let cycle = cycle_snapshot(&runtime, &id).await;
     let seal = cycle.saved.clone().unwrap();
     let published = crate::service_support::reports::bytes(runtime.storage(), &seal.report).await;
-    let sealed = runtime.open_cycle_report(&id).await.unwrap();
+    let mut sealed = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
-    assert_eq!(*sealed.html, published);
-    let sealed = runtime.open_execution_report(&execution).await.unwrap();
+    assert_eq!(crate::service_support::reports::opened_bytes(&mut sealed).await, published);
+    let mut sealed = runtime.open_execution_report(&execution).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
 
     // Missing Published Bytes Are An Error; A Seal Is Never Regenerated
@@ -393,16 +395,22 @@ async fn report_download_serves() {
     let published = crate::service_support::reports::bytes(runtime.storage(), &seal.report).await;
     assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
     for attempt in 1..=2 {
-        let opened = runtime
+        let mut opened = runtime
             .open_execution_report(&settled)
             .await
             .unwrap_or_else(|error| panic!("download {attempt} of the sealed member: {error}"));
         assert_eq!(opened.origin, dokime_runtime::ReportOrigin::Sealed);
-        assert_eq!(*opened.html, published, "download {attempt} serves the final report bytes");
+        assert_eq!(
+            crate::service_support::reports::opened_bytes(&mut opened).await,
+            published,
+            "download {attempt} serves the final report bytes"
+        );
     }
-    let running = runtime.open_cycle_report(&id).await.unwrap();
+    let mut running = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(running.origin, dokime_runtime::ReportOrigin::Current);
-    let payload = crate::service_support::reports::parse(std::str::from_utf8(&running.html).unwrap());
+    let payload = crate::service_support::reports::parse(
+        std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut running).await).unwrap(),
+    );
     assert_eq!(payload["test_executions"].as_array().unwrap().len(), 2);
 
     // Finalized: Both Downloads Serve The Sealed Artifacts
@@ -411,12 +419,15 @@ async fn report_download_serves() {
     runtime.seal_cycle(id.clone(), CommandContext::default()).await.unwrap();
     let cycle = cycle_snapshot(&runtime, &id).await;
     let cycle_seal = cycle.saved.clone().expect("the completed cycle is sealed");
-    let sealed = runtime.open_cycle_report(&id).await.unwrap();
+    let mut sealed = runtime.open_cycle_report(&id).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
-    assert_eq!(*sealed.html, crate::service_support::reports::bytes(runtime.storage(), &cycle_seal.report).await);
-    let sealed = runtime.open_execution_report(&settled).await.unwrap();
+    assert_eq!(
+        crate::service_support::reports::opened_bytes(&mut sealed).await,
+        crate::service_support::reports::bytes(runtime.storage(), &cycle_seal.report).await
+    );
+    let mut sealed = runtime.open_execution_report(&settled).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
-    assert_eq!(*sealed.html, published, "finalization keeps the member's final report");
+    assert_eq!(crate::service_support::reports::opened_bytes(&mut sealed).await, published, "finalization keeps the member's final report");
     owner.shutdown().await.unwrap();
 }
 
@@ -438,12 +449,14 @@ async fn open_report_repeatedly() {
 
     let mut renders = Vec::new();
     for attempt in 1..=3 {
-        let opened = runtime
+        let mut opened = runtime
             .open_execution_report(&execution.test_execution_id)
             .await
             .unwrap_or_else(|error| panic!("render {attempt} of the running report: {error}"));
         assert_eq!(opened.origin, dokime_runtime::ReportOrigin::Current);
-        let payload = crate::service_support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+        let payload = crate::service_support::reports::parse(
+            std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut opened).await).unwrap(),
+        );
         drop(opened);
         let steps = payload["test_executions"]
             .as_array()

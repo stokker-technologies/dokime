@@ -9,8 +9,6 @@
 
 /* === Modules === */
 
-mod assembly;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -179,13 +177,9 @@ async fn collected_archive_material() {
             assert_eq!(bytes.len() as u64, entry["size_bytes"].as_u64().unwrap());
         }
     }
-    for required in [
-        "backend/identity.json",
-        "backend/health.json",
-        "diagnostics/snapshot.json",
-        "settings/settings-frame.json",
-        "settings/artifacts/fixture.diagnostics.json",
-    ] {
+    for required in
+        ["backend/identity.json", "backend/health.json", "settings/settings-frame.json", "settings/artifacts/fixture.diagnostics.json"]
+    {
         assert!(zip.by_name(required).is_ok(), "{required} is archived");
     }
 

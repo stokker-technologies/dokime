@@ -58,7 +58,7 @@ export type OrganizationUpdatePolicy = {
     | { kind: "github"; repository: string }
     | { kind: "gitlab"; connection: string; project: string }
   >;
-  connections: Record<string, { host: string; oauth_client_id: string }>;
+  connections: Record<string, { host: string }>;
 };
 
 export type BootOrganization = { pack: BootOrganizationPack | null; error: string | null };

@@ -34,8 +34,8 @@ pub(crate) struct Args {
     #[command(flatten)]
     config: super::Config,
 
-    #[arg(help = "Saved Backend Profile Name.")]
-    name: String,
+    #[arg(long, help = "Saved Backend Profile Identifier.")]
+    identifier: String,
 }
 
 /* === Enums === */
@@ -48,8 +48,8 @@ pub(crate) struct Args {
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
     args.config.store()?.update(|document| {
-        dokime::client::profiles::get(document, &args.name)?;
-        document.default = Some(args.name);
+        dokime::client::profiles::get(document, &args.identifier)?;
+        document.default = Some(args.identifier);
         Ok(())
     })?;
     Ok(())

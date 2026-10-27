@@ -34,8 +34,8 @@ pub(crate) struct Args {
     #[command(flatten)]
     config: super::Config,
 
-    #[arg(help = "Saved Backend Profile Name.")]
-    name: String,
+    #[arg(long, help = "Saved Backend Profile Identifier.")]
+    identifier: String,
 
     #[arg(long, help = "Emit The Saved Profile Configuration As JSON.")]
     json: bool,
@@ -51,11 +51,11 @@ pub(crate) struct Args {
 
 pub(super) fn run(args: Args) -> crate::Result<()> {
     let document = args.config.store()?.load()?;
-    let profile = dokime::client::profiles::get(&document, &args.name)?;
+    let profile = dokime::client::profiles::get(&document, &args.identifier)?;
     if args.json {
         println!("{}", serde_json::to_string(profile)?);
     } else {
-        println!("{}\t{}", profile.name, profile.endpoint);
+        println!("{}\t{}\t{}", profile.identifier, profile.label, profile.endpoint);
         if let Some(identity) = &profile.expected_backend_id {
             println!("Expected Backend: {identity}");
         }

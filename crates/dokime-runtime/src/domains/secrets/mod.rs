@@ -139,9 +139,9 @@ impl SecretStore {
                     .secrets
                     .entries
                     .iter()
-                    .map(|(name, entry)| catalog::Summary {
+                    .map(|(identifier, entry)| catalog::Summary {
                         metadata: entry.metadata.clone(),
-                        known_uses: uses.remove(name).unwrap_or_default(),
+                        known_uses: uses.remove(identifier).unwrap_or_default(),
                     })
                     .collect();
                 catalog::Snapshot { host_id: host, host_label: label, generation: document.secrets.generation, entries, cleanup_pending }
@@ -149,11 +149,11 @@ impl SecretStore {
             .await?)
     }
 
-    pub(crate) async fn set_secret(&self, name: &str, value: &str) -> Result<(), SecretStoreError> {
+    pub(crate) async fn set_secret(&self, identifier: &str, value: &str) -> Result<(), SecretStoreError> {
         let current = self.catalog().await?;
-        let metadata = current.entries.get(name).map(|entry| entry.metadata.clone()).unwrap_or_else(|| Metadata {
-            name: name.into(),
-            label: name.into(),
+        let metadata = current.entries.get(identifier).map(|entry| entry.metadata.clone()).unwrap_or_else(|| Metadata {
+            identifier: identifier.into(),
+            label: identifier.into(),
             description: None,
         });
         let change = Change { metadata, value: Some(SecretValue::new(value.to_owned())) };
@@ -161,12 +161,12 @@ impl SecretStore {
         Ok(())
     }
 
-    pub(crate) async fn get_secret(&self, name: &str) -> Result<Option<SecretValue>, SecretStoreError> {
-        catalog::validate_name(name).map_err(SecretStoreError::Invalid)?;
-        catalog::check_name_limit(name).map_err(SecretStoreError::Invalid)?;
+    pub(crate) async fn get_secret(&self, identifier: &str) -> Result<Option<SecretValue>, SecretStoreError> {
+        catalog::validate_identifier(identifier).map_err(SecretStoreError::Invalid)?;
+        catalog::check_identifier_limit(identifier).map_err(SecretStoreError::Invalid)?;
         let guard = Arc::clone(&self.writer).lock_owned().await;
         let current = self.catalog().await?;
-        let Some(entry) = current.entries.get(name) else { return Ok(None) };
+        let Some(entry) = current.entries.get(identifier) else { return Ok(None) };
         let account = self.account(&entry.slot);
         let backend = Arc::clone(&self.backend);
         let value = tokio::task::spawn_blocking(move || {
@@ -181,14 +181,14 @@ impl SecretStore {
         Ok(Some(value))
     }
 
-    pub(crate) async fn contains(&self, name: &str) -> Result<bool, SecretStoreError> {
-        catalog::validate_name(name).map_err(SecretStoreError::Invalid)?;
-        catalog::check_name_limit(name).map_err(SecretStoreError::Invalid)?;
-        Ok(self.catalog().await?.entries.contains_key(name))
+    pub(crate) async fn contains(&self, identifier: &str) -> Result<bool, SecretStoreError> {
+        catalog::validate_identifier(identifier).map_err(SecretStoreError::Invalid)?;
+        catalog::check_identifier_limit(identifier).map_err(SecretStoreError::Invalid)?;
+        Ok(self.catalog().await?.entries.contains_key(identifier))
     }
 
-    pub(crate) async fn redacted_binding(&self, name: impl Into<String>) -> Result<RedactedSecretBinding, SecretStoreError> {
-        let secret_id = name.into();
+    pub(crate) async fn redacted_binding(&self, identifier: impl Into<String>) -> Result<RedactedSecretBinding, SecretStoreError> {
+        let secret_id = identifier.into();
         Ok(RedactedSecretBinding { configured: self.contains(&secret_id).await?, backend: SecretBackendKind::OsKeyring, secret_id })
     }
 
@@ -208,11 +208,11 @@ impl SecretStore {
             return Err(SecretStoreError::Conflict);
         }
         let mut next = previous.clone();
-        let mut names = BTreeSet::new();
+        let mut identifiers = BTreeSet::new();
         for change in &changes {
             change.metadata.validate().map_err(SecretStoreError::Invalid)?;
             change.metadata.check_limits().map_err(SecretStoreError::Invalid)?;
-            if !names.insert(change.metadata.name.clone()) {
+            if !identifiers.insert(change.metadata.identifier.clone()) {
                 return Err(SecretStoreError::Invalid("Duplicate secret selection"));
             }
             if let Some(value) = &change.value {
@@ -223,20 +223,20 @@ impl SecretStore {
                 Some(_) => uuid::Uuid::now_v7().to_string(),
                 None => previous
                     .entries
-                    .get(&change.metadata.name)
+                    .get(&change.metadata.identifier)
                     .ok_or(SecretStoreError::Invalid("A new secret requires a value"))?
                     .slot
                     .clone(),
             };
-            next.entries.insert(change.metadata.name.clone(), Slot { metadata: change.metadata.clone(), slot });
+            next.entries.insert(change.metadata.identifier.clone(), Slot { metadata: change.metadata.clone(), slot });
         }
-        for name in removed {
-            catalog::validate_name(name).map_err(SecretStoreError::Invalid)?;
-            catalog::check_name_limit(name).map_err(SecretStoreError::Invalid)?;
-            if !names.insert(name.clone()) {
+        for identifier in removed {
+            catalog::validate_identifier(identifier).map_err(SecretStoreError::Invalid)?;
+            catalog::check_identifier_limit(identifier).map_err(SecretStoreError::Invalid)?;
+            if !identifiers.insert(identifier.clone()) {
                 return Err(SecretStoreError::Invalid("Duplicate secret selection"));
             }
-            next.entries.remove(name);
+            next.entries.remove(identifier);
         }
         next.validate().map_err(SecretStoreError::Invalid)?;
         next.check_limits().map_err(SecretStoreError::Invalid)?;
@@ -249,7 +249,7 @@ impl SecretStore {
         let mut staged = Vec::new();
         for change in changes {
             let Some(value) = change.value else { continue };
-            let slot = self.account(&next.entries[&change.metadata.name].slot);
+            let slot = self.account(&next.entries[&change.metadata.identifier].slot);
             staged.push(slot.clone());
             let backend = Arc::clone(&self.backend);
             let publication =
@@ -274,8 +274,8 @@ impl SecretStore {
 
         // Readers Hold The Same Guard Through Their Snapshot's Secure Reads.
         let mut cleanup_pending = false;
-        for (name, entry) in previous.entries {
-            if next.entries.get(&name).is_none_or(|next| next.slot != entry.slot) {
+        for (identifier, entry) in previous.entries {
+            if next.entries.get(&identifier).is_none_or(|next| next.slot != entry.slot) {
                 cleanup_pending |= self.remove_secure(self.account(&entry.slot)).await.is_err();
             }
         }

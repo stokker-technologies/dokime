@@ -18,7 +18,6 @@ use std::result::Result;
 use std::{
     fs::{File, OpenOptions},
     io::{Read as _, Seek, SeekFrom, Write},
-    num::NonZeroUsize,
     path::{Path, PathBuf},
 };
 
@@ -33,7 +32,7 @@ use super::{blob, entry, saved};
 
 /* === Constants === */
 
-const CHUNK_BYTES: usize = 64 * 1024;
+const CHUNK_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
 
@@ -104,7 +103,7 @@ impl State {
                 let overlap = (length - offset).min(bytes.len() as u64) as usize;
                 file.seek(SeekFrom::Start(offset))?;
                 if overlap > 0 {
-                    let mut existing = [0; CHUNK_BYTES];
+                    let mut existing = vec![0; CHUNK_BYTES];
                     for expected in bytes[..overlap].chunks(CHUNK_BYTES) {
                         let actual = &mut existing[..expected.len()];
                         file.read_exact(actual)?;
@@ -225,56 +224,54 @@ impl State {
         .await?
     }
 
-    pub(super) async fn data_read_file(
-        &self, root: PathBuf, reference: FileReference, through: u64, offset: u64, maximum: NonZeroUsize,
-    ) -> Result<Vec<u8>, Error> {
-        let maximum = maximum.get();
-
-        self.read(move |connection| {
-            let result = (|| {
-                // Both Stored Metadata And A Finished Reference May Coexist During Validation.
-                let head = saved(connection)?;
-                head.history.check(&reference.position.history)?;
-                if through > head.sequence {
-                    return Err(Error::Data("file snapshot exceeds saved frontier"));
-                }
-                // Bind Published Bytes To The Original Saved View
-                if reference.position.sequence <= through {
-                    let mut statement =
-                        connection.prepare("SELECT body,digest FROM storage_data_entries WHERE kind='file' AND position=?1")?;
-                    let mut rows = statement.query([super::position(reference.position.sequence)])?;
-                    let row = rows.next()?.ok_or(Error::Corrupt("saved file reference is missing"))?;
-                    let body = blob(row, 0)?;
-                    super::check_digest(body, blob(row, 1)?)?;
-                    let stored: FileReference = serde_json::from_slice(body)?;
-                    if stored != reference {
-                        return Err(Error::Conflict("file reference differs from saved snapshot"));
+    pub(super) async fn data_open_file(
+        &self, root: PathBuf, reference: FileReference, through: u64, lease: impl Send + 'static,
+    ) -> Result<File, Error> {
+        let expected_length = reference.length;
+        let checked_root = root.clone();
+        let path = self
+            .read(move |connection| {
+                let result = (|| {
+                    // Both Stored Metadata And A Finished Reference May Coexist During Validation.
+                    let head = saved(connection)?;
+                    head.history.check(&reference.position.history)?;
+                    if through > head.sequence {
+                        return Err(Error::Data("file snapshot exceeds saved frontier"));
                     }
-                }
-                let (_, finished) = metadata_for(connection, &reference.metadata.id)?.ok_or(Error::Data("unknown immutable file"))?;
-                if finished.as_ref() != Some(&reference) {
-                    return Err(Error::Conflict("immutable file reference differs"));
-                }
-                if offset > reference.length {
-                    return Err(Error::Data("file read exceeds its length"));
-                }
-                let path = final_path(&root, &reference)?;
-                regular(&path)?;
-                let mut file = File::open(path)?;
-                if file.metadata()?.len() != reference.length {
-                    return Err(Error::Corrupt("immutable file length differs"));
-                }
-                file.seek(SeekFrom::Start(offset))?;
-                let length = (reference.length - offset).min(maximum as u64) as usize;
-                let mut bytes = Vec::new();
-                bytes.try_reserve_exact(length).map_err(std::io::Error::other)?;
-                bytes.resize(length, 0);
-                file.read_exact(&mut bytes)?;
-                Ok(bytes)
-            })();
-            Ok(result)
+                    // Bind Published Bytes To The Original Saved View
+                    if reference.position.sequence <= through {
+                        let mut statement =
+                            connection.prepare("SELECT body,digest FROM storage_data_entries WHERE kind='file' AND position=?1")?;
+                        let mut rows = statement.query([super::position(reference.position.sequence)])?;
+                        let row = rows.next()?.ok_or(Error::Corrupt("saved file reference is missing"))?;
+                        let body = blob(row, 0)?;
+                        super::check_digest(body, blob(row, 1)?)?;
+                        let stored: FileReference = serde_json::from_slice(body)?;
+                        if stored != reference {
+                            return Err(Error::Conflict("file reference differs from saved snapshot"));
+                        }
+                    }
+                    let (_, finished) = metadata_for(connection, &reference.metadata.id)?.ok_or(Error::Data("unknown immutable file"))?;
+                    if finished.as_ref() != Some(&reference) {
+                        return Err(Error::Conflict("immutable file reference differs"));
+                    }
+                    Ok(root.join(storage_key(&reference)))
+                })();
+                Ok(result)
+            })
+            .await??;
+        tokio::task::spawn_blocking(move || {
+            let _lease = lease;
+            ancestors(&checked_root, &path)?;
+            regular(&path)?;
+            let file = File::open(path)?;
+            if file.metadata()?.len() != expected_length {
+                return Err(Error::Corrupt("immutable file length differs"));
+            }
+            Ok(file)
         })
-        .await?
+        .await
+        .map_err(|error| Error::Io(std::io::Error::other(error)))?
     }
 }
 
@@ -486,7 +483,7 @@ fn verify_opened(file: &mut File, reference: &FileReference) -> Result<(), Error
     }
     file.seek(SeekFrom::Start(0))?;
     let mut digest = Sha256::new();
-    let mut buffer = [0; CHUNK_BYTES];
+    let mut buffer = vec![0; CHUNK_BYTES];
     loop {
         let count = file.read(&mut buffer)?;
         if count == 0 {

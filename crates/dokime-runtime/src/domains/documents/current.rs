@@ -159,10 +159,8 @@ impl PreparedCurrentDocument {
         borrowed.data.context = binding_context(&self.snapshot, &input.definition, &input.selection, limits.source_bytes)?;
         if let Some(id) = &input.selection.scope.test_execution_id {
             let execution = self.snapshot.state().executions.get(id).ok_or(DocumentAcquisitionFailure::Missing)?;
-            borrowed.data.records = crate::document::input::Records::Subscribed {
-                rows: (&acquired.records).into(),
-                scopes: execution.records.subscribed_records(),
-            };
+            borrowed.data.records =
+                crate::document::input::Records::Subscribed { rows: (&acquired.records).into(), captures: &execution.records };
         }
         borrowed.data.telemetry = acquired.telemetry.as_deref().map_or(&[], Vec::as_slice);
         borrowed.data.artifacts = crate::document::input::Artifacts::Native(acquired.artifacts.as_deref().unwrap_or(&[]));

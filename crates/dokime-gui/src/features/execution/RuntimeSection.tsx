@@ -66,13 +66,7 @@ export function RuntimeSection({ connection, diagnostics, layout, snapshot }: Ru
               : "No live frames yet"
           }
         />
-        <RuntimeMetric
-          icon={<RadioTower />}
-          label="Connection"
-          value={connection}
-          detail={`Doctor ${diagnostics?.runtime.startup_doctor.status ?? "unknown"}`}
-          tone={connection === "connected" ? "good" : "bad"}
-        />
+        <RuntimeMetric icon={<RadioTower />} label="Connection" value={connection} tone={connection === "connected" ? "good" : "bad"} />
         <RuntimeMetric
           icon={<Cpu />}
           label="Process"

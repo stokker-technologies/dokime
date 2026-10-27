@@ -3,16 +3,10 @@
 set -eu
 
 # Connection Parameters
-ENDPOINT="https://127.0.0.1:8766"
-CA_CERTIFICATE="server.pem"
-KEY_FILE="remote.key"
-ENV_FILE=""
+BACKEND_IDENTIFIER="lab"
 
-# Select Secrets Once; Each Call Below Shows Its Remote Command.
-set -- --endpoint "$ENDPOINT"
-if [ -n "$CA_CERTIFICATE" ]; then set -- "$@" --ca "$CA_CERTIFICATE"; fi
-if [ -n "$KEY_FILE" ]; then set -- "$@" --key-file "$KEY_FILE"; fi
-if [ -n "$ENV_FILE" ]; then set -- "$@" --env-file "$ENV_FILE"; fi
+# Select The Imported Profile Once; Each Call Below Shows Its Remote Command.
+set -- --backend "$BACKEND_IDENTIFIER"
 
 trap 'printf "Stopped Waiting; Read Device State Before Resending An Unconfirmed Command\n" >&2; exit 130' INT TERM
 

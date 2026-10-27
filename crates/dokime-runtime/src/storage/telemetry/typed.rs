@@ -87,6 +87,7 @@ struct Metadata {
     timestamp_value: Vec<values::Cell>,
     received_at: String,
     source: String,
+    signals: Vec<String>,
     scope: Option<ScopeRow>,
     summary: Vec<values::Cell>,
     metadata: Vec<values::Cell>,
@@ -200,6 +201,7 @@ impl TypedCodec {
             timestamp_value,
             received_at: sample::copy_text(sample.received_at.as_str())?,
             source: sample::copy_text(sample.source.as_str())?,
+            signals: sample.values.iter().filter(|(_, value)| !matches!(value, Value::Null)).map(|(key, _)| key.clone()).collect(),
             scope: sample.scope.as_ref().map(ScopeRow::from),
             summary: values::encode(&sample.summary)?,
             metadata: values::encode(&sample.metadata)?,
@@ -470,6 +472,16 @@ pub fn decode_values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<Str
     let projection = projected_values(validator, bytes);
     let invalid_projection = Error::Invalid("typed telemetry payload projection failed");
     projection.map_err(|_| invalid_projection)
+}
+
+pub(crate) fn index_metadata(bytes: &[u8]) -> Result<(Option<ScopeRow>, String, Vec<String>)> {
+    let mut reader = Reader::new(bytes);
+    let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
+    let length = bytes.len() - reader.remaining().len();
+    if metadata.encode_to_vec() != bytes[..length] {
+        return Err(Error::Invalid("stored telemetry metadata is not canonical"));
+    }
+    Ok((metadata.scope, metadata.source, metadata.signals))
 }
 
 /* === Private Functions === */

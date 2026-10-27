@@ -52,7 +52,7 @@ enum Source {
         report_defaults: harmos::storage::ReadBatch<crate::config::ReportDefaults>,
         snapshot: CycleSnapshot,
         documents: harmos::storage::ReadBatch<BTreeMap<DocumentId, Capture>>,
-        members: harmos::storage::ReadBatch<Vec<harmos::storage::ReadBatch<CapturedExecutionReportInput>>>,
+        members: Vec<super::cycle::CapturedMember>,
     },
     Captured {
         input: harmos::storage::ReadBatch<CapturedExecutionReportInput>,
@@ -84,13 +84,13 @@ impl HtmlReport {
         let report_defaults = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(*report_defaults))?;
         let count = cycle_members.len();
         let documents = cycle_document(&snapshot, crate::document::bounded::DocumentLimits::default())?;
-        let mut members = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::with_capacity(count)))?;
+        let mut members = Vec::with_capacity(count);
         let mut index = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Index::new()))?;
         // Compose Member Results Materialized From Their Saved Context And Evidence.
         for (materialized, member) in cycle_members.into_iter().enumerate() {
             operation.progress(materialized as u64, count as u64);
-            let captured = match member {
-                CycleMember::Captured(captured) => captured,
+            let member = match member {
+                CycleMember::Captured(member) => member,
                 CycleMember::Planned(execution) => {
                     if execution.test_cycle_id != snapshot.source().test_cycle_id {
                         return Err(invalid("planned member belongs to another cycle"));
@@ -102,6 +102,7 @@ impl HtmlReport {
                     continue;
                 }
             };
+            let captured = member.read()?;
             if captured.input.cycle.test_cycle_id != snapshot.source().test_cycle_id {
                 return Err(invalid("materialized member belongs to another cycle"));
             }
@@ -109,10 +110,7 @@ impl HtmlReport {
                 index.push_capture(&captured)?;
                 Ok::<_, Error>(index)
             })?;
-            members = members.try_map(|mut members| {
-                members.push(captured);
-                Ok::<_, Error>(members)
-            })?;
+            members.push(member);
         }
         operation.progress(count as u64, count as u64);
         let index = index.try_map(|mut index| {
@@ -146,7 +144,7 @@ impl HtmlReport {
             Source::Captured { input, .. } if member == 0 => Ok(Member::Captured(input.clone())),
             Source::Captured { .. } => Err(invalid("captured report has only one member")),
             Source::Saved { members, .. } => {
-                members.get(member).cloned().map(Member::Captured).ok_or_else(|| invalid("cycle report member is missing"))
+                members.get(member).ok_or_else(|| invalid("cycle report member is missing"))?.read().map(Member::Captured)
             }
         }
     }
@@ -177,15 +175,6 @@ impl HtmlReport {
             Source::Captured { evidence, .. } => Ok(evidence),
             Source::Saved { .. } => Err(invalid("cycle report has no single execution source")),
         }
-    }
-
-    // One Serialization Pass Yields The Published Bytes; Their Length And Digest Are Taken From Them.
-    pub(super) fn render(&self) -> Result<harmos::storage::ReadBatch<Vec<u8>>> {
-        harmos::storage::ReadBatch::new(()).try_map(|_| {
-            let mut bytes = Vec::new();
-            self.write(&mut bytes)?;
-            Ok::<_, Error>(bytes)
-        })
     }
 
     pub(super) fn write(&self, writer: &mut dyn Write) -> Result<()> {

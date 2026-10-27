@@ -47,6 +47,15 @@ use dokime_runtime::{Runtime, RuntimeConfig};
 
 /* === Tests === */
 
+#[test]
+fn secret_metadata_rejects_old_name_field() {
+    let value = serde_json::json!({ "name": "old.token", "label": "Old Token", "description": null });
+    assert!(serde_json::from_value::<Metadata>(value).is_err());
+    let value = serde_json::json!({ "identifier": "new.token", "label": "New Token", "description": null });
+    let metadata: Metadata = serde_json::from_value(value).unwrap();
+    assert_eq!(metadata.identifier, "new.token");
+}
+
 #[tokio::test]
 async fn saved_file_roundtrip() {
     let root = tempfile::tempdir().unwrap();
@@ -55,11 +64,11 @@ async fn saved_file_roundtrip() {
     let mut source = Runtime::start(source).await.unwrap();
     let handle = source.handle();
 
-    let metadata = Metadata { name: "roundtrip.token".into(), label: "Saved Secret".into(), description: None };
+    let metadata = Metadata { identifier: "roundtrip.token".into(), label: "Saved Secret".into(), description: None };
     let request = wire::Put { metadata, value: Some("saved-value-λ".into()), generation: 0 };
     handle.operations().call(request).await.unwrap();
-    let names = vec!["roundtrip.token".into()];
-    let archive = handle.operations().call(wire::Export { names, generation: 1 }).await.unwrap();
+    let identifiers = vec!["roundtrip.token".into()];
+    let archive = handle.operations().call(wire::Export { identifiers, generation: 1 }).await.unwrap();
 
     let file = root.path().join("secrets.b64");
     std::fs::write(&file, &archive.data).unwrap();
@@ -73,7 +82,7 @@ async fn saved_file_roundtrip() {
         document,
         serde_json::json!({
             "format_version": 1,
-            "entries": [{"metadata": {"name": "roundtrip.token", "label": "Saved Secret", "description": null}, "value": "saved-value-λ"}],
+            "entries": [{"metadata": {"identifier": "roundtrip.token", "label": "Saved Secret", "description": null}, "value": "saved-value-λ"}],
         })
     );
 
@@ -87,9 +96,9 @@ async fn saved_file_roundtrip() {
     assert_eq!(preview.entries.len(), 1);
     assert!(!preview.entries[0].exists);
 
-    let choices = vec![Choice { name: preview.entries[0].metadata.name.clone(), action: Action::Replace }];
+    let choices = vec![Choice { identifier: preview.entries[0].metadata.identifier.clone(), action: Action::Replace }];
     handle.operations().call(wire::Import { data, choices, generation: preview.generation }).await.unwrap();
-    let restored = handle.operations().call(wire::Lookup { name: "roundtrip.token".into() }).await.unwrap();
+    let restored = handle.operations().call(wire::Lookup { identifier: "roundtrip.token".into() }).await.unwrap();
     assert_eq!(restored.value.as_deref(), Some("saved-value-λ"));
     destination.shutdown().await.unwrap();
 }

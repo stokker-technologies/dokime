@@ -166,7 +166,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                     return;
                   }
                   if (profile) {
-                    void owner.select({ kind: "profile", name: profile });
+                    void owner.select({ kind: "profile", identifier: profile });
                     return;
                   }
                   if (launch?.target)

@@ -94,15 +94,15 @@ async fn sealed(
     let mut members = Vec::with_capacity(finalization.executions.len());
     let mut pending = FuturesOrdered::new();
     for execution in finalization.executions.iter() {
-        if pending.len() as u64 == 8_u64
+        if pending.len() == 4
             && let Some(member) = pending.next().await
         {
-            members.push(CycleMember::Captured(member?));
+            members.push(CycleMember::capture(member?)?);
         }
         pending.push_back(sealed_member(ctx, storage, execution, at, progress));
     }
     while let Some(member) = pending.next().await {
-        members.push(CycleMember::Captured(member?));
+        members.push(CycleMember::capture(member?)?);
     }
     drop(pending);
     progress.phase("Rendering");
@@ -207,21 +207,33 @@ async fn current(
     }
     drop(gate);
     let mut members = Vec::with_capacity(plans.len());
+    let mut pending = FuturesOrdered::new();
     for plan in plans {
-        members.push(match plan {
-            Member::Planned(execution) => CycleMember::Planned(execution),
-            Member::Sealed(seal) => CycleMember::Captured(sealed_member(ctx, storage, &seal, at, progress).await?),
-            Member::Captured(inspection, _guard) => {
-                CycleMember::Captured(crate::report::materialize::execution(ctx, &inspection, false, progress).await?)
-            }
+        if pending.len() == 4
+            && let Some(member) = pending.next().await
+        {
+            members.push(member?);
+        }
+        pending.push_back(async move {
+            Ok::<_, Error>(match plan {
+                Member::Planned(execution) => CycleMember::Planned(execution),
+                Member::Sealed(seal) => CycleMember::capture(sealed_member(ctx, storage, &seal, at, progress).await?)?,
+                Member::Captured(inspection, _guard) => {
+                    CycleMember::capture(crate::report::materialize::execution(ctx, &inspection, false, progress).await?)?
+                }
+            })
         });
     }
+    while let Some(member) = pending.next().await {
+        members.push(member?);
+    }
+    drop(pending);
     let captured = members.iter().find_map(|member| match member {
-        CycleMember::Captured(captured) => Some(captured),
+        CycleMember::Captured(captured) => Some(captured.read()),
         CycleMember::Planned(_) => None,
     });
     let appearance = match captured {
-        Some(member) => member.context.appearance.clone(),
+        Some(member) => member?.context.appearance.clone(),
         None => resources.execution_storage.report_appearance().await?,
     };
     let snapshot = CycleSnapshot::current(storage.cursor_saved(), Arc::new(header), Arc::new(appearance), &owner)?;

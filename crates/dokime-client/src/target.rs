@@ -103,6 +103,9 @@ impl Target {
         if ca.as_ref().is_some_and(|pem| pem.is_empty() || pem.len() > CA_BYTES || pem.contains('\0')) {
             return Err(invalid_target("Invalid CA certificate."));
         }
+        if let Some(pem) = &ca {
+            super::pairing::validate_ca(pem).map_err(|_| invalid_target("Invalid CA certificate."))?;
+        }
         if ca.is_some() && url.scheme() != "https" {
             return Err(invalid_target("CA certificates require HTTPS."));
         }

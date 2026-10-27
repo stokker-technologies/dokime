@@ -115,8 +115,9 @@ or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing the older JSON stream-row format require a fresh storage root. Dokime reports incompatible data and never resets an existing root.
 
-The Backends table and CLI backend commands share `backends.json`. Add a named
-backend, connect to it, or remove it from the registry without connecting first.
+The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-pair` file with an Identifier and Label, connect to it, or
+remove it from the registry without connecting first. Revoke individual clients
+from the host’s Paired Clients table.
 Credentials remain in protected credential stores. Plugin settings and secret
 catalog metadata persist in SQLite; credential values are not stored there.
 
@@ -137,7 +138,7 @@ Plot Default uses each plot's authored window; All queries its full saved histor
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.
 
-Diagnostics and remote sessions refresh when opened or focused; remote sessions
+The live log, diagnostics bundle and remote sessions remain available; remote sessions refresh when opened or focused; remote sessions
 also provide Refresh. Cycle history shows absolute update times. Busy document
 reads continue retrying, while other document failures retry once.
 

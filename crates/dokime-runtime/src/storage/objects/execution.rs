@@ -2118,22 +2118,8 @@ fn validate_attempts(source: &TestExecution) -> Result<()> {
             return Err(Error::Invalid("completed step attempt is also active"));
         }
     }
-    for scope in source.records.subscribed_records().values() {
-        if scope.test_execution_id.as_ref() != Some(&source.test_execution_id)
-            || scope.test_cycle_id.as_ref() != Some(&source.test_cycle_id)
-            || scope.test_case_id.as_ref() != Some(&source.test_case_id)
-        {
-            return Err(Error::Invalid("captured record scope differs from its execution"));
-        }
-        if let dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } = &scope.origin {
-            let step =
-                source.active_step_attempt.as_ref().filter(|start| &start.attempt_id == attempt_id).map(|start| &start.step_id).or_else(
-                    || source.step_attempts.iter().find(|attempt| &attempt.attempt_id == attempt_id).map(|attempt| &attempt.step_id),
-                );
-            if step.is_none() || step != scope.step_id.as_ref() {
-                return Err(Error::Invalid("captured record has invalid attempt provenance"));
-            }
-        }
+    if source.records.capture_owner().is_some_and(|owner| owner != &source.test_execution_id) {
+        return Err(Error::Invalid("capture frontier belongs to another execution"));
     }
     for step in &source.steps {
         for at in step.started_at.iter().chain(step.finished_at.iter()) {

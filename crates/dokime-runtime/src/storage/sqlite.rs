@@ -49,11 +49,11 @@ pub const SCHEMA_VERSION: i64 = 1;
 static COMMITTED_TRANSACTIONS: AtomicU64 = AtomicU64::new(0);
 static DATA_BATCHES: AtomicU64 = AtomicU64::new(0);
 static DURABLE_FILES: AtomicU64 = AtomicU64::new(0);
-
-// Tables Of Earlier Layouts; Their Presence Means The Root Predates This Build.
-const RETIRED_TABLES: &str = "'storage_operations','storage_deletions','storage_recovery_head',
-    'storage_bootstrap','storage_bootstrap_entries','storage_object_scalars',
-    'storage_data_inventory','storage_data_origin'";
+pub(super) static RECORD_CAPTURE_ROWS: AtomicU64 = AtomicU64::new(0);
+pub(super) static RECORD_CAPTURE_PAGES: AtomicU64 = AtomicU64::new(0);
+pub(super) static RECORD_CAPTURE_ADMISSIONS: AtomicU64 = AtomicU64::new(0);
+pub(super) static TELEMETRY_ANCHOR_ROWS: AtomicU64 = AtomicU64::new(0);
+pub(super) static DATA_SCAN_ROWS: AtomicU64 = AtomicU64::new(0);
 
 /* === Macros === */
 
@@ -71,6 +71,11 @@ pub struct StorageCounters {
     pub data_batches: u64,
     // Successful File Durability Confirmations, Including Repeated Confirmations Of One File.
     pub durable_files: u64,
+    pub record_capture_rows: u64,
+    pub record_capture_pages: u64,
+    pub record_capture_admissions: u64,
+    pub telemetry_anchor_rows: u64,
+    pub data_scan_rows: u64,
 }
 
 struct Owner {
@@ -116,14 +121,11 @@ impl State {
             std::fs::create_dir_all(&root)?;
             let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
             acquire_lease(&lease)?;
-            if root.join("recovery.sqlite").exists() {
-                return Err(Error::Incompatible("it holds a separate recovery.sqlite".to_owned()));
-            }
             let mut connection = Connection::open(root.join("local.sqlite"))?;
             check_layout(&connection)?;
             connection.execute_batch(
                 "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;
-                PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;",
+                PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-65536;",
             )?;
             let transaction = connection.transaction()?;
             transaction.execute_batch(catalog::SCHEMA)?;
@@ -203,6 +205,11 @@ pub fn counters() -> StorageCounters {
         committed_transactions: COMMITTED_TRANSACTIONS.load(Ordering::Relaxed),
         data_batches: DATA_BATCHES.load(Ordering::Relaxed),
         durable_files: DURABLE_FILES.load(Ordering::Relaxed),
+        record_capture_rows: RECORD_CAPTURE_ROWS.load(Ordering::Relaxed),
+        record_capture_pages: RECORD_CAPTURE_PAGES.load(Ordering::Relaxed),
+        record_capture_admissions: RECORD_CAPTURE_ADMISSIONS.load(Ordering::Relaxed),
+        telemetry_anchor_rows: TELEMETRY_ANCHOR_ROWS.load(Ordering::Relaxed),
+        data_scan_rows: DATA_SCAN_ROWS.load(Ordering::Relaxed),
     }
 }
 
@@ -251,14 +258,6 @@ fn check_layout(connection: &Connection) -> Result<(), Error> {
         return Err(Error::Incompatible(format!(
             "local.sqlite declares schema version {version}, and this build reads version {SCHEMA_VERSION}"
         )));
-    }
-    let retired: bool = connection.query_row(
-        &format!("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ({RETIRED_TABLES}))"),
-        [],
-        |row| row.get(0),
-    )?;
-    if retired {
-        return Err(Error::Incompatible("local.sqlite uses an earlier storage layout".to_owned()));
     }
     data::check_format(connection)
 }

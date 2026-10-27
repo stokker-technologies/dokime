@@ -31,10 +31,7 @@ from dokime_client.client import Cycle, DokimeClient, DokimeError, Execution, Re
 # === Constants === #
 
 # Connection Parameters
-ENDPOINT = "https://127.0.0.1:8766"
-CA_CERTIFICATE: Path | None = Path("server.pem")
-KEY_FILE: Path | None = Path("remote.key")
-ENV_FILE: Path | None = None
+PAIRING_FILE = Path("../lab.dokime-pair")
 
 # Case And Execution Parameters
 TEMPLATE = "obc.checks.pulse"
@@ -70,7 +67,7 @@ async def run() -> int:
     if (OUTPUT_DIRECTORY / "cycle.zip").exists() and not OVERWRITE:
         raise FileExistsError("cycle.zip exists; choose another output directory or enable OVERWRITE")
 
-    async with DokimeClient(ENDPOINT, ca_certificate=CA_CERTIFICATE, key_file=KEY_FILE, env_file=ENV_FILE) as client:
+    async with DokimeClient.from_pairing(PAIRING_FILE) as client:
         cycle: Cycle | None = None
         execution: Execution | None = None
         exported: set[str] = set()

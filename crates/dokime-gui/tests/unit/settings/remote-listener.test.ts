@@ -22,7 +22,6 @@ import { SettingsRow } from "@/features/settings/SettingsRow";
 import {
   certificateIssue,
   commitListener,
-  keyIssue,
   type ListenerSettings,
   type ListenerStatus,
   listenerRunning,
@@ -93,6 +92,4 @@ test("TLS without a certificate shows an inline field error", () => {
   assert.equal(certificateIssue({ ...missing, settings: { ...SETTINGS, tlsEnabled: false } }), null);
   const html = renderToStaticMarkup(createElement(SettingsRow, { label: "Public Certificate", error: issue }, "Generate Certificate"));
   assert.match(html, /role="alert"/);
-  assert.equal(keyIssue(STOPPED), null);
-  assert.ok(keyIssue({ ...STOPPED, keyConfigured: false }));
 });

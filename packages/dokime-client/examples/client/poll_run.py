@@ -30,14 +30,11 @@ from dokime_client.client import DokimeClient, Execution, Value
 
 # === Constants === #
 
-ENDPOINT = "https://127.0.0.1:8766"
+PAIRING_FILE = Path("lab.dokime-pair")
 CYCLE_LABEL = "Polling Demonstration"
 TEMPLATE = "obc.checks.pulse"
 PARAMETERS: dict[str, Value] = {"sample_count": 8}
 
-KEY_FILE: Path | None = Path("remote.key")
-ENV_FILE: Path | None = None
-CA_CERTIFICATE: Path | None = Path("server.pem")
 
 POLL_INTERVAL = 0.5
 
@@ -77,7 +74,7 @@ async def main() -> None:
     if not math.isfinite(POLL_INTERVAL) or POLL_INTERVAL <= 0:
         raise ValueError("POLL_INTERVAL must be finite and greater than zero")
 
-    client = DokimeClient(ENDPOINT, key_file=KEY_FILE, env_file=ENV_FILE, ca_certificate=CA_CERTIFICATE)
+    client = DokimeClient.from_pairing(PAIRING_FILE)
 
     try:
         template = await client.template(TEMPLATE)

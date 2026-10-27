@@ -75,54 +75,58 @@ impl Operation for FileWatch {
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, request: &mut contract::FileWatch, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        // A Step's Call Carries Its Execution; A Listener Call Names It
-        let scoped = context.context().value::<dokime::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
-        let watch = self.resources.runtime.open_file_watch(request, scoped.as_deref()).await.map_err(failure)?;
-        let watch = self.watch.insert(watch);
+        let revoked = crate::grpc::access::revocation(&context);
+        crate::grpc::access::during(revoked, async {
+            // A Step's Call Carries Its Execution; A Listener Call Names It
+            let scoped = context.context().value::<dokime::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
+            let watch = self.resources.runtime.open_file_watch(request, scoped.as_deref()).await.map_err(failure)?;
+            let watch = self.watch.insert(watch);
 
-        // Poll Until Complete, Bounded, Or Sealed By The Execution;
-        // Cancellation Seals Through `stop`
-        let mut events = Vec::new();
-        loop {
-            let polled = watch.poll(&mut events).await;
-            if let Err(source) = polled {
-                let sealed = watch.seal(&mut events).await;
-                let _ = send_events(output, &mut events).await;
-                self.watch = None;
-                if let Err(seal) = sealed {
-                    tracing::warn!(error = %seal, "failed file watch did not seal every file");
+            // Poll Until Complete, Bounded, Or Sealed By The Execution;
+            // Cancellation Seals Through `stop`
+            let mut events = Vec::new();
+            loop {
+                let polled = watch.poll(&mut events).await;
+                if let Err(source) = polled {
+                    let sealed = watch.seal(&mut events).await;
+                    let _ = send_events(output, &mut events).await;
+                    self.watch = None;
+                    if let Err(seal) = sealed {
+                        tracing::warn!(error = %seal, "failed file watch did not seal every file");
+                    }
+                    return Err(failure(source));
                 }
-                return Err(failure(source));
+                send_events(output, &mut events).await?;
+                if watch.is_complete() {
+                    break;
+                }
+                let remaining = watch.remaining();
+                if remaining.is_some_and(|remaining| remaining.is_zero()) {
+                    break;
+                }
+                let pause = remaining.map_or(watch.poll_interval(), |remaining| remaining.min(watch.poll_interval()));
+                tokio::select! {
+                    () = watch.seal_requested() => break,
+                    () = tokio::time::sleep(pause) => {}
+                }
             }
-            send_events(output, &mut events).await?;
-            if watch.is_complete() {
-                break;
-            }
-            let remaining = watch.remaining();
-            if remaining.is_some_and(|remaining| remaining.is_zero()) {
-                break;
-            }
-            let pause = remaining.map_or(watch.poll_interval(), |remaining| remaining.min(watch.poll_interval()));
-            tokio::select! {
-                () = watch.seal_requested() => break,
-                () = tokio::time::sleep(pause) => {}
-            }
-        }
 
-        // Seal, Then Announce Every Sealed Artifact
-        let sealed = watch.seal(&mut events).await;
-        send_events(output, &mut events).await?;
-        sealed.map_err(failure)?;
-        let completed = dokime::domain::model::files::wire::FileWatchFrame {
-            payload: Some(dokime::domain::model::files::wire::FileWatchFramePayload::Completed(
-                dokime::domain::model::files::wire::FileWatchCompleted {
-                    artifacts: watch.sealed().iter().map(metadata).collect::<Result<Vec<_>, _>>()?,
-                },
-            )),
-        };
-        self.watch = None;
-        output.send_owned((completed).into()).await.map_err(stream_failure)?;
-        Ok(().into())
+            // Seal, Then Announce Every Sealed Artifact
+            let sealed = watch.seal(&mut events).await;
+            send_events(output, &mut events).await?;
+            sealed.map_err(failure)?;
+            let completed = dokime::domain::model::files::wire::FileWatchFrame {
+                payload: Some(dokime::domain::model::files::wire::FileWatchFramePayload::Completed(
+                    dokime::domain::model::files::wire::FileWatchCompleted {
+                        artifacts: watch.sealed().iter().map(metadata).collect::<Result<Vec<_>, _>>()?,
+                    },
+                )),
+            };
+            self.watch = None;
+            output.send_owned((completed).into()).await.map_err(stream_failure)?;
+            Ok(().into())
+        })
+        .await
     }
 
     // A cancelled or failed stream still seals what the watch captured.

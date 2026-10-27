@@ -71,12 +71,6 @@ export function certificateIssue(status: ListenerStatus): string | null {
     : null;
 }
 
-export function keyIssue(status: ListenerStatus): string | null {
-  return appliedSettings(status).authenticationEnabled && !status.keyConfigured
-    ? "An access key is required but none exists, so the listener cannot start. Generate one."
-    : null;
-}
-
 export function listenerError(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "The host rejected the remote access change.";
 }

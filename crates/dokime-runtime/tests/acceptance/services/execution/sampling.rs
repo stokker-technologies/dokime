@@ -150,8 +150,8 @@ async fn run_case(handle: &RuntimeHandle, label: &str) -> TestExecutionId {
 }
 
 async fn report_payload(handle: &RuntimeHandle, execution: &TestExecutionId) -> serde_json::Value {
-    let opened = handle.open_execution_report(execution).await.unwrap();
-    crate::service_support::reports::parse(std::str::from_utf8(&opened.html).unwrap())
+    let mut opened = handle.open_execution_report(execution).await.unwrap();
+    crate::service_support::reports::parse(std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut opened).await).unwrap())
 }
 
 fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize) {
@@ -341,8 +341,8 @@ async fn report_shows_progress() {
             }
         }
     });
-    let opened = handle.open_cycle_report(&cycle_id).await.unwrap();
-    assert!(!opened.html.is_empty());
+    let mut opened = handle.open_cycle_report(&cycle_id).await.unwrap();
+    assert!(opened.file.length > 0);
     let seen = observer.await.unwrap();
 
     let identities: std::collections::BTreeSet<_> = seen.iter().map(|operation| &operation.operation_id).collect();

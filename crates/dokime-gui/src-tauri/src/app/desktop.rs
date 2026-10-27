@@ -23,7 +23,6 @@ use std::{fs, os::unix::fs::PermissionsExt};
 
 // Third Party Imports
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use rand::random;
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -51,8 +50,6 @@ use crate::connection::ConnectionSession;
 const DESKTOP_DIAGNOSTICS_BUNDLE_BYTES: u64 = 33_554_432;
 const DESKTOP_DOCUMENT_TIMEOUT_MS: u64 = 30_000;
 const DESKTOP_JSON_DOCUMENT_BYTES: u64 = 33_554_432;
-const DESKTOP_PUBLIC_CERTIFICATE_BYTES: u64 = 65_536;
-const DESKTOP_REMOTE_KEY_BYTES: u64 = 4_098;
 const DESKTOP_REPORT_FILENAME_CHARS: u64 = 128;
 
 /* === Macros === */
@@ -86,8 +83,6 @@ pub enum DesktopSaveKind {
     HtmlReport,
     DiagnosticsBundle,
     JsonDocument,
-    RemoteKey,
-    PublicCertificate,
     SecretArchive,
     Artifact,
 }
@@ -147,6 +142,100 @@ pub async fn desktop_open_target(app: AppHandle, target: String) -> Result<(), S
     tauri::async_runtime::spawn_blocking(move || app.opener().open_url(target, None::<&str>).map_err(|error| error.to_string()))
         .await
         .map_err(|error| error.to_string())?
+}
+
+pub async fn desktop_pairing_create(
+    window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, label: String, endpoint: String,
+) -> Result<Option<PathBuf>, crate::connection::ConnectionError> {
+    use crate::connection::ConnectionError;
+    use dokime::domain::operations::remote::{CreatePairing, RevokePairedClient};
+    let local = |message: String| ConnectionError::Registry { message };
+    ensure_main_window(&window).map_err(local)?;
+    let status = state.status();
+    let lease = state.lease(&status.generation)?;
+    let filename = sanitize_filename(&label, DesktopSaveKind::Artifact, 128).map_err(local)?;
+    let selected = tauri::async_runtime::spawn_blocking(move || {
+        let picked = app
+            .dialog()
+            .file()
+            .set_file_name(format!("{filename}.dokime-pair"))
+            .add_filter("Dokime Pairing File", &["dokime-pair"])
+            .blocking_save_file();
+        let Some(picked) = picked else { return Ok(None) };
+        let path = picked.into_path().map_err(|error| error.to_string())?;
+        let path = if path.extension().is_none() { path.with_extension("dokime-pair") } else { path };
+        if path.extension().and_then(|value| value.to_str()) != Some("dokime-pair") {
+            return Err("Pairing files require the .dokime-pair extension".into());
+        }
+        match std::fs::symlink_metadata(&path) {
+            Ok(metadata) => {
+                if !metadata.is_file() || metadata.file_type().is_symlink() {
+                    return Err("Pairing destination must be a regular file".into());
+                }
+                let confirmed = app
+                    .dialog()
+                    .message(format!("Replace {}?", path.display()))
+                    .title("Replace Pairing File")
+                    .kind(MessageDialogKind::Warning)
+                    .buttons(MessageDialogButtons::OkCancelCustom("Replace".into(), "Cancel".into()))
+                    .blocking_show();
+                if !confirmed {
+                    return Ok(None);
+                }
+                Ok(Some((path, true)))
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Some((path, false))),
+            Err(error) => Err(error.to_string()),
+        }
+    })
+    .await
+    .map_err(|_| ConnectionError::BackendUnavailable)?
+    .map_err(local)?;
+    let Some((path, overwrite)) = selected else { return Ok(None) };
+    state.with_current(&status.generation, || ())?;
+    let client = lease.client();
+    let mut created = client.remote_create_pairing(CreatePairing { label, endpoint }).await.map_err(ConnectionError::from)?;
+    let bytes = serde_json::to_vec_pretty(&created.pairing).map(zeroize::Zeroizing::new);
+    if let Some(key) = created.pairing.access_key.as_mut() {
+        zeroize::Zeroize::zeroize(key);
+    }
+    let session = state.inner().clone();
+    let generation = status.generation;
+    let destination = path.clone();
+    let saved = match bytes {
+        Ok(bytes) => tauri::async_runtime::spawn_blocking(move || {
+            use std::io::Write;
+            let parent = destination.parent().ok_or("Pairing destination has no parent")?;
+            let mut staged = tempfile::Builder::new().prefix(".dokime-pair-").tempfile_in(parent).map_err(|error| error.to_string())?;
+            set_private_file(staged.path())?;
+            staged.write_all(&bytes).map_err(|error| error.to_string())?;
+            staged.as_file().sync_all().map_err(|error| error.to_string())?;
+            session
+                .with_current(&generation, || {
+                    if overwrite {
+                        dokime::harmos::filesystem::publication::replace(staged.path(), &destination)
+                    } else {
+                        dokime::harmos::filesystem::publication::install(staged.path(), &destination)
+                    }
+                })
+                .map_err(|error| format!("{error:?}"))?
+                .map_err(|error| error.to_string())
+        })
+        .await
+        .map_err(|_| "Pairing file writer failed".to_owned())
+        .and_then(|result| result),
+        Err(_) => Err("Pairing file could not be encoded".into()),
+    };
+    if let Err(message) = saved {
+        if let Some(paired) = created.client {
+            client
+                .remote_revoke_paired_client(RevokePairedClient { identifier: paired.identifier })
+                .await
+                .map_err(|_| local(format!("{message}; the new paired client could not be revoked. Revoke it in Paired Clients.")))?;
+        }
+        return Err(local(message));
+    }
+    Ok(Some(path))
 }
 
 pub async fn desktop_save_document(
@@ -217,43 +306,53 @@ pub async fn desktop_artifact_deliver(
 ) -> Result<Option<Delivered>, DeliveryError> {
     let prepare = |message: String| DeliveryError::local(DeliveryStage::Prepare, message);
 
-    // Prepare: Owning Window, Session Lease, Filename And Private Staging Cache
+    // Prepare The Destination Before Requesting Content
     ensure_main_window(&window).map_err(prepare)?;
     ensure_generation_token(&generation).map_err(prepare)?;
     ensure_picker_kind(request.kind).map_err(prepare)?;
     let session = state.inner().clone();
-    let lease =
-        session.lease(&generation).map_err(|error| prepare(format!("Native artifact delivery lost its owning connection: {error:?}")))?;
+    let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
     let filename = sanitize_filename(&request.filename, request.kind, DESKTOP_REPORT_FILENAME_CHARS as usize).map_err(prepare)?;
-    let cache = app.path().app_cache_dir().map_err(|error| prepare(error.to_string()))?.join("documents");
-    tauri::async_runtime::spawn_blocking({
-        let cache = cache.clone();
-        move || ensure_private_directory(&cache)
-    })
-    .await
-    .map_err(|error| prepare(error.to_string()))?
-    .map_err(prepare)?;
+    let selected = if request.action == DeliveryAction::Save {
+        let picker_app = app.clone();
+        let filename = filename.clone();
+        let kind = request.kind;
+        let selected = tauri::async_runtime::spawn_blocking(move || pick_destination(picker_app, filename, kind, true))
+            .await
+            .map_err(|error| prepare(error.to_string()))?
+            .map_err(prepare)?;
+        let Some(selected) = selected else { return Ok(None) };
+        Some(selected)
+    } else {
+        None
+    };
+    ensure_document_session(&session, &generation).map_err(prepare)?;
+    let directory = match &selected {
+        Some((destination, _)) => destination.parent().ok_or_else(|| prepare("Destination has no parent".into()))?.to_path_buf(),
+        None => {
+            let cache = app.path().app_cache_dir().map_err(|error| prepare(error.to_string()))?.join("documents");
+            let directory = cache.clone();
+            tauri::async_runtime::spawn_blocking(move || ensure_private_directory(&directory))
+                .await
+                .map_err(|error| prepare(error.to_string()))?
+                .map_err(prepare)?;
+            cache
+        }
+    };
+    let staged =
+        tempfile::Builder::new().prefix(".dokime-").tempfile_in(directory).map_err(|error| prepare(error.to_string()))?.into_temp_path();
+    // The Download API Creates Its Own Output File; Keep The Unique Name And Cleanup Guard.
+    std::fs::remove_file(&staged).map_err(|error| prepare(error.to_string()))?;
 
-    // Request, Stream, Write: The Shared Client Pulls And Verifies Into The Cache
-    let staged = cache.join(format!("{generation}-{}-{filename}", random::<u64>()));
+    // Stream And Verify Beside The Chosen Destination Or In The Open Cache
     let verified = content::fetch_verified(&lease, &request.source, &staged, DESKTOP_FRAME_BYTES as usize).await?;
-    let cleanup = tempfile::TempPath::try_from_path(staged).map_err(|error| prepare(error.to_string()))?;
+    let cleanup = staged;
     ensure_document_session(&session, &generation).map_err(prepare)?;
 
     // Rename Or Open: Hand The Verified File To Its Destination
     match request.action {
         DeliveryAction::Save => {
-            let kind = request.kind;
-            let explicit_overwrite =
-                matches!(request.source, ArtifactSource::ExecutionEvidence { .. } | ArtifactSource::CycleEvidence { .. });
-            let selected = tauri::async_runtime::spawn_blocking(move || pick_destination(app, filename, kind, explicit_overwrite))
-                .await
-                .map_err(|error| prepare(error.to_string()))?
-                .map_err(prepare)?;
-            let Some((destination, overwrite)) = selected else {
-                let _ = tokio::fs::remove_file(&verified.path).await;
-                return Ok(None);
-            };
+            let (destination, overwrite) = selected.expect("save destination selected before download");
             ensure_document_session(&session, &generation).map_err(prepare)?;
             let origin = verified.report_origin();
             move_verified_file(session, generation, verified.path, destination.clone(), overwrite)
@@ -373,8 +472,6 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
         DesktopSaveKind::HtmlReport => return Err("Report HTML is delivered through desktop_artifact_deliver".into()),
         DesktopSaveKind::DiagnosticsBundle => (DESKTOP_DIAGNOSTICS_BUNDLE_BYTES as usize, "Diagnostics bundle"),
         DesktopSaveKind::JsonDocument => (DESKTOP_JSON_DOCUMENT_BYTES as usize, "JSON document"),
-        DesktopSaveKind::RemoteKey => (DESKTOP_REMOTE_KEY_BYTES as usize, "Remote key"),
-        DesktopSaveKind::PublicCertificate => (DESKTOP_PUBLIC_CERTIFICATE_BYTES as usize, "Public certificate"),
         DesktopSaveKind::SecretArchive => (699_052u64 as usize, "Secret archive"),
         DesktopSaveKind::Artifact => return Err("Artifact is delivered through desktop_artifact_deliver".into()),
     };
@@ -382,19 +479,6 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
 
     let filename = sanitize_filename(&document.filename, document.kind, DESKTOP_REPORT_FILENAME_CHARS as usize)?;
     let bytes = decode_bounded(&document.bytes_base64, max_encoded_chars, max_bytes, label)?;
-    if document.kind == DesktopSaveKind::RemoteKey {
-        let key = std::str::from_utf8(&bytes).map_err(|_| "Remote key must be UTF-8 text")?.trim();
-        if !(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()) {
-            return Err("Remote key must contain 32–4096 visible ASCII characters".into());
-        }
-    }
-    if document.kind == DesktopSaveKind::PublicCertificate {
-        let certificate = std::str::from_utf8(&bytes).map_err(|_| "Public certificate must be UTF-8 PEM text")?;
-        if !certificate.contains("-----BEGIN CERTIFICATE-----") || certificate.contains("PRIVATE KEY") {
-            return Err("Public certificate delivery accepts certificate PEM only".into());
-        }
-    }
-
     Ok((filename, bytes, document.kind))
 }
 
@@ -414,8 +498,6 @@ fn apply_dialog_filter(
         // truthful so a future route cannot pick up a wrong filter by default.
         DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics bundle", &["zip"]),
         DesktopSaveKind::JsonDocument => dialog.add_filter("JSON document", &["json"]),
-        DesktopSaveKind::RemoteKey => dialog.add_filter("Remote key", &["key"]),
-        DesktopSaveKind::PublicCertificate => dialog.add_filter("Public certificate", &["pem"]),
         DesktopSaveKind::SecretArchive => dialog.add_filter("Secret Archive", &["b64"]),
         DesktopSaveKind::Artifact => dialog,
     }
@@ -426,8 +508,6 @@ fn extension_policy(kind: DesktopSaveKind) -> ExtensionPolicy {
         DesktopSaveKind::HtmlReport => ExtensionPolicy::Append(".html"),
         DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".zip"),
         DesktopSaveKind::JsonDocument => ExtensionPolicy::Append(".json"),
-        DesktopSaveKind::RemoteKey => ExtensionPolicy::Append(".key"),
-        DesktopSaveKind::PublicCertificate => ExtensionPolicy::Append(".pem"),
         DesktopSaveKind::SecretArchive => ExtensionPolicy::Append(".b64"),
         DesktopSaveKind::Artifact => ExtensionPolicy::Free,
     }
@@ -519,9 +599,57 @@ fn restrict_to_owner(path: &Path, mode: u32) -> Result<(), String> {
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(|error| error.to_string())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn restrict_to_owner(path: &Path, mode: u32) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::{
+        Win32::{
+            Foundation::{HLOCAL, LocalFree},
+            Security::{
+                Authorization::{
+                    ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1, SE_FILE_OBJECT, SetNamedSecurityInfoW,
+                },
+                DACL_SECURITY_INFORMATION, GetSecurityDescriptorDacl, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
+            },
+        },
+        core::{BOOL, PCWSTR},
+    };
+    let rule = if mode == 0o700 { "D:P(A;OICI;FA;;;OW)" } else { "D:P(A;;FA;;;OW)" };
+    let rule: Vec<u16> = rule.encode_utf16().chain(Some(0)).collect();
+    let path: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let mut descriptor = PSECURITY_DESCRIPTOR::default();
+    // The Descriptor Owns The ACL Until SetNamedSecurityInfo Has Copied It.
+    unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(PCWSTR(rule.as_ptr()), SDDL_REVISION_1, &mut descriptor, None)
+            .map_err(|error| error.to_string())?;
+        let result = (|| {
+            let mut present = BOOL::default();
+            let mut defaulted = BOOL::default();
+            let mut acl = std::ptr::null_mut();
+            GetSecurityDescriptorDacl(descriptor, &mut present, &mut acl, &mut defaulted).map_err(|error| error.to_string())?;
+            if !present.as_bool() || acl.is_null() {
+                return Err("Private file ACL is absent".into());
+            }
+            SetNamedSecurityInfoW(
+                PCWSTR(path.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(acl),
+                None,
+            )
+            .ok()
+            .map_err(|error| error.to_string())
+        })();
+        let _ = LocalFree(Some(HLOCAL(descriptor.0)));
+        result
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 fn restrict_to_owner(_path: &Path, _mode: u32) -> Result<(), String> {
-    Ok(())
+    Err("Private file permissions are unavailable on this platform".into())
 }
 
 async fn write_document(session: &ConnectionSession, generation: &str, path: PathBuf, bytes: Vec<u8>, private: bool) -> Result<(), String> {
@@ -563,13 +691,13 @@ fn pick_destination(
         Err(error) => return Err(error.to_string()),
     };
     if !metadata.is_file() || metadata.file_type().is_symlink() {
-        return Err("Evidence destination must be a regular file".into());
+        return Err("Destination must be a regular file".into());
     }
-    let message = format!("Replace {} with the verified evidence archive?", destination.display());
+    let message = format!("Replace {} with the verified file?", destination.display());
     let confirmed = app
         .dialog()
         .message(message)
-        .title("Replace Evidence File")
+        .title("Replace File")
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom("Replace".into(), "Cancel".into()))
         .blocking_show();
@@ -581,12 +709,10 @@ async fn move_verified_file(
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let _source = tempfile::TempPath::try_from_path(source.clone()).map_err(|error| error.to_string())?;
-        let parent = destination.parent().ok_or("destination has no parent directory")?;
-        let mut staged = tempfile::Builder::new().prefix(".dokime-").tempfile_in(parent).map_err(|error| error.to_string())?;
-        let mut input = std::fs::File::open(source).map_err(|error| error.to_string())?;
-        std::io::copy(&mut input, staged.as_file_mut()).map_err(|error| error.to_string())?;
-        staged.as_file().sync_all().map_err(|error| error.to_string())?;
-        let staged_path = staged.path();
+        let input = std::fs::OpenOptions::new().read(true).write(true).open(&source).map_err(|error| error.to_string())?;
+        input.sync_all().map_err(|error| error.to_string())?;
+        drop(input);
+        let staged_path = &source;
         let published = session.with_current(&generation, || {
             if overwrite {
                 dokime::harmos::filesystem::publication::replace(staged_path, &destination)
@@ -616,31 +742,6 @@ mod tests {
         };
         let error = validate_save_document("7", &document).unwrap_err();
         assert!(error.contains("desktop_artifact_deliver"));
-    }
-
-    #[test]
-    fn remote_security_documents_are_bounded_and_redacted() {
-        let mut document = DesktopSaveDocument {
-            kind: DesktopSaveKind::RemoteKey,
-            filename: "dokime-remote".into(),
-            bytes_base64: BASE64.encode("a".repeat(64)),
-        };
-        let (filename, bytes, _) = validate_save_document("7", &document).unwrap();
-        assert_eq!(filename, "dokime-remote.key");
-        assert_eq!(bytes.len(), 64);
-        assert!(!format!("{document:?}").contains(&document.bytes_base64));
-        document.bytes_base64 = BASE64.encode("short");
-        assert!(validate_save_document("7", &document).is_err());
-        document.bytes_base64 = BASE64.encode("a".repeat(4099));
-        assert!(validate_save_document("7", &document).is_err());
-        document.kind = DesktopSaveKind::PublicCertificate;
-        document.filename = "dokime-server".into();
-        document.bytes_base64 = BASE64.encode("-----BEGIN CERTIFICATE-----\npublic\n-----END CERTIFICATE-----");
-        assert_eq!(validate_save_document("7", &document).unwrap().0, "dokime-server.pem");
-        document.bytes_base64 = BASE64.encode("-----BEGIN CERTIFICATE-----\n-----BEGIN PRIVATE KEY-----");
-        assert!(validate_save_document("7", &document).is_err());
-        document.bytes_base64 = "A".repeat((64usize * 1024).div_ceil(3) * 4 + 4);
-        assert!(validate_save_document("7", &document).is_err());
     }
 
     fn json_document(filename: &str, bytes: &[u8]) -> DesktopSaveDocument {

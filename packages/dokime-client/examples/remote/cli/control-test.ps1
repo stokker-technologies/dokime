@@ -6,10 +6,7 @@ $PSNativeCommandArgumentPassing = 'Standard'
 $PSNativeCommandUseErrorActionPreference = $true
 
 # Connection Parameters
-$ENDPOINT = 'https://127.0.0.1:8766'
-$CA_CERTIFICATE = 'server.pem'
-$KEY_FILE = 'remote.key'
-$ENV_FILE = ''
+$BACKEND_IDENTIFIER = 'lab'
 
 # Case And Execution Parameters
 $TEMPLATE = 'obc.checks.pulse'
@@ -27,10 +24,7 @@ $OUTPUT_DIRECTORY = 'test-evidence'
 $OVERWRITE = $false
 
 # Connect With The Explicit Parameters
-$Connection = @('--endpoint', $ENDPOINT)
-if ($CA_CERTIFICATE) { $Connection += @('--ca', $CA_CERTIFICATE) }
-if ($KEY_FILE) { $Connection += @('--key-file', $KEY_FILE) }
-if ($ENV_FILE) { $Connection += @('--env-file', $ENV_FILE) }
+$Connection = @('--backend', $BACKEND_IDENTIFIER)
 
 # Uncaptured Commands Retain Native Ctrl+C Recovery; UUIDs Travel In A File.
 $CycleId = ''

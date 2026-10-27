@@ -69,10 +69,14 @@ impl Operation for Watch {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::WatchTrace, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchTrace, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        self.follow(request, output).instrument(tracing::info_span!(WATCH_SPAN)).await?;
-        Ok(().into())
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            self.follow(request, output).instrument(tracing::info_span!(WATCH_SPAN)).await?;
+            Ok(().into())
+        })
+        .await
     }
 }
 

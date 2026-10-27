@@ -40,7 +40,7 @@ use dokime_runtime::{Runtime, app::Lanes};
 #[harmos::operation(response = Value, id = "fixture.secrets.read", version = 1, policy = dokime_domain::operations::ORDINARY)]
 #[derive(Clone, PartialEq)]
 struct ReadSecret {
-    name: String,
+    identifier: String,
 }
 
 struct Reader;
@@ -63,7 +63,7 @@ impl Operation for Reader {
     }
 
     async fn run<'a>(&mut self, ctx: Self::Context<'a>, request: &mut ReadSecret, _: &mut ()) -> Result<Response<Value>, Self::Error> {
-        ctx.call(secrets::Lookup { name: request.name.clone() }).await
+        ctx.call(secrets::Lookup { identifier: request.identifier.clone() }).await
     }
 }
 
@@ -86,20 +86,20 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
         operations.register_operation::<Reader>(owner, Lanes::Open, Arc::new(())).unwrap();
     }
 
-    let metadata = Metadata { name: "shared.bench".into(), label: "Shared Bench".into(), description: None };
+    let metadata = Metadata { identifier: "shared.bench".into(), label: "Shared Bench".into(), description: None };
     for (generation, value) in [(0, "first-test-value"), (1, "replacement-test-value")] {
         let written = operations.call(secrets::Put { metadata: metadata.clone(), value: Some(value.into()), generation }).await.unwrap();
         assert_eq!(written.generation, generation + 1);
         for owner in ["plugin.alpha", "plugin.beta"] {
-            let reading = operations.submit_from(owner, ReadSecret { name: metadata.name.clone() }).unwrap().await.unwrap();
+            let reading = operations.submit_from(owner, ReadSecret { identifier: metadata.identifier.clone() }).unwrap().await.unwrap();
             assert_eq!(reading.value.as_deref(), Some(value));
             assert!(!format!("{reading:?}").contains(value));
         }
     }
 
-    operations.call(secrets::Remove { names: vec![metadata.name.clone()], generation: 2 }).await.unwrap();
+    operations.call(secrets::Remove { identifiers: vec![metadata.identifier.clone()], generation: 2 }).await.unwrap();
     for owner in ["plugin.alpha", "plugin.beta"] {
-        let result = operations.submit_from(owner, ReadSecret { name: metadata.name.clone() }).unwrap().await;
+        let result = operations.submit_from(owner, ReadSecret { identifier: metadata.identifier.clone() }).unwrap().await;
         assert!(result.is_err());
     }
     let connection =

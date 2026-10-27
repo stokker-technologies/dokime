@@ -4481,7 +4481,6 @@ connection = "lab"
 project = "lab/dokime"
 [updates.connections.lab]
 host = "https://127.0.0.1:1"
-oauth_client_id = "native-validation"
 `;
   await promisify(execFile)(
     "python",
@@ -4528,8 +4527,8 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   assert.equal(existsSync(join(root, "pending")), false, "Activation promotes the pending directory");
   await session.screenshot("organization-active");
 
-  await session.goto("/settings/account-updates");
-  await session.clickNamed("button", "Manage");
+  await session.goto("/settings/about");
+  await session.clickNamed("button", "Check For Updates");
   const selection = (label) => session.execute(`return document.querySelector('select[aria-label="${label}"]')?.value;`);
   await until("disabled organization update policy", async () => (await selection("Update Checks")) === "disabled");
   const checkDisabled = () =>
@@ -4549,8 +4548,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
     );
   };
   await select("Release Source", "private");
-  await until("named release connection", async () => hasText(await session.text(), "Public Access"));
-  assert.ok(hasText(await session.text(), "Sign In With GitLab"));
+  await until("selected public GitLab source", async () => (await selection("Release Source")) === "private");
   assert.equal(await checkDisabled(), true);
   await select("Release Source", "public");
   await select("Update Checks", "manual");
@@ -4570,8 +4568,8 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await select("Release Source", "private");
   await session.screenshot("organization-update-policy");
   await restart();
-  await session.goto("/settings/account-updates");
-  await session.clickNamed("button", "Manage");
+  await session.goto("/settings/about");
+  await session.clickNamed("button", "Check For Updates");
   await until("saved release source survives restart", async () => (await selection("Release Source")) === "private");
   assert.equal(await selection("Update Checks"), "disabled");
   await restart();

@@ -322,9 +322,7 @@ async fn finalize_record_inputs(
     let result = if host_managed { settle_record_inputs(executions, token, cancel).await } else { Ok(()) };
     if let Some(state) = lock(executions).get_mut(token) {
         evidence.subscribed_records = state.captured_records();
-        for sample in state.take_staged() {
-            evidence.record_sample(sample);
-        }
+        evidence.samples = state.take_staged();
     }
     result
 }

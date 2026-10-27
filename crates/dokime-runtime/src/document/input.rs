@@ -16,7 +16,6 @@ pub(crate) use super::context::Context;
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
@@ -28,7 +27,7 @@ use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::saved::ExecutionOutput;
 use dokime_domain::model::execution::saved::ExecutionOutputContent;
-use dokime_domain::model::identity::RecordId;
+
 use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
@@ -65,7 +64,7 @@ pub(crate) struct BorrowedInput<'a> {
     pub data: BorrowedData<'a>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Serialize)]
 pub(crate) struct BorrowedData<'a> {
     pub context: Context<'a>,
     pub records: Records<'a>,
@@ -85,7 +84,7 @@ pub(super) struct RecordView<'a> {
 pub(crate) enum Records<'a> {
     Native(crate::records::view::View<'a>),
     Pages(&'a [harmos::storage::ReadBatch<Vec<RecordEntry>>]),
-    Subscribed { rows: crate::records::view::View<'a>, scopes: &'a BTreeMap<RecordId, RecordScope> },
+    Subscribed { rows: crate::records::view::View<'a>, captures: &'a dokime_domain::state::records::set::TestRecordSet },
 }
 
 #[derive(Clone, Copy)]
@@ -128,12 +127,12 @@ impl<'a> Records<'a> {
         let (native, pages, scopes) = match self {
             Self::Native(rows) => (rows, &[][..], None),
             Self::Pages(pages) => (crate::records::view::View::default(), pages, None),
-            Self::Subscribed { rows, scopes } => (rows, &[][..], Some(scopes)),
+            Self::Subscribed { rows, captures } => (rows, &[][..], Some(captures)),
         };
-        native
-            .iter()
-            .chain(pages.iter().flat_map(|page| page.iter()))
-            .map(move |entry| RecordView { entry, scope: scopes.and_then(|scopes| scopes.get(&entry.record_id)).or(entry.scope.as_ref()) })
+        native.iter().chain(pages.iter().flat_map(|page| page.iter())).map(move |entry| RecordView {
+            entry,
+            scope: scopes.and_then(|captures| captures.captured_scope(entry)).or(entry.scope.as_ref()),
+        })
     }
 }
 

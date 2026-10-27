@@ -63,26 +63,30 @@ impl Operation for Download {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut content_wire::DownloadArtifact, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut content_wire::DownloadArtifact, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let id = ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
-        let reader = self
-            .resources
-            .runtime
-            .open_artifact_stream(&id)
-            .await
-            .map_err(|source| {
-                let status = if matches!(&source, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
-                    Status::resource_exhausted("cannot open stored artifact")
-                } else {
-                    Status::internal("cannot open stored artifact")
-                };
-                detailed(status, &source)
-            })?
-            .ok_or_else(|| Status::not_found("artifact not found"))?;
-        deliver(reader, self.resources.maximum, super::download_chunk_bytes(&self.resources.runtime, self.resources.maximum)?, output)
-            .await?;
-        Ok(().into())
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let id = ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
+            let reader = self
+                .resources
+                .runtime
+                .open_artifact_stream(&id)
+                .await
+                .map_err(|source| {
+                    let status = if matches!(&source, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
+                        Status::resource_exhausted("cannot open stored artifact")
+                    } else {
+                        Status::internal("cannot open stored artifact")
+                    };
+                    detailed(status, &source)
+                })?
+                .ok_or_else(|| Status::not_found("artifact not found"))?;
+            deliver(reader, self.resources.maximum, super::download_chunk_bytes(&self.resources.runtime, self.resources.maximum)?, output)
+                .await?;
+            Ok(().into())
+        })
+        .await
     }
 }
 

@@ -166,10 +166,10 @@ impl DesktopSession {
         }
     }
     pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, Error> {
-        let selected = if let BackendSelection::Profile { name } = &selection {
+        let selected = if let BackendSelection::Profile { identifier } = &selection {
             let document = super::super::connection::registry::load().await.map_err(|error| Error::Connection { error })?;
             Some(
-                dokime::client::profiles::get(&document, name)
+                dokime::client::profiles::get(&document, identifier)
                     .map_err(|error| Error::Startup { message: error.to_string(), diagnostics: None })?
                     .clone(),
             )
@@ -242,9 +242,9 @@ impl DesktopSession {
         client.close();
         result.map(|snapshot| snapshot.settings.client).map_err(|error| Error::Connection { error: error.into() })
     }
-    pub fn remove_profile(&self, name: &str) -> Result<(), Error> {
+    pub fn remove_profile(&self, identifier: &str) -> Result<(), Error> {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
-        if self.0.connection.disconnect_profile(name).map_err(|error| Error::Connection { error })? {
+        if self.0.connection.disconnect_profile(identifier).map_err(|error| Error::Connection { error })? {
             state.revision = state.revision.checked_add(1).ok_or(Error::Superseded)?;
             state.ownership = BackendOwnership::None;
             state.phase = None;

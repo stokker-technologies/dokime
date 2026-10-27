@@ -544,8 +544,18 @@ fn step_attempt_rewrites() {
         dokime_runtime::records::RecordSeverity::Info,
     );
     admitted.scope = Some(first_scope.clone());
-    state.commit_record(admitted);
-    assert_eq!(state.executions[&id].records.subscribed_records()[&captured_id], first_scope);
+    let saved = model::records::evidence::RecordEntry {
+        sequence: 1,
+        ordinal: 1,
+        captured_scopes: vec![first_scope.clone()],
+        record: admitted.clone(),
+    };
+    state.commit_record(dokime_domain::state::records::CapturedRecord {
+        record: admitted,
+        ordinal: saved.ordinal,
+        scopes: saved.captured_scopes.clone(),
+    });
+    assert_eq!(state.executions[&id].records.captured_scope(&saved), Some(&first_scope));
 
     begin.check(&state).unwrap();
     begin.apply(&mut state);
@@ -574,8 +584,9 @@ fn step_attempt_rewrites() {
 
     let later_scope = state.executions[&id].capture_scope();
     assert_ne!(first_scope.origin, later_scope.origin);
-    state.executions.get_mut(&id).unwrap().records.capture_record(captured_id.clone(), later_scope);
-    assert_eq!(state.executions[&id].records.subscribed_records()[&captured_id], first_scope);
+    state.executions.get_mut(&id).unwrap().records.capture_frontier(id.clone(), 2);
+    assert_eq!(state.executions[&id].records.captured_scope(&saved), Some(&first_scope));
+    assert_eq!(state.executions[&id].records.capture_through(), 2);
     record.check(&state).unwrap();
     record.apply(&mut state);
     assert_eq!(state.executions[&id].step_attempts.len(), 2);

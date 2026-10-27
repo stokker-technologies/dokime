@@ -273,9 +273,14 @@ impl Environment<'_, '_> {
             (Self::Live(runtime), Target::Plugin { source, dispatcher }) => {
                 runtime.analyze_with_dispatcher(source, dispatcher, operation, request).await
             }
-            (Self::Report { ctx, .. }, Target::Builtin) => {
-                let bytes = ctx.call_encoded(operation, request.encode_to_vec()).await?;
-                crate::analysis::Response::decode(&bytes).map_err(|error| invalid(error.to_string()))
+            (Self::Report { .. }, Target::Builtin) => {
+                let operation = operation.to_owned();
+                let work = tokio::task::spawn_blocking(move || crate::plot::builtins::evaluate_report(&operation, request));
+                tokio::time::timeout(std::time::Duration::from_secs(60), work)
+                    .await
+                    .map_err(|_| invalid("report analysis exceeded 60 seconds"))?
+                    .map_err(|error| invalid(error.to_string()))?
+                    .map_err(|error| invalid(error.to_string()))
             }
             (Self::Report { resources, .. }, Target::Plugin { source, dispatcher }) => {
                 resources.invoke(source, dispatcher, operation, request).await

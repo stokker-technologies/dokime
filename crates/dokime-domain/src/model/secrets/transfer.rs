@@ -33,12 +33,14 @@ use super::catalog::Metadata;
 
 #[harmos_domain::message(skip_debug)]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Archive {
     pub data: Vec<u8>,
 }
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Preview {
     pub host_id: String,
     pub host_label: String,
@@ -48,6 +50,7 @@ pub struct Preview {
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Entry {
     pub metadata: Metadata,
     pub exists: bool,
@@ -55,8 +58,9 @@ pub struct Entry {
 
 #[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Choice {
-    pub name: String,
+    pub identifier: String,
     pub action: Action,
 }
 

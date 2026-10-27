@@ -221,7 +221,7 @@ impl Serialize for Rows<'_, '_> {
                 }
                 Section::Records => {
                     for record in &input.records {
-                        rows.serialize_element(&record_row(report.header, record))?;
+                        rows.serialize_element(&record_row(report.header, &record))?;
                     }
                 }
                 Section::Warnings => {

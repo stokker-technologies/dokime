@@ -115,16 +115,8 @@ impl Config {
         Ok(config)
     }
 
-    pub(super) fn managed_remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, digest: Option<[u8; 32]>, maximum: usize) -> Self {
-        Self {
-            bind_addr,
-            policy: digest.map_or(Policy::Open, Policy::Key),
-            tls,
-            max_message_bytes: maximum,
-            remote: true,
-            web: None,
-            trace_journal: None,
-        }
+    pub(super) fn managed_remote(bind_addr: SocketAddr, tls: Option<TlsIdentity>, policy: Policy, maximum: usize) -> Self {
+        Self { bind_addr, policy, tls, max_message_bytes: maximum, remote: true, web: None, trace_journal: None }
     }
 
     pub fn with_bind_addr(mut self, address: SocketAddr) -> Self {

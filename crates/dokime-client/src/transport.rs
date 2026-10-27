@@ -56,10 +56,12 @@ impl Client {
         <O::Output as Direction>::Item: Portable + MemorySize,
     {
         self.require(path)?;
+        let report = matches!(path, "/dokime.v1.Reports/DownloadCycleReport" | "/dokime.v1.Reports/DownloadExecutionReport");
+        let response_bytes = if report { self.response_limit().min(2_097_152) } else { self.response_limit() };
         let codec =
-            codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, Response<O>>(self.response_limit(), self.request_limit())?;
+            codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, Response<O>>(response_bytes, self.request_limit())?;
         let mut client = tonic::client::Grpc::new(self.channel()?)
-            .max_decoding_message_size(self.response_limit())
+            .max_decoding_message_size(response_bytes)
             .max_encoding_message_size(self.request_limit());
         let incoming = self
             .execute(async {
@@ -93,7 +95,7 @@ impl Client {
                 },
             }
         });
-        ResponseStream::new(self, frames)
+        if report { ResponseStream::prefetched(self, frames, response_bytes) } else { ResponseStream::new(self, frames) }
     }
 
     pub(super) async fn upload<O, S>(&self, path: &'static str, message: O, items: S) -> Result<O::Response>

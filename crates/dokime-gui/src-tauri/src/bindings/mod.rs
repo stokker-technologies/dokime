@@ -49,6 +49,15 @@ macro_rules! native_commands {
 }
 
 native_commands! {
+    async desktop_pairing_create
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
+        (label: String, endpoint: String) -> Result<Option<std::path::PathBuf>, crate::connection::ConnectionError>
+        => crate::app::desktop::desktop_pairing_create;
+    async desktop_backend_import_pairing
+        [window: tauri::WebviewWindow, app: tauri::AppHandle, registry: tauri::State<'_, crate::connection::registry::Registry>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+        (identifier: Option<String>) -> Result<Option<dokime::client::profiles::Document>, crate::connection::ConnectionError>
+        => crate::connection::registry::desktop_backend_import_pairing;
+
     async desktop_backends_list [] () -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backends_list;
     async desktop_backend_add [registry: tauri::State<'_, crate::connection::registry::Registry>]
@@ -56,11 +65,11 @@ native_commands! {
         => crate::connection::registry::desktop_backend_add;
     async desktop_backend_remove
         [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
-        (name: String) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
+        (identifier: String) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backend_remove;
     async desktop_backend_use
         [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
-        (name: String) -> Result<crate::connection::ConnectionSnapshot, crate::connection::ConnectionError>
+        (identifier: String) -> Result<crate::connection::ConnectionSnapshot, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backend_use;
     async desktop_settings_read [owner: tauri::State<'_, crate::native_session::DesktopSessionControl>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
         (scope: dokime::domain::model::settings::application::SettingsScope) -> Result<dokime::domain::model::settings::application::SettingsSnapshot, crate::app::preferences::SettingsCommandError>
@@ -225,16 +234,6 @@ native_commands! {
         [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]
         (selection: crate::app::updates::Selection) -> Result<crate::app::updates::UpdateStatus, String>
         => crate::app::updates::desktop_updates_configure;
-
-    async desktop_updates_sign_in
-        [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]
-        () -> Result<crate::app::updates::UpdateStatus, String>
-        => crate::app::updates::desktop_updates_sign_in;
-
-    async desktop_updates_sign_out
-        [state: tauri::State<'_, crate::app::updates::UpdateState>]
-        () -> Result<crate::app::updates::UpdateStatus, String>
-        => crate::app::updates::desktop_updates_sign_out;
 
     async desktop_updates_check
         [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]

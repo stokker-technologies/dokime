@@ -13,7 +13,6 @@
 
 /* === Modules === */
 
-pub mod diagnostics_assembly;
 mod error;
 pub mod grpc;
 pub mod host;

@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod operations;
+pub(super) mod pairing;
 pub(super) mod sessions;
 mod store;
 
@@ -23,14 +24,12 @@ mod store;
 use std::{path::PathBuf, sync::Arc};
 
 // Third Party Imports
-use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
-use zeroize::Zeroizing;
 
 // Local Imports
 use super::{Config, Error, Server, Service, TlsIdentity};
 use dokime::RuntimeHandle;
-use dokime::domain::model::remote::{GeneratedAccessKey, RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
+use dokime::domain::model::remote::{RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
 
 /* === Constants === */
 
@@ -49,6 +48,7 @@ pub(super) struct Controller {
     path: PathBuf,
     sessions: Arc<sessions::SessionLog>,
     state: Mutex<State>,
+    clients: Arc<pairing::Registry>,
 }
 
 struct State {
@@ -63,7 +63,6 @@ struct State {
 
 enum Change {
     Settings(RemoteListenerSettings),
-    Key,
     Certificate(Vec<String>),
 }
 
@@ -77,7 +76,7 @@ impl State {
             settings: Some(self.document.settings.clone()),
             listening_address: self.server.as_ref().map(|server| server.address().to_string()),
             certificate_pem: self.document.identity.as_ref().map(|identity| identity.certificate.clone()),
-            key_configured: self.document.key_digest.is_some(),
+            key_configured: !self.document.clients.is_empty(),
             error: self.error.clone(),
         }
     }
@@ -117,6 +116,7 @@ impl Controller {
     }
 
     pub(super) async fn stop(&self) -> Result<(), Error> {
+        self.flush_clients().await?;
         let mut state = self.state.lock().await;
         state.closing = true;
         let sessions = self.sessions.clone();
@@ -148,10 +148,10 @@ impl Controller {
         if !settings.enabled {
             return Ok(None);
         }
-        let digest = if settings.authentication_enabled {
-            Some(document.key_digest.ok_or(Error::Configuration("generate a remote access key before enabling authentication"))?)
+        let policy = if settings.authentication_enabled {
+            super::access::Policy::Clients(self.clients.clone())
         } else {
-            None
+            super::access::Policy::Open
         };
         let tls = if settings.tls_enabled {
             let identity =
@@ -160,7 +160,7 @@ impl Controller {
         } else {
             None
         };
-        Ok(Some(Config::managed_remote(address, tls, digest, self.service.message_limit())))
+        Ok(Some(Config::managed_remote(address, tls, policy, self.service.message_limit())))
     }
 
     async fn write_security(&self, document: &store::Document) -> Result<(), Error> {
@@ -197,7 +197,7 @@ impl Controller {
         Ok(())
     }
 
-    async fn change(self: &Arc<Self>, change: Change) -> Result<GeneratedAccessKey, Error> {
+    async fn change(self: &Arc<Self>, change: Change) -> Result<RemoteListenerStatus, Error> {
         // Own The Whole Transition After Client Cancellation, Including Rollback.
         let controller = self.clone();
         tokio::spawn(async move {
@@ -210,7 +210,7 @@ impl Controller {
         .await?
     }
 
-    async fn apply(&self, change: Change) -> Result<GeneratedAccessKey, Error> {
+    async fn apply(&self, change: Change) -> Result<RemoteListenerStatus, Error> {
         let mut state = self.state.lock().await;
         if state.closing {
             return Err(dokime::harmos::Error::Closing { domain: "remote listener management" }.into());
@@ -218,12 +218,12 @@ impl Controller {
         let snapshot = self.runtime.read_application_settings().await?;
         let mut candidate = state.document.clone();
         candidate.settings = snapshot.settings.listener.clone();
-        let mut access_key = Zeroizing::new(String::new());
+        candidate.clients = self.clients.records();
         match change {
             Change::Settings(settings) => {
                 store::validate(&settings)?;
                 if settings == state.document.settings && state.error.is_none() && state.server.is_some() == settings.enabled {
-                    return Ok(GeneratedAccessKey { access_key: String::new(), listener: Some(state.status()) });
+                    return Ok(state.status());
                 }
                 let mut settings = settings;
                 if let Some(identity) = &candidate.identity {
@@ -241,14 +241,6 @@ impl Controller {
                     candidate.identity = Some(store::Identity::generate(settings.certificate_names.clone())?);
                 }
                 candidate.settings = settings;
-            }
-            Change::Key => {
-                let random = Zeroizing::new(rand::random::<[u8; 32]>());
-                use std::fmt::Write;
-                for byte in random.iter() {
-                    write!(access_key, "{byte:02x}").expect("writing to a string succeeds");
-                }
-                candidate.key_digest = Some(Sha256::digest(access_key.as_bytes()).into());
             }
             Change::Certificate(names) => {
                 candidate.settings.certificate_names = names;
@@ -293,10 +285,10 @@ impl Controller {
             authentication = state.document.settings.authentication_enabled,
             "remote listener settings applied"
         );
-        Ok(GeneratedAccessKey { access_key: access_key.to_string(), listener: Some(state.status()) })
+        Ok(state.status())
     }
 
-    async fn restore(&self, state: &mut State, previous: Option<Config>, change: Error) -> Result<GeneratedAccessKey, Error> {
+    async fn restore(&self, state: &mut State, previous: Option<Config>, change: Error) -> Result<RemoteListenerStatus, Error> {
         if let Some(config) = previous {
             let bound = config.clone();
             match self.service.listen_with(config).await {
@@ -328,12 +320,26 @@ pub(super) async fn register(runtime: &RuntimeHandle, service: Service) -> Resul
     let log_path = path.with_file_name("sessions.json");
     tokio::task::spawn_blocking(move || log.attach(log_path)).await?;
     spawn_session_flush(Arc::downgrade(&sessions), std::time::Duration::from_millis(SERVER_REMOTE_HEARTBEAT_MS));
+    let clients = Arc::new(pairing::Registry::new(document.clients.clone()));
     let controller = Arc::new(Controller {
         runtime: runtime.clone(),
         service,
         path,
         sessions,
+        clients,
         state: Mutex::new(State { document, server: None, bound: None, error: None, closing: false }),
+    });
+    let weak = Arc::downgrade(&controller);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(SERVER_REMOTE_HEARTBEAT_MS));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            let Some(controller) = weak.upgrade() else { return };
+            if let Err(error) = controller.flush_clients().await {
+                tracing::error!(%error, "paired client timestamps could not be saved");
+            }
+        }
     });
     operations::register(runtime, controller.clone())?;
     Ok(controller)

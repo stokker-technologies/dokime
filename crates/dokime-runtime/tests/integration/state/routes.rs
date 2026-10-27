@@ -37,17 +37,14 @@ use dokime_runtime::plugins::PluginStore;
 
 /* === Private Functions === */
 fn fixture_bytes() -> Vec<u8> {
-    use crate::fixtures::{PREPARE, prepared_directory, require_current};
-    let directory = prepared_directory();
-    require_current(&directory, PREPARE);
-    let bundle = directory.join("obc-plugin/obc-plugin.dokime");
-    std::fs::read(&bundle).unwrap_or_else(|error| panic!("{PREPARE}: {}: {error}", bundle.display()))
+    std::fs::read(crate::service_support::bundles::obc_plugin_bundle()).unwrap()
 }
 
 /* === Tests === */
-// frozen catalog cannot bind missing, reserved or multiply claimed operations.
+// Frozen Catalog Rejects Undeclared, Reserved And Duplicate Operations.
 
-pub(crate) async fn frozen_catalog_multiply() {
+#[tokio::test]
+async fn frozen_catalog_multiply() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
@@ -85,9 +82,10 @@ pub(crate) async fn frozen_catalog_multiply() {
     }
 }
 
-// legacy and unknown domain carriers are refused before admission.
+// Unsupported Domain Schemas Are Refused Before Admission.
 
-pub(crate) async fn legacy_unknown_refused() {
+#[tokio::test]
+async fn unsupported_schema_refused() {
     use harmos_packaging::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];

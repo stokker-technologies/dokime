@@ -1196,8 +1196,8 @@ async fn latest_member_annotations() {
     runtime.record_health_item(health("Recovered", "2026-01-01T00:00:04Z")).await.unwrap();
     assert_eq!(run(&members[0]).await, ["Recovered"]);
 
-    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
-    let payload = parse(std::str::from_utf8(&report.html).unwrap());
+    let mut report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    let payload = parse(std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut report).await).unwrap());
     let health = payload["snapshot"]["health"].as_array().unwrap();
     assert_eq!(
         health.iter().filter(|row| row["health_id"] == health_id.as_str()).map(|row| row["title"].as_str().unwrap()).collect::<Vec<_>>(),
@@ -1235,9 +1235,9 @@ async fn cycle_report_planned() {
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     crate::service_support::native::checkpoint(&runtime, &members[0].test_execution_id).await;
 
-    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    let mut report = runtime.open_cycle_report(&cycle_id).await.unwrap();
     assert_eq!(report.origin, dokime_runtime::ReportOrigin::Current);
-    let payload = parse(std::str::from_utf8(&report.html).unwrap());
+    let payload = parse(std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut report).await).unwrap());
     let executions = payload["test_executions"].as_array().unwrap();
     assert_eq!(
         executions.iter().map(|row| row["test_execution_id"].as_str().unwrap()).collect::<Vec<_>>(),

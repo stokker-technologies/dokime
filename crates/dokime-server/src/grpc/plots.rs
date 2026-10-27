@@ -289,100 +289,109 @@ impl Operation for Watch {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::Watch, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut contract::Watch, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let runtime = &self.resources.runtime;
-        let epoch = runtime.process_epoch().as_str().to_owned();
-        let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
-        let original = requests.clone();
-        let mut waiting = requests.clone();
-        self.resources.send_pending(output, &waiting, &selections, &original, &epoch).await?;
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let runtime = &self.resources.runtime;
+            let epoch = runtime.process_epoch().as_str().to_owned();
+            let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
+            let original = requests.clone();
+            let mut waiting = requests.clone();
+            self.resources.send_pending(output, &waiting, &selections, &original, &epoch).await?;
 
-        // The Passive Native Wait Subscribes Before Checking This Frontier,
-        // So A Save Racing Any Initial Read Cannot Be Missed.
-        let mut states = runtime.watch_state();
-        let mut observed = runtime.storage().cursor_saved();
-        let initial = observed.clone();
-        let mut dirty = BTreeSet::new();
-        let mut opened = BTreeSet::new();
-        let resources = &self.resources;
-        let at = &initial;
-        let snapshots = stream::iter(waiting.clone())
-            .map(|current| async move {
-                let result = resources.query_snapshot(&current, RuntimePlotQueryMode::Snapshot, at).await;
-                (current, result)
-            })
-            .buffer_unordered(usize::try_from(SERVER_PLOT_INITIAL_CONCURRENCY).expect("validated plot concurrency"));
-        let mut reading = std::pin::pin!(with_keepalive(snapshots, Duration::from_millis(SERVER_PLOT_KEEPALIVE_MS)));
-        while let Some(event) = reading.next().await {
-            match event {
-                Opening::Keepalive => self.resources.send_pending(output, &waiting, &selections, &original, &epoch).await?,
-                Opening::Ready((current, result)) => {
-                    let key = plot_key(&current);
-                    waiting.retain(|request| plot_key(request) != key);
-                    let selection =
-                        selection_for_plot(&original, &selections, &key).ok_or_else(|| Status::internal("plot selection is missing"))?;
-                    let frame = FrameContext { epoch: &epoch, selection, kind: PlotPayloadStreamKind::Snapshot };
-                    if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
-                        opened.insert(key);
-                    } else {
-                        dirty.insert(key);
-                    }
-                }
-            }
-        }
-        let keys = original.iter().map(|request| (plot_key(request), PlotWatchKeys::for_request(request))).collect::<Vec<_>>();
-        let throttle = Duration::from_millis(SERVER_PLOT_THROTTLE_MS);
-        let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
-        let mut last_flush = Instant::now() - throttle;
-        let mut next_flush = (!dirty.is_empty()).then(|| Instant::now() + retry_delay);
-        loop {
-            if requests.is_empty() {
-                return Ok(().into());
-            }
-            tokio::select! {
-                changed = states.next() => {
-                    if changed.is_none() { return Ok(().into()); }
-                    dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state()).map(|(key, _)| key.clone()));
-                }
-                _ = tokio::time::sleep_until(next_flush.unwrap_or_else(Instant::now)), if next_flush.is_some() => {
-                    next_flush = None;
-                    last_flush = Instant::now();
-                    // Every Query And Any Reduced Retry In This Pass Uses One
-                    // Durable Primary Cut; None Reads Accepted Pending Samples.
-                    let at = runtime.storage().cursor_saved();
-                    if at.sequence > observed.sequence { dirty.extend(requests.iter().map(plot_key)); }
-                    observed = at.clone();
-                    let served = requests.iter().filter(|request| dirty.contains(&plot_key(request))).cloned().collect::<Vec<_>>();
-                    let mut refused = false;
-                    for current in served {
+            // The Passive Native Wait Subscribes Before Checking This Frontier,
+            // So A Save Racing Any Initial Read Cannot Be Missed.
+            let mut states = runtime.watch_state();
+            let mut observed = runtime.storage().cursor_saved();
+            let initial = observed.clone();
+            let mut dirty = BTreeSet::new();
+            let mut opened = BTreeSet::new();
+            let resources = &self.resources;
+            let at = &initial;
+            let snapshots = stream::iter(waiting.clone())
+                .map(|current| async move {
+                    let result = resources.query_snapshot(&current, RuntimePlotQueryMode::Snapshot, at).await;
+                    (current, result)
+                })
+                .buffer_unordered(usize::try_from(SERVER_PLOT_INITIAL_CONCURRENCY).expect("validated plot concurrency"));
+            let mut reading = std::pin::pin!(with_keepalive(snapshots, Duration::from_millis(SERVER_PLOT_KEEPALIVE_MS)));
+            while let Some(event) = reading.next().await {
+                match event {
+                    Opening::Keepalive => self.resources.send_pending(output, &waiting, &selections, &original, &epoch).await?,
+                    Opening::Ready((current, result)) => {
                         let key = plot_key(&current);
-                        dirty.remove(&key);
-                        let selection = selection_for_plot(&original, &selections, &key).ok_or_else(|| Status::internal("plot selection is missing"))?;
-                        let (kind, mode) = if opened.contains(&key) { (PlotPayloadStreamKind::Replace, RuntimePlotQueryMode::Replace) } else { (PlotPayloadStreamKind::Snapshot, RuntimePlotQueryMode::Snapshot) };
-                        let frame = FrameContext { epoch: &epoch, selection, kind };
-                        let result = resources.query_snapshot(&current, mode, &at).await;
+                        waiting.retain(|request| plot_key(request) != key);
+                        let selection = selection_for_plot(&original, &selections, &key)
+                            .ok_or_else(|| Status::internal("plot selection is missing"))?;
+                        let frame = FrameContext { epoch: &epoch, selection, kind: PlotPayloadStreamKind::Snapshot };
                         if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
                             opened.insert(key);
                         } else {
                             dirty.insert(key);
-                            refused = true;
                         }
                     }
-                    if refused {
-                        next_flush = Some(Instant::now() + retry_delay);
-                        retry_delay = (retry_delay * 2).min(Duration::from_millis(SERVER_PLOT_RETRY_MAX_MS));
-                    } else { retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS); }
-                }
-                advanced = runtime.storage().wait_saved_after(&observed) => {
-                    observed = advanced.map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
-                    dirty.extend(requests.iter().map(plot_key));
                 }
             }
-            if next_flush.is_none() && !dirty.is_empty() {
-                next_flush = Some(last_flush + throttle);
+            let keys = original.iter().map(|request| (plot_key(request), PlotWatchKeys::for_request(request))).collect::<Vec<_>>();
+            let throttle = Duration::from_millis(SERVER_PLOT_THROTTLE_MS);
+            let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
+            let mut last_flush = Instant::now() - throttle;
+            let mut next_flush = (!dirty.is_empty()).then(|| Instant::now() + retry_delay);
+            loop {
+                if requests.is_empty() {
+                    return Ok(().into());
+                }
+                tokio::select! {
+                    changed = states.next() => {
+                        if changed.is_none() { return Ok(().into()); }
+                        dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state()).map(|(key, _)| key.clone()));
+                    }
+                    _ = tokio::time::sleep_until(next_flush.unwrap_or_else(Instant::now)), if next_flush.is_some() => {
+                        next_flush = None;
+                        last_flush = Instant::now();
+                        // Every Query And Any Reduced Retry In This Pass Uses One
+                        // Durable Primary Cut; None Reads Accepted Pending Samples.
+                        let at = runtime.storage().cursor_saved();
+                        if at.sequence > observed.sequence { dirty.extend(requests.iter().map(plot_key)); }
+                        observed = at.clone();
+                        let served = requests.iter().filter(|request| dirty.contains(&plot_key(request))).cloned().collect::<Vec<_>>();
+                        let mut refused = false;
+                        for current in served {
+                            let key = plot_key(&current);
+                            dirty.remove(&key);
+                            let selection = selection_for_plot(&original, &selections, &key)
+                                .ok_or_else(|| Status::internal("plot selection is missing"))?;
+                            let (kind, mode) = if opened.contains(&key) {
+                                (PlotPayloadStreamKind::Replace, RuntimePlotQueryMode::Replace)
+                            } else {
+                                (PlotPayloadStreamKind::Snapshot, RuntimePlotQueryMode::Snapshot)
+                            };
+                            let frame = FrameContext { epoch: &epoch, selection, kind };
+                            let result = resources.query_snapshot(&current, mode, &at).await;
+                            if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
+                                opened.insert(key);
+                            } else {
+                                dirty.insert(key);
+                                refused = true;
+                            }
+                        }
+                        if refused {
+                            next_flush = Some(Instant::now() + retry_delay);
+                            retry_delay = (retry_delay * 2).min(Duration::from_millis(SERVER_PLOT_RETRY_MAX_MS));
+                        } else { retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS); }
+                    }
+                    advanced = runtime.storage().wait_saved_after(&observed) => {
+                        observed = advanced.map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
+                        dirty.extend(requests.iter().map(plot_key));
+                    }
+                }
+                if next_flush.is_none() && !dirty.is_empty() {
+                    next_flush = Some(last_flush + throttle);
+                }
             }
-        }
+        })
+        .await
     }
 }
 

@@ -135,10 +135,14 @@ impl Operation for Download {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut content::DownloadAppearanceAsset, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut content::DownloadAppearanceAsset, output: &mut Self::Endpoints,
     ) -> Result<dokime::harmos::operations::Response<()>, Status> {
-        assets::download(&self.resources.runtime, std::mem::take(request), self.resources.max_message_bytes, output).await?;
-        Ok(().into())
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            assets::download(&self.resources.runtime, std::mem::take(request), self.resources.max_message_bytes, output).await?;
+            Ok(().into())
+        })
+        .await
     }
 }
 

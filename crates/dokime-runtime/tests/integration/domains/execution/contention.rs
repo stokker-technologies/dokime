@@ -116,9 +116,11 @@ async fn contended_reads_interactive() {
         tokio::spawn(async move {
             for _ in 0..ROUNDS {
                 barrier.wait().await;
-                let opened = handle.open_execution_report(&execution).await.unwrap();
-                assert!(!opened.html.is_empty());
-                let payload = crate::service_support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+                let mut opened = handle.open_execution_report(&execution).await.unwrap();
+                assert!(opened.file.length > 0);
+                let payload = crate::service_support::reports::parse(
+                    std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut opened).await).unwrap(),
+                );
                 assert_eq!(
                     payload["case_runs"][0]["plots"]["fixture.checks.smoke.pulse"]["series"][0]["raw_points"],
                     serde_json::json!(PULSE_ROWS)

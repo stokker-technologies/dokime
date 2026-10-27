@@ -68,59 +68,69 @@ impl Operation for Upload {
         Ok(Self { resources, upload: None })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _: &mut wire::UploadArtifact, input: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, _: &mut wire::UploadArtifact, input: &mut Self::Endpoints,
     ) -> Result<Response<dokime::domain::model::content::wire::ArtifactMetadata>, Status> {
-        let first = input.recv().await.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
-        let Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
-            return Err(Status::invalid_argument("first artifact upload frame must be a header"));
-        };
-        let upload_size = header.size_bytes;
-        let (scope, filename, content_type, sha256) = upload_header(header)?;
-        if scope.test_cycle_id.is_none() {
-            return Err(Status::invalid_argument("artifact upload cycle scope is required"));
-        }
-        if scope.test_execution_id.is_none() {
-            return Err(Status::invalid_argument("artifact upload execution scope is required"));
-        }
-        let upload = self
-            .resources
-            .runtime
-            .begin_artifact_upload(ArtifactUploadInput { scope, filename, content_type, size_bytes: upload_size, sha256 })
-            .await
-            .map_err(content_failure)?;
-        self.upload = Some(upload.clone());
-        drop(first);
-        let chunk_bytes = transfer_chunk_bytes(&self.resources.runtime, self.resources.maximum)?;
-        if chunk_bytes == 0 {
-            return Err(Status::resource_exhausted("artifact upload exceeds configured message limit"));
-        }
-        let receiving = std::time::Instant::now();
-        tracing::debug!(phase = "artifact_receive", bytes = upload_size, "artifact upload receiving started");
-        let received = receive_artifact(input, upload.clone(), upload_size, chunk_bytes).await;
-        tracing::debug!(phase = "artifact_receive", bytes = upload_size, elapsed_ms = %receiving.elapsed().as_millis(), succeeded = received.is_ok(), "artifact upload receiving finished");
-        let trailing = match received {
-            Ok(trailing) => trailing,
-            Err(source) => {
-                match upload.abandon().await {
-                    Ok(_) => self.upload = None,
-                    Err(cleanup) => {
-                        tracing::warn!(error = %cleanup, "artifact upload abandonment failed")
-                    }
-                }
-                return Err(source);
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let first = input.recv().await.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
+            let Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
+                return Err(Status::invalid_argument("first artifact upload frame must be a header"));
+            };
+            let upload_size = header.size_bytes;
+            let (scope, filename, content_type, sha256) = upload_header(header)?;
+            if scope.test_cycle_id.is_none() {
+                return Err(Status::invalid_argument("artifact upload cycle scope is required"));
             }
-        };
-        let sealing = std::time::Instant::now();
-        tracing::debug!(phase = "artifact_upload_seal", bytes = upload_size, "original artifact upload sealing started");
-        let sealed = upload.finish_verified(trailing).await;
-        tracing::debug!(phase = "artifact_upload_seal", bytes = upload_size, elapsed_ms = %sealing.elapsed().as_millis(), succeeded = sealed.is_ok(), "original artifact upload sealing finished");
-        let record = sealed.map_err(content_failure)?;
-        self.upload = None;
-        let output = metadata(&record)?;
-        if output.wire_len()? > self.resources.maximum {
-            return Err(Status::resource_exhausted("artifact metadata exceeds response budget"));
-        }
-        Ok(output.into())
+            if scope.test_execution_id.is_none() {
+                return Err(Status::invalid_argument("artifact upload execution scope is required"));
+            }
+            let upload = self
+                .resources
+                .runtime
+                .begin_artifact_upload(ArtifactUploadInput { scope, filename, content_type, size_bytes: upload_size, sha256 })
+                .await
+                .map_err(content_failure)?;
+            self.upload = Some(upload.clone());
+            drop(first);
+            let chunk_bytes = transfer_chunk_bytes(&self.resources.runtime, self.resources.maximum)?;
+            if chunk_bytes == 0 {
+                return Err(Status::resource_exhausted("artifact upload exceeds configured message limit"));
+            }
+            let receiving = std::time::Instant::now();
+            tracing::debug!(phase = "artifact_receive", bytes = upload_size, "artifact upload receiving started");
+            let received = receive_artifact(input, upload.clone(), upload_size, chunk_bytes).await;
+            tracing::debug!(
+                phase = "artifact_receive", bytes = upload_size, elapsed_ms = %receiving.elapsed().as_millis(),
+                succeeded = received.is_ok(), "artifact upload receiving finished"
+            );
+            let trailing = match received {
+                Ok(trailing) => trailing,
+                Err(source) => {
+                    match upload.abandon().await {
+                        Ok(_) => self.upload = None,
+                        Err(cleanup) => {
+                            tracing::warn!(error = %cleanup, "artifact upload abandonment failed")
+                        }
+                    }
+                    return Err(source);
+                }
+            };
+            let sealing = std::time::Instant::now();
+            tracing::debug!(phase = "artifact_upload_seal", bytes = upload_size, "original artifact upload sealing started");
+            let sealed = upload.finish_verified(trailing).await;
+            tracing::debug!(
+                phase = "artifact_upload_seal", bytes = upload_size, elapsed_ms = %sealing.elapsed().as_millis(),
+                succeeded = sealed.is_ok(), "original artifact upload sealing finished"
+            );
+            let record = sealed.map_err(content_failure)?;
+            self.upload = None;
+            let output = metadata(&record)?;
+            if output.wire_len()? > self.resources.maximum {
+                return Err(Status::resource_exhausted("artifact metadata exceeds response budget"));
+            }
+            Ok(output.into())
+        })
+        .await
     }
     async fn stop(&mut self) -> Result<(), Status> {
         self.abandon().await

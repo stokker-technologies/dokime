@@ -108,9 +108,11 @@ async fn empty_cycle_seals() {
     assert!(stopped.test_executions.is_empty());
     assert!(stopped.saved.is_some(), "stopping seals the empty cycle");
 
-    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    let mut report = runtime.open_cycle_report(&cycle_id).await.unwrap();
     assert_eq!(report.origin, dokime_runtime::ReportOrigin::Sealed);
-    let payload = crate::service_support::reports::parse(std::str::from_utf8(&report.html).unwrap());
+    let payload = crate::service_support::reports::parse(
+        std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut report).await).unwrap(),
+    );
     assert!(payload["test_executions"].as_array().is_none_or(|executions| executions.is_empty()));
 }
 

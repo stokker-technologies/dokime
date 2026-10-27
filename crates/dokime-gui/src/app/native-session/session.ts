@@ -29,7 +29,7 @@ export type SessionState =
 const nativeControls: SessionControls = {
   select: async (selection) => {
     if (selection.kind !== "profile") return commands.desktopSessionSelect(selection);
-    await preferencesCommands.desktopBackendUse(selection.name);
+    await preferencesCommands.desktopBackendUse(selection.identifier);
     return commands.desktopSessionStatus();
   },
   disconnect: () => commands.desktopSessionDisconnect(),

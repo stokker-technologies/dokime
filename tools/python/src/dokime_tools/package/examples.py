@@ -39,7 +39,6 @@ from dokime_tools.package.staging import clear_output, stage_file
 # Only Public Canonical Inputs Travel; Local Keys, Dotenv Files And Evidence Never Do.
 FILES = (
     "LICENSE",
-    ".env.example",
     "README.md",
     "cli/README.md",
     "cli/bootstrap.ps1",

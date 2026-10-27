@@ -11,18 +11,22 @@
 
 /* === Modules === */
 
-mod generate_key;
+mod create_pairing;
+mod list_paired_clients;
 mod list_sessions;
 mod read_listener;
 mod regenerate_certificate;
+mod revoke_paired_client;
 mod update_listener;
 
 /* === Re-Exports === */
 
-pub use generate_key::GenerateKey;
+pub use create_pairing::CreatePairing;
+pub use list_paired_clients::ListPairedClients;
 pub use list_sessions::ListSessions;
 pub use read_listener::ReadListener;
 pub use regenerate_certificate::RegenerateCertificate;
+pub use revoke_paired_client::RevokePairedClient;
 pub use update_listener::UpdateListener;
 
 /* === Imports === */
@@ -33,7 +37,7 @@ pub use update_listener::UpdateListener;
 
 // Local Imports
 use super::{Endpoint, ORDINARY, TRANSFER};
-use crate::model::remote::{GeneratedAccessKey, RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
+use crate::model::remote::{CreatedPairing, PairedClientPage, RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
 
 /* === Constants === */
 
@@ -49,7 +53,9 @@ use crate::model::remote::{GeneratedAccessKey, RemoteListenerSettings, RemoteLis
 pub enum Operations {
     ReadListener(ReadListener),
     UpdateListener(UpdateListener),
-    GenerateKey(GenerateKey),
+    CreatePairing(CreatePairing),
+    ListPairedClients(ListPairedClients),
+    RevokePairedClient(RevokePairedClient),
     RegenerateCertificate(RegenerateCertificate),
     ListSessions(ListSessions),
 }
@@ -68,8 +74,18 @@ impl Endpoint for UpdateListener {
     const LOCAL_ONLY: bool = true;
 }
 
-impl Endpoint for GenerateKey {
-    const PATH: &'static str = "/dokime.v1.Remote/GenerateKey";
+impl Endpoint for CreatePairing {
+    const PATH: &'static str = "/dokime.v1.Remote/CreatePairing";
+    const LOCAL_ONLY: bool = true;
+}
+
+impl Endpoint for ListPairedClients {
+    const PATH: &'static str = "/dokime.v1.Remote/ListPairedClients";
+    const LOCAL_ONLY: bool = true;
+}
+
+impl Endpoint for RevokePairedClient {
+    const PATH: &'static str = "/dokime.v1.Remote/RevokePairedClient";
     const LOCAL_ONLY: bool = true;
 }
 

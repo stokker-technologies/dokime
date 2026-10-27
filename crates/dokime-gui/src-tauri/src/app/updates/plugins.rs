@@ -128,9 +128,8 @@ pub async fn desktop_plugin_release_check(
     if policy.mode == crate::app::organization::policy::Mode::Disabled {
         return Err("Updates are disabled".into());
     }
-    let auth = state.authorization(&policy).await?;
-    let feed = sources::resolve(&policy, "plugins.json", auth.as_ref()).await?;
-    let bytes = sources::fetch(&feed, auth.as_ref(), sources::DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
+    let feed = sources::resolve(&policy, "plugins.json").await?;
+    let bytes = sources::fetch(&feed, sources::DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
     let manifest: Manifest = serde_json::from_slice(&bytes).map_err(|_| "The plugin release feed is invalid")?;
     let client = lease.client();
     let backend = client.backend();
@@ -169,9 +168,8 @@ pub async fn desktop_plugin_release_install(
     if selected.generation != policy_generation {
         return Err("The plugin release source changed".into());
     }
-    let auth = state.authorization(&policy).await?;
     let url = https_url(&selected.asset.url)?;
-    let bytes = sources::fetch(&url, auth.as_ref(), INSTALL_ARCHIVE_MAX_BYTES as usize).await?;
+    let bytes = sources::fetch(&url, INSTALL_ARCHIVE_MAX_BYTES as usize).await?;
     let client = lease.client();
     selected.manifest.select(&client.backend().product_version, &client.backend().target)?;
     let manifest = selected.manifest.clone();

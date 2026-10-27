@@ -27,7 +27,6 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::model::execution::RecordScope;
-use crate::model::identity::RecordId;
 use crate::model::records::Record;
 
 /* === Constants === */
@@ -40,14 +39,17 @@ use crate::model::records::Record;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceRecords {
-    pub record_visibility: Vec<RecordVisibility>,
+    pub through: u64,
     pub session: crate::state::records::set::TestRecordSet,
 }
 
+#[harmos_domain::record(id = "dokime.captured_record", version = 1)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RecordVisibility {
-    pub record_id: RecordId,
-    pub scope: Option<RecordScope>,
+#[serde(deny_unknown_fields)]
+pub struct CapturedRecord {
+    pub record: Record,
+    pub ordinal: u64,
+    pub scopes: Vec<RecordScope>,
 }
 
 /* === Enums === */
@@ -55,12 +57,20 @@ pub struct RecordVisibility {
 #[harmos_domain::records]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Records {
-    Record(Record),
+    Record(CapturedRecord),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos_domain::MemorySize for CapturedRecord {
+    fn memory_size(&self) -> usize {
+        std::mem::size_of::<Self>()
+            .saturating_add(harmos_domain::MemorySize::memory_size(&self.record).saturating_sub(std::mem::size_of_val(&self.record)))
+            .saturating_add(harmos_domain::MemorySize::memory_size(&self.scopes).saturating_sub(std::mem::size_of_val(&self.scopes)))
+    }
+}
 
 /* === Public Functions === */
 

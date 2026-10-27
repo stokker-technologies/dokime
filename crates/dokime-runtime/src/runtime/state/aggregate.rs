@@ -49,7 +49,7 @@ pub(crate) fn overview_entity_counts(state: &RuntimeState, artifact_records: usi
         cycles: state.cycles.len(),
         executions: state.executions.len(),
         installed_plugins: 0,
-        records: state.records.record_visibility.len(),
+        records: usize::try_from(state.records.through).unwrap_or(usize::MAX),
         telemetry_streams: 0,
         telemetry_samples: 0,
         resources: state.resource_records().len(),
@@ -65,7 +65,7 @@ pub(crate) fn overview_entity_counts(state: &RuntimeState, artifact_records: usi
 
 pub(crate) fn evidence_counts(state: &RuntimeState, artifacts: usize, traceability: usize) -> EvidenceCounts {
     EvidenceCounts {
-        records: state.records.record_visibility.len(),
+        records: usize::try_from(state.records.through).unwrap_or(usize::MAX),
         // Telemetry is off the journaled state (durable streams); no cheap
         // synchronous count. Async count paths use `collect_telemetry`.
         telemetry: 0,

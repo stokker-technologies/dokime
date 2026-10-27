@@ -453,8 +453,10 @@ async fn execution_plots_samples() {
     assert_eq!(envelopes[0].payload.series[0].raw_points, 2);
     assert_eq!(envelopes[0].payload.series[0].points.len(), 2);
     runtime.storage().flush().await.unwrap();
-    let opened = runtime.open_execution_report(&execution_id).await.unwrap();
-    let report = crate::service_support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+    let mut opened = runtime.open_execution_report(&execution_id).await.unwrap();
+    let report = crate::service_support::reports::parse(
+        std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut opened).await).unwrap(),
+    );
     let current = &report["case_runs"][0]["plots"]["captured.plot"];
     let series = current["series"].as_array().unwrap();
     assert_eq!(series.len(), 2);
@@ -559,9 +561,11 @@ async fn execution_plots_samples() {
     }
     executor.release();
     wait_for_cycle_outcome(&runtime, &cycle, ResultStatus::Passed).await;
-    let sealed = runtime.open_execution_report(&execution_id).await.unwrap();
+    let mut sealed = runtime.open_execution_report(&execution_id).await.unwrap();
     assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
-    let saved = crate::service_support::reports::parse(std::str::from_utf8(&sealed.html).unwrap());
+    let saved = crate::service_support::reports::parse(
+        std::str::from_utf8(&crate::service_support::reports::opened_bytes(&mut sealed).await).unwrap(),
+    );
     let final_plot = &saved["case_runs"][0]["plots"]["captured.plot"];
     assert_eq!(final_plot["series"], current["series"]);
     assert_eq!(final_plot["summaries"], current["summaries"]);
@@ -971,6 +975,90 @@ async fn selected_analysis_axes() {
     assert_eq!(series.first_axis, 900.0);
     assert_eq!(series.last_axis, 990.0);
     assert_eq!(series.output.outputs[0].values, [94.5]);
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn external_analysis_reload() {
+    let root = tempdir().unwrap();
+    let bundle = crate::service_support::bundles::obc_plugin_bundle();
+    let config = crate::service_support::config(root.path()).with_plugins([dokime_runtime::plugins::PluginBundle::new(bundle)]);
+    let mut owner = Runtime::start(config).await.unwrap();
+    let runtime = owner.handle();
+    register_plot_suite(&runtime).await;
+    runtime.publish_telemetry_batch(samples("host.wifi.channel_occupancy", 100, None)).await.unwrap();
+    runtime.storage().flush().await.unwrap();
+    let mut request = wifi_request(None, Some(1));
+    request.analysis =
+        Some(dokime_runtime::analysis::Selection { id: "obc-plugin.ripple".into(), version: 1, parameters: Default::default() });
+    for reload in [false, true] {
+        if reload {
+            owner.reinitialize_plugin("obc-plugin").await.unwrap();
+        }
+        let definitions = runtime.analysis_definitions().await.unwrap();
+        assert_eq!(definitions.iter().filter(|definition| definition.id == "obc-plugin.ripple").count(), 1);
+        let envelopes = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        let computed = envelopes[0].payload.computed.as_ref().unwrap();
+        assert_eq!(computed.selection.id, "obc-plugin.ripple");
+        assert_eq!(computed.series[0].input_samples, 100);
+        assert_eq!(computed.series[0].output.outputs[0].values, [99.0]);
+        assert_eq!(computed.series[0].output.outputs[0].unit, "count");
+    }
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn seven_day_saved_windows_keep_payload_and_snapshot_bounded() {
+    const DAYS: usize = 7;
+    const MINUTES_PER_DAY: usize = 24 * 60;
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted(root.path()).await;
+    register_plot_suite(&runtime).await;
+    let baseline = serde_json::to_vec(runtime.watch_state().latest().state()).unwrap().len();
+    let midnight = 1_767_225_600_u64;
+
+    for day in 0..DAYS {
+        for start in (0..MINUTES_PER_DAY).step_by(120) {
+            let mut batch = samples("host.wifi.channel_occupancy", 120, None);
+            for (offset, sample) in batch.samples.iter_mut().enumerate() {
+                let minute = day * MINUTES_PER_DAY + start + offset;
+                let elapsed = Duration::from_secs(midnight + minute as u64 * 60);
+                sample.timestamp = Timestamp::from_system_time(std::time::UNIX_EPOCH + elapsed);
+                sample.values.insert("sample_index".into(), Value::Integer(minute as i64));
+                sample.values.insert("network_count".into(), Value::Integer(minute as i64));
+                *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
+            }
+            runtime.publish_telemetry_batch(batch).await.unwrap();
+            runtime.storage().flush().await.unwrap();
+            assert_eq!(runtime.storage().status().pending_bytes, 0);
+        }
+
+        let mut request = wifi_request(None, Some(8));
+        request.plot_type = Some(dokime_runtime::document::PlotType::TimeSeries);
+        request.x_key = None;
+        request.window_s = Some(5.0 * 60.0);
+        request.technique = DownsampleTechnique::MinMax;
+        let mut second = request.clone();
+        second.plot_id = Some("second".into());
+        let requests = vec![request, second];
+        let results = runtime.query_plot_payloads(requests, RuntimePlotQueryMode::Snapshot).await.unwrap();
+        for result in &results {
+            assert_eq!(result.payload.series[0].raw_points, 6);
+            assert!(result.payload.series[0].points.len() <= 8);
+        }
+        assert_eq!(results[0].payload.series, results[1].payload.series);
+        let snapshot = serde_json::to_vec(runtime.watch_state().latest().state()).unwrap();
+        assert!(snapshot.len() <= baseline + 128 * 1024, "host history must not accumulate in managed snapshots");
+    }
+
+    let mut request = wifi_request(None, Some(16));
+    request.technique = DownsampleTechnique::MinMax;
+    let requests = vec![request];
+    let whole = runtime.query_plot_payloads(requests, RuntimePlotQueryMode::Snapshot).await.unwrap();
+    assert_eq!(whole[0].payload.series[0].raw_points, DAYS * MINUTES_PER_DAY);
+    assert!(whole[0].payload.series[0].points.len() <= 16);
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

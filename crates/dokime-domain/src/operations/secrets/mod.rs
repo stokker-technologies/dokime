@@ -36,8 +36,9 @@ use crate::model::secrets::transfer::{Archive, Choice, Preview as ImportPreview}
     visibility = harmos_domain::operations::Visibility::Shared,
     grpc(package = "dokime.v1", service = "Secrets", method = "Lookup"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Lookup {
-    pub name: String,
+    pub identifier: String,
 }
 
 #[harmos_domain::message]
@@ -45,6 +46,7 @@ pub struct Lookup {
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "List"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct List {}
 
 #[harmos_domain::message(skip_debug)]
@@ -52,6 +54,7 @@ pub struct List {}
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Put"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Put {
     pub metadata: Metadata,
     pub value: Option<String>,
@@ -63,8 +66,9 @@ pub struct Put {
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Remove"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Remove {
-    pub names: Vec<String>,
+    pub identifiers: Vec<String>,
     pub generation: u64,
 }
 
@@ -73,8 +77,9 @@ pub struct Remove {
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Export"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Export {
-    pub names: Vec<String>,
+    pub identifiers: Vec<String>,
     pub generation: u64,
 }
 
@@ -83,6 +88,7 @@ pub struct Export {
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Preview"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Preview {
     pub data: Vec<u8>,
 }
@@ -92,6 +98,7 @@ pub struct Preview {
     visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Secrets", method = "Import"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Import {
     pub data: Vec<u8>,
     pub choices: Vec<Choice>,

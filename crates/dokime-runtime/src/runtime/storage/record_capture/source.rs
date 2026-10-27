@@ -62,7 +62,7 @@ pub(crate) struct Projection(pub(crate) Arc<Source>);
 #[derive(serde::Deserialize)]
 struct PersistedRecord {
     dokime_encoding: u32,
-    payload: dokime_domain::model::records::evidence::Record,
+    payload: dokime_domain::state::records::CapturedRecord,
 }
 
 pub(crate) struct Process {
@@ -299,7 +299,8 @@ fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Re
             return Err(projection_error("unsupported Dokime persistence encoding"));
         }
         let record = persisted.payload;
-        if record.source != owner || record.record_type.as_str() != fact.name || record.schema_version != fact.version {
+        if record.record.source != owner || record.record.record_type.as_str() != fact.name || record.record.schema_version != fact.version
+        {
             return Err(projection_error("native fact identity differs from its envelope"));
         }
         record
@@ -311,7 +312,10 @@ fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Re
         };
         record
     };
-    let record = RecordEntry::from_record(envelope.position.0, record);
+    let mut entry = RecordEntry::from_record(envelope.position.0, record.record);
+    entry.ordinal = record.ordinal;
+    entry.captured_scopes = record.scopes;
+    let record = entry;
     let row = records::RecordRow::from_entry(&record).map_err(projection_error)?;
     let payload = row.encode_to_vec();
     let item = Identifier::new(record.record_id.as_str()).map_err(projection_error)?;

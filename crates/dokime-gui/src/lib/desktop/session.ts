@@ -20,7 +20,10 @@ export const DESKTOP_SESSION_STATUS_EVENT = "desktop://session-status";
 
 /* === Types === */
 
-export type BackendSelection = { kind: "owned_local" } | { kind: "profile"; name: string } | { kind: "attach"; request: ConnectRequest };
+export type BackendSelection =
+  | { kind: "owned_local" }
+  | { kind: "profile"; identifier: string }
+  | { kind: "attach"; request: ConnectRequest };
 
 export type BackendOwnership = "none" | "owned_local" | "attached";
 

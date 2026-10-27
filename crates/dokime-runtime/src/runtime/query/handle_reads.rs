@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 
 // Third Party Imports
 
@@ -178,10 +178,29 @@ impl RuntimeHandle {
     pub async fn telemetry_stream_summaries(
         &self,
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<crate::evidence_runtime::TelemetryStreamSummary>>> {
-        let session = self.storage().clone();
-        let telemetry = self.collect_telemetry_in(&session, &crate::evidence_runtime::TelemetrySelection::default()).await?;
-        let summaries = EvidenceSummaries::retained(&crate::storage::ReadRows::default(), &telemetry)?;
-        summaries.try_map(|summaries| Ok(summaries.telemetry_streams))
+        let session = self.storage();
+        let at = session.cursor_saved();
+        let codecs = crate::runtime::storage::telemetry::saved_codecs(session, &at, None, self.schema_settings(), |_, _| true).await?;
+        let mut summaries = EvidenceSummaries::default();
+        let mut after = 0;
+        loop {
+            let page = self.local_storage.telemetry_page(at.clone(), after, None, None).await?;
+            if page.is_empty() {
+                break;
+            }
+            for row in page {
+                after = row.record.position.sequence;
+                let codec = codecs
+                    .iter()
+                    .find(|codec| codec.schema() == &row.record.schema)
+                    .ok_or_else(|| crate::runtime::Error::Operation("saved telemetry codec is missing".into()))?;
+                let mut sample = codec.decode_stored(&row)?.sample;
+                sample.sequence = after;
+                summaries.record_telemetry_sample(&sample);
+            }
+            tokio::task::yield_now().await;
+        }
+        Ok(harmos::storage::ReadBatch::new(summaries.telemetry_streams))
     }
 
     pub async fn selected_records(&self, selection: crate::evidence_runtime::RecordSelection) -> crate::runtime::Result<Vec<RecordEntry>> {
@@ -189,7 +208,7 @@ impl RuntimeHandle {
         let captured =
             crate::queries::records::execution_capture(snapshot.state().executions.values(), selection.scope.test_execution_id.as_ref());
         Ok(selection.apply_with_subscriptions(&self.records_at(&snapshot).await?, |record| {
-            captured.and_then(|captures| captures.subscribed_records().get(&record.record_id))
+            captured.and_then(|captures| captures.captured_scope(record))
         }))
     }
 
@@ -210,31 +229,17 @@ impl RuntimeHandle {
         let state = snapshot.state();
         self.record_source
             .saved_filtered_records_at_in(session, snapshot.revision(), at, |record| {
-                state.records.record_visibility.iter().any(|visible| visible.record_id == record.record_id)
-                    || state.executions.values().any(|execution| execution.records.subscribed_records().contains_key(&record.record_id))
-                    || record.scope.as_ref().is_none_or(|scope| scope.test_cycle_id.is_none() && scope.test_execution_id.is_none())
+                record.scope.as_ref().is_none_or(|scope| scope.test_cycle_id.as_ref().is_none_or(|id| state.cycles.contains_key(id)))
+                    || state.executions.values().any(|execution| execution.records.captured_scope(record).is_some())
             })
             .await
     }
 
     pub(crate) async fn records_at(&self, snapshot: &crate::queries::RuntimeStateSnapshot) -> crate::runtime::Result<Vec<RecordEntry>> {
-        let visible = snapshot
-            .state()
-            .records
-            .record_visibility
-            .iter()
-            .map(|record| record.record_id.clone())
-            .chain(snapshot.state().executions.values().flat_map(|execution| execution.records.subscribed_records().keys().cloned()))
-            .collect::<BTreeSet<_>>();
-        Ok(self
-            .journal_records_through(harmos::state::Position(snapshot.revision()))
-            .await?
-            .into_iter()
-            .filter(|record| {
-                visible.contains(&record.record_id)
-                    || record.scope.as_ref().is_none_or(|scope| scope.test_cycle_id.is_none() && scope.test_execution_id.is_none())
-            })
-            .collect())
+        let session = self.storage().clone();
+        let at = self.saved_through(snapshot.revision()).await?;
+        let pages = self.record_pages_at_in(&session, snapshot, &at).await?;
+        Ok(pages.iter().flat_map(|page| page.iter().cloned()).collect())
     }
 
     pub(crate) async fn current_journal_records(&self) -> crate::runtime::Result<Vec<RecordEntry>> {

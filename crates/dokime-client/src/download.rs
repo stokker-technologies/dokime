@@ -340,10 +340,10 @@ async fn receive_with<T, M, F: std::future::Future<Output = super::Result<Option
         Ok::<_, std::io::Error>((file, Partial(Some(staging))))
     })
     .await??;
-    let mut output = tokio::fs::File::from_std(file);
+    let mut output = tokio::io::BufWriter::with_capacity(1_048_576, tokio::fs::File::from_std(file));
     let (offset, sha256, metadata) = consume(next, &mut output, frame, policy.maximum_bytes).await?;
     output.flush().await?;
-    output.sync_all().await?;
+    output.get_ref().sync_all().await?;
     drop(output);
 
     // Native publication is owned once started; cancellation cannot interrupt a rename.

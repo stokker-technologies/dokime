@@ -45,71 +45,51 @@ use dokime::domain::model;
 /* === Tests === */
 
 #[tokio::test]
-async fn remote_security_persistence() {
+async fn unsecured_pairing_creates_no_revocable_client() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
-    let handle = owner.handle();
-    let security = root.path().join("application/remote/access.json");
-    let server = Server::start(handle, Config::local()).await.unwrap();
-    let client = connect(&server).await;
-    let initial = client.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
-    assert!(!initial.key_configured);
-    assert!(initial.certificate_pem.is_none());
-    assert!(!initial.settings.as_ref().unwrap().enabled);
-
-    let generated = client.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner();
-    assert_eq!(generated.access_key.len(), 64);
-    assert!(!format!("{generated:?}").contains(&generated.access_key));
-    assert!(generated.listener.as_ref().unwrap().key_configured);
-    let mut settings = initial.settings.unwrap();
-    settings.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
-    let saved = client
-        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings.clone()) })
+    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let native = connect(&server).await;
+    let settings = model::remote::RemoteListenerSettings {
+        enabled: true,
+        address: "127.0.0.1:0".into(),
+        tls_enabled: false,
+        authentication_enabled: false,
+        certificate_names: vec![],
+    };
+    let status = native
+        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings) })
         .await
         .unwrap()
         .into_inner();
-    let certificate = saved.certificate_pem.unwrap();
-    assert!(!certificate.contains("PRIVATE KEY"));
-    let first = std::fs::read_to_string(&security).unwrap();
-    assert!(!first.contains(&generated.access_key));
-    assert!(first.contains("PRIVATE KEY"));
+    let endpoint = format!("http://{}", status.listening_address.unwrap());
 
-    // Identity Changes Are Explicit And Cannot Silently Rotate Existing Trust.
-    let mut invalid = settings.clone();
-    invalid.certificate_names.push("new.example".into());
-    let error =
-        client.unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(invalid) }).await.unwrap_err();
-    assert_eq!(error.code(), Code::InvalidArgument);
-    assert!(std::fs::read_to_string(&security).unwrap() == first);
-    let rotated = client.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner();
-    assert!(rotated.access_key != generated.access_key);
-    assert!(rotated.listener.as_ref().unwrap().certificate_pem.as_ref() == Some(&certificate));
-    let second = std::fs::read_to_string(&security).unwrap();
-    assert!(!second.contains(&rotated.access_key));
-    assert!(!second.contains(&generated.access_key));
-    assert!(second != first);
-    server.shutdown().await.unwrap();
-    owner.shutdown().await.unwrap();
+    let pairing = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Unsecured Lab".into(), endpoint })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(pairing.client.is_none());
+    assert!(pairing.pairing.access_key.is_none());
+    assert!(pairing.pairing.ca_certificate_pem.is_none());
+    let page = native
+        .unary::<contracts::remote::ListPairedClients>(contracts::remote::ListPairedClients { cursor: None, limit: 0 })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(page.clients.is_empty());
+    assert!(page.next_cursor.is_none());
 
-    let mut owner = runtime(root.path()).await;
-    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
-    let client = connect(&server).await;
-    let restored = client.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
-    assert!(restored.key_configured);
-    assert_eq!(restored.settings, Some(settings));
-    assert_eq!(restored.certificate_pem, Some(certificate));
-    assert!(std::fs::read_to_string(&security).unwrap() == second);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
 
 #[tokio::test]
-async fn remote_sessions_recorded() {
+async fn independent_pairings_revoke_and_survive_restart() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let server = Server::start(owner.handle(), Config::local()).await.unwrap();
     let native = connect(&server).await;
-    let key = native.unary::<contracts::remote::GenerateKey>(contracts::remote::GenerateKey {}).await.unwrap().into_inner().access_key;
     let settings = model::remote::RemoteListenerSettings {
         enabled: true,
         address: "127.0.0.1:0".into(),
@@ -122,7 +102,117 @@ async fn remote_sessions_recorded() {
         .await
         .unwrap()
         .into_inner();
+    let endpoint = format!("http://{}", status.listening_address.unwrap());
+    let mut created = Vec::new();
+    for label in ["First Client", "Second Client"] {
+        let result = native
+            .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: label.into(), endpoint: endpoint.clone() })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(result.pairing.version, 1);
+        assert_eq!(result.pairing.endpoint, endpoint);
+        assert_eq!(result.pairing.label, label);
+        assert!(result.pairing.ca_certificate_pem.is_none());
+        assert!(result.client.is_some());
+        created.push(result);
+    }
+    let first_key = created[0].pairing.access_key.as_ref().unwrap();
+    let second_key = created[1].pairing.access_key.as_ref().unwrap();
+    assert_ne!(first_key, second_key);
+    assert_ne!(created[0].client.as_ref().unwrap().identifier, created[1].client.as_ref().unwrap().identifier);
+    let security = root.path().join("application/remote/access.json");
+    let persisted = std::fs::read_to_string(&security).unwrap();
+    assert!(!persisted.contains(first_key));
+    assert!(!persisted.contains(second_key));
+    let remote = WireClient::connect(endpoint).await.unwrap();
+    for key in [first_key, second_key] {
+        let mut request = Request::new(contracts::backend::GetIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
+        remote.unary::<contracts::backend::GetIdentity>(request).await.unwrap();
+    }
+    let first_id = created[0].client.as_ref().unwrap().identifier.clone();
+    for _ in 0..2 {
+        native
+            .unary::<contracts::remote::RevokePairedClient>(contracts::remote::RevokePairedClient { identifier: first_id.clone() })
+            .await
+            .unwrap();
+    }
+    for (key, allowed) in [(first_key, false), (second_key, true)] {
+        let mut request = Request::new(contracts::backend::GetIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
+        let result = remote.unary::<contracts::backend::GetIdentity>(request).await;
+        if allowed {
+            result.unwrap();
+        } else {
+            assert_eq!(result.unwrap_err().code(), Code::Unauthenticated);
+        }
+    }
+    let page = native
+        .unary::<contracts::remote::ListPairedClients>(contracts::remote::ListPairedClients { cursor: None, limit: 1 })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(page.clients.len(), 1);
+    assert_eq!(page.clients[0].identifier, created[1].client.as_ref().unwrap().identifier);
+    assert!(page.next_cursor.is_none());
+    let error = native
+        .unary::<contracts::remote::ListPairedClients>(contracts::remote::ListPairedClients { cursor: None, limit: 501 })
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), Code::InvalidArgument);
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+
+    let mut owner = runtime(root.path()).await;
+    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let native = connect(&server).await;
+    let status = native.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
     let remote = WireClient::connect(format!("http://{}", status.listening_address.unwrap())).await.unwrap();
+    for (key, allowed) in [(first_key, false), (second_key, true)] {
+        let mut request = Request::new(contracts::backend::GetIdentity {});
+        request.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
+        let result = remote.unary::<contracts::backend::GetIdentity>(request).await;
+        if allowed {
+            result.unwrap();
+        } else {
+            assert_eq!(result.unwrap_err().code(), Code::Unauthenticated);
+        }
+    }
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn remote_sessions_recorded() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let server = Server::start(owner.handle(), Config::local()).await.unwrap();
+    let native = connect(&server).await;
+    let settings = model::remote::RemoteListenerSettings {
+        enabled: true,
+        address: "127.0.0.1:0".into(),
+        tls_enabled: false,
+        authentication_enabled: true,
+        certificate_names: vec![],
+    };
+    let status = native
+        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings) })
+        .await
+        .unwrap()
+        .into_inner();
+    let endpoint = format!("http://{}", status.listening_address.unwrap());
+    let created = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing {
+            label: "Session Client".into(),
+            endpoint: endpoint.clone(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let key = created.pairing.access_key.unwrap();
+    let principal = created.client.unwrap().identifier;
+    let remote = WireClient::connect(endpoint).await.unwrap();
     let mut rejected = Request::new(contracts::backend::GetIdentity {});
     rejected.metadata_mut().insert("authorization", "Bearer a-different-long-token-01234567890123456789".parse().unwrap());
     assert_eq!(remote.unary::<contracts::backend::GetIdentity>(rejected).await.unwrap_err().code(), Code::Unauthenticated);
@@ -140,7 +230,7 @@ async fn remote_sessions_recorded() {
         .into_inner();
     assert_eq!(page.sessions.len(), 2, "native calls are not remote sessions");
     let admitted = &page.sessions[0];
-    assert_eq!((admitted.principal.as_str(), admitted.calls), ("access-key", 2));
+    assert_eq!((admitted.principal.as_str(), admitted.calls), (principal.as_str(), 2));
     assert_eq!(admitted.outcome, model::remote::RemoteSessionOutcome::Admitted);
     let refused = &page.sessions[1];
     assert_eq!((refused.principal.as_str(), refused.calls), ("anonymous", 1));
@@ -496,29 +586,6 @@ async fn malformed_secrets_wire() {
     client.unary::<contracts::backend::GetIdentity>(authenticated(contracts::backend::GetIdentity {})).await.unwrap();
     client.unary::<contracts::backend::GetHealth>(authenticated(contracts::backend::GetHealth {})).await.unwrap();
     client.unary::<contracts::backend::GetAvailability>(authenticated(contracts::backend::GetAvailability {})).await.unwrap();
-    client.unary::<contracts::backend::GetDiagnostics>(authenticated(contracts::backend::GetDiagnostics {})).await.unwrap();
-    server.shutdown().await.unwrap();
-    owner.shutdown().await.unwrap();
-}
-
-#[tokio::test]
-async fn diagnostics_projects_paths() {
-    let root = tempfile::tempdir().unwrap();
-    let mut owner = runtime(root.path()).await;
-    let epoch = owner.handle().session_context().await.0.to_string();
-    let server = Server::start(owner.handle(), Config::default()).await.unwrap();
-    let client = connect(&server).await;
-    let diagnostics = client.unary::<contracts::backend::GetDiagnostics>(contracts::backend::GetDiagnostics {}).await.unwrap().into_inner();
-    let backend = diagnostics.server.expect("server diagnostics");
-    assert!(!backend.version.is_empty());
-    assert_eq!(backend.process.unwrap().pid, std::process::id());
-    let runtime = diagnostics.runtime.expect("runtime diagnostics");
-    assert_eq!(runtime.session_id, epoch);
-    assert_eq!(runtime.storage_root, root.path().to_string_lossy());
-    assert_eq!(runtime.startup_doctor.unwrap().status, model::backend::wire::DiagnosticCheckStatus::Ok);
-    assert!(runtime.path_conventions.iter().any(|path| path.key == model::backend::wire::DiagnosticPathKey::HubLog));
-    let counts = runtime.counts.expect("diagnostic counts");
-    assert_eq!(counts.cycles, 0);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

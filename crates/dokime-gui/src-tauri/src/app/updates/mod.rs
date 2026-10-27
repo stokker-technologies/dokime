@@ -9,7 +9,6 @@
 
 /* === Modules === */
 
-mod auth;
 pub(crate) mod plugins;
 mod sources;
 
@@ -21,27 +20,27 @@ mod sources;
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Duration,
 };
+
+#[cfg(feature = "updater")]
+use std::time::Duration;
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
-use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_opener::OpenerExt;
 #[cfg(feature = "updater")]
 use tauri_plugin_updater::UpdaterExt;
 
 // Local Imports
 use super::organization::{
     OrganizationState,
-    policy::{Connection, Mode, Source, UpdatePolicy},
+    policy::{Mode, UpdatePolicy},
 };
 
 /* === Constants === */
 
-const DESKTOP_UPDATE_APPROVAL_TIMEOUT_MS: u64 = 180_000;
 const DESKTOP_UPDATE_SETTINGS_BYTES: u64 = 16_384;
+#[cfg(feature = "updater")]
 const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
 
 /* === Macros === */
@@ -55,7 +54,6 @@ pub struct UpdateState(Arc<Shared>);
 
 struct Shared {
     path: PathBuf,
-    accounts: Arc<auth::Accounts>,
     inner: Mutex<Inner>,
 }
 
@@ -88,10 +86,6 @@ pub struct UpdateStatus {
     pub mode: Mode,
     pub source: Option<String>,
     pub sources: Vec<String>,
-    pub connection: Option<String>,
-    pub host: Option<String>,
-    pub can_sign_in: bool,
-    pub user: Option<auth::User>,
     pub last_check: Option<UpdateCheck>,
     pub error: Option<String>,
 }
@@ -120,41 +114,18 @@ pub struct InstallResult {
 impl UpdateState {
     fn status(&self) -> Result<UpdateStatus, String> {
         let inner = self.0.inner.lock().map_err(|_| "Update configuration is unavailable")?;
-        let connection = selected_connection(&inner.policy);
-        let account = connection.as_ref().map(|(_, connection)| self.0.accounts.user(connection)).transpose();
-        let (user, account_error) = match account {
-            Ok(user) => (user.flatten(), None),
-            Err(error) => (None, Some(error)),
-        };
         Ok(UpdateStatus {
             mode: inner.policy.mode,
             source: inner.policy.source.clone(),
             sources: inner.policy.sources.keys().cloned().collect(),
-            connection: connection.as_ref().map(|(name, _)| name.clone()),
-            host: connection.as_ref().map(|(_, connection)| connection.host.clone()),
-            can_sign_in: inner.policy.mode != Mode::Disabled
-                && connection.as_ref().is_some_and(|(_, connection)| !connection.oauth_client_id.is_empty()),
-            user,
             last_check: inner.last.clone(),
-            error: inner.error.clone().or(account_error),
+            error: inner.error.clone(),
         })
     }
 
     fn snapshot(&self) -> Result<(UpdatePolicy, u64), String> {
         let inner = self.0.inner.lock().map_err(|_| "Update configuration is unavailable")?;
         Ok((inner.policy.clone(), inner.generation))
-    }
-
-    fn invalidate(&self) -> Result<(), String> {
-        let mut inner = self.0.inner.lock().map_err(|_| "Update configuration is unavailable")?;
-        inner.generation = inner.generation.wrapping_add(1);
-        inner.last = None;
-        inner.plugin = None;
-        #[cfg(feature = "updater")]
-        {
-            inner.candidate = None;
-        }
-        Ok(())
     }
 
     fn configure(&self, selection: Selection) -> Result<(), String> {
@@ -168,7 +139,6 @@ impl UpdateState {
             return Err("Update selection exceeds its configured byte budget".into());
         }
         dokime::harmos::filesystem::publication::write(&self.0.path, &bytes).map_err(|_| "Update selection could not be saved")?;
-        self.0.accounts.cancel(None);
         inner.policy = policy;
         inner.generation = inner.generation.wrapping_add(1);
         inner.last = None;
@@ -181,14 +151,6 @@ impl UpdateState {
         Ok(())
     }
 
-    async fn authorization(&self, policy: &UpdatePolicy) -> Result<Option<sources::Authorization>, String> {
-        let Some((_, connection)) = selected_connection(policy) else { return Ok(None) };
-        let accounts = Arc::clone(&self.0.accounts);
-        tokio::task::spawn_blocking(move || accounts.authorization(&connection))
-            .await
-            .map_err(|_| "Release account lookup failed".to_owned())?
-    }
-
     #[cfg(feature = "updater")]
     async fn check(&self, app: &AppHandle) -> Result<UpdateCheck, String> {
         let (policy, generation) = self.snapshot()?;
@@ -196,14 +158,11 @@ impl UpdateState {
         if policy.mode == Mode::Disabled {
             return Ok(UpdateCheck { status: "disabled".into(), current_version, version: None, body: None, candidate: None });
         }
-        let auth = self.authorization(&policy).await?;
-        let manifest = sources::resolve(&policy, "latest.json", auth.as_ref()).await?;
-        let headers = sources::headers(auth.as_ref(), &manifest)?;
+        let manifest = sources::resolve(&policy, "latest.json").await?;
         let updater = app
             .updater_builder()
             .endpoints(vec![manifest])
             .map_err(|_| "The update manifest URL is invalid")?
-            .headers(headers)
             .configure_client(sources::client)
             .build()
             .map_err(|_| "The compiled updater is unavailable")?;
@@ -216,7 +175,6 @@ impl UpdateState {
         let result = match found {
             Some(mut update) => {
                 super::organization::policy::https_url(update.download_url.as_str())?;
-                update.headers = sources::headers(auth.as_ref(), &update.download_url)?;
                 update.timeout = Some(Duration::from_millis(DESKTOP_UPDATE_TIMEOUT_MS));
                 let id = format!("{:032x}", rand::random::<u128>());
                 let result = UpdateCheck {
@@ -289,10 +247,8 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             error = Some("Saved update selection could not be read; updates are disabled".into());
         }
     }
-    let accounts = Arc::new(auth::Accounts::open(root.join("accounts.json")));
     let state = UpdateState(Arc::new(Shared {
         path,
-        accounts,
         inner: Mutex::new(Inner {
             policy,
             generation: 0,
@@ -304,17 +260,6 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }),
     }));
     app.manage(state.clone());
-    let deep_link = app.deep_link();
-    deep_link.register_all()?;
-    let callbacks = Arc::clone(&state.0.accounts);
-    deep_link.on_open_url(move |record| {
-        for url in record.urls() {
-            let accounts = Arc::clone(&callbacks);
-            tauri::async_runtime::spawn(async move {
-                accounts.callback(url).await;
-            });
-        }
-    });
     state.automatic(app.handle());
     Ok(())
 }
@@ -333,38 +278,6 @@ pub async fn desktop_updates_configure(
 
 pub async fn desktop_updates_check(app: AppHandle, state: State<'_, UpdateState>) -> Result<UpdateCheck, String> {
     state.check(&app).await
-}
-
-pub async fn desktop_updates_sign_in(app: AppHandle, state: State<'_, UpdateState>) -> Result<UpdateStatus, String> {
-    let (policy, generation) = state.snapshot()?;
-    if policy.mode == Mode::Disabled {
-        return Err("Updates are disabled".into());
-    }
-    let (_, connection) = selected_connection(&policy).ok_or("The selected source has no OAuth connection")?;
-    let pending = state.0.accounts.begin(connection)?;
-    let url = pending.url;
-    let opened = tokio::task::spawn_blocking(move || app.opener().open_url(url, None::<&str>)).await;
-    if !matches!(opened, Ok(Ok(()))) {
-        state.0.accounts.cancel(Some(pending.epoch));
-        return Err("The sign-in browser could not be opened".into());
-    }
-    let result = tokio::time::timeout(Duration::from_millis(DESKTOP_UPDATE_APPROVAL_TIMEOUT_MS), pending.reply).await;
-    state.0.accounts.cancel(Some(pending.epoch));
-    result.map_err(|_| "Release sign-in timed out")?.map_err(|_| "Release sign-in was cancelled")??;
-    if state.snapshot()?.1 != generation {
-        return Err("The release connection changed while signing in".into());
-    }
-    state.invalidate()?;
-    state.status()
-}
-
-pub async fn desktop_updates_sign_out(state: State<'_, UpdateState>) -> Result<UpdateStatus, String> {
-    let (policy, _) = state.snapshot()?;
-    let (_, connection) = selected_connection(&policy).ok_or("The selected source has no OAuth connection")?;
-    let accounts = Arc::clone(&state.0.accounts);
-    state.invalidate()?;
-    tokio::task::spawn_blocking(move || accounts.sign_out(&connection)).await.map_err(|_| "Release sign-out failed")??;
-    state.status()
 }
 
 pub async fn desktop_updates_install(state: State<'_, UpdateState>, candidate: String) -> Result<InstallResult, String> {
@@ -397,21 +310,12 @@ pub async fn desktop_updates_install(state: State<'_, UpdateState>, candidate: S
 
 /* === Private Functions === */
 
-fn selected_connection(policy: &UpdatePolicy) -> Option<(String, Connection)> {
-    let source = policy.sources.get(policy.source.as_ref()?)?;
-    let name = match source {
-        Source::Direct { connection, .. } => connection.as_ref()?,
-        Source::Gitlab { connection, .. } => connection,
-        Source::Github { .. } => return None,
-    };
-    Some((name.clone(), policy.connections.get(name)?.clone()))
-}
-
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::organization::policy::Source;
 
     #[cfg(feature = "updater")]
     #[tokio::test]
@@ -490,10 +394,8 @@ mod tests {
         let path = root.path().join("selection.json");
         let mut policy = UpdatePolicy::default();
         policy.sources.insert("public".into(), Source::Github { repository: "example/product".into() });
-        let accounts = Arc::new(auth::Accounts::open(root.path().join("accounts.json")));
         let state = UpdateState(Arc::new(Shared {
             path: path.clone(),
-            accounts,
             inner: Mutex::new(Inner {
                 policy,
                 generation: 0,

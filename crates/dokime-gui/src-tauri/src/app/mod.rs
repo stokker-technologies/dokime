@@ -146,7 +146,6 @@ fn start_tauri_app() -> tauri::Result<()> {
                 webview.state::<crate::rpc::Bridge>().cancel_owner(webview.label());
             }
         })
-        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init());
     let builder = media::register(builder);

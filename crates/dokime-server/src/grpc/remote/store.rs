@@ -42,8 +42,15 @@ const SERVER_REMOTE_STORE_BYTES: u64 = 262_144;
 pub(super) struct Document {
     pub version: u32,
     pub settings: RemoteListenerSettings,
-    pub key_digest: Option<[u8; 32]>,
+    pub clients: Vec<Client>,
     pub identity: Option<Identity>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Client {
+    pub metadata: dokime::domain::model::remote::PairedClient,
+    pub verifier: [u8; 32],
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -58,7 +65,7 @@ pub(super) struct Identity {
 #[serde(deny_unknown_fields)]
 struct Security {
     version: u32,
-    key_digest: Option<[u8; 32]>,
+    clients: Vec<Client>,
     identity: Option<Identity>,
 }
 
@@ -73,7 +80,7 @@ impl Document {
         Self {
             version: 1,
             settings: dokime::domain::model::settings::wire::ApplicationSettings::default().listener,
-            key_digest: None,
+            clients: Vec::new(),
             identity: None,
         }
     }
@@ -115,19 +122,21 @@ pub(super) fn read(path: &Path, settings: RemoteListenerSettings) -> Result<Docu
     );
     let security: Security = serde_json::from_slice(&bytes)
         .map_err(|_| super::Error::Configuration("incompatible remote security document; use a fresh application root"))?;
-    let document = Document { version: security.version, settings, key_digest: security.key_digest, identity: security.identity };
+    let document = Document { version: security.version, settings, clients: security.clients, identity: security.identity };
     if document.version != 1 {
         return Err(super::Error::Configuration("unsupported remote security document version"));
     }
     validate(&document.settings)?;
+    validate_clients(&document.clients)?;
     Ok(document)
 }
 
 pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error> {
+    validate_clients(&document.clients)?;
     let parent = path.parent().ok_or(super::Error::Configuration("remote security path has no parent"))?;
     private_directory(parent).map_err(super::Error::RemoteStorage)?;
     let bytes = Zeroizing::new(
-        serde_json::to_vec(&Security { version: document.version, key_digest: document.key_digest, identity: document.identity.clone() })
+        serde_json::to_vec(&Security { version: document.version, clients: document.clients.clone(), identity: document.identity.clone() })
             .map_err(|_| super::Error::Configuration("cannot encode remote security document"))?,
     );
     if bytes.len() as u64 > SERVER_REMOTE_STORE_BYTES {
@@ -135,6 +144,24 @@ pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error
     }
 
     dokime::harmos::filesystem::publication::write(path, &bytes)?;
+    Ok(())
+}
+
+pub(super) fn validate_clients(clients: &[Client]) -> Result<(), super::Error> {
+    if clients.len() > 512 {
+        return Err(super::Error::Configuration("paired client limit reached; revoke an unused client"));
+    }
+    for (index, client) in clients.iter().enumerate() {
+        let metadata = &client.metadata;
+        if uuid::Uuid::parse_str(&metadata.identifier).is_err()
+            || metadata.label.trim().is_empty()
+            || metadata.label.len() > 256
+            || metadata.label.chars().any(char::is_control)
+            || clients[..index].iter().any(|other| other.metadata.identifier == metadata.identifier || other.verifier == client.verifier)
+        {
+            return Err(super::Error::Configuration("invalid paired client security record"));
+        }
+    }
     Ok(())
 }
 
@@ -207,11 +234,19 @@ mod tests {
         let mut document = read(&path, Document::initial().settings).unwrap();
         document.settings.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
         document.identity = Some(Identity::generate(document.settings.certificate_names.clone()).unwrap());
-        document.key_digest = Some([17; 32]);
+        document.clients.push(Client {
+            metadata: dokime::domain::model::remote::PairedClient {
+                identifier: uuid::Uuid::new_v4().to_string(),
+                label: "Lab".into(),
+                created_at: 1,
+                last_seen_at: None,
+            },
+            verifier: [17; 32],
+        });
         write(&path, &document).unwrap();
         let before = std::fs::read(&path).unwrap();
         let restored = read(&path, Document::initial().settings).unwrap();
-        assert_eq!(restored.key_digest, document.key_digest);
+        assert_eq!(restored.clients[0].verifier, document.clients[0].verifier);
         assert_eq!(restored.identity.as_ref().unwrap().certificate, document.identity.as_ref().unwrap().certificate);
         assert!(restored.identity.as_ref().unwrap().private_key == document.identity.as_ref().unwrap().private_key);
         let security = serde_json::from_slice::<serde_json::Value>(&before).unwrap();

@@ -64,9 +64,9 @@ struct DocumentBuffer(Zeroizing<Vec<u8>>, usize);
 /* === Implementations === */
 
 impl SecretStore {
-    pub(crate) async fn export(&self, names: &[String], generation: u64) -> Result<Archive, SecretStoreError> {
+    pub(crate) async fn export(&self, identifiers: &[String], generation: u64) -> Result<Archive, SecretStoreError> {
         let _transfer = self.transfer.try_lock().map_err(|_| SecretStoreError::Invalid("Another secret transfer is running"))?;
-        let document = self.selected(names, generation).await?;
+        let document = self.selected(identifiers, generation).await?;
         let mut serialized = DocumentBuffer(Zeroizing::new(Vec::new()), catalog::DOCUMENT_BYTES as usize);
         serde_json::to_writer(&mut serialized, &document)
             .map_err(|_| SecretStoreError::Invalid("The selected secrets exceed the transfer limit"))?;
@@ -81,7 +81,10 @@ impl SecretStore {
         let entries = document
             .entries
             .iter()
-            .map(|entry| transfer::Entry { metadata: entry.metadata.clone(), exists: current.entries.contains_key(&entry.metadata.name) })
+            .map(|entry| transfer::Entry {
+                metadata: entry.metadata.clone(),
+                exists: current.entries.contains_key(&entry.metadata.identifier),
+            })
             .collect();
         Ok(Preview { host_id: self.host.clone(), host_label: self.label.clone(), generation: current.generation, entries })
     }
@@ -90,17 +93,17 @@ impl SecretStore {
         let _transfer = self.transfer.try_lock().map_err(|_| SecretStoreError::Invalid("Another secret transfer is running"))?;
         let document = decode(data)?;
         if choices.len() != document.entries.len() {
-            return Err(SecretStoreError::Invalid("Choose replace or skip for every imported name"));
+            return Err(SecretStoreError::Invalid("Choose replace or skip for every imported identifier"));
         }
         let mut actions = BTreeMap::new();
         for choice in choices {
-            if actions.insert(choice.name.as_str(), choice.action).is_some() {
+            if actions.insert(choice.identifier.as_str(), choice.action).is_some() {
                 return Err(SecretStoreError::Invalid("Duplicate import choice"));
             }
         }
         let mut changes = Vec::new();
         for mut entry in document.entries {
-            match actions.remove(entry.metadata.name.as_str()) {
+            match actions.remove(entry.metadata.identifier.as_str()) {
                 Some(Action::Skip) => (),
                 Some(Action::Replace) => changes
                     .push(Change { metadata: entry.metadata.clone(), value: Some(SecretValue::new(std::mem::take(&mut entry.value))) }),
@@ -110,34 +113,34 @@ impl SecretStore {
         self.apply(changes, &[], generation).await
     }
 
-    async fn selected(&self, names: &[String], generation: u64) -> Result<Document, SecretStoreError> {
-        if names.is_empty() || names.len() as u64 > catalog::CATALOG_ITEMS {
+    async fn selected(&self, identifiers: &[String], generation: u64) -> Result<Document, SecretStoreError> {
+        if identifiers.is_empty() || identifiers.len() as u64 > catalog::CATALOG_ITEMS {
             return Err(SecretStoreError::Invalid("Select a nonempty set within the configured secret count"));
         }
         let guard = self.writer.clone().lock_owned().await;
         let current = self.catalog().await?;
         let store = self.clone();
-        let names = names.to_vec();
+        let identifiers = identifiers.to_vec();
         tokio::task::spawn_blocking(move || {
             let _guard = guard;
-            store.selected_values(&names, generation, current)
+            store.selected_values(&identifiers, generation, current)
         })
         .await
         .map_err(|_| SecretStoreError::Unavailable)?
     }
 
-    fn selected_values(&self, names: &[String], generation: u64, current: catalog::Catalog) -> Result<Document, SecretStoreError> {
+    fn selected_values(&self, identifiers: &[String], generation: u64, current: catalog::Catalog) -> Result<Document, SecretStoreError> {
         if current.generation != generation {
             return Err(SecretStoreError::Conflict);
         }
         let mut unique = BTreeSet::new();
         let mut entries = Vec::new();
         let mut bytes = 0usize;
-        for name in names {
-            if !unique.insert(name) {
+        for identifier in identifiers {
+            if !unique.insert(identifier) {
                 return Err(SecretStoreError::Invalid("Duplicate export selection"));
             }
-            let slot = current.entries.get(name).ok_or(SecretStoreError::Invalid("A selected secret is missing or was deleted"))?;
+            let slot = current.entries.get(identifier).ok_or(SecretStoreError::Invalid("A selected secret is missing or was deleted"))?;
             let value = self.backend.get(&self.account(&slot.slot))?.ok_or(SecretStoreError::Unavailable)?;
             catalog::validate_value(value.expose()).map_err(SecretStoreError::Invalid)?;
             catalog::check_value_limit(value.expose()).map_err(SecretStoreError::Invalid)?;
@@ -192,14 +195,14 @@ fn decode(data: &[u8]) -> Result<Document, SecretStoreError> {
     if document.format_version != 1 || document.entries.is_empty() || document.entries.len() as u64 > catalog::CATALOG_ITEMS {
         return Err(SecretStoreError::Invalid("Unsupported secret archive version or entry count"));
     }
-    let mut names = BTreeSet::new();
+    let mut identifiers = BTreeSet::new();
     for entry in &document.entries {
         entry.metadata.validate().map_err(SecretStoreError::Invalid)?;
         entry.metadata.check_limits().map_err(SecretStoreError::Invalid)?;
         catalog::validate_value(&entry.value).map_err(SecretStoreError::Invalid)?;
         catalog::check_value_limit(&entry.value).map_err(SecretStoreError::Invalid)?;
-        if !names.insert(&entry.metadata.name) {
-            return Err(SecretStoreError::Invalid("Duplicate secret name in archive"));
+        if !identifiers.insert(&entry.metadata.identifier) {
+            return Err(SecretStoreError::Invalid("Duplicate secret identifier in archive"));
         }
     }
     Ok(document)

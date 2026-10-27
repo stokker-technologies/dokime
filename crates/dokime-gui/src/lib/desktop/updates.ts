@@ -35,10 +35,6 @@ export type UpdateCheck = {
 
 export type UpdateStatus = UpdateSelection & {
   sources: string[];
-  connection: string | null;
-  host: string | null;
-  canSignIn: boolean;
-  user: { id: number; username: string; name: string } | null;
   lastCheck: UpdateCheck | null;
   error: string | null;
 };

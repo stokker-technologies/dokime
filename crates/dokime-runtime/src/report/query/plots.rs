@@ -17,18 +17,15 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::storage::query::transform::{
-    FieldPath, Transform,
-    sort::{Sort, SortKey},
-};
+
 use tokio::sync::OnceCell;
 
 // Local Imports
-use super::{invalid, statistics, telemetry};
+use super::{invalid, telemetry};
 use crate::document::PlotType;
 use crate::execution::context::captured::source::CapturedSource;
 use crate::expressions::DataSource;
-use crate::plot::PlotAnalysis;
+
 use crate::plot::PlotPayload;
 use crate::plot::PlotPayloadContext;
 use crate::plot::PlotPayloadRequest;
@@ -45,12 +42,23 @@ use dokime_domain::model::identity::Identifier;
 
 /* === Structs === */
 
+pub(in crate::report) struct ReadCache {
+    raw: OnceCell<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>>,
+    reduced: OnceCell<harmos::storage::ReadBatch<PlotPayload>>,
+}
+
+impl ReadCache {
+    pub(in crate::report) fn new() -> Self {
+        Self { raw: OnceCell::new(), reduced: OnceCell::new() }
+    }
+}
+
 /* === Enums === */
 
 #[derive(PartialEq, Eq)]
 pub(in crate::report) enum ReadPlan {
     Raw(Vec<(Identifier, u32)>),
-    Sorted { stream: Identifier, version: u32, field: Vec<String> },
+    Reduced(String),
 }
 
 /* === Traits === */
@@ -61,7 +69,7 @@ pub(in crate::report) enum ReadPlan {
 
 pub(in crate::report) async fn materialize(
     read: super::ReadContext<'_, '_>, source: &CapturedSource, execution: &TestExecution, records: crate::records::view::View<'_>,
-    request: PlotPayloadRequest, shared: &OnceCell<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>>,
+    request: PlotPayloadRequest, shared: &ReadCache,
 ) -> Result<harmos::storage::ReadBatch<crate::report::value::Value>> {
     let super::ReadContext { ctx, session, .. } = read;
     // The Caller Retains The Read-Plan Claim; Its Released Clone And Selection
@@ -72,6 +80,7 @@ pub(in crate::report) async fn materialize(
             let context = payload_context(source, execution, &request, source.report_defaults.plot_points as usize);
             let streams = crate::plot::plot_streams(&request);
             let samples = shared
+                .raw
                 .get_or_try_init(|| {
                     telemetry::streams(
                         ctx,
@@ -106,12 +115,10 @@ pub(in crate::report) async fn materialize(
 pub(in crate::report) fn read_plan(
     request: &PlotPayloadRequest, contracts: &BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>,
 ) -> Result<ReadPlan> {
-    if let Some((request, contract)) = direct(request, contracts) {
-        return Ok(ReadPlan::Sorted {
-            stream: contract.stream.clone(),
-            version: contract.schema_version,
-            field: sort_field(&request).fields,
-        });
+    if let Some((request, _)) = direct(request, contracts) {
+        let mut key = serde_json::to_value(&request).map_err(|_| invalid("plot selection cannot be encoded"))?;
+        key.as_object_mut().expect("plot request is an object").remove("plot_id");
+        return Ok(ReadPlan::Reduced(key.to_string()));
     }
     let selected = crate::plot::plot_streams(request);
     let matches = |stream: &Identifier| selected.iter().any(|name| crate::plot::stream_matches_alias(stream.as_str(), name));
@@ -142,13 +149,6 @@ fn payload_context<'a>(
         series_format: request.y_format.as_ref(),
         run_started_at: execution.started_at.as_ref().map(|timestamp| timestamp.as_str()),
         cycle_started_at: source.context.cycle.cycle.started_at.as_ref().map(|timestamp| timestamp.as_str()),
-    }
-}
-
-fn sort_field(request: &PlotPayloadRequest) -> FieldPath {
-    match request.x_key.as_deref() {
-        None | Some("timestamp") => FieldPath { fields: vec!["_storage".into(), "source_time".into()] },
-        Some(key) => statistics::field(key),
     }
 }
 
@@ -202,66 +202,26 @@ fn direct<'a>(
 
 async fn optimized(
     read: super::ReadContext<'_, '_>, source: &CapturedSource, execution: &TestExecution, records: crate::records::view::View<'_>,
-    request: &PlotPayloadRequest, contract: &TelemetryContract,
-    shared: &OnceCell<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>>,
+    request: &PlotPayloadRequest, contract: &TelemetryContract, shared: &ReadCache,
 ) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
-    let super::ReadContext { ctx, session, .. } = read;
-    let at = &source.evidence_through;
-    let scope = execution.test_execution_id.as_str();
-    let context = payload_context(source, execution, request, source.report_defaults.plot_points as usize);
-    let x = sort_field(request);
-    let samples = shared
-        .get_or_try_init(|| {
-            let transforms =
-                vec![Transform::Sort(Sort { keys: vec![SortKey { field: x.clone(), descending: false, nulls_first: false }] })];
-            telemetry::read(ctx, session, at, scope, contract, transforms)
+    shared
+        .reduced
+        .get_or_try_init(|| async {
+            let super::ReadContext { ctx, session } = read;
+            let codec = telemetry::saved_codec(ctx, session, &source.evidence_through, contract).await?;
+            if !crate::plot::stored::supports_codec(request, &codec) {
+                let samples =
+                    telemetry::read(ctx, session, &source.evidence_through, execution.test_execution_id.as_str(), contract, Vec::new())
+                        .await?;
+                let context = payload_context(source, execution, request, source.report_defaults.plot_points as usize);
+                return full_retained(&samples, records, request, source.captured_at.as_str(), &context);
+            }
+            let query = telemetry::plan(&source.evidence_through, execution.test_execution_id.as_str(), &codec, Vec::new())?;
+            let context = payload_context(source, execution, request, source.report_defaults.plot_points as usize);
+            crate::plot::stored::materialize(session, query, &codec, request, source.captured_at.as_str(), &context, records, true).await
         })
-        .await?;
-    let statistics = statistics::collect(read, samples, contract, &request.y_keys, &x)?;
-    // Missing Values Preserve Existing Gap Semantics Through The Raw Path.
-    let missing = statistics.iter().any(|statistics| statistics.count != statistics.rows);
-    if missing && request.plot_type != Some(PlotType::Histogram) {
-        let samples = telemetry::read(ctx, session, at, scope, contract, vec![]).await?;
-        return full_retained(&samples, records, request, source.captured_at.as_str(), &context);
-    }
-
-    let payload = crate::plot::project_retained_plot_payload(samples, records, request, source.captured_at.as_str(), &context)?;
-    let budget = payload.max_points;
-    let payload = payload.try_map(|mut payload| {
-        let summary = matches!(request.plot_type, Some(PlotType::TimeSeries | PlotType::XyScatter));
-        let histogram = request.plot_type == Some(PlotType::Histogram);
-        let mut summaries = Vec::new();
-        let mut histograms = Vec::new();
-        if summary {
-            summaries.try_reserve_exact(request.y_keys.len()).map_err(|_| invalid("report summary allocation failed"))?;
-        }
-        if histogram {
-            histograms.try_reserve_exact(request.y_keys.len()).map_err(|_| invalid("report histogram allocation failed"))?;
-        }
-        for ((key, statistics), series) in request.y_keys.iter().zip(&statistics).zip(&mut payload.series) {
-            series.raw_points = statistics.count;
-            if summary {
-                summaries.push(statistics.summary(key.clone()));
-            }
-            if histogram {
-                // This Admits The Public Result, Not The Separate Native
-                // Statistics/Histogram Transform And Encoder Workspace Gaps.
-                histograms.push(statistics::histogram(read, samples, contract, key, request.histogram.bins, statistics)?);
-            }
-        }
-        payload.summaries = summaries;
-        payload.analysis = histogram.then_some(PlotAnalysis::Histogram { series: histograms });
-        payload.max_points = 0;
-        Ok::<_, crate::runtime::Error>(payload)
-    })?;
-    let payload = crate::plot::finish_retained_plot_frame(payload, request)?;
-    payload.try_map(|mut payload| {
-        payload.max_points = budget;
-        for series in &mut payload.series {
-            series.downsampled = series.points.len() < series.raw_points;
-        }
-        Ok(payload)
-    })
+        .await
+        .cloned()
 }
 
 fn full_retained(
@@ -269,26 +229,10 @@ fn full_retained(
     generated_at: &str, context: &PlotPayloadContext,
 ) -> Result<harmos::storage::ReadBatch<PlotPayload>> {
     let payload = crate::plot::project_retained_plot_payload(samples, records, request, generated_at, context)?;
-    let budget = payload.max_points;
-    let payload = payload.try_map(|mut payload| {
-        for series in &mut payload.series {
-            series.raw_points = series.raw_points.max(series.points.len());
-        }
-        payload.max_points = 0;
-        Ok::<_, crate::runtime::Error>(payload)
-    })?;
-    let payload = crate::plot::finish_retained_plot_payload(payload, request)?;
-    payload.try_map(|mut payload| {
-        payload.max_points = budget;
-        for series in &mut payload.series {
-            series.downsampled = series.points.len() < series.raw_points;
-        }
-        Ok(payload)
-    })
+    crate::plot::finish_retained_plot_payload(payload, request)
 }
 
-// Captured Series Stay Whole. Only The Viewer Applies A Display Budget To Its
-// Visible Window; Dropping An Earlier Point Here Would Make Zoom Irrecoverable.
+// Raw Evidence Stays In Storage; Materialized Views Apply Their Display Bound.
 #[cfg(test)]
 fn full(
     samples: &[crate::telemetry::TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest,
@@ -308,7 +252,7 @@ mod tests {
     use dokime_domain::model::time::Timestamp;
 
     #[tokio::test]
-    async fn frozen_series_retains_points_beyond_the_live_plot_cap() {
+    async fn captured_series_reduces_original_spike_with_bounded_output() {
         let count = 100_000 + 101;
         let timestamp = Timestamp::new("2026-10-21T00:00:00Z");
         let stream = Identifier::new("fixture.capture").unwrap();
@@ -345,26 +289,10 @@ mod tests {
             },
         );
         let series = &payload.series[0];
-        assert_eq!(series.points.len(), count);
+        assert!(series.points.len() <= 32);
         assert_eq!(series.raw_points, count);
-        assert!(!series.downsampled);
-        assert_eq!(series.points.first().unwrap().y, Some(0.0));
-        assert_eq!(series.points.last().unwrap().y, Some((count - 1) as f64));
+        assert!(series.downsampled);
+        assert!(series.points.iter().any(|point| point.y == Some(1_000_000.0)));
         assert_eq!(payload.max_points, 32);
-
-        // An Early Viewport Can Still Recover Its Original Spike And Endpoints.
-        let payload = payload
-            .try_map(|mut payload| {
-                payload.series[0].points.retain(|point| point.x.as_f64().is_some_and(|x| x <= 100.0));
-                Ok::<_, crate::runtime::Error>(payload)
-            })
-            .unwrap();
-        assert_eq!(payload.series[0].points.len(), 101);
-        let viewport = crate::plot::finish_retained_plot_payload(payload, &request).unwrap();
-        let points = &viewport.series[0].points;
-        assert!(points.len() <= 32);
-        assert!(points.iter().any(|point| point.y == Some(1_000_000.0)));
-        assert_eq!(points.first().unwrap().y, Some(0.0));
-        assert_eq!(points.last().unwrap().y, Some(100.0));
     }
 }

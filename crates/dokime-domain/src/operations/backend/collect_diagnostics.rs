@@ -30,7 +30,7 @@ use super::*;
 
 /* === Structs === */
 
-// Builds one support archive and streams it. Read access, like GetDiagnostics; the archive never carries secret material.
+// Stream One Support Archive Without Secret Material.
 #[harmos_domain::message]
 #[harmos_domain::operation(response = (), output = DiagnosticsBundleFrame, id = "dokime.backend.collect_diagnostics", version = 1,
         policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,

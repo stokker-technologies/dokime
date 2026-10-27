@@ -52,7 +52,7 @@ pub struct BackendDiagnostics {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BackendSelection {
     OwnedLocal,
-    Profile { name: String },
+    Profile { identifier: String },
     Attach { request: ConnectRequest },
 }
 
@@ -61,7 +61,7 @@ pub enum BackendSelection {
 pub enum BackendOwnership {
     None,
     OwnedLocal,
-    Profile { name: String },
+    Profile { identifier: String },
     Attached,
 }
 

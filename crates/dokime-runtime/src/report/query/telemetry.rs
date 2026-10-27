@@ -74,9 +74,14 @@ pub(in crate::report) async fn read(
     let codec = saved_codec(ctx, session, at, contract).await?;
     let query = plan(at, scope, &codec, transforms)?;
     let mut samples = Some(empty()?);
+    let mut retained_bytes = 0usize;
     super::visit_batches(session, at, query, |batch| {
         let entries = decode_positioned(&codec, batch)?;
         let page = crate::storage::projection::page(entries, |(_, entry)| Ok(entry.sample))?;
+        retained_bytes = retained_bytes
+            .checked_add(crate::execution::evidence_rows::encoded_bytes(&*page))
+            .filter(|bytes| *bytes <= 128 * 1024 * 1024)
+            .ok_or_else(|| invalid("raw report plot workspace exceeds 128 MiB"))?;
         samples = Some(append(samples.take().expect("report sample owner exists"), page)?);
         Ok(())
     })
@@ -84,17 +89,39 @@ pub(in crate::report) async fn read(
     sort(samples.expect("completed report sample owner exists"))
 }
 
+pub(in crate::report) async fn spool(
+    ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, scope: &str, contract: &TelemetryContract,
+    samples: &mut crate::execution::evidence_rows::EvidenceRows<TelemetrySample>,
+) -> Result<()> {
+    let codec = saved_codec(ctx, session, at, contract).await?;
+    let query = plan(at, scope, &codec, Vec::new())?;
+    super::visit_batches(session, at, query, |batch| {
+        let entries = decode_positioned(&codec, batch)?;
+        for (_, entry) in entries.iter() {
+            samples.append(&entry.sample).map_err(crate::runtime::Error::Operation)?;
+        }
+        Ok(())
+    })
+    .await
+}
+
 pub(super) async fn streams(
     ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, scope: &str,
     contracts: &std::collections::BTreeMap<Identifier, std::collections::BTreeMap<u32, TelemetryContract>>, selected: &[String],
 ) -> Result<harmos::storage::ReadBatch<Vec<TelemetrySample>>> {
     let mut samples = empty()?;
+    let mut bytes = 0usize;
     for (stream, versions) in contracts {
         if !selected.iter().any(|name| crate::plot::stream_matches_alias(stream.as_str(), name)) {
             continue;
         }
         for contract in versions.values() {
-            samples = append(samples, read(ctx, session, at, scope, contract, Vec::new()).await?)?;
+            let rows = read(ctx, session, at, scope, contract, Vec::new()).await?;
+            bytes = bytes
+                .checked_add(crate::execution::evidence_rows::encoded_bytes(&*rows))
+                .filter(|bytes| *bytes <= 128 * 1024 * 1024)
+                .ok_or_else(|| invalid("raw report plot workspace exceeds 128 MiB"))?;
+            samples = append(samples, rows)?;
         }
     }
     sort(samples)
@@ -102,7 +129,7 @@ pub(super) async fn streams(
 
 /* === Private Functions === */
 
-async fn saved_codec(
+pub(in crate::report) async fn saved_codec(
     ctx: &Context<'_>, session: &crate::storage::Manager, at: &StorageCursor, contract: &TelemetryContract,
 ) -> Result<harmos::storage::ReadBatch<TypedCodec>> {
     let identifier_bytes = "dokime.telemetry."

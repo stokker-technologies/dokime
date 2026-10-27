@@ -56,12 +56,12 @@ export async function putSecret(session: SessionIdentity, metadata: SecretMetada
   return catalog(await rpc.secretsPut(session, { metadata, value, generation }));
 }
 
-export async function removeSecret(session: SessionIdentity, name: string, generation: bigint) {
-  return catalog(await rpc.secretsRemove(session, { names: [name], generation }));
+export async function removeSecret(session: SessionIdentity, identifier: string, generation: bigint) {
+  return catalog(await rpc.secretsRemove(session, { identifiers: [identifier], generation }));
 }
 
-export async function exportSecrets(session: SessionIdentity, names: string[], generation: bigint) {
-  const archive = await rpc.secretsExport(session, { names, generation });
+export async function exportSecrets(session: SessionIdentity, identifiers: string[], generation: bigint) {
+  const archive = await rpc.secretsExport(session, { identifiers, generation });
   if (archive.data.byteLength > MAX_ARCHIVE_BYTES) throw new Error("Secret archive exceeds its size limit");
   return saveNativeDocument(session, { kind: "secret_archive", filename: "dokime-secrets.b64", bytes: archive.data });
 }
@@ -87,9 +87,11 @@ export async function previewSecrets(session: SessionIdentity, data: Uint8Array)
 
 export async function importSecrets(session: SessionIdentity, data: Uint8Array, preview: SecretPreview, replace: ReadonlySet<string>) {
   const choices = preview.entries.map((entry) => ({
-    name: entry.metadata.name,
+    identifier: entry.metadata.identifier,
     action: {
-      HarmosVariant: replace.has(entry.metadata.name) ? { case: "Replace" as const, value: {} } : { case: "Skip" as const, value: {} },
+      HarmosVariant: replace.has(entry.metadata.identifier)
+        ? { case: "Replace" as const, value: {} }
+        : { case: "Skip" as const, value: {} },
     },
   }));
   return catalog(await rpc.secretsImport(session, { data, choices, generation: preview.generation }));

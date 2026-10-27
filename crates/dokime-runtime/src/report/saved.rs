@@ -14,7 +14,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    io::{BufWriter, Read, Seek, SeekFrom, Write},
+    sync::Arc,
+};
 
 // Third Party Imports
 use harmos::{
@@ -85,13 +89,19 @@ pub struct PreparedExecutionReport {
 pub(super) struct ReportFile {
     data: harmos::storage::ReadBatch<ReportFileData>,
     producer: Option<StorageFile>,
-    written: usize,
+    written: u64,
     finished: Option<FileReference>,
 }
 
 struct ReportFileData {
     metadata: FileMetadata,
-    bytes: Vec<u8>,
+    spool: std::sync::Mutex<std::fs::File>,
+}
+
+struct ReportWriter {
+    output: BufWriter<std::fs::File>,
+    digest: Sha256,
+    length: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -116,8 +126,9 @@ impl ReportFileData {
         if bytes.len() != length {
             return Err(report_invalid("report encoding differs from reported length"));
         }
-        let metadata = identity.metadata(&bytes)?;
-        Ok(Self { metadata, bytes })
+        let mut writer = ReportWriter::new()?;
+        writer.write_all(&bytes)?;
+        writer.finish(identity)
     }
 }
 
@@ -144,7 +155,7 @@ impl ReportFileIdentity<'_> {
         Ok(Identifier::new(id).map_err(crate::storage::Error::from)?)
     }
 
-    fn metadata(&self, bytes: &[u8]) -> Result<FileMetadata> {
+    fn metadata(&self, length: u64, digest: [u8; 32]) -> Result<FileMetadata> {
         let id = self.id()?;
         let mut scope = report_text(self.owner.len())?;
         scope.push_str(self.owner);
@@ -152,11 +163,6 @@ impl ReportFileIdentity<'_> {
 
         let mut media_type = report_text(self.media_type.len())?;
         media_type.push_str(self.media_type);
-        let length = match u64::try_from(bytes.len()) {
-            Ok(length) => length,
-            Err(_) => return Err(report_invalid("report file length overflows")),
-        };
-        let digest = Sha256::digest(bytes).into();
         Ok(FileMetadata { id, scope: Some(scope), media_type, expected_length: Some(length), expected_sha256: Some(digest) })
     }
 }
@@ -377,12 +383,10 @@ impl ReportFile {
 
     pub(super) fn render(html: &HtmlReport, owner: &str, nonce: uuid::Uuid, suffix: &str) -> Result<Self> {
         let identity = ReportFileIdentity { owner, nonce, suffix, media_type: "text/html" };
-        let bytes = html.render()?;
-        let data = bytes.try_map(|bytes| {
-            let metadata = identity.metadata(&bytes)?;
-            Ok::<_, Error>(ReportFileData { metadata, bytes })
-        })?;
-        Ok(Self::new(data))
+        let mut writer = ReportWriter::new()?;
+        html.write(&mut writer)?;
+        let data = writer.finish(identity)?;
+        Ok(Self::new(harmos::storage::ReadBatch::new(data)))
     }
 
     fn context(captured: &CapturedSource, nonce: uuid::Uuid) -> Result<Self> {
@@ -428,22 +432,59 @@ impl ReportFile {
             self.producer = Some(manager.create_file(self.data.metadata.clone()).await?);
         }
 
-        while self.written < self.data.bytes.len() {
-            let end = self.written.saturating_add(batch_bytes).min(self.data.bytes.len());
-            let length = end - self.written;
-            let length = NonZeroUsize::new(length).ok_or(report_invalid("report append batch is empty"))?;
-
-            let mut bytes = Vec::new();
-            bytes.try_reserve_exact(length.get()).map_err(report_allocation_error)?;
-            bytes.extend_from_slice(&self.data.bytes[self.written..end]);
+        let total = self.data.metadata.expected_length.expect("spooled report length");
+        while self.written < total {
+            let length = (total - self.written).min(batch_bytes as u64) as usize;
+            let data = self.data.clone();
+            let offset = self.written;
+            let bytes = tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
+                let mut spool = data.spool.lock().map_err(|_| report_invalid("report spool lock is poisoned"))?;
+                spool.seek(SeekFrom::Start(offset))?;
+                let mut bytes = Vec::new();
+                bytes.try_reserve_exact(length).map_err(report_allocation_error)?;
+                bytes.resize(length, 0);
+                spool.read_exact(&mut bytes)?;
+                Ok(bytes)
+            })
+            .await??;
+            let end = offset + length as u64;
             let producer = self.producer.as_mut().expect("created report file");
-            producer.write_retained_at(self.written as u64, bytes.into()).await?;
-            if producer.length() != end as u64 {
+            producer.write_retained_at(offset, bytes.into()).await?;
+            if producer.length() != end {
                 return Err(Error::InvalidReportInputs("report append returned a different offset".into()));
             }
             self.written = end;
         }
         Ok(())
+    }
+}
+
+impl ReportWriter {
+    fn new() -> Result<Self> {
+        let spool = tempfile::tempfile()?;
+        Ok(Self { output: BufWriter::with_capacity(1024 * 1024, spool), digest: Sha256::new(), length: 0 })
+    }
+
+    fn finish(mut self, identity: ReportFileIdentity<'_>) -> Result<ReportFileData> {
+        self.output.flush()?;
+        let mut spool = self.output.into_inner().map_err(|error| error.into_error())?;
+        spool.seek(SeekFrom::Start(0))?;
+        let metadata = identity.metadata(self.length, self.digest.finalize().into())?;
+        Ok(ReportFileData { metadata, spool: std::sync::Mutex::new(spool) })
+    }
+}
+
+impl Write for ReportWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let length = self.length.checked_add(bytes.len() as u64).ok_or_else(|| std::io::Error::other("report length overflows"))?;
+        self.output.write_all(bytes)?;
+        self.digest.update(bytes);
+        self.length = length;
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.output.flush()
     }
 }
 
@@ -482,7 +523,9 @@ mod tests {
         let html = HtmlReport::from_capture(captured, evidence).unwrap();
         let source = html.captured_source().unwrap();
         let (context, report) = ReportFile::capture(&html).unwrap();
-        let decoded = NativeSource::decode(&context.data.bytes).unwrap();
+        let mut context_bytes = Vec::new();
+        context.data.spool.lock().unwrap().read_to_end(&mut context_bytes).unwrap();
+        let decoded = NativeSource::decode(&context_bytes).unwrap();
         let decoded = decoded.into_source().unwrap();
         assert!(decoded == **source);
         drop(decoded);
@@ -490,10 +533,11 @@ mod tests {
         drop(context);
         drop(context_owner);
 
-        let bytes = &report.data.bytes;
+        let mut bytes = Vec::new();
+        report.data.spool.lock().unwrap().read_to_end(&mut bytes).unwrap();
         assert_eq!(report.data.metadata.expected_length, Some(bytes.len() as u64));
         assert_eq!(report.data.metadata.expected_sha256, Some(Sha256::digest(&bytes[..]).into()));
-        let html = std::str::from_utf8(bytes).unwrap();
+        let html = std::str::from_utf8(&bytes).unwrap();
         let payload = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1;
         let payload = payload.split_once("</script>").unwrap().0;
         let digest = Sha256::digest(payload.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
@@ -502,13 +546,34 @@ mod tests {
     }
 
     #[test]
+    fn report_spool_hashes_incremental_writes_and_rewinds() {
+        let identity = ReportFileIdentity { owner: "spooled.report", nonce: uuid::Uuid::nil(), suffix: ".report", media_type: "text/html" };
+        let mut writer = ReportWriter::new().unwrap();
+        let block = vec![0xa5; 1024 * 1024];
+        let mut expected = Sha256::new();
+        for _ in 0..17 {
+            writer.write_all(&block).unwrap();
+            expected.update(&block);
+        }
+        let data = writer.finish(identity).unwrap();
+        assert_eq!(data.metadata.expected_length, Some(17 * 1024 * 1024));
+        assert_eq!(data.metadata.expected_sha256, Some(expected.finalize().into()));
+        let mut spool = data.spool.lock().unwrap();
+        assert_eq!(spool.stream_position().unwrap(), 0);
+        assert_eq!(spool.metadata().unwrap().len(), 17 * 1024 * 1024);
+        let mut prefix = [0; 128];
+        spool.read_exact(&mut prefix).unwrap();
+        assert_eq!(prefix, [0xa5; 128]);
+    }
+
+    #[test]
     fn report_file_metadata_identifies_content() {
         let nonce = uuid::Uuid::nil();
         let identity = ReportFileIdentity { owner: "fixture.execution", nonce, suffix: ".context", media_type: MEDIA_TYPE };
         for capacity in [0, 128] {
             let bytes = Vec::with_capacity(capacity);
-            let metadata = identity.metadata(&bytes).unwrap();
-            let data = ReportFileData { metadata, bytes };
+            let metadata = identity.metadata(bytes.len() as u64, Sha256::digest(&bytes).into()).unwrap();
+            let data = ReportFileData { metadata, spool: std::sync::Mutex::new(tempfile::tempfile().unwrap()) };
             assert_eq!(data.metadata.expected_length, Some(0));
             assert_eq!(data.metadata.scope.as_ref().unwrap().as_str(), identity.owner);
             assert_eq!(data.metadata.id.as_str(), "fixture.execution.00000000-0000-0000-0000-000000000000.context");

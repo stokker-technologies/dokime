@@ -15,7 +15,7 @@ import asyncio
 import hashlib
 import json
 import math
-import stat
+import ssl
 import os
 import re
 from collections.abc import AsyncIterator, Callable, Mapping
@@ -69,7 +69,6 @@ class Transport:
         self,
         endpoint: str,
         token: str | None,
-        ca_certificate: str | Path | None,
         timeout: float,
         *,
         connect_timeout_ms: int,
@@ -85,9 +84,7 @@ class Transport:
         ):
             raise ValueError("invalid expected backend identity")
         self._expected_backend_id = expected_backend_id
-        if ca_certificate is not None and ca_certificate_pem is not None:
-            raise ValueError("CA certificate file and PEM text are mutually exclusive")
-        if (ca_certificate is not None or ca_certificate_pem is not None) and not self._tls:
+        if ca_certificate_pem is not None and not self._tls:
             raise ValueError("CA certificates require HTTPS")
         try:
             valid_timeout = type(timeout) in (int, float) and math.isfinite(timeout) and 0 < timeout <= MAXIMUM_TIMEOUT_MS / 1000
@@ -95,15 +92,14 @@ class Transport:
             valid_timeout = False
         if not valid_timeout:
             raise ValueError("RPC timeout must be positive and finite")
-        self._ca = (
-            _certificate(Path(ca_certificate), CA_BYTES)
-            if ca_certificate is not None
-            else ca_certificate_pem.encode("utf-8")
-            if ca_certificate_pem is not None
-            else None
-        )
+        self._ca = ca_certificate_pem.encode("utf-8") if ca_certificate_pem is not None else None
         if self._ca is not None and len(self._ca) > CA_BYTES:
             raise ValueError("CA certificate exceeds the configured byte limit")
+        if self._ca is not None:
+            try:
+                ssl.create_default_context(cadata=self._ca.decode("utf-8"))
+            except (ssl.SSLError, UnicodeError, ValueError):
+                raise ValueError("invalid CA certificate") from None
         if type(connect_timeout_ms) is not int or not 0 < connect_timeout_ms <= MAXIMUM_TIMEOUT_MS:
             raise ValueError("connection timeout must be a positive supported duration")
         self.connect_timeout = connect_timeout_ms / 1000
@@ -112,6 +108,7 @@ class Transport:
         self._channel: grpc.aio.Channel | None = None
         self._lock = asyncio.Lock()
         self._calls: set[Any] = set()
+        self._readers: set[asyncio.Task] = set()
         self.closed = False
         self.backend: Backend | None = None
         self._request_limit = MAX_MESSAGE_BYTES
@@ -149,6 +146,8 @@ class Transport:
                     _contracts.operation("Backend", "GetIdentity"),
                     _contracts.request("Backend", "GetIdentity"),
                 )
+                if self._expected_backend_id is not None and identity.backend_id != self._expected_backend_id:
+                    raise BackendChanged("backend does not match the selected profile identity")
                 health = await self._invoke_operation(
                     _contracts.operation("Backend", "GetHealth"),
                     _contracts.request("Backend", "GetHealth"),
@@ -166,8 +165,6 @@ class Transport:
                     or len(identity.api.descriptor_sha256) != 32
                 ):
                     raise ProtocolError("backend API or identity is incompatible")
-                if self._expected_backend_id is not None and identity.backend_id != self._expected_backend_id:
-                    raise BackendChanged("backend does not match the selected profile identity")
                 if any(item.backend_id != identity.backend_id or item.epoch != identity.epoch for item in (health, availability)):
                     raise ProtocolError("backend identity changed during negotiation")
                 if _wire.enum_name(health.readiness) not in ("ready", "degraded"):
@@ -223,7 +220,19 @@ class Transport:
         except DecodeError as error:
             raise ProtocolError("invalid canonical protobuf response") from error
 
+    async def _verify_expected(self) -> None:
+        if self.backend is None or self._expected_backend_id is None:
+            return
+        identity = await self._invoke_operation(
+            _contracts.operation("Backend", "GetIdentity"),
+            _contracts.request("Backend", "GetIdentity"),
+        )
+        if identity.backend_id != self._expected_backend_id:
+            raise BackendChanged("backend does not match the pairing identity")
+
     async def _invoke_operation(self, operation: Operation, request: Message) -> Message:
+        if operation.grpc_path != "/dokime.v1.Backend/GetIdentity":
+            await self._verify_expected()
         self._available(operation)
         if operation.mode != "unary":
             raise ValueError("this operation requires its streaming interface")
@@ -311,7 +320,10 @@ class Transport:
                     if native_only:
                         continue
                     try:
-                        descriptor = from_contract(row["contract"], max_bytes=PROJECTION_BYTES, max_work=PROJECTION_WORK, max_definitions=PROJECTION_DEFINITIONS)
+                        descriptor = from_contract(
+                            row["contract"], max_bytes=PROJECTION_BYTES,
+                            max_work=PROJECTION_WORK, max_definitions=PROJECTION_DEFINITIONS,
+                        )
                     except (ValueError, TypeError, KeyError) as error:
                         raise ProtocolError("invalid operation contract") from error
                     key = descriptor.id, row["owner"]
@@ -375,6 +387,7 @@ class Transport:
         selected = await self._select(operation)
         if selected.mode != "client_stream":
             raise ValueError("upload requires a client-streaming operation")
+        await self._verify_expected()
         self._available(selected)
         self._request(request, selected.request)
         assert self._channel is not None
@@ -435,7 +448,7 @@ class Transport:
         partial = destination.with_name(destination.name + ".part")
         owned = False
         try:
-            with partial.open("xb") as output:
+            with partial.open("xb", buffering=1_048_576) as output:
                 owned = True
                 offset = 0
                 digest = hashlib.sha256()
@@ -508,6 +521,11 @@ class Transport:
             self.closed = True
             for call in tuple(self._calls):
                 call.cancel()
+            readers = tuple(self._readers)
+            for reader in readers:
+                reader.cancel()
+            await asyncio.gather(*readers, return_exceptions=True)
+            self._readers.clear()
             if self._channel is not None:
                 await self._channel.close()
                 self._channel = None
@@ -544,6 +562,14 @@ class _Stream:
         self._completion = None
         self._closed = False
         self._open_lock = asyncio.Lock()
+        self._report = operation.grpc_path in (
+            "/dokime.v1.Reports/DownloadCycleReport", "/dokime.v1.Reports/DownloadExecutionReport",
+        )
+        self._prefetch = asyncio.Queue(maxsize=3) if self._report else None
+        self._frame_limit = 2_097_152
+        self._credit = asyncio.Semaphore(1)
+        self._reader_task = None
+        self._terminal = None
 
     async def _open(self) -> None:
         async with self._open_lock:
@@ -555,6 +581,7 @@ class _Stream:
             if self._discover:
                 self._operation = await self._transport._select(self._operation)
             operation = self._operation
+            await self._transport._verify_expected()
             if operation.mode not in ("server_stream", "bidi"):
                 raise ValueError("operation has no output stream")
             self._transport._available(operation)
@@ -565,7 +592,7 @@ class _Stream:
                 self._call = channel.unary_stream(operation.grpc_path)(
                     payload,
                     metadata=self._transport._metadata,
-                    timeout=_stream_timeout(operation),
+                    timeout=300.0 if self._report else _stream_timeout(operation),
                 )
             else:
                 if self._items is None:
@@ -574,7 +601,7 @@ class _Stream:
                 self._call = channel.stream_stream(operation.grpc_path)(
                     self._transport._inputs(operation, self._request, self._items),
                     metadata=self._transport._metadata,
-                    timeout=_stream_timeout(operation),
+                    timeout=300.0 if self._report else _stream_timeout(operation),
                 )
             self._transport._calls.add(self._call)
 
@@ -582,6 +609,48 @@ class _Stream:
         return self
 
     async def __anext__(self) -> Message:
+        if not self._report:
+            return await self._next()
+        if self._closed or self._transport.closed:
+            raise ClientClosed("operation stream is closed")
+        if self._terminal is not None:
+            raise self._terminal
+        if self._reader_task is None:
+            self._reader_task = asyncio.create_task(self._read_ahead())
+            self._transport._readers.add(self._reader_task)
+            self._reader_task.add_done_callback(self._transport._readers.discard)
+        try:
+            item = await self._prefetch.get()
+            self._credit.release()
+        except asyncio.CancelledError:
+            await self.close()
+            raise
+        if isinstance(item, BaseException):
+            self._terminal = item
+            raise item
+        return item
+
+    async def _read_ahead(self) -> None:
+        try:
+            await self._open()
+            self._frame_limit = min(self._transport._response_limit, 2_097_152)
+            # Reserve Before Reading; Count The Consumer In The Four-Frame/4-MiB Bound.
+            capacity = max(1, min(3, 4_194_304 // self._frame_limit - 1))
+            self._credit = asyncio.Semaphore(capacity)
+            while True:
+                await self._credit.acquire()
+                item = await self._next()
+                await self._prefetch.put(item)
+        except asyncio.CancelledError:
+            if self._transport.closed:
+                while not self._prefetch.empty():
+                    self._prefetch.get_nowait()
+                self._prefetch.put_nowait(ClientClosed("DokimeClient is closed"))
+            raise
+        except Exception as error:
+            await self._prefetch.put(error)
+
+    async def _next(self) -> Message:
         await self._open()
         call = self._call
         if call is None:
@@ -597,26 +666,28 @@ class _Stream:
                 raise ProtocolError("operation output followed its final response")
             if not isinstance(payload, bytes):
                 raise ProtocolError("operation stream returned invalid frame bytes")
+            if self._report and len(payload) > self._frame_limit:
+                raise ProtocolError("report frame exceeds its transfer limit")
             envelope = self._transport._response(payload, self._operation.rpc_response)
             kind = envelope.WhichOneof(envelope.DESCRIPTOR.oneofs[0].name)
             if kind == "response":
                 self._completion = envelope.response
-                return await self.__anext__()
+                return await self._next()
             if kind != "item":
                 raise ProtocolError("operation stream frame has no payload")
             return envelope.item
         except asyncio.CancelledError:
-            await self.close()
+            self._cancel_call()
             if self._transport.closed:
                 raise ClientClosed("DokimeClient is closed") from None
             raise
         except grpc.aio.AioRpcError as error:
-            await self.close()
+            self._cancel_call()
             if self._transport.closed:
                 raise ClientClosed("DokimeClient is closed") from None
             raise _error(error) from error
         except ProtocolError:
-            await self.close()
+            self._cancel_call()
             raise
 
     async def response(self) -> Message:
@@ -628,6 +699,16 @@ class _Stream:
 
     async def close(self) -> None:
         self._closed = True
+        if self._reader_task is not None and self._reader_task is not asyncio.current_task():
+            self._reader_task.cancel()
+            await asyncio.gather(self._reader_task, return_exceptions=True)
+        if self._prefetch is not None:
+            while not self._prefetch.empty():
+                self._prefetch.get_nowait()
+            self._prefetch.put_nowait(ClientClosed("operation stream is closed"))
+        self._cancel_call()
+
+    def _cancel_call(self) -> None:
         if self._call is not None:
             self._call.cancel()
             self._transport._calls.discard(self._call)
@@ -636,18 +717,6 @@ class _Stream:
 # === Public Functions === #
 
 # === Private Functions === #
-
-
-def _certificate(path: Path, maximum: int) -> bytes:
-    if not path.is_file():
-        raise ValueError("CA certificate must be a regular file")
-    with path.open("rb") as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-            raise ValueError("CA certificate must be a regular file")
-        data = stream.read(maximum + 1)
-    if len(data) > maximum:
-        raise ValueError("CA certificate exceeds the configured byte limit")
-    return data
 
 
 def _stream_timeout(operation: Operation) -> float:

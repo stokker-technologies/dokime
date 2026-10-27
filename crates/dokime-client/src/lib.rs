@@ -18,6 +18,7 @@ mod error;
 mod execution;
 mod follow;
 pub mod operations;
+pub mod pairing;
 mod plugins;
 pub mod profiles;
 mod raw;
@@ -93,6 +94,7 @@ struct Inner {
     cancellation: CancellationToken,
     readers: TaskTracker,
     backend: Backend,
+    expected_backend_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -179,6 +181,7 @@ impl Client {
                 cancellation: CancellationToken::new(),
                 readers: TaskTracker::new(),
                 backend,
+                expected_backend_id: expected_id.map(str::to_owned),
             }),
         })
     }
@@ -248,13 +251,33 @@ impl Client {
         let future = Box::pin(future);
         async move {
             let operation = async {
+                // A Channel May Reconnect Transparently; Check Identity Before Application Calls.
+                if let Some(expected) = &self.inner.expected_backend_id {
+                    let identity = transport::unary::<dokime_domain::model::backend::wire::BackendIdentity, _>(
+                        self.channel()?,
+                        self.inner.authorization.as_ref(),
+                        "/dokime.v1.Backend/GetIdentity",
+                        contracts::backend::GetIdentity {},
+                        DISCOVERY_BYTES as usize,
+                        DISCOVERY_BYTES as usize,
+                    )
+                    .await?;
+                    if transport::value(identity)?.backend_id != *expected {
+                        return Err(Error::IdentityChanged);
+                    }
+                }
+                future.await.map_err(normalize_rpc_error)
+            };
+            let operation = async {
                 if let Some(timeout) = self.timeout {
-                    tokio::time::timeout(timeout, future).await.map_err(|_| tonic::Status::deadline_exceeded("RPC deadline exceeded"))?
+                    tokio::time::timeout(timeout, operation)
+                        .await
+                        .map_err(|_| Error::Rpc(tonic::Status::deadline_exceeded("RPC deadline exceeded")))?
                 } else {
-                    future.await
+                    operation.await
                 }
             };
-            self.guard(operation).await?.map_err(normalize_rpc_error)
+            self.guard(operation).await?
         }
     }
 

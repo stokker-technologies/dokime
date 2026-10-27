@@ -80,6 +80,9 @@ pub(crate) struct ExecutionStorage {
     pub(super) codecs: crate::storage::telemetry::CodecCache,
     pub(crate) tail_stops: Mutex<BTreeMap<String, Arc<TailStop>>>,
     pub(crate) captures: super::captures::Captures,
+
+    #[cfg(any(test, feature = "fault-injection"))]
+    pub(super) log_faults: std::sync::Mutex<BTreeMap<TestExecutionId, (usize, std::io::ErrorKind)>>,
 }
 
 pub(crate) struct Acquisition {
@@ -240,6 +243,8 @@ impl ExecutionStorage {
             codecs: Default::default(),
             tail_stops: Mutex::new(BTreeMap::new()),
             captures,
+            #[cfg(any(test, feature = "fault-injection"))]
+            log_faults: std::sync::Mutex::new(BTreeMap::new()),
         })
     }
 

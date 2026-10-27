@@ -54,7 +54,7 @@ pub(super) async fn run(mut args: Args, settings: &dokime::domain::model::settin
 pub(super) async fn check(connection: crate::connection::Args, json: bool) -> crate::Result<()> {
     let resolved = connection.resolve()?;
     let endpoint = resolved.selection.target.endpoint();
-    let result = connection.connect_selected(&resolved, resolved.token.clone()).await;
+    let result = connection.connect_selected(&resolved).await;
     match result {
         Ok(client) => {
             let backend = client.backend().clone();

@@ -212,22 +212,26 @@ impl Operation for Logs {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::WatchLogs, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut wire::WatchLogs, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let min_level = match request.min_level {
-            dokime::domain::model::backend::wire::LogLevel::Unspecified => dokime::domain::model::backend::wire::LogLevel::Trace,
-            level => level,
-        };
-        crate::grpc::logs::Watch {
-            poll_interval: self.resources.runtime.storage().settings().filesystem.poll_interval,
-            path: super::hub_log_path(&self.resources.runtime.application_root()),
-            min_level,
-            replay_lines: request.replay_lines,
-            message_limit: self.resources.maximum,
-        }
-        .run(output)
-        .await?;
-        Ok(().into())
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let min_level = match request.min_level {
+                dokime::domain::model::backend::wire::LogLevel::Unspecified => dokime::domain::model::backend::wire::LogLevel::Trace,
+                level => level,
+            };
+            crate::grpc::logs::Watch {
+                poll_interval: self.resources.runtime.storage().settings().filesystem.poll_interval,
+                path: super::hub_log_path(&self.resources.runtime.application_root()),
+                min_level,
+                replay_lines: request.replay_lines,
+                message_limit: self.resources.maximum,
+            }
+            .run(output)
+            .await?;
+            Ok(().into())
+        })
+        .await
     }
 }
 
@@ -241,17 +245,21 @@ impl Operation for Archive {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut wire::CollectDiagnostics, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut wire::CollectDiagnostics, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        super::archive::deliver(
-            &self.resources.runtime,
-            &self.resources.identity,
-            self.resources.maximum,
-            request.max_log_tail_bytes,
-            output,
-        )
-        .await?;
-        Ok(().into())
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            super::archive::deliver(
+                &self.resources.runtime,
+                &self.resources.identity,
+                self.resources.maximum,
+                request.max_log_tail_bytes,
+                output,
+            )
+            .await?;
+            Ok(().into())
+        })
+        .await
     }
 }
 
@@ -285,7 +293,6 @@ pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -
     runtime.operations().register_wire_operation::<Availability>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Logs>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Archive>("dokime", dokime::app::Lanes::Open, resources)?;
-    super::diagnostics::register(runtime, maximum)?;
     Ok(())
 }
 

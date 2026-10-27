@@ -12,6 +12,8 @@
 
 # Standard Library Imports
 import argparse
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 # Third Party Imports
 # Local Imports
@@ -39,7 +41,12 @@ def main() -> int:
     wheels = list(directory.glob("dokime_client-*.whl"))
     if len(wheels) != 1:
         raise SystemExit(f"expected one staged client wheel in {directory}; run `mise run build:python`")
-    return run.main(["test", "--profile", options.profile, "--language", "python", "--project", "packages/dokime-client", *arguments])
+    # Each Invocation Owns Its Fixtures; Pytest Must Not Clean Another Run's Links.
+    with TemporaryDirectory(prefix="dokime-pytest-") as scratch:
+        if "--" not in arguments:
+            arguments.append("--")
+        arguments.append(f"--basetemp={Path(scratch) / 'fixtures'}")
+        return run.main(["test", "--profile", options.profile, "--language", "python", "--project", "packages/dokime-client", *arguments])
 
 
 # === Private Functions === #

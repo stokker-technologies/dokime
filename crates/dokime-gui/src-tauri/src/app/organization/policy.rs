@@ -13,7 +13,7 @@
 
 /* === Re-Exports === */
 
-pub(crate) use dokime::config::organization::policy::{Connection, Mode, Source, UpdatePolicy, https_url};
+pub(crate) use dokime::config::organization::policy::{Mode, Source, UpdatePolicy, https_url};
 
 /* === Imports === */
 

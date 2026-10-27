@@ -262,6 +262,9 @@ impl Session {
             DropReason::Incomplete,
         )
         .await;
+        if let Some(message) = pages.stream_log.failure() {
+            return Err(failure("execution_log_capture", message));
+        }
         let decided = criterion_outcomes(&outcome.criteria, criteria);
         if cancelled {
             // A cancelled run still has a verdict to give: its criteria are
@@ -306,6 +309,9 @@ impl Session {
             context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_samples", error.to_string()))?;
         }
         pages.stream_log.append(context, execution, &self.workflow, &self.source, &batch.diagnostics).await;
+        if let Some(message) = pages.stream_log.failure() {
+            return Err(failure("execution_log_capture", message));
+        }
         let abandoned = pages.artifacts.accept(context, &execution.scope, std::mem::take(&mut batch.artifact_chunks)).await?;
         report_dropped(context, execution, &self.workflow, &self.source, &mut pages.stream_log, &abandoned, DropReason::Abandoned).await;
         // A cycle that is stopping admits no live phase transactions; the
@@ -413,42 +419,31 @@ impl Session {
             close_record_subscriptions(context, execution).await?;
         }
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement subscriptions closed");
-        let ids = context
-            .runtime
-            .state_manager
-            .state()
-            .read(move |state| {
-                state
-                    .executions
-                    .get(&execution_id)
-                    .filter(|execution| execution.test_cycle_id == cycle_id)
-                    .map(|execution| execution.records.subscribed_records().clone())
-            })
-            .await
-            .map_err(|error| failure("sidecar_records", error.to_string()))?
-            .value
-            .ok_or_else(|| failure("sidecar_records", "record subscription execution disappeared"))?;
         let through = context.runtime.state_manager.applied().0;
-        tracing::debug!(execution_id = %execution.test_execution_id, through, "record settlement waiting for capture");
         context
             .runtime
             .record_source
             .wait_through(&context.runtime.state_manager, through)
             .await
             .map_err(|error| failure("sidecar_records", error.to_string()))?;
-        tracing::debug!(execution_id = %execution.test_execution_id, through, "record settlement capture reached");
-        let mut remaining = ids;
-        if !remaining.is_empty() {
-            let reader = context.runtime.captured_records();
-            let mut after = self.record_subscription_after;
-            loop {
-                let record = reader.next(after, through).await.map_err(|error| failure("sidecar_records", error.to_string()))?;
-                let Some(record) = record else {
-                    break;
-                };
-                after = record.sequence;
-                let Some(captured) = remaining.remove(&record.record_id) else {
-                    continue;
+        let at = context.runtime.saved_through(through).await.map_err(|error| failure("sidecar_records", error.to_string()))?;
+        let mut after = 0;
+        loop {
+            let rows = context
+                .runtime
+                .local_storage
+                .captured_record_page(at.clone(), execution.test_execution_id.to_string(), after)
+                .await
+                .map_err(|error| failure("sidecar_records", error.to_string()))?;
+            if rows.is_empty() {
+                break;
+            }
+            for row in rows {
+                after = row.position.sequence;
+                let record = crate::storage::records::RecordRow::decode_entry(&row.payload)
+                    .map_err(|error| failure("sidecar_records", error.to_string()))?;
+                let Some(captured) = record.captured_scope(&execution.test_execution_id) else {
+                    return Err(failure("sidecar_records", "capture index differs from immutable evidence"));
                 };
                 let record_json = serde_json::to_string(&record.record).map_err(|error| failure("sidecar_records", error.to_string()))?;
                 self.target
@@ -456,18 +451,13 @@ impl Session {
                         execution_token: execution.test_execution_id.to_string(),
                         record: Some(crate::transport::DeliverRecordRequest {
                             record_json,
-                            captured_scopes: vec![serde_json::to_string(&captured).expect("captured scope serializes")],
+                            captured_scopes: vec![serde_json::to_string(captured).expect("captured scope serializes")],
                         }),
                         ..ExecutionSignal::default()
                     })
                     .await?;
-                if remaining.is_empty() {
-                    break;
-                }
             }
-            if !remaining.is_empty() {
-                return Err(failure("sidecar_records", "captured subscription records are missing from the state history"));
-            }
+            tokio::task::yield_now().await;
         }
         if let Some(replayed) = replayed {
             tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");

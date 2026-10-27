@@ -31,7 +31,6 @@ from .execution.request import _identity
 from .models import Backend, Suite
 from .models import Template as TemplateSummary
 from .planning import Template
-from .secrets import load_key
 
 # Type Checking Imports
 
@@ -59,20 +58,16 @@ class DokimeClient:
         self,
         endpoint: str = "http://127.0.0.1:8765",
         *,
-        key_file: str | Path | None = None,
-        env_file: str | Path | None = None,
-        ca_certificate: str | Path | None = None,
         rpc_timeout: float | None = None,
         preferences: Message | None = None,
         expected_backend_id: str | None = None,
         ca_certificate_pem: str | None = None,
+        access_key: str | None = None,
     ) -> None:
         preferences = preferences if preferences is not None else _client_preferences()
-        token = load_key(key_file=key_file, env_file=env_file)
         self._transport = Transport(
             endpoint,
-            token,
-            ca_certificate,
+            access_key,
             preferences.request_timeout_ms / 1000 if rpc_timeout is None else rpc_timeout,
             connect_timeout_ms=preferences.connect_timeout_ms,
             expected_backend_id=expected_backend_id,
@@ -80,32 +75,41 @@ class DokimeClient:
         )
 
     @classmethod
+    def from_pairing(cls, path: str | Path) -> Self:
+        """Read A Pairing Once; Verify Its Backend Identity On Connection"""
+        from .pairing import read
+
+        pairing = read(path)
+        return cls(
+            pairing["endpoint"],
+            access_key=pairing["access_key"],
+            expected_backend_id=pairing["backend_identifier"],
+            ca_certificate_pem=pairing["ca_certificate_pem"],
+        )
+
+    @classmethod
     def from_profile(
         cls,
-        name: str,
+        identifier: str,
         *,
         path: str | Path | None = None,
-        key_file: str | Path | None = None,
-        env_file: str | Path | None = None,
         rpc_timeout: float | None = None,
         preferences: Message | None = None,
     ) -> Self:
-        """Read a named profile once; callers provide secrets separately."""
+        """Read An Unsecured Profile Without Native Keyring Access"""
         from .profiles import load
 
         preferences = preferences if preferences is not None else _client_preferences()
-        profile = load(name, path=path)
+        profile = load(identifier, path=path)
         client = cls(
             profile.endpoint,
-            key_file=key_file,
-            env_file=env_file,
             rpc_timeout=rpc_timeout,
             preferences=preferences,
             expected_backend_id=profile.expected_backend_id,
             ca_certificate_pem=profile.ca_certificate_pem,
         )
         if profile.secret == "keyring" and not client._transport._metadata:
-            raise ValueError("This profile requires --key-file or DOKIME_KEY supplied by the caller.")
+            raise ValueError("This profile uses the native keyring; import its pairing with DokimeClient.from_pairing instead.")
         return client
 
     async def connect(self) -> Backend:

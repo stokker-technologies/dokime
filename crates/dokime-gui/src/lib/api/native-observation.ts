@@ -49,8 +49,6 @@ type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["
 type EvidenceScope = Wire<NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["scope"]>>;
 type NativeDiagnosticsResponse = Wire<Awaited<ReturnType<typeof rpc.backendGetDiagnostics>>>;
 type DiagnosticRuntime = NonNullable<NativeDiagnosticsResponse["runtime"]>;
-type DiagnosticCheckStatus = NonNullable<DiagnosticRuntime["startupDoctor"]>["status"];
-type StartupDoctorCheckKey = NonNullable<DiagnosticRuntime["startupDoctor"]>["checks"][number]["key"];
 type DiagnosticPathKey = DiagnosticRuntime["pathConventions"][number]["key"];
 type DiagnosticPathScope = DiagnosticRuntime["pathConventions"][number]["scope"];
 type DiagnosticFileFormat = DiagnosticRuntime["pathConventions"][number]["format"];
@@ -438,16 +436,6 @@ function mapDiagnostics(response: NativeDiagnosticsResponse): DiagnosticsRespons
       label: runtime.hubMetadata?.label ?? defaultBrand.label,
       description: runtime.hubMetadata?.description ?? null,
     },
-    startup_doctor: {
-      checked_at: timestampIso(runtime.startupDoctor?.checkedAt) ?? capturedAt,
-      status: mapDiagnosticStatus(runtime.startupDoctor?.status),
-      checks: (runtime.startupDoctor?.checks ?? []).map((check) => ({
-        key: mapStartupKey(check.key),
-        status: mapDiagnosticStatus(check.status),
-        message: check.message,
-        detail: check.detail ?? null,
-      })),
-    },
     path_conventions: runtime.pathConventions.map((item) => ({
       key: mapPathKey(item.key),
       scope: mapPathScope(item.scope),
@@ -579,17 +567,7 @@ function revisions(revision: number): HubLiveState["revisions"] {
   };
 }
 
-function mapDiagnosticStatus(value?: DiagnosticCheckStatus): "ok" | "warning" | "failed" {
-  return enumTail(undefined, value, "ok");
-}
-
-function mapStartupKey(value: StartupDoctorCheckKey): "storage_root" | "shutdown_state" {
-  return enumTail(undefined, value, "storage_root");
-}
-
-function mapPathKey(
-  value: DiagnosticPathKey,
-): "hub_log" | "startup_doctor" | "diagnostics_snapshot" | "collect_bundle" | "cycle_log_pattern" | "execution_log_pattern" {
+function mapPathKey(value: DiagnosticPathKey): "hub_log" | "collect_bundle" | "cycle_log_pattern" | "execution_log_pattern" {
   return enumTail(undefined, value, "hub_log");
 }
 

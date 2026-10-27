@@ -181,6 +181,45 @@ def test_transport_secrets(endpoint: str, monkeypatch: pytest.MonkeyPatch, tmp_p
         DokimeClient(endpoint, key_file=tmp_path / "missing.key")
 
 
+def test_pairing_checks_identity_before_calls_and_after_reconnect(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with serve() as (server, _):
+            path = tmp_path / "lab.dokime-pair"
+            document = {
+                "version": 1,
+                "endpoint": server.endpoint,
+                "backend_identifier": server.backend_id,
+                "label": "Lab",
+                "ca_certificate_pem": None,
+                "access_key": None,
+            }
+            path.write_text(json.dumps(document), encoding="utf-8")
+            selected = DokimeClient.from_pairing(path)
+            try:
+                assert (await selected.connect()).id == server.backend_id
+                await selected._transport._channel.close()
+                selected._transport._channel = None
+                selected._transport.backend = None
+                server.backend_id = "replacement-backend"
+                with pytest.raises(BackendChanged):
+                    await selected.create_cycle(label="Refused After Reconnect")
+                assert server.created == 0
+                assert selected._transport._channel is None
+            finally:
+                await selected.close()
+
+            path.write_text(json.dumps(document), encoding="utf-8")
+            mismatched = DokimeClient.from_pairing(path)
+            try:
+                with pytest.raises(BackendChanged):
+                    await mismatched.create_cycle(label="Refused First Connect")
+                assert server.created == 0
+            finally:
+                await mismatched.close()
+
+    asyncio.run(scenario())
+
+
 # === Private Functions === #
 
 # === Entry Point === #

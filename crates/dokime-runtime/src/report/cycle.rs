@@ -18,6 +18,7 @@ pub(crate) use index::{AnnotationKind, Index, Member, Sample};
 /* === Imports === */
 
 // Standard Library Imports
+use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
 
 // Third Party Imports
 use harmos::storage::FileReference;
@@ -44,17 +45,42 @@ pub(crate) struct CycleReport {
     file: super::saved::ReportFile,
 }
 
+pub(crate) struct CapturedMember {
+    spool: std::sync::Mutex<std::fs::File>,
+}
+
 /* === Enums === */
 
 // One Cycle Member In Cycle Order: Captured Evidence, Or A Planned Row Nobody Started.
 pub(crate) enum CycleMember {
-    Captured(harmos::storage::ReadBatch<super::CapturedExecutionReportInput>),
+    Captured(CapturedMember),
     Planned(Box<TestExecution>),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl CycleMember {
+    pub(crate) fn capture(input: harmos::storage::ReadBatch<super::CapturedExecutionReportInput>) -> Result<Self> {
+        let spool = tempfile::tempfile()?;
+        let mut output = BufWriter::with_capacity(1024 * 1024, spool);
+        serde_json::to_writer(&mut output, &*input).map_err(crate::storage::Error::from)?;
+        output.flush()?;
+        let spool = output.into_inner().map_err(|error| error.into_error())?;
+        Ok(Self::Captured(CapturedMember { spool: std::sync::Mutex::new(spool) }))
+    }
+}
+
+impl CapturedMember {
+    pub(crate) fn read(&self) -> Result<harmos::storage::ReadBatch<super::CapturedExecutionReportInput>> {
+        let mut spool =
+            self.spool.lock().map_err(|_| crate::runtime::Error::InvalidReportInputs("member spool lock is poisoned".into()))?;
+        spool.seek(SeekFrom::Start(0))?;
+        let input = serde_json::from_reader(BufReader::with_capacity(1024 * 1024, &mut *spool)).map_err(crate::storage::Error::from)?;
+        Ok(harmos::storage::ReadBatch::new(input))
+    }
+}
 
 impl CycleReport {
     pub(crate) async fn prepare(

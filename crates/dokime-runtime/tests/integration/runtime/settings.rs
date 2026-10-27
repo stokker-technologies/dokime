@@ -328,7 +328,7 @@ async fn stored_secret_bindings() {
     let snapshot = handle
         .operations()
         .call(secrets::Put {
-            metadata: catalog::Metadata { name: "zephyr.api_token".into(), label: "API Token".into(), description: None },
+            metadata: catalog::Metadata { identifier: "zephyr.api_token".into(), label: "API Token".into(), description: None },
             value: Some("secret-token".into()),
             generation: 0,
         })
@@ -336,7 +336,7 @@ async fn stored_secret_bindings() {
         .unwrap();
     assert_eq!(snapshot.generation, 1);
     assert!(!serde_json::to_string(&*snapshot).unwrap().contains("secret-token"));
-    let value = handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.unwrap();
+    let value = handle.operations().call(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.unwrap();
     assert_eq!(value.value.as_deref(), Some("secret-token"));
     let reference = SecretReference::StoredSecret { secret_id: "zephyr.api_token".into() };
     let values = BTreeMap::from([("api_token".into(), reference.into())]);
@@ -347,7 +347,7 @@ async fn stored_secret_bindings() {
         secrets::Put { metadata: snapshot.entries[0].metadata.clone(), value: Some("replacement-token".into()), generation: 1 };
     handle.operations().call(replacement.clone()).await.unwrap();
     assert!(handle.operations().call(replacement).await.is_err());
-    let fresh = handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.unwrap();
+    let fresh = handle.operations().call(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.unwrap();
     assert_eq!(fresh.value.as_deref(), Some("replacement-token"));
     assert_eq!(value.value.as_deref(), Some("secret-token"));
     drop(handle);
@@ -357,11 +357,11 @@ async fn stored_secret_bindings() {
     let handle = reopened.handle();
     assert!(!saved_metadata(&handle).contains("secret-token"));
     assert_eq!(
-        handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.unwrap().value.as_deref(),
+        handle.operations().call(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.unwrap().value.as_deref(),
         Some("replacement-token")
     );
-    handle.operations().call(secrets::Remove { names: vec!["zephyr.api_token".into()], generation: 2 }).await.unwrap();
-    assert!(handle.operations().call(secrets::Lookup { name: "zephyr.api_token".into() }).await.is_err());
+    handle.operations().call(secrets::Remove { identifiers: vec!["zephyr.api_token".into()], generation: 2 }).await.unwrap();
+    assert!(handle.operations().call(secrets::Lookup { identifier: "zephyr.api_token".into() }).await.is_err());
     assert_eq!(handle.plugin_settings(&id).await.unwrap().secret_bindings.missing_required, vec!["api_token"]);
     drop(handle);
     reopened.shutdown().await.unwrap();

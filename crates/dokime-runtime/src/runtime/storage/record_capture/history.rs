@@ -95,27 +95,24 @@ impl Source {
                 after: 0,
             })
             .await?;
-        let rows = rows.collect().await?;
-        rows.try_map(|pages| -> Result<_> {
-            let mut selected = Vec::new();
-            selected.try_reserve_exact(pages.len()).map_err(|_| error("record page allocation failed"))?;
-            for page in pages {
-                let page = page.try_map(|rows| -> Result<_> {
-                    let mut entries = Vec::new();
-                    entries.try_reserve_exact(rows.len()).map_err(|_| error("record allocation failed"))?;
-                    for row in rows {
-                        let current = row.scope.as_ref() == Some(&self.epoch);
-                        let record = row.payload.entry()?;
-                        if (!current || record.sequence <= through) && select(&record) {
-                            entries.push(record);
-                        }
+        let mut rows = rows;
+        let mut pages = harmos::storage::ReadBatch::new(Vec::new());
+        while let Some(page) = rows.next().await? {
+            let page = page.try_map(|rows| -> Result<_> {
+                let mut entries = Vec::new();
+                entries.try_reserve_exact(rows.len()).map_err(|_| error("record allocation failed"))?;
+                for row in rows {
+                    let current = row.scope.as_ref() == Some(&self.epoch);
+                    let record = row.payload.entry()?;
+                    if (!current || record.sequence <= through) && select(&record) {
+                        entries.push(record);
                     }
-                    Ok(entries)
-                })?;
-                selected.push(page);
-            }
-            Ok(selected)
-        })
+                }
+                Ok(entries)
+            })?;
+            pages = crate::storage::projection::push(pages, page)?;
+        }
+        Ok(pages)
     }
 
     pub(crate) async fn history(self: &Arc<Self>, state_manager: &crate::app::StateManager, after: u64, through: u64) -> Result<History> {

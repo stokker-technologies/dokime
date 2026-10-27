@@ -51,7 +51,7 @@ pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_
     crate::plot::canonical_plot_query(request)
 }
 
-pub(super) fn request_record_types(request: &PlotPayloadRequest) -> Vec<Identifier> {
+pub(crate) fn request_record_types(request: &PlotPayloadRequest) -> Vec<Identifier> {
     let mut record_types =
         request.marker_record_types.iter().filter_map(|record_type| Identifier::new(record_type.clone()).ok()).collect::<BTreeSet<_>>();
 

@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS storage_deleted_files (
     id TEXT PRIMARY KEY
 ) WITHOUT ROWID;
 ";
-const CHUNK_BYTES: usize = 64 * 1024;
+const CHUNK_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
 
@@ -53,11 +53,19 @@ const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Structs === */
 
+struct RecoveryCancellation(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Drop for RecoveryCancellation {
+    fn drop(&mut self) {
+        self.0.store(true, std::sync::atomic::Ordering::Release);
+    }
+}
 
 impl State {
     pub(super) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
@@ -106,49 +114,71 @@ impl State {
     }
 
     pub(super) async fn production_recover(&self, root: PathBuf, limits: ReadLimits) -> Result<Vec<FileCheckpoint>, Error> {
-        self.call(move |connection| {
-            let result = (|| {
-                let count: i64 = connection.query_row("SELECT count(*) FROM storage_productions WHERE phase=0", [], |row| row.get(0))?;
-                if count < 0 || count as u64 > limits.rows.get() as u64 {
+        let mut checkpoints = Vec::new();
+        let mut after = String::new();
+        let mut bytes = 0usize;
+        loop {
+            let cursor = after.clone();
+            let root = root.clone();
+            let page = self
+                .read(move |connection| {
+                    Ok((|| -> Result<Vec<_>, Error> {
+                        let count: i64 =
+                            connection.query_row("SELECT count(*) FROM storage_productions WHERE phase=0", [], |row| row.get(0))?;
+                        if count < 0 || count as u64 > limits.rows.get() as u64 {
+                            return Err(Error::Data("production recovery exceeds count bound"));
+                        }
+                        let mut statement =
+                            connection.prepare("SELECT id FROM storage_productions WHERE phase=0 AND id>?1 ORDER BY id LIMIT 16")?;
+                        let mut rows = statement.query([cursor])?;
+                        let mut page = Vec::new();
+                        while let Some(row) = rows.next()? {
+                            let id = harmos::Identifier::new(entry::key(super::text(row, 0)?)?)
+                                .map_err(|_| Error::Corrupt("invalid production identifier"))?;
+                            let file = StagedFile { id, history: saved(connection)?.history };
+                            let (generation, _, mut value) =
+                                checkpoint(connection, &file)?.ok_or(Error::Corrupt("missing production checkpoint"))?;
+                            value.session.generation = generation;
+                            let path = files::staging_path(connection, &root, &value.session.id)?;
+                            page.push((value, path));
+                        }
+                        Ok(page)
+                    })())
+                })
+                .await??;
+            if page.is_empty() {
+                break;
+            }
+            for (value, path) in page {
+                bytes = bytes
+                    .checked_add(entry::check_size(&value, usize::MAX)?)
+                    .filter(|bytes| *bytes <= limits.bytes.get())
+                    .ok_or(Error::Data("production recovery exceeds byte bound"))?;
+                if checkpoints.len() >= limits.rows.get() {
                     return Err(Error::Data("production recovery exceeds count bound"));
                 }
-                let mut statement = connection.prepare("SELECT id FROM storage_productions WHERE phase=0 ORDER BY id")?;
-                let mut rows = statement.query([])?;
-                let count = usize::try_from(count).map_err(|_| entry::read_exhausted())?;
-                let mut checkpoints = Vec::new();
-                checkpoints.try_reserve_exact(count).map_err(std::io::Error::other)?;
-                let mut bytes = 0usize;
-                while let Some(row) = rows.next()? {
-                    let id = harmos::Identifier::new(entry::key(super::text(row, 0)?)?)
-                        .map_err(|_| Error::Corrupt("invalid production identifier"))?;
-                    let file = StagedFile { id, history: saved(connection)?.history };
-                    let (generation, _, mut value) =
-                        checkpoint(connection, &file)?.ok_or(Error::Corrupt("missing production checkpoint"))?;
-                    let encoded = entry::check_size(&value, usize::MAX)?;
-                    bytes = bytes
-                        .checked_add(encoded)
-                        .filter(|bytes| *bytes <= limits.bytes.get())
-                        .ok_or(Error::Data("production recovery exceeds byte bound"))?;
-                    value.session.generation = generation;
-                    checkpoints.push(value);
-                }
-                for value in &checkpoints {
-                    let path = files::staging_path(connection, &root, &value.session.id)?;
+                after = value.session.id.to_string();
+                let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                let cancellation = RecoveryCancellation(cancelled.clone());
+                let value = tokio::task::spawn_blocking(move || {
                     if !files::regular(&path)? && value.length == 0 {
                         harmos::filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
                         OpenOptions::new().write(true).create_new(true).open(&path)?.sync_all()?;
                         files::confirm_durability(&path)?;
                     }
                     let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
-                    verify_prefix(&mut physical, value, None)?;
+                    verify_prefix_cancellable(&mut physical, &value, None, Some(&cancelled))?;
                     physical.set_len(value.length)?;
                     physical.sync_all()?;
-                }
-                Ok(checkpoints)
-            })();
-            Ok(result)
-        })
-        .await?
+                    Ok::<_, Error>(value)
+                })
+                .await??;
+                drop(cancellation);
+                checkpoints.push(value);
+                tokio::task::yield_now().await;
+            }
+        }
+        Ok(checkpoints)
     }
 
     pub(super) async fn production_progress(&self, root: PathBuf, file: StagedFile) -> Result<FileProgress, Error> {
@@ -377,6 +407,13 @@ fn progress(connection: &Connection, root: &Path, file: &StagedFile) -> Result<F
 }
 
 fn verify_prefix(file: &mut std::fs::File, checkpoint: &FileCheckpoint, previous: Option<&FileCheckpoint>) -> Result<(), Error> {
+    verify_prefix_cancellable(file, checkpoint, previous, None)
+}
+
+fn verify_prefix_cancellable(
+    file: &mut std::fs::File, checkpoint: &FileCheckpoint, previous: Option<&FileCheckpoint>,
+    cancelled: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<(), Error> {
     if file.metadata()?.len() < checkpoint.length {
         return Err(Error::Corrupt("saved production prefix is missing"));
     }
@@ -393,8 +430,11 @@ fn verify_prefix(file: &mut std::fs::File, checkpoint: &FileCheckpoint, previous
     };
     file.seek(SeekFrom::Start(offset))?;
     let mut remaining = checkpoint.length - offset;
-    let mut buffer = [0; CHUNK_BYTES];
+    let mut buffer = vec![0; CHUNK_BYTES];
     while remaining > 0 {
+        if cancelled.is_some_and(|cancelled| cancelled.load(std::sync::atomic::Ordering::Acquire)) {
+            return Err(Error::Closed);
+        }
         let count = remaining.min(CHUNK_BYTES as u64) as usize;
         file.read_exact(&mut buffer[..count])?;
         digest.update(&buffer[..count]);

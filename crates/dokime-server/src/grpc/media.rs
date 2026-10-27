@@ -142,53 +142,57 @@ impl Operation for AudioRecording {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::AudioRecording, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut contract::AudioRecording, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let limit = recording_limit(request.maximum_seconds)?;
-        let scope = capture_scope(request.scope.as_ref())?;
-        let recording = self.resources.runtime.start_audio_recording(scope, request.input).await.map_err(failure)?;
-        let recording = self.recording.insert(recording);
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let limit = recording_limit(request.maximum_seconds)?;
+            let scope = capture_scope(request.scope.as_ref())?;
+            let recording = self.resources.runtime.start_audio_recording(scope, request.input).await.map_err(failure)?;
+            let recording = self.recording.insert(recording);
 
-        // Report Progress Until The Limit Or Until The Execution Seals It;
-        // Cancellation Seals Through `stop`
-        let sealed = loop {
-            let elapsed = recording.elapsed();
-            if elapsed >= limit {
-                break recording.finish().await;
-            }
-            let progress = dokime::domain::model::media::wire::RecordingProgress {
-                elapsed_ms: elapsed.as_millis().try_into().unwrap_or(u64::MAX),
-                size_bytes: recording.size_bytes(),
+            // Report Progress Until The Limit Or Until The Execution Seals It;
+            // Cancellation Seals Through `stop`
+            let sealed = loop {
+                let elapsed = recording.elapsed();
+                if elapsed >= limit {
+                    break recording.finish().await;
+                }
+                let progress = dokime::domain::model::media::wire::RecordingProgress {
+                    elapsed_ms: elapsed.as_millis().try_into().unwrap_or(u64::MAX),
+                    size_bytes: recording.size_bytes(),
+                };
+                output
+                    .send_owned(
+                        (dokime::domain::model::media::wire::RecordingFrame {
+                            payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Progress(progress)),
+                        })
+                        .into(),
+                    )
+                    .await
+                    .map_err(stream_failure)?;
+                tokio::select! {
+                    sealed = recording.settled() => break sealed,
+                    () = tokio::time::sleep(Duration::from_millis(SERVER_MEDIA_PROGRESS_MS).min(limit - elapsed)) => {}
+                }
             };
+
+            // Announce The Sealed Artifact
+            self.recording = None;
+            let record = sealed.map_err(failure)?;
+            let completed = metadata(&record)?;
             output
                 .send_owned(
                     (dokime::domain::model::media::wire::RecordingFrame {
-                        payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Progress(progress)),
+                        payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Completed(Box::new(completed))),
                     })
                     .into(),
                 )
                 .await
                 .map_err(stream_failure)?;
-            tokio::select! {
-                sealed = recording.settled() => break sealed,
-                () = tokio::time::sleep(Duration::from_millis(SERVER_MEDIA_PROGRESS_MS).min(limit - elapsed)) => {}
-            }
-        };
-
-        // Announce The Sealed Artifact
-        self.recording = None;
-        let record = sealed.map_err(failure)?;
-        let completed = metadata(&record)?;
-        output
-            .send_owned(
-                (dokime::domain::model::media::wire::RecordingFrame {
-                    payload: Some(dokime::domain::model::media::wire::RecordingFramePayload::Completed(Box::new(completed))),
-                })
-                .into(),
-            )
-            .await
-            .map_err(stream_failure)?;
-        Ok(().into())
+            Ok(().into())
+        })
+        .await
     }
 
     // A cancelled or failed stream still seals what was recorded.
@@ -215,9 +219,10 @@ impl Operation for ScreenRecording {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _: &mut contract::ScreenRecording, _: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, _: &mut contract::ScreenRecording, _: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        Err(Status::failed_precondition(NO_VIDEO_ENCODER))
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }).await
     }
 }
 
@@ -233,9 +238,10 @@ impl Operation for CameraRecording {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _: &mut contract::CameraRecording, _: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, _: &mut contract::CameraRecording, _: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        Err(Status::failed_precondition(NO_VIDEO_ENCODER))
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }).await
     }
 }
 

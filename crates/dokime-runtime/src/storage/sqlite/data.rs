@@ -14,7 +14,9 @@ mod entry;
 mod files;
 mod mutations;
 mod production;
+mod records;
 mod retention;
+mod telemetry;
 
 /* === Re-Exports === */
 
@@ -79,14 +81,16 @@ CREATE INDEX IF NOT EXISTS storage_data_live_object_position_covering
 CREATE INDEX IF NOT EXISTS storage_data_live_object_key_covering
     ON storage_data_entries(schema_id, item, position, kind, retired_at)
     WHERE kind='object' AND retired_at IS NULL;
-DROP INDEX IF EXISTS storage_data_live_object_position;
-DROP INDEX IF EXISTS storage_data_live_object_key;
 CREATE INDEX IF NOT EXISTS storage_data_retired_object_position
     ON storage_data_entries(position, retired_at)
     WHERE kind='object' AND retired_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS storage_data_scope ON storage_data_entries(kind, scope, position);
 CREATE INDEX IF NOT EXISTS storage_data_schema_scope ON storage_data_entries(kind, schema_key, scope, position);
 CREATE INDEX IF NOT EXISTS storage_data_schema_position ON storage_data_entries(kind, schema_key, position);
+CREATE INDEX IF NOT EXISTS storage_data_stream_owner ON storage_data_entries(scope,stream,position) WHERE kind='stream';
+CREATE INDEX IF NOT EXISTS storage_data_stream_time ON storage_data_entries(schema_key, source_time, position) WHERE kind='stream';
+CREATE INDEX IF NOT EXISTS storage_data_stream_scope_time ON storage_data_entries(schema_key, scope, source_time, position)
+    WHERE kind='stream';
 ";
 
 /* === Macros === */
@@ -176,6 +180,15 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
     let exists: bool =
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
+        let indexed: bool = connection.query_row(
+            "SELECT count(*)=4 FROM sqlite_master WHERE type='table' AND name IN
+                ('storage_telemetry_index','storage_telemetry_signals','storage_record_visibility','storage_record_captures')",
+            [],
+            |row| row.get(0),
+        )?;
+        if !indexed {
+            return Err(Error::Incompatible("local.sqlite does not satisfy the current indexed evidence schema".into()));
+        }
         let format: Option<String> = connection
             .query_row("SELECT format FROM storage_data_head WHERE singleton=1", [], |row| row.get(0))
             .map(Some)
@@ -244,6 +257,9 @@ pub(super) fn sequence(value: &str) -> Result<u64, Error> {
 fn bootstrap(connection: &mut Connection) -> Result<StoreHistory, Error> {
     let transaction = connection.transaction()?;
     transaction.execute_batch(HEAD_SCHEMA)?;
+    transaction.execute_batch(SCHEMA)?;
+    transaction.execute_batch(telemetry::SCHEMA)?;
+    transaction.execute_batch(records::SCHEMA)?;
     initialize_head(&transaction, None)?;
 
     let history = {
@@ -296,6 +312,8 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(HEAD_SCHEMA)?;
     transaction.execute_batch(SCHEMA)?;
     transaction.execute_batch(production::SCHEMA)?;
+    transaction.execute_batch(telemetry::SCHEMA)?;
+    transaction.execute_batch(records::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
     initialize_head(&transaction, expected.as_ref())?;
     let head = saved(&transaction)?;
@@ -365,6 +383,12 @@ where
                 entry.digest.as_slice()
             ],
         )?;
+        if let Borrowed::Stream(row) = value {
+            telemetry::index(&transaction, row)?;
+        }
+        if let Borrowed::Record(row) = value {
+            records::index(&transaction, row)?;
+        }
         head.sequence = entry.position;
     }
     transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
@@ -410,7 +434,7 @@ fn read_object(connection: &Connection, at: u64, generation: u64, point: &Object
         ObjectVersion::Exact(version) => Some(serde_json::to_string(version)?),
     };
     let mut statement = connection.prepare(
-        "SELECT position, length(body) FROM storage_data_entries WHERE kind='object'
+        "SELECT position,body,digest FROM storage_data_entries WHERE kind='object'
          AND schema_id=?1 AND item=?2 AND position<=?3
          AND (?4 IS NULL OR object_version=?4) AND (retired_at IS NULL OR retired_at>?5)
          ORDER BY position DESC LIMIT 1",
@@ -419,15 +443,8 @@ fn read_object(connection: &Connection, at: u64, generation: u64, point: &Object
     let Some(row) = rows.next()? else {
         return Ok(None);
     };
-    let length = usize::try_from(row.get::<_, i64>(1)?).map_err(|_| Error::Corrupt("invalid object body length"))?;
-    let mut payload = connection.prepare("SELECT body,digest FROM storage_data_entries WHERE position=?1")?;
-    let mut payload_rows = payload.query([text(row, 0)?])?;
-    let payload_row = payload_rows.next()?.ok_or(Error::Corrupt("object payload disappeared"))?;
-    let encoded = blob(payload_row, 0)?;
-    if encoded.len() != length {
-        return Err(Error::Corrupt("object body length changed"));
-    }
-    check_digest(encoded, blob(payload_row, 1)?)?;
+    let encoded = blob(row, 1)?;
+    check_digest(encoded, blob(row, 2)?)?;
     let Entry::Object(object) = Entry::decode("object", encoded)? else {
         return Err(Error::Corrupt("object index collection differs"));
     };
@@ -482,11 +499,15 @@ fn scan_query(scan: &Scan) -> Result<(String, Vec<Value>), Error> {
     // In particular, an absent stream must not scan another stream's payloads.
     let scoped = scan.filters.iter().any(|(column, _)| *column == "scope");
     let schema = scan.filters.iter().any(|(column, _)| *column == "schema_key");
-    let index = match (schema, scoped) {
-        (true, true) => "storage_data_schema_scope",
-        (true, false) => "storage_data_schema_position",
-        (false, true) => "storage_data_scope",
-        (false, false) => "storage_data_kind_position",
+    let stream = scan.filters.iter().any(|(column, _)| *column == "stream");
+    let index = match (scan.kind, scan.source_window.is_some(), schema, scoped) {
+        ("stream", false, false, true) if stream => "storage_data_stream_owner",
+        ("stream", true, true, true) => "storage_data_stream_scope_time",
+        ("stream", true, true, false) => "storage_data_stream_time",
+        (_, _, true, true) => "storage_data_schema_scope",
+        (_, _, true, false) => "storage_data_schema_position",
+        (_, _, false, true) => "storage_data_scope",
+        (_, _, false, false) => "storage_data_kind_position",
     };
     let sql = format!(
         "SELECT entries.position,length(entries.body),entries.body,entries.digest FROM storage_data_entries AS entries
@@ -512,6 +533,7 @@ fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> 
         if !matches!(scan.kind, "object" | "stream") && !entries.is_empty() && length > scan.page.bytes.get().saturating_sub(bytes) {
             break;
         }
+        super::DATA_SCAN_ROWS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let body = blob(row, 2)?;
         if body.len() != length {
             return Err(Error::Corrupt("entry body length changed"));

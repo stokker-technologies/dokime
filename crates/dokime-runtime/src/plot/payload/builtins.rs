@@ -233,6 +233,17 @@ pub(crate) fn definitions() -> Result<Vec<Definition>, Error> {
     entries.map(|entry| entry()).collect()
 }
 
+pub(crate) fn evaluate_report(operation: &str, request: crate::analysis::Request) -> Result<Response, Error> {
+    match operation {
+        Mean::ID => crate::analysis::Operation::<Mean>::evaluate(request),
+        Lttb::ID => crate::analysis::Operation::<Lttb>::evaluate(request),
+        Extrema::ID => crate::analysis::Operation::<Extrema>::evaluate(request),
+        #[cfg(feature = "fft")]
+        Fft::ID => crate::analysis::Operation::<Fft>::evaluate(request),
+        _ => Err(Error::Input("report builtin analysis is unavailable".into())),
+    }
+}
+
 pub(crate) fn register(operations: &harmos::operations::OperationManager) -> harmos::Result<()> {
     operations.register_wire_operations::<Operations, _>("dokime.analysis", crate::app::Lanes::Open, Arc::new(()))?;
     #[cfg(feature = "fft")]

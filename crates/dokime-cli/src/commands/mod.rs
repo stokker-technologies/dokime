@@ -9,7 +9,6 @@
 
 /* === Modules === */
 
-mod auth;
 mod backend;
 mod catalog;
 mod cycle;
@@ -46,9 +45,6 @@ use crate::version;
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
-    #[command(subcommand, about = "Validate And Manage Local Backend Secrets.")]
-    Auth(auth::Command),
-
     #[command(about = "Check Backend Identity, Authentication And Readiness With A Deadline.")]
     Status(status::Args),
 
@@ -95,7 +91,6 @@ pub(crate) async fn run(command: Command, configuration: dokime::config::Config)
     let preferences = dokime::domain::model::settings::application::ClientPreferences::default();
     let settings = &preferences;
     match command {
-        Command::Auth(command) => auth::run(command, settings).await,
         Command::Status(args) => status::run(args, settings).await,
         Command::Backend(command) => backend::run(command),
         Command::Cycle(command) => cycle::run(command, settings).await,

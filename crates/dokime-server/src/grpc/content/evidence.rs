@@ -76,37 +76,43 @@ impl Operation for Download {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DownloadEvidence, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut DownloadEvidence, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let subject = request.subject.clone().ok_or_else(|| Status::invalid_argument("evidence subject is required"))?;
-        let valid = match &subject {
-            EvidenceSubject::Execution(id) => TestExecutionId::from_uuid(id).map(|_| ()),
-            EvidenceSubject::Cycle(id) => TestCycleId::from_uuid(id).map(|_| ()),
-        };
-        valid.map_err(|_| Status::invalid_argument("evidence subject must contain a UUID"))?;
-        let bundle = self.resources.runtime.export_evidence(subject).await.map_err(|error| failure(&error))?;
-        let metadata = bundle.retained_metadata().map_err(|error| failure(&error))?;
-        let size_bytes = metadata.size_bytes;
-        let sha256 = Some(metadata.sha256.clone());
-        let metadata = metadata
-            .try_map(|metadata| {
-                Ok::<_, dokime::harmos::storage::Error>(EvidenceExportFrame { payload: Some(EvidenceExportPayload::Metadata(metadata)) })
-            })
-            .map_err(|error| failure(&Error::Dependency(error)))?;
-        let frames = ExportFrames { metadata: Response::from_owner(metadata.owner()) };
-        chunked::Download {
-            frames,
-            source: chunked::Source::Evidence(Box::new(bundle)),
-            size_bytes,
-            sha256,
-            noun: "evidence export",
-            read_failure: "saved evidence export could not be read",
-            chunk_bytes: super::download_chunk_bytes(&self.resources.runtime, self.resources.maximum)?,
-            message_limit: self.resources.maximum,
-        }
-        .run(output)
-        .await?;
-        Ok(().into())
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let subject = request.subject.clone().ok_or_else(|| Status::invalid_argument("evidence subject is required"))?;
+            let valid = match &subject {
+                EvidenceSubject::Execution(id) => TestExecutionId::from_uuid(id).map(|_| ()),
+                EvidenceSubject::Cycle(id) => TestCycleId::from_uuid(id).map(|_| ()),
+            };
+            valid.map_err(|_| Status::invalid_argument("evidence subject must contain a UUID"))?;
+            let bundle = self.resources.runtime.export_evidence(subject).await.map_err(|error| failure(&error))?;
+            let metadata = bundle.retained_metadata().map_err(|error| failure(&error))?;
+            let size_bytes = metadata.size_bytes;
+            let sha256 = Some(metadata.sha256.clone());
+            let metadata = metadata
+                .try_map(|metadata| {
+                    Ok::<_, dokime::harmos::storage::Error>(EvidenceExportFrame {
+                        payload: Some(EvidenceExportPayload::Metadata(metadata)),
+                    })
+                })
+                .map_err(|error| failure(&Error::Dependency(error)))?;
+            let frames = ExportFrames { metadata: Response::from_owner(metadata.owner()) };
+            chunked::Download {
+                frames,
+                source: chunked::Source::Evidence(Box::new(bundle)),
+                size_bytes,
+                sha256,
+                noun: "evidence export",
+                read_failure: "saved evidence export could not be read",
+                chunk_bytes: super::download_chunk_bytes(&self.resources.runtime, self.resources.maximum)?,
+                message_limit: self.resources.maximum,
+            }
+            .run(output)
+            .await?;
+            Ok(().into())
+        })
+        .await
     }
 }
 

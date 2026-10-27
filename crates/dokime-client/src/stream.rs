@@ -91,7 +91,7 @@ impl<T: Send + 'static> ResponseStream<T> {
     {
         let demand = Arc::new(Demand { requested: AtomicBool::new(false), ready: Notify::new() });
         let credit = demand.clone();
-        Self::start(client, Some(demand), move |sender| async move {
+        Self::start(client, STREAM_BUFFER_ITEMS as usize, Some(demand), move |sender| async move {
             let mut stream = std::pin::pin!(stream);
             loop {
                 credit.ready.notified().await;
@@ -106,15 +106,36 @@ impl<T: Send + 'static> ResponseStream<T> {
         })
     }
 
+    pub(super) fn prefetched<S>(client: &Client, stream: S, frame_bytes: usize) -> Result<Self>
+    where
+        S: Stream<Item = std::result::Result<T, tonic::Status>> + Send + 'static,
+    {
+        // Reserve Before Decoding; Include The Consumer In Both Transfer Bounds.
+        let capacity = (4_194_304 / frame_bytes).saturating_sub(1).clamp(1, 3);
+        Self::start(client, capacity, None, move |sender| async move {
+            let mut stream = std::pin::pin!(stream);
+            while let Ok(slot) = sender.reserve().await {
+                let Some(row) = stream.next().await else {
+                    break;
+                };
+                let terminal = row.is_err();
+                slot.send(row.map_err(Error::Rpc));
+                if terminal {
+                    break;
+                }
+            }
+        })
+    }
+
     pub(super) fn spawn<F, Fut>(client: &Client, read: F) -> Result<Self>
     where
         F: FnOnce(mpsc::Sender<Result<T>>) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        Self::start(client, None, read)
+        Self::start(client, STREAM_BUFFER_ITEMS as usize, None, read)
     }
 
-    fn start<F, Fut>(client: &Client, demand: Option<Arc<Demand>>, read: F) -> Result<Self>
+    fn start<F, Fut>(client: &Client, capacity: usize, demand: Option<Arc<Demand>>, read: F) -> Result<Self>
     where
         F: FnOnce(mpsc::Sender<Result<T>>) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
@@ -127,7 +148,7 @@ impl<T: Send + 'static> ResponseStream<T> {
         }
         let cancellation = client.inner.cancellation.child_token();
         let stopped = cancellation.clone();
-        let (sender, receiver) = mpsc::channel(STREAM_BUFFER_ITEMS as usize);
+        let (sender, receiver) = mpsc::channel(capacity);
         let worker = client.inner.readers.spawn(async move {
             tokio::select! {
                 biased;
@@ -219,7 +240,7 @@ impl<T: harmos::domain::Portable + Send + 'static, R: Send + 'static> RequestStr
         }
         let cancellation = client.inner.cancellation.child_token();
         let stopped = cancellation.clone();
-        let (sender, receiver) = mpsc::channel(STREAM_BUFFER_ITEMS as usize);
+        let (sender, receiver) = mpsc::channel(capacity);
         let worker = client.inner.readers.spawn(async move {
             tokio::select! {
                 biased;

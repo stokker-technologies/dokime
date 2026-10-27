@@ -3,10 +3,7 @@ rem Dokime - SPDX-License-Identifier: Apache-2.0
 setlocal EnableExtensions DisableDelayedExpansion
 
 rem Connection Parameters
-set "ENDPOINT=https://127.0.0.1:8766"
-set "CA_CERTIFICATE=server.pem"
-set "KEY_FILE=remote.key"
-set "ENV_FILE="
+set "BACKEND_IDENTIFIER=lab"
 
 rem Case And Execution Parameters
 set "TEMPLATE=obc.checks.pulse"
@@ -19,10 +16,7 @@ set "OUTPUT_DIRECTORY=prompt-evidence"
 set "OVERWRITE=false"
 
 rem Connect With The Explicit Parameters
-set CONNECTION=--endpoint "%ENDPOINT%"
-if defined CA_CERTIFICATE set CONNECTION=%CONNECTION% --ca "%CA_CERTIFICATE%"
-if defined KEY_FILE set CONNECTION=%CONNECTION% --key-file "%KEY_FILE%"
-if defined ENV_FILE set CONNECTION=%CONNECTION% --env-file "%ENV_FILE%"
+set CONNECTION=--backend "%BACKEND_IDENTIFIER%"
 
 set "CycleId="
 set "ExecutionId="

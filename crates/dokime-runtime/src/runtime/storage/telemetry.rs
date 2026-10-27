@@ -335,7 +335,7 @@ pub(crate) async fn saved_codecs(
 /// Reads Only The Explicit Durable Frontier; Accepted Queue Rows Are Never Visible.
 pub(crate) async fn collect_saved(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
-    settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>,
+    settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
 ) -> Result<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>> {
     let ReadOptions { scan_limit, window, visible, sequence } = options;
     let codecs = saved_codecs(session, at, None, settings, |id, _| telemetry::selected_schema(id, &selection.streams)).await?;
@@ -349,27 +349,27 @@ pub(crate) async fn collect_saved(
             if codec.schema().id.as_str().strip_prefix("dokime.telemetry.") != Some(anchor) {
                 continue;
             }
-            let mut query = telemetry_query(at, codec, selection, visible, 1)?;
-            telemetry_aggregate(&mut query, &[], "_storage.source_time", "last")?;
-            let mut reader = session.query(query).await?;
-            while let Some(output) = reader.next().await? {
-                let QueryArrow::Batch(batch) = output else {
-                    continue;
-                };
-                let values = batch
-                    .as_record_batch()
-                    .column_by_name("last")
-                    .and_then(|column| column.as_any().downcast_ref::<arrow_array::TimestampNanosecondArray>())
-                    .ok_or_else(|| invalid("telemetry maximum timestamp is absent"))?;
-                use arrow_array::Array;
-                for row in 0..values.len() {
-                    if !values.is_null(row) {
-                        end = Some(end.map_or(values.value(row), |prior: i64| prior.max(values.value(row))));
-                    }
-                }
+            let terms = telemetry_terms(selection, visible)
+                .map(|(field, value)| {
+                    let value = match value {
+                        TelemetryTerm::Text(value) => rusqlite::types::Value::Text(value.to_owned()),
+                        TelemetryTerm::Unsigned(value) => rusqlite::types::Value::Integer(value as i64),
+                    };
+                    (field, value)
+                })
+                .collect();
+            if let Some(latest) =
+                local.latest_telemetry_time(at.clone(), codec.schema().clone(), terms, selection.clone(), codec.clone()).await?
+            {
+                let latest: time::OffsetDateTime = latest.into();
+                let latest =
+                    i64::try_from(latest.unix_timestamp_nanos()).map_err(|_| invalid("telemetry timestamp exceeds query range"))?;
+                end = Some(end.map_or(latest, |prior: i64| prior.max(latest)));
             }
-            reader.completion()?;
         }
+    }
+    if window.is_some() && end.is_none() {
+        return Ok(harmos::storage::ReadBatch::new(Vec::new()));
     }
     let start = window
         .map(|(_, seconds)| seconds)
@@ -384,13 +384,14 @@ pub(crate) async fn collect_saved(
         .transpose()?;
     let mut samples =
         harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, crate::storage::Error>(Vec::<crate::telemetry::TelemetrySample>::new()))?;
+    let mut retained_bytes = 0usize;
     for codec in codecs.iter() {
         if !selection.schema_versions.is_empty() && !selection.schema_versions.contains(&codec.schema().version.get()) {
             continue;
         }
         let secondary = window.is_some_and(|(anchor, _)| codec.schema().id.as_str().strip_prefix("dokime.telemetry.") != Some(anchor));
         if let Some(start) = start.filter(|_| secondary) {
-            let predecessors = telemetry_predecessors(session, at, codec, selection, visible, start, sequence).await?;
+            let predecessors = telemetry_predecessors(at, codec, selection, visible, start, sequence, local).await?;
             let length = samples.len().checked_add(predecessors.len()).ok_or_else(|| invalid("telemetry sample count overflows"))?;
             if scan_limit.is_some_and(|limit| length > limit) {
                 return Err(invalid("telemetry scan exceeds the analysis sample budget"));
@@ -420,6 +421,10 @@ pub(crate) async fn collect_saved(
                 if scan_limit.is_some_and(|limit| length > limit) {
                     return Err(invalid("telemetry scan exceeds the analysis sample budget"));
                 }
+                retained_bytes = retained_bytes
+                    .checked_add(crate::execution::evidence_rows::encoded_bytes(&*page))
+                    .filter(|bytes| *bytes <= 128 * 1024 * 1024)
+                    .ok_or_else(|| invalid("raw telemetry workspace exceeds 128 MiB; read saved pages"))?;
                 samples = append_retained(samples, page)?;
             }
             continue;
@@ -435,6 +440,10 @@ pub(crate) async fn collect_saved(
             if scan_limit.is_some_and(|limit| length > limit) {
                 return Err(invalid("telemetry scan exceeds the analysis sample budget"));
             }
+            retained_bytes = retained_bytes
+                .checked_add(crate::execution::evidence_rows::encoded_bytes(&*page))
+                .filter(|bytes| *bytes <= 128 * 1024 * 1024)
+                .ok_or_else(|| invalid("raw telemetry workspace exceeds 128 MiB; read saved pages"))?;
             samples = append_retained(samples, page)?;
         }
         reader.completion()?;
@@ -461,6 +470,38 @@ pub(crate) async fn collect_saved(
     })?)
 }
 
+pub(crate) async fn plot_query(
+    at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection, codec: &telemetry::TypedCodec,
+    window: Option<(&str, f64)>, local: &crate::storage::sqlite::State,
+) -> Result<Option<Query>> {
+    let mut query = telemetry_query(at, codec, selection, None, 0)?;
+    if let Some((_, seconds)) = window {
+        let terms = telemetry_terms(selection, None)
+            .map(|(field, value)| {
+                (
+                    field,
+                    match value {
+                        TelemetryTerm::Text(value) => rusqlite::types::Value::Text(value.to_owned()),
+                        TelemetryTerm::Unsigned(value) => rusqlite::types::Value::Integer(value as i64),
+                    },
+                )
+            })
+            .collect();
+        let Some(end) = local.latest_telemetry_time(at.clone(), codec.schema().clone(), terms, selection.clone(), codec.clone()).await?
+        else {
+            return Ok(None);
+        };
+        let end: time::OffsetDateTime = end.into();
+        let duration = crate::plot::plot_window_duration(seconds).ok_or_else(|| invalid("plot window is invalid"))?;
+        let start = end.checked_sub(duration).ok_or_else(|| invalid("plot window timestamp overflows"))?;
+        if let Source::Stream(source) = &mut query.source {
+            source.source_start = source.source_start.max(Some(start.into()));
+            close_window(source);
+        }
+    }
+    Ok(Some(query))
+}
+
 pub(crate) fn append_retained<T>(
     left: harmos::storage::ReadBatch<Vec<T>>, right: harmos::storage::ReadBatch<Vec<T>>,
 ) -> crate::storage::Result<harmos::storage::ReadBatch<Vec<T>>> {
@@ -482,166 +523,44 @@ pub(crate) fn append_retained<T>(
 }
 
 async fn telemetry_predecessors(
-    session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, codec: &telemetry::TypedCodec,
-    selection: &crate::evidence_runtime::TelemetrySelection, visible: Option<&dokime_domain::model::execution::RecordScope>,
-    start: std::time::SystemTime, sequence: Sequence,
+    at: &harmos::storage::StorageCursor, codec: &telemetry::TypedCodec, selection: &crate::evidence_runtime::TelemetrySelection,
+    visible: Option<&dokime_domain::model::execution::RecordScope>, start: std::time::SystemTime, sequence: Sequence,
+    local: &crate::storage::sqlite::State,
 ) -> Result<harmos::storage::ReadBatch<Vec<crate::telemetry::TelemetrySample>>> {
-    let mut samples = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::new()))?;
-    let Some(end) = start.checked_sub(std::time::Duration::from_nanos(1)) else { return Ok(samples) };
-    let mut query = telemetry_query(at, codec, selection, visible, 1)?;
-    if let Source::Stream(source) = &mut query.source {
-        source.source_end = Some(source.source_end.map_or(end, |prior| prior.min(end)));
-        close_window(source);
-        if source.source_start.zip(source.source_end).is_some_and(|(start, end)| start >= end) {
-            return Ok(samples);
+    let terms = telemetry_terms(selection, visible)
+        .map(|(field, value)| {
+            (
+                field,
+                match value {
+                    TelemetryTerm::Text(value) => rusqlite::types::Value::Text(value.to_owned()),
+                    TelemetryTerm::Unsigned(value) => rusqlite::types::Value::Integer(value as i64),
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut samples = Vec::new();
+    let mut after = String::new();
+    let mut bytes = 0usize;
+    loop {
+        let (cursor, rows) = local
+            .telemetry_predecessor_page(at.clone(), codec.schema().clone(), selection.clone(), terms.clone(), start, after.clone())
+            .await?;
+        if cursor == after {
+            break;
         }
-    }
-    // Exact Scope Groups Keep Attempt And Wildcard Correlations Distinct.
-    let fields = [
-        "payload.metadata.scope.session_id",
-        "payload.metadata.scope.test_cycle_id",
-        "payload.metadata.scope.test_case_id",
-        "payload.metadata.scope.test_execution_id",
-        "payload.metadata.scope.step_id",
-        "payload.metadata.scope.criterion_id",
-        "payload.metadata.scope.template_id",
-        "payload.metadata.scope.suite_id",
-        "payload.metadata.scope.origin.phase",
-        "payload.metadata.scope.origin.attempt_id",
-    ];
-    telemetry_aggregate(&mut query, &fields, "_storage.source_time", "predecessor_time")?;
-    let mut groups = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<arrow_array::RecordBatch>::new()))?;
-    let mut reader = session.query(query).await?;
-    while let Some(output) = reader.next().await? {
-        let QueryArrow::Batch(batch) = output else { continue };
-        let page = batch.try_map(|batch| {
-            let mut groups = query_slots(1)?;
-            groups.push(batch);
-            Ok::<_, Error>(groups)
-        })?;
-        groups = append_retained(groups, page)?;
-    }
-    reader.completion()?;
-    // Retain Only Group Metadata And Release Its Query Slot Before Tie Selection.
-    drop(reader);
-    let mut positions = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<u64>::new()))?;
-    for group in groups.iter() {
-        use arrow_array::Array;
-        let times = group
-            .column_by_name("predecessor_time")
-            .and_then(|column| column.as_any().downcast_ref::<arrow_array::TimestampNanosecondArray>())
-            .ok_or_else(|| invalid("telemetry predecessor timestamp is absent"))?;
-        for row in 0..group.num_rows() {
-            if times.is_null(row) {
-                continue;
-            }
-            let time = time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(times.value(row)))
-                .map_err(|_| invalid("telemetry predecessor timestamp is invalid"))?;
-            let mut query = telemetry_query(at, codec, selection, visible, 2)?;
-            if let Source::Stream(source) = &mut query.source {
-                // Half-Open Window Selecting Exactly The Predecessor Instant.
-                let start: std::time::SystemTime = time.into();
-                source.source_start = Some(start);
-                // The Window Spans One Clock Tick: SystemTime Is Coarser Than A Nanosecond On Windows.
-                let tick = [1, 100].into_iter().map(std::time::Duration::from_nanos).find(|tick| start + *tick > start);
-                source.source_end = Some(start + tick.ok_or_else(|| invalid("telemetry predecessor window is empty"))?);
-            }
-            telemetry_predecessor_scope(&mut query, group, row, &fields)?;
-            telemetry_aggregate(&mut query, &[], "_storage.position", "predecessor")?;
-            let page = telemetry_predecessor_positions(session, query).await?;
-            positions = append_retained(positions, page)?;
+        after = cursor;
+        for row in rows {
+            let entry = codec.decode_stored(&row)?;
+            let sample = sequence.sample(entry, row.record.position.sequence);
+            bytes = bytes
+                .checked_add(crate::execution::evidence_rows::encoded_bytes(&sample))
+                .filter(|bytes| *bytes <= 128 * 1024 * 1024)
+                .ok_or_else(|| invalid("telemetry predecessor workspace exceeds 128 MiB"))?;
+            samples.push(sample);
         }
+        tokio::task::yield_now().await;
     }
-    drop(groups);
-    for position in positions.iter().copied() {
-        let mut query = telemetry_query(at, codec, selection, visible, 1)?;
-        if let Source::Stream(source) = &mut query.source {
-            source.after = position.checked_sub(1).ok_or_else(query_memory)?;
-        }
-        query.slice.limit = Some(1);
-        telemetry_position(&mut query, position)?;
-        let mut reader = session.query(query).await?;
-        while let Some(output) = reader.next().await? {
-            let QueryArrow::Batch(batch) = output else { continue };
-            let entries = telemetry::decode_positioned(codec, batch)?;
-            let page = crate::storage::projection::page(entries, |(position, entry)| Ok(sequence.sample(entry, position)))?;
-            samples = append_retained(samples, page)?;
-        }
-        reader.completion()?;
-    }
-    Ok(samples)
-}
-
-async fn telemetry_predecessor_positions(session: &crate::storage::Manager, query: Query) -> Result<harmos::storage::ReadBatch<Vec<u64>>> {
-    let mut positions = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(Vec::<u64>::new()))?;
-    let mut reader = session.query(query).await?;
-    while let Some(output) = reader.next().await? {
-        let QueryArrow::Batch(batch) = output else { continue };
-        let count = batch.as_record_batch().num_rows();
-        let page = batch.try_map(|batch| {
-            use arrow_array::Array;
-            let values = batch
-                .column_by_name("predecessor")
-                .and_then(|column| column.as_any().downcast_ref::<arrow_array::UInt64Array>())
-                .ok_or_else(|| invalid("telemetry predecessor position is absent"))?;
-            let mut positions = query_slots(count)?;
-            for index in 0..values.len() {
-                if !values.is_null(index) {
-                    positions.push(values.value(index));
-                }
-            }
-            Ok::<_, Error>(positions)
-        })?;
-        positions = append_retained(positions, page)?;
-    }
-    reader.completion()?;
-    Ok(positions)
-}
-
-fn telemetry_predecessor_scope(query: &mut Query, group: &arrow_array::RecordBatch, row: usize, fields: &[&str]) -> Result<()> {
-    use harmos::storage::query::transform::{
-        FieldPath, FieldPathExecution, Transform,
-        filter::{Clause, Compare, Condition, Filter, Term},
-    };
-    let mut terms = query_slots(fields.len())?;
-    for field in fields {
-        // Aggregate Group Names Are Literal Columns, Unlike The Source's Nested Paths.
-        let mut literal = query_slots(1)?;
-        literal.push(query_text(field)?);
-        let value = FieldPath { fields: literal }.value(group, row)?;
-        let condition = match value {
-            harmos::storage::query::scalar::ScalarValue::Missing | harmos::storage::query::scalar::ScalarValue::Null => Condition::IsNull,
-            value => Condition::Compare { op: Compare::Eq, value },
-        };
-        terms.push(Term { field: query_path(field)?, condition, negate: false });
-    }
-    let mut clauses = query_slots(1)?;
-    clauses.push(Clause { terms });
-    if query.transforms.len() == query.transforms.capacity() {
-        return Err(query_memory());
-    }
-    query.transforms.push(Transform::Filter(Filter { clauses }));
-    Ok(())
-}
-
-fn telemetry_position(query: &mut Query, position: u64) -> Result<()> {
-    use harmos::storage::query::transform::{
-        Transform,
-        filter::{Clause, Compare, Condition, Filter, Term},
-    };
-    let mut terms = query_slots(1)?;
-    terms.push(Term {
-        field: query_path("_storage.position")?,
-        condition: Condition::Compare { op: Compare::Eq, value: harmos::storage::query::scalar::ScalarValue::Unsigned(position) },
-        negate: false,
-    });
-    let mut clauses = query_slots(1)?;
-    clauses.push(Clause { terms });
-    if query.transforms.len() == query.transforms.capacity() {
-        return Err(query_memory());
-    }
-    query.transforms.push(Transform::Filter(Filter { clauses }));
-    Ok(())
+    Ok(harmos::storage::ReadBatch::new(samples))
 }
 
 fn telemetry_query(
@@ -717,6 +636,7 @@ fn telemetry_terms<'a>(
 ) -> impl Iterator<Item = (&'static str, TelemetryTerm<'a>)> {
     let selected = &selection.scope;
     let fields = [
+        ("payload.metadata.scope.test_execution_id", selected.test_execution_id.as_ref().map(|id| id.as_str())),
         ("payload.metadata.scope.test_cycle_id", selected.test_cycle_id.as_ref().map(|id| id.as_str())),
         ("payload.metadata.scope.test_case_id", selected.test_case_id.as_ref().map(|id| id.as_str())),
         ("payload.metadata.scope.template_id", selected.template_id.as_ref().map(|id| id.as_str())),
@@ -763,25 +683,6 @@ fn query_path(field: &str) -> Result<harmos::storage::query::transform::FieldPat
         fields.push(query_text(part)?);
     }
     Ok(harmos::storage::query::transform::FieldPath { fields })
-}
-
-fn telemetry_aggregate(query: &mut Query, fields: &[&str], measure: &str, name: &str) -> Result<()> {
-    use harmos::storage::query::transform::{
-        Transform,
-        aggregate::{Aggregate, Measure},
-        project::Projection,
-    };
-    let mut groups = query_slots(fields.len())?;
-    for field in fields {
-        groups.push(Projection { field: query_path(field)?, name: query_text(field)? });
-    }
-    let mut measures = query_slots(1)?;
-    measures.push(Measure { field: query_path(measure)?, statistic: harmos::Aggregate::Max, name: query_text(name)? });
-    if query.transforms.len() == query.transforms.capacity() {
-        return Err(query_memory());
-    }
-    query.transforms.push(Transform::Aggregate(Aggregate { groups, measures }));
-    Ok(())
 }
 
 /* === Private Functions === */

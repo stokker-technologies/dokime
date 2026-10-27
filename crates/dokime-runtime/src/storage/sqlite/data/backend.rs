@@ -16,6 +16,8 @@
 // Standard Library Imports
 use std::result::Result;
 use std::{
+    collections::BTreeMap,
+    io::{Read, Seek, SeekFrom},
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
@@ -62,9 +64,15 @@ struct Pin {
     released: AtomicBool,
     reads: AtomicUsize,
     settled: Notify,
+    files: Mutex<BTreeMap<harmos::Identifier, OpenedFile>>,
 }
 
 struct ActiveRead(Arc<Pin>);
+
+struct OpenedFile {
+    reference: FileReference,
+    handle: Arc<std::sync::Mutex<std::fs::File>>,
+}
 
 /* === Enums === */
 
@@ -213,6 +221,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 released: AtomicBool::new(false),
                 reads: AtomicUsize::new(0),
                 settled: Notify::new(),
+                files: Mutex::new(BTreeMap::new()),
             }));
             drop(std::mem::take(&mut *snapshots));
             *snapshots = next.into_boxed_slice();
@@ -369,13 +378,51 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 return Err(invalid("file exceeds snapshot frontier"));
             }
             let read = self.read(snapshot)?;
-            let result = self
-                .state
-                .data_read_file(self.root.clone(), file.clone(), read.0.at, offset, max_bytes)
-                .await
-                .map_err(|error| failure("read SQLite file", error));
-            drop(read);
-            result
+            if offset > file.length {
+                return Err(invalid("file read exceeds its length"));
+            }
+            let handle = {
+                let mut files = read.0.files.lock().await;
+                if let Some(opened) = files.get(&file.metadata.id) {
+                    if opened.reference != *file {
+                        return Err(invalid("immutable file identity differs from the opened reference"));
+                    }
+                    opened.handle.clone()
+                } else {
+                    let handle = self
+                        .state
+                        .data_open_file(self.root.clone(), file.clone(), read.0.at, self.read(snapshot)?)
+                        .await
+                        .map_err(|error| failure("open SQLite file", error))?;
+                    let handle = Arc::new(std::sync::Mutex::new(handle));
+                    // A Snapshot Retains At Most Four Immutable Handles.
+                    if files.len() == 4 {
+                        files.pop_first();
+                    }
+                    files.insert(file.metadata.id.clone(), OpenedFile { reference: file.clone(), handle: handle.clone() });
+                    handle
+                }
+            };
+            let length = (file.length - offset).min(max_bytes.get() as u64) as usize;
+            let expected_length = file.length;
+            tokio::task::spawn_blocking(move || {
+                // Keep The Snapshot Read Lease Through Cancellation And Physical I/O.
+                let _read = read;
+                let mut physical = handle.lock().map_err(|_| invalid("immutable file lock is poisoned"))?;
+                if physical.metadata().map_err(|error| failure("stat SQLite file", error.into()))?.len() != expected_length {
+                    return Err(invalid("immutable file length changed"));
+                }
+                physical.seek(SeekFrom::Start(offset)).map_err(|error| failure("seek SQLite file", error.into()))?;
+                let mut bytes = Vec::new();
+                bytes
+                    .try_reserve_exact(length)
+                    .map_err(|error| failure("allocate SQLite file page", std::io::Error::other(error).into()))?;
+                bytes.resize(length, 0);
+                physical.read_exact(&mut bytes).map_err(|error| failure("read SQLite file", error.into()))?;
+                Ok(bytes)
+            })
+            .await
+            .map_err(|error| failure("read SQLite file task", error.into()))?
         })
     }
 

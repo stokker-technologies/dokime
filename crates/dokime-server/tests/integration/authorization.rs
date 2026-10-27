@@ -91,7 +91,15 @@ macro_rules! matrix {
 matrix! {
     "/dokime.v1.Remote/ReadListener", unary, contracts::remote::ReadListener = contracts::remote::ReadListener {};
     "/dokime.v1.Remote/UpdateListener", unary, contracts::remote::UpdateListener = contracts::remote::UpdateListener { settings: None };
-    "/dokime.v1.Remote/GenerateKey", unary, contracts::remote::GenerateKey = contracts::remote::GenerateKey {};
+    "/dokime.v1.Remote/CreatePairing", unary, contracts::remote::CreatePairing = contracts::remote::CreatePairing {
+        label: "Fixture".into(), endpoint: "http://127.0.0.1:8765".into()
+    };
+    "/dokime.v1.Remote/ListPairedClients", unary, contracts::remote::ListPairedClients = contracts::remote::ListPairedClients {
+        cursor: None, limit: 100
+    };
+    "/dokime.v1.Remote/RevokePairedClient", unary, contracts::remote::RevokePairedClient = contracts::remote::RevokePairedClient {
+        identifier: "fixture".into()
+    };
     "/dokime.v1.Remote/ListSessions", unary, contracts::remote::ListSessions = contracts::remote::ListSessions { cursor: None, limit: 20 };
     "/dokime.v1.Remote/RegenerateCertificate", unary, contracts::remote::RegenerateCertificate = contracts::remote::RegenerateCertificate { certificate_names: vec![] };
     "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReport {
@@ -115,7 +123,6 @@ matrix! {
     "/dokime.v1.Appearance/GetAppearance", unary, contracts::appearance::GetAppearance;
     "/dokime.v1.Backend/CollectDiagnostics", download, contracts::backend::CollectDiagnostics;
     "/dokime.v1.Backend/GetAvailability", unary, contracts::backend::GetAvailability;
-    "/dokime.v1.Backend/GetDiagnostics", unary, contracts::backend::GetDiagnostics;
     "/dokime.v1.Backend/GetHealth", unary, contracts::backend::GetHealth;
     "/dokime.v1.Backend/GetIdentity", unary, contracts::backend::GetIdentity;
     "/dokime.v1.Backend/WatchLogs", download, contracts::backend::WatchLogs = contracts::backend::WatchLogs {
@@ -260,13 +267,13 @@ matrix! {
     };
     "/dokime.v1.Reports/DownloadCycleReport", download, contracts::reports::DownloadCycleReport;
     "/dokime.v1.Reports/DownloadExecutionReport", download, contracts::reports::DownloadExecutionReport;
-    "/dokime.v1.Secrets/Lookup", unary, contracts::secrets::Lookup = contracts::secrets::Lookup { name: String::new() };
+    "/dokime.v1.Secrets/Lookup", unary, contracts::secrets::Lookup = contracts::secrets::Lookup { identifier: String::new() };
     "/dokime.v1.Secrets/List", unary, contracts::secrets::List = contracts::secrets::List {};
     "/dokime.v1.Secrets/Put", unary, contracts::secrets::Put = contracts::secrets::Put {
-        metadata: model::secrets::catalog::Metadata { name: String::new(), label: String::new(), description: None }, value: None, generation: 0,
+        metadata: model::secrets::catalog::Metadata { identifier: String::new(), label: String::new(), description: None }, value: None, generation: 0,
     };
-    "/dokime.v1.Secrets/Remove", unary, contracts::secrets::Remove = contracts::secrets::Remove { names: vec![], generation: 0 };
-    "/dokime.v1.Secrets/Export", unary, contracts::secrets::Export = contracts::secrets::Export { names: vec![], generation: 0 };
+    "/dokime.v1.Secrets/Remove", unary, contracts::secrets::Remove = contracts::secrets::Remove { identifiers: vec![], generation: 0 };
+    "/dokime.v1.Secrets/Export", unary, contracts::secrets::Export = contracts::secrets::Export { identifiers: vec![], generation: 0 };
     "/dokime.v1.Secrets/Preview", unary, contracts::secrets::Preview = contracts::secrets::Preview { data: vec![] };
     "/dokime.v1.Secrets/Import", unary, contracts::secrets::Import = contracts::secrets::Import { data: vec![], choices: vec![], generation: 0 };
     "/dokime.v1.Settings/GetPluginSettings", unary, contracts::settings::GetPluginSettings;

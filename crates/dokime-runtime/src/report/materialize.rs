@@ -13,11 +13,13 @@
 
 /* === Imports === */
 
+use futures_util::StreamExt;
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use futures_util::{StreamExt, stream::FuturesUnordered};
+
 use harmos::{
     operations::Context,
     storage::ReadBatch,
@@ -26,13 +28,12 @@ use harmos::{
         downsample::{Algorithm, Downsample},
     },
 };
-use tokio::sync::OnceCell;
 
 // Local Imports
 use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
 use crate::storage::{
     Manager, ReadRows,
-    projection::{self, Pages},
+    projection::{self},
 };
 use crate::{
     document::capture::CardBindingResult,
@@ -78,42 +79,99 @@ pub(crate) async fn execution(
         return Err(invalid("report capture differs from the requested durable boundary"));
     }
     let execution = inspection.execution();
-    let records = ReadRows::from(context_records(inspection).await?);
+    let records = context_records(inspection).await?;
     let selection = harmos::storage::ReadBatch::new(())
         .try_map(|_| Ok::<_, Error>(crate::document::DocumentSelection { scope: execution.scope.clone() }))?;
     let context = crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
     let needs_rows =
         captured.context.execution_documents.values().any(|definition| crate::document::binding::telemetry_needed(definition, context));
-    let telemetry = context_telemetry(ctx, inspection.session(), captured, execution, needs_rows).await?;
+    let telemetry = context_telemetry(ctx, inspection.session(), captured, execution, false).await?;
     let maximum = usize::try_from(captured.report_defaults.plot_points).map_err(|_| invalid("plot point policy exceeds native size"))?;
-
-    let limit = 64 * 1024 * 1024;
-    let mut documents = harmos::storage::ReadBatch::new(())
-        .try_map(|_| Ok::<_, Error>(BTreeMap::<DocumentId, crate::document::capture::Capture>::new()))?;
+    let mut exact_telemetry = crate::execution::evidence_rows::EvidenceRows::default();
+    if needs_rows {
+        for versions in captured.telemetry_contracts.values() {
+            for contract in versions.values() {
+                super::query::telemetry::spool(
+                    ctx,
+                    inspection.session(),
+                    &captured.evidence_through,
+                    execution.test_execution_id.as_str(),
+                    contract,
+                    &mut exact_telemetry,
+                )
+                .await?;
+            }
+        }
+    }
+    let limits = crate::document::bounded::DocumentLimits {
+        source_bytes: 64 * 1024 * 1024,
+        materialized_bytes: 64 * 1024 * 1024,
+        ..crate::document::bounded::DocumentLimits::default()
+    };
+    let mut documents = ReadBatch::new(BTreeMap::<DocumentId, crate::document::capture::Capture>::new());
+    let mut cached = None;
     for (id, definition) in &captured.context.execution_documents {
-        let input = crate::document::input::BorrowedInput {
-            definition,
-            selection: &selection,
-            data: crate::document::input::BorrowedData {
+        let sources = crate::document::binding::selected_sources(definition, context);
+        if cached.as_ref().is_none_or(|(previous, _, _, _, _)| previous != &sources) {
+            let mut selected_records = Vec::new();
+            let mut selected_samples = Vec::new();
+            let mut bytes = 0usize;
+            for record in records.iter().filter(|record| sources.0.iter().any(|kind| kind == record.record_type.as_str())) {
+                let size = crate::document::bounded::document_size(&record, limits.source_bytes, limits.depth)
+                    .map_err(|_| invalid("document record exceeds its 64 MiB input limit"))?;
+                bytes = bytes
+                    .checked_add(size)
+                    .filter(|bytes| *bytes <= limits.source_bytes)
+                    .ok_or_else(|| invalid("selected document data exceeds its 64 MiB input limit"))?;
+                selected_records.try_reserve(1).map_err(|_| invalid("document record workspace allocation failed"))?;
+                selected_records.push(record);
+            }
+            for sample in
+                exact_telemetry.iter().filter(|sample| sources.2 || sources.1.iter().any(|stream| stream == sample.stream.as_str()))
+            {
+                let size = crate::document::bounded::document_size(&sample, limits.source_bytes, limits.depth)
+                    .map_err(|_| invalid("document sample exceeds its 64 MiB input limit"))?;
+                bytes = bytes
+                    .checked_add(size)
+                    .filter(|bytes| *bytes <= limits.source_bytes)
+                    .ok_or_else(|| invalid("selected document data exceeds its 64 MiB input limit"))?;
+                selected_samples.try_reserve(1).map_err(|_| invalid("document telemetry workspace allocation failed"))?;
+                selected_samples.push(sample);
+            }
+            selected_samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
+            let data = crate::document::input::BorrowedData {
                 context,
-                records: crate::document::input::Records::Native((&records).into()),
-                telemetry: if needs_rows { &telemetry } else { &[] },
+                records: crate::document::input::Records::Native(selected_records.as_slice().into()),
+                telemetry: &selected_samples,
+                artifacts: crate::document::input::Artifacts::Outputs(&captured.outputs),
+            };
+            let validated = crate::document::bounded::SharedBindings::new(&selection, data, limits)?.accounting();
+            cached = Some((sources, selected_records, selected_samples, validated.0, validated.1));
+        }
+        let (_, selected_records, selected_samples, bytes, rows) = cached.as_ref().expect("document selection is loaded");
+        let bindings = crate::document::bounded::SharedBindings::validated(
+            &selection,
+            crate::document::input::BorrowedData {
+                context,
+                records: crate::document::input::Records::Native(selected_records.as_slice().into()),
+                telemetry: selected_samples,
                 artifacts: crate::document::input::Artifacts::Outputs(&captured.outputs),
             },
-        };
-        let limits = crate::document::bounded::DocumentLimits {
-            source_bytes: limit,
-            materialized_bytes: limit,
-            ..crate::document::bounded::DocumentLimits::default()
-        };
+            limits,
+            *bytes,
+            *rows,
+        );
+        let _permit = operation.report_work().await;
+        let document = bindings.capture(definition)?;
         documents = documents.try_map(|mut documents| {
-            let document = crate::document::bounded::capture_document_borrowed(input, limits)?;
             documents.insert(id.clone(), document);
             Ok::<_, Error>(documents)
         })?;
     }
+    drop(cached);
+    drop(exact_telemetry);
     operation.phase("Querying Report Plots");
-    let plots = plots(ctx, inspection.session(), captured, execution, (&records).into(), &documents).await?;
+    let plots = plots(ctx, inspection.session(), captured, execution, &records, &documents, operation).await?;
     let selected = super::render::cycle::selection(telemetry.len(), maximum);
     let count = selected.clone().count();
     let preview = telemetry.try_map(|telemetry| {
@@ -138,12 +196,13 @@ pub(crate) async fn execution(
 
 /* === Private Functions === */
 
-async fn context_records(inspection: &ExecutionView) -> Result<Pages<RecordEntry>> {
-    let mut records = harmos::storage::ReadBatch::new(Vec::new());
+async fn context_records(inspection: &ExecutionView) -> Result<crate::execution::evidence_rows::EvidenceRows<RecordEntry>> {
+    let mut records = crate::execution::evidence_rows::EvidenceRows::default();
     let mut reader = inspection.context_records().await?;
     while let Some(rows) = reader.next().await? {
-        let rows = projection::page(rows, |row| Ok(row.record))?;
-        records = projection::push(records, rows)?;
+        for row in rows.iter() {
+            records.append(&row.record).map_err(Error::Operation)?;
+        }
     }
     Ok(records)
 }
@@ -186,8 +245,9 @@ async fn context_telemetry(
 // Plot Queries Respect The Supplied Concurrency; Results Keep Card Order.
 async fn plots(
     ctx: &Context<'_>, session: &crate::storage::Manager, captured: &CapturedSource,
-    execution: &dokime_domain::model::execution::result::TestExecution, records: crate::records::view::View<'_>,
-    documents: &BTreeMap<DocumentId, crate::document::capture::Capture>,
+    execution: &dokime_domain::model::execution::result::TestExecution,
+    records: &crate::execution::evidence_rows::EvidenceRows<RecordEntry>,
+    documents: &BTreeMap<DocumentId, crate::document::capture::Capture>, operation: &Operation,
 ) -> Result<ReadBatch<BTreeMap<String, super::value::Value>>> {
     let mut groups = Vec::<(super::query::ReadPlan, Vec<_>)>::new();
     let mut completed = Vec::new();
@@ -214,33 +274,48 @@ async fn plots(
         }
     }
 
-    // Shared Query Data Survives Every Concurrent Materialization.
-    for (plan, requests) in groups {
-        drop(plan);
-        let shared = OnceCell::new();
-        let mut pending = FuturesUnordered::new();
-        for (current, id, request) in requests {
+    let mut pending_groups = futures_util::stream::iter(groups.into_iter().map(|(plan, requests)| async move {
+        let _group = operation.report_group().await;
+        let _plan = plan;
+        let shared = super::query::ReadCache::new();
+        let mut kinds = Vec::new();
+        for (_, _, request) in &requests {
+            kinds.extend(crate::runtime::query::plots::request_record_types(request));
+        }
+        kinds.sort();
+        kinds.dedup();
+        let mut selected_records = Vec::new();
+        let mut bytes = 0usize;
+        for record in records.iter().filter(|record| kinds.contains(&record.record_type)) {
+            bytes = bytes
+                .checked_add(
+                    crate::document::bounded::document_size(&record, 64 * 1024 * 1024, 32)
+                        .map_err(|_| invalid("plot record exceeds bounded workspace"))?,
+                )
+                .filter(|bytes| *bytes <= 64 * 1024 * 1024)
+                .ok_or_else(|| invalid("plot record selection exceeds bounded workspace"))?;
+            selected_records.try_reserve(1).map_err(|_| invalid("plot record workspace allocation failed"))?;
+            selected_records.push(record);
+        }
+        let records: crate::records::view::View<'_> = selected_records.as_slice().into();
+        let results = futures_util::stream::iter(requests.into_iter().map(|(current, id, request)| {
             let shared = &shared;
-            pending.push(async move {
+            async move {
+                let _permit = operation.report_work().await;
                 let payload =
                     super::query::materialize(super::query::ReadContext { ctx, session }, captured, execution, records, request, shared)
                         .await?;
-                // The Identifier Moves To The Final Map Under Its New Native Owner.
-                let payload = payload.try_map(|payload| Ok::<_, Error>((id, payload)))?;
-                Ok::<_, Error>((current, payload))
-            });
-            if pending.len() as u64 == 8_u64
-                && let Some(plot) = pending.next().await
-            {
-                reserve_plot_slot(&mut completed)?;
-                completed.push(plot?);
+                Ok::<_, Error>((current, payload.try_map(|payload| Ok::<_, Error>((id, payload)))?))
             }
-        }
-        while let Some(plot) = pending.next().await {
-            reserve_plot_slot(&mut completed)?;
-            completed.push(plot?);
-        }
-        drop(pending);
+        }))
+        .buffer_unordered(8)
+        .collect::<Vec<_>>()
+        .await;
+        results.into_iter().collect::<Result<Vec<_>>>()
+    }))
+    .buffer_unordered(4);
+    while let Some(group) = pending_groups.next().await {
+        completed.extend(group?);
     }
     completed.sort_unstable_by_key(|(index, _)| *index);
     let mut plots = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(BTreeMap::new()))?;
@@ -272,7 +347,7 @@ fn reserve_plot_slot<T>(values: &mut Vec<T>) -> Result<()> {
 fn assemble(
     final_report: bool, captured: &CapturedSource, execution: &dokime_domain::model::execution::result::TestExecution,
     documents: BTreeMap<DocumentId, crate::document::capture::Capture>, plots: BTreeMap<String, super::value::Value>,
-    (records, preview): (ReadRows<RecordEntry>, ReadRows<crate::telemetry::TelemetrySample>),
+    (records, preview): (crate::execution::evidence_rows::EvidenceRows<RecordEntry>, ReadRows<crate::telemetry::TelemetrySample>),
     report_defaults: crate::config::ReportDefaults,
 ) -> Result<CapturedExecutionReportInput> {
     let source_cycle = &captured.context.cycle.cycle;

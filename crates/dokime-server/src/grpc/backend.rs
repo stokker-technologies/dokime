@@ -10,7 +10,6 @@
 /* === Modules === */
 
 mod archive;
-mod diagnostics;
 mod status;
 
 /* === Re-Exports === */
@@ -27,7 +26,6 @@ use tonic::Status;
 
 // Local Imports
 use super::bundle;
-use crate::diagnostics_assembly::DiagnosticsSnapshot;
 use dokime::RuntimeHandle;
 use dokime::domain::model::identity::wire::Timestamp;
 use dokime::domains::exports::storage::DiagnosticPathKey;
@@ -46,18 +44,6 @@ const SERVER_BUNDLE_LOG_TAIL_BYTES: u64 = 2_097_152;
 struct Collector<'a> {
     runtime: &'a RuntimeHandle,
     identity: &'a dokime::domain::model::backend::wire::BackendIdentity,
-}
-
-#[derive(serde::Serialize)]
-struct SnapshotDocument<'a> {
-    server: SnapshotServer<'a>,
-    runtime: &'a DiagnosticsSnapshot,
-}
-
-#[derive(serde::Serialize)]
-struct SnapshotServer<'a> {
-    version: &'static str,
-    process: &'a dokime::domain::model::backend::wire::ProcessDiagnostics,
 }
 
 /* === Enums === */
@@ -87,36 +73,22 @@ impl Collector<'_> {
     }
 
     async fn collect(&self, log_tail_bytes: u64) -> Result<bundle::Bundle, Status> {
-        let diagnostics = DiagnosticsSnapshot::from_runtime(
-            self.runtime.runtime_overview().await.map_err(|error| Status::internal(error.to_string()))?,
-            &self.runtime.storage_root(),
-            &self.runtime.application_root(),
-        );
-        let generated_at = diagnostics.captured_at.clone();
+        let generated_at = dokime::model::time::now_utc();
         let source = |key: DiagnosticPathKey| {
-            diagnostics
-                .path_conventions
-                .iter()
+            dokime::domains::exports::storage::path_conventions(&self.runtime.application_root())
+                .into_iter()
                 .find(|convention| convention.key == key)
-                .and_then(|convention| convention.absolute_path.clone())
+                .and_then(|convention| convention.absolute_path)
                 .map(std::path::PathBuf::from)
         };
 
         let mut parts = bundle::Parts::new(self.runtime.storage().clone())?;
         parts = parts.push(bundle::Part::json("backend/identity.json", identity_json(self.identity))).await?;
         parts = parts.push(bundle::Part::json("backend/health.json", health_json(&self.health().await?))).await?;
-        let process = diagnostics::process_diagnostics();
-        let snapshot =
-            SnapshotDocument { server: SnapshotServer { version: env!("CARGO_PKG_VERSION"), process: &process }, runtime: &diagnostics };
-        parts = parts.push(bundle::Part::json("diagnostics/snapshot.json", encoded(&snapshot)?)).await?;
         parts = parts.push(bundle::Part::json("settings/settings-frame.json", encoded(&self.runtime.settings_frame().await)?)).await?;
-        if let Some(path) = source(DiagnosticPathKey::StartupDoctor) {
-            parts = parts.push(bundle::Part::file("diagnostics/startup-doctor.json", path, SERVER_BUNDLE_LOG_TAIL_BYTES)).await?;
-        }
         if let Some(path) = source(DiagnosticPathKey::HubLog) {
             parts = parts.push(bundle::Part::tail("logs/dokime.jsonl", path, log_tail_bytes)).await?;
         }
-        drop(diagnostics);
         for artifact_id in self.artifact_ids() {
             // `plugin_settings` is the settings surface's own read: its
             // secret bindings arrive already reduced to an identifier, a
@@ -193,11 +165,23 @@ fn identity_json(identity: &dokime::domain::model::backend::wire::BackendIdentit
 }
 
 fn health_json(health: &dokime::domain::model::backend::wire::BackendHealth) -> Json {
+    let readiness = match health.readiness {
+        dokime::domain::model::backend::wire::Readiness::Unspecified => "READINESS_UNSPECIFIED",
+        dokime::domain::model::backend::wire::Readiness::Starting => "READINESS_STARTING",
+        dokime::domain::model::backend::wire::Readiness::Ready => "READINESS_READY",
+        dokime::domain::model::backend::wire::Readiness::Degraded => "READINESS_DEGRADED",
+        dokime::domain::model::backend::wire::Readiness::Stopping => "READINESS_STOPPING",
+    };
+    let observed_at = health
+        .observed_at
+        .as_ref()
+        .and_then(|time| time.to_datetime().ok())
+        .and_then(|time| time.format(&time::format_description::well_known::Rfc3339).ok());
     json!({
         "backend_id": health.backend_id,
         "epoch": health.epoch,
-        "readiness": match health.readiness { dokime::domain::model::backend::wire::Readiness::Unspecified => "READINESS_UNSPECIFIED", dokime::domain::model::backend::wire::Readiness::Starting => "READINESS_STARTING", dokime::domain::model::backend::wire::Readiness::Ready => "READINESS_READY", dokime::domain::model::backend::wire::Readiness::Degraded => "READINESS_DEGRADED", dokime::domain::model::backend::wire::Readiness::Stopping => "READINESS_STOPPING" },
-        "observed_at": health.observed_at.as_ref().and_then(|time| time.to_datetime().ok()).and_then(|time| time.format(&time::format_description::well_known::Rfc3339).ok()),
+        "readiness": readiness,
+        "observed_at": observed_at,
         "message": health.message,
     })
 }

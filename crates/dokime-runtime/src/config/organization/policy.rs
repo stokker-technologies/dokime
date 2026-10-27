@@ -49,8 +49,6 @@ pub struct UpdatePolicy {
 #[serde(deny_unknown_fields)]
 pub struct Connection {
     pub host: String,
-    #[serde(default)]
-    pub oauth_client_id: String,
 }
 
 /* === Enums === */
@@ -67,7 +65,7 @@ pub enum Mode {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Source {
-    Direct { manifest: String, plugins: Option<String>, connection: Option<String> },
+    Direct { manifest: String, plugins: Option<String> },
     Github { repository: String },
     Gitlab { connection: String, project: String },
 }
@@ -87,9 +85,6 @@ impl UpdatePolicy {
             if host.path() != "/" || host.query().is_some() {
                 return Err(format!("connection {name} must name an HTTPS origin without a path or query"));
             }
-            if connection.oauth_client_id.len() > 512 || connection.oauth_client_id.chars().any(char::is_control) {
-                return Err(format!("connection {name} has an invalid OAuth client identifier"));
-            }
         }
         for (name, source) in &self.sources {
             validate_name(name)?;
@@ -107,13 +102,10 @@ impl UpdatePolicy {
 
     fn validate_source(&self, source: &Source) -> Result<(), String> {
         match source {
-            Source::Direct { manifest, plugins, connection } => {
+            Source::Direct { manifest, plugins } => {
                 https_url(manifest)?;
                 if let Some(plugins) = plugins {
                     https_url(plugins)?;
-                }
-                if let Some(connection) = connection {
-                    self.connection(connection)?;
                 }
             }
             Source::Github { repository } => {
@@ -182,7 +174,6 @@ mode = "manual"
 source = "team"
 [connections.office]
 host = "https://gitlab.example.test"
-oauth_client_id = "desktop-public-client"
 [sources.team]
 kind = "gitlab"
 connection = "office"
@@ -199,7 +190,7 @@ project = "lab/instruments"
             let invalid: UpdatePolicy = toml::from_str(&altered).unwrap();
             assert!(invalid.validate().is_err());
         }
-        let secret = text.replace("oauth_client_id =", "access_token =");
+        let secret = text.replace("[connections.office]", "[connections.office]\naccess_token = 'forbidden'");
         assert!(toml::from_str::<UpdatePolicy>(&secret).is_err());
         assert!(toml::from_str::<UpdatePolicy>("mode = 'manual'").unwrap().validate().is_err());
         UpdatePolicy::default().validate().unwrap();

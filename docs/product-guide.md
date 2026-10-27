@@ -94,21 +94,29 @@ browser-origin permission does not grant operation access. A GUI built with
 
 ## Native Remote Access
 
-Settings → Remote Access owns persistent listener settings, one-time key
-generation, public certificate download and explicit key/certificate rotation.
-Management operations are available only through the native local listener.
-The access key is shown once and can be copied or saved through the native
-file picker. The application root's private `remote/access.json` retains its
-SHA-256 verifier and the TLS certificate/private key; it never retains the
-access key. Certificate DNS/IP identities change only through explicit
-regeneration. TLS and authentication are independent choices, with separate
-isolated-lab warnings.
+Settings → Remote Access owns the saved listener settings and explicit restart.
+Management is available only through the native local listener. TLS and
+access-key authentication are independent; disable either only in an isolated lab.
+Use a concrete reachable endpoint whose hostname or IP matches the certificate.
 
-The remote listener shares the runtime with the native listener and has its own
-transport and authentication settings. Reconfiguring it does not stop admitted
-executions. A rotated key can recover their receipts and control them without
-repeating execution. Remote connections through loopback retain remote access
-rules, including native-only management and host-path restrictions.
+Choose **Create Pairing File**, enter a client label and advertised endpoint,
+and select a destination. Cancellation creates no key. Dokime saves one private
+`<label>.dokime-pair` file containing the endpoint, expected backend identifier,
+label, CA certificate and a new access key. Treat it as a secret: it grants full
+remote control. The raw key stays outside the WebView and is returned only once.
+The host persists its verifier, never the recoverable key. Failed file saves
+revoke the newly created client.
+
+Each file has an independent key. **Paired Clients** lists labels, creation
+and last-seen times; **Revoke** rejects further calls and ends that client's
+active streams without affecting other clients. Create a new file to replace a
+lost one. An authentication-off lab pairing has no client record or revocation
+guarantee. Listener reconfiguration does not replay or stop admitted executions.
+
+Pairing files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
+`endpoint`, `backend_identifier`, `label`, `ca_certificate_pem` and `access_key`.
+Absent CA/key values are null. Unknown fields, invalid identities or PEM,
+wildcard endpoints and inconsistent TLS/CA combinations are rejected.
 
 ## Full-Control Access And Plugin Capabilities
 
@@ -128,28 +136,45 @@ invocation use the current provider contract; rediscover after provider changes.
 
 ## Backend Profiles
 
-The desktop starts with Local on first launch. Settings lets you select Local
-or add, edit and remove saved remote profiles from the same `backends.json`
-catalog used by the CLI. The desktop remembers its selection separately from
-the CLI default. An unavailable remembered remote stays selected and offers
-reconnection or another selection; it does not silently start Local.
+Settings → Backends and the CLI share `backends.json`. Each profile has a
+machine **Identifier** and a human **Label**. Import a pairing file as the primary
+setup path. The native importer saves its key in the OS keyring and its CA and
+expected identity in the profile. Validation precedes mutation; a failed profile
+save rolls back the newly created keyring entry. Duplicate identifiers are refused.
 
-**Start Local Backend** and **Stop Local Backend** control the embedded backend.
-**Connect** and **Disconnect** control attachment to a remote without stopping
-that server. Reopening the desktop for the same application root focuses its
-existing window; explicitly different application roots remain independent.
-
-The CLI connects to an existing server. Save and select a backend with:
+The desktop tries its saved default once. An unavailable or mismatched backend
+opens selection without silently falling back to Local. Confirm deletion to
+remove a profile; deleting the active profile disconnects it and clears its default.
+Profile editing and local appearance preferences remain available offline.
 
 ```sh
-dokime backend add lab --endpoint https://dokime.example:8765 --expected-backend BACKEND_ID --ca /path/to/ca.pem --keyring
+dokime backend add --pairing lab.dokime-pair --identifier lab
 dokime backend use lab
-dokime auth login --backend lab --key-file /path/to/remote.key
 dokime status --backend lab --json
 dokime operation list --backend lab
 dokime operation show dokime.runtime.health --backend lab --json
-dokime auth logout --backend lab
 ```
+
+Omit `--identifier` to use the pairing's backend identifier. Manual entry is
+reserved for unsecured labs:
+
+```sh
+dokime backend add --identifier lab --label "Lab PC" --endpoint http://lab.example:8765
+```
+
+Python constructs a client without opening a channel, then uses its normal
+asynchronous connection lifecycle:
+
+```python
+client = DokimeClient.from_pairing("lab.dokime-pair")
+async with client:
+    async for suite in client.suites():
+        print(suite)
+```
+
+The SDK retains the imported key only in its redacted client credentials.
+Every first connection and reconnect validates expected backend identity before
+application calls. A mismatch never changes the saved default.
 
 `operation list` and `operation show` read live provider contracts, including
 owner, generation, grants, gRPC availability and conditional access. Discovery
@@ -249,42 +274,10 @@ Selection uses explicit `--backend` or `--endpoint`, then `DOKIME_BACKEND`, then
 that configuration's saved default. An explicit endpoint uses only secrets
 supplied for that invocation. Profile edits affect future connections.
 `backend list`, `show`, `use`, and `remove` operate offline; removal clears a
-matching default and retains OS secrets. `auth login` negotiates backend
-identity and the operations available to the caller with the supplied bearer, then saves it for
-that endpoint and marks the selected profile for keyring lookup. It refuses a
-profile whose target changed during login. `auth logout` removes the local
-secret; it sends no revocation request. Use `--key-file` on individual
-commands for headless connections when an OS store is unavailable.
-
-Backend identity includes the server's compiled Rust `target` alongside its
-product version, even when the desktop runs on a different operating system.
-
-Secret precedence is `--key-file`, process `DOKIME_KEY`, then `DOKIME_KEY`
-from an explicitly selected `--env-file`. Dotenv values fill absent process
-variables; they never override them or search parent directories. Selected
-files must be valid UTF-8 regular files, even when another source supplies the
-key. Keys contain 32–4096 visible ASCII characters; dotenv input is bounded to
-64 KiB. Copy [.env.example](../.env.example) to the ignored `.env`, replace its
-placeholder and select it explicitly:
-
-```sh
-dokime status --endpoint https://dokime.example:8765 --ca server.pem --env-file .env
-```
-
-Clients also accept an explicitly selected `http://` origin for native gRPC in
-an isolated lab whose listener has TLS disabled. Plaintext exposes both keys
-and data. The receiving listener decides whether authentication is required,
-independently of TLS; omitting a key never bypasses that check. HTTPS always
-verifies certificates, and a CA file is refused for HTTP. Local-only native
-operations still depend on the receiving listener's policy.
-
-`status` and `auth status` perform a bounded live check. JSON distinguishes
-`ready`, `unreachable`, `authentication`, `permission_denied`, `incompatible`,
-`not_ready`, `timed_out` and `secrets_unavailable`; failed checks return exit
-code 1. `--timeout-seconds` bounds connection and secret-store waits. A
-store operation already in progress can finish after its caller times out.
-Profile settings and OS secrets are separate writes: a file publication
-failure can leave the secret saved, and explicit logout removes it.
+matching default. Revoke access on the host through Paired Clients; removing
+a local profile alone does not revoke its key. `status` performs a bounded live
+identity, authentication and readiness check and returns nonzero on failure.
+Backend identity includes the compiled Rust target and product version.
 
 Configuration lives at `$XDG_CONFIG_HOME/dokime/backends.json` (falling back to
 `$HOME/.config/dokime/backends.json`) on Linux, `$APPDATA/dokime/backends.json` on
@@ -298,7 +291,8 @@ The version 1 JSON contract keeps secrets in a separate OS secret store:
   "version": 1,
   "default": "lab",
   "profiles": [{
-    "name": "lab",
+    "identifier": "lab",
+    "label": "Lab PC",
     "endpoint": "https://dokime.example:8765",
     "expected_backend_id": "BACKEND_ID",
     "ca_certificate_pem": null,
@@ -307,40 +301,34 @@ The version 1 JSON contract keeps secrets in a separate OS secret store:
 }
 ```
 
-Names contain ASCII letters, digits, dots, underscores or hyphens. The default
-name length is 1–64 bytes, with a 1 MiB profile file and 128 profiles. Configure
-these bounds through `profile_name_bytes`, `profile_bytes` and `profiles` in
-`[operational.client]` in the application data `config.toml`. Unknown fields,
-duplicate names, unsupported versions, invalid endpoints and dangling defaults
-are refused. CLI edits lock and atomically replace the file; contention refuses
-the edit for retry. Tokens
-stay outside JSON. Python reads explicitly named profiles with
-`DokimeClient.from_profile("lab", key_file="remote.key")`; it uses the same configuration
-location and accepts an explicit `path` override.
+Identifiers contain 1–128 ASCII letters, digits, dots, underscores or hyphens;
+`.` and `..` are refused. Labels are nonblank, control-free and at most 256 bytes.
+Unknown fields, duplicate identifiers, unsupported versions, invalid endpoints
+and dangling defaults are refused. CLI edits lock and atomically replace the
+file; contention refuses the edit for retry. Tokens stay outside JSON.
 
-Development profiles now name the association `secret`. For an older file,
-retain a backup and rename each profile's `credential` key to `secret`; do not
-change its endpoint or value. Existing endpoint-keyed OS entries remain in place.
-An incompatible file is rejected without being overwritten or reset.
+Development contracts remain v1. Use fresh storage when a schema or evidence
+format becomes incompatible. There are no migrations, compatibility aliases or
+automatic root resets; existing files and evidence are never silently deleted.
 
 ## Shared Plugin Secrets
 
-Each backend owns a catalog of named secrets. Plugins use the shared
-`dokime.secrets.lookup` operation with a name; a missing or deleted name returns
+Each backend owns a catalog of secrets keyed by identifier. Plugins use the shared
+`dokime.secrets.lookup` operation with an identifier; a missing or deleted identifier returns
 an error. Replacing a value affects future lookups. A value already fetched by
 a running plugin remains its responsibility. Required secret settings are
 checked before execution starts.
 
-Open **Settings → Secret Storage** to see the owning host, add a name, edit
+Open **Settings → Secret Storage** to see the owning host, add an identifier, edit
 its label or description, replace its value, or explicitly confirm deletion.
 Existing values are never fetched for display. Leave the replacement field
 empty to retain a value. Known references list saved plugin settings; plugins
-can also look up names dynamically, so this list is not exhaustive. Switching
+can also look up identifiers dynamically, so this list is not exhaustive. Switching
 backends opens that backend's catalog and discards the previous edit form.
 
 Values are stored in the host's OS keyring, separately from backend login
-tokens, organization OAuth accounts and signing keys. New writes require that
-keyring; there is no plaintext fallback. The catalog stores names, labels,
+tokens and signing keys. New writes require that
+keyring; there is no plaintext fallback. The catalog stores identifiers, labels,
 descriptions and opaque keyring slot identifiers. Names contain 1–128 ASCII
 letters, digits, dots, underscores or hyphens; values contain 1–65536 bytes,
 with at most 1024 catalog entries per host.
@@ -351,11 +339,11 @@ unlocked GNOME Keyring in its disposable workspace; CI installs `dbus` and
 
 **Export Selected Secrets** saves a `.b64` file through the native file
 picker. It contains a Base64-encoded version 1 JSON document with the selected
-names, metadata and values. Base64 is not encryption: anyone with the file can
+identifiers, metadata and values. Base64 is not encryption: anyone with the file can
 read its secrets. Store and share it accordingly.
 
-**Import Secrets** previews the file's names and conflicts before applying
-changes. Existing names start unchecked; select each replacement explicitly
+**Import Secrets** previews the file's identifiers and conflicts before applying
+changes. Existing identifiers start unchecked; select each replacement explicitly
 and leave entries unchecked to skip them. A changed destination catalog
 requires a fresh preview. Invalid input or failed secure-store staging writes
 no values.
@@ -365,6 +353,10 @@ Base64 file limited to 699052 bytes. Larger selections must be exported
 separately. If catalog publication cannot be confirmed after a filesystem
 error, both generations' secure slots are retained; refresh the catalog
 before retrying.
+
+Secrets use a shared table with Identifier and Label columns. **Add Secret**
+opens a dialog; the monospace Identifier is the machine key, while Label is the
+human display text. No `name` alias is accepted in secret contracts.
 
 ## Planning And Creating Cycles
 
@@ -744,16 +736,14 @@ The `dokime-cli` package installs the `dokime` executable.
 `dokime` connects to a backend; `cargo dokime sidecar` authors plugin bundles
 and `cargo dokime installer` assembles native distributions. Every
 command prints its full flags with `--help`. Backend RPC commands accept
-`--endpoint` or `--backend`, `--key-file` (or `DOKIME_KEY`), `--ca`,
-`--env-file` and `--timeout-seconds`; most accept `--json` for scripts.
+`--endpoint` or `--backend` and `--timeout-seconds`; most accept `--json` for scripts.
 
 ### Connection And Backends
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
-| `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--expected-backend` |
-| `dokime auth login\|status\|logout` | Validate, save or remove local secrets. | `--key-file` |
-| `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--endpoint`, `--keyring`, `--profiles-file` |
+| `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--backend` |
+| `dokime backend add\|list\|show\|use\|remove` | Manage saved backend profiles without connecting. | `--pairing`, `--identifier`, `--label`, `--profiles-file` |
 | `dokime server` | Run the server in the CLI process. | `--application-root`, `--port` |
 | `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
 
@@ -1143,13 +1133,10 @@ plugins = "https://updates.example.com/plugins.json"
 ```
 
 GitHub sources use `kind = "github"` and `repository = "owner/repository"`.
-GitLab sources use `kind = "gitlab"`, `project = "group/project"` and
-`connection = "company"`, referring to `[updates.connections.company]` with an
-HTTPS `host` and optional public `oauth_client_id`. Register the compiled callback
-`dokime-test-hub://auth/gitlab/callback` for OAuth. Packs never contain tokens.
-Accounts are stored in the OS keyring separately for each host, client and account;
-authorization is forwarded only to the account's origin. Changing a source or
-account invalidates its reviewed candidates. Desktop signatures use the compiled
+GitLab sources use `kind = "gitlab"` and `project = "group/project"`.
+Update sources must be public and accessible without signing in. There is no
+release-account management or provider credential store. Changing a source
+invalidates reviewed candidates. Desktop signatures use the compiled
 verification key, which packs cannot replace.
 
 Provider sources discover `latest.json` and `plugins.json` in their latest
@@ -1207,3 +1194,27 @@ advertises. Endpoints and secrets stay in the shell. Artifact uploads and
 recordings keep a native file-backed adapter, because their bytes are hashed and
 patched in the shell rather than framed by the WebView.
 
+
+## Long-Running Evidence And Report Saves
+
+Telemetry and captured records persist as they arrive with bounded pending
+queues and durable acknowledgement. Plots query saved evidence in bounded pages;
+changing a display window never deletes raw evidence. Recovery restores saved
+frontiers without replaying device actions.
+
+Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
+execution or permanent disk failure. Existing evidence remains intact. Capture
+failure appears in evidence health and affects the terminal result when required
+evidence is lost; bounded retries preserve acknowledged offsets.
+
+**Save Report** asks for a destination before materialization or network work.
+Cancellation makes no report request. The native client streams to a unique
+adjacent temporary file, verifies length, contiguous frames and digest, syncs,
+and atomically publishes with overwrite consent. Failure, cancellation or a
+connection-generation change removes the temporary output and preserves an
+existing destination. Open uses the native cache. Report requests allow 300 s;
+ordinary requests keep their 30 s default. HTML bytes never cross the WebView.
+Document bindings retain their 64 MiB bound; large raw evidence remains paged.
+
+Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
+and diagnostics snapshot artifacts are no longer produced or bundled.

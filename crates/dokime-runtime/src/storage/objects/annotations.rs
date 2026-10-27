@@ -26,7 +26,7 @@ use dokime_domain::model::execution::health::HealthSeverity;
 use dokime_domain::model::execution::notes::OperatorNote;
 use dokime_domain::model::identity::HealthItemId;
 use dokime_domain::model::identity::NoteId;
-use dokime_domain::model::identity::RecordId;
+
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::state::records::set::TestRecordSet;
 
@@ -43,7 +43,8 @@ use dokime_domain::state::records::set::TestRecordSet;
 pub struct Set {
     health: Vec<Health>,
     notes: Vec<Note>,
-    subscribed_records: Vec<Captured>,
+    capture_owner: Option<String>,
+    capture_through: u64,
     record_subscriptions_closed: bool,
 }
 
@@ -70,14 +71,6 @@ pub struct Note {
     created_at: String,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Captured {
-    record_id: String,
-    scope: ScopeRow,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -86,36 +79,14 @@ struct Captured {
 
 impl TryFrom<&TestRecordSet> for Set {
     type Error = Error;
-
     fn try_from(source: &TestRecordSet) -> Result<Self> {
-        if Self::encoding_memory(source)? == usize::MAX {
-            return Err(Error::Invalid("annotation encoding memory overflow"));
-        }
-        let mut health = Vec::new();
-        health.try_reserve_exact(source.health().len()).map_err(|_| Error::Invalid("health encoding allocation failed"))?;
-        let mut notes = Vec::new();
-        notes.try_reserve_exact(source.notes().len()).map_err(|_| Error::Invalid("note encoding allocation failed"))?;
-        let mut subscribed_records = Vec::new();
-        subscribed_records
-            .try_reserve_exact(source.subscribed_records().len())
-            .map_err(|_| Error::Invalid("record ownership encoding allocation failed"))?;
-
-        if health.capacity() > source.health().len()
-            || notes.capacity() > source.notes().len()
-            || subscribed_records.capacity() > source.subscribed_records().len()
-        {
-            return Err(Error::Invalid("annotation slots exceed admission"));
-        }
-        for value in source.health() {
-            health.push(Health::try_from(value)?);
-        }
-        for value in source.notes() {
-            notes.push(Note::try_from(value)?);
-        }
-        for (id, scope) in source.subscribed_records() {
-            subscribed_records.push(Captured { record_id: id.as_str().to_owned(), scope: ScopeRow::from(scope) });
-        }
-        Ok(Self { health, notes, subscribed_records, record_subscriptions_closed: source.record_subscriptions_closed() })
+        Ok(Self {
+            health: source.health().iter().map(Health::try_from).collect::<Result<_>>()?,
+            notes: source.notes().iter().map(Note::try_from).collect::<Result<_>>()?,
+            capture_owner: source.capture_owner().map(|id| id.as_str().to_owned()),
+            capture_through: source.capture_through(),
+            record_subscriptions_closed: source.record_subscriptions_closed(),
+        })
     }
 }
 
@@ -128,58 +99,17 @@ impl Set {
         for value in source.notes() {
             bytes = bytes.saturating_add(Note::encoding_memory(value)?);
         }
-        for (id, scope) in source.subscribed_records() {
-            let scope = ScopeRow::encoding_memory(scope);
-            if scope == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes
-                .saturating_add(std::mem::size_of::<Captured>())
-                .saturating_add(id.as_str().len())
-                .saturating_add(scope.saturating_sub(std::mem::size_of::<ScopeRow>()));
-        }
-        Ok(bytes)
+        Ok(bytes.saturating_add(source.capture_owner().map_or(0, |owner| owner.as_str().len())))
     }
 
     pub fn projection_memory(&self) -> usize {
-        let map_memory = harmos::btree_map_memory::<RecordId, RecordScope>(self.subscribed_records.len());
-        if map_memory == usize::MAX {
-            return usize::MAX;
-        }
-        let mut bytes = std::mem::size_of::<TestRecordSet>()
-            .saturating_add(self.health.len().saturating_mul(std::mem::size_of::<HealthItem>()))
-            .saturating_add(self.notes.len().saturating_mul(std::mem::size_of::<OperatorNote>()))
-            .saturating_add(map_memory.saturating_sub(std::mem::size_of::<std::collections::BTreeMap<RecordId, RecordScope>>()));
-        for health in &self.health {
-            let owned = health.projection_memory();
-            if owned == usize::MAX {
-                return usize::MAX;
-            }
-            bytes = bytes.saturating_add(owned.saturating_sub(std::mem::size_of::<HealthItem>()));
-        }
-        for note in &self.notes {
-            let owned = note.projection_memory();
-            if owned == usize::MAX {
-                return usize::MAX;
-            }
-            bytes = bytes.saturating_add(owned.saturating_sub(std::mem::size_of::<OperatorNote>()));
-        }
-        for captured in &self.subscribed_records {
-            let scope = captured.scope.projection_memory();
-            if scope == usize::MAX {
-                return usize::MAX;
-            }
-            bytes = bytes
-                .saturating_add(captured.record_id.capacity())
-                .saturating_add(scope.saturating_sub(std::mem::size_of::<RecordScope>()));
-        }
-        bytes
+        self.health
+            .iter()
+            .fold(std::mem::size_of::<TestRecordSet>(), |bytes, health| bytes.saturating_add(health.projection_memory()))
+            .saturating_add(self.notes.iter().map(Note::projection_memory).sum::<usize>())
     }
 
     pub fn restore_owned(self) -> Result<TestRecordSet> {
-        if self.subscribed_records.windows(2).any(|pair| pair[0].record_id >= pair[1].record_id) {
-            return Err(Error::Invalid("noncanonical captured record ownership order"));
-        }
         let mut records = TestRecordSet::with_capacity(self.health.len(), self.notes.len());
         for note in self.notes {
             records.push_note(note.try_into()?);
@@ -187,8 +117,10 @@ impl Set {
         for health in self.health {
             records.push_health(health.try_into()?);
         }
-        for captured in self.subscribed_records {
-            records.capture_record(RecordId::from_uuid(captured.record_id)?, captured.scope.try_into()?);
+        if let Some(owner) = self.capture_owner {
+            records.capture_frontier(dokime_domain::model::identity::TestExecutionId::from_uuid(owner)?, self.capture_through);
+        } else if self.capture_through != 0 {
+            return Err(Error::Invalid("capture frontier has no owner"));
         }
         if self.record_subscriptions_closed {
             records.close_record_subscriptions();
@@ -197,29 +129,9 @@ impl Set {
     }
 
     pub(super) fn restore(&self) -> Result<TestRecordSet> {
-        let mut records = TestRecordSet::with_capacity(self.health.len(), self.notes.len());
-        for note in &self.notes {
-            let note = note.clone().try_into()?;
-            records.push_note(note);
-        }
-        for health in &self.health {
-            let health = health.clone().try_into()?;
-            records.push_health(health);
-        }
-        for captured in &self.subscribed_records {
-            let id = RecordId::from_uuid(&captured.record_id)?;
-            if records.subscribed_records().contains_key(&id) {
-                return Err(Error::Invalid("duplicate captured record ownership"));
-            }
-            let scope: RecordScope = captured.scope.clone().try_into()?;
-            records.capture_record(id, scope);
-        }
-        if self.record_subscriptions_closed {
-            records.close_record_subscriptions();
-        }
-        let canonical = Self::try_from(&records)?;
-        if canonical != *self {
-            return Err(Error::Invalid("noncanonical annotation or record ownership fields"));
+        let records = self.clone().restore_owned()?;
+        if Self::try_from(&records)? != *self {
+            return Err(Error::Invalid("noncanonical annotation fields"));
         }
         Ok(records)
     }
@@ -418,8 +330,13 @@ mod tests {
             detail: Some("detail".into()),
             observed_at: "1999-12-31T23:59:59Z".into(),
         };
-        let captured = Captured { record_id: "00000000-0000-0000-0000-000000000003".into(), scope };
-        Set { health: vec![health], notes: vec![note], subscribed_records: vec![captured], record_subscriptions_closed: true }
+        Set {
+            health: vec![health],
+            notes: vec![note],
+            capture_owner: Some("00000000-0000-0000-0000-000000000003".into()),
+            capture_through: 42,
+            record_subscriptions_closed: true,
+        }
     }
 
     #[test]
@@ -458,7 +375,7 @@ mod tests {
     #[test]
     fn typed_annotations_preserve_duplicate_refusals() {
         let mut source = annotations();
-        source.subscribed_records.push(source.subscribed_records[0].clone());
+        source.capture_owner = None;
         assert!(source.restore().is_err());
 
         let mut source = annotations();

@@ -55,7 +55,7 @@ pub struct CycleReportInput {
     #[serde(default)]
     pub case_documents: Vec<ReportCaseDocument>,
 
-    pub records: crate::storage::ReadRows<RecordEntry>,
+    pub records: crate::execution::evidence_rows::EvidenceRows<RecordEntry>,
     pub telemetry: crate::storage::ReadRows<TelemetrySample>,
     pub traceability: Vec<TraceabilitySnapshot>,
 

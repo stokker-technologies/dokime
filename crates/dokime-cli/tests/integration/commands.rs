@@ -335,18 +335,51 @@ async fn offline_backend_profiles() {
     let command = |arguments: &[&str]| Cli::try_parse_from(std::iter::once("dokime").chain(arguments.iter().copied())).unwrap();
     command(&["backend", "list", "--profiles-file", filename, "--json"]).run(configuration.clone()).await.unwrap();
     assert!(!path.exists());
-    let invalid = command(&["backend", "add", "lab", "--endpoint", "http://remote.example/path", "--profiles-file", filename]);
+    let invalid = command(&[
+        "backend",
+        "add",
+        "--identifier",
+        "lab",
+        "--label",
+        "Lab",
+        "--endpoint",
+        "http://remote.example/path",
+        "--profiles-file",
+        filename,
+    ]);
     assert_eq!(invalid.run(configuration.clone()).await.unwrap_err().exit_code(), std::process::ExitCode::from(2));
     assert!(!path.exists());
-    command(&["backend", "add", "lab", "--endpoint", "http://remote.example:8765", "--profiles-file", filename])
-        .run(configuration.clone())
-        .await
-        .unwrap();
+    command(&[
+        "backend",
+        "add",
+        "--identifier",
+        "lab",
+        "--label",
+        "Lab",
+        "--endpoint",
+        "http://remote.example:8765",
+        "--profiles-file",
+        filename,
+    ])
+    .run(configuration.clone())
+    .await
+    .unwrap();
     let selection = dokime::client::profiles::select(&Store::new(&path).load().unwrap(), Some("lab"), None, None).unwrap();
     assert!(selection.target.is_remote());
     assert_eq!(selection.target.endpoint(), "http://remote.example:8765/");
     let original = std::fs::read(&path).unwrap();
-    let duplicate = command(&["backend", "add", "lab", "--endpoint", "http://127.0.0.1:9000", "--profiles-file", filename]);
+    let duplicate = command(&[
+        "backend",
+        "add",
+        "--identifier",
+        "lab",
+        "--label",
+        "Duplicate",
+        "--endpoint",
+        "http://127.0.0.1:9000",
+        "--profiles-file",
+        filename,
+    ]);
     assert!(matches!(duplicate.run(configuration.clone()).await, Err(Error::Input(_))));
     assert_eq!(std::fs::read(&path).unwrap(), original);
     command(&["backend", "use", "lab", "--profiles-file", filename]).run(configuration.clone()).await.unwrap();
@@ -366,20 +399,21 @@ async fn offline_backend_profiles() {
 
 #[tokio::test]
 async fn secrets_precede_operations() {
-    let application = tempfile::tempdir().unwrap();
-    let configuration = configuration(application.path());
     for option in ["--ca", "--expected-backend"] {
         assert!(Cli::try_parse_from(["dokime", "status", option, "value"]).is_err());
-        assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "https://host:8765", option, "value",]).is_ok());
+        assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "https://host:8765", option, "value",]).is_err());
     }
     assert!(Cli::try_parse_from(["dokime", "status", "--backend", "lab", "--endpoint", "http://127.0.0.1"]).is_err());
     assert!(Cli::try_parse_from(["dokime", "status", "--backend", "lab", "--ca", "missing.pem"]).is_err());
     assert!(Cli::try_parse_from(["dokime", "status", "--backend", "lab", "--expected-backend", "machine"]).is_err());
     assert!(Cli::try_parse_from(["dokime", "status", "--endpoint", "http://127.0.0.1", "--timeout-seconds", "0"]).is_err());
-    let login = Cli::try_parse_from(["dokime", "auth", "login", "--endpoint", "http://127.0.0.1"]).unwrap();
-    assert!(matches!(login.run(configuration.clone()).await, Err(Error::Input(_))));
-    let logout = Cli::try_parse_from(["dokime", "auth", "logout", "--endpoint", "http://127.0.0.1", "--key-file", "missing-key"]).unwrap();
-    assert!(matches!(logout.run(configuration.clone()).await, Err(Error::Input(_))));
+    assert!(Cli::try_parse_from(["dokime", "auth", "login", "--key-file", "missing-key"]).is_err());
+    assert!(Cli::try_parse_from(["dokime", "auth", "logout"]).is_err());
+    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--pairing", "lab.dokime-pair"]).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--pairing", "lab.dokime-pair", "--identifier", "lab"]).is_ok());
+    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--pairing", "lab.dokime-pair", "--endpoint", "http://lab"]).is_err());
+    assert!(Cli::try_parse_from(["dokime", "backend", "add", "--name", "lab", "--endpoint", "http://lab"]).is_err());
+
     let check = Error::Check(Box::new(Error::Client(dokime::client::Error::IncompatibleApi)));
     assert_eq!(check.exit_code(), std::process::ExitCode::from(1));
     let exhausted = dokime::client::Error::Rpc(tonic::Status::resource_exhausted("response budget"));

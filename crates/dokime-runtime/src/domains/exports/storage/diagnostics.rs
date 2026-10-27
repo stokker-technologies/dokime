@@ -26,8 +26,6 @@ use serde::{Deserialize, Serialize};
 const LOGS_DIR: &str = "logs";
 const DIAGNOSTICS_DIR: &str = "diagnostics";
 pub const HUB_LOG_FILENAME: &str = "dokime.jsonl";
-pub const STARTUP_DOCTOR_FILENAME: &str = "startup-doctor.json";
-pub const DIAGNOSTICS_SNAPSHOT_FILENAME: &str = "snapshot.json";
 pub const DIAGNOSTICS_COLLECT_BUNDLE_FILENAME: &str = "dokime-diagnostics.zip";
 
 /* === Macros === */
@@ -50,8 +48,6 @@ pub struct DiagnosticPathConvention {
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticPathKey {
     HubLog,
-    StartupDoctor,
-    DiagnosticsSnapshot,
     CollectBundle,
 }
 
@@ -71,14 +67,10 @@ pub enum DiagnosticFileFormat {
 
 pub fn path_conventions(application_root: &Path) -> Vec<DiagnosticPathConvention> {
     let hub_log = format!("{LOGS_DIR}/{HUB_LOG_FILENAME}");
-    let startup_doctor = format!("{DIAGNOSTICS_DIR}/{STARTUP_DOCTOR_FILENAME}");
-    let diagnostics_snapshot = format!("{DIAGNOSTICS_DIR}/{DIAGNOSTICS_SNAPSHOT_FILENAME}");
     let collect_bundle = format!("{DIAGNOSTICS_DIR}/{DIAGNOSTICS_COLLECT_BUNDLE_FILENAME}");
 
     vec![
         root_path_convention(DiagnosticPathKey::HubLog, DiagnosticFileFormat::Jsonl, application_root, hub_log),
-        root_path_convention(DiagnosticPathKey::StartupDoctor, DiagnosticFileFormat::Json, application_root, startup_doctor),
-        root_path_convention(DiagnosticPathKey::DiagnosticsSnapshot, DiagnosticFileFormat::Json, application_root, diagnostics_snapshot),
         root_path_convention(DiagnosticPathKey::CollectBundle, DiagnosticFileFormat::Zip, application_root, collect_bundle),
     ]
 }

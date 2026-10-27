@@ -250,16 +250,6 @@ impl FixtureUnary for backend::GetAvailability {
 }
 
 #[tonic::async_trait]
-impl FixtureUnary for backend::GetDiagnostics {
-    async fn reply(_: Service) -> Result<model::backend::wire::DiagnosticsResponse, Status> {
-        Ok(model::backend::wire::DiagnosticsResponse {
-            server: Some(model::backend::wire::BackendDiagnostics { version: "fixture".into(), process: None }),
-            runtime: None,
-        })
-    }
-}
-
-#[tonic::async_trait]
 impl FixtureUnary for runtime::GetIdentity {
     async fn reply(service: Service) -> Result<model::runtime::wire::Identity, Status> {
         Ok(model::runtime::wire::Identity {
@@ -413,7 +403,6 @@ impl tonic::codegen::Service<HttpRequest> for BackendService {
                 backend::GetIdentity::PATH => serve_unary::<backend::GetIdentity>(service, request).await,
                 backend::GetHealth::PATH => serve_unary::<backend::GetHealth>(service, request).await,
                 backend::GetAvailability::PATH => serve_unary::<backend::GetAvailability>(service, request).await,
-                backend::GetDiagnostics::PATH => serve_unary::<backend::GetDiagnostics>(service, request).await,
                 backend::WatchLogs::PATH => {
                     wire_codec::<backend::WatchLogs, dokime::harmos::operations::Response<LogEnvelope>>()
                         .server()

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Generate A One-Time Remote Access Key
+// CreatePairing
 
 /* === Modules === */
 
@@ -32,11 +32,14 @@ use super::*;
 /* === Structs === */
 
 #[harmos_domain::message]
-#[harmos_domain::operation(response = GeneratedAccessKey, id = "dokime.remote.generate_key", version = 1,
+#[harmos_domain::operation(response = CreatedPairing, id = "dokime.remote.create_pairing", version = 1,
     policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
-    grpc(package = "dokime.v1", service = "Remote", method = "GenerateKey"))]
+    grpc(package = "dokime.v1", service = "Remote", method = "CreatePairing"))]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GenerateKey {}
+pub struct CreatePairing {
+    pub label: String,
+    pub endpoint: String,
+}
 
 /* === Enums === */
 

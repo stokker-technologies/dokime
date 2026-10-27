@@ -15,7 +15,6 @@
 import asyncio
 import json
 from pathlib import Path
-from urllib.parse import urlsplit
 
 # Third Party Imports
 from dokime_client.client import DokimeClient, Record, Sample
@@ -29,12 +28,8 @@ from dokime_client.client import DokimeClient, Record, Sample
 
 # === Constants === #
 
-ENDPOINT = "https://127.0.0.1:8766"
-KEY_FILE: Path | None = Path("remote.key")
-CA_CERTIFICATE: Path | None = Path("server.pem")
-ENV_FILE: Path | None = None
+PAIRING_FILE = Path("lab.dokime-pair")
 EXECUTION_ID = "00000000-0000-0000-0000-000000000001"
-RPC_TIMEOUT = 30.0
 WAIT_SECONDS: float | None = None
 
 # === Types === #
@@ -45,15 +40,7 @@ WAIT_SECONDS: float | None = None
 
 
 async def run() -> int:
-    if urlsplit(ENDPOINT).scheme != "https":
-        raise ValueError("remote control requires an HTTPS endpoint")
-    async with DokimeClient(
-        ENDPOINT,
-        key_file=KEY_FILE,
-        env_file=ENV_FILE,
-        ca_certificate=CA_CERTIFICATE,
-        rpc_timeout=RPC_TIMEOUT,
-    ) as client:
+    async with DokimeClient.from_pairing(PAIRING_FILE) as client:
         backend = await client.connect()
         print(f"Backend: {backend.id} Epoch: {backend.epoch}", flush=True)
         execution = await client.execution(EXECUTION_ID)

@@ -107,15 +107,15 @@ impl RecordReader {
     // One Page's Rows Owned By The Execution, Or Its Shared Context When Requested.
     fn select(&self, rows: Vec<StoredRecord<RecordRow>>) -> Result<Vec<PositionedRecord>> {
         let execution = self.view.execution();
-        let subscriptions = execution.records.subscribed_records();
-        let subscribed = subscriptions.keys().map(|id| id.as_str()).collect::<std::collections::BTreeSet<_>>();
+
         let mut selected = Vec::with_capacity(rows.len());
         for row in rows {
-            if !owned(&row, execution, self.context) && !subscribed.contains(row.item.as_str()) {
-                continue;
-            }
+            let native = owned(&row, execution, self.context);
             let position = row.position.sequence;
             let mut decoded = decode(row)?;
+            if !native && execution.records.captured_scope(&decoded.record).is_none() {
+                continue;
+            }
             apply_execution_scope(
                 &mut decoded.record,
                 &execution.records,
@@ -172,14 +172,14 @@ fn decode(row: StoredRecord<RecordRow>) -> Result<ContextRecord> {
 fn apply_execution_scope(
     record: &mut RecordEntry, captures: &TestRecordSet, cycle: &TestCycleId, case: &CaseId, execution: &TestExecutionId,
 ) -> Result<()> {
-    if let Some(scope) = captures.subscribed_records().get(&record.record_id) {
+    if let Some(scope) = captures.captured_scope(record).cloned() {
         if scope.test_execution_id.as_ref() != Some(execution)
             || scope.test_cycle_id.as_ref().is_some_and(|id| id != cycle)
             || scope.test_case_id.as_ref().is_some_and(|id| id != case)
         {
             return Err(invalid("frozen record subscription belongs to another execution"));
         }
-        record.scope = Some(scope.clone());
+        record.scope = Some(scope);
     }
     let Some(scope) = record.scope.as_ref() else {
         return Ok(());

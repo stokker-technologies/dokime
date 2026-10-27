@@ -27,6 +27,7 @@ import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
 import type { DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
+import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */
 
@@ -128,11 +129,11 @@ beforeEach(() => {
 
 test("Profile Selection Uses The Shared Native Registry Before Negotiating Identity", async () => {
   const owner = new NativeSession();
-  await owner.select({ kind: "profile", name: "lab" });
+  await owner.select({ kind: "profile", identifier: "lab" });
   assert.deepEqual(
     fixture.invoke.mock.calls.map(([command, args]) => [command, args]),
     [
-      ["desktop_backend_use", { name: "lab" }],
+      ["desktop_backend_use", { identifier: "lab" }],
       ["desktop_session_status", undefined],
     ],
   );
@@ -149,17 +150,17 @@ test("Failed Selection Stays Failed Until An Explicit New Selection", async () =
   const failure = { kind: "identity_changed" };
   fixture.invoke.mockRejectedValueOnce(failure);
   const owner = new NativeSession();
-  await owner.select({ kind: "profile", name: "stale" });
+  await owner.select({ kind: "profile", identifier: "stale" });
   assert.deepEqual(owner.snapshot(), { phase: "failed", error: failure });
   assert.equal(fixture.invoke.mock.calls.length, 1);
   assert.equal(fixture.identity.mock.calls.length, 0);
-  await owner.select({ kind: "profile", name: "lab" });
+  await owner.select({ kind: "profile", identifier: "lab" });
   assert.equal(owner.snapshot().phase, "connected");
 });
 
 test("Deleting The Active Backend Invalidates Its Generation And Owned Resources", async () => {
   const owner = new NativeSession();
-  await owner.select({ kind: "profile", name: "lab" });
+  await owner.select({ kind: "profile", identifier: "lab" });
   const state = owner.snapshot();
   if (state.phase !== "connected") throw new Error("Expected Connected Session");
   const dispose = vi.fn();
@@ -176,7 +177,8 @@ test("Deleting The Active Backend Invalidates Its Generation And Owned Resources
 
 test("Registry Commands Preserve Profile Fields Without Bearer Material", async () => {
   const profile = {
-    name: "lab",
+    identifier: "lab",
+    label: "Lab",
     endpoint: "https://lab.local",
     expected_backend_id: "fixture",
     ca_certificate_pem: "fixture-ca",
@@ -188,6 +190,26 @@ test("Registry Commands Preserve Profile Fields Without Bearer Material", async 
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_add", { profile }]);
   assert.deepEqual(await preferencesCommands.desktopBackendsList(), document);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backends_list", undefined]);
+});
+
+test("Pairing Commands Pass Only Identifiers And Saved Paths Across IPC", async () => {
+  const document = { version: 1, default: null, profiles: [] };
+  fixture.invoke.mockResolvedValueOnce(document);
+  assert.deepEqual(await preferencesCommands.desktopBackendImportPairing("lab"), document);
+  assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: "lab" }]);
+
+  fixture.invoke.mockResolvedValueOnce(null);
+  assert.equal(await preferencesCommands.desktopBackendImportPairing(null), null);
+  assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
+
+  fixture.invoke.mockResolvedValueOnce("/private/Lab.dokime-pair");
+  assert.equal(await commands.desktopPairingCreate("Lab", "https://lab.local:8765"), "/private/Lab.dokime-pair");
+  assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), [
+    "desktop_pairing_create",
+    { label: "Lab", endpoint: "https://lab.local:8765" },
+  ]);
+  fixture.invoke.mockResolvedValueOnce(null);
+  assert.equal(await commands.desktopPairingCreate("Lab", "https://lab.local:8765"), null);
 });
 
 test("Startup Attempts The Saved Default Once And Exposes Failure Without Fallback", async () => {
@@ -206,7 +228,7 @@ test("Startup Attempts The Saved Default Once And Exposes Failure Without Fallba
     [
       ["desktop_session_launch", undefined],
       ["desktop_backends_list", undefined],
-      ["desktop_backend_use", { name: "stale" }],
+      ["desktop_backend_use", { identifier: "stale" }],
     ],
   );
   assert.equal(fixture.identity.mock.calls.length, 0);
@@ -229,21 +251,23 @@ test("Startup Without A Saved Default Leaves Selection To The Operator", async (
   cleanup();
 });
 
-test("Backend Validation Rejects Invalid Origins And Duplicate Names", () => {
-  assert.deepEqual(backendValidation(" lab ", " https://lab.local:8765 ", "", []), {});
-  assert.deepEqual(Object.keys(backendValidation(" ", "not an origin", "", [])), ["name", "endpoint"]);
-  assert.deepEqual(Object.keys(backendValidation("lab", "http://lab.local", "", ["lab"])), ["name"]);
-  for (const endpoint of [
-    "ftp://lab.local",
-    "https://user:secret@lab.local",
-    "https://lab.local/path",
-    "https://lab.local/?key=secret",
-    "https://lab.local/#key",
-  ]) {
-    assert.deepEqual(Object.keys(backendValidation("lab", endpoint, "", [])), ["endpoint"]);
+test("Manual Backend Entry Accepts Only Unsecured Lab Origins And Distinct Identifiers", () => {
+  assert.deepEqual(backendValidation(" lab ", " http://lab.local:8765 ", []), {});
+  assert.deepEqual(Object.keys(backendValidation(" ", "not an origin", [])), ["identifier", "endpoint"]);
+  assert.deepEqual(Object.keys(backendValidation("lab", "http://lab.local", ["lab"])), ["identifier"]);
+  for (const identifier of [".", "..", "bad/id", "x".repeat(129)]) {
+    assert.deepEqual(Object.keys(backendValidation(identifier, "http://lab.local", [])), ["identifier"]);
   }
-  assert.deepEqual(Object.keys(backendValidation("lab", "http://lab.local", "certificate", [])), ["endpoint"]);
-  assert.deepEqual(backendValidation("lab", "https://lab.local", "certificate", []), {});
+  for (const endpoint of [
+    "https://lab.local",
+    "ftp://lab.local",
+    "http://user:secret@lab.local",
+    "http://lab.local/path",
+    "http://lab.local/?key=secret",
+    "http://lab.local/#key",
+  ]) {
+    assert.deepEqual(Object.keys(backendValidation("lab", endpoint, [])), ["endpoint"]);
+  }
 });
 
 type TestElementProps = {

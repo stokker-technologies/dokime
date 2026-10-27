@@ -68,39 +68,43 @@ impl Operation for Capture {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut contract::CaptureCurrentDocument, output: &mut Self::Endpoints,
+        &mut self, call_context: Self::Context<'a>, request: &mut contract::CaptureCurrentDocument, output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let (cycle, execution) = owner(request.scope.take())?;
-        let id = DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
-        // A scope without an execution names the cycle's own document.
-        let runtime = &self.resources.runtime;
-        let prepared = match &execution {
-            Some(execution) => runtime.prepare_current_document(&cycle, execution, &id),
-            None => runtime.prepare_current_cycle_document(&cycle, &id),
-        }
-        .map_err(super::execution::status)?;
-        let cancel = CancellationToken::new();
-        let _cancel_on_drop = cancel.clone().drop_guard();
-        let handle = tokio::runtime::Handle::current();
-        let maximum = self.resources.maximum;
-        let frames = tokio::task::spawn_blocking(move || {
-            let captured = handle.block_on(async {
-                tokio::select! { biased;
-                    _ = cancel.cancelled() => Err(Status::cancelled("document request cancelled")),
-                    result = prepared.capture() => result.map_err(super::execution::status),
-                }
-            })?;
-            if cancel.is_cancelled() {
-                return Err(Status::cancelled("document request cancelled"));
+        let revoked = crate::grpc::access::revocation(&call_context);
+        crate::grpc::access::during(revoked, async {
+            let (cycle, execution) = owner(request.scope.take())?;
+            let id = DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
+            // A scope without an execution names the cycle's own document.
+            let runtime = &self.resources.runtime;
+            let prepared = match &execution {
+                Some(execution) => runtime.prepare_current_document(&cycle, execution, &id),
+                None => runtime.prepare_current_cycle_document(&cycle, &id),
             }
-            wire::frames(captured, maximum)
+            .map_err(super::execution::status)?;
+            let cancel = CancellationToken::new();
+            let _cancel_on_drop = cancel.clone().drop_guard();
+            let handle = tokio::runtime::Handle::current();
+            let maximum = self.resources.maximum;
+            let frames = tokio::task::spawn_blocking(move || {
+                let captured = handle.block_on(async {
+                    tokio::select! { biased;
+                        _ = cancel.cancelled() => Err(Status::cancelled("document request cancelled")),
+                        result = prepared.capture() => result.map_err(super::execution::status),
+                    }
+                })?;
+                if cancel.is_cancelled() {
+                    return Err(Status::cancelled("document request cancelled"));
+                }
+                wire::frames(captured, maximum)
+            })
+            .await
+            .map_err(|_| Status::internal("document worker failed"))??;
+            for frame in frames {
+                output.send_owned(frame.into()).await.map_err(failure)?;
+            }
+            Ok(().into())
         })
         .await
-        .map_err(|_| Status::internal("document worker failed"))??;
-        for frame in frames {
-            output.send_owned(frame.into()).await.map_err(failure)?;
-        }
-        Ok(().into())
     }
 }
 

@@ -32,10 +32,7 @@ from dokime_client.client import DokimeClient, DokimeError
 # === Constants === #
 
 # Connection Parameters
-ENDPOINT = "https://127.0.0.1:8766"
-CA_CERTIFICATE: Path | None = Path("server.pem")
-KEY_FILE: Path | None = Path("remote.key")
-ENV_FILE: Path | None = None
+PAIRING_FILE = Path("../lab.dokime-pair")
 
 # === Types === #
 
@@ -45,7 +42,7 @@ ENV_FILE: Path | None = None
 
 
 async def run() -> int:
-    async with DokimeClient(ENDPOINT, ca_certificate=CA_CERTIFICATE, key_file=KEY_FILE, env_file=ENV_FILE) as client:
+    async with DokimeClient.from_pairing(PAIRING_FILE) as client:
         # Discover Device Operations
         operations = await client.operations()
         print("Operations:", operations, flush=True)

@@ -8,7 +8,7 @@
  */
 
 /* The desktop IPC surface: native desktop operations, backend connections,
-   startup status, account login, and updates. Every command declared in
+   startup status and public updates. Every command declared in
    `src-tauri/src/bindings/mod.rs` appears here once, under the same name and
    with the same arguments in the same order. */
 
@@ -48,6 +48,7 @@ export function invoke<T>(command: string, args?: Record<string, unknown>): Prom
 /* === Public Constants === */
 
 export const commands = {
+  desktopPairingCreate: (label: string, endpoint: string) => invoke<string | null>("desktop_pairing_create", { label, endpoint }),
   /** Secret-free native launch preferences. */
   desktopSessionLaunch: () => invoke<DesktopLaunch>("desktop_session_launch"),
   /** Select the native desktop backend. */
@@ -97,8 +98,6 @@ export const commands = {
   desktopParametersWrite: (values: ParameterOverrides) => invoke<null>("desktop_parameters_write", { values }),
   desktopUpdatesStatus: () => invoke<UpdateStatus>("desktop_updates_status"),
   desktopUpdatesConfigure: (selection: UpdateSelection) => invoke<UpdateStatus>("desktop_updates_configure", { selection }),
-  desktopUpdatesSignIn: () => invoke<UpdateStatus>("desktop_updates_sign_in"),
-  desktopUpdatesSignOut: () => invoke<UpdateStatus>("desktop_updates_sign_out"),
   desktopUpdatesCheck: () => invoke<UpdateCheck>("desktop_updates_check"),
   desktopUpdatesInstall: (candidate: string) => invoke<{ version: string }>("desktop_updates_install", { candidate }),
   desktopPluginReleaseCheck: (generation: string) => invoke<PluginRelease>("desktop_plugin_release_check", { generation }),
