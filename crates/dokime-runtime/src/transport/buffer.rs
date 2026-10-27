@@ -413,7 +413,7 @@ impl ExecutionState {
         }
         let admitted = (|| -> Result<bool, String> {
             if let Some(recent) = self.recent_records.iter().find(|recent| recent.ordinal == ordinal) {
-                let previous = recent.row.iter().next().ok_or("captured record receipt is empty")?;
+                let previous = recent.row.iter().read_next().transpose()?.ok_or("captured record receipt is empty")?;
                 return if previous == record {
                     Ok(false)
                 } else {
