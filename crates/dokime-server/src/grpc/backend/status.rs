@@ -47,6 +47,7 @@ struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
     identity: Response<dokime::domain::model::backend::wire::BackendIdentity>,
+    logs: Arc<crate::grpc::logs::Tail>,
 }
 
 struct Identity {
@@ -114,7 +115,10 @@ impl Operation for Health {
                 dokime::domain::model::runtime::wire::Readiness::Degraded => dokime::domain::model::backend::wire::Readiness::Degraded,
                 dokime::domain::model::runtime::wire::Readiness::Stopping => dokime::domain::model::backend::wire::Readiness::Stopping,
             },
-            observed_at: Some(Timestamp { seconds: health.observed_at_seconds, nanos: health.observed_at_nanoseconds as i32 }),
+            observed_at: Some(Timestamp {
+                seconds: health.observed_at_seconds,
+                nanos: health.observed_at_nanoseconds as i32,
+            }),
             message: health.message.clone(),
         })
     }
@@ -220,15 +224,11 @@ impl Operation for Logs {
                 dokime::domain::model::backend::wire::LogLevel::Unspecified => dokime::domain::model::backend::wire::LogLevel::Trace,
                 level => level,
             };
-            crate::grpc::logs::Watch {
-                poll_interval: self.resources.runtime.storage().settings().filesystem.poll_interval,
-                path: super::hub_log_path(&self.resources.runtime.application_root()),
+            let watch = crate::grpc::logs::Watch {
                 min_level,
                 replay_lines: request.replay_lines,
-                message_limit: self.resources.maximum,
-            }
-            .run(output)
-            .await?;
+            };
+            self.resources.logs.watch(watch, output).await?;
             Ok(().into())
         })
         .await
@@ -287,7 +287,14 @@ pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -
         }
     })
     .map_err(crate::grpc::Error::OperationService)?;
-    let resources = Arc::new(Resources { runtime: runtime.clone(), maximum, identity });
+    let poll_interval = runtime.storage().settings().filesystem.poll_interval;
+    let logs = crate::grpc::logs::Tail::new(super::hub_log_path(&runtime.application_root()), poll_interval, maximum);
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        maximum,
+        identity,
+        logs,
+    });
     runtime.operations().register_wire_operation::<Identity>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Health>("dokime", dokime::app::Lanes::Open, resources.clone())?;
     runtime.operations().register_wire_operation::<Availability>("dokime", dokime::app::Lanes::Open, resources.clone())?;
