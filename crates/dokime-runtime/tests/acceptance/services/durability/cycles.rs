@@ -85,7 +85,7 @@ async fn kill_recovers_cycle() {
     runtime_owner.shutdown().await.unwrap();
 
     let (mut runtime_owner, runtime) = booted(root.path()).await;
-    let cycle = dokime_runtime::storage::objects::cycle::read(&runtime.storage(), &id, harmos::storage::ObjectVersion::Latest)
+    let cycle = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &id, harmos::storage::ObjectVersion::Latest)
         .await
         .unwrap()
         .expect("saved cycle survives another boot");

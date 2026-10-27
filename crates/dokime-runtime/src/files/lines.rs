@@ -367,8 +367,7 @@ mod tests {
                 LineField { name: "state".into(), kind: LineFieldKind::Text },
             ],
         };
-        let mut settings = harmos::config::SchemaSettings::default();
-        settings.preparation_bytes = NonZeroUsize::new(1).unwrap();
+        let settings = harmos::config::SchemaSettings { preparation_bytes: NonZeroUsize::new(1).unwrap(), ..Default::default() };
         let result = LineMatchers::compile(&[matcher], &[], 1, 1024, 65536, &settings);
         assert_eq!(result.unwrap_err(), InvalidLineMatcher::Schema { index: 0 });
     }

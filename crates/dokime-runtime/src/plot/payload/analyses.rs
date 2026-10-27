@@ -663,13 +663,15 @@ mod interval_tests {
     }
     #[test]
     fn interval_rejects_transformed_z() {
-        let mut request = PlotPayloadRequest::default();
-        request.plot_type = Some(PlotType::XyInterval);
-        request.z_expression = Some(crate::expressions::DataExpression {
-            label: None,
-            source: crate::expressions::DataSource::Dimension { name: "dimension".into() },
-            transforms: vec![crate::expressions::DataTransform::PerCase],
-        });
+        let request = PlotPayloadRequest {
+            plot_type: Some(PlotType::XyInterval),
+            z_expression: Some(crate::expressions::DataExpression {
+                label: None,
+                source: crate::expressions::DataSource::Dimension { name: "dimension".into() },
+                transforms: vec![crate::expressions::DataTransform::PerCase],
+            }),
+            ..Default::default()
+        };
         let mut series = [input()];
         assert!(matches!(analyze(&mut series, &request), Some(PlotAnalysis::Error { .. })));
     }
