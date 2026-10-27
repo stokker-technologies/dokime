@@ -541,19 +541,30 @@ impl RuntimeHandle {
                 }
                 let request = (|| -> crate::runtime::Result<_> {
                     let mut encoded = super::streams::admission::slots(count)?;
-                    for (row, frame) in samples.iter().zip(frames.iter_mut()).filter(|(row, _)| delivered(row)) {
+                    for (index, frame) in frames.iter_mut().enumerate().filter(|(index, _)| delivered(&&samples[*index])) {
+                        let row = &samples[index];
+                        // The Holder Reads The Ordinal Its Own Captured Copy Was Saved Under, As Its Replay Does.
+                        let Some(sequence) = holder_ordinal(samples, index, holder) else {
+                            return Err(crate::runtime::Error::Operation("a leased row has no captured copy for its leaseholder".into()));
+                        };
                         let frame = lease_frame(frame, &LeaseSample(&row.sample))?;
                         let source = row.sample.scope.as_ref();
                         let scope = source
                             .filter(|scope| scope.test_execution_id.is_some() && scope.test_execution_id == holder.scope.test_execution_id)
                             .unwrap_or(&holder.scope);
                         let scope = lease_json(scope)?;
+                        let sequence = sequence.to_string();
                         let mut copy = String::new();
                         copy.try_reserve_exact(
-                            frame.len().checked_add(scope.len()).and_then(|size| size.checked_add(10)).ok_or_else(lease_memory_error)?,
+                            [frame.len(), scope.len(), sequence.len(), 22]
+                                .into_iter()
+                                .try_fold(0_usize, usize::checked_add)
+                                .ok_or_else(lease_memory_error)?,
                         )
                         .map_err(|_| lease_memory_error())?;
                         copy.push_str(&frame[..frame.len() - 1]);
+                        copy.push_str(",\"sequence\":");
+                        copy.push_str(&sequence);
                         copy.push_str(",\"scope\":");
                         copy.push_str(&scope);
                         copy.push('}');
@@ -760,6 +771,16 @@ fn lease_delivers(
         && super::streams::lease_accepts_sample(sample.scope.as_ref(), &holder.scope)
 }
 
+// The Ordinal Of The Row Saved For This Holder: The Original Row Or One Of Its Contiguous Lease Copies.
+fn holder_ordinal(samples: &[super::streams::PreparedSample], index: usize, holder: &Holder) -> Option<u64> {
+    let original = &samples.get(index)?.sample;
+    let execution = holder.scope.test_execution_id.as_ref()?;
+    let saved_for_holder =
+        |row: &&super::streams::PreparedSample| row.scope().and_then(|scope| scope.test_execution_id.as_ref()) == Some(execution);
+    let mut copies = samples[index..].iter().take_while(|row| std::sync::Arc::ptr_eq(&row.sample, original));
+    copies.find(saved_for_holder).map(|row| row.ordinal)
+}
+
 #[derive(Default)]
 struct LeaseJson(Vec<u8>);
 impl std::io::Write for LeaseJson {
@@ -778,11 +799,11 @@ impl serde::Serialize for LeaseSample<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         use serde::ser::SerializeMap;
         let sample = self.0;
-        let mut map = serializer.serialize_map(Some(10))?;
+        // The Sequence Is Each Holder's Own Stream Ordinal, Appended Per Holder Like Its Scope.
+        let mut map = serializer.serialize_map(Some(9))?;
         map.serialize_entry("sample_id", &sample.sample_id)?;
         map.serialize_entry("stream", &sample.stream)?;
         map.serialize_entry("schema_version", &sample.schema_version)?;
-        map.serialize_entry("sequence", &sample.sequence)?;
         map.serialize_entry("timestamp", &sample.timestamp)?;
         map.serialize_entry("received_at", &sample.received_at)?;
         map.serialize_entry("source", &sample.source)?;
