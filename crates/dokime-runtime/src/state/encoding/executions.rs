@@ -35,7 +35,7 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Type Aliases === */
 
-type Executions = BTreeMap<TestExecutionId, TestExecution>;
+type Executions = crate::state::shared::Map<TestExecutionId, TestExecution>;
 type DocumentRefs = BTreeMap<DocumentId, u32>;
 
 /* === Structs === */
@@ -151,7 +151,13 @@ impl DecodedShared {
     }
 
     fn restore(&self, member: DecodedMember) -> Result<TestExecution, String> {
-        let DecodedMember { mut execution, template, parameter_definitions, planned_documents, documents } = member;
+        let DecodedMember {
+            mut execution,
+            template,
+            parameter_definitions,
+            planned_documents,
+            documents,
+        } = member;
         let lean = &execution.snapshot;
         let template = template.map(|index| resolve(&self.templates, index, "template")).transpose()?;
         let definitions = resolve(&self.parameter_definitions, parameter_definitions, "parameter set")?;
@@ -174,7 +180,11 @@ impl DecodedShared {
 
 pub(super) fn serialize<S: Serializer>(executions: &Executions, serializer: S) -> Result<S::Ok, S::Error> {
     let shared = Shared::collect(executions);
-    Encoded { shared: &shared, members: Members { executions, shared: &shared } }.serialize(serializer)
+    Encoded {
+        shared: &shared,
+        members: Members { executions, shared: &shared },
+    }
+    .serialize(serializer)
 }
 
 pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Executions, D::Error> {

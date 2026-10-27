@@ -103,6 +103,7 @@ impl RuntimeHandle {
         if self.state_watch.borrow().revision() >= revision {
             return Ok(self.state_read());
         }
+        // Clone Shared Roots At One Committed Revision; Readers Retain Immutable Entries.
         let state =
             self.state_manager.state().read(Clone::clone).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
         let frontier = state.position.0;
@@ -364,7 +365,10 @@ impl RuntimeHandle {
 /* === Private Functions === */
 
 fn evidence_memory() -> crate::runtime::Error {
-    harmos::Error::ResourceExhausted { resource: "evidence snapshot construction" }.into()
+    harmos::Error::ResourceExhausted {
+        resource: "evidence snapshot construction",
+    }
+    .into()
 }
 
 fn evidence_clone_rows<'a, T: Clone + 'a>(count: usize, rows: impl Iterator<Item = &'a T>) -> crate::runtime::Result<Vec<T>> {

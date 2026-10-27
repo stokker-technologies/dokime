@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
 
 // Third Party Imports
 use harmos::state::Transaction;
@@ -22,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::state::RuntimeState;
+use crate::state::shared::Map;
 use crate::transactions::prompts::{PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts};
 use crate::transactions::provider::request::RunPhase;
 use crate::transactions::records::draft::Drafts;
@@ -505,7 +505,7 @@ pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Di
 
 /// The truthful outcome a closing cycle settles on: its members' aggregate once any ran, Stopped otherwise.
 pub(crate) fn closed_lifecycle(
-    cycle: &dokime_domain::model::execution::result::TestCycle, executions: &BTreeMap<TestExecutionId, TestExecution>,
+    cycle: &dokime_domain::model::execution::result::TestCycle, executions: &Map<TestExecutionId, TestExecution>,
 ) -> CycleStatus {
     closed_outcome(closed_members_ran(cycle, executions), cycle.result.as_ref())
 }
@@ -513,7 +513,7 @@ pub(crate) fn closed_lifecycle(
 /* === Private Functions === */
 
 fn closed_members_ran(
-    cycle: &dokime_domain::model::execution::result::TestCycle, executions: &BTreeMap<TestExecutionId, TestExecution>,
+    cycle: &dokime_domain::model::execution::result::TestCycle, executions: &Map<TestExecutionId, TestExecution>,
 ) -> bool {
     cycle.execution_ids.iter().any(|id| executions.get(id).is_some_and(|execution| execution.started_at.is_some()))
 }
@@ -613,7 +613,9 @@ mod tests {
             },
             sequence: 17,
         };
-        let request = RequestCycleReportFinalization { intent: CycleReportFinalization { source, evidence_at: cursor.clone() } };
+        let request = RequestCycleReportFinalization {
+            intent: CycleReportFinalization { source, evidence_at: cursor.clone() },
+        };
         request.check(&state).unwrap();
         request.apply(&mut state);
         let bytes = serde_json::to_vec(&state).unwrap();

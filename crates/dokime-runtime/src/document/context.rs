@@ -23,6 +23,7 @@ use serde::{Serialize, Serializer};
 // Local Imports
 use crate::definition::MaterializedParameter;
 use crate::expressions::DataSource;
+use crate::state::shared::Map;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
@@ -55,7 +56,7 @@ pub(super) struct Entry<'a> {
 #[derive(Clone, Copy)]
 enum Executions<'a> {
     Slice(&'a [TestExecution]),
-    Ordered { ids: &'a [TestExecutionId], values: &'a BTreeMap<TestExecutionId, TestExecution> },
+    Ordered { ids: &'a [TestExecutionId], values: &'a Map<TestExecutionId, TestExecution> },
 }
 
 /* === Traits === */
@@ -64,11 +65,14 @@ enum Executions<'a> {
 
 impl<'a> Context<'a> {
     pub(crate) fn new(executions: &'a [TestExecution], selection: &'a RecordScope) -> Self {
-        Self { executions: Executions::Slice(executions), selection: Some(selection) }
+        Self {
+            executions: Executions::Slice(executions),
+            selection: Some(selection),
+        }
     }
 
     pub(crate) fn ordered(
-        ids: &'a [TestExecutionId], values: &'a BTreeMap<TestExecutionId, TestExecution>, selection: &'a RecordScope,
+        ids: &'a [TestExecutionId], values: &'a Map<TestExecutionId, TestExecution>, selection: &'a RecordScope,
     ) -> Option<Self> {
         let mut seen = BTreeSet::new();
         if ids.iter().any(|id| {
@@ -83,7 +87,10 @@ impl<'a> Context<'a> {
         }) {
             return None;
         }
-        Some(Self { executions: Executions::Ordered { ids, values }, selection: Some(selection) })
+        Some(Self {
+            executions: Executions::Ordered { ids, values },
+            selection: Some(selection),
+        })
     }
 
     pub(super) fn entries(self) -> impl DoubleEndedIterator<Item = Entry<'a>> {

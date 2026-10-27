@@ -93,7 +93,7 @@ pub(crate) fn runtime_overview_snapshot(
         cycle_summaries,
         cycles,
         evidence_counts,
-        installed_plugin_errors: state.installed_plugin_errors.clone(),
+        installed_plugin_errors: state.installed_plugin_errors.to_vec(),
         retention: retention_diagnostics(state, telemetry_cursor_entries),
     }
 }

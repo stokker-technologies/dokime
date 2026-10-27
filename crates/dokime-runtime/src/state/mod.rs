@@ -14,6 +14,7 @@ mod foreign_streams;
 pub(crate) mod notes;
 mod ownership;
 mod record_history;
+pub mod shared;
 
 /* === Re-Exports === */
 
@@ -52,6 +53,7 @@ use dokime_domain::state::records::EvidenceRecords;
 use dokime_domain::state::records::resources::ResourceRegistry;
 use dokime_domain::state::records::set::TestRecordSet;
 use foreign_streams::{admit_foreign_view, declares_foreign_view};
+use shared::{Map, Shared};
 
 /* === Constants === */
 
@@ -77,43 +79,43 @@ pub struct RuntimeState {
     pub session_id: SessionId,
     pub(crate) record_namespace: SessionId,
     pub identity: DokimeIdentity,
-    pub run_parameters: BTreeMap<String, MaterializedParameter>,
+    pub run_parameters: Shared<BTreeMap<String, MaterializedParameter>>,
     pub shutting_down: bool,
-    pub installed_plugins: BTreeMap<String, InstalledPlugin>,
-    pub plugin_owners: BTreeMap<String, PluginOwner>,
-    pub suites: SuiteRegistry,
-    pub record_definitions: BTreeMap<dokime_domain::model::identity::Identifier, RecordContract>,
-    record_history: record_history::RecordHistory,
-    pub telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
-    pub cycles: BTreeMap<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
-    pub executions: BTreeMap<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
+    pub installed_plugins: Shared<BTreeMap<String, InstalledPlugin>>,
+    pub plugin_owners: Shared<BTreeMap<String, PluginOwner>>,
+    pub suites: Shared<SuiteRegistry>,
+    pub record_definitions: Shared<BTreeMap<dokime_domain::model::identity::Identifier, RecordContract>>,
+    record_history: Shared<record_history::RecordHistory>,
+    pub telemetry_definitions: Shared<BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>>,
+    pub cycles: Map<TestCycleId, dokime_domain::model::execution::result::TestCycle>,
+    pub executions: Map<dokime_domain::model::identity::TestExecutionId, dokime_domain::model::execution::result::TestExecution>,
     // Live Projections Can Retire; Attempt Identities Must Never Be Reused.
-    pub retired_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
-    pub cycle_report_finalizations: BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
-    pub report_finalizations: BTreeMap<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
-    pub run_requests: BTreeMap<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
-    pub run_queue: std::collections::VecDeque<dokime_domain::model::identity::CommandId>,
-    pub note_admissions: BTreeMap<dokime_domain::model::identity::NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
-    pub records: EvidenceRecords,
-    pub resources: ResourceRegistry,
-    pub installed_plugin_errors: Vec<InstalledPluginErrorRecord>,
-    pub prompt_definitions: BTreeMap<String, PromptDefinition>,
+    pub retired_executions: Shared<std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>>,
+    pub cycle_report_finalizations: Map<TestCycleId, crate::transactions::CycleReportFinalization>,
+    pub report_finalizations: Map<dokime_domain::model::identity::TestExecutionId, crate::transactions::ReportFinalization>,
+    pub run_requests: Map<dokime_domain::model::identity::CommandId, crate::transactions::provider::request::RunRequest>,
+    pub run_queue: Shared<std::collections::VecDeque<dokime_domain::model::identity::CommandId>>,
+    pub note_admissions: Map<dokime_domain::model::identity::NoteId, dokime_domain::model::execution::notes::NoteAdmission>,
+    pub records: Shared<EvidenceRecords>,
+    pub resources: Shared<ResourceRegistry>,
+    pub installed_plugin_errors: Shared<Vec<InstalledPluginErrorRecord>>,
+    pub prompt_definitions: Shared<BTreeMap<String, PromptDefinition>>,
     pub record_count: u64,
-    pub prompt_requests: BTreeMap<PromptId, PromptInstance>,
-    pub prompt_responses: BTreeMap<PromptId, PromptResponse>,
-    pub closed_prompts: BTreeMap<PromptId, Timestamp>,
-    pub archived_cycles: std::collections::BTreeSet<TestCycleId>,
-    pub archived_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
+    pub prompt_requests: Map<PromptId, PromptInstance>,
+    pub prompt_responses: Map<PromptId, PromptResponse>,
+    pub closed_prompts: Map<PromptId, Timestamp>,
+    pub archived_cycles: Shared<std::collections::BTreeSet<TestCycleId>>,
+    pub archived_executions: Shared<std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>>,
 }
 
 // The Fields A Plugin Catalog Change Rewrites, Restored Together When The Change Is Refused.
 struct CatalogSnapshot {
-    installed_plugins: BTreeMap<String, InstalledPlugin>,
-    suites: SuiteRegistry,
-    prompt_definitions: BTreeMap<String, PromptDefinition>,
-    record_definitions: BTreeMap<dokime_domain::model::identity::Identifier, RecordContract>,
-    record_history: record_history::RecordHistory,
-    telemetry_definitions: BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>,
+    installed_plugins: Shared<BTreeMap<String, InstalledPlugin>>,
+    suites: Shared<SuiteRegistry>,
+    prompt_definitions: Shared<BTreeMap<String, PromptDefinition>>,
+    record_definitions: Shared<BTreeMap<dokime_domain::model::identity::Identifier, RecordContract>>,
+    record_history: Shared<record_history::RecordHistory>,
+    telemetry_definitions: Shared<BTreeMap<dokime_domain::model::identity::Identifier, TelemetryContract>>,
 }
 
 /* === Enums === */
@@ -360,32 +362,32 @@ impl RuntimeState {
             record_namespace: session_id.clone(),
             session_id,
             identity: DokimeIdentity::node_only(unestablished_node_identity()),
-            run_parameters: BTreeMap::new(),
+            run_parameters: Shared::default(),
             shutting_down: false,
-            installed_plugins: BTreeMap::new(),
-            plugin_owners: BTreeMap::new(),
-            suites: SuiteRegistry::default(),
-            record_definitions: BTreeMap::new(),
+            installed_plugins: Shared::default(),
+            plugin_owners: Shared::default(),
+            suites: Shared::default(),
+            record_definitions: Shared::default(),
             record_history: Default::default(),
-            telemetry_definitions: BTreeMap::new(),
-            cycles: BTreeMap::new(),
-            executions: BTreeMap::new(),
-            retired_executions: std::collections::BTreeSet::new(),
-            run_requests: BTreeMap::new(),
-            run_queue: std::collections::VecDeque::new(),
-            cycle_report_finalizations: BTreeMap::new(),
-            report_finalizations: BTreeMap::new(),
-            note_admissions: BTreeMap::new(),
-            records: EvidenceRecords::default(),
-            resources: ResourceRegistry::default(),
-            installed_plugin_errors: Vec::new(),
-            prompt_definitions: BTreeMap::new(),
+            telemetry_definitions: Shared::default(),
+            cycles: Map::default(),
+            executions: Map::default(),
+            retired_executions: Shared::default(),
+            run_requests: Map::default(),
+            run_queue: Shared::default(),
+            cycle_report_finalizations: Map::default(),
+            report_finalizations: Map::default(),
+            note_admissions: Map::default(),
+            records: Shared::default(),
+            resources: Shared::default(),
+            installed_plugin_errors: Shared::default(),
+            prompt_definitions: Shared::default(),
             record_count: 0,
-            prompt_requests: BTreeMap::new(),
-            prompt_responses: BTreeMap::new(),
-            closed_prompts: BTreeMap::new(),
-            archived_cycles: std::collections::BTreeSet::new(),
-            archived_executions: std::collections::BTreeSet::new(),
+            prompt_requests: Map::default(),
+            prompt_responses: Map::default(),
+            closed_prompts: Map::default(),
+            archived_cycles: Shared::default(),
+            archived_executions: Shared::default(),
         }
     }
 
