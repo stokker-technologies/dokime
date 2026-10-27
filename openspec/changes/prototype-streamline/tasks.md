@@ -295,3 +295,4 @@ Ordered after the Harmos v0.1.7 repin and the contract migration; nothing here g
 
 - [ ] 9.4.1 Backends table: no horizontal overflow at the connection screen's width — column widths derive from the container (label/endpoint flexible, last-connected and actions fixed), the DataTable's minimum width equals the card's content width, headers never truncate at the default window size; same rule for every DataTable instance.
 - [x] 9.4.2 Default local backend: already present as the desktop-owned "Start Local Backend" action (owner confirmed); no table row needed.
+- [ ] 9.4.3 Logo: the connection-screen logo renders at one eighth of the viewport height (`h-[12.5vh]`, aspect preserved, capped on very tall windows), harmonized with the sidebar's logo size/spacing scale; the organization theme's custom-theme hook may style `.logo`, so the logo element carries the `logo` class and the theme CSS, not the component, owns color/filters.
