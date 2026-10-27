@@ -36,6 +36,8 @@ const RETAINED_FRAMES: usize = 1024;
 // Lease Gaps Retained Per Stream: The Earliest Ones Plus The Latest In The Final Slot.
 const RETAINED_STREAM_GAPS: usize = 64;
 
+const RECENT_STREAM_SAMPLES: usize = 64;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -76,6 +78,7 @@ pub(crate) struct ExecutionState {
     terminal: bool,
     prompt: Option<PromptExchange>,
     stream_rows: crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
+    sample_streams: BTreeMap<String, SampleStream>,
     confirmed_samples: usize,
     samples_closed: bool,
     local_samples: Vec<crate::telemetry::TelemetrySample>,
@@ -117,6 +120,17 @@ pub(crate) struct BufferedFrame {
 struct PromptExchange {
     prompt_id: PromptId,
     outcome: Option<PromptOutcome>,
+}
+
+#[derive(Default)]
+struct SampleStream {
+    high_water: Option<u64>,
+    recent: VecDeque<RecentSample>,
+}
+
+struct RecentSample {
+    sample_id: String,
+    row: crate::execution::evidence_rows::EvidenceRows<crate::telemetry::TelemetrySample>,
 }
 
 /* === Enums === */
@@ -204,6 +218,7 @@ impl ExecutionState {
             terminal: false,
             prompt: None,
             stream_rows: Default::default(),
+            sample_streams: BTreeMap::new(),
             confirmed_samples: 0,
             samples_closed: false,
             local_samples: Vec::new(),
@@ -230,8 +245,16 @@ impl ExecutionState {
     }
 
     pub(crate) fn validate_sample(&self, sample: &crate::telemetry::TelemetrySample) -> Result<(), String> {
-        if let Some(previous) = self.stream_rows.get(sample.sample_id.as_str())?
-            && let Some(field) = sample_difference(&previous, sample, self.local_inputs)
+        let Some(stream) = self.sample_streams.get(sample.stream.as_str()) else {
+            return Ok(());
+        };
+        let previous = stream.recent.iter().find(|previous| previous.sample_id == sample.sample_id.as_str());
+        let previous = match previous {
+            Some(previous) => previous.row.get(sample.sample_id.as_str())?,
+            None => None,
+        };
+        if let Some(previous) = &previous
+            && let Some(field) = sample_difference(previous, sample, self.local_inputs)
         {
             let key = (field == "values")
                 .then(|| {
@@ -244,6 +267,9 @@ impl ExecutionState {
                 .flatten();
             let suffix = key.map_or_else(String::new, |key| format!(".{key}"));
             return Err(format!("sample identity was reused with different admitted contents: {field}{suffix}"));
+        }
+        if previous.is_none() && stream.high_water.is_some_and(|position| sample.sequence <= position) {
+            return Err("sample stream sequence is out of order".to_owned());
         }
         Ok(())
     }
@@ -640,14 +666,22 @@ impl ExecutionState {
             return Ok(false);
         }
         self.validate_sample(&sample)?;
-        if !self.stream_rows.push(sample.sample_id.as_str(), &sample)? {
-            let confirmed = self.subscriptions_settling && self.stream_rows.confirm(sample.sample_id.as_str())?;
-            self.confirmed_samples += usize::from(confirmed);
-            if confirmed {
+        let stream = self.sample_streams.entry(sample.stream.to_string()).or_default();
+        if let Some(previous) = stream.recent.iter_mut().find(|previous| previous.sample_id == sample.sample_id.as_str()) {
+            if self.subscriptions_settling && previous.row.confirm(sample.sample_id.as_str())? {
+                self.confirmed_samples += 1;
                 self.settled.notify_waiters();
             }
             return Ok(false);
         }
+        let mut row = crate::execution::evidence_rows::EvidenceRows::default();
+        row.push(sample.sample_id.as_str(), &sample)?;
+        self.stream_rows.append(&sample)?;
+        stream.high_water = Some(sample.sequence);
+        if stream.recent.len() == RECENT_STREAM_SAMPLES {
+            stream.recent.pop_front();
+        }
+        stream.recent.push_back(RecentSample { sample_id: sample.sample_id.to_string(), row });
         *self.produced.entry(sample.stream.to_string()).or_default() += 1;
         self.settled.notify_waiters();
         Ok(true)
@@ -1166,12 +1200,73 @@ mod tests {
 
         let mut late = sample;
         late.sample_id = crate::model::identity::new_id();
+        late.sequence += 1;
         assert!(state.receive(late.clone()).unwrap());
         assert_eq!(state.settlement_progress(), 3);
         assert!(!state.receive(late.clone()).unwrap());
         assert_eq!(state.settlement_progress(), 4);
         assert!(!state.receive(late).unwrap());
         assert_eq!(state.settlement_progress(), 4);
+    }
+
+    #[test]
+    fn seven_day_stream_bounds_dedup_and_rejects_out_of_order_rows() {
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let mut state = super::ExecutionState::new(Default::default(), cancel);
+        let stream = Identifier::new("reading").unwrap();
+        let timestamp = Timestamp::new("2000-01-01T00:00:00Z");
+        let first = TelemetrySample::new(
+            dokime_domain::model::identity::TelemetrySampleId::from_seed("minute:0"),
+            stream.clone(),
+            0,
+            timestamp.clone(),
+            "fixture",
+        );
+        for minute in 0..7 * 1440_u64 {
+            let sample = TelemetrySample::new(
+                dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("minute:{minute}")),
+                stream.clone(),
+                minute,
+                timestamp.clone(),
+                "fixture",
+            );
+            assert!(state.receive(sample.clone()).unwrap());
+            assert!(!state.receive(sample).unwrap());
+            let held = &state.sample_streams["reading"];
+            assert!(held.recent.len() <= super::RECENT_STREAM_SAMPLES);
+            assert_eq!(held.high_water, Some(minute));
+        }
+
+        assert_eq!(state.sample_streams.len(), 1);
+        assert_eq!(state.stream_rows.retained_rows(), 0);
+        assert_eq!(state.stream_rows.len(), 7 * 1440);
+        assert_eq!(state.receive(first.clone()).unwrap_err(), "sample stream sequence is out of order");
+        let mut reused_sequence = first;
+        reused_sequence.sample_id = dokime_domain::model::identity::TelemetrySampleId::from_seed("other");
+        reused_sequence.sequence = 7 * 1440 - 1;
+        assert_eq!(state.receive(reused_sequence).unwrap_err(), "sample stream sequence is out of order");
+        let oldest_recent = 7 * 1440 - super::RECENT_STREAM_SAMPLES as u64;
+        let recent = TelemetrySample::new(
+            dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("minute:{oldest_recent}")),
+            stream,
+            oldest_recent,
+            timestamp,
+            "fixture",
+        );
+        assert!(!state.receive(recent.clone()).unwrap());
+        let mut conflicting = recent;
+        conflicting.values.insert("value".into(), Value::from(2.0));
+        assert!(state.receive(conflicting).unwrap_err().starts_with("sample identity was reused"));
+        assert_eq!(state.produced("reading"), 7 * 1440);
+
+        let staged = state.take_staged();
+        for receipt in &state.sample_streams["reading"].recent {
+            assert_eq!(receipt.row.len(), 1);
+            assert_eq!(receipt.row.retained_rows(), 0);
+        }
+        for (minute, sample) in staged.iter().enumerate() {
+            assert_eq!(sample.sequence, minute as u64);
+        }
     }
 
     #[test]

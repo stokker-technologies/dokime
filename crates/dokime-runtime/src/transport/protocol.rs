@@ -329,6 +329,9 @@ pub struct DeliverRecordRequest {
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct DeliverSamplesRequest {
+    // Host Contract: New Rows Arrive In Strictly Increasing Sequence Order Per Stream.
+    // Exact Retries Are Accepted Within The Receiver's 64-Row Recent Window.
+    // Settlement Must Resume After Its Durable Acknowledged Position; Older Rows Are Protocol Errors.
     #[row(
         description = "JSON-encoded [`TelemetrySample`](crate::telemetry::TelemetrySample) values, scope-stamped by the host with the run whose lease they answer."
     )]
