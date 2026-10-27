@@ -64,10 +64,10 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "re
 
 # Utilities
 blake2 = { version = "0.11.0" }
-harmos = { version = "0.1.6", git = "https://github.com/stokker-technologies/harmos.git", rev = "b3b29bb0170c4d98c0ff5b57dfb59f7f798e57af" }
-harmos-domain = { version = "0.1.6", git = "https://github.com/stokker-technologies/harmos.git", rev = "b3b29bb0170c4d98c0ff5b57dfb59f7f798e57af" }
-harmos-packaging = { version = "0.1.6", git = "https://github.com/stokker-technologies/harmos.git", rev = "b3b29bb0170c4d98c0ff5b57dfb59f7f798e57af" }
-harmos-sdk = { version = "0.1.6", git = "https://github.com/stokker-technologies/harmos.git", rev = "b3b29bb0170c4d98c0ff5b57dfb59f7f798e57af" }
+harmos = "0.1.8"
+harmos-domain = "0.1.8"
+harmos-packaging = "0.1.8"
+harmos-sdk = "0.1.8"
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
@@ -88,9 +88,9 @@ windows-sys = { version = "0.61.2" }
 zeroize = { version = "=1.9.1" }
 
 # Serialization
-arrow-array = { version = "=59.3.0" }
-arrow-ipc = { version = "=59.3.0" }
-arrow-schema = { version = "=59.3.0" }
+arrow-array = { version = "=60.0.0" }
+arrow-ipc = { version = "=60.0.0" }
+arrow-schema = { version = "=60.0.0" }
 base64 = { version = "0.23.1" }
 hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
@@ -148,10 +148,10 @@ reqwest = { version = "0.13.5", default-features = false, features = ["json", "r
 rustls = { version = "0.23.46", default-features = false }
 rustls-platform-verifier = { version = "0.7.1" }
 suppaftp = { version = "12.0.0" }
-tonic = { version = "=0.14.6" }
-tonic-prost = { version = "=0.14.6" }
-tonic-prost-build = { version = "=0.14.6" }
-tonic-types = { version = "=0.14.6" }
+tonic = { version = "=0.14.7" }
+tonic-prost = { version = "=0.14.7" }
+tonic-prost-build = { version = "=0.14.7" }
+tonic-types = { version = "=0.14.7" }
 tower = { version = "0.5.3", features = ["util"] }
 unftp-core = { version = "0.1.0" }
 unftp-sbe-fs = { version = "0.4.0" }
